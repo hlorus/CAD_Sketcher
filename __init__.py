@@ -147,10 +147,10 @@ class Preferences(bpy.types.AddonPreferences):
         layout.use_property_split = True
 
         box = layout.box()
-        box.label(text="SolveSpace Module")
+        box.label(text="Solver Module")
         if global_data.registered:
             box.label(text="Registered", icon="CHECKMARK")
-            module = sys.modules["python_solvespace"]
+            module = sys.modules["py_slvs"]
             box.label(text="Path: " + module.__path__[0])
         else:
             row = box.row()
@@ -158,8 +158,15 @@ class Preferences(bpy.types.AddonPreferences):
             split = box.split(factor=0.8)
             split.prop(self, "package_path", text="")
             split.operator(
-                install.View3D_OT_slvs_install_package.bl_idname
+                install.View3D_OT_slvs_install_package.bl_idname,
+                text="Install from File",
             ).package = self.package_path
+
+            row = box.row()
+            row.operator(
+                install.View3D_OT_slvs_install_package.bl_idname,
+                text="Install from PIP",
+            ).package = "py-slvs"
 
         box = layout.box()
         box.label(text="General")

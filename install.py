@@ -50,7 +50,7 @@ def check_module():
     if p not in sys.path:
         sys.path.append(p)
     try:
-        import python_solvespace
+        import py_slvs
 
         global_data.registered = True
         register_full()
@@ -60,7 +60,7 @@ def check_module():
 
 
 class View3D_OT_slvs_install_package(Operator):
-    """Install module from local .whl file"""
+    """Install module from local .whl file or from PyPi"""
 
     bl_idname = "view3d.slvs_install_package"
     bl_label = "Install"
@@ -84,6 +84,7 @@ class View3D_OT_slvs_install_package(Operator):
 
         if functions.install_package(self.package):
             self.report({"INFO"}, "Package successfully installed")
+            check_module()
         else:
             self.report({"WARNING"}, "Cannot install package: {}".format(self.package))
             return {"CANCELLED"}

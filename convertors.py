@@ -2,20 +2,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+from . import class_defines
+
 
 def point_entity_mapping(scene):
-    from sketcher.class_defines import point
 
     # Get a entities per point mapping
     points = []
     entities = []
     for entity in scene.sketcher.entities.all:
-        if type(entity) in point:
+        if type(entity) in class_defines.point:
             continue
         if not hasattr(entity, "connection_points"):
             continue
         for p in entity.connection_points():
-            if type(p) not in point:
+            if type(p) not in class_defines.point:
                 continue
             if p not in points:
                 points.append(p)
@@ -27,9 +28,6 @@ def point_entity_mapping(scene):
                 ents.append(entity)
     assert len(points) == len(entities)
     return points, entities
-
-
-from . import class_defines
 
 
 # TODO: make generic path creator class?

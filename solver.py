@@ -17,9 +17,15 @@ class Status(Enum):
         "Too Many Unknowns",
         "Cannot solve sketch because of too many unknowns",
     )
+    UNKNOWN_FAILURE = (
+        4,
+        "Unknown Failure",
+        "Cannot solve sketch because of unknown failure",
+    )
 
     def __new__(cls, *args, **kwds):
         obj = object.__new__(cls)
+
         obj._value_ = args[0]
         return obj
 
@@ -40,8 +46,8 @@ class Status(Enum):
 
 
 class Solver:
-    group_fixed = 0
-    group_active = 1
+    group_fixed = 1
+    group_active = 2
 
     # iterate over constraints of active group and lazily init required entities
     def __init__(self, context):
@@ -52,11 +58,11 @@ class Solver:
         self.tweak_pos = None
 
         logger.info("--- Start solving ---")
-        from python_solvespace import slvs
+        from py_slvs import slvs
 
-        self.solvesys = slvs.SolverSystem()
+        self.solvesys = slvs.System()
 
-        self.FREE_IN_3D = slvs.Entity.FREE_IN_3D
+        self.FREE_IN_3D = slvs.SLVS_FREE_IN_3D
         self.sketch = context.scene.sketcher.active_sketch
 
         self.ok = False
@@ -73,44 +79,51 @@ class Solver:
 
         for e in context.scene.sketcher.entities.all:
             self.entities.append(e)
+            group = self.group_active if self.is_active(e) else self.group_fixed
 
             # TODO: Dont allow tweaking fixed entities
             if self.tweak_entity and e == self.tweak_entity:
-                self.solvesys.set_group(self.group_active)
+                wp = self.get_workplane()
                 if hasattr(e, "tweak"):
                     e.tweak(self.solvesys, self.tweak_pos)
-                    self.solvesys.dragged(e.py_data, self.get_workplane())
+
+                    self.solvesys.addWhereDragged(e.py_data, wrkpln=wp, group=group)
                 else:
                     if not self.sketch:
-                        p = self.solvesys.add_point_3d(*self.tweak_pos)
+                        params = [
+                            self.solvesys.addParamV(val, group)
+                            for val in self.tweak_pos
+                        ]
+                        p = self.solvesys.addPoint3d(*params, group=group)
                     else:
-                        wp = self.sketch.wp
-                        u, v, _ = wp.matrix_basis.inverted() @ self.tweak_pos
-                        p = self.solvesys.add_point_2d(u, v, wp.py_data)
+                        wrkpln = self.sketch.wp
+                        u, v, _ = wrkpln.matrix_basis.inverted() @ self.tweak_pos
+                        params = [self.solvesys.addParamV(val, group) for val in (u, v)]
+                        p = self.solvesys.addPoint2d(
+                            wrkpln.py_data, *params, group=group
+                        )
 
                     e.create_slvs_data(self.solvesys)
-                    wp = self.get_workplane()
-                    self.solvesys.coincident(p, e.py_data, wp)
-                    self.solvesys.dragged(p, wp)
+
+                    from .class_defines import make_coincident
+
+                    make_coincident(self.solvesys, p, e, wp, group)
+                    self.solvesys.addWhereDragged(p, wrkpln=wp, group=group)
                 continue
 
-            group = self.group_active if self.is_active(e) else self.group_fixed
-            self.solvesys.set_group(group)
-            e.create_slvs_data(self.solvesys)
+            e.create_slvs_data(self.solvesys, group=group)
 
-            if group:
+            if group == self.group_active:
                 logger.debug(e)
 
         logger.debug("Initialize constraints:")
         for c in context.scene.sketcher.constraints.all:
             group = self.group_active if c.is_active(context) else self.group_fixed
-            self.solvesys.set_group(group)
-            c.create_slvs_data(self.solvesys)
 
-            if group:
+            c.create_slvs_data(self.solvesys, group=group)
+
+            if group == self.group_active:
                 logger.debug(c)
-
-        self.solvesys.set_group(self.group_active)
 
     def tweak(self, entity, pos):
         logger.info("tweak: {} to: {}".format(entity, pos))
@@ -161,19 +174,29 @@ class Solver:
     #     return constraints
 
     def solve(self):
-        self.solvesys.set_group(self.group_active)
         self._init_slvs_data()
-        retval = self.solvesys.solve()
+
+        retval = self.solvesys.solve(
+            group=self.group_active, reportFailed=False, findFreeParams=False
+        )
+
+        # NOTE: For some reason solve() might return undocumented values,
+        # Clamp result value to 4
+        if retval > 3:
+            logger.warning("Solver returned undocumented value: {}".format(retval))
+            retval = 4
+
         self.result = Status(retval)
 
         if retval == 0:
             self.ok = True
             for e in self.entities:
                 e.update_from_slvs(self.solvesys)
+                # TODO: skip entities that aren't in active group
 
         logger.log(20 if self.ok else 30, self.result.description)
 
-        fails = self.solvesys.failures()
+        fails = self.solvesys.Failed
         if fails:
             logger.warning("Failed to solve:\n" + str(fails))
 
