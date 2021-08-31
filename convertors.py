@@ -124,7 +124,7 @@ class BezierConvertor:
     def run(self):
         while len(self.sketch_entities):
             start_entity = self.sketch_entities[0]
-            logger.info("Start path walker at", start_entity)
+            logger.info("Start path walker at {}".format(start_entity))
             self.walker(start_entity, self._branch_path())
 
         # TODO: check path, set self.ok
