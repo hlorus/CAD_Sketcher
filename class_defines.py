@@ -712,6 +712,10 @@ class SlvsArc(PropertyGroup, SlvsGenericEntity, Entity2D):
         center, start = self.ct.co, self.start.co
         return math.atan2((start - center)[1], (start - center)[0])
 
+    def placement(self):
+        coords = self.ct.co + Vector(functions.pol2cart(self.radius, self.start_angle+self.angle/2))
+        return self.wp.matrix_basis @ coords.to_3d()
+
     def connection_points(self):
         return [self.start, self.end]
 
@@ -831,6 +835,9 @@ class SlvsCircle(PropertyGroup, SlvsGenericEntity, Entity2D):
 
     def point_on_curve(self, angle):
         return Vector(functions.pol2cart(self.radius, angle)) + self.ct.co
+
+    def placement(self):
+        return self.wp.matrix_basis @ self.point_on_curve(45).to_3d()
 
     def connection_points(self):
         # NOTE: it should probably be possible to lookup coincident points on circle
