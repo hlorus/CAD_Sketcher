@@ -8,7 +8,7 @@ Constraint-based geometry sketcher for blender
 
 ## Addon installation
 
-- Download the ZIP archive from github (do not unpack it after downloading)
+- Download the [ZIP archive](https://github.com/hlorus/geometry_sketcher/archive/refs/heads/main.zip) from github (do not unpack it after downloading)
 - Open Blender and go to: Edit > Preferences > Add-ons > Press "Install..." button
 - Browse to the location of the ZIP and select it, then press "Install Add-on"
 - Enable the addon by pressing the checkbox
