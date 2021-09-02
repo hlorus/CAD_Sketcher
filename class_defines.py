@@ -1157,11 +1157,12 @@ class GenericConstraint:
 
         if workplane and needs_wp != WpReq.FREE:
             return workplane.py_data
-        if needs_wp == WpReq.NOT_FREE:
+        elif needs_wp == WpReq.NOT_FREE:
             return None
-        from py_slvs import slvs
+        else:
+            from py_slvs import slvs
 
-        return slvs.SLVS_FREE_IN_3D
+            return slvs.SLVS_FREE_IN_3D
 
     def entities(self):
         props = []
@@ -1499,13 +1500,20 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
         return WpReq.NOT_FREE
 
     def create_slvs_data(self, solvesys, group=Solver.group_active):
+        kwargs = {
+            "group": group,
+        }
+
+        wp = self.get_workplane()
+        if wp:
+            kwargs["wrkpln"] = wp
+
         solvesys.addAngle(
             self.value,
             self.setting,
             self.entity1.py_data,
             self.entity2.py_data,
-            wrkpln=self.get_workplane(),
-            group=group,
+            **kwargs,
         )
 
     def matrix_basis(self):
