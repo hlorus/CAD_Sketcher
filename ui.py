@@ -8,7 +8,7 @@ class VIEW3D_PT_sketcher(Panel):
     bl_idname = "VIEW3D_PT_sketcher"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = __package__.capitalize()
+    bl_category = "Sketcher"
 
     def draw(self, context):
         layout = self.layout
