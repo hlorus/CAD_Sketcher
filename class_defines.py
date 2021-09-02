@@ -713,7 +713,9 @@ class SlvsArc(PropertyGroup, SlvsGenericEntity, Entity2D):
         return math.atan2((start - center)[1], (start - center)[0])
 
     def placement(self):
-        coords = self.ct.co + Vector(functions.pol2cart(self.radius, self.start_angle+self.angle/2))
+        coords = self.ct.co + Vector(
+            functions.pol2cart(self.radius, self.start_angle + self.angle / 2)
+        )
         return self.wp.matrix_basis @ coords.to_3d()
 
     def connection_points(self):
@@ -1512,9 +1514,11 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
         line1 = self.entity1
         line2 = self.entity2
 
-        origin = intersect_line_line_2d(
-            line1.p1.co, line1.p2.co, line2.p1.co, line2.p2.co
+        origin = functions.get_line_intersection(
+            *functions.slope_intercept_form(line1.p1.co, line1.p2.co),
+            *functions.slope_intercept_form(line2.p1.co, line2.p2.co),
         )
+
         rotation = functions.range_2pi(
             (self.orientation(line2) + self.orientation(line1)) / 2
         )

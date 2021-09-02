@@ -223,3 +223,16 @@ def get_2d_coords(context, pos):
     region = context.region
     rv3d = context.space_data.region_3d
     return location_3d_to_region_2d(region, rv3d, pos)
+
+
+def slope_intercept_form(p1, p2):
+    """Get the slope-intercept of a line from it's endpoints"""
+    m = (p1.y - p2.y) / (p1.x - p2.x)
+    b = p1.y - m * p1.x
+    return m, b
+
+
+def get_line_intersection(m1, b1, m2, b2):
+    x = (b2 - b1) / (m1 - m2)
+    y = m1 * x + b1
+    return Vector((x, y))
