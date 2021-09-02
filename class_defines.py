@@ -576,6 +576,9 @@ class SlvsLine2D(PropertyGroup, SlvsGenericEntity, Entity2D):
 
         return endpoint
 
+    def midpoint(self):
+        return (self.p1.co + self.p2.co) / 2
+
 
 slvs_entity_pointer(SlvsLine2D, "p1")
 slvs_entity_pointer(SlvsLine2D, "p2")
@@ -1541,6 +1544,17 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
         angle = self.orientation(line2) - self.orientation(line1)
         angle = abs(math.degrees(angle))
         self.value = angle
+
+        # Get the radius
+        origin = functions.get_line_intersection(
+            *functions.slope_intercept_form(line1.p1.co, line1.p2.co),
+            *functions.slope_intercept_form(line2.p1.co, line2.p2.co),
+        )
+
+        self.draw_offset = max(
+            (line1.midpoint() - origin).length, (line2.midpoint() - origin).length
+        )
+
         return angle, None
 
     def update_draw_offset(self, pos, ui_scale):

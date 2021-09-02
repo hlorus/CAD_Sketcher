@@ -221,7 +221,9 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
 
     def _create_shape(self, context, select=False):
         angle = math.radians(self.constr.value)
-        radius = self.target_get_value("offset")
+
+        # NOTE: magic factor 0.65, why is this needed?!
+        radius = self.target_get_value("offset") * 0.80
         overshoot = math.copysign(0.04, radius)
 
         helplines = (
@@ -444,7 +446,6 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 gz = self.gizmos.new(VIEW3D_GT_slvs_constraint.bl_idname)
                 gz.type = c.type
                 gz.index = context.scene.sketcher.constraints.get_index(c)
-                gz.scale_basis = 5
 
                 pos = functions.get_2d_coords(context, e.placement())
 
