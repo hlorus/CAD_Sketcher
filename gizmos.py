@@ -150,6 +150,22 @@ class ConstarintGizmoGeneric:
 # however the geom changes with the distance value, maybe atleast track changes for that value
 # if not hasattr(self, "custom_shape"):
 
+from mathutils import Matrix
+
+
+def draw_arrow_shape(target, shoulder, width, is_3d=False):
+    v = shoulder - target
+    mat = Matrix.Rotation(math.pi / 2, (3 if is_3d else 2), 'Z')
+    v.rotate(mat)
+    v.length = width / 2
+
+    return (
+        target,
+        ((shoulder + v)),
+        ((shoulder - v)),
+        target,
+    )
+
 
 class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
     bl_idname = "VIEW3D_GT_slvs_distance"
@@ -175,9 +191,16 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
             (dist, 0.0, 0.0),
         )
 
+        p1 = Vector((-dist, offset, 0.0))
+        p2 = Vector((dist, offset, 0.0))
+
+        length = min(0.2, dist*0.8)
+        width = length * 0.4
         coords = (
-            (-dist, offset, 0.0),
-            (dist, offset, 0.0),
+            *draw_arrow_shape(p1, p1 + Vector((length, 0, 0)), width, is_3d=True),
+            p1,
+            p2,
+            *draw_arrow_shape(p2, p2 - Vector((length, 0, 0)), width, is_3d=True),
             *(helplines if not select else ()),
         )
 
@@ -208,10 +231,33 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
             functions.pol2cart(radius + overshoot, -angle / 2),
         )
 
+        offset=(-angle / 2)
+
+        length = min(0.2, 0.8 * math.pi * radius * self.constr.value / 360)
+        width = length * 0.4
+
+        u = math.pi * radius * 2
+        a = (length * 360 / u)
+
+        arrow_angle = math.radians(90 + a / 2)
+
+        p1 = Vector(functions.pol2cart(radius, offset))
+        p1_s = p1.copy()
+        p1_s.rotate(Matrix.Rotation(arrow_angle, 2, 'Z'))
+        p1_s.length = length
+
+        p2 = Vector(functions.pol2cart(radius, offset+angle))
+        p2_s = p2.copy()
+        p2_s.rotate(Matrix.Rotation(-arrow_angle, 2, 'Z'))
+        p2_s.length = length
+
+
         coords = (
+            *draw_arrow_shape(p1, p1 + p1_s, width),
             *functions.coords_arc_2d(
-                0, 0, radius, 32, angle=angle, offset=(-angle / 2), type="LINES"
+                0, 0, radius, 32, angle=angle, offset=offset, type="LINES"
             ),
+            *draw_arrow_shape(p2, p2 + p2_s, width),
             *(helplines if not select else ()),
         )
 
@@ -234,9 +280,16 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         angle = math.radians(self.target_get_value("offset"))
         dist = self.constr.value / 2 / context.preferences.system.ui_scale
 
+        length = min(0.2, dist*0.8)
+        width = length * 0.4
+
+        p1 = Vector(functions.pol2cart(-dist, angle))
+        p2 = Vector(functions.pol2cart(dist, angle))
         coords = (
-            functions.pol2cart(-dist, angle),
-            functions.pol2cart(dist, angle),
+            *draw_arrow_shape(p1, Vector(functions.pol2cart(length - dist, angle)), width),
+            p1,
+            p2,
+            *draw_arrow_shape(p2, Vector(functions.pol2cart(dist - length, angle)), width),
         )
 
         self.custom_shape = self.new_custom_shape("LINES", coords)
