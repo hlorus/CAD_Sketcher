@@ -59,7 +59,8 @@ custom_shape_verts = (
 )
 
 GIZMO_OFFSET = Vector((10.0, 10.0))
-GIZMO_ROW_OFFSET = Vector((15.0, 0.0))
+GIZMO_GENERIC_SCALE = 5
+GIZMO_ROW_OFFSET = Vector((GIZMO_GENERIC_SCALE * 2.2, 0.0))
 
 
 class VIEW3D_GT_slvs_constraint(Gizmo):
@@ -376,9 +377,9 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 pos = functions.get_2d_coords(context, e.placement())
 
                 gz.entity_index = e.slvs_index
-                gz.offset = GIZMO_ROW_OFFSET * i
+                gz.offset = GIZMO_ROW_OFFSET * i * context.preferences.system.ui_scale
 
-                gz.scale_basis = 5
+                gz.scale_basis = GIZMO_GENERIC_SCALE
                 gz.color = 1.0, 0.5, 0.0
                 gz.alpha = 0.5
                 gz.color_highlight = 1.0, 1.0, 1.0
