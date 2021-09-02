@@ -59,7 +59,9 @@ class VIEW3D_MT_context_menu(Menu):
             layout.label(text="Is Origin: " + str(entity.origin))
             layout.separator()
 
-            layout.prop(entity, "visible")
+            if functions.get_prefs().show_debug_settings:
+                layout.prop(entity, "visible")
+
             layout.prop(entity, "fixed")
             layout.prop(entity, "construction")
             layout.separator()

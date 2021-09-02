@@ -149,7 +149,8 @@ class SlvsGenericEntity:
     def is_visible(self, context):
         if self.origin:
             return context.scene.sketcher.show_origin
-        return self.visible
+
+        return True if not functions.get_prefs().show_debug_settings else self.visible
 
     def draw(self, context):
         if not self.is_visible(context):
