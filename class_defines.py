@@ -1526,8 +1526,8 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
         line2 = self.entity2
 
         origin = functions.get_line_intersection(
-            *functions.slope_intercept_form(line1.p1.co, line1.p2.co),
-            *functions.slope_intercept_form(line2.p1.co, line2.p2.co),
+            *functions.line_abc_form(line1.p1.co, line1.p2.co),
+            *functions.line_abc_form(line2.p1.co, line2.p2.co),
         )
 
         rotation = functions.range_2pi(
@@ -1555,8 +1555,8 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
 
         # Get the radius
         origin = functions.get_line_intersection(
-            *functions.slope_intercept_form(line1.p1.co, line1.p2.co),
-            *functions.slope_intercept_form(line2.p1.co, line2.p2.co),
+            *functions.line_abc_form(line1.p1.co, line1.p2.co),
+            *functions.line_abc_form(line2.p1.co, line2.p2.co),
         )
 
         self.draw_offset = max(

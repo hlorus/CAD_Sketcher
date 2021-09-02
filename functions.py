@@ -225,14 +225,18 @@ def get_2d_coords(context, pos):
     return location_3d_to_region_2d(region, rv3d, pos)
 
 
-def slope_intercept_form(p1, p2):
-    """Get the slope-intercept of a line from it's endpoints"""
-    m = (p1.y - p2.y) / (p1.x - p2.x)
-    b = p1.y - m * p1.x
-    return m, b
+def line_abc_form(p1, p2):
+    A = p2.y - p1.y
+    B = p1.x - p2.x
+    return A, B, A * p1.x + B * p1.y
 
 
-def get_line_intersection(m1, b1, m2, b2):
-    x = (b2 - b1) / (m1 - m2)
-    y = m1 * x + b1
-    return Vector((x, y))
+def get_line_intersection(A1, B1, C1, A2, B2, C2):
+    det = A1 * B2 - A2 * B1
+    if det == 0:
+        # Parallel lines
+        return Vector((math.inf, math.inf))
+    else:
+        x = (B2 * C1 - B1 * C2) / det
+        y = (A1 * C2 - A2 * C1) / det
+        return Vector((x, y))
