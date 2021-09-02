@@ -1544,7 +1544,7 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
         return angle, None
 
     def update_draw_offset(self, pos, ui_scale):
-        self.draw_offset = math.hypot(pos[0], pos[1]) / ui_scale
+        self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
 
 
 slvs_entity_pointer(SlvsAngle, "entity1")
