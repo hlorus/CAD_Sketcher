@@ -194,7 +194,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
         p1 = Vector((-dist, offset, 0.0))
         p2 = Vector((dist, offset, 0.0))
 
-        length = min(0.2, dist * 0.8)
+        length = math.copysign(min(0.2, abs(dist * 0.8)), dist)
         width = length * 0.4
         coords = (
             *draw_arrow_shape(p1, p1 + Vector((length, 0, 0)), width, is_3d=True),
@@ -281,7 +281,7 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         angle = math.radians(self.target_get_value("offset"))
         dist = self.constr.value / 2 / context.preferences.system.ui_scale
 
-        length = min(0.2, dist * 0.8)
+        length = math.copysign(min(0.2, abs(dist * 0.8)), dist)
         width = length * 0.4
 
         p1 = Vector(functions.pol2cart(-dist, angle))
