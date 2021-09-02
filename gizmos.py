@@ -155,9 +155,9 @@ from mathutils import Matrix
 
 def draw_arrow_shape(target, shoulder, width, is_3d=False):
     v = shoulder - target
-    mat = Matrix.Rotation(math.pi / 2, (3 if is_3d else 2), 'Z')
+    mat = Matrix.Rotation(math.pi / 2, (3 if is_3d else 2), "Z")
     v.rotate(mat)
-    v.length = width / 2
+    v.length = abs(width / 2)
 
     return (
         target,
@@ -194,7 +194,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
         p1 = Vector((-dist, offset, 0.0))
         p2 = Vector((dist, offset, 0.0))
 
-        length = min(0.2, dist*0.8)
+        length = min(0.2, dist * 0.8)
         width = length * 0.4
         coords = (
             *draw_arrow_shape(p1, p1 + Vector((length, 0, 0)), width, is_3d=True),
@@ -231,26 +231,25 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
             functions.pol2cart(radius + overshoot, -angle / 2),
         )
 
-        offset=(-angle / 2)
+        offset = -angle / 2
 
-        length = min(0.2, 0.8 * math.pi * radius * self.constr.value / 360)
+        length = min(0.2, abs(0.8 * math.pi * radius * self.constr.value / 360))
         width = length * 0.4
 
         u = math.pi * radius * 2
-        a = (length * 360 / u)
+        a = abs(length * 360 / u)
 
         arrow_angle = math.radians(90 + a / 2)
 
         p1 = Vector(functions.pol2cart(radius, offset))
         p1_s = p1.copy()
-        p1_s.rotate(Matrix.Rotation(arrow_angle, 2, 'Z'))
-        p1_s.length = length
+        p1_s.rotate(Matrix.Rotation(arrow_angle, 2, "Z"))
+        p1_s.length = abs(length)
 
-        p2 = Vector(functions.pol2cart(radius, offset+angle))
+        p2 = Vector(functions.pol2cart(radius, offset + angle))
         p2_s = p2.copy()
-        p2_s.rotate(Matrix.Rotation(-arrow_angle, 2, 'Z'))
-        p2_s.length = length
-
+        p2_s.rotate(Matrix.Rotation(-arrow_angle, 2, "Z"))
+        p2_s.length = abs(length)
 
         coords = (
             *draw_arrow_shape(p1, p1 + p1_s, width),
@@ -280,16 +279,20 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         angle = math.radians(self.target_get_value("offset"))
         dist = self.constr.value / 2 / context.preferences.system.ui_scale
 
-        length = min(0.2, dist*0.8)
+        length = min(0.2, dist * 0.8)
         width = length * 0.4
 
         p1 = Vector(functions.pol2cart(-dist, angle))
         p2 = Vector(functions.pol2cart(dist, angle))
         coords = (
-            *draw_arrow_shape(p1, Vector(functions.pol2cart(length - dist, angle)), width),
+            *draw_arrow_shape(
+                p1, Vector(functions.pol2cart(length - dist, angle)), width
+            ),
             p1,
             p2,
-            *draw_arrow_shape(p2, Vector(functions.pol2cart(dist - length, angle)), width),
+            *draw_arrow_shape(
+                p2, Vector(functions.pol2cart(dist - length, angle)), width
+            ),
         )
 
         self.custom_shape = self.new_custom_shape("LINES", coords)
@@ -312,10 +315,12 @@ class VIEW3D_GGT_slvs_preselection(GizmoGroup):
     def setup(self, context):
         self.gizmo = self.gizmos.new(VIEW3D_GT_slvs_preselection.bl_idname)
 
+
 specific_constraint_types = ("angle", "diameter", "distance")
 
+
 def generic_constraints(context):
-    """ Iterate through constraints which don't have a specific gizmo """
+    """Iterate through constraints which don't have a specific gizmo"""
     constrs = context.scene.sketcher.constraints
     for prop_list in constrs.rna_type.properties:
         name = prop_list.identifier
@@ -325,6 +330,7 @@ def generic_constraints(context):
 
         for entity in list:
             yield entity
+
 
 # TODO: This could alrady Skip entities and constraints that are not active
 # TODO: only store indices instead of actual objects
