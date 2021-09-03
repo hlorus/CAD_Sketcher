@@ -32,12 +32,14 @@ class VIEW3D_PT_sketcher(Panel):
         layout.separator()
         layout.operator_context = "EXEC_DEFAULT"
 
-        if functions.get_prefs().show_debug_settings:
+        prefs = functions.get_prefs()
+        if prefs.show_debug_settings:
             layout.label(text="Debug:")
             layout.operator(operators.VIEW3D_OT_slvs_write_selection_texture.bl_idname)
             layout.operator(operators.View3D_OT_slvs_solve.bl_idname)
             layout.prop(context.scene.sketcher, "show_origin")
-
+            layout.prop(prefs, "fade_inactive_geometry")
+            layout.prop(prefs, "hide_inactive_constraints")
 
 from . import global_data
 

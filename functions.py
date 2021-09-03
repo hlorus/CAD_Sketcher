@@ -240,3 +240,7 @@ def get_line_intersection(A1, B1, C1, A2, B2, C2):
         x = (B2 * C1 - B1 * C2) / det
         y = (A1 * C2 - A2 * C1) / det
         return Vector((x, y))
+
+def update_cb(self, context):
+    # update gizmos!
+    context.space_data.show_gizmo = True

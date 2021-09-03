@@ -128,7 +128,11 @@ class SlvsGenericEntity:
         prefs = functions.get_prefs()
         ts = prefs.theme_settings
         if not self.is_active(context):
-            return ts.entity.inactive
+            return (
+                ts.entity.inactive
+                if prefs.fade_inactive_geometry
+                else ts.entity.default
+            )
         if self.selected:
             if self.hover:
                 return ts.entity.selected_hovered
@@ -1184,7 +1188,8 @@ class GenericConstraint:
 
     def is_active(self, context):
         if not hasattr(self, "sketch"):
-            pass
+            return True
+
         active_sketch_i = context.scene.sketcher.active_sketch_i
         if self.sketch:
             return self.sketch.slvs_index == active_sketch_i
@@ -1950,12 +1955,10 @@ class SketcherProps(PropertyGroup):
             yield c
 
 
-def update_cb(self, context):
-    # update gizmos!
-    context.space_data.show_gizmo = True
 
 
-slvs_entity_pointer(SketcherProps, "active_sketch", update=update_cb)
+
+slvs_entity_pointer(SketcherProps, "active_sketch", update=functions.update_cb)
 
 
 classes = (

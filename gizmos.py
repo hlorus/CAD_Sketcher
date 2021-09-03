@@ -135,14 +135,15 @@ class ConstarintGizmoGeneric:
         pass
 
     def draw(self, context):
-        self.constr = self._get_constraint(context)
-        self._update_matrix_basis(self.constr)
+        constr = self._get_constraint(context)
+        self._update_matrix_basis(constr)
 
-        self._create_shape(context)
+        self._create_shape(context, constr)
         self.draw_custom_shape(self.custom_shape)
 
     def draw_select(self, context, select_id):
-        self._create_shape(context, select=True)
+        constr = self._get_constraint(context)
+        self._create_shape(context, constr, select=True)
         self.draw_custom_shape(self.custom_shape, select_id=select_id)
 
 
@@ -174,13 +175,12 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
     bl_target_properties = ({"id": "offset", "type": "FLOAT", "array_length": 1},)
 
     __slots__ = (
-        "constr",
         "custom_shape",
         "index",
     )
 
-    def _create_shape(self, context, select=False):
-        dist = self.constr.value / 2 / context.preferences.system.ui_scale
+    def _create_shape(self, context, constr, select=False):
+        dist = constr.value / 2 / context.preferences.system.ui_scale
         offset = self.target_get_value("offset")
         overshoot = math.copysign(0.04, offset)
 
@@ -214,13 +214,12 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
     bl_target_properties = ({"id": "offset", "type": "FLOAT", "array_length": 1},)
 
     __slots__ = (
-        "constr",
         "custom_shape",
         "index",
     )
 
-    def _create_shape(self, context, select=False):
-        angle = math.radians(self.constr.value)
+    def _create_shape(self, context, constr, select=False):
+        angle = math.radians(constr.value)
 
         # NOTE: magic factor 0.65, why is this needed?!
         radius = self.target_get_value("offset") * 0.80
@@ -235,7 +234,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
 
         offset = -angle / 2
 
-        length = min(0.2, abs(0.8 * math.pi * radius * self.constr.value / 360))
+        length = min(0.2, abs(0.8 * math.pi * radius * constr.value / 360))
         width = length * 0.4
 
         u = math.pi * radius * 2
@@ -272,14 +271,13 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
     bl_target_properties = ({"id": "offset", "type": "FLOAT", "array_length": 1},)
 
     __slots__ = (
-        "constr",
         "custom_shape",
         "index",
     )
 
-    def _create_shape(self, context, select=False):
+    def _create_shape(self, context, constr, select=False):
         angle = math.radians(self.target_get_value("offset"))
-        dist = self.constr.value / 2 / context.preferences.system.ui_scale
+        dist = constr.value / 2 / context.preferences.system.ui_scale
 
         length = math.copysign(min(0.2, abs(dist * 0.8)), dist)
         width = length * 0.4
@@ -365,7 +363,10 @@ class ConstraintGenericGGT:
 
     def setup(self, context):
         for c in self._list_from_type(context):
-            if not c.is_active(context):
+            if (
+                not c.is_active(context)
+                and functions.get_prefs().hide_inactive_constraints
+            ):
                 continue
             gz = self.gizmos.new(self.gizmo_type)
             gz.index = context.scene.sketcher.constraints.get_index(c)
@@ -439,7 +440,10 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         for e, constrs in zip(entities, constraints):
             if not hasattr(e, "placement"):
                 continue
-            if not e.is_active(context):
+            if (
+                not e.is_active(context)
+                and functions.get_prefs().hide_inactive_constraints
+            ):
                 continue
 
             for i, c in enumerate(constrs):
