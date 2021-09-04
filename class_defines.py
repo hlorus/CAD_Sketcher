@@ -456,6 +456,12 @@ class SlvsSketch(PropertyGroup, SlvsGenericEntity):
     def create_slvs_data(self, solvesys, group=Solver.group_active):
         pass
 
+    def remove_objects(self):
+        for ob in (self.target_object, self.target_curve_object):
+            if not ob:
+                continue
+            bpy.data.objects.remove(ob)
+
 
 slvs_entity_pointer(SlvsSketch, "wp")
 
@@ -1953,9 +1959,6 @@ class SketcherProps(PropertyGroup):
             yield e
         for c in self.constraints.all:
             yield c
-
-
-
 
 
 slvs_entity_pointer(SketcherProps, "active_sketch", update=functions.update_cb)

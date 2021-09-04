@@ -21,6 +21,15 @@ class VIEW3D_PT_sketcher(Panel):
             layout.prop(sketch, "name")
             layout.prop(sketch, "convert_type")
 
+            layout.operator_context = "EXEC_DEFAULT"
+            layout.operator(
+                operators.View3D_OT_slvs_delete_entity.bl_idname,
+                text="Delete Sketch",
+                icon="CANCEL",
+            ).index = sketch.slvs_index
+
+            layout.operator_context = "INVOKE_DEFAULT"
+
         layout.separator()
 
         layout.label(text="Add:")
@@ -40,6 +49,7 @@ class VIEW3D_PT_sketcher(Panel):
             layout.prop(context.scene.sketcher, "show_origin")
             layout.prop(prefs, "fade_inactive_geometry")
             layout.prop(prefs, "hide_inactive_constraints")
+
 
 from . import global_data
 

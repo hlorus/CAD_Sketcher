@@ -1131,6 +1131,52 @@ class View3D_OT_invoke_tool(Operator):
         return {"FINISHED"}
 
 
+def activate_sketch(context, index, operator):
+    props = context.scene.sketcher
+
+    if index == props.active_sketch_i:
+        return {"CANCELLED"}
+
+    space_data = context.space_data
+
+    sk = None
+    if index != -1:
+        sk = context.scene.sketcher.entities.get(index)
+        if not sk:
+            operator.report({"ERROR"}, "Invalid index: {}".format(index))
+            return {"CANCELLED"}
+
+        space_data.show_object_viewport_curve = False
+        space_data.show_object_viewport_mesh = False
+    else:
+        space_data.show_object_viewport_curve = True
+        space_data.show_object_viewport_mesh = True
+
+    logger.debug("Activate: {}".format(sk))
+    props.active_sketch_i = index
+
+    update_convertor_geometry(context.scene)
+    context.area.tag_redraw()
+    return {"FINISHED"}
+
+
+class View3D_OT_slvs_set_active_sketch(Operator):
+    """Set active Sketch"""
+
+    bl_idname = "view3d.slvs_set_active_sketch"
+    bl_label = "Set active Sketch"
+    bl_options = {"UNDO"}
+
+    index: IntProperty(default=-1)
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        return activate_sketch(context, self.index, self)
+
+
 def flatten_deps(entity):
     """Return flattened list of entities given entity depends on"""
     list = []
@@ -1159,6 +1205,14 @@ def is_referenced(entity, context):
     return False
 
 
+def get_deps_indices(entity, context):
+    deps = []
+    for e in context.scene.sketcher.entities.all:
+        if entity in flatten_deps(e):
+            deps.append(e.slvs_index)
+    return deps
+
+
 class View3D_OT_slvs_delete_entity(Operator):
     bl_idname = "view3d.slvs_delete_entity"
     bl_label = "Delete Solvespace Entity"
@@ -1179,13 +1233,28 @@ class View3D_OT_slvs_delete_entity(Operator):
         if not entity:
             return {"CANCELLED"}
 
-        if is_referenced(entity, context):
-            self.report(
+        if isinstance(entity, class_defines.SlvsSketch):
+            if context.scene.sketcher.active_sketch_i != -1:
+                activate_sketch(context, -1, operator)
+                entity.remove_objects()
+
+            deps = get_deps_indices(entity, context)
+            deps.sort(reverse=True)
+
+            for i in deps:
+                operator.delete(entities.get(i), context)
+
+        elif is_referenced(entity, context):
+            operator.report(
                 {"WARNING"},
                 "Cannot delete {}, other entities depend on it.".format(entity),
             )
             return {"CANCELLED"}
 
+        operator.delete(entity, context)
+
+    @staticmethod
+    def delete(entity, context):
         # TODO: Some data (Select state, hover, ...) is stored based on index,
         # Clear that data when changing pointers!
 
@@ -1203,6 +1272,7 @@ class View3D_OT_slvs_delete_entity(Operator):
             constraints.remove(c)
 
         logger.debug("Delete: {}".format(entity))
+        entities = context.scene.sketcher.entities
         entities.remove(entity.slvs_index)
 
     def invoke(self, context, event):
@@ -1212,7 +1282,7 @@ class View3D_OT_slvs_delete_entity(Operator):
 
         indices.sort(reverse=True)
         for i in indices:
-            self.main(context, i, self)
+            self.delete(context.scene.sketcher.entities.get(i), context)
 
         refresh(context)
         return {"FINISHED"}
@@ -1460,49 +1530,6 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
         return {"FINISHED"}
 
 
-class View3D_OT_slvs_set_active_sketch(Operator):
-    """Set active Sketch"""
-
-    bl_idname = "view3d.slvs_set_active_sketch"
-    bl_label = "Set active Sketch"
-    bl_options = {"UNDO"}
-
-    index: IntProperty(default=-1)
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    def execute(self, context):
-        props = context.scene.sketcher
-        index = self.index
-
-        if self.index == props.active_sketch_i:
-            return {"CANCELLED"}
-
-        space_data = context.space_data
-
-        sk = None
-        if index != -1:
-            sk = context.scene.sketcher.entities.get(index)
-            if not sk:
-                self.report({"ERROR"}, "Invalid index: {}".format(self.index))
-                return {"CANCELLED"}
-
-            space_data.show_object_viewport_curve = False
-            space_data.show_object_viewport_mesh = False
-        else:
-            space_data.show_object_viewport_curve = True
-            space_data.show_object_viewport_mesh = True
-
-        logger.debug("Activate: {}".format(sk))
-        props.active_sketch_i = self.index
-
-        update_convertor_geometry(context.scene)
-        context.area.tag_redraw()
-        return {"FINISHED"}
-
-
 def update_convertor_geometry(scene):
     for sketch in scene.sketcher.entities.sketches:
         if sketch.convert_type == "NONE":
@@ -1583,11 +1610,11 @@ classes = (
     View3D_OT_slvs_add_circle2d,
     View3D_OT_slvs_add_arc2d,
     View3D_OT_invoke_tool,
+    View3D_OT_slvs_set_active_sketch,
     View3D_OT_slvs_delete_entity,
     VIEW3D_OT_slvs_add_constraint,
     View3D_OT_slvs_solve,
     View3D_OT_slvs_delete_constraint,
-    View3D_OT_slvs_set_active_sketch,
     View3D_OT_slvs_tweak_constraint_value_pos,
 )
 
