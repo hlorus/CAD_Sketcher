@@ -1,9 +1,10 @@
 # Geometry Sketcher
 Constraint-based geometry sketcher for blender
 
+Discussion and feedback:
+https://discord.gg/GzpJsShgxa
 
 > :warning: **Experimental addon:** don't save production files with it or keep a backup.
-
 
 
 ## Addon installation
