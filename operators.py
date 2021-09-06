@@ -782,6 +782,13 @@ def pick_workplane(self, context, event):
     return hovered
 
 
+def ensure_preselect_gizmo(self, context, event):
+    tool = context.workspace.tools.from_space_view3d_mode(context.mode)
+    if tool.widget != gizmos.VIEW3D_GGT_slvs_preselection.bl_idname:
+        bpy.ops.wm.tool_set_by_id(name="sketcher.slvs_select")
+    return True
+
+
 def prepare_origin_elements(self, context, event):
     context.scene.sketcher.entities.ensure_origin_elements(context)
     context.scene.sketcher.show_origin = True
@@ -800,6 +807,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator_3d, StatefulOperator):
     bl_options = {"UNDO"}
 
     states = (
+        state_from_args("ENSURE_select", func=ensure_preselect_gizmo, no_event=True),
         state_from_args("SHOW_origin", func=prepare_origin_elements, no_event=True),
         state_from_args(
             "PICK_wp",
@@ -812,11 +820,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator_3d, StatefulOperator):
 
     @classmethod
     def poll(cls, context):
-        # Only if preselection gizmo is running
-        tool = context.workspace.tools.from_space_view3d_mode(context.mode)
-        if tool.widget != gizmos.VIEW3D_GGT_slvs_preselection.bl_idname:
-            return False
-        return context.scene.sketcher.active_sketch_i == -1
+        return True
 
     def execute(self, context):
         sse = context.scene.sketcher.entities
