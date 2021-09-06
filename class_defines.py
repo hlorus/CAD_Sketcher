@@ -1561,9 +1561,13 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
     def init_props(self, args):
         # Set initial angle value to the current angle
         line1, line2 = args
-        angle = self.orientation(line2) - self.orientation(line1)
-        angle = abs(math.degrees(angle))
+        angle = abs(math.degrees(self.orientation(line2) - self.orientation(line1)))
+
+        setting = bool(angle // 90 % 2)
+        angle = min(angle % 180, 180 - angle % 180)
+
         self.value = angle
+        self.setting = setting
 
         # Get the radius
         origin = functions.get_line_intersection(
@@ -1571,11 +1575,12 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
             *functions.line_abc_form(line2.p1.co, line2.p2.co),
         )
 
-        self.draw_offset = max(
-            (line1.midpoint() - origin).length, (line2.midpoint() - origin).length
+        dist = max(
+            (line1.midpoint() - origin).length, (line2.midpoint() - origin).length, 0.5
         )
+        self.draw_offset = dist if not setting else -dist
 
-        return angle, None
+        return angle, setting
 
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
