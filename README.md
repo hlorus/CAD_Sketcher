@@ -1,10 +1,11 @@
 # Geometry Sketcher
-Constraint-based geometry sketcher for blender
+Constraint-based sketcher addon for [Blender](https://www.blender.org/download/) that allows to create precise 2d shapes by defining a set of geometric constraints like tangent, distance, angle, equal and more. Sketches stay editable and support a fully non-destructive workflow.
 
-Discussion and feedback:
-https://discord.gg/GzpJsShgxa
+Minimum version: Blender 2.92
 
-> :warning: **Experimental addon:** don't save production files with it or keep a backup.
+Discussion and feedback: [Discord](https://discord.gg/GzpJsShgxa)
+
+> :warning: **Experimental addon:** This is still work in progress, don't use it on production files without a backup.
 
 
 ## Addon installation
