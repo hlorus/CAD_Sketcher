@@ -1221,7 +1221,9 @@ class View3D_OT_slvs_delete_entity(Operator):
     bl_idname = "view3d.slvs_delete_entity"
     bl_label = "Delete Solvespace Entity"
     bl_options = {"UNDO"}
-    bl_description = "Delete Entity"
+    bl_description = (
+        "Delete Entity by index or based on the selection if index isn't provided"
+    )
 
     index: IntProperty(default=-1)
 
@@ -1240,7 +1242,7 @@ class View3D_OT_slvs_delete_entity(Operator):
         if isinstance(entity, class_defines.SlvsSketch):
             if context.scene.sketcher.active_sketch_i != -1:
                 activate_sketch(context, -1, operator)
-                entity.remove_objects()
+            entity.remove_objects()
 
             deps = get_deps_indices(entity, context)
             deps.sort(reverse=True)
@@ -1279,20 +1281,24 @@ class View3D_OT_slvs_delete_entity(Operator):
         entities = context.scene.sketcher.entities
         entities.remove(entity.slvs_index)
 
-    def invoke(self, context, event):
-        indices = []
-        for e in context.scene.sketcher.entities.selected_entities:
-            indices.append(e.slvs_index)
-
-        indices.sort(reverse=True)
-        for i in indices:
-            self.delete(context.scene.sketcher.entities.get(i), context)
-
-        refresh(context)
-        return {"FINISHED"}
-
     def execute(self, context):
-        self.main(context, self.index, self)
+        index = self.index
+
+        if index != -1:
+            self.main(context, index, self)
+        else:
+            indices = []
+            for e in context.scene.sketcher.entities.selected_entities:
+                indices.append(e.slvs_index)
+
+            indices.sort(reverse=True)
+            for i in indices:
+                e = context.scene.sketcher.entities.get(i)
+
+                # NOTE: this might be slow when alot of entities are selected, improve!
+                if is_referenced(e, context):
+                    continue
+                self.delete(e, context)
 
         refresh(context)
         return {"FINISHED"}

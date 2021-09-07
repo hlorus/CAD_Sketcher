@@ -28,14 +28,13 @@ class VIEW3D_UL_sketches(UIList):
                 ).index = item.slvs_index
 
                 # NOTE: doesn't work currently
-                # layout.operator_context = "EXEC_DEFAULT"
                 # row.operator(
                 #     operators.View3D_OT_slvs_delete_entity.bl_idname,
                 #     text="",
                 #     icon="X",
                 #     emboss=False,
                 # )
-                # layout.operator_context = "INVOKE_DEFAULT"
+
             else:
                 layout.label(text="", translate=False, icon_value=icon)
         elif self.layout_type in {"GRID"}:
@@ -62,14 +61,11 @@ class VIEW3D_PT_sketcher(Panel):
             row.prop(sketch, "name")
             layout.prop(sketch, "convert_type")
 
-            layout.operator_context = "EXEC_DEFAULT"
             layout.operator(
                 operators.View3D_OT_slvs_delete_entity.bl_idname,
                 text="Delete Sketch",
                 icon="X",
             ).index = sketch.slvs_index
-
-            layout.operator_context = "INVOKE_DEFAULT"
 
         else:
             layout.template_list(
@@ -90,7 +86,6 @@ class VIEW3D_PT_sketcher(Panel):
         layout.label(text="Constraints:")
         layout.operator_enum(operators.VIEW3D_OT_slvs_add_constraint.bl_idname, "type")
         layout.separator()
-        layout.operator_context = "EXEC_DEFAULT"
 
         prefs = functions.get_prefs()
         if prefs.show_debug_settings:
