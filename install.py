@@ -72,11 +72,12 @@ class View3D_OT_slvs_install_package(Operator):
         return not global_data.registered
 
     def execute(self, context):
-
-        # blender 2.8 and above should come with pip installed...
-        # TODO: Check if pip is available
-        # functions.install_pip()
-        # functions.update_pip()
+        if not functions.ensure_pip():
+            self.report(
+                {"WARNING"},
+                "PIP is not available and cannot be installed, please install PIP manually",
+            )
+            return {"CANCELLED"}
 
         if not self.package:
             self.report({"WARNING"}, "Specify package to be installed")
