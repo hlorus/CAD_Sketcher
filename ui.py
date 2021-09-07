@@ -1,6 +1,46 @@
 import bpy
-from bpy.types import Panel, Menu
+from bpy.types import Panel, Menu, UIList
 from . import operators, functions
+
+
+class VIEW3D_UL_sketches(UIList):
+    def draw_item(
+        self, context, layout, data, item, icon, active_data, active_propname
+    ):
+        if self.layout_type in {"DEFAULT", "COMPACT"}:
+            if item:
+                row = layout.row(align=True)
+                row.prop(
+                    item,
+                    "visible",
+                    icon_only=True,
+                    icon=("HIDE_OFF" if item.visible else "HIDE_ON"),
+                    emboss=False,
+                )
+                row.prop(item, "name", text="", emboss=False, icon_value=icon)
+
+                row = layout.row()
+                row.operator(
+                    operators.View3D_OT_slvs_set_active_sketch.bl_idname,
+                    icon="OUTLINER_DATA_GP_LAYER",
+                    text="",
+                    emboss=False,
+                ).index = item.slvs_index
+
+                # NOTE: doesn't work currently
+                # layout.operator_context = "EXEC_DEFAULT"
+                # row.operator(
+                #     operators.View3D_OT_slvs_delete_entity.bl_idname,
+                #     text="",
+                #     icon="X",
+                #     emboss=False,
+                # )
+                # layout.operator_context = "INVOKE_DEFAULT"
+            else:
+                layout.label(text="", translate=False, icon_value=icon)
+        elif self.layout_type in {"GRID"}:
+            layout.alignment = "CENTER"
+            layout.label(text="", icon_value=icon)
 
 
 class VIEW3D_PT_sketcher(Panel):
@@ -13,22 +53,33 @@ class VIEW3D_PT_sketcher(Panel):
     def draw(self, context):
         layout = self.layout
 
-        sketch_selector(context, layout)
+        sketch_selector(context, layout, show_selector=False)
         sketch = context.scene.sketcher.active_sketch
         if sketch:
             layout.use_property_split = True
             layout.use_property_decorate = False
-            layout.prop(sketch, "name")
+            row = layout.row()
+            row.prop(sketch, "name")
             layout.prop(sketch, "convert_type")
 
             layout.operator_context = "EXEC_DEFAULT"
             layout.operator(
                 operators.View3D_OT_slvs_delete_entity.bl_idname,
                 text="Delete Sketch",
-                icon="CANCEL",
+                icon="X",
             ).index = sketch.slvs_index
 
             layout.operator_context = "INVOKE_DEFAULT"
+
+        else:
+            layout.template_list(
+                "VIEW3D_UL_sketches",
+                "",
+                context.scene.sketcher.entities,
+                "sketches",
+                context.scene.sketcher,
+                "ui_active_sketch",
+            )
 
         layout.separator()
 
@@ -107,7 +158,7 @@ class VIEW3D_MT_sketches(Menu):
             ).index = sk.slvs_index
 
 
-def sketch_selector(context, layout, is_header=False):
+def sketch_selector(context, layout, is_header=False, show_selector=True):
     row = layout.row(align=is_header)
     index = context.scene.sketcher.active_sketch_i
     name = "Sketches"
@@ -135,7 +186,8 @@ def sketch_selector(context, layout, is_header=False):
 
         if not is_header:
             row = layout.row()
-        row.menu(VIEW3D_MT_sketches.bl_idname, text=name)
+        if show_selector:
+            row.menu(VIEW3D_MT_sketches.bl_idname, text=name)
 
 
 def draw_item(self, context):
@@ -146,6 +198,7 @@ def draw_item(self, context):
 
 
 classes = (
+    VIEW3D_UL_sketches,
     VIEW3D_PT_sketcher,
     VIEW3D_MT_context_menu,
     VIEW3D_MT_sketches,

@@ -46,7 +46,7 @@ fragment_shader = """
 class SlvsGenericEntity:
     slvs_index: IntProperty(name="Global Index", default=-1)
     fixed: BoolProperty(name="Fixed")
-    visible: BoolProperty(name="Visible", default=True)
+    visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
     origin: BoolProperty(name="Origin")
     construction: BoolProperty(name="Construction")
 
@@ -154,7 +154,12 @@ class SlvsGenericEntity:
         if self.origin:
             return context.scene.sketcher.show_origin
 
-        return True if not functions.get_prefs().show_debug_settings else self.visible
+        if not functions.get_prefs().show_debug_settings:
+            return True
+
+        if hasattr(self, "sketch"):
+            return self.sketch.is_visible(context) and self.visible
+        return self.visible
 
     def draw(self, context):
         if not self.is_visible(context):
@@ -461,6 +466,11 @@ class SlvsSketch(PropertyGroup, SlvsGenericEntity):
             if not ob:
                 continue
             bpy.data.objects.remove(ob)
+
+    def is_visible(self, context):
+        if context.scene.sketcher.active_sketch_i == self.slvs_index:
+            return True
+        return self.visible
 
 
 slvs_entity_pointer(SlvsSketch, "wp")
@@ -1193,14 +1203,17 @@ class GenericConstraint:
                 setattr(self, prop_name, index_new)
 
     def is_active(self, context):
-        if not hasattr(self, "sketch"):
-            return True
-
         active_sketch_i = context.scene.sketcher.active_sketch_i
-        if self.sketch:
-            return self.sketch.slvs_index == active_sketch_i
-        else:
+        if not hasattr(self, "sketch"):
             return active_sketch_i == -1
+        if not self.sketch.visible:
+            return False
+
+        show_inactive = not functions.get_prefs().hide_inactive_constraints
+        if self.sketch:
+            return self.sketch.slvs_index == active_sketch_i or show_inactive
+        else:
+            return active_sketch_i == -1 or show_inactive
 
     def draw_plane(self):
         if self.sketch_i != -1:
@@ -1956,6 +1969,8 @@ class SketcherProps(PropertyGroup):
     entities: PointerProperty(type=SlvsEntities)
     constraints: PointerProperty(type=SlvsConstraints)
     show_origin: BoolProperty()
+
+    ui_active_sketch: IntProperty()
 
     @property
     def all(self):

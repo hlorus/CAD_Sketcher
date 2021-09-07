@@ -363,10 +363,7 @@ class ConstraintGenericGGT:
 
     def setup(self, context):
         for c in self._list_from_type(context):
-            if (
-                not c.is_active(context)
-                and functions.get_prefs().hide_inactive_constraints
-            ):
+            if not c.is_active(context):
                 continue
             gz = self.gizmos.new(self.gizmo_type)
             gz.index = context.scene.sketcher.constraints.get_index(c)
@@ -440,13 +437,12 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         for e, constrs in zip(entities, constraints):
             if not hasattr(e, "placement"):
                 continue
-            if (
-                not e.is_active(context)
-                and functions.get_prefs().hide_inactive_constraints
-            ):
+            if not e.is_active(context):
                 continue
 
             for i, c in enumerate(constrs):
+                if not c.is_active(context):
+                    continue
                 gz = self.gizmos.new(VIEW3D_GT_slvs_constraint.bl_idname)
                 gz.type = c.type
                 gz.index = context.scene.sketcher.constraints.get_index(c)
