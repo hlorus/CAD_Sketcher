@@ -437,7 +437,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         for e, constrs in zip(entities, constraints):
             if not hasattr(e, "placement"):
                 continue
-            if not e.is_active(context):
+            if not e.is_visible(context):
                 continue
 
             for i, c in enumerate(constrs):
