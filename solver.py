@@ -1,48 +1,8 @@
 import logging
-from enum import Enum
+from .functions import bpyEnum
+from .global_data import solver_state_items
 
 logger = logging.getLogger(__name__)
-
-
-class Status(Enum):
-    OKAY = 0, "Okay", "Successfully solved sketch"
-    INCONSISTENT = (
-        1,
-        "Inconsistent",
-        "Cannot solve sketch because of inconsistent constraints",
-    )
-    DIDNT_CONVERGE = 2, "Didnt Converge", "Cannot solve sketch because ..."
-    TOO_MANY_UNKNOWNS = (
-        3,
-        "Too Many Unknowns",
-        "Cannot solve sketch because of too many unknowns",
-    )
-    UNKNOWN_FAILURE = (
-        4,
-        "Unknown Failure",
-        "Cannot solve sketch because of unknown failure",
-    )
-
-    def __new__(cls, *args, **kwds):
-        obj = object.__new__(cls)
-
-        obj._value_ = args[0]
-        return obj
-
-    def __init__(self, _val: int, label: str, description: str = None):
-        self._label_ = label
-        self._description_ = description
-
-    def __str__(self):
-        return self.value
-
-    @property
-    def label(self):
-        return self._label_
-
-    @property
-    def description(self):
-        return self._description_
 
 
 class Solver:
@@ -186,7 +146,11 @@ class Solver:
             logger.warning("Solver returned undocumented value: {}".format(retval))
             retval = 4
 
-        self.result = Status(retval)
+        self.result = bpyEnum(solver_state_items, index=retval)
+
+        sketch = self.sketch
+        if sketch:
+            sketch.solver_state = self.result.identifier
 
         if retval == 0:
             self.ok = True

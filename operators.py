@@ -173,6 +173,39 @@ class View3D_OT_slvs_context_menu(Operator):
         return {"FINISHED"}
 
 
+class View3D_OT_slvs_show_solver_state(Operator):
+    """Show details about solver status"""
+
+    bl_idname = "view3d.slvs_show_solver_state"
+    bl_label = "Solver Status"
+
+    index: IntProperty(default=-1)
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        index = self.index
+        if index == -1:
+            return {"CANCELLED"}
+
+        def draw_item(self, context):
+            layout = self.layout
+            sketch = context.scene.sketcher.entities.get(index)
+            state = sketch.get_solver_state()
+
+            row = layout.row(align=True)
+            row.alignment = "LEFT"
+            row.label(text=state.name, icon=state.icon)
+
+            layout.separator()
+            layout.label(text=state.description)
+
+        context.window_manager.popup_menu(draw_item)
+        return {"FINISHED"}
+
+
 from .solver import Solver, solve_system
 
 
@@ -1285,7 +1318,6 @@ class View3D_OT_slvs_delete_entity(Operator):
         # Delete constraints that depend on entity
         constraints = context.scene.sketcher.constraints
 
-
         for data_coll, indices in get_constraint_local_indices(entity, context):
             if not indices:
                 continue
@@ -1477,8 +1509,8 @@ class View3D_OT_slvs_delete_constraint(Operator):
 
         constraints.remove(constr)
 
-        # update gizmos!
-        context.space_data.show_gizmo = True
+        solve_system(context)
+        refresh(context)
         return {"FINISHED"}
 
 
@@ -1626,6 +1658,7 @@ classes = (
     View3D_OT_slvs_select,
     View3D_OT_slvs_select_all,
     View3D_OT_slvs_context_menu,
+    View3D_OT_slvs_show_solver_state,
     View3D_OT_slvs_tweak,
     View3D_OT_slvs_add_point3d,
     VIEW3D_OT_slvs_write_selection_texture,

@@ -252,3 +252,39 @@ def get_line_intersection(A1, B1, C1, A2, B2, C2):
 def update_cb(self, context):
     # update gizmos!
     context.space_data.show_gizmo = True
+
+
+# NOTE: this is currently based on the enum_items list,
+# alternatively this could also work on registered EnumProperties
+class bpyEnum:
+    """Helper class to interact with bpy enums"""
+
+    def __init__(self, data, index=None, identifier=None):
+        self.data = data
+
+        if not identifier:
+            self.identifier = self._get_identifier(index)
+        else:
+            self.identifier = identifier
+        item = self._get_active_item()
+
+        self.name = item[1]
+        self.description = item[2]
+        if len(item) == 5:
+            icon = item[3]
+        else:
+            icon = None
+        self.icon = icon
+
+    def _get_active_item(self):
+        i = [item[0] for item in self.data].index(self.identifier)
+        return self.data[i]
+
+    def _get_item_index(self, item):
+        if len(item) > 3:
+            return item[-1]
+        return self.data.index(item)
+
+    def _get_identifier(self, index):
+        i = [self._get_item_index(item) for item in self.data].index(index)
+        return self.data[i][0]

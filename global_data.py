@@ -23,3 +23,36 @@ draw_handle = None
 # Workplane requirement options
 class WpReq(Enum):
     OPTIONAL, FREE, NOT_FREE = range(3)
+
+
+solver_state_items = [
+    ("OKAY", "Okay", "Successfully solved sketch", "CHECKMARK", 0),
+    (
+        "INCONSISTENT",
+        "Inconsistent",
+        "Cannot solve sketch because of inconsistent constraints",
+        "ERROR",
+        1,
+    ),
+    (
+        "DIDNT_CONVERGE",
+        "Didnt Converge",
+        "Cannot solve sketch, system didn't converge",
+        "ERROR",
+        2,
+    ),
+    (
+        "TOO_MANY_UNKNOWNS",
+        "Too Many Unknowns",
+        "Cannot solve sketch because of too many unknowns",
+        "ERROR",
+        3,
+    ),
+    (
+        "UNKNOWN_FAILURE",
+        "Unknown Failure",
+        "Cannot solve sketch because of unknown failure",
+        "ERROR",
+        4,
+    ),
+]

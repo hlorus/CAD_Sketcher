@@ -424,12 +424,16 @@ convert_items = [
     ("MESH", "Mesh", "", 3),
 ]
 
+
 # TODO: draw sketches and allow selecting
 class SlvsSketch(PropertyGroup, SlvsGenericEntity):
     convert_type: EnumProperty(
         name="Convert Type",
         items=convert_items,
         description="Define how the sketch should be converted in order to be usable in native blender",
+    )
+    solver_state: EnumProperty(
+        name="Solver Status", items=global_data.solver_state_items
     )
     target_curve: PointerProperty(type=bpy.types.Curve)
     target_curve_object: PointerProperty(type=bpy.types.Object)
@@ -471,6 +475,11 @@ class SlvsSketch(PropertyGroup, SlvsGenericEntity):
         if context.scene.sketcher.active_sketch_i == self.slvs_index:
             return True
         return self.visible
+
+    def get_solver_state(self):
+        return functions.bpyEnum(
+            global_data.solver_state_items, identifier=self.solver_state
+        )
 
 
 slvs_entity_pointer(SlvsSketch, "wp")

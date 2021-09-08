@@ -9,7 +9,9 @@ class VIEW3D_UL_sketches(UIList):
     ):
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             if item:
+
                 row = layout.row(align=True)
+                row.alignment = "LEFT"
                 row.prop(
                     item,
                     "visible",
@@ -20,13 +22,24 @@ class VIEW3D_UL_sketches(UIList):
                 row.prop(item, "name", text="", emboss=False, icon_value=icon)
 
                 row = layout.row()
+                row.alignment = "RIGHT"
+
+                if item.solver_state != "OKAY":
+                    row.operator(
+                        operators.View3D_OT_slvs_show_solver_state.bl_idname,
+                        text="",
+                        emboss=False,
+                        icon_value=layout.enum_item_icon(
+                            item, "solver_state", item.solver_state
+                        ),
+                    ).index = item.slvs_index
+
                 row.operator(
                     operators.View3D_OT_slvs_set_active_sketch.bl_idname,
                     icon="OUTLINER_DATA_GP_LAYER",
                     text="",
                     emboss=False,
                 ).index = item.slvs_index
-
 
                 # row.operator(
                 #     operators.View3D_OT_slvs_delete_entity.bl_idname,
@@ -54,9 +67,24 @@ class VIEW3D_PT_sketcher(Panel):
 
         sketch_selector(context, layout, show_selector=False)
         sketch = context.scene.sketcher.active_sketch
+        layout.use_property_split = True
+        layout.use_property_decorate = False
+
         if sketch:
-            layout.use_property_split = True
-            layout.use_property_decorate = False
+
+            if sketch.solver_state != "OKAY":
+                state = sketch.get_solver_state()
+
+                row = layout.row()
+                row.alignment = "CENTER"
+                row.scale_y = 1.2
+                row.operator(
+                    operators.View3D_OT_slvs_show_solver_state.bl_idname,
+                    text=state.name,
+                    icon=state.icon,
+                    emboss=False,
+                ).index = sketch.slvs_index
+
             row = layout.row()
             row.prop(sketch, "name")
             layout.prop(sketch, "convert_type")
