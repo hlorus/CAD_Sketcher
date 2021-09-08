@@ -1209,12 +1209,28 @@ def is_referenced(entity, context):
     return False
 
 
-def get_deps_indices(entity, context):
+def get_sketch_deps_indecies(sketch, context):
     deps = []
     for e in context.scene.sketcher.entities.all:
-        if entity in flatten_deps(e):
-            deps.append(e.slvs_index)
+        if not hasattr(e, "sketch_i"):
+            continue
+        if sketch.slvs_index != e.sketch.slvs_index:
+            continue
+        deps.append(e.slvs_index)
     return deps
+
+
+def get_constraint_local_indices(entity, context):
+    constraints = context.scene.sketcher.constraints
+    ret_list = []
+
+    for data_coll in constraints.get_lists():
+        indices = []
+        for c in data_coll:
+            if entity in c.dependencies():
+                indices.append(constraints.get_index(c))
+        ret_list.append((data_coll, indices))
+    return ret_list
 
 
 class View3D_OT_slvs_delete_entity(Operator):
@@ -1244,7 +1260,7 @@ class View3D_OT_slvs_delete_entity(Operator):
                 activate_sketch(context, -1, operator)
             entity.remove_objects()
 
-            deps = get_deps_indices(entity, context)
+            deps = get_sketch_deps_indecies(entity, context)
             deps.sort(reverse=True)
 
             for i in deps:
@@ -1268,14 +1284,15 @@ class View3D_OT_slvs_delete_entity(Operator):
 
         # Delete constraints that depend on entity
         constraints = context.scene.sketcher.constraints
-        constrs = []
-        for c in constraints.all:
-            if entity in c.entities():
-                constrs.append(c)
 
-        for c in constrs:
-            logger.debug("Delete: {}".format(c))
-            constraints.remove(c)
+
+        for data_coll, indices in get_constraint_local_indices(entity, context):
+            if not indices:
+                continue
+            indices.sort(reverse=True)
+            for i in indices:
+                logger.debug("Delete: {}".format(data_coll[i]))
+                data_coll.remove(i)
 
         logger.debug("Delete: {}".format(entity))
         entities = context.scene.sketcher.entities

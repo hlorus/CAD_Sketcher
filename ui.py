@@ -27,13 +27,13 @@ class VIEW3D_UL_sketches(UIList):
                     emboss=False,
                 ).index = item.slvs_index
 
-                # NOTE: doesn't work currently
+
                 # row.operator(
                 #     operators.View3D_OT_slvs_delete_entity.bl_idname,
                 #     text="",
                 #     icon="X",
                 #     emboss=False,
-                # )
+                # ).index = item.slvs_index
 
             else:
                 layout.label(text="", translate=False, icon_value=icon)

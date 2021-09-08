@@ -1193,6 +1193,14 @@ class GenericConstraint:
             props.append(getattr(self, prop_name))
         return props
 
+    def dependencies(self):
+        deps = self.entities()
+        if hasattr(self, "sketch"):
+            s = self.sketch
+            if s:
+                deps.append(s)
+        return deps
+
     # TODO: avoid duplicating code
     def update_pointers(self, index_old, index_new):
         for prop_name in dir(self):
