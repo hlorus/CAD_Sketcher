@@ -44,9 +44,7 @@ def check_module():
     # That path however might not be in sys.path....
     import sys, site
 
-    p = site.USER_BASE + "/lib/python{}.{}/site-packages".format(
-        sys.version_info.major, sys.version_info.minor
-    )
+    p = site.USER_SITE
     if p not in sys.path:
         sys.path.append(p)
     try:
