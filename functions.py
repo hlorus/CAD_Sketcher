@@ -27,8 +27,8 @@ def install_package(package):
 
 def ensure_pip():
     if subprocess.call([global_data.PYPATH, "-m", "pip", "--version"]):
-        ok = install_pip()
-    return ok
+        return install_pip()
+    return True
 
 
 import math
