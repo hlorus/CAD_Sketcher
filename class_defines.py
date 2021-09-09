@@ -498,7 +498,7 @@ class Entity2D:
 
 
 class SlvsPoint2D(PropertyGroup, SlvsGenericEntity, Entity2D):
-    co: FloatVectorProperty(subtype="XYZ", size=2)
+    co: FloatVectorProperty(name="Coordinates", subtype="XYZ", size=2)
 
     def __str__(self):
         return "Slvs Point2D({})".format(self.slvs_index)
@@ -550,6 +550,10 @@ class SlvsPoint2D(PropertyGroup, SlvsGenericEntity, Entity2D):
 
     def placement(self):
         return self.location
+
+    def draw_props(self, layout):
+        col = layout.column()
+        col.prop(self, "co")
 
 
 slvs_entity_pointer(SlvsPoint2D, "sketch")
