@@ -186,7 +186,7 @@ class SlvsGenericEntity:
         # e.g. to activate a sketch
         # maybe it should be dynamicly defined what is selectable (points only, lines only, ...)
         # if not self.is_visible(context):
-        if not self.is_active(context):
+        if not self.is_active(context) or not self.is_visible(context):
             return
 
         batch = self._batch
