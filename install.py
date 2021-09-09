@@ -82,8 +82,12 @@ class View3D_OT_slvs_install_package(Operator):
             return {"CANCELLED"}
 
         if functions.install_package(self.package):
-            self.report({"INFO"}, "Package successfully installed")
-            check_module()
+            try:
+                check_module()
+                self.report({"INFO"}, "Package successfully installed")
+            except ModuleNotFoundError:
+                self.report({"WARNING"}, "Package should be available but cannot be found, check console for detailed info")
+            functions.show_package_info("py_slvs")
         else:
             self.report({"WARNING"}, "Cannot install package: {}".format(self.package))
             return {"CANCELLED"}

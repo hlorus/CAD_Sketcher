@@ -30,6 +30,12 @@ def ensure_pip():
         return install_pip()
     return True
 
+def show_package_info(package):
+    try:
+        subprocess.call([global_data.PYPATH, "-m", "pip", "show", package])
+    except:
+        pass
+
 
 import math
 
