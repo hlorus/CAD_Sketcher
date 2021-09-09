@@ -425,12 +425,18 @@ convert_items = [
 ]
 
 
+def hide_sketch(self, context):
+    if self.convert_type != "NONE":
+        self.visible = False
+
+
 # TODO: draw sketches and allow selecting
 class SlvsSketch(PropertyGroup, SlvsGenericEntity):
     convert_type: EnumProperty(
         name="Convert Type",
         items=convert_items,
         description="Define how the sketch should be converted in order to be usable in native blender",
+        update=hide_sketch,
     )
     solver_state: EnumProperty(
         name="Solver Status", items=global_data.solver_state_items
