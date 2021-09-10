@@ -43,9 +43,12 @@ class Solver:
 
         for e in context.scene.sketcher.entities.all:
             self.entities.append(e)
-            group = self.group_active if self.is_active(e) else self.group_fixed
+            group = (
+                self.group_active
+                if self.is_active(e) and not e.fixed
+                else self.group_fixed
+            )
 
-            # TODO: Dont allow tweaking fixed entities
             if self.tweak_entity and e == self.tweak_entity:
                 wp = self.get_workplane()
                 if hasattr(e, "tweak"):
