@@ -278,9 +278,6 @@ class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
         coords = [solvesys.getParam(i).val for i in self.params]
         self.location = coords
 
-    def tweak(self, solvesys, pos):
-        self.create_slvs_data(solvesys, coords=pos)
-
     def closest_picking_point(self, origin, view_vector):
         """Returns the point on this entity which is closest to the picking ray"""
         return self.location
@@ -543,10 +540,6 @@ class SlvsPoint2D(PropertyGroup, SlvsGenericEntity, Entity2D):
     def closest_picking_point(self, origin, view_vector):
         """Returns the point on this entity which is closest to the picking ray"""
         return self.location
-
-    def tweak(self, solvesys, coords):
-        u, v, _ = self.wp.matrix_basis.inverted() @ coords
-        self.create_slvs_data(solvesys, coords=Vector((u, v)))
 
     def placement(self):
         return self.location
