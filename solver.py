@@ -13,9 +13,13 @@ class Solver:
     def __init__(self, context):
         self.context = context
         self.entities = []
+        self.constraints = {}
 
         self.tweak_entity = None
         self.tweak_pos = None
+        self.tweak_constraint = None
+
+        self.report = False
 
         logger.info("--- Start solving ---")
         from py_slvs import slvs
@@ -67,7 +71,9 @@ class Solver:
 
                     from .class_defines import make_coincident
 
-                    make_coincident(self.solvesys, p, e, wp, group)
+                    self.tweak_constraint = make_coincident(
+                        self.solvesys, p, e, wp, group
+                    )
                     self.solvesys.addWhereDragged(p, wrkpln=wp, group=group)
                 continue
 
@@ -77,10 +83,16 @@ class Solver:
                 logger.debug(e)
 
         logger.debug("Initialize constraints:")
+
         for c in context.scene.sketcher.constraints.all:
             group = self.group_active if c.is_active(context) else self.group_fixed
 
-            c.create_slvs_data(self.solvesys, group=group)
+            if self.report:
+                c.failed = False
+            i = c.create_slvs_data(self.solvesys, group=group)
+
+            # Store a index-constraint mapping
+            self.constraints[i] = c
 
             if group == self.group_active:
                 logger.debug(c)
@@ -133,11 +145,12 @@ class Solver:
     #         constraints.append(c)
     #     return constraints
 
-    def solve(self):
+    def solve(self, report=True):
+        self.report = report
         self._init_slvs_data()
 
         retval = self.solvesys.solve(
-            group=self.group_active, reportFailed=False, findFreeParams=False
+            group=self.group_active, reportFailed=report, findFreeParams=False
         )
 
         # NOTE: For some reason solve() might return undocumented values,
@@ -149,7 +162,7 @@ class Solver:
         self.result = bpyEnum(solver_state_items, index=retval)
 
         sketch = self.sketch
-        if sketch:
+        if report and sketch:
             sketch.solver_state = self.result.identifier
 
         if retval == 0:
@@ -161,8 +174,15 @@ class Solver:
         logger.log(20 if self.ok else 30, self.result.description)
 
         fails = self.solvesys.Failed
-        if fails:
-            logger.warning("Failed to solve:\n" + str(fails))
+        if report and fails:
+            logger.warning("Failed constraints:\n")
+
+            for i in fails:
+                if i == self.tweak_constraint:
+                    continue
+                constr = self.constraints[i]
+                constr.failed = True
+                logger.debug(constr)
 
         return retval
 

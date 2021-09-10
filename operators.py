@@ -306,7 +306,7 @@ class View3D_OT_slvs_tweak(Operator):
 
             solver = Solver(context)
             solver.tweak(entity, pos)
-            retval = solver.solve()
+            retval = solver.solve(report=False)
 
             # NOTE: There's no blocking cursor
             # also solving frequently returns an error while tweaking which causes flickering

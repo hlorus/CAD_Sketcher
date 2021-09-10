@@ -69,7 +69,7 @@ class ThemeSettingsConstraint(PropertyGroup):
         max=1.0,
         update=update,
     )
-    alpha: FloatProperty(name="Alpha", default=0.7, min=0.0, max=1.0, update=update)
+    alpha: FloatProperty(name="Alpha", default=0.6, min=0.0, max=1.0, update=update)
     highlight: FloatVectorProperty(
         name="Highlight",
         subtype="COLOR",
@@ -81,6 +81,18 @@ class ThemeSettingsConstraint(PropertyGroup):
     )
     alpha_highlight: FloatProperty(
         name="Alpha Highlight", default=0.7, min=0.0, max=1.0, update=update
+    )
+    failed: FloatVectorProperty(
+        name="Failed",
+        subtype="COLOR",
+        default=(1.0, 0.0, 0.0),
+        size=3,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
+    failed_alpha: FloatProperty(
+        name="Alpha Failed", default=0.8, min=0.0, max=1.0, update=update
     )
 
 
