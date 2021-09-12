@@ -82,12 +82,6 @@ class View3D_OT_slvs_unregister_draw_cb(Operator):
         return {"FINISHED"}
 
 
-def refresh(context):
-    # update gizmos!
-    context.space_data.show_gizmo = True
-    context.area.tag_redraw()
-
-
 def deselect_all(context):
     for e in context.scene.sketcher.entities.all:
         if e.selected:
@@ -1349,7 +1343,7 @@ class View3D_OT_slvs_delete_entity(Operator):
                     continue
                 self.delete(e, context)
 
-        refresh(context)
+        functions.refresh(context)
         return {"FINISHED"}
 
 
@@ -1449,7 +1443,7 @@ class VIEW3D_OT_slvs_add_constraint(Operator, StatefulOperator):
         logger.debug("Add: {}".format(c))
         self.target = c
         solve_system(context)
-        refresh(context)
+        functions.refresh(context)
         return {"FINISHED"}
 
     def draw(self, context):
@@ -1510,7 +1504,7 @@ class View3D_OT_slvs_delete_constraint(Operator):
         constraints.remove(constr)
 
         solve_system(context)
-        refresh(context)
+        functions.refresh(context)
         return {"FINISHED"}
 
 

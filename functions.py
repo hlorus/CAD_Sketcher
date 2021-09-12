@@ -30,6 +30,7 @@ def ensure_pip():
         return install_pip()
     return True
 
+
 def show_package_info(package):
     try:
         subprocess.call([global_data.PYPATH, "-m", "pip", "show", package])
@@ -255,9 +256,19 @@ def get_line_intersection(A1, B1, C1, A2, B2, C2):
         return Vector((x, y))
 
 
+def refresh(context):
+    # update gizmos!
+    if context.space_data.type == "VIEW_3D":
+        context.space_data.show_gizmo = True
+
+    if context.area.type == "VIEW_3D":
+        context.area.tag_redraw()
+
+
 def update_cb(self, context):
     # update gizmos!
-    context.space_data.show_gizmo = True
+    if context.space_data.type == "VIEW_3D":
+        context.space_data.show_gizmo = True
 
 
 # NOTE: this is currently based on the enum_items list,
