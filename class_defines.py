@@ -115,19 +115,16 @@ class SlvsGenericEntity:
         elif value:
             list.append(slvs_index)
 
-    def is_active(self, context):
-        active_sketch_i = context.scene.sketcher.active_sketch_i
-        if hasattr(self, "sketch_i"):
-            if self.sketch_i != active_sketch_i:
-                return False
-        elif active_sketch_i != -1:
-            return False
-        return True
+    def is_active(self, active_sketch):
+        if hasattr(self, "sketch"):
+            return self.sketch == active_sketch
+        else:
+            return not active_sketch
 
     def color(self, context):
         prefs = functions.get_prefs()
         ts = prefs.theme_settings
-        if not self.is_active(context):
+        if not self.is_active(context.scene.sketcher.active_sketch):
             return (
                 ts.entity.inactive
                 if prefs.fade_inactive_geometry
@@ -186,7 +183,9 @@ class SlvsGenericEntity:
         # e.g. to activate a sketch
         # maybe it should be dynamicly defined what is selectable (points only, lines only, ...)
         # if not self.is_visible(context):
-        if not self.is_active(context) or not self.is_visible(context):
+        if not self.is_active(
+            context.scene.sketcher.active_sketch
+        ) or not self.is_visible(context):
             return
 
         batch = self._batch
@@ -349,8 +348,8 @@ class SlvsWorkplane(PropertyGroup, SlvsGenericEntity):
     def dependencies(self):
         return [self.p1, self.nm]
 
-    def is_active(self, context):
-        return context.scene.sketcher.active_sketch_i == -1
+    def is_active(self, active_sketch):
+        return not active_sketch
 
     def update(self):
         p1, nm = self.p1, self.nm
@@ -483,6 +482,9 @@ class SlvsSketch(PropertyGroup, SlvsGenericEntity):
         return functions.bpyEnum(
             global_data.solver_state_items, identifier=self.solver_state
         )
+
+    def solve(self, context):
+        solve_system(context, self)
 
 
 slvs_entity_pointer(SlvsSketch, "wp")
@@ -1223,18 +1225,17 @@ class GenericConstraint:
             if prop == index_old:
                 setattr(self, prop_name, index_new)
 
-    def is_active(self, context):
-        active_sketch_i = context.scene.sketcher.active_sketch_i
-        if not hasattr(self, "sketch"):
-            return active_sketch_i == -1
+    def is_active(self, active_sketch):
+        show_inactive = not functions.get_prefs().hide_inactive_constraints
+        if show_inactive:
+            return True
+
+        if not hasattr(self, "sketch") and not active_sketch:
+            return False
         if not self.sketch.visible:
             return False
 
-        show_inactive = not functions.get_prefs().hide_inactive_constraints
-        if self.sketch:
-            return self.sketch.slvs_index == active_sketch_i or show_inactive
-        else:
-            return active_sketch_i == -1 or show_inactive
+        return self.sketch == active_sketch
 
     def draw_plane(self):
         if self.sketch_i != -1:
@@ -1360,7 +1361,8 @@ slvs_entity_pointer(SlvsEqual, "sketch")
 
 
 def update_system_cb(self, context):
-    solve_system(context)
+    sketch = context.scene.sketcher.active_sketch
+    solve_system(context, sketch)
 
 
 from mathutils import Euler
@@ -1998,6 +2000,9 @@ class SketcherProps(PropertyGroup):
             yield e
         for c in self.constraints.all:
             yield c
+
+    def solve(self, context):
+        solve_system(context, None)
 
 
 slvs_entity_pointer(SketcherProps, "active_sketch", update=functions.update_cb)

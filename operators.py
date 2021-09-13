@@ -208,7 +208,8 @@ class View3D_OT_slvs_solve(Operator):
     bl_label = "Solve"
 
     def execute(self, context):
-        solver = Solver(context)
+        sketch = context.scene.sketcher.active_sketch
+        solver = Solver(context, sketch)
         solver.solve()
 
         if solver.ok:
@@ -298,7 +299,8 @@ class View3D_OT_slvs_tweak(Operator):
             else:
                 pos = dir * self.depth + origin
 
-            solver = Solver(context)
+            sketch = context.scene.sketcher.active_sketch
+            solver = Solver(context, sketch)
             solver.tweak(entity, pos)
             retval = solver.solve(report=False)
 
@@ -1033,7 +1035,8 @@ class_defines.slvs_entity_pointer(
 
 
 def solve_state(self, context, _event):
-    solve_system(context)
+    sketch = context.scene.sketcher.active_sketch
+    solve_system(context, sketch)
     return True
 
 
@@ -1442,7 +1445,7 @@ class VIEW3D_OT_slvs_add_constraint(Operator, StatefulOperator):
 
         logger.debug("Add: {}".format(c))
         self.target = c
-        solve_system(context)
+        solve_system(context, sketch)
         functions.refresh(context)
         return {"FINISHED"}
 
@@ -1503,7 +1506,8 @@ class View3D_OT_slvs_delete_constraint(Operator):
 
         constraints.remove(constr)
 
-        solve_system(context)
+        sketch = context.scene.sketcher.active_sketch
+        solve_system(context, sketch)
         functions.refresh(context)
         return {"FINISHED"}
 

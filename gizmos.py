@@ -364,7 +364,7 @@ class ConstraintGenericGGT:
     def setup(self, context):
         theme = functions.get_prefs().theme_settings
         for c in self._list_from_type(context):
-            if not c.is_active(context):
+            if not c.is_active(context.scene.sketcher.active_sketch):
                 continue
             gz = self.gizmos.new(self.gizmo_type)
             gz.index = context.scene.sketcher.constraints.get_index(c)
@@ -446,7 +446,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 continue
 
             for i, c in enumerate(constrs):
-                if not c.is_active(context):
+                if not c.is_active(context.scene.sketcher.active_sketch):
                     continue
                 gz = self.gizmos.new(VIEW3D_GT_slvs_constraint.bl_idname)
                 gz.type = c.type

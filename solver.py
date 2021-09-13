@@ -10,7 +10,7 @@ class Solver:
     group_active = 2
 
     # iterate over constraints of active group and lazily init required entities
-    def __init__(self, context):
+    def __init__(self, context, sketch):
         self.context = context
         self.entities = []
         self.constraints = {}
@@ -27,7 +27,7 @@ class Solver:
         self.solvesys = slvs.System()
 
         self.FREE_IN_3D = slvs.SLVS_FREE_IN_3D
-        self.sketch = context.scene.sketcher.active_sketch
+        self.sketch = sketch
 
         self.ok = False
         self.result = None
@@ -43,11 +43,7 @@ class Solver:
 
         for e in context.scene.sketcher.entities.all:
             self.entities.append(e)
-            group = (
-                self.group_active
-                if self.is_active(e) and not e.fixed
-                else self.group_fixed
-            )
+            group = self.group_active if self.is_active(e) else self.group_fixed
 
             if self.tweak_entity and e == self.tweak_entity:
                 wp = self.get_workplane()
@@ -88,7 +84,11 @@ class Solver:
         logger.debug("Initialize constraints:")
 
         for c in context.scene.sketcher.constraints.all:
-            group = self.group_active if c.is_active(context) else self.group_fixed
+            group = (
+                self.group_active
+                if c.is_active(context.scene.sketcher.active_sketch)
+                else self.group_fixed
+            )
 
             if self.report:
                 c.failed = False
@@ -111,7 +111,7 @@ class Solver:
     def is_active(self, e):
         if e.fixed:
             return False
-        return e.is_active(self.context)
+        return e.is_active(self.context.scene.sketcher.active_sketch)
 
     # NOTE: When solving not everything might be relevant...
     # An approach could be to find all constraints of a sketch and all neccesary entities
@@ -190,6 +190,6 @@ class Solver:
         return retval
 
 
-def solve_system(context):
-    solver = Solver(context)
+def solve_system(context, sketch):
+    solver = Solver(context, sketch)
     return solver.solve()
