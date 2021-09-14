@@ -84,11 +84,7 @@ class Solver:
         logger.debug("Initialize constraints:")
 
         for c in context.scene.sketcher.constraints.all:
-            group = (
-                self.group_active
-                if c.is_active(context.scene.sketcher.active_sketch)
-                else self.group_fixed
-            )
+            group = self.group_active if c.is_active(self.sketch) else self.group_fixed
 
             if self.report:
                 c.failed = False
@@ -111,7 +107,7 @@ class Solver:
     def is_active(self, e):
         if e.fixed:
             return False
-        return e.is_active(self.context.scene.sketcher.active_sketch)
+        return e.is_active(self.sketch)
 
     # NOTE: When solving not everything might be relevant...
     # An approach could be to find all constraints of a sketch and all neccesary entities
