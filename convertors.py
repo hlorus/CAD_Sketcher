@@ -61,6 +61,7 @@ class BezierConvertor:
     # TODO: rename ignore_point -> start_point / rename path -> spline_path
     def walker(self, entity, path, ignore_point=None, invert=False):
         segments = path[0]
+        logger.debug("goto: {} entrypoint: {} invert_walker {}".format(entity, ignore_point, invert))
 
         if invert:
             # NOTE: this might be slow
@@ -107,7 +108,6 @@ class BezierConvertor:
             else:
                 path[1].append(invert_direction)
 
-        invert_walker = False
         for point, ents in zip(points, entities):
             # check through connected entities
             branch = False
@@ -116,10 +116,12 @@ class BezierConvertor:
                     path = self._branch_path()
                 branch = True
 
-                self.walker(e, path, ignore_point=point, invert=invert_walker)
+                self.walker(e, path, ignore_point=point, invert=invert)
 
             # TODO: path could also split here...
-            invert_walker = True
+
+            # Invert walker when there's a second connection point
+            invert = not invert
 
     def run(self):
         while len(self.sketch_entities):
