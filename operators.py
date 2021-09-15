@@ -1445,6 +1445,7 @@ class VIEW3D_OT_slvs_add_constraint(Operator, StatefulOperator):
 
         logger.debug("Add: {}".format(c))
         self.target = c
+        deselect_all(context)
         solve_system(context, sketch)
         functions.refresh(context)
         return {"FINISHED"}
