@@ -1226,14 +1226,12 @@ class GenericConstraint:
                 setattr(self, prop_name, index_new)
 
     def is_active(self, active_sketch):
-        show_inactive = not functions.get_prefs().hide_inactive_constraints
-        if show_inactive:
-            return True
+        if not hasattr(self, "sketch"):
+            return not active_sketch
 
-        if not hasattr(self, "sketch") and not active_sketch:
-            return False
-        if not self.sketch.visible:
-            return False
+        show_inactive = not functions.get_prefs().hide_inactive_constraints
+        if show_inactive and self.sketch.visible:
+            return True
 
         return self.sketch == active_sketch
 

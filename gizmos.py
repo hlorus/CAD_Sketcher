@@ -445,8 +445,9 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
             if not e.is_visible(context):
                 continue
 
+            active_sketch = context.scene.sketcher.active_sketch
             for i, c in enumerate(constrs):
-                if not c.is_active(context.scene.sketcher.active_sketch):
+                if not c.is_active(active_sketch):
                     continue
                 gz = self.gizmos.new(VIEW3D_GT_slvs_constraint.bl_idname)
                 gz.type = c.type
