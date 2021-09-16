@@ -219,7 +219,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
     )
 
     def _create_shape(self, context, constr, select=False):
-        angle = math.radians(constr.value)
+        angle = abs(math.radians(constr.value))
 
         # NOTE: magic factor 0.65, why is this needed?!
         radius = self.target_get_value("offset") * 0.80

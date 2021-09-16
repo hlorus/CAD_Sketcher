@@ -614,6 +614,9 @@ class SlvsLine2D(PropertyGroup, SlvsGenericEntity, Entity2D):
     def midpoint(self):
         return (self.p1.co + self.p2.co) / 2
 
+    def direction_vec(self):
+        return self.p2.co - self.p1.co
+
 
 slvs_entity_pointer(SlvsLine2D, "p1")
 slvs_entity_pointer(SlvsLine2D, "p2")
@@ -1590,13 +1593,40 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
         pos = line.p2.co - line.p1.co
         return math.atan2(pos[1], pos[0])
 
+    @staticmethod
+    def _get_angle(A, B):
+        # (A dot B)/(|A||B|) = cos(valA)
+        divisor = A.length * B.length
+        if not divisor:
+            return 0.0
+
+        x = A.dot(B) / divisor
+        x = max(-1, min(x, 1))
+
+        return math.degrees(math.acos(x))
+
+    @staticmethod
+    def _get_angle_inv(A, B):
+        # (A dot B)/(|A||B|) = -cos(valA)
+        divisor = A.length * B.length
+        if not divisor:
+            return 0.0
+
+        x = -A.dot(B) / divisor
+        x = max(-1, min(x, 1))
+
+        return math.degrees(math.acos(x))
+
     def init_props(self, args):
         # Set initial angle value to the current angle
         line1, line2 = args
-        angle = abs(math.degrees(self.orientation(line2) - self.orientation(line1)))
 
-        setting = bool(angle // 90 % 2)
-        angle = min(angle % 180, 180 - angle % 180)
+        vec1, vec2 = line1.direction_vec(), line2.direction_vec()
+        angle_std = self._get_angle(vec1, vec2)
+        angle_inv = self._get_angle_inv(vec1, vec2)
+
+        setting = angle_inv < angle_std
+        angle = angle_inv if setting else angle_std
 
         self.value = angle
         self.setting = setting
