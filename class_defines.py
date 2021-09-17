@@ -1995,19 +1995,108 @@ class SlvsConstraints(PropertyGroup):
                 yield entity
 
 
+
+
+    def add_coincident(self, entity1, entity2, sketch=None) -> SlvsCoincident:
+        c = self.coincident.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        return c
+
+    def add_equal(self, entity1, entity2, sketch=None) -> SlvsEqual:
+        c = self.equal.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        return c
+
+    def add_distance(self, entity1, entity2, sketch=None) -> SlvsDistance:
+        c = self.distance.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        return c
+
+    def add_angle(self, entity1, entity2, sketch=None) -> SlvsAngle:
+        c = self.angle.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        return c
+
+    def add_diameter(self, entity1, sketch=None) -> SlvsDiameter:
+        c = self.diameter.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        return c
+
+    def add_parallel(self, entity1, entity2, sketch=None) -> SlvsParallel:
+        c = self.parallel.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        return c
+
+    def add_horizontal(self, entity1, sketch=None) -> SlvsHorizontal:
+        c = self.horizontal.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        return c
+
+    def add_vertical(self, entity1, sketch=None) -> SlvsVertical:
+        c = self.vertical.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        return c
+
+    def add_tangent(self, entity1, entity2, sketch=None) -> SlvsTangent:
+        c = self.tangent.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        return c
+
+    def add_midpoint(self, entity1, entity2, sketch=None) -> SlvsMidpoint:
+        c = self.midpoint.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        return c
+
+    def add_perpendicular(self, entity1, entity2, sketch=None) -> SlvsPerpendicular:
+        c = self.perpendicular.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        return c
+
+
 for cls in constraints:
-    parent_cls = SlvsConstraints
     name = cls.type.lower()
-    if not hasattr(parent_cls, "__annotations__"):
-        parent_cls.__annotations__ = {}
-    parent_cls.__annotations__[name] = CollectionProperty(type=cls)
+    func_name = "add_" + name
 
-    # TODO: # get signature from class and add proper arguments to "add" function
-    def func(*args):
-        item = getattr(SlvsConstraints, name).add()
-        cls.new(*args)
+    # Create constraint collections
+    annotations = {}
+    if hasattr(SlvsConstraints, "__annotations__"):
+        annotations = SlvsConstraints.__annotations__.copy()
 
-    setattr(parent_cls, "add_" + name, func)
+    annotations[name] = CollectionProperty(type=cls)
+    setattr(SlvsConstraints, "__annotations__", annotations)
 
 
 class SketcherProps(PropertyGroup):
