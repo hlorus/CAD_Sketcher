@@ -1491,9 +1491,9 @@ class View3D_OT_slvs_delete_constraint(Operator):
         return True
 
     @classmethod
-    def description(CLS, context, properties):
+    def description(cls, context, properties):
         if properties.type:
-            return "Delete: " + properties.type
+            return "Delete: " + properties.type.capitalize()
         return ""
 
     def execute(self, context):
@@ -1576,13 +1576,14 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
                 layout.prop(constr, "setting")
 
             layout.separator()
-            props = layout.operator(View3D_OT_slvs_delete_constraint.bl_idname)
+            props = layout.operator(View3D_OT_slvs_delete_constraint.bl_idname, icon='X')
             props.type = type
             props.index = index
 
         context.window_manager.popup_menu(
             draw_func,
-            title="Tweak Constraint: " + constr.rna_type.properties["value"].name,
+            title=constr.rna_type.properties["value"].name + " Constraint",
+            icon=("ERROR" if constr.failed else "NONE")
         )
 
         return {"FINISHED"}
