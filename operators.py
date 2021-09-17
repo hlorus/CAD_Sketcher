@@ -83,9 +83,7 @@ class View3D_OT_slvs_unregister_draw_cb(Operator):
 
 
 def deselect_all(context):
-    for e in context.scene.sketcher.entities.all:
-        if e.selected:
-            e.selected = False
+    global_data.selected.clear()
 
 
 def entities_3d(context):
