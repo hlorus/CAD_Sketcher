@@ -151,9 +151,6 @@ class SlvsGenericEntity:
         if self.origin:
             return context.scene.sketcher.show_origin
 
-        if not functions.get_prefs().show_debug_settings:
-            return True
-
         if hasattr(self, "sketch"):
             return self.sketch.is_visible(context) and self.visible
         return self.visible
