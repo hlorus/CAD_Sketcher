@@ -1,5 +1,5 @@
 import bpy
-from bpy.types import Panel, Menu, UIList
+from bpy.types import Panel, Menu, UIList, VIEW3D_HT_header
 from . import operators, functions
 
 
@@ -232,11 +232,11 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    bpy.types.VIEW3D_HT_header.append(draw_item)
+    VIEW3D_HT_header.append(draw_item)
 
 
 def unregister():
+    VIEW3D_HT_header.remove(draw_item)
+
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
-
-        bpy.types.VIEW3D_HT_header.remove(draw_item)
