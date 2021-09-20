@@ -1574,14 +1574,16 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
                 layout.prop(constr, "setting")
 
             layout.separator()
-            props = layout.operator(View3D_OT_slvs_delete_constraint.bl_idname, icon='X')
+            props = layout.operator(
+                View3D_OT_slvs_delete_constraint.bl_idname, icon="X"
+            )
             props.type = type
             props.index = index
 
         context.window_manager.popup_menu(
             draw_func,
             title=constr.rna_type.properties["value"].name + " Constraint",
-            icon=("ERROR" if constr.failed else "NONE")
+            icon=("ERROR" if constr.failed else "NONE"),
         )
 
         return {"FINISHED"}
