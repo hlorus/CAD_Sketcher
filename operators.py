@@ -1630,7 +1630,8 @@ def update_convertor_geometry(scene):
 
         if mode == "MESH":
             # Create mesh data
-            sketch.target_mesh = sketch.target_curve_object.to_mesh().copy()
+            me = sketch.target_curve_object.to_mesh()
+            sketch.target_mesh = me.copy() if me else bpy.data.meshes.new(name)
 
             # Create mesh object
             if not sketch.target_object:
