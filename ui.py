@@ -88,6 +88,8 @@ class VIEW3D_PT_sketcher(Panel):
             row = layout.row()
             row.prop(sketch, "name")
             layout.prop(sketch, "convert_type")
+            if sketch.convert_type != "NONE":
+                layout.prop(sketch, "fill_shape")
 
             layout.operator(
                 operators.View3D_OT_slvs_delete_entity.bl_idname,

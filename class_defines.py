@@ -431,6 +431,11 @@ class SlvsSketch(PropertyGroup, SlvsGenericEntity):
         description="Define how the sketch should be converted in order to be usable in native blender",
         update=hide_sketch,
     )
+    fill_shape: BoolProperty(
+        name="Fill Shape",
+        description="Fill the resulting shape if it's closed",
+        default=True,
+    )
     solver_state: EnumProperty(
         name="Solver Status", items=global_data.solver_state_items
     )
