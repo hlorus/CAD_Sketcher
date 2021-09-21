@@ -155,7 +155,7 @@ class BezierConvertor:
         return False
 
     def to_bezier(self, curve_data):
-        curve_data.fill_mode = "FRONT"
+        curve_data.fill_mode = "FRONT" if self.sketch.fill_shape else "NONE"
 
         for spline_path in self.paths:
             path_segments = spline_path[0]
