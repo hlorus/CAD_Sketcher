@@ -13,6 +13,7 @@ if "bpy" in locals():
     import importlib
 
     my_modules = (
+        functions,
         global_data,
         gizmos,
         operators,
@@ -27,6 +28,7 @@ if "bpy" in locals():
 else:
     import bpy
     from . import (
+        functions,
         global_data,
         gizmos,
         operators,
