@@ -226,6 +226,9 @@ def register():
     install.register()
     theme.register()
     bpy.utils.register_class(Preferences)
+    logger.info(
+        "Enabled Geometry Sketcher base, version: {}".format(bl_info["version"])
+    )
 
     # Check Module and register all modules
     try:
