@@ -61,6 +61,7 @@ custom_shape_verts = (
 GIZMO_OFFSET = Vector((10.0, 10.0))
 GIZMO_GENERIC_SCALE = 5
 GIZMO_ROW_OFFSET = Vector((GIZMO_GENERIC_SCALE * 2.2, 0.0))
+GIZMO_ARROW_SCALE = 0.02
 
 
 class VIEW3D_GT_slvs_constraint(Gizmo):
@@ -194,7 +195,11 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
         p1 = Vector((-dist, offset, 0.0))
         p2 = Vector((dist, offset, 0.0))
 
-        length = math.copysign(min(0.2, abs(dist * 0.8)), dist)
+        rv3d = context.region_data
+
+        length = math.copysign(
+            min(rv3d.view_distance * GIZMO_ARROW_SCALE, abs(dist * 0.8)), dist
+        )
         width = length * 0.4
         coords = (
             *draw_arrow_shape(p1, p1 + Vector((length, 0, 0)), width, is_3d=True),
@@ -233,8 +238,12 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
         )
 
         offset = -angle / 2
+        rv3d = context.region_data
 
-        length = min(0.2, abs(0.8 * math.pi * radius * constr.value / 360))
+        length = min(
+            rv3d.view_distance * GIZMO_ARROW_SCALE,
+            abs(0.8 * math.pi * radius * constr.value / 360),
+        )
         width = length * 0.4
 
         u = math.pi * radius * 2
@@ -279,7 +288,10 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         angle = math.radians(self.target_get_value("offset"))
         dist = constr.value / 2 / context.preferences.system.ui_scale
 
-        length = math.copysign(min(0.2, abs(dist * 0.8)), dist)
+        rv3d = context.region_data
+        length = math.copysign(
+            min(rv3d.view_distance * GIZMO_ARROW_SCALE, abs(dist * 0.8)), dist
+        )
         width = length * 0.4
 
         p1 = Vector(functions.pol2cart(-dist, angle))
