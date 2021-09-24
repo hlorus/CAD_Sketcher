@@ -1,5 +1,5 @@
 import bpy
-from bpy.types import Panel, Menu, UIList, VIEW3D_HT_header
+from bpy.types import Panel, Menu, UIList
 from . import operators, functions
 
 
@@ -215,12 +215,6 @@ def sketch_selector(context, layout, is_header=False, show_selector=True):
             row.menu(VIEW3D_MT_sketches.bl_idname, text=name)
 
 
-def draw_item(self, context):
-    layout = self.layout
-    layout.separator()
-
-    sketch_selector(context, layout, is_header=True)
-
 
 classes = (
     VIEW3D_UL_sketches,
@@ -234,11 +228,8 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    VIEW3D_HT_header.append(draw_item)
 
 
 def unregister():
-    VIEW3D_HT_header.remove(draw_item)
-
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
