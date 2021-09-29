@@ -1049,8 +1049,8 @@ def set_endpoint(self, context, event):
     x, y = Vector(pos) - ct
     angle = math.atan2(y, x)
 
-    # Get radius from distance ct - start
-    p1 = self.start.co
+    # Get radius from distance ct - p1
+    p1 = self.p1.co
     radius = (p1 - ct).length
 
     pos = Vector(functions.pol2cart(radius, angle)) + ct
@@ -1100,13 +1100,13 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator_2d, StatefulOperator):
         state_from_args(
             "PICK_start",
             description="Pick or place arc's starting point",
-            property="start",
+            property="p1",
             allow_prefill=False,
         ),
         state_from_args(
             "SET_end",
             description="Pick or place arc's ending point",
-            property="end",
+            property="p2",
             func=set_endpoint,
             confirm=True,
         ),
@@ -1125,7 +1125,7 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator_2d, StatefulOperator):
 
         sse = context.scene.sketcher.entities
 
-        self.target = sse.add_arc(sketch.wp.nm, self.ct, self.start, self.end, sketch)
+        self.target = sse.add_arc(sketch.wp.nm, self.ct, self.p1, self.p2, sketch)
         ignore_hover(self.target)
         logger.debug("Add: {}".format(self.target))
         context.area.tag_redraw()
@@ -1134,10 +1134,10 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator_2d, StatefulOperator):
 
 class_defines.slvs_entity_pointer(View3D_OT_slvs_add_arc2d, "ct", options={"SKIP_SAVE"})
 class_defines.slvs_entity_pointer(
-    View3D_OT_slvs_add_arc2d, "start", options={"SKIP_SAVE"}
+    View3D_OT_slvs_add_arc2d, "p1", options={"SKIP_SAVE"}
 )
 class_defines.slvs_entity_pointer(
-    View3D_OT_slvs_add_arc2d, "end", options={"SKIP_SAVE"}
+    View3D_OT_slvs_add_arc2d, "p2", options={"SKIP_SAVE"}
 )
 class_defines.slvs_entity_pointer(
     View3D_OT_slvs_add_arc2d, "sketch", options={"SKIP_SAVE"}

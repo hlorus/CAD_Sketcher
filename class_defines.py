@@ -694,6 +694,16 @@ def create_bezier_curve(
 
 
 class SlvsArc(PropertyGroup, SlvsGenericEntity, Entity2D):
+    invert_direction: BoolProperty(name="Invert direction")
+
+    @property
+    def start(self):
+        return self.p2 if self.invert_direction else self.p1
+
+    @property
+    def end(self):
+        return self.p1 if self.invert_direction else self.p2
+
     def __str__(self):
         return "Slvs Arc({}) at {}, from {}, to {}".format(
             self.slvs_index, self.ct, self.start, self.end
@@ -828,11 +838,15 @@ class SlvsArc(PropertyGroup, SlvsGenericEntity, Entity2D):
 
         return endpoint
 
+    def draw_props(self, layout):
+        col = layout.column()
+        col.prop(self, "invert_direction")
+
 
 slvs_entity_pointer(SlvsArc, "nm")
 slvs_entity_pointer(SlvsArc, "ct")
-slvs_entity_pointer(SlvsArc, "start")
-slvs_entity_pointer(SlvsArc, "end")
+slvs_entity_pointer(SlvsArc, "p1")
+slvs_entity_pointer(SlvsArc, "p2")
 slvs_entity_pointer(SlvsArc, "sketch")
 
 
@@ -1083,17 +1097,17 @@ class SlvsEntities(PropertyGroup):
         self._set_index(nm)
         return nm
 
-    def add_arc(self, nm, ct, start, end, sketch):
+    def add_arc(self, nm, ct, p1, p2, sketch):
         arc = self.arcs.add()
         arc.nm = nm
         arc.ct = ct
-        arc.start = start
-        arc.end = end
+        arc.p1 = p1
+        arc.p2 = p2
         arc.sketch = sketch
         self._set_index(arc)
         return arc
 
-    def add_circle(self, nm, ct, radius, sketch):  # TODO: is only 2d.. change name
+    def add_circle(self, nm, ct, radius, sketch):
         c = self.circles.add()
         c.nm = nm
         c.ct = ct
@@ -1998,9 +2012,6 @@ class SlvsConstraints(PropertyGroup):
         for entity_list in self.get_lists():
             for entity in entity_list:
                 yield entity
-
-
-
 
     def add_coincident(self, entity1, entity2, sketch=None) -> SlvsCoincident:
         c = self.coincident.add()
