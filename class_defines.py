@@ -132,12 +132,12 @@ class SlvsGenericEntity:
             )
         if self.selected:
             if self.hover:
-                return ts.entity.selected_hovered
+                return ts.entity.selected_highlight
             else:
                 return ts.entity.selected
         else:
             if self.hover:
-                return ts.entity.hovered
+                return ts.entity.highlight
             else:
                 return ts.entity.default
 

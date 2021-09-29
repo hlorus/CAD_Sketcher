@@ -364,6 +364,15 @@ def constraints_mapping(context):
     assert len(entities) == len(constraints)
     return entities, constraints
 
+def set_gizmo_colors(gz, failed):
+    theme = functions.get_prefs().theme_settings
+    color = theme.constraint.failed if failed else theme.constraint.default
+    color_highlight = theme.constraint.failed_highlight if failed else theme.constraint.highlight
+
+    gz.color = color[0:-1]
+    gz.alpha = color[-1]
+    gz.color_highlight = color_highlight[0:-1]
+    gz.alpha_highlight = color_highlight[-1]
 
 class ConstraintGenericGGT:
     bl_space_type = "VIEW_3D"
@@ -374,23 +383,14 @@ class ConstraintGenericGGT:
         return context.scene.sketcher.constraints.get_list(self.type)
 
     def setup(self, context):
-        theme = functions.get_prefs().theme_settings
         for c in self._list_from_type(context):
             if not c.is_active(context.scene.sketcher.active_sketch):
                 continue
             gz = self.gizmos.new(self.gizmo_type)
             gz.index = context.scene.sketcher.constraints.get_index(c)
 
-            gz.color = (
-                theme.constraint.default if not c.failed else theme.constraint.failed
-            )
-            gz.alpha = (
-                theme.constraint.alpha
-                if not c.failed
-                else theme.constraint.failed_alpha
-            )
-            gz.color_highlight = theme.constraint.highlight
-            gz.alpha_highlight = theme.constraint.alpha_highlight
+            set_gizmo_colors(gz, c.failed)
+
             gz.use_draw_modal = True
             gz.target_set_prop("offset", c, "draw_offset")
 
@@ -471,14 +471,9 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 gz.offset = GIZMO_ROW_OFFSET * i * context.preferences.system.ui_scale
 
                 gz.scale_basis = GIZMO_GENERIC_SCALE
-                gz.color = (1.0, 0.5, 0.0) if not c.failed else theme.constraint.failed
-                gz.alpha = (
-                    theme.constraint.alpha
-                    if not c.failed
-                    else theme.constraint.failed_alpha
-                )
-                gz.color_highlight = 1.0, 1.0, 1.0
-                gz.alpha_highlight = 0.8
+
+                set_gizmo_colors(gz, c.failed)
+
                 gz.use_draw_modal = True
 
                 props = gz.target_set_operator(

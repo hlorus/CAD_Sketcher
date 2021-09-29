@@ -4,11 +4,12 @@ from bpy.types import PropertyGroup
 
 
 def update(self, context):
-    for area in context.screen.areas:
-        if area.type != "VIEW_3D":
-            continue
-        area.tag_redraw()
-        area.spaces[0].show_gizmo = True
+    for window in context.window_manager.windows:
+        for area in window.screen.areas:
+            if area.type != "VIEW_3D":
+                continue
+            area.tag_redraw()
+            area.spaces[0].show_gizmo = True
 
 
 class ThemeSettingsEntity(PropertyGroup):
@@ -21,10 +22,10 @@ class ThemeSettingsEntity(PropertyGroup):
         max=1.0,
         update=update,
     )
-    hovered: FloatVectorProperty(
-        name="Hovered",
+    highlight: FloatVectorProperty(
+        name="Highlight",
         subtype="COLOR",
-        default=(1.0, 1.0, 1.0, 0.5),
+        default=(0.65, 0.65, 0.65, 0.5),
         size=4,
         min=0.0,
         max=1.0,
@@ -33,16 +34,16 @@ class ThemeSettingsEntity(PropertyGroup):
     selected: FloatVectorProperty(
         name="Selected",
         subtype="COLOR",
-        default=(1.0, 0.647, 0.322, 0.8),
+        default=(0.9, 0.582, 0.29, 0.7),
         size=4,
         min=0.0,
         max=1.0,
         update=update,
     )
-    selected_hovered: FloatVectorProperty(
-        name="Selected",
+    selected_highlight: FloatVectorProperty(
+        name="Selected Highlight",
         subtype="COLOR",
-        default=(1.0, 0.647, 0.322, 0.5),
+        default=(1.0, 0.647, 0.322, 0.95),
         size=4,
         min=0.0,
         max=1.0,
@@ -63,36 +64,41 @@ class ThemeSettingsConstraint(PropertyGroup):
     default: FloatVectorProperty(
         name="Default",
         subtype="COLOR",
-        default=(1.0, 0.5, 0.5),
-        size=3,
+        default=(0.90, 0.54, 0.54, 0.7),
+        size=4,
         min=0.0,
         max=1.0,
         update=update,
     )
-    alpha: FloatProperty(name="Alpha", default=0.6, min=0.0, max=1.0, update=update)
+
     highlight: FloatVectorProperty(
         name="Highlight",
         subtype="COLOR",
-        default=(1.0, 1.0, 1.0),
-        size=3,
+        default=(1.0, 0.6, 0.6, 0.95),
+        size=4,
         min=0.0,
         max=1.0,
         update=update,
     )
-    alpha_highlight: FloatProperty(
-        name="Alpha Highlight", default=0.7, min=0.0, max=1.0, update=update
-    )
+
     failed: FloatVectorProperty(
         name="Failed",
         subtype="COLOR",
-        default=(1.0, 0.0, 0.0),
-        size=3,
+        default=(0.95, 0.0, 0.0, 0.8),
+        size=4,
         min=0.0,
         max=1.0,
         update=update,
     )
-    failed_alpha: FloatProperty(
-        name="Alpha Failed", default=0.8, min=0.0, max=1.0, update=update
+
+    failed_highlight: FloatVectorProperty(
+        name="Failed Highlight",
+        subtype="COLOR",
+        default=(1.0, 0.0, 0.0, 0.95),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
     )
 
 
