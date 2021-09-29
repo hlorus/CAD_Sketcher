@@ -766,9 +766,10 @@ class SlvsArc(PropertyGroup, SlvsGenericEntity, Entity2D):
         return math.atan2((start - center)[1], (start - center)[0])
 
     def placement(self):
-        coords = self.ct.co + Vector(
-            functions.pol2cart(self.radius, self.start_angle + self.angle / 2)
+        coords = self.ct.co + functions.pol2cart(
+            self.radius, self.start_angle + self.angle / 2
         )
+
         return self.wp.matrix_basis @ coords.to_3d()
 
     def connection_points(self):
@@ -789,10 +790,7 @@ class SlvsArc(PropertyGroup, SlvsGenericEntity, Entity2D):
         return self.bezier_segment_count() + 1
 
     def point_on_curve(self, angle):
-        return (
-            Vector(functions.pol2cart(self.radius, self.start_angle + angle))
-            + self.ct.co
-        )
+        return functions.pol2cart(self.radius, self.start_angle + angle) + self.ct.co
 
     def to_bezier(
         self,
@@ -893,7 +891,7 @@ class SlvsCircle(PropertyGroup, SlvsGenericEntity, Entity2D):
         self.radius = solvesys.getParam(self.param).val
 
     def point_on_curve(self, angle):
-        return Vector(functions.pol2cart(self.radius, angle)) + self.ct.co
+        return functions.pol2cart(self.radius, angle) + self.ct.co
 
     def placement(self):
         return self.wp.matrix_basis @ self.point_on_curve(45).to_3d()

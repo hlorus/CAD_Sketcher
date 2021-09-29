@@ -168,7 +168,7 @@ def range_2pi(angle):
 def pol2cart(radius, angle):
     x = radius * math.cos(angle)
     y = radius * math.sin(angle)
-    return (x, y)
+    return Vector((x, y))
 
 
 def index_to_rgb(i):

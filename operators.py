@@ -1053,7 +1053,7 @@ def set_endpoint(self, context, event):
     p1 = self.p1.co
     radius = (p1 - ct).length
 
-    pos = Vector(functions.pol2cart(radius, angle)) + ct
+    pos = functions.pol2cart(radius, angle) + ct
 
     is_prop_set = self.is_state_prop_set()
     is_existing_entity = state.custom_data.get("is_existing_entity", True)
