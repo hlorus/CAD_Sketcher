@@ -1077,12 +1077,17 @@ def set_endpoint(self, context, event):
             entity.co = pos
         state.custom_data["is_existing_entity"] = False
 
+    # NOTE: This doesn't seem like the right place to do this, the target entity might not yet exist.
+    # StatefulOperator could support an update target step e.g. state.update_target = callback_func
+    if hasattr(self, "target"):
+        center = self.ct.co
+        start = self.p1.co - center
+
+        a = (pos - center).angle_signed(start)
+        self.target.invert_direction = a < 0
+
     context.area.tag_redraw()
     return entity
-
-
-# NOTE: Operator should probably have an angle prop and place the endpoint based on that,
-# however it should also be possible to pick a entity as endpoint...
 
 
 class View3D_OT_slvs_add_arc2d(Operator, Operator_2d, StatefulOperator):
