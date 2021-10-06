@@ -11,6 +11,7 @@ entities = {}
 batches = {}
 
 offscreen = None
+redraw_selection_buffer = False
 
 hover = None
 ignore_list = []

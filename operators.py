@@ -20,11 +20,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# NOTE: Drawing offscreen from 3D View drawhandler might be considered bad practice
-# however view projection matrix is already correct
 def draw_selection_buffer(context):
     # Draw elements offscreen
-    offscreen = global_data.offscreen
+    region = context.region
+
+    # create offscreen
+    width, height = region.width, region.height
+    offscreen = global_data.offscreen = gpu.types.GPUOffScreen(width, height)
 
     with offscreen.bind():
         bgl.glClearColor(0.0, 0.0, 0.0, 0.0)
@@ -39,26 +41,36 @@ def draw_selection_buffer(context):
             e.draw_id(context)
 
 
-def draw_elements(context):
+def ensure_selection_texture(context):
+    if not global_data.redraw_selection_buffer:
+        return
+
+    draw_selection_buffer(context)
+    global_data.redraw_selection_buffer = False
+
+
+# TODO: Avoid to always update batches and selection texture
+
+
+def update_elements(context):
     for e in context.scene.sketcher.entities.all:
         if hasattr(e, "update"):
-            e.update()  # bad!
+            e.update()
+
+
+def draw_elements(context):
+    for e in context.scene.sketcher.entities.all:
         if hasattr(e, "draw"):
             e.draw(context)
 
 
 def draw_cb():
     context = bpy.context
-    offscr = global_data.offscreen
-    region = context.region
-    if not offscr or region.width != offscr.width or region.height != offscr.height:
-        # create offscreen
-        width, height = region.width, region.height
-        global_data.offscreen = gpu.types.GPUOffScreen(width, height)
 
-    # Draw on screen
+    update_elements(context)
     draw_elements(context)
-    draw_selection_buffer(context)
+
+    global_data.redraw_selection_buffer = True
 
 
 class View3D_OT_slvs_register_draw_cb(Operator):

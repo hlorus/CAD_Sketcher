@@ -16,6 +16,9 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         pass
 
     def test_select(self, context, location):
+        # ensure selection texture is up to date
+        operators.ensure_selection_texture(context)
+
         # sample selection texture and mark hovered entitiy
         mouse_x, mouse_y = location
 
