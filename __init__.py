@@ -39,11 +39,17 @@ else:
         theme,
     )
 
-import logging
 from tempfile import gettempdir
 from pathlib import Path
 
+import logging
+
 logger = logging.getLogger(__name__)
+
+# Clear handlers
+if logger.hasHandlers():
+    logger.handlers.clear()
+
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter("%(name)s:{%(levelname)s}: %(message)s")
 
