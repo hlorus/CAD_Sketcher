@@ -125,7 +125,6 @@ class View3D_OT_slvs_select(Operator):
 
     bl_idname = "view3d.slvs_select"
     bl_label = "Select Solvespace Entities"
-    bl_options = {"UNDO"}
 
     # TODO: Add selection modes
 
@@ -149,7 +148,6 @@ class View3D_OT_slvs_select_all(Operator):
 
     bl_idname = "view3d.slvs_select_all"
     bl_label = "Select / Deselect Entities"
-    bl_options = {"UNDO"}
 
     deselect: BoolProperty(name="Deselect")
 
