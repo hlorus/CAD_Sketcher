@@ -558,7 +558,13 @@ class StatefulOperator:
 
         if retval == {"RUNNING_MODAL"}:
             context.window_manager.modal_handler_add(self)
-        return retval
+            return retval
+
+        succeede = retval == {'FINISHED'}
+        if succeede:
+            # NOTE: It seems like there's no undo step pushed if an operator finishes from invoke
+            bpy.ops.ed.undo_push()
+        return self._end(context, event, succeede)
 
     def modal(self, context, event):
         state = self.state
