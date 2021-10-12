@@ -632,6 +632,8 @@ class StatefulOperator:
         if succeede:
             return {"FINISHED"}
         else:
+            bpy.ops.ed.undo_push()
+            bpy.ops.ed.undo()
             return {"CANCELLED"}
 
     def check_props(self):
