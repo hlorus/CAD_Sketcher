@@ -138,13 +138,12 @@ def coords_arc_2d(
     x, y, radius, segments, angle=(pi * 2), offset=0.0, type="LINE_STRIP"
 ):
     coords = []
-    if segments < 2:
-        return coords
+    segments = max(segments, 1)
 
-    m = (1.0 / (segments - 1)) * angle
+    m = (1.0 / segments) * angle
 
     prev_point = None
-    for p in range(segments):
+    for p in range(segments + 1):
         co_x = x + cos(m * p + offset) * radius
         co_y = y + sin(m * p + offset) * radius
         if type == "LINES":
@@ -254,6 +253,14 @@ def get_line_intersection(A1, B1, C1, A2, B2, C2):
         x = (B2 * C1 - B1 * C2) / det
         y = (A1 * C2 - A2 * C1) / det
         return Vector((x, y))
+
+
+def get_scale_from_pos(co, rv3d):
+    if rv3d.view_perspective == "ORTHO":
+        scale = rv3d.view_distance
+    else:
+        scale = (rv3d.perspective_matrix @ co.to_4d())[3]
+    return scale
 
 
 def refresh(context):
