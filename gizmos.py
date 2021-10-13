@@ -1,7 +1,6 @@
 import bpy, bgl, gpu
 from . import functions, operators, global_data, class_defines
 
-
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector, Matrix
 
@@ -172,6 +171,20 @@ def draw_arrow_shape(target, shoulder, width, is_3d=False):
     )
 
 
+def get_arrow_size(co, dist, rv3d):
+    scale = functions.get_scale_from_pos(co, rv3d)
+    length = math.copysign(
+        min(
+            scale * GIZMO_ARROW_SCALE,
+            abs(dist * 0.8),
+        ),
+        dist,
+    )
+
+    width = length * 0.4
+    return length, width
+
+
 class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
     bl_idname = "VIEW3D_GT_slvs_distance"
     type = class_defines.SlvsDistance.type
@@ -200,15 +213,18 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
 
         rv3d = context.region_data
 
-        length = math.copysign(
-            min(rv3d.view_distance * GIZMO_ARROW_SCALE, abs(dist * 0.8)), dist
-        )
-        width = length * 0.4
+        arrow_1 = get_arrow_size(self.matrix_world @ p1, dist, rv3d)
+        arrow_2 = get_arrow_size(self.matrix_world @ p2, dist, rv3d)
+
         coords = (
-            *draw_arrow_shape(p1, p1 + Vector((length, 0, 0)), width, is_3d=True),
+            *draw_arrow_shape(
+                p1, p1 + Vector((arrow_1[0], 0, 0)), arrow_1[1], is_3d=True
+            ),
             p1,
             p2,
-            *draw_arrow_shape(p2, p2 - Vector((length, 0, 0)), width, is_3d=True),
+            *draw_arrow_shape(
+                p2, p2 - Vector((arrow_2[0], 0, 0)), arrow_2[1], is_3d=True
+            ),
             *(helplines if not select else ()),
         )
 
@@ -229,6 +245,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
     def _create_shape(self, context, constr, select=False):
         angle = abs(math.radians(constr.value))
 
+        # TODO: Use C.preferences.system.ui_scale (accounts for dpi)
         # NOTE: magic factor 0.65, why is this needed?!
         radius = self.target_get_value("offset") * 0.80
         overshoot = math.copysign(0.04, radius)
@@ -243,33 +260,39 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
         offset = -angle / 2
         rv3d = context.region_data
 
-        length = min(
-            rv3d.view_distance * GIZMO_ARROW_SCALE,
-            abs(0.8 * math.pi * radius * constr.value / 360),
-        )
-        width = length * 0.4
+        p1 = functions.pol2cart(radius, offset)
+        p2 = functions.pol2cart(radius, offset + angle)
+
+        lengths, widths = [], []
+        for p in (p1, p2):
+            scale = functions.get_scale_from_pos(self.matrix_world @ p.to_3d(), rv3d)
+
+            length = min(
+                scale * GIZMO_ARROW_SCALE,
+                abs(0.8 * math.pi * radius * constr.value / 360),
+            )
+            lengths.append(length)
+            widths.append(length * 0.4)
 
         u = math.pi * radius * 2
         a = abs(length * 360 / u)
 
         arrow_angle = math.radians(90 + a / 2)
 
-        p1 = functions.pol2cart(radius, offset)
         p1_s = p1.copy()
         p1_s.rotate(Matrix.Rotation(arrow_angle, 2, "Z"))
-        p1_s.length = abs(length)
+        p1_s.length = abs(lengths[0])
 
-        p2 = functions.pol2cart(radius, offset + angle)
         p2_s = p2.copy()
         p2_s.rotate(Matrix.Rotation(-arrow_angle, 2, "Z"))
-        p2_s.length = abs(length)
+        p2_s.length = abs(lengths[1])
 
         coords = (
-            *draw_arrow_shape(p1, p1 + p1_s, width),
+            *draw_arrow_shape(p1, p1 + p1_s, widths[0]),
             *functions.coords_arc_2d(
                 0, 0, radius, 32, angle=angle, offset=offset, type="LINES"
             ),
-            *draw_arrow_shape(p2, p2 + p2_s, width),
+            *draw_arrow_shape(p2, p2 + p2_s, widths[1]),
             *(helplines if not select else ()),
         )
 
@@ -292,18 +315,22 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         dist = constr.value / 2 / context.preferences.system.ui_scale
 
         rv3d = context.region_data
-        length = math.copysign(
-            min(rv3d.view_distance * GIZMO_ARROW_SCALE, abs(dist * 0.8)), dist
-        )
-        width = length * 0.4
 
         p1 = functions.pol2cart(-dist, angle)
         p2 = functions.pol2cart(dist, angle)
+
+        arrow_1 = get_arrow_size(self.matrix_world @ p1.to_3d(), dist, rv3d)
+        arrow_2 = get_arrow_size(self.matrix_world @ p2.to_3d(), dist, rv3d)
+
         coords = (
-            *draw_arrow_shape(p1, functions.pol2cart(length - dist, angle), width),
+            *draw_arrow_shape(
+                p1, functions.pol2cart(arrow_1[0] - dist, angle), arrow_1[1]
+            ),
             p1,
             p2,
-            *draw_arrow_shape(p2, functions.pol2cart(dist - length, angle), width),
+            *draw_arrow_shape(
+                p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+            ),
         )
 
         self.custom_shape = self.new_custom_shape("LINES", coords)
@@ -363,15 +390,19 @@ def constraints_mapping(context):
     assert len(entities) == len(constraints)
     return entities, constraints
 
+
 def set_gizmo_colors(gz, failed):
     theme = functions.get_prefs().theme_settings
     color = theme.constraint.failed if failed else theme.constraint.default
-    color_highlight = theme.constraint.failed_highlight if failed else theme.constraint.highlight
+    color_highlight = (
+        theme.constraint.failed_highlight if failed else theme.constraint.highlight
+    )
 
     gz.color = color[0:-1]
     gz.alpha = color[-1]
     gz.color_highlight = color_highlight[0:-1]
     gz.alpha_highlight = color_highlight[-1]
+
 
 class ConstraintGenericGGT:
     bl_space_type = "VIEW_3D"
