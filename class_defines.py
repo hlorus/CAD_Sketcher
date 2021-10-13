@@ -321,6 +321,9 @@ slvs_entity_pointer(SlvsLine3D, "p2")
 class SlvsNormal3D(PropertyGroup, SlvsGenericEntity):
     orientation: FloatVectorProperty(subtype="QUATERNION", size=4)
 
+    def update(self):
+        pass
+
     def draw(self, context):
         pass
 
@@ -459,6 +462,9 @@ class SlvsSketch(PropertyGroup, SlvsGenericEntity):
             if e.sketch != self:
                 continue
             yield e
+
+    def update(self):
+        pass
 
     def draw(self, context):
         pass
@@ -626,6 +632,9 @@ slvs_entity_pointer(SlvsLine2D, "sketch")
 
 
 class SlvsNormal2D(PropertyGroup, SlvsGenericEntity, Entity2D):
+    def update(self):
+        pass
+
     def draw(self, context):
         pass
 
@@ -1044,6 +1053,7 @@ class SlvsEntities(PropertyGroup):
         p = self.points3D.add()
         p.location = co
         self._set_index(p)
+        p.update()
         return p
 
     def add_line_3d(self, p1, p2):
@@ -1051,12 +1061,14 @@ class SlvsEntities(PropertyGroup):
         l.p1 = p1
         l.p2 = p2
         self._set_index(l)
+        l.update()
         return l
 
     def add_normal_3d(self, quat):
         nm = self.normals3D.add()
         nm.orientation = quat
         self._set_index(nm)
+        nm.update()
         return nm
 
     def add_workplane(self, p1, nm):
@@ -1064,6 +1076,7 @@ class SlvsEntities(PropertyGroup):
         wp.p1 = p1
         wp.nm = nm
         self._set_index(wp)
+        wp.update()
         return wp
 
     def add_sketch(self, wp):
@@ -1072,6 +1085,7 @@ class SlvsEntities(PropertyGroup):
         self._set_index(sketch)
         _, i = self._breakdown_index(sketch.slvs_index)
         sketch.name = "Sketch." + str(i)
+        sketch.update()
         return sketch
 
     def add_point_2d(self, co, sketch):
@@ -1079,6 +1093,7 @@ class SlvsEntities(PropertyGroup):
         p.co = co
         p.sketch = sketch
         self._set_index(p)
+        p.update()
         return p
 
     def add_line_2d(self, p1, p2, sketch):
@@ -1087,12 +1102,14 @@ class SlvsEntities(PropertyGroup):
         l.p2 = p2
         l.sketch = sketch
         self._set_index(l)
+        l.update()
         return l
 
     def add_normal_2d(self, sketch):
         nm = self.normals2D.add()
         nm.sketch = sketch
         self._set_index(nm)
+        nm.update()
         return nm
 
     def add_arc(self, nm, ct, p1, p2, sketch):
@@ -1103,6 +1120,7 @@ class SlvsEntities(PropertyGroup):
         arc.p2 = p2
         arc.sketch = sketch
         self._set_index(arc)
+        arc.update()
         return arc
 
     def add_circle(self, nm, ct, radius, sketch):
@@ -1112,6 +1130,7 @@ class SlvsEntities(PropertyGroup):
         c.radius = radius
         c.sketch = sketch
         self._set_index(c)
+        c.update()
         return c
 
     @property
