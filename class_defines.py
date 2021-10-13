@@ -702,6 +702,9 @@ def create_bezier_curve(
         b2.co = loc2.to_3d()
 
 
+CURVE_RESOLUTION = 32
+
+
 class SlvsArc(PropertyGroup, SlvsGenericEntity, Entity2D):
     invert_direction: BoolProperty(name="Invert direction")
 
@@ -726,14 +729,13 @@ class SlvsArc(PropertyGroup, SlvsGenericEntity, Entity2D):
         p1 = self.start.co - ct
         p2 = self.end.co - ct
 
-        radius = math.hypot(p1.x, p1.y)
-        offset = functions.range_2pi(math.atan2(p1.y, p1.x))
+        radius = p1.length
+        offset = p1.angle_signed(Vector((1, 0)))
 
-        offset_2 = functions.range_2pi(math.atan2(p2.y, p2.x))
-        angle = functions.range_2pi(offset_2 - offset)
+        angle = functions.range_2pi(p2.angle_signed(p1))
 
         # TODO: resolution should depend on segment length?!
-        segments = round(8 * (angle / math.pi * 2)) + 1
+        segments = round(CURVE_RESOLUTION * (angle / (math.pi * 2)))
 
         coords = functions.coords_arc_2d(
             0, 0, radius, segments, angle=angle, offset=offset
