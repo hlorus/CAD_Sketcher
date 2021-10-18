@@ -134,7 +134,7 @@ class View3D_OT_slvs_select(Operator):
 
     def execute(self, context):
         index = global_data.hover
-        if index != None:
+        if index != -1:
             entity = context.scene.sketcher.entities.get(index)
             entity.selected = not entity.selected
         else:
@@ -368,7 +368,7 @@ def get_hovered(context, *types):
     hovered = global_data.hover
     entity = None
 
-    if hovered and hovered != -1:
+    if hovered != -1:
         entity = context.scene.sketcher.entities.get(hovered)
         if type(entity) in types:
             return entity
@@ -902,13 +902,6 @@ class Operator_2d:
         pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
         pos = wp.matrix_basis.inverted() @ pos
         return pos[:-1]
-
-    def entity_from_coords(self, context, sketch, coords, types=()):
-        hovered = global_data.hover
-        if hovered and hovered != -1:
-            entity = context.scene.sketcher.entities.get(hovered)
-            if type(entity) in types or not types:
-                return entity
 
         # create new point
         pos = self.get_placement_pos(context, coords)

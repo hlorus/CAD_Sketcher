@@ -32,10 +32,9 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             if index != global_data.hover:
                 global_data.hover = index
                 context.area.tag_redraw()
-        elif global_data.hover != None:
+        elif global_data.hover != -1:
             context.area.tag_redraw()
-            global_data.hover = None
-
+            global_data.hover = -1
         return -1
 
 
