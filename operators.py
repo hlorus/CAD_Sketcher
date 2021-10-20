@@ -386,7 +386,7 @@ def pick_place_point(self, context, event, is_2d):
     coords = event.mouse_region_x, event.mouse_region_y
     entity = None
     is_prop_set = self.is_state_prop_set()
-    is_existing_entity = state.custom_data.get("is_existing_entity", True)
+    is_existing_entity = self.state_data.get("is_existing_entity", True)
 
     hovered = get_hovered(
         context, (class_defines.SlvsPoint2D if is_2d else class_defines.SlvsPoint3D)
@@ -401,7 +401,7 @@ def pick_place_point(self, context, event, is_2d):
             sse.remove(
                 getattr(self, state.property).slvs_index
             )  # index stays in hover ignore list...
-            state.custom_data["is_existing_entity"] = True
+            self.state_data["is_existing_entity"] = True
     else:
         pos = self.get_placement_pos(context, coords)
         if not is_prop_set or is_existing_entity:
@@ -413,7 +413,7 @@ def pick_place_point(self, context, event, is_2d):
             entity = getattr(self, state.property)
             self.tweak_point(entity, pos)
 
-        self.state.custom_data["is_existing_entity"] = False
+        self.state_data["is_existing_entity"] = False
 
     context.area.tag_redraw()
     return entity
@@ -462,6 +462,7 @@ class StatefulOperator:
         self.state_index = self._index_from_state(state)
 
     def next_state(self):
+        self.state_data.clear()
         i = self.state_index
         if (i + 1) >= len(self.states):
             return False
@@ -536,6 +537,7 @@ class StatefulOperator:
         return self.properties.is_property_set(prop_name)
 
     def invoke(self, context, event):
+        self.state_data = {}
         if hasattr(self, "init"):
             self.init(context, event)
         retval = {"RUNNING_MODAL"}
@@ -630,10 +632,6 @@ class StatefulOperator:
             self.fini(context, event)
         global_data.ignore_list.clear()
 
-        # NOTE: Is this really needed?
-        for s in self.states:
-            s.custom_data.clear()
-
         context.workspace.status_text_set(None)
         if succeede:
             return {"FINISHED"}
@@ -666,7 +664,6 @@ OperatorState = namedtuple(
         "args",  # Arguments to pass to state function
         "allow_prefill",  # Define if state should be filled from selected entities when invoked
         "parse_selection",  # Prefill Function which chooses entity to use for this state
-        "custom_data",  # Allow saving data on the state
     ),
 )
 del namedtuple
@@ -687,7 +684,6 @@ def state_from_args(name, **kwargs):
         "args": None,
         "allow_prefill": True,
         "parse_selection": None,
-        "custom_data": {},
     }
     kw.update(kwargs)
     return OperatorState(**kw)
@@ -821,7 +817,7 @@ def pick_workplane(self, context, event):
     coords = event.mouse_region_x, event.mouse_region_y
     entity = None
     is_prop_set = self.is_state_prop_set()
-    is_existing_entity = state.custom_data.get("is_existing_entity", True)
+    is_existing_entity = self.state_data.get("is_existing_entity", True)
 
     hovered = get_hovered(context, class_defines.SlvsWorkplane)
     return hovered
@@ -1067,7 +1063,7 @@ def set_endpoint(self, context, event):
     pos = functions.pol2cart(radius, angle) + ct
 
     is_prop_set = self.is_state_prop_set()
-    is_existing_entity = state.custom_data.get("is_existing_entity", True)
+    is_existing_entity = self.state_data.get("is_existing_entity", True)
 
     hovered = get_hovered(context, class_defines.SlvsPoint2D)
     # TODO: check if radius to hovered entity is too different to expected radius from startpoint
@@ -1076,7 +1072,7 @@ def set_endpoint(self, context, event):
         entity = hovered
         if is_prop_set and not is_existing_entity:
             sse.remove(getattr(self, state.property).slvs_index)
-            state.custom_data["is_existing_entity"] = True
+            self.state_data["is_existing_entity"] = True
     else:
         if not is_prop_set or is_existing_entity:
             # Create new point
@@ -1086,7 +1082,7 @@ def set_endpoint(self, context, event):
             # Tweak pos of existing entity
             entity = getattr(self, state.property)
             entity.co = pos
-        state.custom_data["is_existing_entity"] = False
+        self.state_data["is_existing_entity"] = False
 
     # NOTE: This doesn't seem like the right place to do this, the target entity might not yet exist.
     # StatefulOperator could support an update target step e.g. state.update_target = callback_func
