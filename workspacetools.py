@@ -1,7 +1,12 @@
 from bpy.types import WorkSpaceTool
 from . import operators, gizmos
+import os
 
 tool_prefix = "sketcher."
+
+
+def get_addon_icon_path(icon_name):
+    return os.path.join(os.path.dirname(__file__), "icons", icon_name)
 
 
 def tool_invoke_kmi(button, tool, operator):
@@ -103,7 +108,7 @@ class View3D_T_slvs_add_point3d(WorkSpaceTool):
     bl_idname = tool_prefix + "slvs_add_point3d"
     bl_label = "Add 3D Point"
     bl_description = "Add a Point"
-    bl_icon = ""
+    bl_icon = get_addon_icon_path("ops.bgs.add_point")
     bl_widget = gizmos.VIEW3D_GGT_slvs_preselection.bl_idname
     bl_keymap = (
         *tool_keymap,
@@ -122,7 +127,7 @@ class View3D_T_slvs_add_point2d(WorkSpaceTool):
     bl_idname = tool_prefix + "slvs_add_point2d"
     bl_label = "Add 2D Point"
     bl_description = "Add a Point to the active workplane"
-    bl_icon = ""
+    bl_icon = get_addon_icon_path("ops.bgs.add_point")
     bl_widget = gizmos.VIEW3D_GGT_slvs_preselection.bl_idname
     bl_keymap = (
         *tool_keymap,
