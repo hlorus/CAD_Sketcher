@@ -109,16 +109,12 @@ class VIEW3D_PT_sketcher(Panel):
 
         layout.separator()
 
-        layout.label(text="Add:")
-        layout.operator(operators.View3D_OT_slvs_add_workplane.bl_idname)
-        layout.separator()
-
         layout.label(text="Constraints:")
         layout.operator_enum(operators.VIEW3D_OT_slvs_add_constraint.bl_idname, "type")
-        layout.separator()
 
         prefs = functions.get_prefs()
         if prefs.show_debug_settings:
+            layout.separator()
             layout.label(text="Debug:")
             layout.operator(operators.VIEW3D_OT_slvs_write_selection_texture.bl_idname)
             layout.operator(operators.View3D_OT_slvs_solve.bl_idname)
@@ -138,7 +134,7 @@ class VIEW3D_MT_context_menu(Menu):
         layout = self.layout
 
         index = global_data.hover
-        if index != None:
+        if index != -1:
             entity = context.scene.sketcher.entities.get(index)
             layout.label(text="Type: " + type(entity).__name__)
 
@@ -172,7 +168,9 @@ class VIEW3D_MT_sketches(Menu):
     def draw(self, context):
         layout = self.layout
         sse = context.scene.sketcher.entities
-        layout.operator(operators.View3D_OT_slvs_add_sketch.bl_idname)
+        layout.operator(
+            operators.View3D_OT_slvs_add_sketch.bl_idname
+        ).wait_for_input = True
 
         if len(sse.sketches):
             layout.separator()
@@ -207,13 +205,14 @@ def sketch_selector(context, layout, is_header=False, show_selector=True):
     else:
         row.scale_y = scale_y
         # TODO: Don't show text when is_header
-        row.operator(operators.View3D_OT_slvs_add_sketch.bl_idname, icon="ADD")
+        row.operator(
+            operators.View3D_OT_slvs_add_sketch.bl_idname, icon="ADD"
+        ).wait_for_input = True
 
         if not is_header:
             row = layout.row()
         if show_selector:
             row.menu(VIEW3D_MT_sketches.bl_idname, text=name)
-
 
 
 classes = (
@@ -227,7 +226,6 @@ classes = (
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-
 
 
 def unregister():

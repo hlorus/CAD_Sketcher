@@ -244,7 +244,8 @@ def slvs_entity_pointer(cls, name, **kwargs):
 
     @func.setter
     def setter(self, entity):
-        setattr(self, index_prop, entity.slvs_index)
+        index = entity.slvs_index if entity else -1
+        setattr(self, index_prop, index)
 
     setattr(cls, name, setter)
 
@@ -320,6 +321,9 @@ slvs_entity_pointer(SlvsLine3D, "p2")
 
 class SlvsNormal3D(PropertyGroup, SlvsGenericEntity):
     orientation: FloatVectorProperty(subtype="QUATERNION", size=4)
+
+    def __str__(self):
+        return "Slvs Normal3D({})".format(self.slvs_index)
 
     def update(self):
         pass
@@ -1026,6 +1030,10 @@ class SlvsEntities(PropertyGroup):
     def _get_list_and_index(self, index):
         type_index, local_index = self._breakdown_index(index)
         return getattr(self, entity_collections[type_index]), local_index
+
+    def check(self, index):
+        sub_list, i = self._get_list_and_index(index)
+        return i < len(sub_list)
 
     def get(self, index):
         sub_list, i = self._get_list_and_index(index)
