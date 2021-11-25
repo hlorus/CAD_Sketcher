@@ -251,7 +251,7 @@ def slvs_entity_pointer(cls, name, **kwargs):
 
 
 class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
-    location: FloatVectorProperty(name="Location", subtype="XYZ")
+    location: FloatVectorProperty(name="Location", subtype="XYZ", unit="LENGTH")
 
     def __str__(self):
         return "Point3D({})".format(self.slvs_index)
@@ -509,7 +509,7 @@ class Entity2D:
 
 
 class SlvsPoint2D(PropertyGroup, SlvsGenericEntity, Entity2D):
-    co: FloatVectorProperty(name="Coordinates", subtype="XYZ", size=2)
+    co: FloatVectorProperty(name="Coordinates", subtype="XYZ", size=2, unit="LENGTH")
 
     def __str__(self):
         return "Slvs Point2D({})".format(self.slvs_index)
@@ -864,7 +864,7 @@ slvs_entity_pointer(SlvsArc, "sketch")
 
 
 class SlvsCircle(PropertyGroup, SlvsGenericEntity, Entity2D):
-    radius: FloatProperty()
+    radius: FloatProperty(name="Radius", subtype="DISTANCE", unit="LENGTH")
 
     def __str__(self):
         return "Slvs Circle({}) at {}, radius {}".format(
@@ -1220,7 +1220,7 @@ curve = (SlvsCircle, SlvsArc)
 
 
 class GenericConstraint:
-    failed: BoolProperty()
+    failed: BoolProperty(name="Failed")
     signature = ()
 
     def needs_wp(args):
@@ -1424,8 +1424,10 @@ def get_side_of_line(line_start, line_end, point):
 
 class SlvsDistance(PropertyGroup, GenericConstraint):
     label = "Distance"
-    value: FloatProperty(name=label, update=update_system_cb)
-    draw_offset: FloatProperty(default=0.3)
+    value: FloatProperty(
+        name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
+    )
+    draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     type = "DISTANCE"
     signature = (point, (*point, *line, SlvsWorkplane))
 
@@ -1534,8 +1536,10 @@ slvs_entity_pointer(SlvsDistance, "sketch")
 
 class SlvsDiameter(PropertyGroup, GenericConstraint):
     label = "Diameter"
-    value: FloatProperty(name=label, update=update_system_cb)
-    draw_offset: FloatProperty(default=45, subtype="ANGLE")
+    value: FloatProperty(
+        name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
+    )
+    draw_offset: FloatProperty(name="Draw Offset", default=45, subtype="ANGLE")
     type = "DIAMETER"
     signature = (curve,)
 
@@ -1575,9 +1579,11 @@ from mathutils.geometry import intersect_line_line_2d
 
 class SlvsAngle(PropertyGroup, GenericConstraint):
     label = "Angle"
-    value: FloatProperty(name=label, update=update_system_cb)
+    value: FloatProperty(
+        name=label, subtype="ANGLE", unit="ROTATION", update=update_system_cb
+    )
     setting: BoolProperty(name="Invert", update=update_system_cb)
-    draw_offset: FloatProperty(default=1)
+    draw_offset: FloatProperty(name="Draw Offset", default=1)
     type = "ANGLE"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
 
@@ -2143,11 +2149,12 @@ for cls in constraints:
 
 
 class SketcherProps(PropertyGroup):
-    hover: IntProperty(default=-1)
+    hover: IntProperty(name="Hovered Entity", default=-1)
     entities: PointerProperty(type=SlvsEntities)
     constraints: PointerProperty(type=SlvsConstraints)
-    show_origin: BoolProperty()
+    show_origin: BoolProperty(name="Show Origin Entities")
 
+    # this is needed for the sketches ui list
     ui_active_sketch: IntProperty()
 
     @property
