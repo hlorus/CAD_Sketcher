@@ -1250,7 +1250,14 @@ class View3D_OT_slvs_add_line3d(Operator, Operator3d, StatefulOperator):
         return True
 
     def continue_draw(self):
-        return not self._state_data[1]["is_existing_entity"]
+        last_state = self._state_data[1]
+        if last_state["is_existing_entity"]:
+            return False
+
+        # also not when last state has coincident constraint
+        if last_state.get("coincident"):
+            return False
+        return True
 
     def fini(self, context, succeede):
         if hasattr(self, "target"):
@@ -1513,7 +1520,14 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d, StatefulOperator):
         return True
 
     def continue_draw(self):
-        return not self._state_data[1]["is_existing_entity"]
+        last_state = self._state_data[1]
+        if last_state["is_existing_entity"]:
+            return False
+
+        # also not when last state has coincident constraint
+        if last_state.get("coincident"):
+            return False
+        return True
 
     def fini(self, context, succeede):
         if hasattr(self, "target"):
