@@ -722,6 +722,7 @@ class StatefulOperator:
         self.executed = True
         return retval
 
+    # Creates non-persistent data
     def redo_states(self, context):
         for i, state in enumerate(self.states):
             if i > self.state_index:
@@ -732,8 +733,10 @@ class StatefulOperator:
                 is_existing_entity = state_data["is_existing_entity"]
 
                 if state.property and not is_existing_entity:
+                    state = self.states[i]
+                    data = self._state_data.get(i, {})
                     create = self.get_func(state, "create_element")
-                    entity = create(context, getattr(self, state.property))
+                    entity = create(context, getattr(self, state.property), state, data)
                     setattr(self, state.pointer, entity)
 
     def execute(self, context):
@@ -1000,7 +1003,7 @@ class StatefulOperator:
 # pick_element(self, context, coords) -> element
 #   method to pick a matching element from mouse coordinates to fill the state property
 
-# create_element(self, context, value) -> element
+# create_element(self, context, value, state, state_data) -> element
 #   method to create state element when no existing element gets picked
 
 
@@ -1066,11 +1069,38 @@ class GenericEntityOp:
 
     def pick_element(self, context, _coords):
         state = self.state
-        type = state.types[0]
+        data = self.state_data
+
         hovered = get_hovered(context, *state.types)
         if hovered and self.is_in_previous_states(hovered):
             hovered = None
+
+        # Set the hovered entity for constraining if not directly used
+        hover = global_data.hover
+        if hovered:
+            data["hovered"] = -1
+        else:
+            data["hovered"] = hover if self._check_constrain(context, hover) else -1
         return hovered
+
+    def add_coincident(self, context, point, state, state_data):
+        index = state_data.get("hovered", -1)
+        if index != -1:
+            hovered = context.scene.sketcher.entities.get(index)
+            constraints = context.scene.sketcher.constraints
+
+            sketch = None
+            if hasattr(self, "sketch"):
+                sketch = self.sketch
+            state_data["coincident"] = constraints.add_coincident(
+                point, hovered, sketch=sketch
+            )
+
+    def has_coincident(self):
+        for state_index, data in self._state_data.items():
+            if data.get("coincident", None):
+                return True
+        return False
 
 
 class Operator3d(GenericEntityOp):
@@ -1084,11 +1114,18 @@ class Operator3d(GenericEntityOp):
     def state_func(self, context, coords):
         return functions.get_placement_pos(context, coords)
 
-    def create_element(self, context, value):
+    def create_element(self, context, value, state, state_data):
         sse = context.scene.sketcher.entities
         point = sse.add_point_3d(value)
         ignore_hover(point)
+
+        self.add_coincident(context, point, state, state_data)
         return point
+
+    # Check if hovered entity should be constrained
+    def _check_constrain(self, context, index):
+        type = context.scene.sketcher.entities.type_from_index(index)
+        return type in (class_defines.SlvsLine3D, class_defines.SlvsWorkplane)
 
 
 class Operator2d(GenericEntityOp):
@@ -1106,11 +1143,21 @@ class Operator2d(GenericEntityOp):
         pos = wp.matrix_basis.inverted() @ pos
         return Vector(pos[:-1])
 
-    def create_element(self, context, value):
+    def create_element(self, context, value, state, state_data):
         sse = context.scene.sketcher.entities
         point = sse.add_point_2d(value, self.sketch)
         ignore_hover(point)
+
+        self.add_coincident(context, point, state, state_data)
         return point
+
+    def _check_constrain(self, context, index):
+        type = context.scene.sketcher.entities.type_from_index(index)
+        return type in (
+            class_defines.SlvsLine2D,
+            class_defines.SlvsCircle,
+            class_defines.SlvsArc,
+        )
 
 
 p3d_state1_doc = ("Location", "Set point's location.")
@@ -1209,6 +1256,10 @@ class View3D_OT_slvs_add_line3d(Operator, Operator3d, StatefulOperator):
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
 
+        if succeede:
+            if self.has_coincident:
+                solve_system(context)
+
 
 combined_prop(
     View3D_OT_slvs_add_line3d,
@@ -1270,7 +1321,7 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d, StatefulOperator):
         vec = mousepos - self.p1.location
         return global_data.Z_AXIS.rotation_difference(vec).to_euler()
 
-    def create_normal3d(self, context, value):
+    def create_normal3d(self, context, value, state, state_data):
         sse = context.scene.sketcher.entities
         value = value.to_quaternion()
         return sse.add_normal_3d(value)
@@ -1283,6 +1334,10 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d, StatefulOperator):
     def fini(self, context, succeede):
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
+
+        if succeede:
+            if self.has_coincident:
+                solve_system(context)
 
 
 combined_prop(
@@ -1396,7 +1451,7 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d, StatefulOperator):
     )
 
     def main(self, context):
-        sketch = context.scene.sketcher.active_sketch
+        sketch = self.sketch
         self.target = context.scene.sketcher.entities.add_point_2d(
             self.coordinates, sketch
         )
@@ -1405,6 +1460,10 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d, StatefulOperator):
     def fini(self, context, succeede):
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
+
+        if succeede:
+            if self.has_coincident:
+                solve_system(context, sketch=self.sketch)
 
 
 types_point_2d = (class_defines.SlvsPoint2D,)
@@ -1459,6 +1518,10 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d, StatefulOperator):
     def fini(self, context, succeede):
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
+
+        if succeede:
+            if self.has_coincident:
+                solve_system(context, sketch=self.sketch)
 
 
 combined_prop(
@@ -1536,6 +1599,10 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d, StatefulOperator):
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
 
+        if succeede:
+            if self.has_coincident:
+                solve_system(context, sketch=self.sketch)
+
 
 combined_prop(
     View3D_OT_slvs_add_circle2d,
@@ -1611,7 +1678,7 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d, StatefulOperator):
 
     def solve_state(self, context, _event):
         sketch = context.scene.sketcher.active_sketch
-        solve_system(context, sketch)
+        solve_system(context, sketch=sketch)
         return True
 
     def main(self, context):
@@ -1632,7 +1699,7 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d, StatefulOperator):
     def fini(self, context, succeede):
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
-            self.solve_state(context, None)
+            self.solve_state(context, self.sketch)
 
 
 combined_prop(
@@ -1956,7 +2023,7 @@ class VIEW3D_OT_slvs_add_constraint(Operator, StatefulOperator, GenericEntityOp)
 
         self.target = c
         deselect_all(context)
-        solve_system(context, sketch)
+        solve_system(context, sketch=sketch)
         functions.refresh(context)
         return True
 
@@ -2014,7 +2081,7 @@ class View3D_OT_slvs_delete_constraint(Operator):
         constraints.remove(constr)
 
         sketch = context.scene.sketcher.active_sketch
-        solve_system(context, sketch)
+        solve_system(context, sketch=sketch)
         functions.refresh(context)
         return {"FINISHED"}
 

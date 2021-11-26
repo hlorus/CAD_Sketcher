@@ -186,6 +186,6 @@ class Solver:
         return retval
 
 
-def solve_system(context, sketch):
+def solve_system(context, sketch=None):
     solver = Solver(context, sketch)
     return solver.solve()

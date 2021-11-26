@@ -496,7 +496,7 @@ class SlvsSketch(PropertyGroup, SlvsGenericEntity):
         )
 
     def solve(self, context):
-        solve_system(context, self)
+        solve_system(context, sketch=self)
 
 
 slvs_entity_pointer(SlvsSketch, "wp")
@@ -1027,6 +1027,16 @@ class SlvsEntities(PropertyGroup):
         local_index = index & 0xFFFFF
         return type_index, local_index
 
+    def type_from_index(self, index):
+        if index < 0:
+            return None
+
+        type_index, _ = self._breakdown_index(index)
+
+        if type_index >= len(entities):
+            return None
+        return entities[type_index]
+
     def _get_list_and_index(self, index):
         type_index, local_index = self._breakdown_index(index)
         return getattr(self, entity_collections[type_index]), local_index
@@ -1406,7 +1416,7 @@ slvs_entity_pointer(SlvsEqual, "sketch")
 
 def update_system_cb(self, context):
     sketch = context.scene.sketcher.active_sketch
-    solve_system(context, sketch)
+    solve_system(context, sketch=sketch)
 
 
 from mathutils import Euler
@@ -2166,7 +2176,7 @@ class SketcherProps(PropertyGroup):
             yield c
 
     def solve(self, context):
-        solve_system(context, None)
+        solve_system(context)
 
 
 slvs_entity_pointer(SketcherProps, "active_sketch", update=functions.update_cb)
