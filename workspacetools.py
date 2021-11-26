@@ -13,7 +13,7 @@ def tool_invoke_kmi(button, tool, operator):
     return (
         operators.View3D_OT_invoke_tool.bl_idname,
         {"type": button, "value": "PRESS"},
-        {"properties": [("tool", tool), ("operator", operator)]},
+        {"properties": [("tool_name", tool), ("operator", operator)]},
     )
 
 
