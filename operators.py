@@ -672,7 +672,7 @@ class StatefulOperator:
         self._state_data.clear()
         if hasattr(self, "init"):
             self.init(context, event)
-            bpy.ops.ed.undo_push()
+
         retval = {"RUNNING_MODAL"}
 
         go_modal = True
@@ -710,7 +710,10 @@ class StatefulOperator:
         succeede = retval == {"FINISHED"}
         if succeede:
             # NOTE: It seems like there's no undo step pushed if an operator finishes from invoke
-            bpy.ops.ed.undo_push()
+            # could push an undo_step here however this causes duplicated constraints after redo,
+            # disable for now
+            # bpy.ops.ed.undo_push()
+            pass
         return self._end(context, succeede)
 
     def run_op(self, context):
@@ -875,7 +878,7 @@ class StatefulOperator:
                 ok = True
 
         if undo:
-            bpy.ops.ed.undo_push()
+            bpy.ops.ed.undo_push(message="Redo: " + self.bl_label)
             bpy.ops.ed.undo()
             global_data.ignore_list.clear()
             self.redo_states(context)
@@ -918,7 +921,7 @@ class StatefulOperator:
     def do_continuose_draw(self, context):
         # end operator
         self._end(context, True)
-        bpy.ops.ed.undo_push()
+        bpy.ops.ed.undo_push(message=self.bl_label)
 
         # save last prop
         last_pointer = None
@@ -945,7 +948,7 @@ class StatefulOperator:
         if succeede:
             return {"FINISHED"}
         else:
-            bpy.ops.ed.undo_push()
+            bpy.ops.ed.undo_push(message="Cancelled: " + self.bl_label)
             bpy.ops.ed.undo()
             return {"CANCELLED"}
 
@@ -1403,12 +1406,13 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d, StatefulOperator):
 
     def prepare_origin_elements(self, context, _coords):
         context.scene.sketcher.entities.ensure_origin_elements(context)
-        context.scene.sketcher.show_origin = True
         return True
 
     def init(self, context, event):
         self.ensure_preselect_gizmo(context, None)
         self.prepare_origin_elements(context, None)
+        bpy.ops.ed.undo_push(message="Ensure Origin Elements")
+        context.scene.sketcher.show_origin = True
 
     def main(self, context):
         sse = context.scene.sketcher.entities
