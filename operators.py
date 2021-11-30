@@ -116,7 +116,9 @@ def select_all(context):
     for e in generator:
         if e.selected:
             continue
-        if not e.visible:
+        if not e.is_visible(context):
+            continue
+        if not e.is_active(context.scene.sketcher.active_sketch):
             continue
         e.selected = True
 
