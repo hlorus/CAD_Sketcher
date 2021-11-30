@@ -1783,7 +1783,6 @@ slvs_entity_pointer(SlvsVertical, "sketch")
 
 
 class SlvsPerpendicular(PropertyGroup, GenericConstraint):
-    setting: BoolProperty(name="Invert", update=update_system_cb)
     type = "PERPENDICULAR"
     label = "Perpendicular"
     signature = ((SlvsLine2D,), (SlvsLine2D,))

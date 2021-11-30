@@ -1477,6 +1477,9 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d, StatefulOperator):
                 solve_system(context, sketch=self.sketch)
 
 
+combined_prop(View3D_OT_slvs_add_point2d, "sketch", None, {}, options={"SKIP_SAVE"})
+
+
 types_point_2d = (class_defines.SlvsPoint2D,)
 
 
@@ -1977,23 +1980,18 @@ from .global_data import WpReq
 state_docstr = "Pick entity to constrain."
 
 
-class VIEW3D_OT_slvs_add_constraint(Operator, StatefulOperator, GenericEntityOp):
-    """Add a constraint"""
+class GenericConstraintOp:
+    initialized: BoolProperty(options={"SKIP_SAVE", "HIDDEN"})
 
-    bl_idname = "view3d.slvs_add_constraint"
-    bl_label = "Add Solvespace Constraint"
-    bl_options = {"UNDO", "REGISTER"}
-
-    type: EnumProperty(items=class_defines.constraint_types, options={"SKIP_SAVE"})
-    value: FloatProperty(options={"SKIP_SAVE"})
-    setting: BoolProperty(options={"SKIP_SAVE"})
-    initialized: BoolProperty(options={"SKIP_SAVE"})
+    @classmethod
+    def poll(cls, context):
+        return True
 
     @property
     def states(self):
         states = []
-        constraint_type = self.type
-        cls = class_defines.SlvsConstraints.cls_from_type(constraint_type)
+
+        cls = class_defines.SlvsConstraints.cls_from_type(self.type)
         for i, types in enumerate(cls.signature, start=1):
             states.append(
                 state_from_args(
@@ -2005,9 +2003,29 @@ class VIEW3D_OT_slvs_add_constraint(Operator, StatefulOperator, GenericEntityOp)
             )
         return states
 
+    def initialize_constraint(self, entities):
+        c = self.target
+        if not self.initialized and hasattr(c, "init_props"):
+            value, setting = c.init_props(entities)
+            if value is not None:
+                self.value = value
+            if setting is not None:
+                self.setting = setting
+        self.initialized = True
+
+    def check_props(self):
+        type = self.type
+        cls = class_defines.SlvsConstraints.cls_from_type(type)
+        for prop_name in [
+            "entity" + str(i) for i, _ in enumerate(range(len(cls.signature)), start=1)
+        ]:
+            if not self.check_pointer(prop_name):
+                return False
+        return True
+
     @classmethod
     def description(cls, context, properties):
-        constraint_type = properties.type
+        constraint_type = cls.type
         cls = class_defines.SlvsConstraints.cls_from_type(constraint_type)
 
         states = []
@@ -2016,59 +2034,36 @@ class VIEW3D_OT_slvs_add_constraint(Operator, StatefulOperator, GenericEntityOp)
                 state_desc("Entity" + str(i), "Pick entity to constrain.", types)
             )
 
-        return stateful_op_desc("Add a {} constraint".format(cls.label), *states)
+        return stateful_op_desc("Add {} constraint".format(cls.label), *states)
 
-    def check_props(self):
-        type = self.type
-        cls = class_defines.SlvsConstraints.cls_from_type(type)
-        for prop_name in [
-            "entity" + str(i) for i, _ in enumerate(range(len(cls.signature)), start=1)
-        ]:
-            if getattr(self, prop_name + "_i") == -1:
-                return False
-        return True
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    def main(self, context):
-        entities = context.scene.sketcher.entities.selected_entities
-
-        c = context.scene.sketcher.constraints.new_from_type(self.type)
-
+    def fill_entities(self):
+        c = self.target
         args = []
         # fill in entities!
         for prop in ("entity1", "entity2", "entity3", "entity4"):
             if hasattr(c, prop):
-                arg = getattr(self, prop)
-                setattr(c, prop, arg)
-                args.append(arg)
+                value = getattr(self, prop)
+                setattr(c, prop, value)
+                args.append(value)
+        return args
 
-        if not self.initialized and hasattr(c, "init_props"):
-            # TODO: Don't overwrite props if not neccesary
-            value, setting = c.init_props(args)
-            if value is not None:
-                self.value = value
-            if setting is not None:
-                self.setting = setting
-        self.initialized = True
+    def main(self, context):
+        c = self.target = context.scene.sketcher.constraints.new_from_type(self.type)
 
-        sketch = None
-        if context.scene.sketcher.active_sketch_i:
-            sketch = context.scene.sketcher.active_sketch
+        self.sketch = context.scene.sketcher.active_sketch
 
-        if sketch and c.needs_wp() != WpReq.FREE:
-            c.sketch = sketch
+        entities = self.fill_entities()
+        c.sketch = self.sketch
+
+        self.initialize_constraint(entities)
 
         if hasattr(c, "value"):
             c.value = self.value
         if hasattr(c, "setting"):
             c.setting = self.setting
 
-        self.target = c
         deselect_all(context)
-        solve_system(context, sketch=sketch)
+        solve_system(context, sketch=self.sketch)
         functions.refresh(context)
         return True
 
@@ -2084,15 +2079,176 @@ class VIEW3D_OT_slvs_add_constraint(Operator, StatefulOperator, GenericEntityOp)
             return
 
         if hasattr(c, "value"):
-            layout.prop(self, "value", text=c.rna_type.properties["value"].name)
+            layout.prop(self, "value")
         if hasattr(c, "setting"):
-            layout.prop(self, "setting", text=c.rna_type.properties["setting"].name)
+            layout.prop(self, "setting")
 
 
-combined_prop(VIEW3D_OT_slvs_add_constraint, "entity1", None, {}, options={"SKIP_SAVE"})
-combined_prop(VIEW3D_OT_slvs_add_constraint, "entity2", None, {}, options={"SKIP_SAVE"})
-combined_prop(VIEW3D_OT_slvs_add_constraint, "entity3", None, {}, options={"SKIP_SAVE"})
-combined_prop(VIEW3D_OT_slvs_add_constraint, "entity4", None, {}, options={"SKIP_SAVE"})
+# Dimensional constarints
+class VIEW3D_OT_slvs_add_distance(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+    bl_idname = "view3d.slvs_add_distance"
+    bl_label = "Distance"
+    bl_options = {"UNDO", "REGISTER"}
+
+    value: FloatProperty(
+        name="Distance", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
+    )
+    type = "DISTANCE"
+
+
+combined_prop(VIEW3D_OT_slvs_add_distance, "entity1", None, {}, options={"SKIP_SAVE"})
+combined_prop(VIEW3D_OT_slvs_add_distance, "entity2", None, {}, options={"SKIP_SAVE"})
+
+
+class VIEW3D_OT_slvs_add_angle(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+    bl_idname = "view3d.slvs_add_angle"
+    bl_label = "Angle"
+    bl_options = {"UNDO", "REGISTER"}
+
+    value: FloatProperty(
+        name="Angle", subtype="ANGLE", unit="ROTATION", options={"SKIP_SAVE"}
+    )
+    setting: BoolProperty(name="Invert")
+    type = "ANGLE"
+
+
+combined_prop(VIEW3D_OT_slvs_add_angle, "entity1", None, {}, options={"SKIP_SAVE"})
+combined_prop(VIEW3D_OT_slvs_add_angle, "entity2", None, {}, options={"SKIP_SAVE"})
+
+
+class VIEW3D_OT_slvs_add_diameter(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+    bl_idname = "view3d.slvs_add_diameter"
+    bl_label = "Diameter"
+    bl_options = {"UNDO", "REGISTER"}
+
+    value: FloatProperty(
+        name="Diameter", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
+    )
+    type = "DIAMETER"
+
+
+combined_prop(VIEW3D_OT_slvs_add_diameter, "entity1", None, {}, options={"SKIP_SAVE"})
+
+
+# Geomteric constraints
+class VIEW3D_OT_slvs_add_coincident(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+    bl_idname = "view3d.slvs_add_coincident"
+    bl_label = "Coincident"
+    bl_options = {"UNDO", "REGISTER"}
+
+    type = "COINCIDENT"
+
+
+combined_prop(VIEW3D_OT_slvs_add_coincident, "entity1", None, {}, options={"SKIP_SAVE"})
+combined_prop(VIEW3D_OT_slvs_add_coincident, "entity2", None, {}, options={"SKIP_SAVE"})
+
+
+class VIEW3D_OT_slvs_add_equal(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+    bl_idname = "view3d.slvs_add_equal"
+    bl_label = "Equal"
+    bl_options = {"UNDO", "REGISTER"}
+
+    type = "EQUAL"
+
+
+combined_prop(VIEW3D_OT_slvs_add_equal, "entity1", None, {}, options={"SKIP_SAVE"})
+combined_prop(VIEW3D_OT_slvs_add_equal, "entity2", None, {}, options={"SKIP_SAVE"})
+
+
+class VIEW3D_OT_slvs_add_vertical(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+    bl_idname = "view3d.slvs_add_vertical"
+    bl_label = "Vertical"
+    bl_options = {"UNDO", "REGISTER"}
+
+    type = "VERTICAL"
+
+
+combined_prop(VIEW3D_OT_slvs_add_vertical, "entity1", None, {}, options={"SKIP_SAVE"})
+
+
+class VIEW3D_OT_slvs_add_horizontal(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+    bl_idname = "view3d.slvs_add_horizontal"
+    bl_label = "Horizontal"
+    bl_options = {"UNDO", "REGISTER"}
+
+    type = "HORIZONTAL"
+
+
+combined_prop(VIEW3D_OT_slvs_add_horizontal, "entity1", None, {}, options={"SKIP_SAVE"})
+
+
+class VIEW3D_OT_slvs_add_parallel(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+    bl_idname = "view3d.slvs_add_parallel"
+    bl_label = "Parallel"
+    bl_options = {"UNDO", "REGISTER"}
+
+    type = "PARALLEL"
+
+
+combined_prop(VIEW3D_OT_slvs_add_parallel, "entity1", None, {}, options={"SKIP_SAVE"})
+combined_prop(VIEW3D_OT_slvs_add_parallel, "entity2", None, {}, options={"SKIP_SAVE"})
+
+
+class VIEW3D_OT_slvs_add_perpendicular(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+    bl_idname = "view3d.slvs_add_perpendicular"
+    bl_label = "Perpendicular"
+    bl_options = {"UNDO", "REGISTER"}
+
+    type = "PERPENDICULAR"
+
+
+combined_prop(
+    VIEW3D_OT_slvs_add_perpendicular, "entity1", None, {}, options={"SKIP_SAVE"}
+)
+combined_prop(
+    VIEW3D_OT_slvs_add_perpendicular, "entity2", None, {}, options={"SKIP_SAVE"}
+)
+
+
+class VIEW3D_OT_slvs_add_tangent(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+    bl_idname = "view3d.slvs_add_tangent"
+    bl_label = "Tangent"
+    bl_options = {"UNDO", "REGISTER"}
+
+    type = "TANGENT"
+
+
+combined_prop(VIEW3D_OT_slvs_add_tangent, "entity1", None, {}, options={"SKIP_SAVE"})
+combined_prop(VIEW3D_OT_slvs_add_tangent, "entity2", None, {}, options={"SKIP_SAVE"})
+
+
+class VIEW3D_OT_slvs_add_midpoint(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+    bl_idname = "view3d.slvs_add_midpoint"
+    bl_label = "Midpoint"
+    bl_options = {"UNDO", "REGISTER"}
+
+    type = "MIDPOINT"
+
+
+combined_prop(VIEW3D_OT_slvs_add_midpoint, "entity1", None, {}, options={"SKIP_SAVE"})
+combined_prop(VIEW3D_OT_slvs_add_midpoint, "entity2", None, {}, options={"SKIP_SAVE"})
 
 
 class View3D_OT_slvs_delete_constraint(Operator):
@@ -2273,6 +2429,20 @@ def update_convertor_geometry(scene):
         object.matrix_world = sketch.wp.matrix_basis
 
 
+constraint_operators = (
+    VIEW3D_OT_slvs_add_distance,
+    VIEW3D_OT_slvs_add_diameter,
+    VIEW3D_OT_slvs_add_angle,
+    VIEW3D_OT_slvs_add_coincident,
+    VIEW3D_OT_slvs_add_equal,
+    VIEW3D_OT_slvs_add_vertical,
+    VIEW3D_OT_slvs_add_horizontal,
+    VIEW3D_OT_slvs_add_parallel,
+    VIEW3D_OT_slvs_add_perpendicular,
+    VIEW3D_OT_slvs_add_tangent,
+    VIEW3D_OT_slvs_add_midpoint,
+)
+
 classes = (
     View3D_OT_slvs_register_draw_cb,
     View3D_OT_slvs_unregister_draw_cb,
@@ -2293,7 +2463,7 @@ classes = (
     View3D_OT_invoke_tool,
     View3D_OT_slvs_set_active_sketch,
     View3D_OT_slvs_delete_entity,
-    VIEW3D_OT_slvs_add_constraint,
+    *constraint_operators,
     View3D_OT_slvs_solve,
     View3D_OT_slvs_delete_constraint,
     View3D_OT_slvs_tweak_constraint_value_pos,

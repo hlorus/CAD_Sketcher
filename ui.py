@@ -110,7 +110,9 @@ class VIEW3D_PT_sketcher(Panel):
         layout.separator()
 
         layout.label(text="Constraints:")
-        layout.operator_enum(operators.VIEW3D_OT_slvs_add_constraint.bl_idname, "type")
+        col = layout.column(align=True)
+        for op in operators.constraint_operators:
+            col.operator(op.bl_idname)
 
         prefs = functions.get_prefs()
         if prefs.show_debug_settings:
