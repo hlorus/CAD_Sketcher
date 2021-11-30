@@ -242,7 +242,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
     )
 
     def _create_shape(self, context, constr, select=False):
-        angle = abs(math.radians(constr.value))
+        angle = abs(constr.value)
 
         # TODO: Use C.preferences.system.ui_scale (accounts for dpi)
         # NOTE: magic factor 0.65, why is this needed?!
@@ -268,7 +268,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
 
             length = min(
                 scale * GIZMO_ARROW_SCALE,
-                abs(0.8 * math.pi * radius * constr.value / 360),
+                abs(0.8 * radius * constr.value / 2),
             )
             lengths.append(length)
             widths.append(length * 0.4)

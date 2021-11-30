@@ -1615,7 +1615,7 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
             kwargs["wrkpln"] = wp
 
         return solvesys.addAngle(
-            self.value,
+            math.degrees(self.value),
             self.setting,
             self.entity1.py_data,
             self.entity2.py_data,
@@ -1701,7 +1701,7 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
         )
         self.draw_offset = dist if not setting else -dist
 
-        return angle, setting
+        return math.radians(angle), setting
 
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
