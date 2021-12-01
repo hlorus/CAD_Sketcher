@@ -1832,8 +1832,9 @@ class SlvsTangent(PropertyGroup, GenericConstraint):
 
     def create_slvs_data(self, solvesys, group=Solver.group_active):
         e1, e2 = self.entity1, self.entity2
+        wp = self.get_workplane()
 
-        # NOTE: get connection point between entities and set settings implicitly
+        # check if entities share a point
         point = connection_point(e1, e2)
         if point and not isinstance(e2, SlvsCircle):
             if isinstance(e2, SlvsLine2D):
@@ -1849,35 +1850,34 @@ class SlvsTangent(PropertyGroup, GenericConstraint):
                     e2.direction(point),
                     e1.py_data,
                     e2.py_data,
-                    wrkpln=self.get_workplane(),
-                    group=group,
-                )
-        else:
-            # NOTE: try to allow generic tangent (e.g. when entities aren't connected)
-            # by setting the proper distance between them
-            if isinstance(e2, SlvsLine2D):
-                value = math.copysign(
-                    e1.radius,
-                    get_side_of_line(e2.p1.location, e2.p2.location, e1.ct.location),
-                )
-
-                return solvesys.addPointLineDistance(
-                    value,
-                    e1.ct.py_data,
-                    e2.py_data,
-                    wrkpln=self.get_workplane(),
-                    group=group,
-                )
-            else:
-                value = e1.radius + e2.radius
-                return solvesys.addPointsDistance(
-                    value,
-                    e1.ct.py_data,
-                    e2.ct.py_data,
-                    wrkpln=self.get_workplane(),
+                    wrkpln=wp,
                     group=group,
                 )
 
+        elif isinstance(e2, SlvsLine2D):
+            orig = e2.p1.co
+            coords = (e1.ct.co - orig).project(e2.p2.co - orig) + orig
+            params = [solvesys.addParamV(v, group) for v in coords]
+            p = solvesys.addPoint2d(wp, *params, group=group)
+            l = solvesys.addLineSegment(e1.ct.py_data, p, group=group)
+
+            return (
+                make_coincident(solvesys, p, e1, wp, group),
+                make_coincident(solvesys, p, e2, wp, group),
+                solvesys.addPerpendicular(e2.py_data, l, wrkpln=wp, group=group)
+            )
+
+        elif type(e2) in curve:
+            coords = (e1.ct.co + e2.ct.co) / 2
+            params = [solvesys.addParamV(v, group) for v in coords]
+            p = solvesys.addPoint2d(wp, *params, group=group)
+            l = solvesys.addLineSegment(e1.ct.py_data, e2.ct.py_data, group=group)
+
+            return (
+                make_coincident(solvesys, p, e1, wp, group),
+                make_coincident(solvesys, p, e2, wp, group),
+                solvesys.addPointOnLine(p, l, group=group, wrkpln=wp)
+            )
 
 slvs_entity_pointer(SlvsTangent, "entity1")
 slvs_entity_pointer(SlvsTangent, "entity2")

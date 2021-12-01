@@ -37,6 +37,10 @@ class Solver:
             return self.sketch.wp.py_data
         return self.FREE_IN_3D
 
+    def _store_constraint_indices(self, c, indices):
+        for i in indices:
+            self.constraints[i] = c
+
     def _init_slvs_data(self):
         context = self.context
         logger.debug("Initialize entities:")
@@ -88,10 +92,13 @@ class Solver:
 
             if self.report:
                 c.failed = False
-            i = c.create_slvs_data(self.solvesys, group=group)
 
             # Store a index-constraint mapping
-            self.constraints[i] = c
+            from collections.abc import Iterable
+            indices = c.create_slvs_data(self.solvesys, group=group)
+            self._store_constraint_indices(
+                c, indices if isinstance(indices, Iterable) else (indices,)
+            )
 
             if group == self.group_active:
                 logger.debug(c)
