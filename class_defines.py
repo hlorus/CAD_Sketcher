@@ -1162,10 +1162,11 @@ class SlvsEntities(PropertyGroup):
 
     @property
     def selected_entities(self):
+        """Return all selected visible entities"""
         items = []
-        for item in self.all:
-            if item.selected:
-                items.append(item)
+        for index in global_data.selected:
+            entity = self.get(index)
+            items.append(entity)
         return items
 
     def ensure_origin_elements(self, context):
