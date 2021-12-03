@@ -1507,9 +1507,9 @@ class SlvsDistance(PropertyGroup, GenericConstraint):
         mat_local = Matrix.Translation(v_translation.to_3d()) @ mat_rot.to_4x4()
         return sketch.wp.matrix_basis @ mat_local
 
-    def init_props(self, args):
+    def init_props(self):
         # Set initial distance value to the current spacing
-        e1, e2 = args
+        e1, e2 = self.entity1, self.entity2
         if isinstance(e2, SlvsWorkplane):
             # Returns the signed distance to the plane
             value = distance_point_to_plane(e1.location, e2.p1.location, e2.normal)
@@ -1562,8 +1562,8 @@ class SlvsDiameter(PropertyGroup, GenericConstraint):
     def create_slvs_data(self, solvesys, group=Solver.group_active):
         return solvesys.addDiameter(self.value, self.entity1.py_data, group=group)
 
-    def init_props(self, args):
-        return args[0].radius * 2, None
+    def init_props(self):
+        return self.entity1.radius * 2, None
 
     def matrix_basis(self):
         if self.sketch_i == -1:
@@ -1676,9 +1676,9 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
 
         return math.degrees(math.acos(x))
 
-    def init_props(self, args):
+    def init_props(self):
         # Set initial angle value to the current angle
-        line1, line2 = args
+        line1, line2 = self.entity1, self.entity2
 
         vec1, vec2 = line1.direction_vec(), line2.direction_vec()
         angle_std = self._get_angle(vec1, vec2)
@@ -1864,7 +1864,7 @@ class SlvsTangent(PropertyGroup, GenericConstraint):
             return (
                 make_coincident(solvesys, p, e1, wp, group),
                 make_coincident(solvesys, p, e2, wp, group),
-                solvesys.addPerpendicular(e2.py_data, l, wrkpln=wp, group=group)
+                solvesys.addPerpendicular(e2.py_data, l, wrkpln=wp, group=group),
             )
 
         elif type(e2) in curve:
@@ -1876,8 +1876,9 @@ class SlvsTangent(PropertyGroup, GenericConstraint):
             return (
                 make_coincident(solvesys, p, e1, wp, group),
                 make_coincident(solvesys, p, e2, wp, group),
-                solvesys.addPointOnLine(p, l, group=group, wrkpln=wp)
+                solvesys.addPointOnLine(p, l, group=group, wrkpln=wp),
             )
+
 
 slvs_entity_pointer(SlvsTangent, "entity1")
 slvs_entity_pointer(SlvsTangent, "entity2")
@@ -2071,28 +2072,33 @@ class SlvsConstraints(PropertyGroup):
             c.sketch = sketch
         return c
 
-    def add_distance(self, entity1, entity2, sketch=None) -> SlvsDistance:
+    def add_distance(self, entity1, entity2, sketch=None, init=False) -> SlvsDistance:
         c = self.distance.add()
         c.entity1 = entity1
         c.entity2 = entity2
         if sketch:
             c.sketch = sketch
+        if init:
+            c.init_props()
         return c
 
-    def add_angle(self, entity1, entity2, sketch=None) -> SlvsAngle:
+    def add_angle(self, entity1, entity2, sketch=None, init=False) -> SlvsAngle:
         c = self.angle.add()
         c.entity1 = entity1
         c.entity2 = entity2
         if sketch:
             c.sketch = sketch
+        if init:
+            c.init_props()
         return c
 
-    def add_diameter(self, entity1, sketch=None) -> SlvsDiameter:
+    def add_diameter(self, entity1, sketch=None, init=False) -> SlvsDiameter:
         c = self.diameter.add()
         c.entity1 = entity1
-        c.entity2 = entity2
         if sketch:
             c.sketch = sketch
+        if init:
+            c.init_props()
         return c
 
     def add_parallel(self, entity1, entity2, sketch=None) -> SlvsParallel:
@@ -2106,7 +2112,6 @@ class SlvsConstraints(PropertyGroup):
     def add_horizontal(self, entity1, sketch=None) -> SlvsHorizontal:
         c = self.horizontal.add()
         c.entity1 = entity1
-        c.entity2 = entity2
         if sketch:
             c.sketch = sketch
         return c
@@ -2114,7 +2119,6 @@ class SlvsConstraints(PropertyGroup):
     def add_vertical(self, entity1, sketch=None) -> SlvsVertical:
         c = self.vertical.add()
         c.entity1 = entity1
-        c.entity2 = entity2
         if sketch:
             c.sketch = sketch
         return c

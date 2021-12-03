@@ -2005,10 +2005,10 @@ class GenericConstraintOp:
             )
         return states
 
-    def initialize_constraint(self, entities):
+    def initialize_constraint(self):
         c = self.target
         if not self.initialized and hasattr(c, "init_props"):
-            value, setting = c.init_props(entities)
+            value, setting = c.init_props()
             if value is not None:
                 self.value = value
             if setting is not None:
@@ -2057,7 +2057,7 @@ class GenericConstraintOp:
         entities = self.fill_entities()
         c.sketch = self.sketch
 
-        self.initialize_constraint(entities)
+        self.initialize_constraint()
 
         if hasattr(c, "value"):
             c.value = self.value
