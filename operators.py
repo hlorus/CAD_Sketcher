@@ -1769,6 +1769,129 @@ combined_prop(
 )
 combined_prop(View3D_OT_slvs_add_arc2d, "sketch", None, {}, options={"SKIP_SAVE"})
 
+rect_state1_doc = ("Startpoint", "Pick or place starting point.")
+rect_state2_doc = ("Endpoint", "Pick or place ending point.")
+
+
+class View3D_OT_slvs_add_rectangle(Operator, Operator2d, StatefulOperator):
+    bl_idname = "view3d.slvs_add_rectangle"
+    bl_label = "Add Rectangle"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @property
+    @functools.cache
+    def states(self):
+        states = (
+            state_from_args(
+                rect_state1_doc[0],
+                description=rect_state1_doc[1],
+                property="p1_fallback",
+                pointer="p1",
+                types=types_point_2d,
+            ),
+            state_from_args(
+                rect_state2_doc[0],
+                description=rect_state2_doc[1],
+                property="p2_fallback",
+                pointer="p2",
+                types=types_point_2d,
+                interactive=True,
+                create_element=self.create_point,
+            ),
+        )
+        return states
+
+    __doc__ = stateful_op_desc(
+        "Add a rectangle to the active sketch",
+        state_desc(*rect_state1_doc, types_point_2d),
+        state_desc(*rect_state1_doc, types_point_2d),
+    )
+
+    def main(self, context):
+        sketch = self.sketch
+        sse = context.scene.sketcher.entities
+        p_lb, p_rt = self.p1, self.p2
+
+        p_rb = sse.add_point_2d((p_rt.co.x, p_lb.co.y), sketch)
+        p_lt = sse.add_point_2d((p_lb.co.x, p_rt.co.y), sketch)
+
+        lines = []
+        points = (p_lb, p_rb, p_rt, p_lt)
+        for i, start in enumerate(points):
+            end = points[i + 1 if i < len(points) - 1 else 0]
+
+            l = sse.add_line_2d(start, end, sketch)
+            lines.append(l)
+
+        self.lines = lines
+
+        for e in (*points, *lines):
+            ignore_hover(e)
+        return True
+
+    def fini(self, context, succeede):
+        if hasattr(self, "lines") and self.lines:
+            ssc = context.scene.sketcher.constraints
+            for i, line in enumerate(self.lines):
+                func = ssc.add_horizontal if (i % 2) == 0 else ssc.add_vertical
+                func(line, sketch=self.sketch)
+
+            data = self._state_data.get(1)
+            if data.get("is_numeric_edit", False):
+                input = data.get("numeric_input")
+
+                # constrain distance
+                startpoint = getattr(self, self.states[0].pointer)
+                for val, line in zip(input, (self.lines[1], self.lines[2])):
+                    if val == None:
+                        continue
+                    ssc.add_distance(
+                        startpoint,
+                        line,
+                        sketch=self.sketch,
+                        init=True,
+                    )
+
+        if succeede:
+            if self.has_coincident:
+                solve_system(context, sketch=self.sketch)
+
+    def create_point(self, context, value, state, state_data):
+        if state_data.get("is_numeric_edit", False):
+            data = self._state_data.get(1)
+            input = data.get("numeric_input")
+            # use relative coordinates
+            orig = getattr(self, self.states[0].pointer).co
+
+            for i, val in enumerate(input):
+                if val == None:
+                    continue
+                value[i] = orig[i] + val
+
+        sse = context.scene.sketcher.entities
+        point = sse.add_point_2d(value, self.sketch)
+        ignore_hover(point)
+
+        self.add_coincident(context, point, state, state_data)
+        return point
+
+
+combined_prop(
+    View3D_OT_slvs_add_rectangle,
+    "p1",
+    FloatVectorProperty,
+    {"size": 2, "subtype": "XYZ", "unit": "LENGTH"},
+    options={"SKIP_SAVE"},
+)
+combined_prop(
+    View3D_OT_slvs_add_rectangle,
+    "p2",
+    FloatVectorProperty,
+    {"size": 2, "subtype": "XYZ", "unit": "LENGTH"},
+    options={"SKIP_SAVE"},
+)
+combined_prop(View3D_OT_slvs_add_rectangle, "sketch", None, {}, options={"SKIP_SAVE"})
+
 
 class View3D_OT_invoke_tool(Operator):
     bl_idname = "view3d.invoke_tool"
@@ -2483,6 +2606,7 @@ classes = (
     View3D_OT_slvs_add_line2d,
     View3D_OT_slvs_add_circle2d,
     View3D_OT_slvs_add_arc2d,
+    View3D_OT_slvs_add_rectangle,
     View3D_OT_invoke_tool,
     View3D_OT_slvs_set_active_sketch,
     View3D_OT_slvs_delete_entity,

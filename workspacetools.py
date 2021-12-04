@@ -222,6 +222,21 @@ class View3D_T_slvs_add_arc2d(WorkSpaceTool):
     )
 
 
+class View3D_T_slvs_add_rectangle(WorkSpaceTool):
+    bl_space_type = "VIEW_3D"
+    bl_context_mode = "OBJECT"
+    bl_idname = tool_prefix + "slvs_add_rectangle"
+    bl_label = "Add Rectangle"
+    bl_operator = operators.View3D_OT_slvs_add_rectangle.bl_idname
+    bl_icon = "ops.gpencil.primitive_box"
+    bl_widget = gizmos.VIEW3D_GGT_slvs_preselection.bl_idname
+    bl_keymap = (
+        *tool_keymap,
+        *tool_access,
+        *operator_access(operators.View3D_OT_slvs_add_rectangle.bl_idname),
+    )
+
+
 class View3D_T_slvs_add_workplane(WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
@@ -255,6 +270,7 @@ tools = (
     ),
     (View3D_T_slvs_add_circle2d, {"separator": False, "group": False}),
     (View3D_T_slvs_add_arc2d, {"separator": False, "group": False}),
+    (View3D_T_slvs_add_rectangle, {"separator": False, "group": False}),
     (View3D_T_slvs_add_workplane, {"separator": True, "group": False}),
 )
 
