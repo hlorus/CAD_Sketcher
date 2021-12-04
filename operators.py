@@ -787,6 +787,16 @@ class StatefulOperator:
                 result[i] = parse_input(prop, input)
         else:
             result = parse_input(prop, self.numeric_input)
+        # FIX: result is sometimes a list and sometimes a vector
+
+        # Store input on state
+        storage = [None] * self._substate_count
+        for i, input in self._numeric_input.items():
+            if not input:
+                continue
+            storage[i] = result[i]
+        self.state_data["numeric_input"] = storage
+
         return result
 
     def modal(self, context, event):
