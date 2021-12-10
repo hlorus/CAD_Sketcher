@@ -314,6 +314,10 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
     def placement(self):
         return (self.p1.location + self.p2.location) / 2
 
+    @property
+    def length(self):
+        return (self.p2.location - self.p1.location).length
+
 
 slvs_entity_pointer(SlvsLine3D, "p1")
 slvs_entity_pointer(SlvsLine3D, "p2")
@@ -628,6 +632,10 @@ class SlvsLine2D(PropertyGroup, SlvsGenericEntity, Entity2D):
 
     def direction_vec(self):
         return self.p2.co - self.p1.co
+
+    @property
+    def length(self):
+        return (self.p2.co - self.p1.co).length
 
 
 slvs_entity_pointer(SlvsLine2D, "p1")
@@ -1973,6 +1981,55 @@ slvs_entity_pointer(SlvsSymmetric, "entity2")
 slvs_entity_pointer(SlvsSymmetric, "entity3")
 slvs_entity_pointer(SlvsSymmetric, "sketch")
 
+
+class SlvsRatio(PropertyGroup, GenericConstraint):
+    type = "RATIO"
+    label = "Ratio"
+
+    value: FloatProperty(
+        name=label, subtype="UNSIGNED", update=update_system_cb, min=0.0
+    )
+
+    signature = (
+        line,
+        line,
+    )
+
+    def __str__(self):
+        return "{} between {} and {} on {}".format(
+            self.label, self.entity1, self.entity2, self.sketch
+        )
+
+    def needs_wp(self):
+        if isinstance(self.entity1, SlvsLine2D) or isinstance(self.entity2, SlvsLine2D):
+            return WpReq.NOT_FREE
+        return WpReq.FREE
+
+    def create_slvs_data(self, solvesys, group=Solver.group_active):
+        e1, e2 = self.entity1, self.entity2
+
+        return solvesys.addLengthRatio(
+            self.value,
+            e1.py_data,
+            e2.py_data,
+            self.get_workplane(),
+            group=group,
+        )
+
+    def init_props(self):
+        line1, line2 = self.entity1, self.entity2
+
+        value = line1.length / line2.length
+        return value, None
+
+    def draw_settings(self, context, layout):
+        layout.prop(self, "value")
+
+
+slvs_entity_pointer(SlvsRatio, "entity1")
+slvs_entity_pointer(SlvsRatio, "entity2")
+slvs_entity_pointer(SlvsRatio, "sketch")
+
 # TODO: Support advanced constraint types
 # - symmetric_h
 # - symmetric_v
@@ -2013,6 +2070,7 @@ constraints = (
     SlvsTangent,
     SlvsMidpoint,
     SlvsPerpendicular,
+    SlvsRatio,
     # SlvsSymmetric,
 )
 
@@ -2157,6 +2215,16 @@ class SlvsConstraints(PropertyGroup):
         c.entity2 = entity2
         if sketch:
             c.sketch = sketch
+        return c
+
+    def add_ratio(self, entity1, entity2, sketch=None, init=False) -> SlvsRatio:
+        c = self.ratio.add()
+        c.entity1 = entity1
+        c.entity2 = entity2
+        if sketch:
+            c.sketch = sketch
+        if init:
+            c.init_props()
         return c
 
 

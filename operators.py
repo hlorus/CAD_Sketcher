@@ -2397,6 +2397,24 @@ combined_prop(VIEW3D_OT_slvs_add_midpoint, "entity1", None, {}, options={"SKIP_S
 combined_prop(VIEW3D_OT_slvs_add_midpoint, "entity2", None, {}, options={"SKIP_SAVE"})
 
 
+class VIEW3D_OT_slvs_add_ratio(
+    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+):
+
+    value: FloatProperty(
+        name="Ratio", subtype="UNSIGNED", options={"SKIP_SAVE"}, min=0.0
+    )
+    bl_idname = "view3d.slvs_add_ratio"
+    bl_label = "Ratio"
+    bl_options = {"UNDO", "REGISTER"}
+
+    type = "RATIO"
+
+
+combined_prop(VIEW3D_OT_slvs_add_ratio, "entity1", None, {}, options={"SKIP_SAVE"})
+combined_prop(VIEW3D_OT_slvs_add_ratio, "entity2", None, {}, options={"SKIP_SAVE"})
+
+
 class View3D_OT_slvs_delete_constraint(Operator):
     bl_idname = "view3d.slvs_delete_constraint"
     bl_label = "Delete Constraint"
@@ -2606,6 +2624,7 @@ constraint_operators = (
     VIEW3D_OT_slvs_add_perpendicular,
     VIEW3D_OT_slvs_add_tangent,
     VIEW3D_OT_slvs_add_midpoint,
+    VIEW3D_OT_slvs_add_ratio,
 )
 
 classes = (
