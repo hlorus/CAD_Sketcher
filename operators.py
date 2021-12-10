@@ -2433,6 +2433,49 @@ class View3D_OT_slvs_delete_constraint(Operator):
         return {"FINISHED"}
 
 
+def show_constraint_settings(context, type, index):
+    constraints = context.scene.sketcher.constraints
+    constr = constraints.get_from_type_index(type, index)
+
+    def draw_func(self, context):
+        layout = self.layout
+        constr.draw_settings(context, layout)
+        layout.separator()
+        props = layout.operator(View3D_OT_slvs_delete_constraint.bl_idname, icon="X")
+        props.type = type
+        props.index = index
+
+    context.window_manager.popup_menu(
+        draw_func,
+        title=constr.rna_type.properties["value"].name + " Constraint",
+        icon=("ERROR" if constr.failed else "NONE"),
+    )
+
+
+class View3D_OT_slvs_tweak_constraint(Operator):
+    bl_idname = "view3d.slvs_tweak_constraint"
+    bl_label = "Tweak Constraint"
+    bl_options = {"UNDO"}
+    bl_description = "Tweak constraint's settings"
+
+    type: StringProperty(name="Type")
+    index: IntProperty(default=-1)
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    @classmethod
+    def description(cls, context, properties):
+        if properties.type:
+            return "Tweak: " + properties.type.capitalize()
+        return ""
+
+    def execute(self, context):
+        show_constraint_settings(context, self.type, self.index)
+        return {"FINISHED"}
+
+
 class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
     bl_idname = "view3d.slvs_tweak_constraint_value_pos"
     bl_label = "Tweak Constraint"
@@ -2483,31 +2526,7 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
         return {"RUNNING_MODAL"}
 
     def execute(self, context):
-        type, index = self.type, self.index
-        constraints = context.scene.sketcher.constraints
-        constr = constraints.get_from_type_index(type, index)
-
-        def draw_func(self, context):
-            layout = self.layout
-            name = constr.rna_type.properties["value"].name
-            layout.prop(constr, "value", text=name)
-
-            if hasattr(constr, "setting"):
-                layout.prop(constr, "setting")
-
-            layout.separator()
-            props = layout.operator(
-                View3D_OT_slvs_delete_constraint.bl_idname, icon="X"
-            )
-            props.type = type
-            props.index = index
-
-        context.window_manager.popup_menu(
-            draw_func,
-            title=constr.rna_type.properties["value"].name + " Constraint",
-            icon=("ERROR" if constr.failed else "NONE"),
-        )
-
+        show_constraint_settings(context, self.type, self.index)
         return {"FINISHED"}
 
 
@@ -2613,6 +2632,7 @@ classes = (
     *constraint_operators,
     View3D_OT_slvs_solve,
     View3D_OT_slvs_delete_constraint,
+    View3D_OT_slvs_tweak_constraint,
     View3D_OT_slvs_tweak_constraint_value_pos,
 )
 

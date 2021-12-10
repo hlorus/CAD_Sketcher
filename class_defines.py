@@ -1539,6 +1539,10 @@ class SlvsDistance(PropertyGroup, GenericConstraint):
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = pos[1] / ui_scale
 
+    def draw_settings(self, context, layout):
+        layout.prop(self, "value")
+        layout.prop(self, "setting")
+
 
 slvs_entity_pointer(SlvsDistance, "entity1")
 slvs_entity_pointer(SlvsDistance, "entity2")
@@ -1579,6 +1583,9 @@ class SlvsDiameter(PropertyGroup, GenericConstraint):
 
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = math.degrees(math.atan2(pos[1], pos[0]))  # / ui_scale
+
+    def draw_settings(self, context, layout):
+        layout.prop(self, "value")
 
 
 slvs_entity_pointer(SlvsDiameter, "entity1")
@@ -1706,6 +1713,10 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
 
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
+
+    def draw_settings(self, context, layout):
+        layout.prop(self, "value")
+        layout.prop(self, "setting")
 
 
 slvs_entity_pointer(SlvsAngle, "entity1")
