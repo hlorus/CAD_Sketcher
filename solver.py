@@ -7,7 +7,8 @@ logger = logging.getLogger(__name__)
 
 class Solver:
     group_fixed = 1
-    group_active = 2
+    group_3d = 2
+    start_sketch_groups = 3
 
     # iterate over constraints of active group and lazily init required entities
     def __init__(self, context, sketch):
@@ -41,13 +42,23 @@ class Solver:
         for i in indices:
             self.constraints[i] = c
 
+    def _get_group(self, sketch):
+        type, index = self.context.scene.sketcher.entities._breakdown_index(
+            sketch.slvs_index
+        )
+        return self.start_sketch_groups + index
+
     def _init_slvs_data(self):
         context = self.context
         logger.debug("Initialize entities:")
 
         for e in context.scene.sketcher.entities.all:
             self.entities.append(e)
-            group = self.group_active if self.is_active(e) else self.group_fixed
+
+            if hasattr(e, "sketch"):
+                group = self._get_group(e.sketch)
+            else:
+                group = self.group_3d
 
             if self.tweak_entity and e == self.tweak_entity:
                 wp = self.get_workplane()
@@ -82,26 +93,29 @@ class Solver:
 
             e.create_slvs_data(self.solvesys, group=group)
 
-            if group == self.group_active:
-                logger.debug(e)
+            logger.debug("g:" + str(group) + " " + str(e))
 
         logger.debug("Initialize constraints:")
 
         for c in context.scene.sketcher.constraints.all:
-            group = self.group_active if c.is_active(self.sketch) else self.group_fixed
+
+            if hasattr(c, "sketch") and c.sketch:
+                group = self._get_group(c.sketch)
+            else:
+                group = self.group_3d
 
             if self.report:
                 c.failed = False
 
             # Store a index-constraint mapping
             from collections.abc import Iterable
+
             indices = c.create_slvs_data(self.solvesys, group=group)
             self._store_constraint_indices(
                 c, indices if isinstance(indices, Iterable) else (indices,)
             )
 
-            if group == self.group_active:
-                logger.debug(c)
+            logger.debug("g:" + str(group) + " " + str(c))
 
     def tweak(self, entity, pos):
         logger.info("tweak: {} to: {}".format(entity, pos))
@@ -155,8 +169,12 @@ class Solver:
         self.report = report
         self._init_slvs_data()
 
+        group = self._get_group(self.sketch) if self.sketch else self.group_3d
+
         retval = self.solvesys.solve(
-            group=self.group_active, reportFailed=report, findFreeParams=False
+            group=group,
+            reportFailed=report,
+            findFreeParams=False,
         )
 
         # NOTE: For some reason solve() might return undocumented values,
