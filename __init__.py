@@ -123,6 +123,11 @@ def set_log_level(self, value):
     logger.setLevel(level)
 
 
+def update_logger():
+    prefs = functions.get_prefs()
+    logger.setLevel(prefs.logging_level)
+
+
 class Preferences(bpy.types.AddonPreferences):
     bl_idname = __package__
     theme_settings: PointerProperty(type=theme.ThemeSettings)
@@ -232,6 +237,9 @@ def register():
     install.register()
     theme.register()
     bpy.utils.register_class(Preferences)
+
+    update_logger()
+
     logger.info(
         "Enabled Geometry Sketcher base, version: {}".format(bl_info["version"])
     )

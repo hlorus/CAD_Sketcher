@@ -294,6 +294,7 @@ class bpyEnum:
 
         self.name = item[1]
         self.description = item[2]
+        self.index = item[-1]
         if len(item) == 5:
             icon = item[3]
         else:
