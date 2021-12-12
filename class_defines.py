@@ -121,25 +121,40 @@ class SlvsGenericEntity:
         else:
             return not active_sketch
 
+    def is_selectable(self, context):
+        if not self.is_visible(context):
+            return False
+
+        prefs = functions.get_prefs()
+        if prefs.all_entities_selectable:
+            return True
+
+        active_sketch = context.scene.sketcher.active_sketch
+        if active_sketch and hasattr(self, "sketch"):
+            # Allow to select entities that share the active sketch's wp
+            return active_sketch.wp == self.sketch.wp
+        return self.is_active(active_sketch)
+
     def color(self, context):
         prefs = functions.get_prefs()
         ts = prefs.theme_settings
-        if not self.is_active(context.scene.sketcher.active_sketch):
-            return (
-                ts.entity.inactive
-                if prefs.fade_inactive_geometry
-                else ts.entity.default
-            )
-        if self.selected:
+        active = self.is_active(context.scene.sketcher.active_sketch)
+
+        if not active:
+            if self.hover:
+                return ts.entity.highlight
+            if prefs.fade_inactive_geometry:
+                return ts.entity.inactive
+
+        elif self.selected:
             if self.hover:
                 return ts.entity.selected_highlight
             else:
                 return ts.entity.selected
-        else:
-            if self.hover:
-                return ts.entity.highlight
-            else:
-                return ts.entity.default
+        elif self.hover:
+            return ts.entity.highlight
+
+        return ts.entity.default
 
     @staticmethod
     def restore_opengl_defaults():
@@ -180,9 +195,7 @@ class SlvsGenericEntity:
         # e.g. to activate a sketch
         # maybe it should be dynamicly defined what is selectable (points only, lines only, ...)
         # if not self.is_visible(context):
-        if not self.is_active(
-            context.scene.sketcher.active_sketch
-        ) or not self.is_visible(context):
+        if not self.is_selectable(context):
             return
 
         batch = self._batch
@@ -358,6 +371,9 @@ class SlvsWorkplane(PropertyGroup, SlvsGenericEntity):
 
     def is_active(self, active_sketch):
         return not active_sketch
+
+    def is_selectable(self, context):
+        return self.is_active(context.scene.sketcher.active_sketch)
 
     def update(self):
         p1, nm = self.p1, self.nm
