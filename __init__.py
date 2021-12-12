@@ -160,6 +160,9 @@ class Preferences(bpy.types.AddonPreferences):
     hide_inactive_constraints: bpy.props.BoolProperty(
         name="Hide inactive Constraints", default=True, update=functions.update_cb
     )
+    all_entities_selectable: bpy.props.BoolProperty(
+        name="Make all Entities Selectable", update=functions.update_cb
+    )
 
     def draw(self, context):
         layout = self.layout

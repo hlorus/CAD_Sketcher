@@ -262,7 +262,7 @@ class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
             self._shader, "POINTS", {"pos": (self.location[:],)}
         )
 
-    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
         if not coords:
             coords = self.location
 
@@ -301,7 +301,7 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
             self._shader, "LINES", {"pos": (p1.location, p2.location)}
         )
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)
         self.py_data = handle
 
@@ -338,7 +338,7 @@ class SlvsNormal3D(PropertyGroup, SlvsGenericEntity):
     def draw_id(self, context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         quat = self.orientation
         handle = solvesys.addNormal3dV(quat.w, quat.x, quat.y, quat.z, group=group)
         self.py_data = handle
@@ -402,7 +402,7 @@ class SlvsWorkplane(PropertyGroup, SlvsGenericEntity):
 
         self.restore_opengl_defaults()
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addWorkplane(self.p1.py_data, self.nm.py_data, group=group)
         self.py_data = handle
 
@@ -480,7 +480,7 @@ class SlvsSketch(PropertyGroup, SlvsGenericEntity):
     def draw_id(self, context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         pass
 
     def remove_objects(self):
@@ -542,7 +542,7 @@ class SlvsPoint2D(PropertyGroup, SlvsGenericEntity, Entity2D):
         mat = self.wp.matrix_basis @ mat_local
         return mat @ Vector((0, 0, 0))
 
-    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
         if not coords:
             coords = self.co
 
@@ -587,7 +587,7 @@ class SlvsLine2D(PropertyGroup, SlvsGenericEntity, Entity2D):
         coords = (p1.location, p2.location)
         self._batch = batch_for_shader(self._shader, "LINES", {"pos": coords})
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)
         self.py_data = handle
 
@@ -653,7 +653,7 @@ class SlvsNormal2D(PropertyGroup, SlvsGenericEntity, Entity2D):
     def draw_id(self, context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addNormal2d(self.wp.py_data, group=group)
         self.py_data = handle
 
@@ -761,7 +761,7 @@ class SlvsArc(PropertyGroup, SlvsGenericEntity, Entity2D):
 
         self._batch = batch_for_shader(self._shader, "LINE_STRIP", {"pos": coords})
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addArcOfCircle(
             self.wp.py_data,
             self.ct.py_data,
@@ -893,7 +893,7 @@ class SlvsCircle(PropertyGroup, SlvsGenericEntity, Entity2D):
 
         self._batch = batch_for_shader(self._shader, "LINE_STRIP", {"pos": coords})
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         self.param = solvesys.addParamV(self.radius, group)
 
         nm = None
@@ -1351,7 +1351,7 @@ class SlvsCoincident(PropertyGroup, GenericConstraint):
             return WpReq.FREE
         return WpReq.OPTIONAL
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         return make_coincident(
             solvesys, self.entity1.py_data, self.entity2, self.get_workplane(), group
         )
@@ -1382,7 +1382,7 @@ class SlvsEqual(PropertyGroup, GenericConstraint):
             self.type.lower(), self.entity1, self.entity2
         )
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         # TODO: Don't allow to add Equal between Line and Circle
         e1, e2 = self.entity1, self.entity2
 
@@ -1460,7 +1460,7 @@ class SlvsDistance(PropertyGroup, GenericConstraint):
             return WpReq.FREE
         return WpReq.OPTIONAL
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         if self.entity1 == self.entity2:
             raise AttributeError("Cannot create constraint between one entity itself")
 
@@ -1572,7 +1572,7 @@ class SlvsDiameter(PropertyGroup, GenericConstraint):
     def needs_wp(self):
         return WpReq.OPTIONAL
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         return solvesys.addDiameter(self.value, self.entity1.py_data, group=group)
 
     def init_props(self):
@@ -1621,7 +1621,7 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         kwargs = {
             "group": group,
         }
@@ -1745,7 +1745,7 @@ class SlvsParallel(PropertyGroup, GenericConstraint):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         return solvesys.addParallel(
             self.entity1.py_data,
             self.entity2.py_data,
@@ -1771,7 +1771,7 @@ class SlvsHorizontal(PropertyGroup, GenericConstraint):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         return solvesys.addLineHorizontal(
             self.entity1.py_data, wrkpln=self.get_workplane(), group=group
         )
@@ -1792,7 +1792,7 @@ class SlvsVertical(PropertyGroup, GenericConstraint):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         return solvesys.addLineVertical(
             self.entity1.py_data, wrkpln=self.get_workplane(), group=group
         )
@@ -1815,7 +1815,7 @@ class SlvsPerpendicular(PropertyGroup, GenericConstraint):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         return solvesys.addPerpendicular(
             self.entity1.py_data,
             self.entity2.py_data,
@@ -1850,7 +1850,7 @@ class SlvsTangent(PropertyGroup, GenericConstraint):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         e1, e2 = self.entity1, self.entity2
         wp = self.get_workplane()
 
@@ -1918,7 +1918,7 @@ class SlvsMidpoint(PropertyGroup, GenericConstraint):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         return solvesys.addMidPoint(
             self.entity1.py_data,
             self.entity2.py_data,
@@ -1953,7 +1953,7 @@ class SlvsSymmetric(PropertyGroup, GenericConstraint):
             return WpReq.NOT_FREE
         return WpReq.FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         e1, e2, e3 = self.entity1, self.entity2, self.entity3
 
         # NOTE: this doesn't seem to work correctly, acts like addSymmetricVertical
@@ -2005,7 +2005,7 @@ class SlvsRatio(PropertyGroup, GenericConstraint):
             return WpReq.NOT_FREE
         return WpReq.FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_active):
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         e1, e2 = self.entity1, self.entity2
 
         return solvesys.addLengthRatio(
