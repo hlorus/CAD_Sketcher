@@ -58,6 +58,15 @@ class ThemeSettingsEntity(PropertyGroup):
         max=1.0,
         update=update,
     )
+    inactive_selected: FloatVectorProperty(
+        name="Inactive",
+        subtype="COLOR",
+        default=(0.9, 0.582, 0.29, 0.2),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
 
 
 class ThemeSettingsConstraint(PropertyGroup):

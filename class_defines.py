@@ -143,14 +143,14 @@ class SlvsGenericEntity:
         if not active:
             if self.hover:
                 return ts.entity.highlight
-            if prefs.fade_inactive_geometry:
-                return ts.entity.inactive
+            if self.selected:
+                return ts.entity.inactive_selected
+            return ts.entity.inactive
 
         elif self.selected:
             if self.hover:
                 return ts.entity.selected_highlight
-            else:
-                return ts.entity.selected
+            return ts.entity.selected
         elif self.hover:
             return ts.entity.highlight
 

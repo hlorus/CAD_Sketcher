@@ -154,9 +154,6 @@ class Preferences(bpy.types.AddonPreferences):
         set=set_log_level,
         default=2,
     )
-    fade_inactive_geometry: bpy.props.BoolProperty(
-        name="Fade inactive Geometry", default=True
-    )
     hide_inactive_constraints: bpy.props.BoolProperty(
         name="Hide inactive Constraints", default=True, update=functions.update_cb
     )
