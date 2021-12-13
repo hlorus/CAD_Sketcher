@@ -55,7 +55,9 @@ class Solver:
         for e in context.scene.sketcher.entities.all:
             self.entities.append(e)
 
-            if hasattr(e, "sketch"):
+            if e.fixed:
+                group = self.group_fixed
+            elif hasattr(e, "sketch"):
                 group = self._get_group(e.sketch)
             else:
                 group = self.group_3d
@@ -81,7 +83,7 @@ class Solver:
                             wrkpln.py_data, *params, group=group
                         )
 
-                    e.create_slvs_data(self.solvesys)
+                    e.create_slvs_data(self.solvesys, group=group)
 
                     from .class_defines import make_coincident
 
