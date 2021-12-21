@@ -59,7 +59,7 @@ class ThemeSettingsEntity(PropertyGroup):
         update=update,
     )
     inactive_selected: FloatVectorProperty(
-        name="Inactive",
+        name="Inactive Selected",
         subtype="COLOR",
         default=(0.9, 0.582, 0.29, 0.2),
         size=4,
@@ -104,6 +104,15 @@ class ThemeSettingsConstraint(PropertyGroup):
         name="Failed Highlight",
         subtype="COLOR",
         default=(1.0, 0.0, 0.0, 0.95),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
+    text: FloatVectorProperty(
+        name="Text",
+        subtype="COLOR",
+        default=(0.90, 0.90, 0.90, 1.0),
         size=4,
         min=0.0,
         max=1.0,
