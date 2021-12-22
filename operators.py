@@ -2585,6 +2585,40 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
         return {"FINISHED"}
 
 
+from bl_operators.presets import AddPresetBase
+
+
+class SKETCHER_OT_add_preset_theme(AddPresetBase, Operator):
+    """Add an Theme Preset"""
+
+    bl_idname = "bgs.theme_preset_add"
+    bl_label = "Add Theme Preset"
+    preset_menu = "SKETCHER_MT_theme_presets"
+
+    preset_defines = [
+        'prefs = bpy.context.preferences.addons["geometry_sketcher"].preferences',
+        "theme = prefs.theme_settings",
+        "entity = theme.entity",
+        "constraint = theme.constraint",
+    ]
+
+    preset_values = [
+        "entity.default",
+        "entity.highlight",
+        "entity.selected",
+        "entity.selected_highlight",
+        "entity.inactive",
+        "entity.inactive_selected",
+        "constraint.default",
+        "constraint.highlight",
+        "constraint.failed",
+        "constraint.failed_highlight",
+        "constraint.text",
+    ]
+
+    preset_subdir = "bgs/theme"
+
+
 def update_convertor_geometry(scene):
     for sketch in scene.sketcher.entities.sketches:
         if sketch.convert_type == "NONE":
@@ -2691,6 +2725,7 @@ classes = (
     View3D_OT_slvs_delete_constraint,
     View3D_OT_slvs_tweak_constraint,
     View3D_OT_slvs_tweak_constraint_value_pos,
+    SKETCHER_OT_add_preset_theme,
 )
 
 

@@ -128,6 +128,24 @@ def update_logger():
     logger.setLevel(prefs.logging_level)
 
 
+def ensure_addon_presets(force_write=False):
+    import os
+    import shutil
+
+    scripts_folder = bpy.utils.user_resource("SCRIPTS")
+    presets_dir = os.path.join(scripts_folder, "presets", "bgs")
+
+    is_existing = True
+    if not os.path.isdir(presets_dir):
+        os.makedirs(presets_dir)
+        is_existing = False
+
+    if force_write or not is_existing:
+        bundled_presets = os.path.join(os.path.dirname(__file__), "presets")
+        files = os.listdir(bundled_presets)
+        shutil.copytree(bundled_presets, presets_dir, dirs_exist_ok=True)
+
+
 class Preferences(bpy.types.AddonPreferences):
     bl_idname = __package__
     theme_settings: PointerProperty(type=theme.ThemeSettings)
@@ -194,15 +212,22 @@ class Preferences(bpy.types.AddonPreferences):
 
         box = layout.box()
         row = box.row()
-        row.alignment = "LEFT"
         row.use_property_split = False
-        row.prop(
+
+        subrow = row.row()
+        subrow.alignment = "LEFT"
+        subrow.prop(
             self,
             "show_theme_settings",
             text="Theme",
             emboss=False,
             icon="TRIA_DOWN" if self.show_theme_settings else "TRIA_RIGHT",
         )
+
+        subrow = row.row()
+        subrow.alignment = "RIGHT"
+        if global_data.registered:
+            ui.SKETCHER_PT_theme_presets.draw_panel_header(subrow)
 
         if self.show_theme_settings:
             row = box.row()
@@ -234,6 +259,7 @@ class Preferences(bpy.types.AddonPreferences):
 
 def register():
     # Register base
+    ensure_addon_presets()
     install.register()
     theme.register()
     bpy.utils.register_class(Preferences)

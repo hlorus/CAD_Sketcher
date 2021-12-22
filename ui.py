@@ -179,10 +179,29 @@ def sketch_selector(context, layout, is_header=False, show_selector=True):
             row.menu(VIEW3D_MT_sketches.bl_idname, text=name)
 
 
+class SKETCHER_MT_theme_presets(Menu):
+    bl_label = "Theme Presets"
+    preset_subdir = "bgs/theme"
+    preset_operator = "script.execute_preset"
+    draw = Menu.draw_preset
+
+
+from bl_ui.utils import PresetPanel
+
+
+class SKETCHER_PT_theme_presets(PresetPanel, Panel):
+    bl_label = "Theme Presets"
+    preset_subdir = "bgs/theme"
+    preset_operator = "script.execute_preset"
+    preset_add_operator = operators.SKETCHER_OT_add_preset_theme.bl_idname
+
+
 classes = (
     VIEW3D_UL_sketches,
     VIEW3D_PT_sketcher,
     VIEW3D_MT_sketches,
+    SKETCHER_MT_theme_presets,
+    SKETCHER_PT_theme_presets,
 )
 
 
