@@ -33,7 +33,9 @@ def register_full():
 
 
 def unregister_full():
-    bpy.types.SpaceView3D.draw_handler_remove(global_data.draw_handle, "WINDOW")
+    handle = global_data.draw_handle
+    if handle:
+        bpy.types.SpaceView3D.draw_handler_remove(handle, "WINDOW")
 
     for m in reversed(modules):
         m.unregister()
