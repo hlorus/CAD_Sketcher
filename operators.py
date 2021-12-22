@@ -2,7 +2,7 @@
 import bpy, bgl, gpu
 from gpu_extras.batch import batch_for_shader
 from bpy.types import Operator
-from . import global_data, functions, class_defines, ui, convertors
+from . import global_data, functions, class_defines, convertors
 from bpy.props import (
     IntProperty,
     StringProperty,
@@ -161,6 +161,41 @@ class View3D_OT_slvs_select_all(Operator):
             select_all(context)
         context.area.tag_redraw()
         return {"FINISHED"}
+
+
+class VIEW3D_MT_context_menu(bpy.types.Menu):
+    bl_label = "Context Menu"
+    bl_idname = "VIEW3D_MT_context_menu"
+
+    def draw(self, context):
+        layout = self.layout
+
+        index = global_data.hover
+        if index != -1:
+            entity = context.scene.sketcher.entities.get(index)
+            layout.label(text="Type: " + type(entity).__name__)
+
+            if functions.get_prefs().show_debug_settings:
+                layout.label(text="Index: " + str(entity.slvs_index))
+            layout.label(text="Is Origin: " + str(entity.origin))
+            layout.separator()
+
+            if functions.get_prefs().show_debug_settings:
+                layout.prop(entity, "visible")
+
+            layout.prop(entity, "fixed")
+            layout.prop(entity, "construction")
+            layout.separator()
+
+            if hasattr(entity, "draw_props"):
+                entity.draw_props(layout)
+                layout.separator()
+
+            layout.operator(
+                operators.View3D_OT_slvs_delete_entity.bl_idname
+            ).index = index
+        else:
+            layout.label(text="No entity hovered")
 
 
 class View3D_OT_slvs_context_menu(Operator):
@@ -2634,6 +2669,7 @@ classes = (
     View3D_OT_slvs_unregister_draw_cb,
     View3D_OT_slvs_select,
     View3D_OT_slvs_select_all,
+    VIEW3D_MT_context_menu,
     View3D_OT_slvs_context_menu,
     View3D_OT_slvs_show_solver_state,
     View3D_OT_slvs_tweak,

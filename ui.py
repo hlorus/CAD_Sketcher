@@ -125,44 +125,6 @@ class VIEW3D_PT_sketcher(Panel):
             layout.prop(prefs, "hide_inactive_constraints")
 
 
-from . import global_data
-
-
-class VIEW3D_MT_context_menu(Menu):
-    bl_label = "Context Menu"
-    bl_idname = "VIEW3D_MT_context_menu"
-
-    def draw(self, context):
-        layout = self.layout
-
-        index = global_data.hover
-        if index != -1:
-            entity = context.scene.sketcher.entities.get(index)
-            layout.label(text="Type: " + type(entity).__name__)
-
-            if functions.get_prefs().show_debug_settings:
-                layout.label(text="Index: " + str(entity.slvs_index))
-            layout.label(text="Is Origin: " + str(entity.origin))
-            layout.separator()
-
-            if functions.get_prefs().show_debug_settings:
-                layout.prop(entity, "visible")
-
-            layout.prop(entity, "fixed")
-            layout.prop(entity, "construction")
-            layout.separator()
-
-            if hasattr(entity, "draw_props"):
-                entity.draw_props(layout)
-                layout.separator()
-
-            layout.operator(
-                operators.View3D_OT_slvs_delete_entity.bl_idname
-            ).index = index
-        else:
-            layout.label(text="No entity hovered")
-
-
 class VIEW3D_MT_sketches(Menu):
     bl_label = "Sketches"
     bl_idname = "VIEW3D_MT_sketches"
@@ -220,7 +182,6 @@ def sketch_selector(context, layout, is_header=False, show_selector=True):
 classes = (
     VIEW3D_UL_sketches,
     VIEW3D_PT_sketcher,
-    VIEW3D_MT_context_menu,
     VIEW3D_MT_sketches,
 )
 
