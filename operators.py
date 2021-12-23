@@ -191,9 +191,7 @@ class VIEW3D_MT_context_menu(bpy.types.Menu):
                 entity.draw_props(layout)
                 layout.separator()
 
-            layout.operator(
-                operators.View3D_OT_slvs_delete_entity.bl_idname
-            ).index = index
+            layout.operator(View3D_OT_slvs_delete_entity.bl_idname).index = index
         else:
             layout.label(text="No entity hovered")
 
@@ -209,7 +207,7 @@ class View3D_OT_slvs_context_menu(Operator):
         return True
 
     def execute(self, context):
-        bpy.ops.wm.call_menu(name=ui.VIEW3D_MT_context_menu.bl_idname)
+        bpy.ops.wm.call_menu(name=VIEW3D_MT_context_menu.bl_idname)
         return {"FINISHED"}
 
 
