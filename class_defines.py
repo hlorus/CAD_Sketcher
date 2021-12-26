@@ -20,6 +20,7 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 import math
 
 from .solver import solve_system, Solver
+from .functions import unique_attribute_setter
 
 vertex_shader = """
     uniform mat4 ModelViewProjectionMatrix;
@@ -452,6 +453,8 @@ def hide_sketch(self, context):
 
 # TODO: draw sketches and allow selecting
 class SlvsSketch(PropertyGroup, SlvsGenericEntity):
+    unique_names = ["name"]
+
     convert_type: EnumProperty(
         name="Convert Type",
         items=convert_items,
@@ -520,6 +523,7 @@ class SlvsSketch(PropertyGroup, SlvsGenericEntity):
 
 
 slvs_entity_pointer(SlvsSketch, "wp")
+SlvsSketch.__setattr__ = unique_attribute_setter
 
 
 class Entity2D:
@@ -1128,7 +1132,7 @@ class SlvsEntities(PropertyGroup):
         sketch.wp = wp
         self._set_index(sketch)
         _, i = self._breakdown_index(sketch.slvs_index)
-        sketch.name = "Sketch." + str(i)
+        sketch.name = "Sketch"
         sketch.update()
         return sketch
 
