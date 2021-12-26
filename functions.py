@@ -313,3 +313,63 @@ class bpyEnum:
     def _get_identifier(self, index):
         i = [self._get_item_index(item) for item in self.data].index(index)
         return self.data[i][0]
+
+
+# custom __setattr__ to allow unique attributes in collections,
+# use with PropertyGroups which are stored in a collection
+# define class attribute "unique_names = ["", ...]" to define what attributes should be handled
+# https://blender.stackexchange.com/questions/15122/collectionproperty-avoid-duplicate-names
+# cls.__setattr__ = functions.unique_attribute_setter
+
+
+def unique_attribute_setter(self, name, value):
+    import re
+
+    def collection_from_element(self):
+        # this gets the collection that the element is in
+        path = self.path_from_id()
+        match = re.match("(.*)\[\d*\]", path)
+        parent = self.id_data
+        try:
+            coll_path = match.group(1)
+        except AttributeError:
+            raise TypeError("Propery not element in a collection.")
+        else:
+            return parent.path_resolve(coll_path)
+
+    def new_val(stem, nbr):
+        # simply for formatting
+        return "{st}.{nbr:03d}".format(st=stem, nbr=nbr)
+
+    property_func = getattr(self.__class__, name, None)
+    if property_func and isinstance(property_func, property):
+        # check if name is a property
+        super(self.__class__, self).__setattr__(name, value)
+        return
+    if name not in self.unique_names:
+        # don't handle
+        self[name] = value
+        return
+    if value == getattr(self, name):
+        # check for assignement of current value
+        return
+
+    coll = collection_from_element(self)
+    if value not in coll:
+        # if value is not in the collection, just assign
+        self[name] = value
+        return
+
+    # see if value is already in a format like 'name.012'
+    match = re.match("(.*)\.(\d{3,})", value)
+    if match is None:
+        stem, nbr = value, 1
+    else:
+        stem, nbr = match.groups()
+
+    # check for each value if in collection
+    new_value = new_val(stem, nbr)
+    while new_value in coll:
+        nbr += 1
+        new_value = new_val(stem, nbr)
+    self[name] = new_value
