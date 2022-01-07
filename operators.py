@@ -251,15 +251,18 @@ class View3D_OT_slvs_solve(Operator):
     bl_idname = "view3d.slvs_solve"
     bl_label = "Solve"
 
+    all: BoolProperty(name="Solve All", options={"SKIP_SAVE"})
+
     def execute(self, context):
         sketch = context.scene.sketcher.active_sketch
-        solver = Solver(context, sketch)
-        solver.solve()
+        solver = Solver(context, sketch, all=self.all)
+        ok = solver.solve()
 
-        if solver.ok:
-            self.report({"INFO"}, solver.result.description)
+        # Keep messages simple, sketches are marked with solvestate
+        if ok:
+            self.report({"INFO"}, "Successfully solved")
         else:
-            self.report({"WARNING"}, solver.result.description)
+            self.report({"WARNING"}, "Solver failed")
 
         context.area.tag_redraw()
         return {"FINISHED"}

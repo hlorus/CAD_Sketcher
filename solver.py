@@ -11,7 +11,7 @@ class Solver:
     start_sketch_groups = 3
 
     # iterate over constraints of active group and lazily init required entities
-    def __init__(self, context, sketch):
+    def __init__(self, context, sketch, all=False):
         self.context = context
         self.entities = []
         self.constraints = {}
@@ -21,8 +21,15 @@ class Solver:
         self.tweak_constraint = None
 
         self.report = False
+        self.all = all
 
-        logger.info("--- Start solving ---")
+
+        group = self._get_group(sketch) if sketch else self.group_3d
+        logger.info(
+            "--- Start solving ---\nAll:{}, Sketch:{}, g:{}".format(
+                all, sketch, group
+            )
+        )
         from py_slvs import slvs
 
         self.solvesys = slvs.System()
@@ -30,7 +37,7 @@ class Solver:
         self.FREE_IN_3D = slvs.SLVS_FREE_IN_3D
         self.sketch = sketch
 
-        self.ok = False
+        self.ok = True
         self.result = None
 
     def get_workplane(self):
@@ -43,6 +50,8 @@ class Solver:
             self.constraints[i] = c
 
     def _get_group(self, sketch):
+        if not sketch:
+            return self.group_3d
         type, index = self.context.scene.sketcher.entities._breakdown_index(
             sketch.slvs_index
         )
@@ -50,8 +59,8 @@ class Solver:
 
     def _init_slvs_data(self):
         context = self.context
-        logger.debug("Initialize entities:")
 
+        # Initialize Entities
         for e in context.scene.sketcher.entities.all:
             self.entities.append(e)
 
@@ -95,12 +104,16 @@ class Solver:
 
             e.create_slvs_data(self.solvesys, group=group)
 
-            logger.debug("g:" + str(group) + " " + str(e))
+        def _get_msg():
+            msg = "Initialize entities:"
+            for e in context.scene.sketcher.entities.all:
+                msg += "\n  - {}".format(e)
+            return msg
+        logger.debug(_get_msg())
 
-        logger.debug("Initialize constraints:")
 
+        # Initialize Constraints
         for c in context.scene.sketcher.constraints.all:
-
             if hasattr(c, "sketch") and c.sketch:
                 group = self._get_group(c.sketch)
             else:
@@ -117,10 +130,17 @@ class Solver:
                 c, indices if isinstance(indices, Iterable) else (indices,)
             )
 
-            logger.debug("g:" + str(group) + " " + str(c))
+        def _get_msg():
+            msg = "Initialize constraints:"
+            for c in context.scene.sketcher.constraints.all:
+                msg += "\n  - {}".format(c)
+            return msg
+        logger.debug(_get_msg())
+
+
 
     def tweak(self, entity, pos):
-        logger.info("tweak: {} to: {}".format(entity, pos))
+        logger.debug("tweak: {} to: {}".format(entity, pos))
 
         self.tweak_entity = entity
 
@@ -171,46 +191,61 @@ class Solver:
         self.report = report
         self._init_slvs_data()
 
-        group = self._get_group(self.sketch) if self.sketch else self.group_3d
+        if self.all:
+            sse = self.context.scene.sketcher.entities
+            sketches = [None, *sse.sketches]
+        else:
+            sketches = [self.sketch,]
 
-        retval = self.solvesys.solve(
-            group=group,
-            reportFailed=report,
-            findFreeParams=False,
-        )
+        for sketch in sketches:
+            g = self._get_group(sketch)
+            retval = self.solvesys.solve(
+                group=g,
+                reportFailed=report,
+                findFreeParams=False,
+            )
 
-        # NOTE: For some reason solve() might return undocumented values,
-        # Clamp result value to 4
-        if retval > 3:
-            logger.warning("Solver returned undocumented value: {}".format(retval))
-            retval = 4
+            # NOTE: For some reason solve() might return undocumented values,
+            # Clamp result value to 4
+            if retval > 3:
+                logger.debug("Solver returned undocumented value: {}".format(retval))
+                retval = 4
+            self.result = bpyEnum(solver_state_items, index=retval)
 
-        self.result = bpyEnum(solver_state_items, index=retval)
+            if report and sketch:
+                sketch.solver_state = self.result.index
 
-        sketch = self.sketch
-        if report and sketch:
-            sketch.solver_state = self.result.identifier
+            if retval != 0:
+                self.ok = False
 
-        if retval == 0:
-            self.ok = True
-            for e in self.entities:
-                e.update_from_slvs(self.solvesys)
-                # TODO: skip entities that aren't in active group
+            logger.info(self.result.description)
 
-        logger.log(20 if self.ok else 30, self.result.description)
+            fails = self.solvesys.Failed
+            if report and fails:
 
-        fails = self.solvesys.Failed
-        if report and fails:
-            logger.warning("Failed constraints:\n")
+                for i in fails:
+                    if i == self.tweak_constraint:
+                        continue
+                    constr = self.constraints[i]
+                    constr.failed = True
 
-            for i in fails:
-                if i == self.tweak_constraint:
-                    continue
-                constr = self.constraints[i]
-                constr.failed = True
-                logger.debug(constr)
+                def _get_msg():
+                    msg = "Failed constraints:"
+                    for i in fails:
+                        constr = self.constraints[i]
+                        msg += "\n  - {}".format(constr)
+                    return msg
+                logger.debug(_get_msg())
 
-        return retval
+
+        for e in self.entities:
+            # Skip entities that belong to a failed sketch
+            if hasattr(e, "sketch") and  e.sketch.solver_state != "OKAY":
+                continue
+            # TODO: skip entities that aren't in active group
+            e.update_from_slvs(self.solvesys)
+
+        return self.ok
 
 
 def solve_system(context, sketch=None):
