@@ -66,7 +66,8 @@ class SlvsGenericEntity:
     line_width_select = 20
 
     def __str__(self):
-        return "Slvs Entity"
+        _, local_index = functions.breakdown_index(self.slvs_index)
+        return "{}({})".format(self.__class__.__name__, str(local_index))
 
     @property
     def py_data(self):
@@ -267,8 +268,8 @@ def slvs_entity_pointer(cls, name, **kwargs):
 class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
     location: FloatVectorProperty(name="Location", subtype="XYZ", unit="LENGTH")
 
-    def __str__(self):
-        return "Point3D({})".format(self.slvs_index)
+    def __repr__(self):
+        return str(self)
 
     def update(self):
         coords, indices = functions.draw_cube_3d(*self.location, 0.05)
@@ -303,8 +304,8 @@ class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
 
 
 class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
-    def __str__(self):
-        return "Slvs Line3D from {} to {}".format(self.p1, self.p2)
+    def __repr__(self):
+        return "{} from {} to {}".format(self, self.p1, self.p2)
 
     def dependencies(self):
         return [self.p1, self.p2]
@@ -337,11 +338,11 @@ slvs_entity_pointer(SlvsLine3D, "p1")
 slvs_entity_pointer(SlvsLine3D, "p2")
 
 
-class SlvsNormal3D(PropertyGroup, SlvsGenericEntity):
+class SlvsNormal3D(SlvsGenericEntity, PropertyGroup):
     orientation: FloatVectorProperty(subtype="QUATERNION", size=4)
 
-    def __str__(self):
-        return "Slvs Normal3D({})".format(self.slvs_index)
+    def __repr__(self):
+        return "{} {}".format(str(self), self.orientation)
 
     def update(self):
         pass
@@ -361,11 +362,11 @@ class SlvsNormal3D(PropertyGroup, SlvsGenericEntity):
 from mathutils import Vector, Matrix
 
 
-class SlvsWorkplane(PropertyGroup, SlvsGenericEntity):
+class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
     size = 5
 
-    def __str__(self):
-        return "Slvs Workplane({}) @ {}".format(self.slvs_index, self.p1)
+    def __repr__(self):
+        return "{} at {} with {}".format(self, self.p1, self.nm)
 
     def dependencies(self):
         return [self.p1, self.nm]
@@ -452,7 +453,7 @@ def hide_sketch(self, context):
 
 
 # TODO: draw sketches and allow selecting
-class SlvsSketch(PropertyGroup, SlvsGenericEntity):
+class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     unique_names = ["name"]
 
     convert_type: EnumProperty(
@@ -474,8 +475,8 @@ class SlvsSketch(PropertyGroup, SlvsGenericEntity):
     target_mesh: PointerProperty(type=bpy.types.Mesh)
     target_object: PointerProperty(type=bpy.types.Object)
 
-    def __str__(self):
-        return "Slvs Sketch({})".format(self.slvs_index)
+    def __repr__(self):
+        return "{} on {}".format(self, self.wp)
 
     def dependencies(self):
         return [
@@ -532,11 +533,11 @@ class Entity2D:
         return self.sketch.wp
 
 
-class SlvsPoint2D(PropertyGroup, SlvsGenericEntity, Entity2D):
+class SlvsPoint2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     co: FloatVectorProperty(name="Coordinates", subtype="XYZ", size=2, unit="LENGTH")
 
-    def __str__(self):
-        return "Slvs Point2D({})".format(self.slvs_index)
+    def __repr__(self):
+        return "{} at {}".format(self, self.co)
 
     def dependencies(self):
         return [
@@ -595,9 +596,9 @@ def set_handles(point):
     point.handle_right_type = "FREE"
 
 
-class SlvsLine2D(PropertyGroup, SlvsGenericEntity, Entity2D):
-    def __str__(self):
-        return "Slvs Line2D({}) from {} to {}".format(self.slvs_index, self.p1, self.p2)
+class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
+    def __repr__(self):
+        return "{} from {} to {}".format(self, self.p1, self.p2)
 
     def dependencies(self):
         return [self.p1, self.p2, self.sketch]
@@ -663,7 +664,10 @@ slvs_entity_pointer(SlvsLine2D, "p2")
 slvs_entity_pointer(SlvsLine2D, "sketch")
 
 
-class SlvsNormal2D(PropertyGroup, SlvsGenericEntity, Entity2D):
+class SlvsNormal2D(SlvsGenericEntity, PropertyGroup, Entity2D):
+    def __repr__(self):
+        return str(self)
+
     def update(self):
         pass
 
@@ -737,7 +741,7 @@ def create_bezier_curve(
 CURVE_RESOLUTION = 32
 
 
-class SlvsArc(PropertyGroup, SlvsGenericEntity, Entity2D):
+class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
     invert_direction: BoolProperty(name="Invert direction")
 
     @property
@@ -748,10 +752,8 @@ class SlvsArc(PropertyGroup, SlvsGenericEntity, Entity2D):
     def end(self):
         return self.p1 if self.invert_direction else self.p2
 
-    def __str__(self):
-        return "Slvs Arc({}) at {}, from {}, to {}".format(
-            self.slvs_index, self.ct, self.start, self.end
-        )
+    def __repr__(self):
+        return "{} at {} from {} to {}".format(self, self.ct, self.start, self.end)
 
     def dependencies(self):
         return [self.nm, self.ct, self.start, self.end, self.sketch]
@@ -891,13 +893,11 @@ slvs_entity_pointer(SlvsArc, "p2")
 slvs_entity_pointer(SlvsArc, "sketch")
 
 
-class SlvsCircle(PropertyGroup, SlvsGenericEntity, Entity2D):
+class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
     radius: FloatProperty(name="Radius", subtype="DISTANCE", unit="LENGTH")
 
-    def __str__(self):
-        return "Slvs Circle({}) at {}, radius {}".format(
-            self.slvs_index, self.ct, self.radius
-        )
+    def __repr__(self):
+        return "{} radius:{} at {}".format(self, self.radius, self.ct)
 
     def dependencies(self):
         return [self.nm, self.ct, self.sketch]
@@ -1266,7 +1266,7 @@ class GenericConstraint:
         return WpReq.OPTIONAL
 
     def __str__(self):
-        return "Slvs Constraint"
+        return self.label
 
     def get_workplane(self):
         # NOTE: this could also check through the constraints entity workplanes
@@ -1355,16 +1355,14 @@ def make_coincident(solvesys, point_handle, e2, wp, group):
     return func(point_handle, e2.py_data, **kwargs)
 
 
-class SlvsCoincident(PropertyGroup, GenericConstraint):
+class SlvsCoincident(GenericConstraint, PropertyGroup):
     type = "COINCIDENT"
     label = "Coincident"
     signature = (point, (*point, *line, SlvsWorkplane, SlvsCircle, SlvsArc))
     # NOTE: Coincident between 3dPoint and Workplane currently doesn't seem to work
 
-    def __str__(self):
-        return "{} between {} and {}".format(
-            self.type.lower(), self.entity1, self.entity2
-        )
+    def __repr__(self):
+        return "{} between {} and {} on {}".format(self, self.entity1, self.entity2, self.sketch)
 
     def needs_wp(self):
         if isinstance(self.entity2, SlvsWorkplane):
@@ -1392,15 +1390,13 @@ slvs_entity_pointer(SlvsCoincident, "sketch")
 line_arc_circle = (*line, SlvsArc, SlvsCircle)
 
 
-class SlvsEqual(PropertyGroup, GenericConstraint):
+class SlvsEqual(GenericConstraint, PropertyGroup):
     type = "EQUAL"
     label = "Equal"
     signature = (line_arc_circle, line_arc_circle)
 
-    def __str__(self):
-        return "{} between {} and {}".format(
-            self.type.lower(), self.entity1, self.entity2
-        )
+    def __repr__(self):
+        return "{} between {} and {} on {}".format(self, self.entity1, self.entity2, self.sketch)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         # TODO: Don't allow to add Equal between Line and Circle
@@ -1461,7 +1457,7 @@ def get_side_of_line(line_start, line_end, point):
     )
 
 
-class SlvsDistance(PropertyGroup, GenericConstraint):
+class SlvsDistance(GenericConstraint, PropertyGroup):
     label = "Distance"
     value: FloatProperty(
         name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
@@ -1470,10 +1466,8 @@ class SlvsDistance(PropertyGroup, GenericConstraint):
     type = "DISTANCE"
     signature = (point, (*point, *line, SlvsWorkplane))
 
-    def __str__(self):
-        return "{} {} between {} and {} on {}".format(
-            self.type.lower(), self.value, self.entity1, self.entity2, self.sketch
-        )
+    def __repr__(self):
+        return "{} value:{} between {} and {} on {}".format(self, self.value, self.entity1, self.entity2, self.sketch)
 
     def needs_wp(self):
         if isinstance(self.entity2, SlvsWorkplane):
@@ -1577,7 +1571,7 @@ slvs_entity_pointer(SlvsDistance, "entity2")
 slvs_entity_pointer(SlvsDistance, "sketch")
 
 
-class SlvsDiameter(PropertyGroup, GenericConstraint):
+class SlvsDiameter(GenericConstraint, PropertyGroup):
     label = "Diameter"
     value: FloatProperty(
         name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
@@ -1586,8 +1580,8 @@ class SlvsDiameter(PropertyGroup, GenericConstraint):
     type = "DIAMETER"
     signature = (curve,)
 
-    def __str__(self):
-        return "{} of {} on {}".format(self.type.lower(), self.entity1, self.sketch)
+    def __repr__(self):
+        return "{} value:{} of {} on {}".format(self, self.value, self.entity1, self.sketch)
 
     def needs_wp(self):
         return WpReq.OPTIONAL
@@ -1623,7 +1617,7 @@ slvs_entity_pointer(SlvsDiameter, "sketch")
 from mathutils.geometry import intersect_line_line_2d
 
 
-class SlvsAngle(PropertyGroup, GenericConstraint):
+class SlvsAngle(GenericConstraint, PropertyGroup):
     label = "Angle"
     value: FloatProperty(
         name=label, subtype="ANGLE", unit="ROTATION", update=update_system_cb
@@ -1633,9 +1627,9 @@ class SlvsAngle(PropertyGroup, GenericConstraint):
     type = "ANGLE"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
 
-    def __str__(self):
-        return "{} between {} and {} on {}".format(
-            self.type.lower(), self.entity1, self.entity2, self.sketch
+    def __repr__(self):
+        return "{} value:{} invert:{} between {} and {} on {}".format(
+            self, self.value, self.setting, self.entity1, self.entity2, self.sketch
         )
 
     def needs_wp(self):
@@ -1752,14 +1746,14 @@ slvs_entity_pointer(SlvsAngle, "entity2")
 slvs_entity_pointer(SlvsAngle, "sketch")
 
 
-class SlvsParallel(PropertyGroup, GenericConstraint):
+class SlvsParallel(GenericConstraint, PropertyGroup):
     type = "PARALLEL"
     label = "Parallel"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
 
-    def __str__(self):
+    def __repr__(self):
         return "{} between {} and {} on {}".format(
-            self.type.lower(), self.entity1, self.entity2, self.sketch
+            self, self.entity1, self.entity2, self.sketch
         )
 
     def needs_wp(self):
@@ -1780,13 +1774,13 @@ slvs_entity_pointer(SlvsParallel, "sketch")
 
 
 # NOTE: this could also support constraining two points
-class SlvsHorizontal(PropertyGroup, GenericConstraint):
+class SlvsHorizontal(GenericConstraint, PropertyGroup):
     type = "HORIZONTAL"
     label = "Horizontal"
     signature = ((SlvsLine2D,),)
 
-    def __str__(self):
-        return "{} for {} on {}".format(self.type.lower(), self.entity1, self.sketch)
+    def __repr__(self):
+        return "{} for {} on {}".format(self, self.entity1, self.sketch)
 
     def needs_wp(self):
         return WpReq.NOT_FREE
@@ -1801,13 +1795,13 @@ slvs_entity_pointer(SlvsHorizontal, "entity1")
 slvs_entity_pointer(SlvsHorizontal, "sketch")
 
 
-class SlvsVertical(PropertyGroup, GenericConstraint):
+class SlvsVertical(GenericConstraint, PropertyGroup):
     type = "VERTICAL"
     label = "Vertical"
     signature = ((SlvsLine2D,),)
 
-    def __str__(self):
-        return "{} for {} on {}".format(self.type.lower(), self.entity1, self.sketch)
+    def __repr__(self):
+        return "{} for {} on {}".format(self, self.entity1, self.sketch)
 
     def needs_wp(self):
         return WpReq.NOT_FREE
@@ -1822,14 +1816,14 @@ slvs_entity_pointer(SlvsVertical, "entity1")
 slvs_entity_pointer(SlvsVertical, "sketch")
 
 
-class SlvsPerpendicular(PropertyGroup, GenericConstraint):
+class SlvsPerpendicular(GenericConstraint, PropertyGroup):
     type = "PERPENDICULAR"
     label = "Perpendicular"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
 
-    def __str__(self):
+    def __repr__(self):
         return "{} between {} and {} on {}".format(
-            self.type.lower(), self.entity1, self.entity2, self.sketch
+            self, self.entity1, self.entity2, self.sketch
         )
 
     def needs_wp(self):
@@ -1857,14 +1851,14 @@ def connection_point(seg_1, seg_2):
     return None
 
 
-class SlvsTangent(PropertyGroup, GenericConstraint):
+class SlvsTangent(GenericConstraint, PropertyGroup):
     type = "TANGENT"
     label = "Tangent"
     signature = (curve, (SlvsLine2D, *curve))
 
-    def __str__(self):
+    def __repr__(self):
         return "{} between {} and {} on {}".format(
-            self.type.lower(), self.entity1, self.entity2, self.sketch
+            self, self.entity1, self.entity2, self.sketch
         )
 
     def needs_wp(self):
@@ -1925,14 +1919,14 @@ slvs_entity_pointer(SlvsTangent, "entity2")
 slvs_entity_pointer(SlvsTangent, "sketch")
 
 
-class SlvsMidpoint(PropertyGroup, GenericConstraint):
+class SlvsMidpoint(GenericConstraint, PropertyGroup):
     type = "MIDPOINT"
     label = "Midpoint"
     signature = (point, line)
 
-    def __str__(self):
+    def __repr__(self):
         return "{} between {} and {} on {}".format(
-            self.type.lower(), self.entity1, self.entity2, self.sketch
+            self, self.entity1, self.entity2, self.sketch
         )
 
     def needs_wp(self):
@@ -1952,7 +1946,7 @@ slvs_entity_pointer(SlvsMidpoint, "entity2")
 slvs_entity_pointer(SlvsMidpoint, "sketch")
 
 
-class SlvsSymmetric(PropertyGroup, GenericConstraint):
+class SlvsSymmetric(GenericConstraint, PropertyGroup):
     type = "SYMMETRIC"
     label = "Symmetric"
 
@@ -1963,9 +1957,9 @@ class SlvsSymmetric(PropertyGroup, GenericConstraint):
         (SlvsLine2D, SlvsWorkplane),
     )
 
-    def __str__(self):
+    def __repr__(self):
         return "{} between {} and {} over {} on {}".format(
-            self.type.lower(), self.entity1, self.entity2, self.entity3, self.sketch
+            self, self.entity1, self.entity2, self.entity3, self.sketch
         )
 
     def needs_wp(self):
@@ -2002,7 +1996,7 @@ slvs_entity_pointer(SlvsSymmetric, "entity3")
 slvs_entity_pointer(SlvsSymmetric, "sketch")
 
 
-class SlvsRatio(PropertyGroup, GenericConstraint):
+class SlvsRatio(GenericConstraint, PropertyGroup):
     type = "RATIO"
     label = "Ratio"
 
@@ -2015,9 +2009,9 @@ class SlvsRatio(PropertyGroup, GenericConstraint):
         line,
     )
 
-    def __str__(self):
-        return "{} between {} and {} on {}".format(
-            self.label, self.entity1, self.entity2, self.sketch
+    def __repr__(self):
+        return "{} value:{} between {} and {} on {}".format(
+            self, self.value, self.entity1, self.entity2, self.sketch
         )
 
     def needs_wp(self):
@@ -2058,13 +2052,13 @@ slvs_entity_pointer(SlvsRatio, "sketch")
 # - distance projected
 
 
-# class SlvsDistanceProj(PropertyGroup, GenericConstraint):
+# class SlvsDistanceProj(GenericConstraint, PropertyGroup):
 #     value: FloatProperty()
 #     type = 'DISTANCE_PROJ'
 #     name = 'Projected Distance'
 #     signature = ((SlvsPoint3D, ), (SlvsPoint3D, ))
 #
-#     def __str__(self):
+#     def __repr__(self):
 #         return "{} of {} on {}".format(self.type.lower(), self.entity1, self.entity2, self.sketch)
 #
 #     def needs_wp(self):
