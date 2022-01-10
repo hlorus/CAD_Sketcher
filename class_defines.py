@@ -1064,6 +1064,8 @@ class SlvsEntities(PropertyGroup):
 
     def _get_list_and_index(self, index):
         type_index, local_index = self._breakdown_index(index)
+        if type_index < 0 or type_index >= len(entity_collections):
+            return None, local_index
         return getattr(self, entity_collections[type_index]), local_index
 
     def check(self, index):
@@ -1071,7 +1073,12 @@ class SlvsEntities(PropertyGroup):
         return i < len(sub_list)
 
     def get(self, index):
+        """Returns the entity with the given global index or None if not found"""
+        if index == -1:
+            return None
         sub_list, i = self._get_list_and_index(index)
+        if not sub_list or i >= len(sub_list):
+            return None
         return sub_list[i]
 
     def remove(self, index):
