@@ -299,8 +299,7 @@ class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
         return self.location
 
     def draw_props(self, layout):
-        col = layout.column()
-        col.prop(self, "location")
+        layout.prop(self, "location")
 
 
 class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
@@ -882,8 +881,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         return endpoint
 
     def draw_props(self, layout):
-        col = layout.column()
-        col.prop(self, "invert_direction")
+        layout.prop(self, "invert_direction")
 
 
 slvs_entity_pointer(SlvsArc, "nm")
@@ -1561,7 +1559,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = pos[1] / ui_scale
 
-    def draw_settings(self, context, layout):
+    def draw_props(self, layout):
         layout.prop(self, "value")
         layout.prop(self, "setting")
 
@@ -1606,7 +1604,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = math.degrees(math.atan2(pos[1], pos[0]))  # / ui_scale
 
-    def draw_settings(self, context, layout):
+    def draw_props(self, layout):
         layout.prop(self, "value")
 
 
@@ -1736,7 +1734,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
 
-    def draw_settings(self, context, layout):
+    def draw_props(self, layout):
         layout.prop(self, "value")
         layout.prop(self, "setting")
 
@@ -2036,7 +2034,7 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
         value = line1.length / line2.length
         return value, None
 
-    def draw_settings(self, context, layout):
+    def draw_props(self, layout):
         layout.prop(self, "value")
 
 

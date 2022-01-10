@@ -505,8 +505,8 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
 
                 gz.use_draw_modal = True
 
-                if hasattr(c, "draw_settings"):
-                    op = operators.View3D_OT_slvs_tweak_constraint.bl_idname
+                if hasattr(c, "draw_props"):
+                    op = operators.View3D_OT_slvs_context_menu.bl_idname
                 else:
                     op = operators.View3D_OT_slvs_delete_constraint.bl_idname
 

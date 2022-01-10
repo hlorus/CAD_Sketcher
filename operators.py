@@ -163,53 +163,73 @@ class View3D_OT_slvs_select_all(Operator):
         return {"FINISHED"}
 
 
-class VIEW3D_MT_context_menu(bpy.types.Menu):
-    bl_label = "Context Menu"
-    bl_idname = "VIEW3D_MT_context_menu"
-
-    def draw(self, context):
-        layout = self.layout
-
-        index = global_data.hover
-        if index != -1:
-            entity = context.scene.sketcher.entities.get(index)
-            layout.label(text="Type: " + type(entity).__name__)
-
-            if functions.get_prefs().show_debug_settings:
-                layout.label(text="Index: " + str(entity.slvs_index))
-            layout.label(text="Is Origin: " + str(entity.origin))
-            layout.separator()
-
-            if functions.get_prefs().show_debug_settings:
-                layout.prop(entity, "visible")
-
-            layout.prop(entity, "fixed")
-            layout.prop(entity, "construction")
-            layout.separator()
-
-            if hasattr(entity, "draw_props"):
-                entity.draw_props(layout)
-                layout.separator()
-
-            layout.operator(View3D_OT_slvs_delete_entity.bl_idname).index = index
-        else:
-            layout.label(text="No entity hovered")
-
-
 class View3D_OT_slvs_context_menu(Operator):
-    """Spawn context menu for hovered entity"""
+    """Show element's settings"""
 
     bl_idname = "view3d.slvs_context_menu"
     bl_label = "Solvespace Context Menu"
+
+    type: StringProperty(name="Type", options={'SKIP_SAVE'})
+    index: IntProperty(name="Index", default=-1, options={'SKIP_SAVE'})
 
     @classmethod
     def poll(cls, context):
         return True
 
     def execute(self, context):
-        bpy.ops.wm.call_menu(name=VIEW3D_MT_context_menu.bl_idname)
-        return {"FINISHED"}
+        is_entity = True
+        entity_index = None
+        constraint_index = None
 
+        if self.properties.is_property_set("type"):
+            constraint_index = self.index
+            constraints = context.scene.sketcher.constraints
+            element = constraints.get_from_type_index(self.type, self.index)
+            is_entity = False
+        elif self.properties.is_property_set("index"):
+            entity_index = self.index
+        else:
+            entity_index = global_data.hover
+
+        if entity_index:
+            element = context.scene.sketcher.entities.get(entity_index)
+
+        def draw_context_menu(self, context):
+            col = self.layout.column()
+
+            if not element:
+                col.label(text="Nothing hovered")
+                return
+
+            col.label(text="Type: " + type(element).__name__)
+
+            if is_entity:
+                if functions.get_prefs().show_debug_settings:
+                    col.label(text="Index: " + str(element.slvs_index))
+                col.label(text="Is Origin: " + str(element.origin))
+                col.separator()
+                col.prop(element, "visible")
+                col.prop(element, "fixed")
+                col.prop(element, "construction")
+
+            elif element.failed:
+                col.label(text="Failed", icon="ERROR")
+            col.separator()
+
+            if hasattr(element, "draw_props"):
+                element.draw_props(col)
+                col.separator()
+
+            # Delete operator
+            if is_entity:
+                col.operator(View3D_OT_slvs_delete_entity.bl_idname, icon='X').index = element.slvs_index
+            else:
+                props = col.operator(View3D_OT_slvs_delete_constraint.bl_idname, icon='X')
+                props.type = element.type
+                props.index = constraint_index
+
+        context.window_manager.popup_menu(draw_context_menu)
+        return {"FINISHED"}
 
 class View3D_OT_slvs_show_solver_state(Operator):
     """Show details about solver status"""
@@ -2489,49 +2509,6 @@ class View3D_OT_slvs_delete_constraint(Operator):
         return {"FINISHED"}
 
 
-def show_constraint_settings(context, type, index):
-    constraints = context.scene.sketcher.constraints
-    constr = constraints.get_from_type_index(type, index)
-
-    def draw_func(self, context):
-        layout = self.layout
-        constr.draw_settings(context, layout)
-        layout.separator()
-        props = layout.operator(View3D_OT_slvs_delete_constraint.bl_idname, icon="X")
-        props.type = type
-        props.index = index
-
-    context.window_manager.popup_menu(
-        draw_func,
-        title=constr.rna_type.properties["value"].name + " Constraint",
-        icon=("ERROR" if constr.failed else "NONE"),
-    )
-
-
-class View3D_OT_slvs_tweak_constraint(Operator):
-    bl_idname = "view3d.slvs_tweak_constraint"
-    bl_label = "Tweak Constraint"
-    bl_options = {"UNDO"}
-    bl_description = "Tweak constraint's settings"
-
-    type: StringProperty(name="Type")
-    index: IntProperty(default=-1)
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    @classmethod
-    def description(cls, context, properties):
-        if properties.type:
-            return "Tweak: " + properties.type.capitalize()
-        return ""
-
-    def execute(self, context):
-        show_constraint_settings(context, self.type, self.index)
-        return {"FINISHED"}
-
-
 class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
     bl_idname = "view3d.slvs_tweak_constraint_value_pos"
     bl_label = "Tweak Constraint"
@@ -2582,7 +2559,7 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
         return {"RUNNING_MODAL"}
 
     def execute(self, context):
-        show_constraint_settings(context, self.type, self.index)
+        bpy.ops.view3d.slvs_context_menu(type=self.type, index=self.index)
         return {"FINISHED"}
 
 
@@ -2704,7 +2681,6 @@ classes = (
     View3D_OT_slvs_unregister_draw_cb,
     View3D_OT_slvs_select,
     View3D_OT_slvs_select_all,
-    VIEW3D_MT_context_menu,
     View3D_OT_slvs_context_menu,
     View3D_OT_slvs_show_solver_state,
     View3D_OT_slvs_tweak,
@@ -2724,7 +2700,6 @@ classes = (
     *constraint_operators,
     View3D_OT_slvs_solve,
     View3D_OT_slvs_delete_constraint,
-    View3D_OT_slvs_tweak_constraint,
     View3D_OT_slvs_tweak_constraint_value_pos,
     SKETCHER_OT_add_preset_theme,
 )
