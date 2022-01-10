@@ -373,3 +373,9 @@ def unique_attribute_setter(self, name, value):
         nbr += 1
         new_value = new_val(stem, nbr)
     self[name] = new_value
+
+
+def breakdown_index(index):
+    type_index = index >> 20
+    local_index = index & 0xFFFFF
+    return type_index, local_index

@@ -1048,10 +1048,9 @@ class SlvsEntities(PropertyGroup):
         assert local_index < math.pow(2, 20)
         entity.slvs_index = type_index << 20 | local_index
 
-    def _breakdown_index(self, index):
-        type_index = index >> 20
-        local_index = index & 0xFFFFF
-        return type_index, local_index
+    @staticmethod
+    def _breakdown_index(index):
+        return functions.breakdown_index(index)
 
     def type_from_index(self, index):
         if index < 0:
