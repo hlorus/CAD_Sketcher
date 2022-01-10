@@ -1,6 +1,6 @@
 import bpy
 from bpy.types import Panel, Menu, UIList
-from . import operators, functions
+from . import operators, functions, class_defines
 
 
 class VIEW3D_UL_sketches(UIList):
@@ -129,6 +129,78 @@ class VIEW3D_PT_sketcher(Panel):
             layout.prop(prefs, "hide_inactive_constraints")
 
 
+class VIEW3D_PT_sketcher_entities(Panel):
+    bl_label = "Entities"
+    bl_idname = "VIEW3D_PT_sketcher_entities"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Sketcher"
+
+    def draw(self, context):
+        layout = self.layout
+        box = layout.box()
+        col = box.column(align=True)
+        col.scale_y = 0.7
+
+        sketch = context.scene.sketcher.active_sketch
+        for e in context.scene.sketcher.entities.all:
+            if not e.is_active(sketch):
+                continue
+            if isinstance(e, class_defines.SlvsSketch):
+                continue
+            row = col.row()
+            row.alignment = "LEFT"
+            row.prop(
+                e,
+                "visible",
+                icon_only=True,
+                icon=("HIDE_OFF" if e.visible else "HIDE_ON"),
+                emboss=False,
+            )
+
+            props = row.operator(
+                operators.View3D_OT_slvs_context_menu.bl_idname,
+                text=str(e),
+                emboss=False
+                )
+            props.index = e.slvs_index
+
+
+
+class VIEW3D_PT_sketcher_constraints(Panel):
+    bl_label = "Constraints"
+    bl_idname = "VIEW3D_PT_sketcher_constraints"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Sketcher"
+
+    def draw(self, context):
+        layout = self.layout
+        box = layout.box()
+        col = box.column(align=True)
+        col.scale_y = 0.7
+
+        sketch = context.scene.sketcher.active_sketch
+        for c in context.scene.sketcher.constraints.all:
+            if not c.is_active(sketch):
+                continue
+            row = col.row()
+            row.alignment = "LEFT"
+
+            row.label(
+                text="",
+                icon=("ERROR" if c.failed else "CHECKMARK"),
+            )
+
+            props = row.operator(
+                operators.View3D_OT_slvs_context_menu.bl_idname,
+                text=str(c),
+                emboss=False
+                )
+            props.type = c.type
+            props.index = context.scene.sketcher.constraints.get_index(c)
+
+
 class VIEW3D_MT_sketches(Menu):
     bl_label = "Sketches"
     bl_idname = "VIEW3D_MT_sketches"
@@ -203,6 +275,8 @@ class SKETCHER_PT_theme_presets(PresetPanel, Panel):
 classes = (
     VIEW3D_UL_sketches,
     VIEW3D_PT_sketcher,
+    VIEW3D_PT_sketcher_entities,
+    VIEW3D_PT_sketcher_constraints,
     VIEW3D_MT_sketches,
     SKETCHER_MT_theme_presets,
     SKETCHER_PT_theme_presets,
