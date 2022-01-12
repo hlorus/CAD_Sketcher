@@ -290,9 +290,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
     def _create_shape(self, context, constr, select=False):
         angle = abs(constr.value)
 
-        # TODO: Use C.preferences.system.ui_scale (accounts for dpi)
-        # NOTE: magic factor 0.65, why is this needed?!
-        radius = self.target_get_value("offset") * 0.80
+        radius = self.target_get_value("offset")
         overshoot = math.copysign(0.04, radius)
 
         helplines = (
