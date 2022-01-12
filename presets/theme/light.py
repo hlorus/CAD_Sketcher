@@ -15,3 +15,4 @@ constraint.highlight = (0.949999988079071, 0.5699999928474426, 0.569999992847442
 constraint.failed = (0.949999988079071, 0.0, 0.0, 0.800000011920929)
 constraint.failed_highlight = (1.0, 0.0, 0.0, 0.949999988079071)
 constraint.text = (0.0, 0.0, 0.0, 1.0)
+constraint.text_highlight = (0.5, 0.5, 0.5, 1.0)

@@ -1,4 +1,4 @@
-import bpy, bgl, gpu
+import bpy, bgl, gpu, blf
 from . import functions, operators, global_data, class_defines
 
 from bpy.types import Gizmo, GizmoGroup
@@ -63,9 +63,15 @@ GIZMO_OFFSET = Vector((10.0, 10.0))
 GIZMO_GENERIC_SCALE = 5
 GIZMO_ROW_OFFSET = Vector((GIZMO_GENERIC_SCALE * 2.2, 0.0))
 GIZMO_ARROW_SCALE = 0.02
+GIZMO_TEXT_SIZE = 15
+class ConstraintGizmo:
+    def _get_constraint(self, context):
+        return context.scene.sketcher.constraints.get_from_type_index(
+            self.type, self.index
+        )
 
 
-class VIEW3D_GT_slvs_constraint(Gizmo):
+class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
     bl_idname = "VIEW3D_GT_slvs_constraint"
 
     __slots__ = (
@@ -75,11 +81,6 @@ class VIEW3D_GT_slvs_constraint(Gizmo):
         "entity_index",
         "offset",
     )
-
-    def _get_constraint(self, context):
-        return context.scene.sketcher.constraints.get_from_type_index(
-            self.type, self.index
-        )
 
     def _update_matrix_basis(self, context):
         constr = self._get_constraint(context)
@@ -111,10 +112,6 @@ class VIEW3D_GT_slvs_constraint(Gizmo):
         self._update_matrix_basis(context)
         self.draw_custom_shape(self.custom_shape)
 
-    def draw_select(self, context, select_id):
-        self._update_matrix_basis(context)
-        self.draw_custom_shape(self.custom_shape, select_id=select_id)
-
     def setup(self):
         if not hasattr(self, "custom_shape"):
             self.custom_shape = self.new_custom_shape("TRIS", custom_shape_verts)
@@ -124,6 +121,55 @@ import math
 from mathutils.geometry import intersect_line_plane
 
 
+def _get_formatted_value(context, constr):
+    units = context.scene.unit_settings
+    unit = constr.rna_type.properties["value"].unit
+    return bpy.utils.units.to_string(units.system, unit, constr.value)
+
+
+class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
+    """Display the value of a dimensonal constraint"""
+    bl_idname = "VIEW3D_GT_slvs_constraint_value"
+
+    __slots__ = (
+        "type",
+        "index",
+        "width",
+        "height"
+    )
+
+    def test_select(self, context, location):
+        coords = Vector(location) - self.matrix_basis.translation.to_2d()
+
+        width, height = self.width, self.height
+        if -width/2 < coords.x < width/2 and -height/2 < coords.y < height/2:
+            return 0
+        return -1
+
+    def draw(self, context):
+        constr = self._get_constraint(context)
+        if not hasattr(constr, "value_placement"):
+            return
+        pos = constr.value_placement(context)
+
+        # Update Matrix for selection
+        self.matrix_basis = Matrix.Translation(pos.to_3d())
+
+        text = _get_formatted_value(context, constr)
+        font_id = 0
+
+        theme = functions.get_prefs().theme_settings
+        color = theme.constraint.text_highlight if self.is_highlight else theme.constraint.text
+        blf.color(font_id, *color)
+        blf.size(font_id, GIZMO_TEXT_SIZE, context.preferences.system.dpi)
+
+        self.width, self.height = blf.dimensions(font_id, text)
+        blf.position(font_id, pos[0]-self.width/2, pos[1], 0)
+        blf.draw(font_id, text)
+
+    def setup(self):
+        self.width = 0
+        self.height = 0
 class ConstarintGizmoGeneric:
     def _get_constraint(self, context):
         return context.scene.sketcher.constraints.get_from_type_index(
@@ -463,6 +509,12 @@ class VIEW3D_GGT_slvs_diameter(GizmoGroup, ConstraintGenericGGT):
     type = class_defines.SlvsDiameter.type
     gizmo_type = VIEW3D_GT_slvs_diameter.bl_idname
 
+def iter_dimenional_constraints(context):
+    ssc = context.scene.sketcher.constraints
+    collections = [ssc.distance, ssc.diameter, ssc.angle]
+    for coll in collections:
+        for c in coll:
+            yield c
 
 class VIEW3D_GGT_slvs_constraint(GizmoGroup):
     bl_idname = "VIEW3D_GGT_slvs_constraint"
@@ -514,6 +566,17 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 props.type = c.type
                 props.index = gz.index
 
+        # Add value gizmos for dimensional constraints
+        for c in iter_dimenional_constraints(context):
+            gz = self.gizmos.new(VIEW3D_GT_slvs_constraint_value.bl_idname)
+            index = context.scene.sketcher.constraints.get_index(c)
+            gz.type = c.type
+            gz.index = index
+
+            props = gz.target_set_operator(operators.View3D_OT_slvs_context_menu.bl_idname)
+            props.type = c.type
+            props.index = index
+
     def refresh(self, context):
         # recreate gizmos here!
         self.gizmos.clear()
@@ -526,6 +589,7 @@ classes = (
     VIEW3D_GT_slvs_distance,
     VIEW3D_GT_slvs_angle,
     VIEW3D_GT_slvs_diameter,
+    VIEW3D_GT_slvs_constraint_value,
     VIEW3D_GGT_slvs_preselection,
     VIEW3D_GGT_slvs_constraint,
     VIEW3D_GGT_slvs_distance,

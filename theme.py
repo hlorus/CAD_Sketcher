@@ -118,6 +118,15 @@ class ThemeSettingsConstraint(PropertyGroup):
         max=1.0,
         update=update,
     )
+    text_highlight: FloatVectorProperty(
+        name="Text Highlight",
+        subtype="COLOR",
+        default=(1.0, 1.0, 1.0, 1.0),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
 
 
 class ThemeSettings(PropertyGroup):

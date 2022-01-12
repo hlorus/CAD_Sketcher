@@ -1569,6 +1569,12 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         layout.prop(self, "value")
         layout.prop(self, "setting")
 
+    def value_placement(self, context):
+        """location to display the constraint value"""
+        region = context.region
+        rv3d = context.space_data.region_3d
+        coords = self.matrix_basis() @ Vector((0, self.draw_offset, 0))
+        return location_3d_to_region_2d(region, rv3d, coords)
 
 slvs_entity_pointer(SlvsDistance, "entity1")
 slvs_entity_pointer(SlvsDistance, "entity2")
@@ -1612,6 +1618,13 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
 
     def draw_props(self, layout):
         layout.prop(self, "value")
+
+    def value_placement(self, context):
+        """location to display the constraint value"""
+        region = context.region
+        rv3d = context.space_data.region_3d
+        coords = self.matrix_basis() @ Vector()
+        return location_3d_to_region_2d(region, rv3d, coords)
 
 
 slvs_entity_pointer(SlvsDiameter, "entity1")
@@ -1743,6 +1756,13 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     def draw_props(self, layout):
         layout.prop(self, "value")
         layout.prop(self, "setting")
+
+    def value_placement(self, context):
+        """location to display the constraint value"""
+        region = context.region
+        rv3d = context.space_data.region_3d
+        coords = self.matrix_basis() @ Vector((self.draw_offset, 0, 0))
+        return location_3d_to_region_2d(region, rv3d, coords)
 
 
 slvs_entity_pointer(SlvsAngle, "entity1")
