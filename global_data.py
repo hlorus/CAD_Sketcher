@@ -17,6 +17,10 @@ hover = -1
 ignore_list = []
 selected = []
 
+# Allows to highlight a constraint gizmo,
+# Value gets unset in the preselection gizmo
+highlight_constraint = None
+
 Z_AXIS = Vector((0, 0, 1))
 
 draw_handle = None

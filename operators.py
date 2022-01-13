@@ -163,7 +163,57 @@ class View3D_OT_slvs_select_all(Operator):
         return {"FINISHED"}
 
 
-class View3D_OT_slvs_context_menu(Operator):
+class HighlightElement:
+    """
+    Mix-in class to highlight the element this operator acts on. The element can
+    either be an entity or a constraint. The element has to be specified by an index
+    property for entities and additionaly with a type index property for constraints.
+
+    Note that this defines the invoke function, an operator that defines an
+    invoke function has to call self.handle_highlight_active(context)
+
+    index: IntProperty
+    type: IntProperty
+
+    Settings:
+    highlight_hover -> highlights the element as soon as the tooltip is shown
+    highlight_active -> highlights the element when the operator is invoked
+    """
+
+    highlight_hover: BoolProperty(name="Highlight Hover")
+    highlight_active: BoolProperty(name="Highlight Hover")
+
+    @classmethod
+    def _do_highlight(cls, context, properties):
+        if not properties.is_property_set("index"):
+            return cls.__doc__
+
+        if properties.is_property_set("type"):
+            c = context.scene.sketcher.constraints.get_from_type_index(properties.type, properties.index)
+            global_data.highlight_constraint = c
+        else:
+            global_data.hover = properties.index
+
+        context.area.tag_redraw()
+        return cls.__doc__
+
+    def handle_highlight_active(self, context):
+        properties = self.properties
+        if properties.highlight_active:
+            self._do_highlight(context, properties)
+
+
+    @classmethod
+    def description(cls, context, properties):
+        if properties.highlight_hover:
+            cls._do_highlight(context, properties)
+
+    def invoke(self, context, event):
+        self.handle_highlight_active(context)
+        return self.execute(context)
+
+
+class View3D_OT_slvs_context_menu(Operator, HighlightElement):
     """Show element's settings"""
 
     bl_idname = "view3d.slvs_context_menu"

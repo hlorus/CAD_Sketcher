@@ -163,6 +163,8 @@ class VIEW3D_PT_sketcher_entities(Panel):
                 text=str(e),
                 emboss=False
                 )
+            props.highlight_hover = True
+            props.highlight_active = True
             props.index = e.slvs_index
 
 
@@ -199,6 +201,8 @@ class VIEW3D_PT_sketcher_constraints(Panel):
                 )
             props.type = c.type
             props.index = context.scene.sketcher.constraints.get_index(c)
+            props.highlight_hover = True
+            props.highlight_active = True
 
 
 class VIEW3D_MT_sketches(Menu):

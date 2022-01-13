@@ -15,6 +15,11 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         pass
 
     def test_select(self, context, location):
+        # reset gizmo highlight
+        if global_data.highlight_constraint:
+            global_data.highlight_constraint = None
+            context.area.tag_redraw()
+
         # ensure selection texture is up to date
         operators.ensure_selection_texture(context)
 
@@ -64,12 +69,21 @@ GIZMO_GENERIC_SCALE = 5
 GIZMO_ROW_OFFSET = Vector((GIZMO_GENERIC_SCALE * 2.2, 0.0))
 GIZMO_ARROW_SCALE = 0.02
 GIZMO_TEXT_SIZE = 15
+
+
 class ConstraintGizmo:
     def _get_constraint(self, context):
         return context.scene.sketcher.constraints.get_from_type_index(
             self.type, self.index
         )
 
+    def _set_colors(self, context, constraint):
+        """Overwrite default color when gizmo is highlighted"""
+
+        is_highlight = constraint == global_data.highlight_constraint
+        theme = functions.get_prefs().theme_settings
+        col = theme.constraint.highlight if is_highlight else theme.constraint.default
+        self.color = col[:3]
 
 class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
     bl_idname = "VIEW3D_GT_slvs_constraint"
@@ -82,9 +96,7 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         "offset",
     )
 
-    def _update_matrix_basis(self, context):
-        constr = self._get_constraint(context)
-
+    def _update_matrix_basis(self, context, constr):
         pos = None
         if hasattr(self, "entity_index"):
             entity = context.scene.sketcher.entities.get(self.entity_index)
@@ -109,7 +121,9 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         return -1
 
     def draw(self, context):
-        self._update_matrix_basis(context)
+        constraint = self._get_constraint(context)
+        self._set_colors(context, constraint)
+        self._update_matrix_basis(context, constraint)
         self.draw_custom_shape(self.custom_shape)
 
     def setup(self):
@@ -170,12 +184,9 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
     def setup(self):
         self.width = 0
         self.height = 0
-class ConstarintGizmoGeneric:
-    def _get_constraint(self, context):
-        return context.scene.sketcher.constraints.get_from_type_index(
-            self.type, self.index
-        )
 
+
+class ConstarintGizmoGeneric(ConstraintGizmo):
     def _update_matrix_basis(self, constr):
         self.matrix_basis = constr.matrix_basis()
 
@@ -184,6 +195,7 @@ class ConstarintGizmoGeneric:
 
     def draw(self, context):
         constr = self._get_constraint(context)
+        self._set_colors(context, constr)
         self._update_matrix_basis(constr)
 
         self._create_shape(context, constr)
