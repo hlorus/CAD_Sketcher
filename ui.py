@@ -140,7 +140,7 @@ class VIEW3D_PT_sketcher_entities(Panel):
         layout = self.layout
         box = layout.box()
         col = box.column(align=True)
-        col.scale_y = 0.7
+        col.scale_y = 0.8
 
         sketch = context.scene.sketcher.active_sketch
         for e in context.scene.sketcher.entities.all:
@@ -148,9 +148,15 @@ class VIEW3D_PT_sketcher_entities(Panel):
                 continue
             if isinstance(e, class_defines.SlvsSketch):
                 continue
+
             row = col.row()
-            row.alignment = "LEFT"
-            row.prop(
+
+            # Left part
+            sub = row.row()
+            sub.alignment = "LEFT"
+
+            # Visibility toggle
+            sub.prop(
                 e,
                 "visible",
                 icon_only=True,
@@ -158,15 +164,40 @@ class VIEW3D_PT_sketcher_entities(Panel):
                 emboss=False,
             )
 
-            props = row.operator(
-                operators.View3D_OT_slvs_context_menu.bl_idname,
+            # Select operator
+            props = sub.operator(
+                operators.View3D_OT_slvs_select.bl_idname,
                 text=str(e),
+                emboss=False
+                )
+            props.index = e.slvs_index
+            props.highlight_hover = True
+
+
+            # Right part
+            sub = row.row()
+            sub.alignment = "RIGHT"
+
+            # Context menu
+            props = sub.operator(
+                operators.View3D_OT_slvs_context_menu.bl_idname,
+                text="",
+                icon="OUTLINER_DATA_GP_LAYER",
                 emboss=False
                 )
             props.highlight_hover = True
             props.highlight_active = True
             props.index = e.slvs_index
 
+            # Delete operator
+            props = sub.operator(
+                operators.View3D_OT_slvs_delete_entity.bl_idname,
+                text="",
+                icon="X",
+                emboss=False
+                )
+            props.index = e.slvs_index
+            props.highlight_hover = True
 
 
 class VIEW3D_PT_sketcher_constraints(Panel):
@@ -180,29 +211,51 @@ class VIEW3D_PT_sketcher_constraints(Panel):
         layout = self.layout
         box = layout.box()
         col = box.column(align=True)
-        col.scale_y = 0.7
+        col.scale_y = 0.8
 
         sketch = context.scene.sketcher.active_sketch
         for c in context.scene.sketcher.constraints.all:
             if not c.is_active(sketch):
                 continue
             row = col.row()
-            row.alignment = "LEFT"
 
-            row.label(
+            # Left part
+            sub = row.row()
+            sub.alignment = "LEFT"
+
+            # Failed hint
+            sub.label(
                 text="",
                 icon=("ERROR" if c.failed else "CHECKMARK"),
             )
 
-            props = row.operator(
+            index = context.scene.sketcher.constraints.get_index(c)
+
+            # Context menu, shows constraint name
+            props = sub.operator(
                 operators.View3D_OT_slvs_context_menu.bl_idname,
                 text=str(c),
                 emboss=False
                 )
             props.type = c.type
-            props.index = context.scene.sketcher.constraints.get_index(c)
+            props.index = index
             props.highlight_hover = True
             props.highlight_active = True
+
+            # Right part
+            sub = row.row()
+            sub.alignment = "RIGHT"
+
+            # Delete operator
+            props = sub.operator(
+                operators.View3D_OT_slvs_delete_constraint.bl_idname,
+                text="",
+                icon="X",
+                emboss=False
+            )
+            props.type = c.type
+            props.index = index
+            props.highlight_hover = True
 
 
 class VIEW3D_MT_sketches(Menu):
