@@ -74,6 +74,64 @@ def draw_cb():
     global_data.redraw_selection_buffer = True
 
 
+class HighlightElement:
+    """
+    Mix-in class to highlight the element this operator acts on. The element can
+    either be an entity or a constraint. The element has to be specified by an index
+    property for entities and additionaly with a type property for constraints.
+
+        index: IntProperty
+        type: StringProperty
+
+
+    Note that this defines the invoke and description functions, an operator that
+    defines one of those has to manually make a call to either of the following:
+
+        self.handle_highlight_active(context) -> from invoke()
+        cls.handle_highlight_hover(context, properties) -> from description()
+
+
+    Settings:
+    highlight_hover -> highlights the element as soon as the tooltip is shown
+    highlight_active -> highlights the element when the operator is invoked
+    """
+
+    highlight_hover: BoolProperty(name="Highlight Hover")
+    highlight_active: BoolProperty(name="Highlight Hover")
+
+    @classmethod
+    def _do_highlight(cls, context, properties):
+        if not properties.is_property_set("index"):
+            return cls.__doc__
+
+        if hasattr(properties, "type") and properties.is_property_set("type"):
+            c = context.scene.sketcher.constraints.get_from_type_index(properties.type, properties.index)
+            global_data.highlight_constraint = c
+        else:
+            global_data.hover = properties.index
+
+        context.area.tag_redraw()
+        return cls.__doc__
+
+    def handle_highlight_active(self, context):
+        properties = self.properties
+        if properties.highlight_active:
+            self._do_highlight(context, properties)
+
+    @classmethod
+    def handle_highlight_hover(cls, context, properties):
+        if properties.highlight_hover:
+            cls._do_highlight(context, properties)
+
+    @classmethod
+    def description(cls, context, properties):
+        cls.handle_highlight_hover(context, properties)
+
+    def invoke(self, context, event):
+        self.handle_highlight_active(context)
+        return self.execute(context)
+
+
 class View3D_OT_slvs_register_draw_cb(Operator):
     bl_idname = "view3d.slvs_register_draw_cb"
     bl_label = "Register Draw Callback"
@@ -123,12 +181,19 @@ def select_all(context):
         e.selected = True
 
 
-class View3D_OT_slvs_select(Operator):
-    """Select the hovered entity"""
+class View3D_OT_slvs_select(Operator, HighlightElement):
+    """
+    Select an entity
+
+    Either the entity specified by the index property or the hovered index
+    if the index property is not set
+
+    """
 
     bl_idname = "view3d.slvs_select"
     bl_label = "Select Solvespace Entities"
 
+    index: IntProperty(name="Index", default=-1)
     # TODO: Add selection modes
 
     @classmethod
@@ -136,7 +201,7 @@ class View3D_OT_slvs_select(Operator):
         return True
 
     def execute(self, context):
-        index = global_data.hover
+        index = self.index if self.properties.is_property_set("index") else global_data.hover
         if index != -1:
             entity = context.scene.sketcher.entities.get(index)
             entity.selected = not entity.selected
@@ -161,56 +226,6 @@ class View3D_OT_slvs_select_all(Operator):
             select_all(context)
         context.area.tag_redraw()
         return {"FINISHED"}
-
-
-class HighlightElement:
-    """
-    Mix-in class to highlight the element this operator acts on. The element can
-    either be an entity or a constraint. The element has to be specified by an index
-    property for entities and additionaly with a type index property for constraints.
-
-    Note that this defines the invoke function, an operator that defines an
-    invoke function has to call self.handle_highlight_active(context)
-
-    index: IntProperty
-    type: IntProperty
-
-    Settings:
-    highlight_hover -> highlights the element as soon as the tooltip is shown
-    highlight_active -> highlights the element when the operator is invoked
-    """
-
-    highlight_hover: BoolProperty(name="Highlight Hover")
-    highlight_active: BoolProperty(name="Highlight Hover")
-
-    @classmethod
-    def _do_highlight(cls, context, properties):
-        if not properties.is_property_set("index"):
-            return cls.__doc__
-
-        if properties.is_property_set("type"):
-            c = context.scene.sketcher.constraints.get_from_type_index(properties.type, properties.index)
-            global_data.highlight_constraint = c
-        else:
-            global_data.hover = properties.index
-
-        context.area.tag_redraw()
-        return cls.__doc__
-
-    def handle_highlight_active(self, context):
-        properties = self.properties
-        if properties.highlight_active:
-            self._do_highlight(context, properties)
-
-
-    @classmethod
-    def description(cls, context, properties):
-        if properties.highlight_hover:
-            cls._do_highlight(context, properties)
-
-    def invoke(self, context, event):
-        self.handle_highlight_active(context)
-        return self.execute(context)
 
 
 class View3D_OT_slvs_context_menu(Operator, HighlightElement):
@@ -2142,7 +2157,7 @@ def get_constraint_local_indices(entity, context):
     return ret_list
 
 
-class View3D_OT_slvs_delete_entity(Operator):
+class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
     bl_idname = "view3d.slvs_delete_entity"
     bl_label = "Delete Solvespace Entity"
     bl_options = {"UNDO"}
@@ -2523,7 +2538,7 @@ combined_prop(VIEW3D_OT_slvs_add_ratio, "entity1", None, {}, options={"SKIP_SAVE
 combined_prop(VIEW3D_OT_slvs_add_ratio, "entity2", None, {}, options={"SKIP_SAVE"})
 
 
-class View3D_OT_slvs_delete_constraint(Operator):
+class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
     bl_idname = "view3d.slvs_delete_constraint"
     bl_label = "Delete Constraint"
     bl_options = {"UNDO"}
@@ -2538,6 +2553,7 @@ class View3D_OT_slvs_delete_constraint(Operator):
 
     @classmethod
     def description(cls, context, properties):
+        cls.handle_highlight_hover(context, properties)
         if properties.type:
             return "Delete: " + properties.type.capitalize()
         return ""
