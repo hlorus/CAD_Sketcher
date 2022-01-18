@@ -245,19 +245,20 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
         is_entity = True
         entity_index = None
         constraint_index = None
+        element = None
 
+        # Constraints
         if self.properties.is_property_set("type"):
             constraint_index = self.index
             constraints = context.scene.sketcher.constraints
             element = constraints.get_from_type_index(self.type, self.index)
             is_entity = False
-        elif self.properties.is_property_set("index"):
-            entity_index = self.index
         else:
-            entity_index = global_data.hover
+            # Entities
+            entity_index = self.index if self.properties.is_property_set("index") else global_data.hover
 
-        if entity_index:
-            element = context.scene.sketcher.entities.get(entity_index)
+            if entity_index != -1:
+                element = context.scene.sketcher.entities.get(entity_index)
 
         def draw_context_menu(self, context):
             col = self.layout.column()
