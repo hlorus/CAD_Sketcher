@@ -562,6 +562,33 @@ class SlvsPoint2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         mat = self.wp.matrix_basis @ mat_local
         return mat @ Vector((0, 0, 0))
 
+    def tweak(self, solvesys, pos, group):
+        wrkpln = self.sketch.wp
+        u, v, _ = wrkpln.matrix_basis.inverted() @ pos
+
+        self.create_slvs_data(solvesys, group=group)
+
+        # NOTE: When simply initalizing the point on the tweaking positions
+        # the solver fails regularly, addWhereDragged fixes a point and might
+        # overconstrain a system. When not using addWhereDragged the tweak point
+        # might just jump to the tweaked geometry. Bypass this by creating a line
+        # perpendicular to move vector and constrain that.
+
+        orig_pos = self.co
+        tweak_pos = Vector((u, v))
+        tweak_vec = tweak_pos - orig_pos
+        perpendicular_vec = Vector((tweak_vec[1], -tweak_vec[0]))
+
+        params = [solvesys.addParamV(val, group) for val in (u, v)]
+        startpoint = solvesys.addPoint2d(wrkpln.py_data, *params, group=group)
+
+        p2 = tweak_pos + perpendicular_vec
+        params = [solvesys.addParamV(val, group) for val in (p2.x, p2.y)]
+        endpoint = solvesys.addPoint2d(wrkpln.py_data, *params, group=group)
+
+        edge = solvesys.addLineSegment(startpoint, endpoint, group=group)
+        make_coincident(solvesys, self.py_data, edge, wrkpln.py_data, group, type=SlvsLine2D)
+
     def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
         if not coords:
             coords = self.co
@@ -1334,18 +1361,24 @@ class GenericConstraint:
 
 # NOTE: When tweaking it's neccesary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
-def make_coincident(solvesys, point_handle, e2, wp, group):
+def make_coincident(solvesys, point_handle, e2, wp, group, type=None):
     func = None
     set_wp = False
 
-    if type(e2) in line:
+    if type:
+        handle = e2
+    else:
+        type = type(e2)
+        handle = e2.py_data
+
+    if type in line:
         func = solvesys.addPointOnLine
         set_wp = True
-    elif type(e2) in curve:
+    elif type in curve:
         func = solvesys.addPointOnCircle
-    elif isinstance(e2, SlvsWorkplane):
+    elif type == SlvsWorkplane:
         func = solvesys.addPointInPlane
-    elif type(e2) in point:
+    elif type in point:
         func = solvesys.addPointsCoincident
         set_wp = True
 

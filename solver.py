@@ -75,9 +75,7 @@ class Solver:
             if self.tweak_entity and e == self.tweak_entity:
                 wp = self.get_workplane()
                 if hasattr(e, "tweak"):
-                    e.tweak(self.solvesys, self.tweak_pos)
-
-                    self.solvesys.addWhereDragged(e.py_data, wrkpln=wp, group=group)
+                    e.tweak(self.solvesys, self.tweak_pos, group)
                 else:
                     if not self.sketch:
                         params = [
