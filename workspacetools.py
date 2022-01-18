@@ -274,8 +274,11 @@ tools = (
     (View3D_T_slvs_add_workplane, {"separator": True, "group": False}),
 )
 
-
+import bpy
 def register():
+    if bpy.app.background:
+        return
+
     from bpy.utils import register_tool
 
     for tool in tools:
@@ -283,6 +286,9 @@ def register():
 
 
 def unregister():
+    if bpy.app.background:
+        return
+
     from bpy.utils import unregister_tool
 
     for tool in reversed(tools):
