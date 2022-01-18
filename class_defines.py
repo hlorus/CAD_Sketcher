@@ -21,7 +21,7 @@ import math
 
 from .solver import solve_system, Solver
 from .functions import unique_attribute_setter
-
+from functools import cached_property
 vertex_shader = """
     uniform mat4 ModelViewProjectionMatrix;
     in vec3 pos;
@@ -51,8 +51,12 @@ class SlvsGenericEntity:
     origin: BoolProperty(name="Origin")
     construction: BoolProperty(name="Construction")
 
-    _shader = gpu.shader.from_builtin("3D_UNIFORM_COLOR")
-    _id_shader = gpu.types.GPUShader(vertex_shader, fragment_shader)
+    @cached_property
+    def _shader(self):
+        return gpu.shader.from_builtin("3D_UNIFORM_COLOR")
+    @cached_property
+    def _id_shader(self):
+        return gpu.types.GPUShader(vertex_shader, fragment_shader)
 
     point_size = 6
     point_size_select = 20
