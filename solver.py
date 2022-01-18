@@ -22,6 +22,7 @@ class Solver:
 
         self.report = False
         self.all = all
+        self.failed_sketches = []
 
 
         group = self._get_group(sketch) if sketch else self.group_3d
@@ -218,6 +219,9 @@ class Solver:
             if retval != 0:
                 self.ok = False
 
+                # Store sketch failures
+                self.failed_sketches.append(sketch)
+
             logger.info(self.result.description)
 
             fails = self.solvesys.Failed
@@ -240,7 +244,7 @@ class Solver:
 
         for e in self.entities:
             # Skip entities that belong to a failed sketch
-            if hasattr(e, "sketch") and  e.sketch.solver_state != "OKAY":
+            if hasattr(e, "sketch") and  e.sketch in self.failed_sketches:
                 continue
             # TODO: skip entities that aren't in active group
             e.update_from_slvs(self.solvesys)
