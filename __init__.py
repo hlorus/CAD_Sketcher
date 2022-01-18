@@ -53,14 +53,18 @@ if logger.hasHandlers():
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter("%(name)s:{%(levelname)s}: %(message)s")
 
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+logger.addHandler(stream_handler)
+
 filepath = Path(gettempdir()) / (__name__ + ".log")
+
+logger.info("Logging into: " + str(filepath))
 file_handler = logging.FileHandler(filepath, mode="w")
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(formatter)
-logger.addHandler(stream_handler)
+
 
 
 def get_wheel():
@@ -144,6 +148,8 @@ def ensure_addon_presets(force_write=False):
         bundled_presets = os.path.join(os.path.dirname(__file__), "presets")
         files = os.listdir(bundled_presets)
         shutil.copytree(bundled_presets, presets_dir, dirs_exist_ok=True)
+
+        logger.info("Copy addon presets to: " + presets_dir)
 
 
 class Preferences(bpy.types.AddonPreferences):
