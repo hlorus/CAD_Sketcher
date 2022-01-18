@@ -591,7 +591,7 @@ class SlvsPoint2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         endpoint = solvesys.addPoint2d(wrkpln.py_data, *params, group=group)
 
         edge = solvesys.addLineSegment(startpoint, endpoint, group=group)
-        make_coincident(solvesys, self.py_data, edge, wrkpln.py_data, group, type=SlvsLine2D)
+        make_coincident(solvesys, self.py_data, edge, wrkpln.py_data, group, entity_type=SlvsLine2D)
 
     def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
         if not coords:
@@ -1365,24 +1365,24 @@ class GenericConstraint:
 
 # NOTE: When tweaking it's neccesary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
-def make_coincident(solvesys, point_handle, e2, wp, group, type=None):
+def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
     func = None
     set_wp = False
 
-    if type:
+    if entity_type:
         handle = e2
     else:
-        type = type(e2)
+        entity_type = type(e2)
         handle = e2.py_data
 
-    if type in line:
+    if entity_type in line:
         func = solvesys.addPointOnLine
         set_wp = True
-    elif type in curve:
+    elif entity_type in curve:
         func = solvesys.addPointOnCircle
-    elif type == SlvsWorkplane:
+    elif entity_type == SlvsWorkplane:
         func = solvesys.addPointInPlane
-    elif type in point:
+    elif entity_type in point:
         func = solvesys.addPointsCoincident
         set_wp = True
 
@@ -1393,7 +1393,7 @@ def make_coincident(solvesys, point_handle, e2, wp, group, type=None):
     if set_wp:
         kwargs["wrkpln"] = wp
 
-    return func(point_handle, e2.py_data, **kwargs)
+    return func(point_handle, handle, **kwargs)
 
 
 class SlvsCoincident(GenericConstraint, PropertyGroup):
