@@ -80,9 +80,15 @@ class ConstraintGizmo:
     def _set_colors(self, context, constraint):
         """Overwrite default color when gizmo is highlighted"""
 
-        is_highlight = constraint == global_data.highlight_constraint
         theme = functions.get_prefs().theme_settings
-        col = theme.constraint.highlight if is_highlight else theme.constraint.default
+        is_highlight = constraint == global_data.highlight_constraint
+        failed = constraint.failed
+
+        if is_highlight:
+            col = theme.constraint.failed_highlight if failed else theme.constraint.highlight
+        else:
+            col = theme.constraint.failed if failed else theme.constraint.default
+
         self.color = col[:3]
 
 class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
