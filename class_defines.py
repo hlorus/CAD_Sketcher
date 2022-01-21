@@ -768,7 +768,7 @@ def create_bezier_curve(
         b2.co = loc2.to_3d()
 
 
-CURVE_RESOLUTION = 32
+CURVE_RESOLUTION = 64
 
 
 class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
@@ -932,7 +932,7 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         return [self.nm, self.ct, self.sketch]
 
     def update(self):
-        coords = functions.coords_arc_2d(0, 0, self.radius, 32)
+        coords = functions.coords_arc_2d(0, 0, self.radius, CURVE_RESOLUTION)
 
         u, v = self.ct.co
 
