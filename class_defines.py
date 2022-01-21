@@ -941,7 +941,7 @@ slvs_entity_pointer(SlvsArc, "sketch")
 
 
 class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
-    radius: FloatProperty(name="Radius", subtype="DISTANCE", unit="LENGTH")
+    radius: FloatProperty(name="Radius", subtype="DISTANCE", min=0.0, unit="LENGTH")
 
     def __repr__(self):
         return "{} radius:{} at {}".format(self, self.radius, self.ct)
