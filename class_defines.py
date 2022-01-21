@@ -523,7 +523,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         )
 
     def solve(self, context):
-        solve_system(context, sketch=self)
+        return solve_system(context, sketch=self)
 
 
 slvs_entity_pointer(SlvsSketch, "wp")
@@ -2334,7 +2334,8 @@ class SketcherProps(PropertyGroup):
             yield c
 
     def solve(self, context):
-        solve_system(context)
+        return solve_system(context)
+
 
 
 slvs_entity_pointer(SketcherProps, "active_sketch", update=functions.update_cb)
