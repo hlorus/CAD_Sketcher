@@ -125,8 +125,8 @@ class VIEW3D_PT_sketcher(Panel):
                 operators.View3D_OT_slvs_solve.bl_idname, text="Solve All"
             ).all = True
             layout.prop(context.scene.sketcher, "show_origin")
-            layout.prop(prefs, "fade_inactive_geometry")
             layout.prop(prefs, "hide_inactive_constraints")
+            layout.prop(prefs, "all_entities_selectable")
 
 
 class VIEW3D_PT_sketcher_entities(Panel):
