@@ -812,22 +812,22 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         p2 = self.end.co - ct
 
         radius = p1.length
-        offset = p1.angle_signed(Vector((1, 0)))
 
-        angle = functions.range_2pi(p2.angle_signed(p1))
+        coords = []
+        if radius and p2.length:
+            offset = p1.angle_signed(Vector((1, 0)))
+            angle = functions.range_2pi(p2.angle_signed(p1))
 
-        # TODO: resolution should depend on segment length?!
-        segments = round(CURVE_RESOLUTION * (angle / (math.pi * 2)))
+            # TODO: resolution should depend on segment length?!
+            segments = round(CURVE_RESOLUTION * (angle / (math.pi * 2)))
 
-        coords = functions.coords_arc_2d(
-            0, 0, radius, segments, angle=angle, offset=offset
-        )
+            coords = functions.coords_arc_2d(
+                0, 0, radius, segments, angle=angle, offset=offset
+            )
 
-        u, v = self.ct.co
-
-        mat_local = Matrix.Translation(Vector((u, v, 0)))
-        mat = self.wp.matrix_basis @ mat_local
-        coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
+            mat_local = Matrix.Translation(self.ct.co.to_3d())
+            mat = self.wp.matrix_basis @ mat_local
+            coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
         self._batch = batch_for_shader(self._shader, "LINE_STRIP", {"pos": coords})
 
