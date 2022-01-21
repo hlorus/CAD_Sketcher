@@ -265,10 +265,10 @@ def get_scale_from_pos(co, rv3d):
 
 def refresh(context):
     # update gizmos!
-    if context.space_data.type == "VIEW_3D":
+    if context.space_data and context.space_data.type == "VIEW_3D":
         context.space_data.show_gizmo = True
 
-    if context.area.type == "VIEW_3D":
+    if context.area and context.area.type == "VIEW_3D":
         context.area.tag_redraw()
 
 

@@ -276,6 +276,9 @@ class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
         return str(self)
 
     def update(self):
+        if bpy.app.background:
+            return
+
         coords, indices = functions.draw_cube_3d(*self.location, 0.05)
         self._batch = batch_for_shader(
             self._shader, "POINTS", {"pos": (self.location[:],)}
@@ -314,6 +317,9 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         return [self.p1, self.p2]
 
     def update(self):
+        if bpy.app.background:
+            return
+
         p1, p2 = self.p1, self.p2
         self._batch = batch_for_shader(
             self._shader, "LINES", {"pos": (p1.location, p2.location)}
@@ -381,6 +387,9 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         return self.is_active(context.scene.sketcher.active_sketch)
 
     def update(self):
+        if bpy.app.background:
+            return
+
         p1, nm = self.p1, self.nm
         mat = self.matrix_basis
 
@@ -548,6 +557,9 @@ class SlvsPoint2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         ]
 
     def update(self):
+        if bpy.app.background:
+            return
+
         u, v = self.co
         mat_local = Matrix.Translation(Vector((u, v, 0)))
 
@@ -634,6 +646,9 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         return [self.p1, self.p2, self.sketch]
 
     def update(self):
+        if bpy.app.background:
+            return
+
         p1, p2 = self.p1, self.p2
         coords = (p1.location, p2.location)
         self._batch = batch_for_shader(self._shader, "LINES", {"pos": coords})
@@ -789,6 +804,9 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         return [self.nm, self.ct, self.start, self.end, self.sketch]
 
     def update(self):
+        if bpy.app.background:
+            return
+
         ct = self.ct.co
         p1 = self.start.co - ct
         p2 = self.end.co - ct
@@ -932,6 +950,9 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         return [self.nm, self.ct, self.sketch]
 
     def update(self):
+        if bpy.app.background:
+            return
+
         coords = functions.coords_arc_2d(0, 0, self.radius, CURVE_RESOLUTION)
 
         u, v = self.ct.co
