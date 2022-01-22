@@ -1324,6 +1324,14 @@ class View3D_OT_slvs_add_point3d(Operator, Operator3d, StatefulOperator):
 
     def main(self, context):
         self.target = context.scene.sketcher.entities.add_point_3d(self.location)
+
+        # Store hovered entity to use for auto-coincident since it doesnt get
+        # stored for non-interactive tools
+        hovered = global_data.hover
+        if self._check_constrain(context, hovered):
+            self.state_data["hovered"] = hovered
+
+        self.add_coincident(context, self.target, self.state, self.state_data)
         return True
 
     def fini(self, context, succeede):
@@ -1602,6 +1610,14 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d, StatefulOperator):
         self.target = context.scene.sketcher.entities.add_point_2d(
             self.coordinates, sketch
         )
+
+        # Store hovered entity to use for auto-coincident since it doesnt get
+        # stored for non-interactive tools
+        hovered = global_data.hover
+        if self._check_constrain(context, hovered):
+            self.state_data["hovered"] = hovered
+
+        self.add_coincident(context, self.target, self.state, self.state_data)
         return True
 
     def fini(self, context, succeede):
