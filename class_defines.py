@@ -272,9 +272,6 @@ def slvs_entity_pointer(cls, name, **kwargs):
 class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
     location: FloatVectorProperty(name="Location", subtype="XYZ", unit="LENGTH")
 
-    def __repr__(self):
-        return str(self)
-
     def update(self):
         if bpy.app.background:
             return
@@ -310,8 +307,6 @@ class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
 
 
 class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
-    def __repr__(self):
-        return "{} from {} to {}".format(self, self.p1, self.p2)
 
     def dependencies(self):
         return [self.p1, self.p2]
@@ -350,9 +345,6 @@ slvs_entity_pointer(SlvsLine3D, "p2")
 class SlvsNormal3D(SlvsGenericEntity, PropertyGroup):
     orientation: FloatVectorProperty(subtype="QUATERNION", size=4)
 
-    def __repr__(self):
-        return "{} {}".format(str(self), self.orientation)
-
     def update(self):
         pass
 
@@ -373,9 +365,6 @@ from mathutils import Vector, Matrix
 
 class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
     size = 5
-
-    def __repr__(self):
-        return "{} at {} with {}".format(self, self.p1, self.nm)
 
     def dependencies(self):
         return [self.p1, self.nm]
@@ -487,9 +476,6 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     target_mesh: PointerProperty(type=bpy.types.Mesh)
     target_object: PointerProperty(type=bpy.types.Object)
 
-    def __repr__(self):
-        return "{} on {}".format(self, self.wp)
-
     def dependencies(self):
         return [
             self.wp,
@@ -547,9 +533,6 @@ class Entity2D:
 
 class SlvsPoint2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     co: FloatVectorProperty(name="Coordinates", subtype="XYZ", size=2, unit="LENGTH")
-
-    def __repr__(self):
-        return "{} at {}".format(self, self.co)
 
     def dependencies(self):
         return [
@@ -639,8 +622,6 @@ def set_handles(point):
 
 
 class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
-    def __repr__(self):
-        return "{} from {} to {}".format(self, self.p1, self.p2)
 
     def dependencies(self):
         return [self.p1, self.p2, self.sketch]
@@ -710,8 +691,6 @@ slvs_entity_pointer(SlvsLine2D, "sketch")
 
 
 class SlvsNormal2D(SlvsGenericEntity, PropertyGroup, Entity2D):
-    def __repr__(self):
-        return str(self)
 
     def update(self):
         pass
@@ -796,9 +775,6 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
     @property
     def end(self):
         return self.p1 if self.invert_direction else self.p2
-
-    def __repr__(self):
-        return "{} at {} from {} to {}".format(self, self.ct, self.start, self.end)
 
     def dependencies(self):
         return [self.nm, self.ct, self.start, self.end, self.sketch]
@@ -942,9 +918,6 @@ slvs_entity_pointer(SlvsArc, "sketch")
 
 class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
     radius: FloatProperty(name="Radius", subtype="DISTANCE", min=0.0, unit="LENGTH")
-
-    def __repr__(self):
-        return "{} radius:{} at {}".format(self, self.radius, self.ct)
 
     def dependencies(self):
         return [self.nm, self.ct, self.sketch]
@@ -1423,9 +1396,6 @@ class SlvsCoincident(GenericConstraint, PropertyGroup):
     signature = (point, (*point, *line, SlvsWorkplane, SlvsCircle, SlvsArc))
     # NOTE: Coincident between 3dPoint and Workplane currently doesn't seem to work
 
-    def __repr__(self):
-        return "{} between {} and {} on {}".format(self, self.entity1, self.entity2, self.sketch)
-
     def needs_wp(self):
         if isinstance(self.entity2, SlvsWorkplane):
             return WpReq.FREE
@@ -1456,9 +1426,6 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
     type = "EQUAL"
     label = "Equal"
     signature = (line_arc_circle, line_arc_circle)
-
-    def __repr__(self):
-        return "{} between {} and {} on {}".format(self, self.entity1, self.entity2, self.sketch)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         # TODO: Don't allow to add Equal between Line and Circle
@@ -1527,9 +1494,6 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     type = "DISTANCE"
     signature = (point, (*point, *line, SlvsWorkplane))
-
-    def __repr__(self):
-        return "{} value:{} between {} and {} on {}".format(self, self.value, self.entity1, self.entity2, self.sketch)
 
     def needs_wp(self):
         if isinstance(self.entity2, SlvsWorkplane):
@@ -1648,9 +1612,6 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     type = "DIAMETER"
     signature = (curve,)
 
-    def __repr__(self):
-        return "{} value:{} of {} on {}".format(self, self.value, self.entity1, self.sketch)
-
     def needs_wp(self):
         return WpReq.OPTIONAL
 
@@ -1701,11 +1662,6 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     draw_offset: FloatProperty(name="Draw Offset", default=1)
     type = "ANGLE"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
-
-    def __repr__(self):
-        return "{} value:{} invert:{} between {} and {} on {}".format(
-            self, self.value, self.setting, self.entity1, self.entity2, self.sketch
-        )
 
     def needs_wp(self):
         return WpReq.NOT_FREE
@@ -1833,11 +1789,6 @@ class SlvsParallel(GenericConstraint, PropertyGroup):
     label = "Parallel"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
 
-    def __repr__(self):
-        return "{} between {} and {} on {}".format(
-            self, self.entity1, self.entity2, self.sketch
-        )
-
     def needs_wp(self):
         return WpReq.NOT_FREE
 
@@ -1861,9 +1812,6 @@ class SlvsHorizontal(GenericConstraint, PropertyGroup):
     label = "Horizontal"
     signature = ((SlvsLine2D,),)
 
-    def __repr__(self):
-        return "{} for {} on {}".format(self, self.entity1, self.sketch)
-
     def needs_wp(self):
         return WpReq.NOT_FREE
 
@@ -1882,9 +1830,6 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
     label = "Vertical"
     signature = ((SlvsLine2D,),)
 
-    def __repr__(self):
-        return "{} for {} on {}".format(self, self.entity1, self.sketch)
-
     def needs_wp(self):
         return WpReq.NOT_FREE
 
@@ -1902,11 +1847,6 @@ class SlvsPerpendicular(GenericConstraint, PropertyGroup):
     type = "PERPENDICULAR"
     label = "Perpendicular"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
-
-    def __repr__(self):
-        return "{} between {} and {} on {}".format(
-            self, self.entity1, self.entity2, self.sketch
-        )
 
     def needs_wp(self):
         return WpReq.NOT_FREE
@@ -1937,11 +1877,6 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
     type = "TANGENT"
     label = "Tangent"
     signature = (curve, (SlvsLine2D, *curve))
-
-    def __repr__(self):
-        return "{} between {} and {} on {}".format(
-            self, self.entity1, self.entity2, self.sketch
-        )
 
     def needs_wp(self):
         return WpReq.NOT_FREE
@@ -2006,11 +1941,6 @@ class SlvsMidpoint(GenericConstraint, PropertyGroup):
     label = "Midpoint"
     signature = (point, line)
 
-    def __repr__(self):
-        return "{} between {} and {} on {}".format(
-            self, self.entity1, self.entity2, self.sketch
-        )
-
     def needs_wp(self):
         return WpReq.NOT_FREE
 
@@ -2038,11 +1968,6 @@ class SlvsSymmetric(GenericConstraint, PropertyGroup):
         point,
         (SlvsLine2D, SlvsWorkplane),
     )
-
-    def __repr__(self):
-        return "{} between {} and {} over {} on {}".format(
-            self, self.entity1, self.entity2, self.entity3, self.sketch
-        )
 
     def needs_wp(self):
         if isinstance(self.entity3, SlvsLine2D):
@@ -2091,11 +2016,6 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
         line,
     )
 
-    def __repr__(self):
-        return "{} value:{} between {} and {} on {}".format(
-            self, self.value, self.entity1, self.entity2, self.sketch
-        )
-
     def needs_wp(self):
         if isinstance(self.entity1, SlvsLine2D) or isinstance(self.entity2, SlvsLine2D):
             return WpReq.NOT_FREE
@@ -2139,10 +2059,7 @@ slvs_entity_pointer(SlvsRatio, "sketch")
 #     type = 'DISTANCE_PROJ'
 #     name = 'Projected Distance'
 #     signature = ((SlvsPoint3D, ), (SlvsPoint3D, ))
-#
-#     def __repr__(self):
-#         return "{} of {} on {}".format(self.type.lower(), self.entity1, self.entity2, self.sketch)
-#
+##
 #     def needs_wp(self):
 #         return WpReq.OPTIONAL
 #
