@@ -1693,7 +1693,6 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
     def draw_props(self, layout):
         layout.prop(self, "value")
-        layout.prop(self, "setting")
 
     def value_placement(self, context):
         """location to display the constraint value"""
