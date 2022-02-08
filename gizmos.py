@@ -590,6 +590,9 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
 
         # Add value gizmos for dimensional constraints
         for c in iter_dimenional_constraints(context):
+            if not c.is_active(context.scene.sketcher.active_sketch):
+                continue
+
             gz = self.gizmos.new(VIEW3D_GT_slvs_constraint_value.bl_idname)
             index = context.scene.sketcher.constraints.get_index(c)
             gz.type = c.type
