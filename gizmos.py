@@ -110,6 +110,9 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
                 return
 
             pos = functions.get_2d_coords(context, entity.placement())
+            if not pos:
+                return
+
             pos += GIZMO_OFFSET + self.offset
 
         if pos:
@@ -171,6 +174,9 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         if not hasattr(constr, "value_placement"):
             return
         pos = constr.value_placement(context)
+
+        if not pos:
+            return
 
         # Update Matrix for selection
         self.matrix_basis = Matrix.Translation(pos.to_3d())

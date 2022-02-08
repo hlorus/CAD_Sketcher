@@ -470,6 +470,10 @@ class VIEW3D_OT_slvs_write_selection_texture(Operator):
             self.report({"WARNING"}, "View3D not found, cannot run operator")
             return {"CANCELLED"}
 
+        if not global_data.offscreen:
+            self.report({'WARNING'}, "Selection texture is not available")
+            return {'CANCELLED'}
+
         image = write_selection_buffer_image("selection_buffer")
         self.report({"INFO"}, "Wrote buffer to image: {}".format(image.name))
 
