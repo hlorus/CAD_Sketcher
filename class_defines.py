@@ -270,6 +270,11 @@ def slvs_entity_pointer(cls, name, **kwargs):
 
 
 class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
+    """Representation of a point in 3D Space.
+
+    Arguments:
+        location (FloatVectorProperty): Point's location in the form (x, y, z)
+    """
     location: FloatVectorProperty(name="Location", subtype="XYZ", unit="LENGTH")
 
     def update(self):
@@ -307,7 +312,12 @@ class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
 
 
 class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
+    """Representation of a line in 3D Space.
 
+    Arguments:
+        p1 (SlvsPoint3D): Line's startpoint
+        p2 (SlvsPoint3D): Line's endpoint
+    """
     def dependencies(self):
         return [self.p1, self.p2]
 
@@ -343,6 +353,15 @@ slvs_entity_pointer(SlvsLine3D, "p2")
 
 
 class SlvsNormal3D(SlvsGenericEntity, PropertyGroup):
+    """Representation of a normal in 3D Space which is used to
+    store a direction.
+
+    This entity isn't currently exposed to the user and gets created
+    implicitly when needed.
+
+    Arguments:
+        orientation (Quaternion): A quaternion which describes the rotation
+    """
     orientation: FloatVectorProperty(subtype="QUATERNION", size=4)
 
     def update(self):
@@ -364,6 +383,15 @@ from mathutils import Vector, Matrix
 
 
 class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
+    """Representation of a plane which is defined by an origin point
+    and a normal. Workplanes are used to define the position of 2D entities
+    which only store the coordinates on the plane.
+
+    Arguments:
+        p1 (SlvsPoint3D): Origin Point of the Plane
+        nm (SlvsNormal3D): Normal which defines the orientation
+    """
+
     size = 5
 
     def dependencies(self):
@@ -455,6 +483,14 @@ def hide_sketch(self, context):
 
 # TODO: draw sketches and allow selecting
 class SlvsSketch(SlvsGenericEntity, PropertyGroup):
+    """A sketch groups 2 dimensional entities together and is used to later
+    convert geometry to native blender types.
+
+    Entities that belong to a sketch can only be edited as long as the sketch is active.
+
+    Arguments:
+        wp (SlvsWorkplane): The base workplane of the sketch
+    """
     unique_names = ["name"]
 
     convert_type: EnumProperty(
@@ -532,6 +568,13 @@ class Entity2D:
 
 
 class SlvsPoint2D(SlvsGenericEntity, PropertyGroup, Entity2D):
+    """Representation of a point on a workplane.
+
+    Arguments:
+        co (FloatVectorProperty): The coordinates of the point on the worpkplane in the form (U, V)
+        sketch (SlvsSketch): The sketch this entity belongs to
+    """
+
     co: FloatVectorProperty(name="Coordinates", subtype="XYZ", size=2, unit="LENGTH")
 
     def dependencies(self):
@@ -622,6 +665,14 @@ def set_handles(point):
 
 
 class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
+    """Representation of a line in 2D space. Connects p1 and p2 and lies on the
+    sketche's workplane.
+
+    Arguments:
+        p1 (SlvsPoint2D): Line's startpoint
+        p2 (SlvsPoint2D): Line's endpoint
+        sketch (SlvsSketch): The sketch this entity belongs to
+    """
 
     def dependencies(self):
         return [self.p1, self.p2, self.sketch]
@@ -691,6 +742,14 @@ slvs_entity_pointer(SlvsLine2D, "sketch")
 
 
 class SlvsNormal2D(SlvsGenericEntity, PropertyGroup, Entity2D):
+    """Representation of a normal in 2D Space.
+
+    This entity isn't currently exposed to the user and gets created
+    implicitly when needed.
+
+    Arguments:
+        sketch (SlvsSketch): The sketch to get the orientation from
+    """
 
     def update(self):
         pass
@@ -766,6 +825,18 @@ CURVE_RESOLUTION = 64
 
 
 class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
+    """Representation of an arc in 2D space around the centerpoint ct. Connects
+    p2 to p3 or (viceversa if the option invert_direction is true) with a
+    circle segment that is resolution independent. The arc lies on the sketche's workplane.
+
+    Arguments:
+        p1 (SlvsPoint2D): Arc's centerpoint
+        p2 (SlvsPoint2D): Arc's startpoint
+        p2 (SlvsPoint2D): Arc's endpoint
+        nm (SlvsNormal3D): Orientation
+        sketch (SlvsSketch): The sketch this entity belongs to
+    """
+
     invert_direction: BoolProperty(name="Invert direction")
 
     @property
@@ -917,6 +988,16 @@ slvs_entity_pointer(SlvsArc, "sketch")
 
 
 class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
+    """Representation of a circle in 2D space. The circle is centered at ct whith
+    it's size defined by the radius and is resoulution independent.
+
+    Arguments:
+        ct (SlvsPoint2D): Circle's centerpoint
+        radius (FloatProperty): The radius of the circle
+        nm (SlvsNormal2D):
+        sketch (SlvsSketch): The sketch this entity belongs to
+    """
+
     radius: FloatProperty(name="Radius", subtype="DISTANCE", min=0.0, unit="LENGTH")
 
     def dependencies(self):
@@ -1391,6 +1472,17 @@ def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
 
 
 class SlvsCoincident(GenericConstraint, PropertyGroup):
+    """Forces two points to be coincident,
+    or a point to lie on a curve, or a point to lie on a plane.
+
+    The point-coincident constraint is available in both 3d and projected versions.
+    The 3d point-coincident constraint restricts three degrees of freedom;
+    the projected version restricts only two. If two points are drawn in a workplane,
+    and then constrained coincident in 3d, then an error will result–they are already
+    coincident in one dimension (the dimension normal to the plane),
+    so the third constraint equation is redundant.
+    """
+
     type = "COINCIDENT"
     label = "Coincident"
     signature = (point, (*point, *line, SlvsWorkplane, SlvsCircle, SlvsArc))
@@ -1423,6 +1515,15 @@ line_arc_circle = (*line, SlvsArc, SlvsCircle)
 
 
 class SlvsEqual(GenericConstraint, PropertyGroup):
+    """Forces two lengths, or radiuses to be equal.
+
+    If a line and an arc of a circle are selected, then the length of the line is
+    forced equal to the length (not the radius) of the arc.
+    """
+
+    # TODO: Restrict or handle constraint between two arcs
+    # TODO: Also supports equal angle
+
     type = "EQUAL"
     label = "Equal"
     signature = (line_arc_circle, line_arc_circle)
@@ -1487,6 +1588,9 @@ def get_side_of_line(line_start, line_end, point):
 
 
 class SlvsDistance(GenericConstraint, PropertyGroup):
+    """Sets the distance between a point and some other entity (point/line/Workplane).
+    """
+
     label = "Distance"
     value: FloatProperty(
         name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
@@ -1604,6 +1708,9 @@ slvs_entity_pointer(SlvsDistance, "sketch")
 
 
 class SlvsDiameter(GenericConstraint, PropertyGroup):
+    """Sets the diameter of an arc or a circle.
+    """
+
     label = "Diameter"
     value: FloatProperty(
         name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
@@ -1654,6 +1761,11 @@ from mathutils.geometry import intersect_line_line_2d
 
 
 class SlvsAngle(GenericConstraint, PropertyGroup):
+    """Sets the angle between two lines, applies in 2D only.
+
+    The constraint's setting can be used to to constrain the supplementary angle.
+    """
+
     label = "Angle"
     value: FloatProperty(
         name=label, subtype="ANGLE", unit="ROTATION", update=update_system_cb
@@ -1785,6 +1897,9 @@ slvs_entity_pointer(SlvsAngle, "sketch")
 
 
 class SlvsParallel(GenericConstraint, PropertyGroup):
+    """Forces two lines to be parallel. Applies only in 2D.
+    """
+
     type = "PARALLEL"
     label = "Parallel"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
@@ -1808,6 +1923,10 @@ slvs_entity_pointer(SlvsParallel, "sketch")
 
 # NOTE: this could also support constraining two points
 class SlvsHorizontal(GenericConstraint, PropertyGroup):
+    """Forces a line segment to be horizontal. It applies in 2D Space only because
+    the meaning of horizontal or vertical is defined by the workplane.
+    """
+
     type = "HORIZONTAL"
     label = "Horizontal"
     signature = ((SlvsLine2D,),)
@@ -1826,6 +1945,10 @@ slvs_entity_pointer(SlvsHorizontal, "sketch")
 
 
 class SlvsVertical(GenericConstraint, PropertyGroup):
+    """Forces a line segment to be vertical. It applies in 2D Space only because
+    the meaning of horizontal or vertical is defined by the workplane.
+    """
+
     type = "VERTICAL"
     label = "Vertical"
     signature = ((SlvsLine2D,),)
@@ -1844,6 +1967,9 @@ slvs_entity_pointer(SlvsVertical, "sketch")
 
 
 class SlvsPerpendicular(GenericConstraint, PropertyGroup):
+    """Forces two lines to be perpendicular, applies only in 2D. This constraint
+    is equivalent to an angle constraint for ninety degrees.
+    """
     type = "PERPENDICULAR"
     label = "Perpendicular"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
@@ -1874,6 +2000,8 @@ def connection_point(seg_1, seg_2):
 
 
 class SlvsTangent(GenericConstraint, PropertyGroup):
+    """Forces two curves (arc/circle) or a curve and a line to be tangent.
+    """
     type = "TANGENT"
     label = "Tangent"
     signature = (curve, (SlvsLine2D, *curve))
@@ -1937,6 +2065,9 @@ slvs_entity_pointer(SlvsTangent, "sketch")
 
 
 class SlvsMidpoint(GenericConstraint, PropertyGroup):
+    """Forces a point to lie on the midpoint of a line.
+    """
+
     type = "MIDPOINT"
     label = "Midpoint"
     signature = (point, line)
@@ -1959,6 +2090,14 @@ slvs_entity_pointer(SlvsMidpoint, "sketch")
 
 
 class SlvsSymmetric(GenericConstraint, PropertyGroup):
+    """Forces two points to be symmetric about a plane.
+
+    The symmetry plane may be a workplane when used in 3D. Or, the symmetry plane
+    may be specified as a line in a workplane; the symmetry plane is then through
+    that line, and normal to the workplane.
+
+    """
+
     type = "SYMMETRIC"
     label = "Symmetric"
 
@@ -2004,6 +2143,10 @@ slvs_entity_pointer(SlvsSymmetric, "sketch")
 
 
 class SlvsRatio(GenericConstraint, PropertyGroup):
+    """Defines the ratio between the lengths of two line segments.
+
+    The order matters; the ratio is defined as length of entity1 : length of entity2.
+    """
     type = "RATIO"
     label = "Ratio"
 
