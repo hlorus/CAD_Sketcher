@@ -2,12 +2,13 @@ from unittest import TestCase
 
 class BgsTestCase(TestCase):
     interactive = False
+    log_level = "INFO"
 
     @classmethod
     def setUpClass(cls):
         from geometry_sketcher.functions import get_prefs
         prefs = get_prefs()
-        prefs.logging_level = "INFO"
+        prefs.logging_level = cls.log_level
 
         import bpy
 
