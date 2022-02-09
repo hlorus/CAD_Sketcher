@@ -1138,14 +1138,15 @@ entity_collections = (
     "circles",
 )
 
+from typing import Union, Tuple, Type
 
 class SlvsEntities(PropertyGroup):
     """Holds all Solvespace Entities"""
 
-    def _type_index(self, entity):
+    def _type_index(self, entity: SlvsGenericEntity) -> int:
         return entities.index(type(entity))
 
-    def _set_index(self, entity):
+    def _set_index(self, entity: SlvsGenericEntity):
         type_index = self._type_index(entity)
         sub_list = getattr(self, entity_collections[type_index])
 
@@ -1155,10 +1156,10 @@ class SlvsEntities(PropertyGroup):
         entity.slvs_index = type_index << 20 | local_index
 
     @staticmethod
-    def _breakdown_index(index):
+    def _breakdown_index(index: int):
         return functions.breakdown_index(index)
 
-    def type_from_index(self, index):
+    def type_from_index(self, index: int) -> Type[SlvsGenericEntity]:
         if index < 0:
             return None
 
@@ -1168,18 +1169,25 @@ class SlvsEntities(PropertyGroup):
             return None
         return entities[type_index]
 
-    def _get_list_and_index(self, index):
+    def _get_list_and_index(self, index: int):
         type_index, local_index = self._breakdown_index(index)
         if type_index < 0 or type_index >= len(entity_collections):
             return None, local_index
         return getattr(self, entity_collections[type_index]), local_index
 
-    def check(self, index):
+    def check(self, index: int) -> bool:
         sub_list, i = self._get_list_and_index(index)
         return i < len(sub_list)
 
-    def get(self, index):
-        """Returns the entity with the given global index or None if not found"""
+    def get(self, index: int) -> SlvsGenericEntity:
+        """Get entity by index
+
+        Arguments:
+            index: The global index of the entity.
+
+        Returns:
+            SlvsGenericEntity: Entity with the given global index or None if not found.
+        """
         if index == -1:
             return None
         sub_list, i = self._get_list_and_index(index)
@@ -1187,7 +1195,12 @@ class SlvsEntities(PropertyGroup):
             return None
         return sub_list[i]
 
-    def remove(self, index):
+    def remove(self, index: int):
+        """Remove entity by index
+
+        Arguments:
+            index: The global index of the entity.
+        """
         assert isinstance(index, int)
         entity_list, i = self._get_list_and_index(index)
         entity_list.remove(i)
@@ -1207,14 +1220,34 @@ class SlvsEntities(PropertyGroup):
         update_pointers(new_item.slvs_index, index)
         new_item.slvs_index = index
 
-    def add_point_3d(self, co):
+    def add_point_3d(self, co: Union[Tuple[float, float, float], Vector]) -> SlvsPoint3D:
+        """Add a point in 3d space.
+
+        Arguments:
+            co: Location of the point in 3d space.
+
+        Returns:
+            SlvsPoint3D: The created point.
+        """
+        if not hasattr(co, "__len__") or len(co) != 3:
+            raise TypeError("Argument co must be of length 3")
+
         p = self.points3D.add()
         p.location = co
         self._set_index(p)
         p.update()
         return p
 
-    def add_line_3d(self, p1, p2):
+    def add_line_3d(self, p1: SlvsPoint3D, p2: SlvsPoint3D) -> SlvsLine3D:
+        """Add a line in 3d space.
+
+        Arguments:
+            p1: Line's startpoint.
+            p2: Line's endpoint.
+
+        Returns:
+            SlvsLine3D: The created line.
+        """
         l = self.lines3D.add()
         l.p1 = p1
         l.p2 = p2
@@ -1222,14 +1255,31 @@ class SlvsEntities(PropertyGroup):
         l.update()
         return l
 
-    def add_normal_3d(self, quat):
+    def add_normal_3d(self, quat: Tuple[float, float, float, float]) -> SlvsNormal3D:
+        """Add a normal in 3d space.
+
+        Arguments:
+            quat: Quaternion which describes the orientation.
+
+        Returns:
+            SlvsNormal3D: The created normal.
+        """
         nm = self.normals3D.add()
         nm.orientation = quat
         self._set_index(nm)
         nm.update()
         return nm
 
-    def add_workplane(self, p1, nm):
+    def add_workplane(self, p1: SlvsPoint3D, nm: SlvsNormal3D) -> SlvsWorkplane:
+        """Add a workplane.
+
+        Arguments:
+            p1: Workplane's originpoint.
+            nm: Workplane's normal.
+
+        Returns:
+            SlvsWorkplane: The created workplane.
+        """
         wp = self.workplanes.add()
         wp.p1 = p1
         wp.nm = nm
@@ -1237,7 +1287,15 @@ class SlvsEntities(PropertyGroup):
         wp.update()
         return wp
 
-    def add_sketch(self, wp):
+    def add_sketch(self, wp: SlvsWorkplane) -> SlvsSketch:
+        """Add a Sketch.
+
+        Arguments:
+            wp: Sketch's workplane.
+
+        Returns:
+            SlvsSketch: The created sketch.
+        """
         sketch = self.sketches.add()
         sketch.wp = wp
         self._set_index(sketch)
@@ -1246,7 +1304,16 @@ class SlvsEntities(PropertyGroup):
         sketch.update()
         return sketch
 
-    def add_point_2d(self, co, sketch):
+    def add_point_2d(self, co: Tuple[float, float], sketch: SlvsSketch) -> SlvsPoint2D:
+        """Add a point in 2d space.
+
+        Arguments:
+            co: Coordinates of the point on the workplane.
+            sketch: The sketch this point belongs to.
+
+        Returns:
+            SlvsPoint2D: The created point.
+        """
         p = self.points2D.add()
         p.co = co
         p.sketch = sketch
@@ -1254,7 +1321,17 @@ class SlvsEntities(PropertyGroup):
         p.update()
         return p
 
-    def add_line_2d(self, p1, p2, sketch):
+    def add_line_2d(self, p1: SlvsPoint2D, p2: SlvsPoint2D, sketch: SlvsSketch) -> SlvsLine2D:
+        """Add a line in 2d space.
+
+        Arguments:
+            p1: Line's startpoint.
+            p2: Line's endpoint.
+            sketch: The sketch this line belongs to.
+
+        Returns:
+            SlvsLine2D: The created line.
+        """
         l = self.lines2D.add()
         l.p1 = p1
         l.p2 = p2
@@ -1263,14 +1340,34 @@ class SlvsEntities(PropertyGroup):
         l.update()
         return l
 
-    def add_normal_2d(self, sketch):
+    def add_normal_2d(self, sketch: SlvsSketch) -> SlvsNormal2D:
+        """Add a normal in 2d space.
+
+        Arguments:
+            sketch: The sketch this normal belongs to.
+
+        Returns:
+            SlvsNormal2D: The created normal.
+        """
         nm = self.normals2D.add()
         nm.sketch = sketch
         self._set_index(nm)
         nm.update()
         return nm
 
-    def add_arc(self, nm, ct, p1, p2, sketch):
+    def add_arc(self, nm: SlvsNormal2D, ct: SlvsPoint2D, p1: SlvsPoint2D, p2: SlvsPoint2D, sketch: SlvsSketch) -> SlvsArc:
+        """Add an arc in 2d space.
+
+        Arguments:
+            ct: Arc's centerpoint.
+            p1: Arc's startpoint.
+            p2: Arc's endpoint.
+            sketch: The sketch this arc belongs to.
+            nm: Arc's normal.
+
+        Returns:
+            SlvsArc: The created arc.
+        """
         arc = self.arcs.add()
         arc.nm = nm
         arc.ct = ct
@@ -1281,7 +1378,18 @@ class SlvsEntities(PropertyGroup):
         arc.update()
         return arc
 
-    def add_circle(self, nm, ct, radius, sketch):
+    def add_circle(self, nm: SlvsNormal2D, ct: SlvsPoint2D, radius: float, sketch: SlvsSketch) -> SlvsCircle:
+        """Add a circle in 2d space.
+
+        Arguments:
+            ct: Circle's centerpoint.
+            radius: Circle's radius.
+            sketch: The sketch this circle belongs to.
+            nm: Circle's normal.
+
+        Returns:
+            SlvsCircle: The created circle.
+        """
         c = self.circles.add()
         c.nm = nm
         c.ct = ct
@@ -2242,7 +2350,12 @@ class SlvsConstraints(PropertyGroup):
                 return cls
         return None
 
-    def new_from_type(self, type):
+    def new_from_type(self, type: str) -> GenericConstraint:
+        """Create a constraint by type.
+
+        Arguments:
+            type: Type of the constraint to be created.
+        """
         name = type.lower()
         constraint_list = getattr(self, name)
         return constraint_list.add()
@@ -2259,19 +2372,42 @@ class SlvsConstraints(PropertyGroup):
     def get_list(self, type):
         return getattr(self, type.lower())
 
-    def get_from_type_index(self, type, index):
+    def get_from_type_index(self, type: str, index: int) -> GenericConstraint:
+        """Get constraint by type and local index.
+
+        Arguments:
+            type: Constraint's type.
+            index: Constraint's local index.
+
+        Returns:
+            GenericConstraint: Constraint with the given type and index or None if not found.
+        """
         list = getattr(self, type.lower())
+        if not list or index >= len(list):
+            return None
         return list[index]
 
-    def get_index(self, constr):
+    def get_index(self, constr: GenericConstraint) -> int:
+        """Get the index of a constraint in it's collection.
+
+        Arguments:
+            constr: Constraint to get the index for.
+
+        Returns:
+            int: Index of the constraint or -1 if not found.
+        """
         list = getattr(self, constr.type.lower())
         for i, item in enumerate(list):
             if item == constr:
                 return i
         return -1
 
-    def remove(self, constr):
-        # NOTE: This could just get the index instead of the constraint
+    def remove(self, constr: GenericConstraint):
+        """Remove a constraint.
+
+        Arguments:
+            constr: Constraint to be removed.
+        """
         i = self.get_index(constr)
         self.get_list(constr.type).remove(i)
 
@@ -2281,7 +2417,17 @@ class SlvsConstraints(PropertyGroup):
             for entity in entity_list:
                 yield entity
 
-    def add_coincident(self, entity1, entity2, sketch=None) -> SlvsCoincident:
+    def add_coincident(self, entity1: SlvsGenericEntity, entity2: SlvsGenericEntity, sketch: SlvsSketch=None) -> SlvsCoincident:
+        """Add a coincident constraint.
+
+        Arguments:
+            entity1: -
+            entity2: -
+            sketch: The sketch this constraint belongs to.
+
+        Returns:
+            SlvsCoincident: The created constraint.
+        """
         c = self.coincident.add()
         c.entity1 = entity1
         c.entity2 = entity2
@@ -2289,7 +2435,17 @@ class SlvsConstraints(PropertyGroup):
             c.sketch = sketch
         return c
 
-    def add_equal(self, entity1, entity2, sketch=None) -> SlvsEqual:
+    def add_equal(self, entity1: SlvsGenericEntity, entity2: SlvsGenericEntity, sketch: SlvsSketch=None) -> SlvsEqual:
+        """Add an equal constraint.
+
+        Arguments:
+            entity1: -
+            entity2: -
+            sketch: The sketch this constraint belongs to.
+
+        Returns:
+            SlvsEqual: The created constraint.
+        """
         c = self.equal.add()
         c.entity1 = entity1
         c.entity2 = entity2
@@ -2297,7 +2453,18 @@ class SlvsConstraints(PropertyGroup):
             c.sketch = sketch
         return c
 
-    def add_distance(self, entity1, entity2, sketch=None, init=False) -> SlvsDistance:
+    def add_distance(self, entity1: SlvsGenericEntity, entity2: SlvsGenericEntity, sketch: SlvsSketch=None, init: bool=False) -> SlvsDistance:
+        """Add a distance constraint.
+
+        Arguments:
+            entity1: -
+            entity2: -
+            sketch: The sketch this constraint belongs to.
+            init: Initalize the constraint based on the given entities.
+
+        Returns:
+            SlvsDistance: The created constraint.
+        """
         c = self.distance.add()
         c.entity1 = entity1
         c.entity2 = entity2
@@ -2307,7 +2474,18 @@ class SlvsConstraints(PropertyGroup):
             c.init_props()
         return c
 
-    def add_angle(self, entity1, entity2, sketch=None, init=False) -> SlvsAngle:
+    def add_angle(self, entity1: SlvsGenericEntity, entity2: SlvsGenericEntity, sketch: SlvsSketch=None, init: bool=False) -> SlvsAngle:
+        """Add an angle constraint.
+
+        Arguments:
+            entity1: -
+            entity2: -
+            sketch: The sketch this constraint belongs to.
+            init: Initalize the constraint based on the given entities.
+
+        Returns:
+            SlvsAngle: The created constraint.
+        """
         c = self.angle.add()
         c.entity1 = entity1
         c.entity2 = entity2
@@ -2317,7 +2495,17 @@ class SlvsConstraints(PropertyGroup):
             c.init_props()
         return c
 
-    def add_diameter(self, entity1, sketch=None, init=False) -> SlvsDiameter:
+    def add_diameter(self, entity1: SlvsGenericEntity, sketch: SlvsSketch=None, init: bool=False) -> SlvsDiameter:
+        """Add a diameter constraint.
+
+        Arguments:
+            entity1: -
+            sketch: The sketch this constraint belongs to.
+            init: Initalize the constraint based on the given entities.
+
+        Returns:
+            SlvsDiameter: The created constraint.
+        """
         c = self.diameter.add()
         c.entity1 = entity1
         if sketch:
@@ -2326,7 +2514,17 @@ class SlvsConstraints(PropertyGroup):
             c.init_props()
         return c
 
-    def add_parallel(self, entity1, entity2, sketch=None) -> SlvsParallel:
+    def add_parallel(self, entity1: SlvsGenericEntity, entity2: SlvsGenericEntity, sketch: SlvsSketch=None) -> SlvsParallel:
+        """Add a parallel constraint.
+
+        Arguments:
+            entity1: -
+            entity2: -
+            sketch: The sketch this constraint belongs to.
+
+        Returns:
+            SlvsParallel: The created constraint.
+        """
         c = self.parallel.add()
         c.entity1 = entity1
         c.entity2 = entity2
@@ -2334,21 +2532,49 @@ class SlvsConstraints(PropertyGroup):
             c.sketch = sketch
         return c
 
-    def add_horizontal(self, entity1, sketch=None) -> SlvsHorizontal:
+    def add_horizontal(self, entity1: SlvsGenericEntity, sketch: SlvsSketch=None) -> SlvsHorizontal:
+        """Add a horizontal constraint.
+
+        Arguments:
+            entity1: -
+            sketch: The sketch this constraint belongs to.
+
+        Returns:
+            SlvsHorizontal: The created constraint.
+        """
         c = self.horizontal.add()
         c.entity1 = entity1
         if sketch:
             c.sketch = sketch
         return c
 
-    def add_vertical(self, entity1, sketch=None) -> SlvsVertical:
+    def add_vertical(self, entity1: SlvsGenericEntity, sketch: SlvsSketch=None) -> SlvsVertical:
+        """Add a vertical constraint.
+
+        Arguments:
+            entity1: -
+            sketch: The sketch this constraint belongs to.
+
+        Returns:
+            SlvsVertical: The created constraint.
+        """
         c = self.vertical.add()
         c.entity1 = entity1
         if sketch:
             c.sketch = sketch
         return c
 
-    def add_tangent(self, entity1, entity2, sketch=None) -> SlvsTangent:
+    def add_tangent(self, entity1: SlvsGenericEntity, entity2: SlvsGenericEntity, sketch: SlvsSketch=None) -> SlvsTangent:
+        """Add a tangent constraint.
+
+        Arguments:
+            entity1: -
+            entity2: -
+            sketch: The sketch this constraint belongs to.
+
+        Returns:
+            SlvsTangent: The created constraint.
+        """
         c = self.tangent.add()
         c.entity1 = entity1
         c.entity2 = entity2
@@ -2356,7 +2582,17 @@ class SlvsConstraints(PropertyGroup):
             c.sketch = sketch
         return c
 
-    def add_midpoint(self, entity1, entity2, sketch=None) -> SlvsMidpoint:
+    def add_midpoint(self, entity1: SlvsGenericEntity, entity2: SlvsGenericEntity, sketch: SlvsSketch=None) -> SlvsMidpoint:
+        """Add a midpoint constraint.
+
+        Arguments:
+            entity1: -
+            entity2: -
+            sketch: The sketch this constraint belongs to.
+
+        Returns:
+            SlvsMidpoint: The created constraint.
+        """
         c = self.midpoint.add()
         c.entity1 = entity1
         c.entity2 = entity2
@@ -2364,7 +2600,17 @@ class SlvsConstraints(PropertyGroup):
             c.sketch = sketch
         return c
 
-    def add_perpendicular(self, entity1, entity2, sketch=None) -> SlvsPerpendicular:
+    def add_perpendicular(self, entity1: SlvsGenericEntity, entity2: SlvsGenericEntity, sketch: SlvsSketch=None) -> SlvsPerpendicular:
+        """Add a perpendicular constraint.
+
+        Arguments:
+            entity1: -
+            entity2: -
+            sketch: The sketch this constraint belongs to.
+
+        Returns:
+            SlvsPerpendicular: The created constraint.
+        """
         c = self.perpendicular.add()
         c.entity1 = entity1
         c.entity2 = entity2
@@ -2372,7 +2618,18 @@ class SlvsConstraints(PropertyGroup):
             c.sketch = sketch
         return c
 
-    def add_ratio(self, entity1, entity2, sketch=None, init=False) -> SlvsRatio:
+    def add_ratio(self, entity1: SlvsGenericEntity, entity2: SlvsGenericEntity, sketch: SlvsSketch=None, init: bool=False) -> SlvsRatio:
+        """Add a ratio constraint.
+
+        Arguments:
+            entity1: -
+            entity2: -
+            sketch: The sketch this constraint belongs to.
+            init: Initalize the constraint based on the given entities.
+
+        Returns:
+            SlvsRatio: The created constraint.
+        """
         c = self.ratio.add()
         c.entity1 = entity1
         c.entity2 = entity2
