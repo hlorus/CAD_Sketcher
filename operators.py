@@ -518,9 +518,9 @@ def stateful_op_desc(base, *state_descs):
     length = len(state_descs)
     for i, state in enumerate(state_descs):
         states += " - {}{}".format(
-            state, ("\n" if i < length - 1 else "")
-        )  # " - " + state + "\n"
-    desc = "{}\n\nStates:\n{}".format(base, states)
+            state, ("  \n" if i < length - 1 else "")
+        )
+    desc = "{}  \n  \nStates:  \n{}".format(base, states)
     return desc
 
 
