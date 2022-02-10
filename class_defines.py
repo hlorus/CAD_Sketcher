@@ -2652,13 +2652,19 @@ for cls in constraints:
     annotations[name] = CollectionProperty(type=cls)
     setattr(SlvsConstraints, "__annotations__", annotations)
 
-
+from bpy.props import IntVectorProperty
 class SketcherProps(PropertyGroup):
     """The base structure for geometry sketcher"""
     hover: IntProperty(name="Hovered Entity", default=-1)
     entities: PointerProperty(type=SlvsEntities)
     constraints: PointerProperty(type=SlvsConstraints)
     show_origin: BoolProperty(name="Show Origin Entities")
+
+
+    version: IntVectorProperty(
+        name="Addon Version",
+        description="Geometry Sketcher addon version this scene was saved with"
+    )
 
     # this is needed for the sketches ui list
     ui_active_sketch: IntProperty()

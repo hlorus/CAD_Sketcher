@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Geometry Sketcher",
     "author": "hlorus",
-    "version": (0, 10),
+    "version": (0, 10, 0),
     "blender": (2, 80, 0),
     "location": "View3D > Toolbar",
     "description": "Dynamic constraint-based geometry sketcher",
