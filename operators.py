@@ -2179,6 +2179,8 @@ def get_constraint_local_indices(entity, context):
 
 
 class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
+    """Delete Entity by index or based on the selection if index isn't provided
+    """
     bl_idname = "view3d.slvs_delete_entity"
     bl_label = "Delete Solvespace Entity"
     bl_options = {"UNDO"}
@@ -2560,6 +2562,8 @@ combined_prop(VIEW3D_OT_slvs_add_ratio, "entity2", None, {}, options={"SKIP_SAVE
 
 
 class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
+    """Delete constraint by type and index
+    """
     bl_idname = "view3d.slvs_delete_constraint"
     bl_label = "Delete Constraint"
     bl_options = {"UNDO"}

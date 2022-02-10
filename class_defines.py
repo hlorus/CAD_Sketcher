@@ -2654,6 +2654,7 @@ for cls in constraints:
 
 
 class SketcherProps(PropertyGroup):
+    """The base structure for geometry sketcher"""
     hover: IntProperty(name="Hovered Entity", default=-1)
     entities: PointerProperty(type=SlvsEntities)
     constraints: PointerProperty(type=SlvsConstraints)

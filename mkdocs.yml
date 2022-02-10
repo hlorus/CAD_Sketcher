@@ -1,0 +1,40 @@
+site_name: Geometry Sketcher
+
+theme:
+  name: material
+
+nav:
+    - index.md
+    - getting_started.md
+    - user_interface.md
+    - tools.md
+    - entities.md
+    - constraints.md
+    - solver.md
+    - integration.md
+    - interaction_system.md
+    - advanced.md
+
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings:
+        handlers:
+          python:
+            selection:
+              members: false
+            rendering:
+              show_source: false
+              show_root_heading: true
+              show_bases: false
+              show_root_full_path: false
+              show_if_no_docstring: true
+              show_signature_annotations: false
+
+markdown_extensions:
+    - lightgallery
+    - attr_list
+    - pymdownx.emoji
+    - pymdownx.superfences
+    - pymdownx.tabbed:
+        alternate_style: true
