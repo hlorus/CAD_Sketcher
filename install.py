@@ -3,6 +3,7 @@ from . import (
     functions,
     global_data,
     class_defines,
+    handlers,
     operators,
     gizmos,
     workspacetools,
@@ -11,6 +12,7 @@ from . import (
 from bpy.types import Operator
 
 modules = (
+    handlers,
     class_defines,
     operators,
     gizmos,
