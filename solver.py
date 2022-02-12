@@ -240,12 +240,18 @@ class Solver:
                 logger.debug(_get_msg())
 
 
+        msg = ""
         for e in self.entities:
             # Skip entities that belong to a failed sketch
             if hasattr(e, "sketch") and  e.sketch in self.failed_sketches:
                 continue
             # TODO: skip entities that aren't in active group
+
+            msg += "\n - " + str(e)
             e.update_from_slvs(self.solvesys)
+
+        if msg:
+            logger.debug("Update entities from solver:" + msg)
 
         return self.ok
 

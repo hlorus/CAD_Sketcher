@@ -51,6 +51,27 @@ class SlvsGenericEntity:
     origin: BoolProperty(name="Origin")
     construction: BoolProperty(name="Construction")
 
+
+    dirty: BoolProperty(name="Needs Update", default=True, options={"SKIP_SAVE"})
+
+    @property
+    def is_dirty(self):
+        if self.dirty:
+            return True
+
+        if not hasattr(self, "dependencies"):
+            return False
+        deps = self.dependencies()
+        for e in deps:
+            # NOTE: might has to ckech through deps recursivley -> e.is_dirty
+            if e.dirty:
+                return True
+        return False
+
+    @is_dirty.setter
+    def is_dirty(self, value):
+        self.dirty = value
+
     @cached_property
     def _shader(self):
         return gpu.shader.from_builtin("3D_UNIFORM_COLOR")
@@ -233,6 +254,10 @@ class SlvsGenericEntity:
             if prop == index_old:
                 setattr(self, prop_name, index_new)
 
+    def tag_update(self):
+        if not self.is_dirty:
+            self.is_dirty = True
+
 
 # Drawing a point might not include points coord itself but rather a series of virtual points around it
 # so a Entity might refere another point entity and/or add a set of coords
@@ -269,13 +294,16 @@ def slvs_entity_pointer(cls, name, **kwargs):
     setattr(cls, name, setter)
 
 
+def tag_update(self, context):
+    self.tag_update()
+
 class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
     """Representation of a point in 3D Space.
 
     Arguments:
         location (FloatVectorProperty): Point's location in the form (x, y, z)
     """
-    location: FloatVectorProperty(name="Location", subtype="XYZ", unit="LENGTH")
+    location: FloatVectorProperty(name="Location", subtype="XYZ", unit="LENGTH", update=tag_update)
 
     def update(self):
         if bpy.app.background:
@@ -285,6 +313,7 @@ class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
         self._batch = batch_for_shader(
             self._shader, "POINTS", {"pos": (self.location[:],)}
         )
+        self.is_dirty = False
 
     def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
         if not coords:
@@ -329,6 +358,7 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         self._batch = batch_for_shader(
             self._shader, "LINES", {"pos": (p1.location, p2.location)}
         )
+        self.is_dirty = False
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)
@@ -362,10 +392,10 @@ class SlvsNormal3D(SlvsGenericEntity, PropertyGroup):
     Arguments:
         orientation (Quaternion): A quaternion which describes the rotation
     """
-    orientation: FloatVectorProperty(subtype="QUATERNION", size=4)
+    orientation: FloatVectorProperty(subtype="QUATERNION", size=4, update=tag_update)
 
     def update(self):
-        pass
+        self.is_dirty = False
 
     def draw(self, context):
         pass
@@ -417,6 +447,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         self._batch = batch_for_shader(
             self._shader, "LINES", {"pos": coords}, indices=indices
         )
+        self.is_dirty = False
 
     # NOTE: probably better to avoid overwritting draw func..
     def draw(self, context):
@@ -526,7 +557,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
             yield e
 
     def update(self):
-        pass
+        self.is_dirty = False
 
     def draw(self, context):
         pass
@@ -575,7 +606,7 @@ class SlvsPoint2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         sketch (SlvsSketch): The sketch this entity belongs to
     """
 
-    co: FloatVectorProperty(name="Coordinates", subtype="XYZ", size=2, unit="LENGTH")
+    co: FloatVectorProperty(name="Coordinates", subtype="XYZ", size=2, unit="LENGTH", update=tag_update)
 
     def dependencies(self):
         return [
@@ -596,6 +627,7 @@ class SlvsPoint2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         indices = ((0, 1, 2), (0, 2, 3))
         pos = self.location
         self._batch = batch_for_shader(self._shader, "POINTS", {"pos": (pos[:],)})
+        self.is_dirty = False
 
     @property
     def location(self):
@@ -684,6 +716,7 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         p1, p2 = self.p1, self.p2
         coords = (p1.location, p2.location)
         self._batch = batch_for_shader(self._shader, "LINES", {"pos": coords})
+        self.is_dirty = False
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)
@@ -752,7 +785,7 @@ class SlvsNormal2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     """
 
     def update(self):
-        pass
+        self.is_dirty = False
 
     def draw(self, context):
         pass
@@ -837,7 +870,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         sketch (SlvsSketch): The sketch this entity belongs to
     """
 
-    invert_direction: BoolProperty(name="Invert direction")
+    invert_direction: BoolProperty(name="Invert direction", update=tag_update)
 
     @property
     def start(self):
@@ -877,6 +910,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
             coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
         self._batch = batch_for_shader(self._shader, "LINE_STRIP", {"pos": coords})
+        self.is_dirty = False
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addArcOfCircle(
@@ -998,7 +1032,7 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         sketch (SlvsSketch): The sketch this entity belongs to
     """
 
-    radius: FloatProperty(name="Radius", subtype="DISTANCE", min=0.0, unit="LENGTH")
+    radius: FloatProperty(name="Radius", subtype="DISTANCE", min=0.0, unit="LENGTH", update=tag_update)
 
     def dependencies(self):
         return [self.nm, self.ct, self.sketch]
@@ -1016,6 +1050,7 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
         self._batch = batch_for_shader(self._shader, "LINE_STRIP", {"pos": coords})
+        self.is_dirty = False
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         self.param = solvesys.addParamV(self.radius, group)
@@ -1235,7 +1270,6 @@ class SlvsEntities(PropertyGroup):
         p = self.points3D.add()
         p.location = co
         self._set_index(p)
-        p.update()
         return p
 
     def add_line_3d(self, p1: SlvsPoint3D, p2: SlvsPoint3D) -> SlvsLine3D:
@@ -1252,7 +1286,6 @@ class SlvsEntities(PropertyGroup):
         l.p1 = p1
         l.p2 = p2
         self._set_index(l)
-        l.update()
         return l
 
     def add_normal_3d(self, quat: Tuple[float, float, float, float]) -> SlvsNormal3D:
@@ -1267,7 +1300,6 @@ class SlvsEntities(PropertyGroup):
         nm = self.normals3D.add()
         nm.orientation = quat
         self._set_index(nm)
-        nm.update()
         return nm
 
     def add_workplane(self, p1: SlvsPoint3D, nm: SlvsNormal3D) -> SlvsWorkplane:
@@ -1284,7 +1316,6 @@ class SlvsEntities(PropertyGroup):
         wp.p1 = p1
         wp.nm = nm
         self._set_index(wp)
-        wp.update()
         return wp
 
     def add_sketch(self, wp: SlvsWorkplane) -> SlvsSketch:
@@ -1301,7 +1332,6 @@ class SlvsEntities(PropertyGroup):
         self._set_index(sketch)
         _, i = self._breakdown_index(sketch.slvs_index)
         sketch.name = "Sketch"
-        sketch.update()
         return sketch
 
     def add_point_2d(self, co: Tuple[float, float], sketch: SlvsSketch) -> SlvsPoint2D:
@@ -1318,7 +1348,6 @@ class SlvsEntities(PropertyGroup):
         p.co = co
         p.sketch = sketch
         self._set_index(p)
-        p.update()
         return p
 
     def add_line_2d(self, p1: SlvsPoint2D, p2: SlvsPoint2D, sketch: SlvsSketch) -> SlvsLine2D:
@@ -1337,7 +1366,6 @@ class SlvsEntities(PropertyGroup):
         l.p2 = p2
         l.sketch = sketch
         self._set_index(l)
-        l.update()
         return l
 
     def add_normal_2d(self, sketch: SlvsSketch) -> SlvsNormal2D:
@@ -1352,7 +1380,6 @@ class SlvsEntities(PropertyGroup):
         nm = self.normals2D.add()
         nm.sketch = sketch
         self._set_index(nm)
-        nm.update()
         return nm
 
     def add_arc(self, nm: SlvsNormal2D, ct: SlvsPoint2D, p1: SlvsPoint2D, p2: SlvsPoint2D, sketch: SlvsSketch) -> SlvsArc:
@@ -1375,7 +1402,6 @@ class SlvsEntities(PropertyGroup):
         arc.p2 = p2
         arc.sketch = sketch
         self._set_index(arc)
-        arc.update()
         return arc
 
     def add_circle(self, nm: SlvsNormal2D, ct: SlvsPoint2D, radius: float, sketch: SlvsSketch) -> SlvsCircle:
@@ -1396,7 +1422,6 @@ class SlvsEntities(PropertyGroup):
         c.radius = radius
         c.sketch = sketch
         self._set_index(c)
-        c.update()
         return c
 
     @property

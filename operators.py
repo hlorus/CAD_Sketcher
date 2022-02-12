@@ -53,10 +53,20 @@ def ensure_selection_texture(context):
 # TODO: Avoid to always update batches and selection texture
 
 
-def update_elements(context):
-    for e in context.scene.sketcher.entities.all:
-        if hasattr(e, "update"):
-            e.update()
+def update_elements(context, force=False):
+    entities = list(context.scene.sketcher.entities.all)
+    msg = ""
+    for e in reversed(entities):
+        if not hasattr(e, "update"):
+            continue
+        if not force and not e.is_dirty:
+            continue
+
+        msg += "\n - " + str(e) + str(e.is_dirty)
+        e.update()
+
+    if msg:
+        logger.debug("Update geometry batches:" + msg)
 
 
 def draw_elements(context):
