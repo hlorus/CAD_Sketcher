@@ -2761,6 +2761,8 @@ def update_convertor_geometry(scene):
         object = sketch.target_object if mode == "MESH" else sketch.target_curve_object
         object.matrix_world = sketch.wp.matrix_basis
 
+        object.sketch_index = sketch.slvs_index
+
 
 constraint_operators = (
     VIEW3D_OT_slvs_add_distance,

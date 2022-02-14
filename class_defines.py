@@ -251,13 +251,21 @@ class SlvsGenericEntity:
         pass
 
     def update_pointers(self, index_old, index_new):
+        def _update(name):
+            prop = getattr(self, name)
+            if prop == index_old:
+                logger.debug("Update reference {} of {} to {}: ".format(name, self, index_new))
+                setattr(self, name, index_new)
+
         for prop_name in dir(self):
             if not prop_name.endswith("_i"):
                 continue
-            prop = getattr(self, prop_name)
-            if prop == index_old:
-                logger.debug("Update reference {} of {} to {}: ".format(prop_name, self, index_new))
-                setattr(self, prop_name, index_new)
+            _update(prop_name)
+
+        if hasattr(self, "target_object") and self.target_object:
+            ob = self.target_object
+            if ob.sketch_index == index_old:
+                ob.sketch_index = index_new
 
     def tag_update(self):
         if not self.is_dirty:
@@ -2748,6 +2756,7 @@ def register():
 
     bpy.types.Scene.sketcher = PointerProperty(type=SketcherProps)
 
+    bpy.types.Object.sketch_index = IntProperty(name="Parent Sketch", default=-1)
 
 def unregister():
     for cls in reversed(classes):
