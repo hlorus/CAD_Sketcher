@@ -319,6 +319,20 @@ class SKETCHER_MT_theme_presets(Menu):
     draw = Menu.draw_preset
 
 
+def draw_object_context_menu(self, context):
+    layout = self.layout
+    ob = context.active_object
+    row = layout.row()
+
+    props = row.operator(operators.View3D_OT_slvs_set_active_sketch.bl_idname, text="Edit Sketch")
+
+    if ob and ob.sketch_index != -1:
+        row.active = True
+        props.index = ob.sketch_index
+    else:
+        row.active = False
+    layout.separator()
+
 from bl_ui.utils import PresetPanel
 
 
@@ -344,7 +358,10 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
+    bpy.types.VIEW3D_MT_object_context_menu.prepend(draw_object_context_menu)
 
 def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+
+    bpy.types.VIEW3D_MT_object_context_menu.remove(draw_object_context_menu)
