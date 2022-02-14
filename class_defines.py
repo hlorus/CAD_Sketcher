@@ -1,4 +1,5 @@
 import bpy
+import logging
 from bpy.types import PropertyGroup
 from bpy.props import (
     CollectionProperty,
@@ -22,6 +23,9 @@ import math
 from .solver import solve_system, Solver
 from .functions import unique_attribute_setter
 from functools import cached_property
+
+logger = logging.getLogger(__name__)
+
 vertex_shader = """
     uniform mat4 ModelViewProjectionMatrix;
     in vec3 pos;
@@ -252,6 +256,7 @@ class SlvsGenericEntity:
                 continue
             prop = getattr(self, prop_name)
             if prop == index_old:
+                logger.debug("Update reference {} of {} to {}: ".format(prop_name, self, index_new))
                 setattr(self, prop_name, index_new)
 
     def tag_update(self):
@@ -1132,15 +1137,17 @@ slvs_entity_pointer(SlvsCircle, "ct")
 slvs_entity_pointer(SlvsCircle, "sketch")
 
 
-def update_pointers(index_old, index_new):
-    context = bpy.context
-
+def update_pointers(scene, index_old, index_new):
+    """Replaces all references to an entity index with it's new index"""
+    logger.debug("Update references {} -> {}".format(index_old, index_new))
     # NOTE: this should go through all entity pointers and update them if neccesary.
     # It might be possible to use the msgbus to notify and update the IntProperty pointers
 
-    # TODO: also respect context.scene.sketcher.active_sketch
+    if scene.sketcher.active_sketch_i == index_old:
+        logger.debug("Update reference {} of {} to {}: ".format("active_sketch", scene.sketcher, index_new))
+        scene.sketcher.active_sketch_i = index_new
 
-    for o in context.scene.sketcher.all:
+    for o in scene.sketcher.all:
         if not hasattr(o, "update_pointers"):
             continue
         o.update_pointers(index_old, index_new)
@@ -1178,7 +1185,8 @@ from typing import Union, Tuple, Type
 class SlvsEntities(PropertyGroup):
     """Holds all Solvespace Entities"""
 
-    def _type_index(self, entity: SlvsGenericEntity) -> int:
+    @staticmethod
+    def _type_index(entity: SlvsGenericEntity) -> int:
         return entities.index(type(entity))
 
     def _set_index(self, entity: SlvsGenericEntity):
@@ -1193,6 +1201,13 @@ class SlvsEntities(PropertyGroup):
     @staticmethod
     def _breakdown_index(index: int):
         return functions.breakdown_index(index)
+
+    @classmethod
+    def recalc_type_index(cls, entity):
+        _, local_index = cls._breakdown_index(entity.slvs_index)
+        type_index = cls._type_index(entity)
+        entity.slvs_index = type_index << 20 | local_index
+
 
     def type_from_index(self, index: int) -> Type[SlvsGenericEntity]:
         if index < 0:
@@ -1252,7 +1267,7 @@ class SlvsEntities(PropertyGroup):
             entity_list.move(last_index, i)
 
         new_item = entity_list[i]
-        update_pointers(new_item.slvs_index, index)
+        update_pointers(bpy.context.scene, new_item.slvs_index, index)
         new_item.slvs_index = index
 
     def add_point_3d(self, co: Union[Tuple[float, float, float], Vector]) -> SlvsPoint3D:
@@ -1546,12 +1561,19 @@ class GenericConstraint:
 
     # TODO: avoid duplicating code
     def update_pointers(self, index_old, index_new):
+        def _update(name):
+            prop = getattr(self, name)
+            if prop == index_old:
+                logger.debug("Update reference {} of {} to {}: ".format(name, self, index_new))
+                setattr(self, name, index_new)
+
+        if hasattr(self, "sketch_i"):
+            _update("sketch_i")
+
         for prop_name in dir(self):
             if not prop_name.startswith("entity") or not prop_name.endswith("_i"):
                 continue
-            prop = getattr(self, prop_name)
-            if prop == index_old:
-                setattr(self, prop_name, index_new)
+            _update(prop_name)
 
     def is_active(self, active_sketch):
         if not hasattr(self, "sketch"):

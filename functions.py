@@ -273,6 +273,8 @@ def refresh(context):
 
 
 def update_cb(self, context):
+    if not context.space_data:
+        return
     # update gizmos!
     if context.space_data.type == "VIEW_3D":
         context.space_data.show_gizmo = True

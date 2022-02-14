@@ -18,6 +18,25 @@ def write_addon_version(context):
         scene.sketcher.version = version
 
 
+def recalc_pointers(scene):
+    """Updates type index of entities keeping local index as is"""
+    from .class_defines import update_pointers, SlvsEntities
+
+    msg = ""
+    entities = list(scene.sketcher.entities.all)
+    for e in reversed(entities):
+        i = e.slvs_index
+        # scene.sketcher.entities._set_index(e)
+        SlvsEntities.recalc_type_index(e)
+
+        if i != e.slvs_index:
+            msg += "\n - {}: {} -> {}".format(e, i, e.slvs_index)
+            update_pointers(scene, i, e.slvs_index)
+
+    if msg:
+        logger.debug("Update entity indices:" + msg)
+
+
 def do_versioning(self):
     from .import bl_info
     logger.debug("Check versioning")
