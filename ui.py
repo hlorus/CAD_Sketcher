@@ -127,6 +127,7 @@ class VIEW3D_PT_sketcher(Panel):
             layout.prop(context.scene.sketcher, "show_origin")
             layout.prop(prefs, "hide_inactive_constraints")
             layout.prop(prefs, "all_entities_selectable")
+            layout.prop(prefs, "force_redraw")
 
 
 class VIEW3D_PT_sketcher_entities(Panel):

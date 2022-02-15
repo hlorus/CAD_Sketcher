@@ -78,7 +78,8 @@ def draw_elements(context):
 def draw_cb():
     context = bpy.context
 
-    update_elements(context)
+    prefs = functions.get_prefs()
+    update_elements(context, force=prefs.force_redraw)
     draw_elements(context)
 
     global_data.redraw_selection_buffer = True
