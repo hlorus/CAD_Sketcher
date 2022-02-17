@@ -911,29 +911,37 @@ class StatefulOperator:
                 value = prop.default
             return value
 
-        if self._substate_count:
-            if len(self._numeric_input) < self._substate_count:
-                position_cb = self.get_func(state, "state_func")
-                result = position_cb(context, coords)
+        size = max(1, self._substate_count)
+
+        def to_list(val):
+            if hasattr(val, "__getitem__"):
+                return list(val)
+            return [val,]
+
+        # TODO: Don't evaluate if not needed
+        position_cb = self.get_func(state, "state_func")
+        interactive_val = to_list(position_cb(context, coords))
+
+        storage = [None] * size
+        result = [None] * size
+        
+        for sub_index in range(size):
+            num = None
+
+            input = self._numeric_input.get(sub_index)
+            if input:
+                num = parse_input(prop, input)
+
+            if num:
+                result[sub_index] = num
+                storage[sub_index] = num
             else:
-                result = [0.0] * self._substate_count
+                result[sub_index] = interactive_val[sub_index]
 
-            for i, input in self._numeric_input.items():
-                if not input:
-                    continue
-                result[i] = parse_input(prop, input)
-        else:
-            result = parse_input(prop, self.numeric_input)
-        # FIX: result is sometimes a list and sometimes a vector
-
-        # Store input on state
-        storage = [None] * self._substate_count
-        for i, input in self._numeric_input.items():
-            if not input:
-                continue
-            storage[i] = result[i]
         self.state_data["numeric_input"] = storage
 
+        if not self._substate_count:
+            return result[0]
         return result
 
     def modal(self, context, event):
