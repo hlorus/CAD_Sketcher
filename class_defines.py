@@ -270,6 +270,12 @@ class SlvsGenericEntity:
         if not self.is_dirty:
             self.is_dirty = True
 
+    def is_3d(self):
+        return not hasattr(self, "sketch")
+
+    def is_2d(self):
+        return hasattr(self, "sketch")
+
 
 # Drawing a point might not include points coord itself but rather a series of virtual points around it
 # so a Entity might refere another point entity and/or add a set of coords
