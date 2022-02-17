@@ -55,7 +55,6 @@ class SlvsGenericEntity:
     origin: BoolProperty(name="Origin")
     construction: BoolProperty(name="Construction")
 
-
     dirty: BoolProperty(name="Needs Update", default=True, options={"SKIP_SAVE"})
 
     @property
@@ -1674,7 +1673,7 @@ slvs_entity_pointer(SlvsCoincident, "entity2")
 slvs_entity_pointer(SlvsCoincident, "sketch")
 
 
-line_arc_circle = (*line, SlvsArc, SlvsCircle)
+line_arc_circle = (*line, *curve)
 
 
 class SlvsEqual(GenericConstraint, PropertyGroup):
@@ -1684,12 +1683,22 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
     forced equal to the length (not the radius) of the arc.
     """
 
-    # TODO: Restrict or handle constraint between two arcs
     # TODO: Also supports equal angle
 
     type = "EQUAL"
     label = "Equal"
     signature = (line_arc_circle, line_arc_circle)
+
+    @classmethod
+    def get_types(cls, index, e1, e2):
+        e = e2 if index == 0 else e1
+        if e:
+            if type(e) in (SlvsLine2D, SlvsArc):
+                return (SlvsLine2D, SlvsArc)
+            elif type(e) == SlvsCircle:
+                return curve
+            return (type(e), )
+        return cls.signature[index]
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         # TODO: Don't allow to add Equal between Line and Circle

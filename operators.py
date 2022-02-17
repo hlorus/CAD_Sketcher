@@ -924,7 +924,7 @@ class StatefulOperator:
 
         storage = [None] * size
         result = [None] * size
-        
+
         for sub_index in range(size):
             num = None
 
@@ -2293,22 +2293,41 @@ state_docstr = "Pick entity to constrain."
 
 class GenericConstraintOp:
     initialized: BoolProperty(options={"SKIP_SAVE", "HIDDEN"})
+    _entity_prop_names = ("entity1", "entity2", "entity3", "entity4")
 
     @classmethod
     def poll(cls, context):
         return True
+
+    def _available_entities(self):
+        cls = class_defines.SlvsConstraints.cls_from_type(self.type)
+        entities = [None] * len(cls.signature)
+        for i, name in enumerate(self._entity_prop_names):
+            if hasattr(self, name):
+                e = getattr(self, name)
+                if not e:
+                    continue
+                entities[i] = e
+        return entities
 
     @property
     def states(self):
         states = []
 
         cls = class_defines.SlvsConstraints.cls_from_type(self.type)
-        for i, types in enumerate(cls.signature, start=1):
+
+        for i, _ in enumerate(cls.signature):
+            name_index = i + 1
+            if hasattr(cls, "get_types"):
+                types = cls.get_types(i, *self._available_entities())
+            else:
+                types = cls.signature[i]
+
             states.append(
                 state_from_args(
-                    "Entity " + str(i),
+                    "Entity " + str(name_index),
                     description=state_docstr,
-                    pointer="entity" + str(i),
+                    pointer="entity" + str(name_index),
                     types=types,
                 )
             )
@@ -2351,7 +2370,7 @@ class GenericConstraintOp:
         c = self.target
         args = []
         # fill in entities!
-        for prop in ("entity1", "entity2", "entity3", "entity4"):
+        for prop in self._entity_prop_names:
             if hasattr(c, prop):
                 value = getattr(self, prop)
                 setattr(c, prop, value)
@@ -2574,7 +2593,6 @@ class VIEW3D_OT_slvs_add_ratio(
     bl_options = {"UNDO", "REGISTER"}
 
     type = "RATIO"
-
 
 combined_prop(VIEW3D_OT_slvs_add_ratio, "entity1", None, {}, options={"SKIP_SAVE"})
 combined_prop(VIEW3D_OT_slvs_add_ratio, "entity2", None, {}, options={"SKIP_SAVE"})
