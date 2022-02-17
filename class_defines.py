@@ -1861,7 +1861,8 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
-        coords = self.matrix_basis() @ Vector((0, self.draw_offset, 0))
+        ui_scale = context.preferences.system.ui_scale
+        coords = self.matrix_basis() @ Vector((0, self.draw_offset * ui_scale, 0))
         return location_3d_to_region_2d(region, rv3d, coords)
 
 slvs_entity_pointer(SlvsDistance, "entity1")
@@ -2049,7 +2050,8 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
-        coords = self.matrix_basis() @ Vector((self.draw_offset, 0, 0))
+        ui_scale = context.preferences.system.ui_scale
+        coords = self.matrix_basis() @ Vector((self.draw_offset * ui_scale, 0, 0))
         return location_3d_to_region_2d(region, rv3d, coords)
 
 
