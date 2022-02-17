@@ -1057,6 +1057,11 @@ class StatefulOperator:
                 self.evaluate_state(context, event, False)
         context.area.tag_redraw()
 
+
+        if triggered and not ok:
+            # Event was triggered on non-valid selection, cancel operator to avoid confusion
+            return self._end(context, False)
+            
         if triggered or is_numeric:
             return {"RUNNING_MODAL"}
         return {"PASS_THROUGH"}
