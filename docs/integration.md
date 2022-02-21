@@ -1,6 +1,6 @@
-Geometry in BGS isn't native blender geometry, that means blender doesn't know
-anything about it and native tools cannot work with BGS geometry.
-So in order to further process drawn shapes they have to be converted to a native type.
+The geometry that is used in the addon isn't native blender geometry, that means
+blender doesn't know anything about it and native tools cannot work with it.
+So in order to further process drawn shapes they have to be converted to a native type first.
 
 > **INFO:** There are some [limitations](integration.md#limitations) to keep in mind when converting.
 
@@ -8,8 +8,8 @@ So in order to further process drawn shapes they have to be converted to a nativ
 When a sketch is active you can choose the convert type for it in the sidebar. By
 default this is set to None which means no native geometry will be created.
 
-> **INFO:** Setting this to something other than None will disable the sketch
-visibility so that it will only show when it's active
+> **INFO:** Setting this to something other than None will disable the visibility
+of the sketch so that it will only show when it's active
 
 ### Bezier Converter
 Converts the sketch to a bezier curve.

@@ -1,15 +1,9 @@
-Entities are the basic elements which are used to draw geometry in BGS. They differ from regular blender mesh or curve elements which means native blender tools aren't able to interact with it as long as they aren't converted. See the chapter [Integration]() for further details on how to process addon specific geometry.
+Entities are the basic elements which are used to draw geometry in BGS. They differ from regular blender mesh or curve elements which means native blender tools aren't able to interact with it as long as they aren't converted. See the chapter [integration](integration.md) for further details on how to process addon specific geometry.
 
-Entities are defined by a set of parameters and pointers to other entities which are editable at any point in time. This allows non-destructive workflows and also ensures that geometry is resoulution independent.  A curve will always follow a given radius no matter how it's transformed.
+Entities are defined by a set of parameters and pointers to other entities which are editable at any point in time. This allows non-destructive workflows and also ensures that geometry is resolution independent. A curve will always follow a given radius no matter how it's transformed. Entities can be created with the various [Workspacetools](user_interface.md#workspacetools).
 
-Entity types follow the implementation of [solvespace](https://solvespace.readthedocs.io/en/latest/entities/index.html).
+<!-- TODO: DOF -->
 
-TODO:
-- no resolution for curves
-- dof
-- visibility
-
-In order to create entities use the different [Workspacetools](user_interface.md#workspacetools).
 
 ## Active
 An entity is considered to be active when the sketch it belongs to is set as the active
@@ -30,6 +24,8 @@ Entities can be fixed via the entity's [context menu](). A fixed entity won't ha
 
 ## Types
 There are different types of entities, some of them apply in 2 dimensional space which requires a [sketch](#geometry_sketcher.class_defines.SlvsSketch) as a parameter.
+
+>Entity types follow the implementation of [solvespace](https://solvespace.readthedocs.io/en/latest/entities/index.html).
 
 > Only 2D entities can be converted later, check the chapter [integration](integration.md) for details.
 

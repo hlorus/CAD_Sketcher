@@ -27,7 +27,20 @@ Lists all currently [active constraints](constraints.md#active). Shows the failu
 state on the left and allows to invoke the constraint's context menu.
 {style="display:block; height:200px"}
 
-## HUD
+## Gizmos
+Gizmos are used to display constraints. There are specific gizmo
+types for the three dimensional constraints, angle, distance and diameter.
+
+To interact with the settings of a constraint click it's gizmo to open a menu.
+![!Dimensional Gizmos](images/dimensional_gizmos.png){align=left style="height:300px; width:calc(65% - 1em); object-fit:cover;"}
+![!Constraint Menu](images/constraint_menu.png){align=right style="height:300px; width:calc(35% - 1em); object-fit:cover;"}
+
+The rest of the constraints use a generic gizmo that is displayed next to the entities
+they depend on. Clicking such a gizmo either shows the constraint's settings or directly
+delets the constraint if it has no settings to show.
+
+<!-- TODO: image -->
+
 
 ## Context Menu
 The context menu can be used to access properties and actions of an element, either
@@ -60,24 +73,3 @@ supports theme presets. You can get the presets path by entering the following l
 ``` py
 bpy.utils.user_resource("SCRIPTS")
 ```
-
-## Keymap
-
-**Tool access**
-Whenever one of the addon's tools is active the tool access keymap allows to quickly
-switch between the different tools.
-
-|Key|Modifier|Action|
-|:---:|---|---|
-|ESC|-   |Activate Tool: Select|
-|L|-   |Activate Tool: Add Line 2D|
-|C|-   |Activate Tool: Add Circle|
-|A|-   |Activate Tool: Add Arc|
-|C|-   |Activate Tool: Add Sketch|
-
-**Tool keymap**
-
-- tab
-- num keys
-- enter / lmb
-- esc / rmb

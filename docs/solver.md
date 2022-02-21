@@ -17,8 +17,8 @@ will be marked in the sidebar. It will have one of the following states:
 - Unknown Failure
 
 
-## Best Practices
+<!-- ## Best Practices
 
 ## Workflow
 
-## Tips & Tricks
+## Tips & Tricks -->

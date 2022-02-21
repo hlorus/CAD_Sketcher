@@ -3,7 +3,8 @@ Whenever encountering a bug follow these steps:
 
 - Check if the bug is already reported on [github](https://github.com/hlorus/geometry_sketcher/labels/bug)
 - Try to reliably reproduce the bug and simplify the steps to reproduce
-- Collect the [logs](#access-logs)
+- Collect the [addon logs](#access-logs)
+- In case of a crash also collect blender's [crash report](https://docs.blender.org/manual/en/latest/troubleshooting/crash.html#:~:text=%2Do%20%25MEM%20.-,Crash%20Log,as%20some%20other%20debug%20information)
 - Post the bug on [github](https://github.com/hlorus/geometry_sketcher/issues/new?assignees=&labels=bug&template=bug-report.md&title=%5BBUG%5D)
 
 ## Console Output
@@ -20,25 +21,39 @@ system terminal. Follow the guide below to access blender's system console.
     - In blender click Window->Toggle System Console
 
 ## Access Logs
+Logs are helpful for debugging. Note that there are logs from the addon as well as from blender itself.
+
+### Addon Logs
 The addon logs information to the [system console](#console-output) and to the system's temporary
 folder. The filepath to this folder will be printed to the console whenever the
 addon gets registered.
 
-
 > geometry_sketcher:{INFO}: Logging into: C:\Users\USERNAME\AppData\Local\Temp\geometry_sketcher.log
 
+### Blender Crash Log
+When blender crashes it writes a crash report file, see: [crash report](https://docs.blender.org/manual/en/latest/troubleshooting/crash.html#crash-log).
 
-## Documentation
+
+## Contribute
+Help is always welcome. There are multiple ways to support the project.
+
+### Testing
+Just grab the latest version, play around, provide feedback and redo!
+
+### Documentation
 Documentation is generated from the source repository with [MkDocs](https://www.mkdocs.org/).
 In order to contribute either post a pull request with your changes on
 [github](https://github.com/hlorus/geometry_sketcher) or ask on , [discord](https://discord.gg/GzpJsShgxa) for commit access.
 
-> TODO: Workboard
+<!-- TODO: Workboard -->
 
-## Development
-If you'd like to help with development simply submit pull requests or reach out to me
+### Development
+If you'd like to help with development simply submit pull requests or reach out on
 [discord](https://discord.gg/GzpJsShgxa), twitter or email.
 
-> TODO: Technical documentation
+You can take a look at the code reference however a lot of it is still WIP.
+[Code Reference](reference.md)
 
-> TODO: Workboard
+<!-- TODO: Workboard -->
+
+<!-- ### Donate -->

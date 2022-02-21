@@ -12,8 +12,8 @@ will try to mark constraints that are causing the failure. Those constraints
 will be colored red, additionally the failed sketch will be marked.
 
 ## Types
-Constraint types follow the implementation of
-[solvespace](https://solvespace.readthedocs.io/en/latest/constraints/index.html)
+>Constraint types follow the implementation of
+[solvespace](https://solvespace.readthedocs.io/en/latest/constraints/index.html).
 
 ### Geometric Constraints
 ::: geometry_sketcher.class_defines.SlvsCoincident

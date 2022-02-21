@@ -1,6 +1,7 @@
 Tools in Geometry Sketcher are either exposed as a workspacetool or as an operator. Note however
 that either of those use the same [interaction system](interaction_system.md).
 
+
 ## Generic Tools
 ::: geometry_sketcher.operators.View3D_OT_slvs_add_sketch
 
@@ -20,7 +21,34 @@ the behavior of BGS tools.
 addon tools is active.
 
 
+### Workspacetool Access Keymap
+Whenever one of the addon's tools is active the tool access keymap allows to quickly switch between the different tools.
 
+|Key|Modifier|Action|
+|:---:|---|---|
+|ESC|-   |Activate Tool: Select|
+|L|-   |Activate Tool: Add Line 2D|
+|C|-   |Activate Tool: Add Circle|
+|A|-   |Activate Tool: Add Arc|
+|S|-   |Activate Tool: Add Sketch|
+
+### Basic Tool Keymap
+The basic tool interaction is consistent between tools.
+
+|Key|Modifier|Action|
+|:---:|---|---|
+|Tab|-|Jump to next tool state or property substate when in numerical edit|
+|0-9 / (-)|-|Activate numeric edit|
+|Enter / Lmb|-|Verify the operation|
+|Esc / Rmb|-|Cancel the operation|
+
+**While numeric edit is active**
+
+|Key|Modifier|Action|
+|:---:|---|---|
+|Tab|-|Jump to next tool property substate|
+|0-9|-|Activate numeric edit|
+|Minus(-)|-|Toggle between positive and negative values|
 
 
 ::: geometry_sketcher.operators.View3D_OT_slvs_select
@@ -30,6 +58,8 @@ addon tools is active.
 |---|---|---|
 |LMB|-   |Toggle Select|
 |ESC|-   |Deselect All|
+
+
 
 > **INFO:** LMB in empty space will also deselect all.
 

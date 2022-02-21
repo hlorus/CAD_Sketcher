@@ -5,6 +5,7 @@ theme:
 
 nav:
     - index.md
+    - installation.md
     - getting_started.md
     - user_interface.md
     - tools.md
