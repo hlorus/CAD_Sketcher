@@ -6,7 +6,7 @@ This guide takes you through the first steps in order to get familiar with the a
 Download the [Latest Release](https://github.com/hlorus/geometry_sketcher/releases)
 of the addon and install it from the addons tab in blender's preferences. Get the
 solvespace module by pressing the install button in the addon's preferences.
-See [here](index.md#installation) if
+See [here](installation.md) if
 you have trouble installing the addon.
 
 ## Create a Sketch

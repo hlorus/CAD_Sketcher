@@ -24,7 +24,7 @@ a [Solver](solver.md) is needed.
 To further process the resulting geometry BGS uses [Converters](integration.md)
 to get native Blender geometry types which then allow further modifications with native tools.
 
-Check the [Workflow](solver.md#Workflow) section to see how it's intended to be used.
+<!-- Check the [Workflow](solver.md#Workflow) section to see how it's intended to be used. -->
 
 ## Links
 - [Releases](https://github.com/hlorus/geometry_sketcher/releases) - Get the addon
