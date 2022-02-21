@@ -30,4 +30,4 @@ Geometry sketcher heavily depends on the [solvespace python module](https://pypi
 Check the [installation](https://hlorus.github.io/geometry_sketcher/installation) chapter for in-depth instructions. 
 
 ## Usage
-Follow the [getting started](https://hlorus.github.io/geometry_sketcher/getting_started.md) guide to get familiar with the addon.
+Follow the [getting started](https://hlorus.github.io/geometry_sketcher/getting_started) guide to get familiar with the addon.
