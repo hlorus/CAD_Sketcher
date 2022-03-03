@@ -10,8 +10,8 @@ Minimum version: Blender 2.92
  - [Documentation](https://hlorus.github.io/geometry_sketcher/)  
  - [Installation](https://hlorus.github.io/geometry_sketcher/installation)  
  - [Discord](https://discord.gg/GzpJsShgxa)  
- - [Report a Bug](https://github.com/hlorus/geometry_sketcher/wiki/Advanced#Report-a-Bug)  
- - [Contribute](advanced.md#contribute)
+ - [Report a Bug](https://hlorus.github.io/geometry_sketcher/advanced/#report-a-bug)  
+ - [Contribute](https://hlorus.github.io/geometry_sketcher/advanced/#contribute)
 
 
 ## Addon installation
@@ -27,7 +27,7 @@ Geometry sketcher heavily depends on the [solvespace python module](https://pypi
 - Inside the addon's preferences check the "Solver Module" tab to see if the module is already available
 - Press "Install from PyPi"
 
-Check the [installation](https://hlorus.github.io/geometry_sketcher/installation) chapter for in-depth instructions. 
+Check the [installation](https://hlorus.github.io/geometry_sketcher/installation) chapter for in-depth instructions.
 
 ## Usage
 Follow the [getting started](https://hlorus.github.io/geometry_sketcher/getting_started) guide to get familiar with the addon.
