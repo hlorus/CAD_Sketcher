@@ -1777,6 +1777,16 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     type = "DISTANCE"
     signature = (point, (*point, *line, SlvsWorkplane))
 
+    @classmethod
+    def get_types(cls, index, e1, e2):
+        e = e2 if index == 0 else e1
+        if e:
+            if e.is_3d():
+                return ((SlvsPoint3D, ), (SlvsPoint3D, SlvsLine3D, SlvsWorkplane))[index]
+            else:
+                return ((SlvsPoint2D, ), (SlvsPoint2D, SlvsLine2D))[index]
+        return cls.signature[index]
+
     def needs_wp(self):
         if isinstance(self.entity2, SlvsWorkplane):
             return WpReq.FREE
