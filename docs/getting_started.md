@@ -29,7 +29,7 @@ sketch's origin point, click it and move the mouse away, click again to confirm.
 
 Switch back to the [Selection Tool](user_interface.md#select-tool), by pressing ESC.
 Make sure nothing is selected by pressing ESC again or by clicking into empty space
-while the selection tool is active. Now select the circle and click the the button
+while the selection tool is active. Now select the circle and click the button
 in the sidebar to add a diameter constraint.
 
 ## Convert
