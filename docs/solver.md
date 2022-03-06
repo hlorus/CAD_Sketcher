@@ -3,7 +3,7 @@ takes a set of entities with an initial position and a set of constraints which
 describe geometric relationships between entities. When the solver runs it will try
 to adjust entity locations to satisfy the constraints.
 
-## Failiure
+## Failure
 ![Solver Failure](images/solver_failure.png){align=right}
 
 It's common that the solver fails to find a solution to satisfy all constraints. There
