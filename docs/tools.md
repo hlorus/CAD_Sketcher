@@ -13,7 +13,7 @@ that either of those use the same [interaction system](interaction_system.md).
 ## Workspacetools
 ![!Workspacetools](images/workspacetools.png){style="height:160px; width:60px; object-fit:cover;" align=right}
 
-Workspacetools are used to interactivley create entities. You can access them from
+Workspacetools are used to interactively create entities. You can access them from
 the viewport's "T"-panel. Check the [tools section](tools.md) to get familiar with
 the behavior of BGS tools.
 
