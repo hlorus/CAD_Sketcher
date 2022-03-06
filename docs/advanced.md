@@ -43,7 +43,7 @@ Just grab the latest version, play around, provide feedback and redo!
 ### Documentation
 Documentation is generated from the source repository with [MkDocs](https://www.mkdocs.org/).
 In order to contribute either post a pull request with your changes on
-[github](https://github.com/hlorus/geometry_sketcher) or ask on , [discord](https://discord.gg/GzpJsShgxa) for commit access.
+[github](https://github.com/hlorus/geometry_sketcher) or ask on [discord](https://discord.gg/GzpJsShgxa) for commit access.
 
 <!-- TODO: Workboard -->
 
