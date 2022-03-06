@@ -17,7 +17,7 @@ or from the [entity browser](user_interface#Entity Browser).
 Entities have a construction parameter which can be set via the entity's [context menu](user_interface#context-menu). If it's set to true the entity will be ignored when converting the geometry however it's still used to solve the geometric system. It's generally good practice to mark entities as construction if they're not part of the final geometry.
 
 ## Fixed
-Entities can be fixed via the entity's [context menu](). A fixed entity won't have any degrees of freedom and therefor cannot be adjusted by the solver. It's good practice to base geomtery on a fixed origin point.
+Entities can be fixed via the entity's [context menu](user_interface#context-menu). A fixed entity won't have any degrees of freedom and therefor cannot be adjusted by the solver. It's good practice to base geometry on a fixed origin point.
 
 > :warning:**Warning:** While this currently applies to all entities it's intended to be used with points only.
 
