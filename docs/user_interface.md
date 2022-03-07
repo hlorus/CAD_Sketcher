@@ -44,7 +44,7 @@ delets the constraint if it has no settings to show.
 
 ## Context Menu
 The context menu can be used to access properties and actions of an element, either
-by hovering an entity and pressing the right mousebutton, by clicking a constraint
+by hovering an entity and pressing the right mouse button, by clicking a constraint
 gizmo that supports it or through the corresponding button in one of the element browsers.
 
 > **INFO:** Only the hovered entity is used, the context menu ignores the selection.
