@@ -8,7 +8,7 @@ Geometry Sketcher is a constraint-based sketcher addon for [Blender](https://www
 ## Overview
 
 Geometry Sketcher integrates the solver of Solvespace and closely follows it's design.
-Therefor the [Solvespace Documentation](https://solvespace.readthedocs.io/en/latest/) is generally also relevant.
+Therefore the [Solvespace Documentation](https://solvespace.readthedocs.io/en/latest/) is generally also relevant.
 
 In order to have a parametric representation of a geometric system where curves
 are independent of resolution, BGS introduces a set of [Entities](entities.md).
@@ -18,7 +18,7 @@ focuses on 2d entities. In order to group a set of 2d entities we use [Sketches]
 
 The final position and dimensions of a drawn shape is defined by [Constraints](constraints.md).
 
-In order to have entities follow the defiend constraints
+In order to have entities follow the defined constraints,
 a [Solver](solver.md) is needed.
 
 To further process the resulting geometry BGS uses [Converters](integration.md)
