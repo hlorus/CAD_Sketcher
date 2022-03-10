@@ -184,7 +184,7 @@ class Preferences(bpy.types.AddonPreferences):
     all_entities_selectable: bpy.props.BoolProperty(
         name="Make all Entities Selectable", update=functions.update_cb
     )
-    force_redraw: BoolProperty(name="Force Entitie Redraw")
+    force_redraw: BoolProperty(name="Force Entitie Redraw", default=True)
 
     def draw(self, context):
         layout = self.layout
