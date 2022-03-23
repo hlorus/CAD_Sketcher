@@ -316,13 +316,8 @@ def slvs_entity_pointer(cls, name, **kwargs):
 def tag_update(self, context):
     self.tag_update()
 
-class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
-    """Representation of a point in 3D Space.
+class Point3D(SlvsGenericEntity):
 
-    Arguments:
-        location (FloatVectorProperty): Point's location in the form (x, y, z)
-    """
-    location: FloatVectorProperty(name="Location", subtype="XYZ", unit="LENGTH", update=tag_update)
 
     def update(self):
         if bpy.app.background:
@@ -333,6 +328,24 @@ class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
             self._shader, "POINTS", {"pos": (self.location[:],)}
         )
         self.is_dirty = False
+
+    # TODO: maybe rename -> pivot_point, midpoint
+    def placement(self):
+        return self.location
+
+class SlvsPoint3D(Point3D, PropertyGroup):
+    """Representation of a point in 3D Space.
+
+    Arguments:
+        location (FloatVectorProperty): Point's location in the form (x, y, z)
+    """
+    location: FloatVectorProperty(
+        name="Location",
+        description="The location of the point",
+        subtype="XYZ",
+        unit="LENGTH",
+        update=tag_update
+    )
 
     def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
         if not coords:
@@ -349,10 +362,6 @@ class SlvsPoint3D(SlvsGenericEntity, PropertyGroup):
 
     def closest_picking_point(self, origin, view_vector):
         """Returns the point on this entity which is closest to the picking ray"""
-        return self.location
-
-    # TODO: maybe rename -> pivot_point, midpoint
-    def placement(self):
         return self.location
 
     def draw_props(self, layout):
@@ -412,19 +421,7 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
 slvs_entity_pointer(SlvsLine3D, "p1")
 slvs_entity_pointer(SlvsLine3D, "p2")
 
-
-class SlvsNormal3D(SlvsGenericEntity, PropertyGroup):
-    """Representation of a normal in 3D Space which is used to
-    store a direction.
-
-    This entity isn't currently exposed to the user and gets created
-    implicitly when needed.
-
-    Arguments:
-        orientation (Quaternion): A quaternion which describes the rotation
-    """
-    orientation: FloatVectorProperty(subtype="QUATERNION", size=4, update=tag_update)
-
+class Normal3D(SlvsGenericEntity):
     def update(self):
         self.is_dirty = False
 
@@ -438,6 +435,30 @@ class SlvsNormal3D(SlvsGenericEntity, PropertyGroup):
         quat = self.orientation
         handle = solvesys.addNormal3dV(quat.w, quat.x, quat.y, quat.z, group=group)
         self.py_data = handle
+
+
+class SlvsNormal3D(Normal3D, PropertyGroup):
+    """Representation of a normal in 3D Space which is used to
+    store a direction.
+
+    This entity isn't currently exposed to the user and gets created
+    implicitly when needed.
+
+    Arguments:
+        orientation (Quaternion): A quaternion which describes the rotation
+    """
+    orientation: FloatVectorProperty(
+        name="Orientation",
+        description="Quaternion which describes the orientation of the normal",
+        subtype="QUATERNION",
+        size=4,
+        update=tag_update,
+    )
+    pass
+
+
+
+
 
 
 from mathutils import Vector, Matrix
@@ -629,20 +650,8 @@ class Entity2D:
         return self.sketch.wp
 
 
-class SlvsPoint2D(SlvsGenericEntity, PropertyGroup, Entity2D):
-    """Representation of a point on a workplane.
+class Point2D(SlvsGenericEntity, Entity2D):
 
-    Arguments:
-        co (FloatVectorProperty): The coordinates of the point on the worpkplane in the form (U, V)
-        sketch (SlvsSketch): The sketch this entity belongs to
-    """
-
-    co: FloatVectorProperty(name="Coordinates", subtype="XYZ", size=2, unit="LENGTH", update=tag_update)
-
-    def dependencies(self):
-        return [
-            self.sketch,
-        ]
 
     def update(self):
         if bpy.app.background:
@@ -666,6 +675,33 @@ class SlvsPoint2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         mat_local = Matrix.Translation(Vector((u, v, 0)))
         mat = self.wp.matrix_basis @ mat_local
         return mat @ Vector((0, 0, 0))
+
+    def placement(self):
+        return self.location
+
+slvs_entity_pointer(Point2D, "sketch")
+
+class SlvsPoint2D(Point2D, PropertyGroup):
+    """Representation of a point in 2D space.
+
+    Arguments:
+        co (FloatVectorProperty): The coordinates of the point on the worpkplane in the form (U, V)
+        sketch (SlvsSketch): The sketch this entity belongs to
+    """
+
+    co: FloatVectorProperty(
+        name="Coordinates",
+        description="The coordinates of the point on it's sketch",
+        subtype="XYZ",
+        size=2,
+        unit="LENGTH",
+        update=tag_update
+    )
+
+    def dependencies(self):
+        return [
+            self.sketch,
+        ]
 
     def tweak(self, solvesys, pos, group):
         wrkpln = self.sketch.wp
@@ -711,15 +747,11 @@ class SlvsPoint2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         """Returns the point on this entity which is closest to the picking ray"""
         return self.location
 
-    def placement(self):
-        return self.location
-
     def draw_props(self, layout):
         col = layout.column()
         col.prop(self, "co")
 
 
-slvs_entity_pointer(SlvsPoint2D, "sketch")
 
 
 def set_handles(point):
