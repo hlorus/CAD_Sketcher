@@ -37,6 +37,11 @@ class SlvsGenericEntity:
 
     dirty: BoolProperty(name="Needs Update", default=True, options={"SKIP_SAVE"})
 
+    @classmethod
+    @property
+    def type(cls):
+        return cls.__name__
+
     @property
     def is_dirty(self):
         if self.dirty:
@@ -277,6 +282,18 @@ class SlvsGenericEntity:
     def is_2d(self):
         return hasattr(self, "sketch")
 
+    @classmethod
+    def is_point(cls):
+        return False
+
+    @classmethod
+    def is_line(cls):
+        return False
+
+    @classmethod
+    def is_curve(cls):
+        return False
+
 
 # Drawing a point might not include points coord itself but rather a series of virtual points around it
 # so a Entity might refere another point entity and/or add a set of coords
@@ -318,6 +335,9 @@ def tag_update(self, context):
 
 class Point3D(SlvsGenericEntity):
 
+    @classmethod
+    def is_point(cls):
+        return True
 
     def update(self):
         if bpy.app.background:
@@ -375,6 +395,11 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         p1 (SlvsPoint3D): Line's startpoint
         p2 (SlvsPoint3D): Line's endpoint
     """
+
+    @classmethod
+    def is_line(cls):
+        return True
+
     def dependencies(self):
         return [self.p1, self.p2]
 
@@ -652,6 +677,9 @@ class Entity2D:
 
 class Point2D(SlvsGenericEntity, Entity2D):
 
+    @classmethod
+    def is_point(cls):
+        return True
 
     def update(self):
         if bpy.app.background:
@@ -768,6 +796,10 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         p2 (SlvsPoint2D): Line's endpoint
         sketch (SlvsSketch): The sketch this entity belongs to
     """
+
+    @classmethod
+    def is_line(cls):
+        return True
 
     def dependencies(self):
         return [self.p1, self.p2, self.sketch]
@@ -943,6 +975,9 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
     """
 
     invert_direction: BoolProperty(name="Invert direction", update=tag_update)
+    @classmethod
+    def is_curve(cls):
+        return True
 
     @property
     def start(self):
@@ -1120,6 +1155,9 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
     """
 
     radius: FloatProperty(name="Radius", subtype="DISTANCE", min=0.0, unit="LENGTH", update=tag_update)
+    @classmethod
+    def is_curve(cls):
+        return True
 
     def dependencies(self):
         return [self.nm, self.ct, self.sketch]

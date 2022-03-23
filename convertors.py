@@ -11,12 +11,12 @@ def point_entity_mapping(scene):
     points = []
     entities = []
     for entity in scene.sketcher.entities.all:
-        if type(entity) in class_defines.point:
+        if entity.is_point():
             continue
         if not hasattr(entity, "connection_points"):
             continue
         for p in entity.connection_points():
-            if type(p) not in class_defines.point:
+            if not p.is_point():
                 continue
             if p not in points:
                 points.append(p)
@@ -45,7 +45,7 @@ class BezierConvertor:
         for e in self.scene.sketcher.entities.all:
             if not hasattr(e, "sketch") or e.sketch_i != sketch_index:
                 continue
-            if isinstance(e, class_defines.SlvsPoint2D):
+            if e.is_point():
                 continue
             if e.construction:
                 continue
@@ -82,7 +82,7 @@ class BezierConvertor:
         points = list(
             filter(
                 (
-                    lambda p: isinstance(p, class_defines.SlvsPoint2D)
+                    lambda p: p.is_point()
                     and p != ignore_point
                 ),
                 entity.connection_points(),
