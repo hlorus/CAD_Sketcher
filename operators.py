@@ -2901,5 +2901,9 @@ def register():
 
 
 def unregister():
+    offscreen = global_data.offscreen
+    if offscreen:
+        offscreen.free()
+
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
