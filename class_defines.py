@@ -2913,14 +2913,15 @@ classes = (
 
 
 def register():
-
     for cls in classes:
         bpy.utils.register_class(cls)
 
     bpy.types.Scene.sketcher = PointerProperty(type=SketcherProps)
-
     bpy.types.Object.sketch_index = IntProperty(name="Parent Sketch", default=-1)
 
 def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+
+    del bpy.types.Object.sketch_index
+    del bpy.types.Scene.sketcher
