@@ -72,6 +72,8 @@ def do_versioning(self):
 
         msg += "\n  - Update scene <{}> from version {}".format(scene.name, version)
 
+        if version <= (0, 20, 0):
+            recalc_pointers(scene)
 
         # if version <= (0, 11, 0):
             # apply some changes that were introduced in v(0, 11, 0)

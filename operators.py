@@ -1402,7 +1402,7 @@ def combined_prop(cls, name, fallback_func, fallback_args, **kwargs):
     setattr(cls, "__annotations__", annotations)
 
 
-types_point_3d = (class_defines.SlvsPoint3D,)
+types_point_3d = (class_defines.SlvsPoint3D, class_defines.SlvsRefVertex3D)
 
 
 l3d_state1_doc = ("Startpoint", "Pick or place line's starting point.")
@@ -1681,7 +1681,7 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d, StatefulOperator):
 combined_prop(View3D_OT_slvs_add_point2d, "sketch", None, {}, options={"SKIP_SAVE"})
 
 
-types_point_2d = (class_defines.SlvsPoint2D,)
+types_point_2d = (class_defines.SlvsPoint2D, class_defines.SlvsRefPoint2D, class_defines.SlvsRefVertex2D)
 
 
 l2d_state1_doc = ("Startpoint", "Pick or place line's starting Point.")

@@ -18,7 +18,7 @@ from gpu_extras.batch import batch_for_shader
 from . import global_data
 
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-import math
+import math, mathutils
 
 from .shaders import Shaders
 from .solver import solve_system, Solver
@@ -387,6 +387,39 @@ class SlvsPoint3D(Point3D, PropertyGroup):
     def draw_props(self, layout):
         layout.prop(self, "location")
 
+class SlvsRefVertex3D(Point3D, PropertyGroup):
+    """Representation of a point in 3D space. The location is derived from a
+    referenced mesh vertex.
+
+    Arguments:
+        object (bpy.types.Object): The object this vertex belongs to
+        vertex_index (int): The index of the vertex
+    """
+
+    object: PointerProperty(
+        name="Object",
+        description="The object to get the vertex from",
+        type=bpy.types.Object,
+        update=tag_update,
+    )
+    vertex_index: IntProperty(
+        name="Vertex Index",
+        description="The index of the vertex",
+        update=tag_update,
+    )
+
+    @property
+    def location(self):
+        ob = self.object
+        vertex = ob.data.vertices[self.vertex_index]
+
+        return ob.matrix_world @ vertex.co
+
+    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
+        return SlvsPoint3D.create_slvs_data(self, solvesys, group=Solver.group_fixed)
+
+    def update_from_slvs(self, solvesys):
+        pass
 
 class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
     """Representation of a line in 3D Space.
@@ -482,9 +515,38 @@ class SlvsNormal3D(Normal3D, PropertyGroup):
     pass
 
 
+class SlvsRefNormal3D(Normal3D, PropertyGroup):
+    """Represents the normal of mesh face.
 
+    Arguments:
+        object (bpy.types.Object): The object the referenced face belongs to
+        face_index (int): The index of the face
+    """
 
+    object: PointerProperty(
+        name="Object",
+        description="The object to get the face from",
+        type=bpy.types.Object,
+        update=tag_update,
+    )
+    face_index: IntProperty(
+        name="Face Index",
+        description="The index of the face",
+        update=tag_update,
+    )
 
+    @property
+    def orientation(self):
+        ob = self.object
+        data = ob.data
+        face = data.polygons[self.face_index]
+        normal = mathutils.geometry.normal([data.vertices[i].co for i in face.vertices])
+        normal.rotate(ob.matrix_world)
+        return normal.to_track_quat("Z", "X")
+
+    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+        # super(Normal3D)
+        return Normal3D.create_slvs_data(self, solvesys, group=Solver.group_fixed)
 
 from mathutils import Vector, Matrix
 
@@ -780,6 +842,71 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         col.prop(self, "co")
 
 
+class SlvsRefPoint2D(Point2D, PropertyGroup):
+    """Representation of a point in 2D space. The location on the sketch is
+    derived by projecting a referenced 3d Point or a 2d Point on an arbitrary sketch.
+
+    Arguments:
+        point (SlvsGenericEntity): The point this entity refers to
+        sketch (SlvsSketch): The sketch this entity belongs to
+    """
+
+    def dependencies(self):
+        return [
+            self.point,
+            self.sketch,
+        ]
+
+    @property
+    def co(self):
+        point = self.point
+        sketch = self.sketch
+        return Vector((sketch.wp.matrix_basis.inverted() @ point.location)[:-1])
+
+    def create_slvs_data(self, solvesys, group=None):
+        return SlvsPoint2D.create_slvs_data(self, solvesys, group=Solver.group_fixed)
+
+    def update_from_slvs(self, solvesys):
+        pass
+
+slvs_entity_pointer(SlvsRefPoint2D, "point")
+
+class SlvsRefVertex2D(Point2D, PropertyGroup):
+    """Representation of a point in 2D space. The location is derived by projecting
+    a referenced mesh vertex.
+
+    Arguments:
+        object (bpy.types.Object): The object this vertex belongs to
+        vertex_index (int): The index of the vertex
+        sketch (SlvsSketch): The sketch this entity belongs to
+    """
+
+    object: PointerProperty(
+        name="Object",
+        description="The object to get the vertex from",
+        type=bpy.types.Object,
+        update=tag_update,
+    )
+    vertex_index: IntProperty(
+        name="Vertex Index",
+        description="The index of the referenced vertex",
+        update=tag_update,
+    )
+
+    @property
+    def co(self):
+        sketch = self.sketch
+        ob = self.object
+        me = ob.data
+        v = me.vertices[self.vertex_index]
+
+        return Vector((sketch.wp.matrix_basis.inverted() @ ob.matrix_world @ v.co)[:-1])
+
+    def create_slvs_data(self, solvesys, group=None):
+        return SlvsPoint2D.create_slvs_data(self, solvesys, group=Solver.group_fixed)
+
+    def update_from_slvs(self, solvesys):
+        pass
 
 
 def set_handles(point):
@@ -974,7 +1101,12 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         sketch (SlvsSketch): The sketch this entity belongs to
     """
 
-    invert_direction: BoolProperty(name="Invert direction", update=tag_update)
+    invert_direction: BoolProperty(
+        name="Invert direction",
+        description="Connect the points in the inverted order",
+        update=tag_update,
+    )
+
     @classmethod
     def is_curve(cls):
         return True
@@ -1154,7 +1286,15 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         sketch (SlvsSketch): The sketch this entity belongs to
     """
 
-    radius: FloatProperty(name="Radius", subtype="DISTANCE", min=0.0, unit="LENGTH", update=tag_update)
+    radius: FloatProperty(
+        name="Radius",
+        description="The radius of the circle",
+        subtype="DISTANCE",
+        min=0.0,
+        unit="LENGTH",
+        update=tag_update,
+    )
+
     @classmethod
     def is_curve(cls):
         return True
@@ -1287,11 +1427,15 @@ def update_pointers(scene, index_old, index_new):
 # NOTE: currently limited to 16 items!
 entities = (
     SlvsPoint3D,
+    SlvsRefVertex3D,
     SlvsLine3D,
     SlvsNormal3D,
+    SlvsRefNormal3D,
     SlvsWorkplane,
     SlvsSketch,
     SlvsPoint2D,
+    SlvsRefPoint2D,
+    SlvsRefVertex2D,
     SlvsLine2D,
     SlvsNormal2D,
     SlvsArc,
@@ -1300,11 +1444,15 @@ entities = (
 
 entity_collections = (
     "points3D",
+    "refvertices3D",
     "lines3D",
     "normals3D",
+    "refnormals3D",
     "workplanes",
     "sketches",
     "points2D",
+    "refpoints",
+    "refvertices",
     "lines2D",
     "normals2D",
     "arcs",
@@ -1418,6 +1566,23 @@ class SlvsEntities(PropertyGroup):
         self._set_index(p)
         return p
 
+    def add_ref_vertex_3d(self, object: bpy.types.Object, index: int) -> SlvsRefVertex3D:
+        """Add a reference point in 3d space.
+
+        Arguments:
+            object: The object the vertex belongs to.
+            index: The index of the vertex.
+
+        Returns:
+            SlvsRefVertex3D: The created reference point.
+        """
+
+        p = self.refvertices3D.add()
+        p.object = object
+        p.vertex_index = index
+        self._set_index(p)
+        return p
+
     def add_line_3d(self, p1: SlvsPoint3D, p2: SlvsPoint3D) -> SlvsLine3D:
         """Add a line in 3d space.
 
@@ -1448,7 +1613,23 @@ class SlvsEntities(PropertyGroup):
         self._set_index(nm)
         return nm
 
-    def add_workplane(self, p1: SlvsPoint3D, nm: SlvsNormal3D) -> SlvsWorkplane:
+    def add_ref_normal_3d(self, object: bpy.types.Object, face_index: int) -> SlvsRefNormal3D:
+        """Add a reference normal in 3d space.
+
+        Arguments:
+            object: Object which the face belongs to.
+            face_index: Index of the face to take the orientation from.
+
+        Returns:
+            SlvsRefNormal3D: The created reference normal.
+        """
+        nm = self.refnormals3D.add()
+        nm.object = object
+        nm.face_index = face_index
+        self._set_index(nm)
+        return nm
+
+    def add_workplane(self, p1: SlvsPoint3D, nm: SlvsGenericEntity) -> SlvsWorkplane:
         """Add a workplane.
 
         Arguments:
@@ -1492,6 +1673,40 @@ class SlvsEntities(PropertyGroup):
         """
         p = self.points2D.add()
         p.co = co
+        p.sketch = sketch
+        self._set_index(p)
+        return p
+
+    def add_ref_point(self, point: SlvsGenericEntity, sketch: SlvsSketch) -> SlvsRefPoint2D:
+        """Add a reference point.
+
+        Arguments:
+            point: The point to project.
+            sketch: The sketch to project onto.
+
+        Returns:
+            SlvsRefPoint2D: The created reference point.
+        """
+        p = self.refpoints.add()
+        p.point = point
+        p.sketch = sketch
+        self._set_index(p)
+        return p
+
+    def add_ref_vertex_2d(self, object: bpy.types.Object, index: int, sketch: SlvsSketch) -> SlvsRefVertex2D:
+        """Add a 2d reference point from a mesh vertex.
+
+        Arguments:
+            object: The point to project.
+            index: The index of the vertex.
+            sketch: The sketch to project onto.
+
+        Returns:
+            SlvsRefVertex2D: The created reference point.
+        """
+        p = self.refvertices.add()
+        p.object = object
+        p.vertex_index = index
         p.sketch = sketch
         self._set_index(p)
         return p
@@ -1642,7 +1857,10 @@ slvs_entity_pointer(SlvsEntities, "origin_plane_YZ")
 ### Constraints
 from .global_data import WpReq
 
-point = (SlvsPoint3D, SlvsPoint2D)
+point_3d = (SlvsPoint3D, SlvsRefVertex3D)
+point_2d = (SlvsPoint2D, SlvsRefPoint2D, SlvsRefVertex2D)
+point = (SlvsPoint3D, SlvsRefVertex3D, *point_2d)
+normal_3d = (SlvsNormal3D, SlvsRefNormal3D)
 line = (SlvsLine3D, SlvsLine2D)
 curve = (SlvsCircle, SlvsArc)
 
@@ -1911,7 +2129,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             if e.is_3d():
                 return ((SlvsPoint3D, ), (SlvsPoint3D, SlvsLine3D, SlvsWorkplane))[index]
             else:
-                return ((SlvsPoint2D, ), (SlvsPoint2D, SlvsLine2D))[index]
+                return (point_2d, (*point_2d, SlvsLine2D))[index]
         return cls.signature[index]
 
     def needs_wp(self):
@@ -1956,7 +2174,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         sketch = self.sketch
         x_axis = Vector((1, 0))
 
-        if isinstance(self.entity2, SlvsPoint2D):
+        if type(self.entity2) in point_2d:
             p1, p2 = self.entity1.co, self.entity2.co
             v_rotation = p2 - p1
             v_translation = (p2 + p1) / 2
