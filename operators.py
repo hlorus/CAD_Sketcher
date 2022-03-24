@@ -1727,13 +1727,15 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d, StatefulOperator):
 
         # auto vertical/horizontal constraint
         constraints = context.scene.sketcher.constraints
-        angle = self.target.direction_vec().angle(Vector((1, 0)))
+        vec_dir = self.target.direction_vec()
+        if vec_dir.length:
+            angle = vec_dir.angle(Vector((1, 0)))
 
-        threshold = 0.1
-        if angle < threshold or angle > math.pi - threshold:
-            constraints.add_horizontal(self.target, sketch=self.sketch)
-        elif (math.pi / 2 - threshold) < angle < (math.pi / 2 + threshold):
-            constraints.add_vertical(self.target, sketch=self.sketch)
+            threshold = 0.1
+            if angle < threshold or angle > math.pi - threshold:
+                constraints.add_horizontal(self.target, sketch=self.sketch)
+            elif (math.pi / 2 - threshold) < angle < (math.pi / 2 + threshold):
+                constraints.add_vertical(self.target, sketch=self.sketch)
 
         ignore_hover(self.target)
         return True
