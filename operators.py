@@ -816,8 +816,13 @@ class StatefulOperator:
     def get_func(self, state, name):
         # fallback to operator method if function isn't specified by state
         func = getattr(state, name, None)
+
         if func:
+            if isinstance(func, str):
+                # callback can be specified by function name
+                return getattr(self, func)
             return func
+
         if hasattr(self, name):
             return getattr(self, name)
         return None
