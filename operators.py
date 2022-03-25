@@ -588,12 +588,23 @@ class StatefulOperator:
     _last_coords = Vector((0, 0))
     _numeric_input = {}
 
+    @classmethod
+    def get_states_definition(cls):
+        if callable(cls.states):
+            return cls.states()
+        return cls.states
+
+    def get_states(self):
+        if callable(self.states):
+            return self.states(operator=self)
+        return self.states
+
     @property
     def state(self):
-        return self.states[self.state_index]
+        return self.get_states()[self.state_index]
 
     def _index_from_state(self, state):
-        return [e.name for e in self.states].index(state)
+        return [e.name for e in self.get_states()].index(state)
 
     @state.setter
     def state(self, state):
@@ -607,7 +618,7 @@ class StatefulOperator:
 
     def next_state(self, context):
         i = self.state_index
-        if (i + 1) >= len(self.states):
+        if (i + 1) >= len(self.get_states()):
             return False
         self.set_state(context, i + 1)
         return True
@@ -768,7 +779,7 @@ class StatefulOperator:
         while True:
             if i < 0:
                 break
-            state = self.states[i]
+            state = self.get_states()[i]
             if state.pointer and entity == getattr(self, state.pointer):
                 return True
             i -= 1
@@ -886,7 +897,7 @@ class StatefulOperator:
 
     # Creates non-persistent data
     def redo_states(self, context):
-        for i, state in enumerate(self.states):
+        for i, state in enumerate(self.get_states()):
             if i > self.state_index:
                 # TODO: don't depend on active state, idealy it's possible to go back
                 break
@@ -1101,7 +1112,7 @@ class StatefulOperator:
     def _reset_op(self):
         self.executed = False
         self._state_data.clear()
-        for s in self.states:
+        for s in self.get_states():
             if not s.pointer:
                 continue
             setattr(self, s.pointer, None)
@@ -1113,7 +1124,7 @@ class StatefulOperator:
 
         # save last prop
         last_pointer = None
-        for s in reversed(self.states):
+        for s in reversed(self.get_states()):
             if not s.pointer:
                 continue
             last_pointer = getattr(self, s.pointer)
@@ -1123,7 +1134,7 @@ class StatefulOperator:
         self._reset_op()
 
         # set first pointer
-        setattr(self, self.states[0].pointer, last_pointer)
+        setattr(self, self.get_states()[0].pointer, last_pointer)
         self._state_data[0] = {"is_existing_entity": True}
         self.set_state(context, 1)
 
@@ -1141,7 +1152,7 @@ class StatefulOperator:
             return {"CANCELLED"}
 
     def check_props(self):
-        for state in self.states:
+        for i, state in enumerate(self.get_states()):
             if state.pointer:
                 func = self.get_func(state, "check_pointer")
                 if not func(state.pointer):
@@ -1154,7 +1165,7 @@ class StatefulOperator:
     def draw(self, context):
         layout = self.layout
 
-        for i, state in enumerate(self.states):
+        for i, state in enumerate(self.get_states()):
             if i != 0:
                 layout.separator()
 
@@ -1578,18 +1589,15 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d, StatefulOperator):
     bl_label = "Add Sketch"
     bl_options = {"UNDO"}
 
-    @property
-    @functools.cache
-    def states(self):
-        states = (
-            state_from_args(
-                sketch_state1_doc[0],
-                description=sketch_state1_doc[1],
-                pointer="wp",
-                types=(class_defines.SlvsWorkplane,),
-            ),
-        )
-        return states
+
+    states = (
+        state_from_args(
+            sketch_state1_doc[0],
+            description=sketch_state1_doc[1],
+            pointer="wp",
+            types=(class_defines.SlvsWorkplane,),
+        ),
+    )
 
     __doc__ = stateful_op_desc(
         "Add a sketch",
@@ -2037,7 +2045,7 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d, StatefulOperator):
                 input = data.get("numeric_input")
 
                 # constrain distance
-                startpoint = getattr(self, self.states[0].pointer)
+                startpoint = getattr(self, self.get_states()[0].pointer)
                 for val, line in zip(input, (self.lines[1], self.lines[2])):
                     if val == None:
                         continue
@@ -2057,7 +2065,7 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d, StatefulOperator):
             data = self._state_data.get(1)
             input = data.get("numeric_input")
             # use relative coordinates
-            orig = getattr(self, self.states[0].pointer).co
+            orig = getattr(self, self.get_states()[0].pointer).co
 
             for i, val in enumerate(input):
                 if val == None:
@@ -2324,7 +2332,7 @@ from .global_data import WpReq
 state_docstr = "Pick entity to constrain."
 
 
-class GenericConstraintOp:
+class GenericConstraintOp(GenericEntityOp, StatefulOperator):
     initialized: BoolProperty(options={"SKIP_SAVE", "HIDDEN"})
     _entity_prop_names = ("entity1", "entity2", "entity3", "entity4")
 
@@ -2343,18 +2351,19 @@ class GenericConstraintOp:
                 entities[i] = e
         return entities
 
-    @property
-    def states(self):
+    @classmethod
+    def states(cls, operator=None):
         states = []
 
-        cls = class_defines.SlvsConstraints.cls_from_type(self.type)
+        cls_constraint = class_defines.SlvsConstraints.cls_from_type(cls.type)
 
-        for i, _ in enumerate(cls.signature):
+        for i, _ in enumerate(cls_constraint.signature):
             name_index = i + 1
-            if hasattr(cls, "get_types"):
-                types = cls.get_types(i, *self._available_entities())
+            if hasattr(cls_constraint, "get_types") and operator:
+                types = cls_constraint.get_types(i, *operator._available_entities())
             else:
-                types = cls.signature[i]
+                types = cls_constraint.signature[i]
+
 
             states.append(
                 state_from_args(
@@ -2389,15 +2398,11 @@ class GenericConstraintOp:
     @classmethod
     def description(cls, context, properties):
         constraint_type = cls.type
-        cls = class_defines.SlvsConstraints.cls_from_type(constraint_type)
+        cls_constraint = class_defines.SlvsConstraints.cls_from_type(constraint_type)
 
-        states = []
-        for i, types in enumerate(cls.signature, start=1):
-            states.append(
-                state_desc("Entity" + str(i), "Pick entity to constrain.", types)
-            )
+        states = [state_desc(s.name, s.description, s.types) for s in cls.get_states_definition()]
 
-        return stateful_op_desc("Add {} constraint".format(cls.label), *states)
+        return stateful_op_desc("Add {} constraint".format(cls_constraint.label), *states)
 
     def fill_entities(self):
         c = self.target
@@ -2449,7 +2454,7 @@ class GenericConstraintOp:
 
 # Dimensional constarints
 class VIEW3D_OT_slvs_add_distance(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp
 ):
     bl_idname = "view3d.slvs_add_distance"
     bl_label = "Distance"
@@ -2466,7 +2471,7 @@ combined_prop(VIEW3D_OT_slvs_add_distance, "entity2", None, {}, options={"SKIP_S
 
 
 class VIEW3D_OT_slvs_add_angle(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp
 ):
     bl_idname = "view3d.slvs_add_angle"
     bl_label = "Angle"
@@ -2484,7 +2489,7 @@ combined_prop(VIEW3D_OT_slvs_add_angle, "entity2", None, {}, options={"SKIP_SAVE
 
 
 class VIEW3D_OT_slvs_add_diameter(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp
 ):
     bl_idname = "view3d.slvs_add_diameter"
     bl_label = "Diameter"
@@ -2501,7 +2506,7 @@ combined_prop(VIEW3D_OT_slvs_add_diameter, "entity1", None, {}, options={"SKIP_S
 
 # Geomteric constraints
 class VIEW3D_OT_slvs_add_coincident(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp
 ):
     bl_idname = "view3d.slvs_add_coincident"
     bl_label = "Coincident"
@@ -2515,7 +2520,7 @@ combined_prop(VIEW3D_OT_slvs_add_coincident, "entity2", None, {}, options={"SKIP
 
 
 class VIEW3D_OT_slvs_add_equal(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp
 ):
     bl_idname = "view3d.slvs_add_equal"
     bl_label = "Equal"
@@ -2529,7 +2534,7 @@ combined_prop(VIEW3D_OT_slvs_add_equal, "entity2", None, {}, options={"SKIP_SAVE
 
 
 class VIEW3D_OT_slvs_add_vertical(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp
 ):
     bl_idname = "view3d.slvs_add_vertical"
     bl_label = "Vertical"
@@ -2542,7 +2547,7 @@ combined_prop(VIEW3D_OT_slvs_add_vertical, "entity1", None, {}, options={"SKIP_S
 
 
 class VIEW3D_OT_slvs_add_horizontal(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp
 ):
     bl_idname = "view3d.slvs_add_horizontal"
     bl_label = "Horizontal"
@@ -2555,7 +2560,7 @@ combined_prop(VIEW3D_OT_slvs_add_horizontal, "entity1", None, {}, options={"SKIP
 
 
 class VIEW3D_OT_slvs_add_parallel(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp
 ):
     bl_idname = "view3d.slvs_add_parallel"
     bl_label = "Parallel"
@@ -2569,7 +2574,7 @@ combined_prop(VIEW3D_OT_slvs_add_parallel, "entity2", None, {}, options={"SKIP_S
 
 
 class VIEW3D_OT_slvs_add_perpendicular(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp
 ):
     bl_idname = "view3d.slvs_add_perpendicular"
     bl_label = "Perpendicular"
@@ -2587,7 +2592,7 @@ combined_prop(
 
 
 class VIEW3D_OT_slvs_add_tangent(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp, GenericEntityOp
 ):
     bl_idname = "view3d.slvs_add_tangent"
     bl_label = "Tangent"
@@ -2601,7 +2606,7 @@ combined_prop(VIEW3D_OT_slvs_add_tangent, "entity2", None, {}, options={"SKIP_SA
 
 
 class VIEW3D_OT_slvs_add_midpoint(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp, GenericEntityOp
 ):
     bl_idname = "view3d.slvs_add_midpoint"
     bl_label = "Midpoint"
@@ -2615,7 +2620,7 @@ combined_prop(VIEW3D_OT_slvs_add_midpoint, "entity2", None, {}, options={"SKIP_S
 
 
 class VIEW3D_OT_slvs_add_ratio(
-    Operator, GenericConstraintOp, StatefulOperator, GenericEntityOp
+    Operator, GenericConstraintOp, GenericEntityOp
 ):
 
     value: FloatProperty(
