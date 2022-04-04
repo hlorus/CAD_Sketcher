@@ -32,6 +32,11 @@ tool_access = (
     tool_invoke_kmi(
         "S", "sketcher.slvs_add_sketch", operators.View3D_OT_slvs_add_sketch.bl_idname
     ),
+    (
+        operators.View3D_OT_slvs_add_sketch.bl_idname,
+        {"type": "S", "value": "PRESS"},
+        {"properties": [("wait_for_input", True), ]}
+    )
 )
 
 
