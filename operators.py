@@ -2736,7 +2736,7 @@ def mesh_from_temporary(mesh, name):
 
     bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(0.1), verts=bm.verts, edges=bm.edges)
 
-    new_mesh = bpy.data.meshes.new("")
+    new_mesh = bpy.data.meshes.new(name)
     bm.to_mesh(new_mesh)
     bm.free()
     return new_mesh
