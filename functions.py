@@ -381,3 +381,18 @@ def breakdown_index(index):
     type_index = index >> 20
     local_index = index & 0xFFFFF
     return type_index, local_index
+
+def bvhtree_from_object(object):
+    import bmesh
+    from mathutils.bvhtree import BVHTree
+    bm = bmesh.new()
+
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    object_eval = object.evaluated_get(depsgraph)
+    mesh = object_eval.to_mesh()
+    bm.from_mesh(mesh)
+    bm.transform(object.matrix_world)
+
+    bvhtree = BVHTree.FromBMesh(bm)
+    object_eval.to_mesh_clear()
+    return bvhtree

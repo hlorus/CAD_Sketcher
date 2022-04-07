@@ -109,6 +109,9 @@ class VIEW3D_PT_sketcher(Panel):
 
         layout.separator()
 
+        layout.operator(operators.View3D_OT_slvs_reference.bl_idname)
+        layout.separator()
+
         layout.label(text="Constraints:")
         col = layout.column(align=True)
         for op in operators.constraint_operators:
@@ -124,6 +127,8 @@ class VIEW3D_PT_sketcher(Panel):
             layout.operator(
                 operators.View3D_OT_slvs_solve.bl_idname, text="Solve All"
             ).all = True
+
+            layout.operator(operators.View3D_OT_slvs_test.bl_idname)
             layout.prop(context.scene.sketcher, "show_origin")
             layout.prop(prefs, "hide_inactive_constraints")
             layout.prop(prefs, "all_entities_selectable")
