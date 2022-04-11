@@ -353,20 +353,6 @@ class Point3D(SlvsGenericEntity):
     def placement(self):
         return self.location
 
-class SlvsPoint3D(Point3D, PropertyGroup):
-    """Representation of a point in 3D Space.
-
-    Arguments:
-        location (FloatVectorProperty): Point's location in the form (x, y, z)
-    """
-    location: FloatVectorProperty(
-        name="Location",
-        description="The location of the point",
-        subtype="XYZ",
-        unit="LENGTH",
-        update=tag_update
-    )
-
     def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
         if not coords:
             coords = self.location
@@ -383,6 +369,20 @@ class SlvsPoint3D(Point3D, PropertyGroup):
     def closest_picking_point(self, origin, view_vector):
         """Returns the point on this entity which is closest to the picking ray"""
         return self.location
+
+class SlvsPoint3D(Point3D, PropertyGroup):
+    """Representation of a point in 3D Space.
+
+    Arguments:
+        location (FloatVectorProperty): Point's location in the form (x, y, z)
+    """
+    location: FloatVectorProperty(
+        name="Location",
+        description="The location of the point",
+        subtype="XYZ",
+        unit="LENGTH",
+        update=tag_update
+    )
 
     def draw_props(self, layout):
         layout.prop(self, "location")
@@ -416,7 +416,7 @@ class SlvsRefVertex3D(Point3D, PropertyGroup):
         return ob.matrix_world @ vertex.co
 
     def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
-        return SlvsPoint3D.create_slvs_data(self, solvesys, group=Solver.group_fixed)
+        return super().create_slvs_data(self, solvesys, group=Solver.group_fixed)
 
     def update_from_slvs(self, solvesys):
         pass
@@ -545,8 +545,7 @@ class SlvsRefNormal3D(Normal3D, PropertyGroup):
         return normal.to_track_quat("Z", "X")
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        # super(Normal3D)
-        return Normal3D.create_slvs_data(self, solvesys, group=Solver.group_fixed)
+        return super().create_slvs_data(self, solvesys, group=Solver.group_fixed)
 
 from mathutils import Vector, Matrix
 
@@ -769,6 +768,23 @@ class Point2D(SlvsGenericEntity, Entity2D):
     def placement(self):
         return self.location
 
+    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
+        if not coords:
+            coords = self.co
+
+        self.params = [solvesys.addParamV(v, group) for v in coords]
+
+        handle = solvesys.addPoint2d(self.wp.py_data, *self.params, group=group)
+        self.py_data = handle
+
+    def update_from_slvs(self, solvesys):
+        coords = [solvesys.getParam(i).val for i in self.params]
+        self.co = coords
+
+    def closest_picking_point(self, origin, view_vector):
+        """Returns the point on this entity which is closest to the picking ray"""
+        return self.location
+
 slvs_entity_pointer(Point2D, "sketch")
 
 class SlvsPoint2D(Point2D, PropertyGroup):
@@ -820,23 +836,6 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         edge = solvesys.addLineSegment(startpoint, endpoint, group=group)
         make_coincident(solvesys, self.py_data, edge, wrkpln.py_data, group, entity_type=SlvsLine2D)
 
-    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
-        if not coords:
-            coords = self.co
-
-        self.params = [solvesys.addParamV(v, group) for v in coords]
-
-        handle = solvesys.addPoint2d(self.wp.py_data, *self.params, group=group)
-        self.py_data = handle
-
-    def update_from_slvs(self, solvesys):
-        coords = [solvesys.getParam(i).val for i in self.params]
-        self.co = coords
-
-    def closest_picking_point(self, origin, view_vector):
-        """Returns the point on this entity which is closest to the picking ray"""
-        return self.location
-
     def draw_props(self, layout):
         col = layout.column()
         col.prop(self, "co")
@@ -864,7 +863,7 @@ class SlvsRefPoint2D(Point2D, PropertyGroup):
         return Vector((sketch.wp.matrix_basis.inverted() @ point.location)[:-1])
 
     def create_slvs_data(self, solvesys, group=None):
-        return SlvsPoint2D.create_slvs_data(self, solvesys, group=Solver.group_fixed)
+        return super().create_slvs_data(self, solvesys, group=Solver.group_fixed)
 
     def update_from_slvs(self, solvesys):
         pass
@@ -903,7 +902,7 @@ class SlvsRefVertex2D(Point2D, PropertyGroup):
         return Vector((sketch.wp.matrix_basis.inverted() @ ob.matrix_world @ v.co)[:-1])
 
     def create_slvs_data(self, solvesys, group=None):
-        return SlvsPoint2D.create_slvs_data(self, solvesys, group=Solver.group_fixed)
+        return super().create_slvs_data(self, solvesys, group=Solver.group_fixed)
 
     def update_from_slvs(self, solvesys):
         pass
