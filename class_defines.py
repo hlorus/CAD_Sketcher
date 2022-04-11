@@ -535,19 +535,77 @@ class SlvsRefNormal3D(Normal3D, PropertyGroup):
         update=tag_update,
     )
 
-    @property
-    def orientation(self):
+    def get_face_orientation(self):
+        # returns quaternion describing the face orientation in objectspace
         ob = self.object
         data = ob.data
         face = data.polygons[self.face_index]
         normal = mathutils.geometry.normal([data.vertices[i].co for i in face.vertices])
-        normal.rotate(ob.matrix_world)
         return normal.to_track_quat("Z", "X")
+
+    @property
+    def orientation(self):
+        # returns the face orientation in worldspace
+        ob = self.object
+        normal = self.get_face_orientation()
+        normal.rotate(ob.matrix_world)
+        return normal
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         return super().create_slvs_data(self, solvesys, group=Solver.group_fixed)
 
 from mathutils import Vector, Matrix
+
+def mean(lst):
+    n = len(lst)
+    return sum(lst) / n
+
+class SlvsProjectedOrigin(Point3D, PropertyGroup):
+    """Projects an object origin onto one of it's faces along a normal.
+    """
+
+    # Could also directly depend on ob, obface as target and a normal
+    # object: PointerProperty(
+    #     name="Object",
+    #     description="The object to get the face from",
+    #     type=bpy.types.Object,
+    #     update=tag_update,
+    # )
+    # Target face on object
+    # face_index: IntProperty(
+    #     name="Face Index",
+    #     description="The index of the face",
+    #     update=tag_update,
+    # )
+
+    @property
+    def location(self):
+        nm = self.ref_nm
+        ob = nm.object
+        mesh = ob.data
+        quat = nm.get_face_orientation()
+        face = mesh.polygons[nm.face_index]
+
+        # get average distance from origin to face vertices
+        coords = [mesh.vertices[i].co.copy() for i in face.vertices]
+        quat_inv = quat.inverted()
+        for v in coords:
+            v.rotate(quat_inv)
+        dist = mean([co[2] for co in coords])
+
+        # offset origin along normal by average distance
+        pos = Vector((0, 0, dist))
+        pos.rotate(quat)
+
+        return ob.matrix_world @ pos
+
+    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
+        return super().create_slvs_data(solvesys, coords=coords, group=Solver.group_fixed)
+
+    def update_from_slvs(self, solvesys):
+        pass
+
+slvs_entity_pointer(SlvsProjectedOrigin, "ref_nm")
 
 
 class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
@@ -1430,6 +1488,7 @@ entities = (
     SlvsLine3D,
     SlvsNormal3D,
     SlvsRefNormal3D,
+    SlvsProjectedOrigin,
     SlvsWorkplane,
     SlvsSketch,
     SlvsPoint2D,
@@ -1447,6 +1506,7 @@ entity_collections = (
     "lines3D",
     "normals3D",
     "refnormals3D",
+    "projectedorigins",
     "workplanes",
     "sketches",
     "points2D",
@@ -1627,6 +1687,15 @@ class SlvsEntities(PropertyGroup):
         nm.face_index = face_index
         self._set_index(nm)
         return nm
+
+    def add_projected_origin(self, ref_nm: SlvsRefNormal3D) -> SlvsProjectedOrigin:
+        """Add a projected origin point derived from a SlvsRefNormal3D.
+
+        """
+        p = self.projectedorigins.add()
+        p.ref_nm = ref_nm
+        self._set_index(p)
+        return p
 
     def add_workplane(self, p1: SlvsPoint3D, nm: SlvsGenericEntity) -> SlvsWorkplane:
         """Add a workplane.
