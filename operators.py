@@ -771,7 +771,7 @@ class StatefulOperator:
             return obj.data.polygons[index]
 
 
-    def set_state_pointer(self, values, index=None):
+    def set_state_pointer(self, values, index=None, implicit=False):
         # handles type specific setters
         if index is None:
             index = self.state_index
@@ -788,16 +788,21 @@ class StatefulOperator:
             return values[index]
 
         if pointer_type == bpy.types.Object:
-            data["object_name"] = get_value(0)
+            if implicit:
+                val = get_value(0)
+            else:
+                val = get_value(0).name
+            data["object_name"] = val
             return True
 
         elif pointer_type in mesh_element_types:
-            obj_name = get_value(0)
+            obj_name = get_value(0) if implicit else get_value(0).name
             if self._has_global_object():
                 self._state_data[self._get_global_object_index()]["object_name"] = obj_name
             else:
                 data["object_name"] = obj_name
-            data["mesh_index"] = get_value(1)
+
+            data["mesh_index"] = get_value(1) if implicit else get_value(1).index
             return True
 
 
@@ -1083,35 +1088,51 @@ class StatefulOperator:
             i -= 1
         return False
 
+    def parse_selection(self, context, selected, index=None):
+        # Look for a valid element in selection
+        # should go through objects, vertices, entities depending on state.types
+
+        result = None
+        if not index:
+            index = self.state_index
+        state = self.get_states_definition()[index]
+        data = self.get_state_data(index)
+
+        if state.pointer:
+            # TODO: Discard if too many entities are selected?
+            types = state.types
+            for i, e in enumerate(selected):
+                if type(e) in types:
+                    result = selected.pop(i)
+                    break
+
+        if result:
+            data["type"] = type(result)
+            self.set_state_pointer(to_list(result), index=index)
+            self.state_data["is_existing_entity"] = True
+            return True
+
+
     def prefill_state_props(self, context):
-        func = self.state.parse_selection
+        # Todo: make extensible
         selected = context.scene.sketcher.entities.selected_entities
+        states = self.get_states_definition()
 
         # Iterate states and try to prefill state props
         while True:
+            index = self.state_index
             result = None
             state = self.state
-
+            data = self.get_state_data(index)
             coords = None
 
             if not state.allow_prefill:
                 break
 
-            elif func:  # Allow overwritting
-                result = func(self, selected)
-
-            elif state.pointer:
-                # TODO: Discard if too many entities are selected?
-                types = state.types
-                for i, e in enumerate(selected):
-                    if type(e) in types:
-                        result = selected.pop(i)
-                        break
+            func = self.get_func(state, "parse_selection")
+            result = func(context, selected, index=index)
 
             if result:
-                setattr(self, state.pointer, result)
-                self.state_data["is_existing_entity"] = True
-
                 if not self.next_state(context):
                     return {"FINISHED"}
                 continue
@@ -1121,6 +1142,11 @@ class StatefulOperator:
     @property
     def state_data(self):
         return self._state_data.setdefault(self.state_index, {})
+
+    def get_state_data(self, index):
+        if not self._state_data.get(index):
+            self._state_data[index] = {}
+        return self._state_data[index]
 
     def get_func(self, state, name):
         # fallback to operator method if function isn't specified by state
@@ -1208,7 +1234,7 @@ class StatefulOperator:
 
                     ret_values = create(context, [getattr(self, p) for p in props], state, data)
                     values = to_list(ret_values)
-                    self.set_state_pointer(values, index=i)
+                    self.set_state_pointer(values, index=i, implicit=True)
 
     def execute(self, context):
         self.redo_states(context)
@@ -1367,7 +1393,7 @@ class StatefulOperator:
                 ok = True
 
             if pointer:
-                self.set_state_pointer(pointer)
+                self.set_state_pointer(pointer, implicit=True)
                 ok = True
 
         if undo:
@@ -1441,7 +1467,7 @@ class StatefulOperator:
         data["type"] = type(last_pointer)
 
         # set first pointer
-        self.set_state_pointer(values, index=0)
+        self.set_state_pointer(values, index=0, implicit=True)
         self.set_state(context, 1)
 
     def _end(self, context, succeede):
@@ -1717,8 +1743,8 @@ class GenericEntityOp(StatefulOperator):
             return bpy.context.scene.sketcher.entities.get(i)
 
 
-    def set_state_pointer(self, values, index=None):
-        retval = super().set_state_pointer(values, index=index)
+    def set_state_pointer(self, values, index=None, implicit=False):
+        retval = super().set_state_pointer(values, index=index, implicit=implicit)
         if retval:
             return retval
 
@@ -1733,8 +1759,14 @@ class GenericEntityOp(StatefulOperator):
 
         if issubclass(pointer_type, class_defines.SlvsGenericEntity):
             value = values[0] if values != None else None
-            index = value if value != None else -1
-            data["entity_index"] = index
+
+            if value == None:
+                i = -1
+            elif implicit:
+                i = value
+            else:
+                i = value.slvs_index
+            data["entity_index"] = i
             return True
 
 
