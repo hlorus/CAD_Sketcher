@@ -1944,12 +1944,6 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
 
     states = (
         state_from_args(
-            wp_state1_doc[0],
-            description=wp_state1_doc[1],
-            pointer="p1",
-            types=types_point_3d,
-        ),
-        state_from_args(
             wp_state2_doc[0],
             description=wp_state2_doc[1],
             state_func="get_orientation",
@@ -1998,10 +1992,14 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
         return nm.slvs_index
 
     def main(self, context):
-        p1 = self.get_point(context, 0)
-        nm = self.get_normal(context, 1)
+        sse = context.scene.sketcher.entities
+        # p1 = self.get_point(context, 1) #0
+        nm = self.get_normal(context, 0)
 
-        self.target = context.scene.sketcher.entities.add_workplane(p1, nm)
+        assert(type(nm) == class_defines.SlvsRefNormal3D)
+        p1 = sse.add_projected_origin(nm)
+
+        self.target = sse.add_workplane(p1, nm)
         ignore_hover(self.target)
         return True
 
