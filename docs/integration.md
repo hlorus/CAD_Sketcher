@@ -43,6 +43,10 @@ a procedural way, otherwise things might break when editing the sketch.
 Converters parse the geometry depending on shared start-/endpoints, connections created
 with coincident constraints or overlaps between entities aren't interpreted as a connection.
 
+### Precision
+Bezier curves cannot exactly represent a circle. Converted curves are only an approximation to an exact
+arc or circle. Converted meshes also suffer from that error since the mesh convert type is currently based on the bezier converter.
+
 ## Best Practices
 To avoid running into such limitations try to follow these practices:
 
