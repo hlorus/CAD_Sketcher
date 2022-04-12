@@ -94,9 +94,7 @@ class SlvsGenericEntity:
     def line_width(self):
         scale = preferences.get_scale()
         if self.construction:
-            print("line construction width:", 0.7 * scale)
             return 1 * scale
-        print("line width", 2 * scale)
         return 2 * scale
 
     @property
