@@ -12,7 +12,7 @@ from bpy.props import (
     StringProperty,
 )
 
-from . import functions
+from . import functions, preferences
 import gpu, bgl
 from gpu_extras.batch import batch_for_shader
 from . import global_data
@@ -82,16 +82,26 @@ class SlvsGenericEntity:
     def _id_shader(self):
         return gpu.types.GPUShader(vertex_shader, fragment_shader)
 
-    point_size = 6
-    point_size_select = 20
+    @property
+    def point_size(self):
+        return 6 * preferences.get_scale()
+
+    @property
+    def point_size_select(self):
+        return 20 * preferences.get_scale()
 
     @property
     def line_width(self):
+        scale = preferences.get_scale()
         if self.construction:
-            return 0.5
-        return 2
+            print("line construction width:", 0.7 * scale)
+            return 1 * scale
+        print("line width", 2 * scale)
+        return 2 * scale
 
-    line_width_select = 20
+    @property
+    def line_width_select(self):
+        return 20 * preferences.get_scale()
 
     def __str__(self):
         _, local_index = functions.breakdown_index(self.slvs_index)

@@ -1,5 +1,13 @@
 import bpy
-from bpy.props import PointerProperty, BoolProperty, StringProperty, EnumProperty
+from bpy.props import (
+    PointerProperty,
+    BoolProperty,
+    StringProperty,
+    EnumProperty,
+    IntProperty,
+    FloatProperty
+)
+
 from bpy.types import AddonPreferences
 
 import sys
@@ -62,6 +70,13 @@ def get_wheel():
         return match.as_posix()
     return ""
 
+def get_prefs():
+    return bpy.context.preferences.addons[__package__].preferences
+
+def get_scale():
+    return bpy.context.preferences.system.ui_scale * get_prefs().entity_scale
+
+
 class Preferences(AddonPreferences):
     bl_idname = __package__
     theme_settings: PointerProperty(type=theme.ThemeSettings)
@@ -96,6 +111,10 @@ class Preferences(AddonPreferences):
     )
     force_redraw: BoolProperty(name="Force Entitie Redraw", default=True)
 
+    entity_scale: FloatProperty(name="Entity Scale", default=1.0, min=0.1, soft_max=3.0, update=theme.update)
+    gizmo_scale: FloatProperty(name="Icon Scale", default=5.0, min=1.0, soft_max=10.0, update=theme.update)
+    text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
+
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
@@ -124,6 +143,12 @@ class Preferences(AddonPreferences):
 
         box = layout.box()
         box.label(text="General")
+        col = box.column(align=True)
+        col.prop(self, "entity_scale")
+        col.prop(self, "gizmo_scale")
+        col.prop(self, "text_size")
+
+
         box.prop(self, "show_debug_settings")
         box.prop(self, "logging_level")
 
@@ -161,7 +186,6 @@ class Preferences(AddonPreferences):
             def list_props_recursiv(base):
                 for prop in base.rna_type.properties:
                     prop_name = prop.identifier
-                    print("list prop", prop_name)
                     if prop_name in ("name", "rna_type"):
                         continue
 

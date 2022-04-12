@@ -1,5 +1,5 @@
 import bpy, bgl, gpu, blf
-from . import functions, operators, global_data, class_defines
+from . import functions, operators, global_data, class_defines, preferences
 
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector, Matrix
@@ -65,11 +65,8 @@ custom_shape_verts = (
 )
 
 GIZMO_OFFSET = Vector((10.0, 10.0))
-GIZMO_GENERIC_SCALE = 5
-GIZMO_ROW_OFFSET = Vector((GIZMO_GENERIC_SCALE * 2.2, 0.0))
+GIZMO_GENERIC_SIZE = 5
 GIZMO_ARROW_SCALE = 0.02
-GIZMO_TEXT_SIZE = 15
-
 
 class ConstraintGizmo:
     def _get_constraint(self, context):
@@ -184,10 +181,12 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         text = _get_formatted_value(context, constr)
         font_id = 0
 
-        theme = functions.get_prefs().theme_settings
+        prefs = functions.get_prefs()
+        theme = prefs.theme_settings
         color = theme.constraint.text_highlight if self.is_highlight else theme.constraint.text
         blf.color(font_id, *color)
-        blf.size(font_id, GIZMO_TEXT_SIZE, context.preferences.system.dpi)
+
+        blf.size(font_id, prefs.text_size, context.preferences.system.dpi)
 
         self.width, self.height = blf.dimensions(font_id, text)
         blf.position(font_id, pos[0]-self.width/2, pos[1], 0)
@@ -571,9 +570,14 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 pos = functions.get_2d_coords(context, e.placement())
 
                 gz.entity_index = e.slvs_index
-                gz.offset = GIZMO_ROW_OFFSET * i * context.preferences.system.ui_scale
 
-                gz.scale_basis = GIZMO_GENERIC_SCALE
+                ui_scale = context.preferences.system.ui_scale
+                scale = functions.get_prefs().gizmo_scale * ui_scale
+                offset_base = Vector((scale * 2.2, 0.0))
+                offset = offset_base * i * ui_scale
+
+                gz.offset = offset
+                gz.scale_basis = scale
 
                 set_gizmo_colors(gz, c.failed)
 
