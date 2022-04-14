@@ -574,7 +574,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
 
                 ui_scale = context.preferences.system.ui_scale
                 scale = functions.get_prefs().gizmo_scale * ui_scale
-                offset_base = Vector((scale * 2.2, 0.0))
+                offset_base = Vector((scale * 1.0, 0.0))
                 offset = offset_base * i * ui_scale
 
                 gz.offset = offset
