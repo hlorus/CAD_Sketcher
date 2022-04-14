@@ -20,32 +20,12 @@ from . import global_data
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 import math
 
+from .shaders import Shaders
 from .solver import solve_system, Solver
 from .functions import unique_attribute_setter
 from functools import cached_property
 
 logger = logging.getLogger(__name__)
-
-vertex_shader = """
-    uniform mat4 ModelViewProjectionMatrix;
-    in vec3 pos;
-
-    void main()
-    {
-      gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0);
-    }
-"""
-
-
-fragment_shader = """
-    uniform vec4 color;
-    out vec4 fragColor;
-
-    void main()
-    {
-      fragColor = color;
-    }
-"""
 
 
 class SlvsGenericEntity:
@@ -75,12 +55,13 @@ class SlvsGenericEntity:
     def is_dirty(self, value):
         self.dirty = value
 
-    @cached_property
+    @property
     def _shader(self):
-        return gpu.shader.from_builtin("3D_UNIFORM_COLOR")
-    @cached_property
+        return Shaders.uniform_color_3d()
+
+    @property
     def _id_shader(self):
-        return gpu.types.GPUShader(vertex_shader, fragment_shader)
+        return Shaders.id_shader_3d()
 
     @property
     def point_size(self):

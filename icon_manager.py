@@ -6,13 +6,9 @@ from functools import cache
 from pathlib import Path
 
 from . import functions
+from .shaders import Shaders
 
 icons = {}
-
-@cache
-def get_shader():
-    # Avoid access in background mode
-    return gpu.shader.from_builtin("2D_UNIFORM_COLOR")
 
 def coords_from_icon(data, range_x=255, range_y=255):
     length = len(data)
@@ -63,9 +59,9 @@ def read_icon(fp):
 
 
 def batch_from_coords(coords, indices):
-
+    shader = Shaders.uniform_color_2d()
     return batch_for_shader(
-        get_shader(), "TRIS", {"pos": coords}, indices=indices
+        shader, "TRIS", {"pos": coords}, indices=indices
     )
 
 
@@ -90,7 +86,7 @@ def draw(id, color):
 
     gpu.state.blend_set('ALPHA')
 
-    shader = get_shader()
+    shader = Shaders.uniform_color_2d()
     shader.bind()
     shader.uniform_float("color", color)
     batch.draw(shader)
