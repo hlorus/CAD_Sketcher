@@ -13,7 +13,7 @@ from bpy.types import AddonPreferences
 import sys
 from pathlib import Path
 
-from . import functions, global_data, theme, ui
+from . import functions, global_data, theme, ui, units
 
 
 log_levels = [
@@ -116,6 +116,10 @@ class Preferences(AddonPreferences):
         description="Number of digits after the comma",
         default=3, min=0, soft_max=7
     )
+    imperial_precision: units.imperial_precision_prop
+    angle_precision: IntProperty(
+        name='Angle Precision', min=0, max=5, default=0,
+        description="Angle decimal precision")
 
     entity_scale: FloatProperty(name="Entity Scale", default=1.0, min=0.1, soft_max=3.0, update=theme.update)
     gizmo_scale: FloatProperty(name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update)
@@ -158,6 +162,8 @@ class Preferences(AddonPreferences):
         box.label(text="Units")
         col = box.column(align=True)
         col.prop(self, "decimal_precision")
+        col.prop(self, "imperial_precision")
+        col.prop(self, "angle_precision")
 
         box = layout.box()
         box.label(text="Advanced")
