@@ -23,6 +23,7 @@ if "bpy" in locals():
         ui,
         install,
         theme,
+        icon_manager,
     )
     for m in my_modules:
         importlib.reload(m)
@@ -39,6 +40,7 @@ else:
         ui,
         install,
         theme,
+        icon_manager,
     )
 
 from tempfile import gettempdir
@@ -100,6 +102,7 @@ def register():
     preferences.register()
     install.register()
     update_logger()
+    icon_manager.load()
 
     logger.info(
         "Enabled Geometry Sketcher base, version: {}".format(bl_info["version"])

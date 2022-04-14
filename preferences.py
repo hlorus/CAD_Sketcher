@@ -112,7 +112,7 @@ class Preferences(AddonPreferences):
     force_redraw: BoolProperty(name="Force Entitie Redraw", default=True)
 
     entity_scale: FloatProperty(name="Entity Scale", default=1.0, min=0.1, soft_max=3.0, update=theme.update)
-    gizmo_scale: FloatProperty(name="Icon Scale", default=5.0, min=1.0, soft_max=10.0, update=theme.update)
+    gizmo_scale: FloatProperty(name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update)
     text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
 
     def draw(self, context):

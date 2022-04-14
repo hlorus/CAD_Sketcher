@@ -1,5 +1,5 @@
 import bpy, bgl, gpu, blf
-from . import functions, operators, global_data, class_defines, preferences
+from . import functions, operators, global_data, class_defines, preferences, icon_manager
 
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector, Matrix
@@ -55,15 +55,6 @@ def context_mode_check(context, widget_group):
     return True
 
 
-custom_shape_verts = (
-    (-1.0, -1.0),
-    (1.0, -1.0),
-    (-1.0, 1.0),
-    (-1.0, 1.0),
-    (1.0, 1.0),
-    (1.0, -1.0),
-)
-
 GIZMO_OFFSET = Vector((10.0, 10.0))
 GIZMO_GENERIC_SIZE = 5
 GIZMO_ARROW_SCALE = 0.02
@@ -78,7 +69,7 @@ class ConstraintGizmo:
         """Overwrite default color when gizmo is highlighted"""
 
         theme = functions.get_prefs().theme_settings
-        is_highlight = constraint == global_data.highlight_constraint
+        is_highlight = (constraint == global_data.highlight_constraint or self.is_highlight)
         failed = constraint.failed
 
         if is_highlight:
@@ -87,6 +78,7 @@ class ConstraintGizmo:
             col = theme.constraint.failed if failed else theme.constraint.default
 
         self.color = col[:3]
+        return col
 
 class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
     bl_idname = "VIEW3D_GT_slvs_constraint"
@@ -128,13 +120,18 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
 
     def draw(self, context):
         constraint = self._get_constraint(context)
-        self._set_colors(context, constraint)
+        col = self._set_colors(context, constraint)
         self._update_matrix_basis(context, constraint)
-        self.draw_custom_shape(self.custom_shape)
+
+        with gpu.matrix.push_pop():
+            gpu.matrix.load_matrix(self.matrix_basis)
+            ui_scale = context.preferences.system.ui_scale
+            scale = self.scale_basis * ui_scale
+            gpu.matrix.scale(Vector((scale, scale)))
+            icon_manager.draw(self.type, col)
 
     def setup(self):
-        if not hasattr(self, "custom_shape"):
-            self.custom_shape = self.new_custom_shape("TRIS", custom_shape_verts)
+        pass
 
 
 import math
