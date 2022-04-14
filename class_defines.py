@@ -173,23 +173,27 @@ class SlvsGenericEntity:
             return active_sketch.wp == self.sketch.wp
         return self.is_active(active_sketch)
 
+    def is_highlight(self):
+        return self.hover or self in global_data.highlight_entities
+
     def color(self, context):
         prefs = functions.get_prefs()
         ts = prefs.theme_settings
         active = self.is_active(context.scene.sketcher.active_sketch)
+        highlight = self.is_highlight()
 
         if not active:
-            if self.hover:
+            if highlight:
                 return ts.entity.highlight
             if self.selected:
                 return ts.entity.inactive_selected
             return ts.entity.inactive
 
         elif self.selected:
-            if self.hover:
+            if highlight:
                 return ts.entity.selected_highlight
             return ts.entity.selected
-        elif self.hover:
+        elif highlight:
             return ts.entity.highlight
 
         return ts.entity.default

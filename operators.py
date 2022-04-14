@@ -105,21 +105,36 @@ class HighlightElement:
     Settings:
     highlight_hover -> highlights the element as soon as the tooltip is shown
     highlight_active -> highlights the element when the operator is invoked
+    highlight_members -> highlights the element members e.g. the entities dependencies or
+                the entities the constraint acts on
     """
 
     highlight_hover: BoolProperty(name="Highlight Hover")
     highlight_active: BoolProperty(name="Highlight Hover")
+    highlight_members: BoolProperty(name="Highlight Members")
 
     @classmethod
     def _do_highlight(cls, context, properties):
         if not properties.is_property_set("index"):
             return cls.__doc__
 
+        type = properties.type
+        index = properties.index
+        members = properties.highlight_members
+
         if hasattr(properties, "type") and properties.is_property_set("type"):
-            c = context.scene.sketcher.constraints.get_from_type_index(properties.type, properties.index)
-            global_data.highlight_constraint = c
+            c = context.scene.sketcher.constraints.get_from_type_index(type, index)
+            if members:
+                global_data.highlight_entities.extend(c.entities())
+            else:
+                global_data.highlight_constraint = c
         else:
-            global_data.hover = properties.index
+            if members:
+                e = context.scene.sketcher.entities.get(index)
+                global_data.highlight_entities.extend(e.dependencies())
+            else:
+                # Set hover so this could be used as selection
+                global_data.hover = properties.index
 
         context.area.tag_redraw()
         return cls.__doc__
@@ -1061,7 +1076,7 @@ class StatefulOperator:
         if triggered and not ok:
             # Event was triggered on non-valid selection, cancel operator to avoid confusion
             return self._end(context, False)
-            
+
         if triggered or is_numeric:
             return {"RUNNING_MODAL"}
         return {"PASS_THROUGH"}

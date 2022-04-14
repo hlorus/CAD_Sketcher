@@ -20,6 +20,10 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             global_data.highlight_constraint = None
             context.area.tag_redraw()
 
+        if global_data.highlight_entities:
+            global_data.highlight_entities.clear()
+            context.area.tag_redraw()
+
         # ensure selection texture is up to date
         operators.ensure_selection_texture(context)
 
@@ -588,6 +592,9 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 props = gz.target_set_operator(op)
                 props.type = c.type
                 props.index = gz.index
+
+                props.highlight_hover = True
+                props.highlight_members = True
 
         # Add value gizmos for dimensional constraints
         for c in iter_dimenional_constraints(context):

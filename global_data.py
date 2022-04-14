@@ -21,6 +21,8 @@ selected = []
 # Value gets unset in the preselection gizmo
 highlight_constraint = None
 
+highlight_entities = []
+
 Z_AXIS = Vector((0, 0, 1))
 
 draw_handle = None
