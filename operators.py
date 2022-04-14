@@ -118,11 +118,11 @@ class HighlightElement:
         if not properties.is_property_set("index"):
             return cls.__doc__
 
-        type = properties.type
         index = properties.index
         members = properties.highlight_members
 
         if hasattr(properties, "type") and properties.is_property_set("type"):
+            type = properties.type
             c = context.scene.sketcher.constraints.get_from_type_index(type, index)
             if members:
                 global_data.highlight_entities.extend(c.entities())
