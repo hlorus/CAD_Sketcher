@@ -1813,13 +1813,22 @@ def get_side_of_line(line_start, line_end, point):
     )
 
 
+def get_distance_value(self):
+    return self.get('value', self.rna_type.properties['value'].default)
+
+def set_distance_value(self, value):
+    self['value'] = abs(value)
 class SlvsDistance(GenericConstraint, PropertyGroup):
     """Sets the distance between a point and some other entity (point/line/Workplane).
     """
 
     label = "Distance"
     value: FloatProperty(
-        name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
+        name=label, subtype="DISTANCE",
+        unit="LENGTH",
+        update=update_system_cb,
+        get=get_distance_value,
+        set=set_distance_value,
     )
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     type = "DISTANCE"
