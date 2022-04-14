@@ -1268,9 +1268,14 @@ class StatefulOperator:
 
         size = max(1, self._substate_count)
 
+        def to_iterable(item):
+            if hasattr(item, "__iter__") or hasattr(item, "__getitem__"):
+                return list(item)
+            return [item, ]
+
         # TODO: Don't evaluate if not needed
         position_cb = self.get_func(state, "state_func")
-        interactive_val = to_list(position_cb(context, coords))
+        interactive_val = to_iterable(position_cb(context, coords))
 
         storage = [None] * size
         result = [None] * size
@@ -1281,8 +1286,6 @@ class StatefulOperator:
             input = self._numeric_input.get(sub_index)
             if input:
                 num = parse_input(prop, input)
-
-            if num:
                 result[sub_index] = num
                 storage[sub_index] = num
             else:
@@ -1369,7 +1372,8 @@ class StatefulOperator:
         props = self.get_property()
         if not is_picked and props:
             if is_numeric:
-                values = to_list(self.get_numeric_value(context, coords))
+                # numeric edit is supported for one property only
+                values = [self.get_numeric_value(context, coords), ]
             elif not is_picked:
                 position_cb = self.get_func(state, "state_func")
                 values = to_list(position_cb(context, coords)) if position_cb else None
