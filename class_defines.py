@@ -57,6 +57,8 @@ class SlvsGenericEntity:
 
     @property
     def _shader(self):
+        if self.is_dashed():
+            return Shaders.dashed_uniform_color_3d()
         return Shaders.uniform_color_3d()
 
     @property
@@ -75,7 +77,7 @@ class SlvsGenericEntity:
     def line_width(self):
         scale = preferences.get_scale()
         if self.construction:
-            return 1 * scale
+            return 1.5 * scale
         return 2 * scale
 
     @property
@@ -193,6 +195,9 @@ class SlvsGenericEntity:
             return self.sketch.is_visible(context) and self.visible
         return self.visible
 
+    def is_dashed(self):
+        return False
+
     def draw(self, context):
         if not self.is_visible(context):
             return
@@ -204,6 +209,9 @@ class SlvsGenericEntity:
 
         bgl.glPointSize(self.point_size)
         bgl.glLineWidth(self.line_width)
+
+        if self.is_dashed():
+            shader.uniform_float("u_Scale", 20)
 
         col = self.color(context)
         shader.uniform_float("color", col)
@@ -361,14 +369,26 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
     def dependencies(self):
         return [self.p1, self.p2]
 
+    def is_dashed(self):
+        return self.construction
+
     def update(self):
         if bpy.app.background:
             return
 
-        p1, p2 = self.p1, self.p2
+        p1, p2 = self.p1.location, self.p2.location
+        coords = (p1, p2)
+
+        kwargs = {"pos": coords}
+
+        if self.is_dashed():
+            arc_lengths = (0.0, (p2 - p1).length)
+            kwargs["arcLength"] = arc_lengths
+
         self._batch = batch_for_shader(
-            self._shader, "LINES", {"pos": (p1.location, p2.location)}
+            self._shader, "LINES", kwargs
         )
+
         self.is_dirty = False
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
@@ -720,13 +740,22 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     def dependencies(self):
         return [self.p1, self.p2, self.sketch]
 
+    def is_dashed(self):
+        return self.construction
+
     def update(self):
         if bpy.app.background:
             return
 
-        p1, p2 = self.p1, self.p2
-        coords = (p1.location, p2.location)
-        self._batch = batch_for_shader(self._shader, "LINES", {"pos": coords})
+        p1, p2 = self.p1.location, self.p2.location
+        coords = (p1, p2)
+
+        kwargs = {"pos": coords}
+        if self.is_dashed():
+            arc_lengths = (0.0, (p2 - p1).length)
+            kwargs["arcLength"] = arc_lengths
+
+        self._batch = batch_for_shader(self._shader, "LINES", kwargs)
         self.is_dirty = False
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
@@ -894,6 +923,9 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
     def dependencies(self):
         return [self.nm, self.ct, self.start, self.end, self.sketch]
 
+    def is_dashed(self):
+        return self.construction
+
     def update(self):
         if bpy.app.background:
             return
@@ -920,7 +952,18 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
             mat = self.wp.matrix_basis @ mat_local
             coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
-        self._batch = batch_for_shader(self._shader, "LINE_STRIP", {"pos": coords})
+        kwargs = {"pos": coords}
+
+        if self.is_dashed():
+            r = self.radius
+            a = self.angle
+            length = r * angle
+            v_count = len(coords)
+            step = length / v_count
+            arc_lengths = [i * step for i in range(v_count)]
+            kwargs["arcLength"] = arc_lengths
+
+        self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
         self.is_dirty = False
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
@@ -939,6 +982,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
 
     @property
     def angle(self):
+        """Returns an angle in radians from zero to 2*PI"""
         ct = self.ct.co
         start, end = self.start.co - ct, self.end.co - ct
         return functions.range_2pi(
@@ -1048,6 +1092,9 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
     def dependencies(self):
         return [self.nm, self.ct, self.sketch]
 
+    def is_dashed(self):
+        return self.construction
+
     def update(self):
         if bpy.app.background:
             return
@@ -1060,7 +1107,15 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         mat = self.wp.matrix_basis @ mat_local
         coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
-        self._batch = batch_for_shader(self._shader, "LINE_STRIP", {"pos": coords})
+        kwargs = {"pos": coords}
+        if self.is_dashed():
+            U = math.pi * self.radius * 2
+            v_count = len(coords)
+            step = U / v_count
+            arc_lengths = [i * step for i in range(v_count)]
+            kwargs["arcLength"] = arc_lengths
+
+        self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
         self.is_dirty = False
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
