@@ -145,7 +145,10 @@ from mathutils.geometry import intersect_line_plane
 def _get_formatted_value(context, constr):
     units = context.scene.unit_settings
     unit = constr.rna_type.properties["value"].unit
-    return bpy.utils.units.to_string(units.system, unit, constr.value)
+    precision = functions.get_prefs().decimal_precision
+    return bpy.utils.units.to_string(
+        units.system, unit, constr.value, precision=precision
+    )
 
 
 class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):

@@ -111,6 +111,12 @@ class Preferences(AddonPreferences):
     )
     force_redraw: BoolProperty(name="Force Entitie Redraw", default=True)
 
+    decimal_precision: IntProperty(
+        name="Decimal Precision",
+        description="Number of digits after the comma",
+        default=3, min=0, soft_max=7
+    )
+
     entity_scale: FloatProperty(name="Entity Scale", default=1.0, min=0.1, soft_max=3.0, update=theme.update)
     gizmo_scale: FloatProperty(name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update)
     text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
@@ -148,9 +154,16 @@ class Preferences(AddonPreferences):
         col.prop(self, "gizmo_scale")
         col.prop(self, "text_size")
 
+        box = layout.box()
+        box.label(text="Units")
+        col = box.column(align=True)
+        col.prop(self, "decimal_precision")
 
-        box.prop(self, "show_debug_settings")
-        box.prop(self, "logging_level")
+        box = layout.box()
+        box.label(text="Advanced")
+        col = box.column(align=True)
+        col.prop(self, "show_debug_settings")
+        col.prop(self, "logging_level")
 
         box = layout.box()
         row = box.row()
