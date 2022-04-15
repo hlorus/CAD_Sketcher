@@ -75,7 +75,7 @@ def _format_imperial_length(value, precision, unit_length='INCH') -> str:
         split_unit=False, compatible_unit=False)
 
 
-def format_distance(distance: float, hide_units=False, use_unit_scale=False) -> str:
+def format_distance(distance: float, hide_units=False, use_unit_scale=True) -> str:
     """
     Format a distance (length) for display
     :param area: distance in BU / meters
