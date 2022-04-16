@@ -959,6 +959,13 @@ class StatefulOperator:
             return result[0]
         return result
 
+    def _handle_pass_through(self, context, event):
+        # Only pass through navigation events
+        if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
+            return {"PASS_THROUGH"}
+
+        return {"RUNNING_MODAL"}
+
     def modal(self, context, event):
         state = self.state
         event_triggered = self.check_event(event)
@@ -995,9 +1002,9 @@ class StatefulOperator:
                 event_triggered = False
                 pass
             elif not state.interactive:
-                return {"PASS_THROUGH"}
+                return self._handle_pass_through(context, event)
             elif not is_mousemove:
-                return {"PASS_THROUGH"}
+                return self._handle_pass_through(context, event)
 
         # TODO: Disable numeric input when no state.property
         if is_numeric_event:
@@ -1079,7 +1086,7 @@ class StatefulOperator:
 
         if triggered or is_numeric:
             return {"RUNNING_MODAL"}
-        return {"PASS_THROUGH"}
+        return self._handle_pass_through(context, event)
 
     def check_continuose_draw(self):
         if self.continuose_draw:
