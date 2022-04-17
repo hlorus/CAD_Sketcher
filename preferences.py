@@ -8,12 +8,12 @@ from bpy.props import (
     FloatProperty
 )
 
-from bpy.types import AddonPreferences
+from bpy.types import AddonPreferences, Panel, Menu
 
 import sys
 from pathlib import Path
 
-from . import functions, global_data, theme, ui, units
+from . import functions, global_data, theme, units
 
 
 log_levels = [
@@ -69,6 +69,25 @@ def get_wheel():
         logger.info("Local installation file available: " + str(match))
         return match.as_posix()
     return ""
+
+
+### Presets
+from bl_ui.utils import PresetPanel
+
+
+class SKETCHER_PT_theme_presets(PresetPanel, Panel):
+    bl_label = "Theme Presets"
+    preset_subdir = "bgs/theme"
+    preset_operator = "script.execute_preset"
+    preset_add_operator = "bgs.theme_preset_add"
+
+class SKETCHER_MT_theme_presets(Menu):
+    bl_label = "Theme Presets"
+    preset_subdir = "bgs/theme"
+    preset_operator = "script.execute_preset"
+    draw = Menu.draw_preset
+
+
 
 def get_prefs():
     return bpy.context.preferences.addons[__package__].preferences
@@ -217,6 +236,10 @@ class Preferences(AddonPreferences):
 
             list_props_recursiv(self.theme_settings)
 
+classes =     (
+    SKETCHER_MT_theme_presets,
+    SKETCHER_PT_theme_presets,
+)
 
 def register():
     from bpy.utils import register_class
