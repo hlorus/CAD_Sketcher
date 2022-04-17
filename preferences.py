@@ -95,6 +95,9 @@ def get_prefs():
 def get_scale():
     return bpy.context.preferences.system.ui_scale * get_prefs().entity_scale
 
+def is_experimental():
+    return get_prefs().show_debug_settings
+
 
 class Preferences(AddonPreferences):
     bl_idname = __package__
