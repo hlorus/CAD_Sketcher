@@ -817,6 +817,12 @@ class StatefulOperator:
             "face": (bpy.types.MeshPolygon in state.types),
         }
 
+        do_object = bpy.types.Object in state.types
+        do_mesh_elem = any(types.values())
+
+        if not do_object and not do_mesh_elem:
+            return
+
         global_ob = None
         if self._has_global_object():
             global_ob_name = self._state_data[self._get_global_object_index()].get("object_name")
