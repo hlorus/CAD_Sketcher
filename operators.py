@@ -961,9 +961,8 @@ class StatefulOperator:
 
     def _handle_pass_through(self, context, event):
         # Only pass through navigation events
-        if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE'}:
+        if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE', "MOUSEMOVE"}:
             return {"PASS_THROUGH"}
-
         return {"RUNNING_MODAL"}
 
     def modal(self, context, event):
