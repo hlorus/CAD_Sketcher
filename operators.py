@@ -1912,8 +1912,10 @@ class View3D_OT_slvs_add_point3d(Operator, Operator3d):
             logger.debug("Add: {}".format(self.target))
 
 
-types_point_3d = (*class_defines.point_3d, bpy.types.MeshVertex)
-
+types_point_3d = (
+    *class_defines.point_3d,
+    *((bpy.types.MeshVertex,) if False else ()),
+)
 
 l3d_state1_doc = ("Startpoint", "Pick or place line's starting point.")
 l3d_state2_doc = ("Endpoint", "Pick or place line's ending point.")
@@ -1997,7 +1999,7 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
     )
 
     __doc__ = stateful_op_desc(
-        "Add a workplane",
+        "Add a statically placed workplane, orientation and location is copied from selected mesh face",
         state_desc(*wp_state1_doc, types_point_3d),
         state_desc(*wp_state2_doc, None),
     )
@@ -2165,7 +2167,11 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
             if self.has_coincident:
                 solve_system(context, sketch=self.sketch)
 
-types_point_2d = (*class_defines.point_2d, bpy.types.MeshVertex)
+types_point_2d = (
+    *class_defines.point_2d,
+    *((bpy.types.MeshVertex,) if False else ()),
+)
+
 
 l2d_state1_doc = ("Startpoint", "Pick or place line's starting Point.")
 l2d_state2_doc = ("Endpoint", "Pick or place line's ending Point.")
