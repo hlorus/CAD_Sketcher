@@ -13,6 +13,7 @@ if "bpy" in locals():
     import importlib
 
     my_modules = (
+        theme,
         preferences,
         functions,
         global_data,
@@ -22,7 +23,6 @@ if "bpy" in locals():
         class_defines,
         ui,
         install,
-        theme,
         icon_manager,
     )
     for m in my_modules:

@@ -141,6 +141,6 @@ def register():
 
 
 def unregister():
-    bpy.utils.unregister_class(ThemeSettingsEntity)
-    bpy.utils.unregister_class(ThemeSettingsConstraint)
     bpy.utils.unregister_class(ThemeSettings)
+    bpy.utils.unregister_class(ThemeSettingsConstraint)
+    bpy.utils.unregister_class(ThemeSettingsEntity)
