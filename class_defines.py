@@ -1884,13 +1884,15 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             return Matrix()
 
         sketch = self.sketch
-        x_axis = Vector((1, 0, 0))
+        x_axis = Vector((1, 0))
 
         if isinstance(self.entity2, SlvsPoint2D):
             p1, p2 = self.entity1.co, self.entity2.co
             v_rotation = p2 - p1
             v_translation = (p2 + p1) / 2
-            mat_rot = x_axis.rotation_difference(v_rotation.to_3d()).to_matrix()
+
+            angle = v_rotation.angle_signed(x_axis)
+            mat_rot = Matrix.Rotation(angle, 2, "Z")
 
         elif isinstance(self.entity2, SlvsLine2D):
             line = self.entity2
