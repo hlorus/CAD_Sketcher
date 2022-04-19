@@ -1985,8 +1985,13 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
     bl_label = "Add Solvespace Workplane"
     bl_options = {"REGISTER", "UNDO"}
 
-
     states = (
+        state_from_args(
+            wp_state1_doc[0],
+            description=wp_state1_doc[1],
+            pointer="p1",
+            types=types_point_3d,
+        ),
         state_from_args(
             wp_state2_doc[0],
             description=wp_state2_doc[1],
@@ -1998,8 +2003,9 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
         ),
     )
 
+
     __doc__ = stateful_op_desc(
-        "Add a statically placed workplane, orientation and location is copied from selected mesh face",
+        "Add a workplane",
         state_desc(*wp_state1_doc, types_point_3d),
         state_desc(*wp_state2_doc, None),
     )
@@ -2037,12 +2043,8 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
 
     def main(self, context):
         sse = context.scene.sketcher.entities
-        # p1 = self.get_point(context, 1) #0
-        nm = self.get_normal(context, 0)
-
-        assert(type(nm) == class_defines.SlvsRefNormal3D)
-        p1 = sse.add_projected_origin(nm)
-
+        p1 = self.get_point(context, 0)
+        nm = self.get_normal(context, 1)
         self.target = sse.add_workplane(p1, nm)
         ignore_hover(self.target)
         return True
@@ -2054,6 +2056,55 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
         if succeede:
             if self.has_coincident:
                 solve_system(context)
+
+
+wp_face_state1_doc = ("Face", "Pick a mesh face to use as workplanes's transformation.")
+
+
+class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
+    bl_idname = "view3d.slvs_add_workplane_face"
+    bl_label = "Add Solvespace Workplane"
+    bl_options = {"REGISTER", "UNDO"}
+
+
+    states = (
+        state_from_args(
+            wp_face_state1_doc[0],
+            description=wp_face_state1_doc[1],
+            state_func="get_orientation",
+            pointer="face",
+            types=(bpy.types.MeshPolygon, ),
+            interactive=True,
+            create_element="create_normal3d",
+        ),
+    )
+
+    __doc__ = stateful_op_desc(
+        "Add a statically placed workplane, orientation and location is copied from selected mesh face",
+        state_desc(*wp_face_state1_doc, types_point_3d),
+    )
+
+    def main(self, context):
+        sse = context.scene.sketcher.entities
+
+        ob_name, face_index = self.get_state_pointer(index=0, implicit=True)
+        ob = context.scene.objects[ob_name]
+        mesh = ob.data
+        face = mesh.polygons[face_index]
+
+        if False: # Disable for now
+            nm = sse.add_ref_normal_3d(ob, face_index)
+            origin = sse.add_projected_origin(nm)
+        else:
+            quat = class_defines.get_face_orientation(mesh, face)
+            pos = class_defines.get_face_midpoint(quat, ob, face)
+            origin = sse.add_point_3d(pos)
+            nm = sse.add_normal_3d(quat)
+
+        self.target = sse.add_workplane(origin, nm)
+        ignore_hover(self.target)
+        return True
+
 
 
 from . import gizmos
@@ -3350,6 +3401,7 @@ classes = (
     VIEW3D_OT_slvs_write_selection_texture,
     View3D_OT_slvs_add_line3d,
     View3D_OT_slvs_add_workplane,
+    View3D_OT_slvs_add_workplane_face,
     View3D_OT_slvs_add_sketch,
     View3D_OT_slvs_add_point2d,
     View3D_OT_slvs_add_line2d,

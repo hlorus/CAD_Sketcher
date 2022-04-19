@@ -514,6 +514,10 @@ class SlvsNormal3D(Normal3D, PropertyGroup):
     )
     pass
 
+def get_face_orientation(mesh, face):
+    # returns quaternion describing the face orientation in objectspace
+    normal = mathutils.geometry.normal([mesh.vertices[i].co for i in face.vertices])
+    return normal.to_track_quat("Z", "X")
 
 class SlvsRefNormal3D(Normal3D, PropertyGroup):
     """Represents the normal of mesh face.
@@ -540,8 +544,7 @@ class SlvsRefNormal3D(Normal3D, PropertyGroup):
         ob = self.object
         data = ob.data
         face = data.polygons[self.face_index]
-        normal = mathutils.geometry.normal([data.vertices[i].co for i in face.vertices])
-        return normal.to_track_quat("Z", "X")
+        return get_face_orientation(data, face)
 
     @property
     def orientation(self):
@@ -559,6 +562,20 @@ from mathutils import Vector, Matrix
 def mean(lst):
     n = len(lst)
     return sum(lst) / n
+
+def get_face_midpoint(quat, ob, face):
+    # get average distance from origin to face vertices
+    mesh = ob.data
+    coords = [mesh.vertices[i].co.copy() for i in face.vertices]
+    quat_inv = quat.inverted()
+    for v in coords:
+        v.rotate(quat_inv)
+    dist = mean([co[2] for co in coords])
+
+    # offset origin along normal by average distance
+    pos = Vector((0, 0, dist))
+    pos.rotate(quat)
+    return ob.matrix_world @ pos
 
 class SlvsProjectedOrigin(Point3D, PropertyGroup):
     """Projects an object origin onto one of it's faces along a normal.
@@ -585,19 +602,7 @@ class SlvsProjectedOrigin(Point3D, PropertyGroup):
         mesh = ob.data
         quat = nm.get_face_orientation()
         face = mesh.polygons[nm.face_index]
-
-        # get average distance from origin to face vertices
-        coords = [mesh.vertices[i].co.copy() for i in face.vertices]
-        quat_inv = quat.inverted()
-        for v in coords:
-            v.rotate(quat_inv)
-        dist = mean([co[2] for co in coords])
-
-        # offset origin along normal by average distance
-        pos = Vector((0, 0, dist))
-        pos.rotate(quat)
-
-        return ob.matrix_world @ pos
+        return get_face_midpoint(quat, ob, face)
 
     def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
         return super().create_slvs_data(solvesys, coords=coords, group=Solver.group_fixed)
