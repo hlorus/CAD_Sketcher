@@ -948,6 +948,8 @@ class StatefulOperator:
             return False
 
         prop_name = props[0]
+        if not prop_name:
+            return False
 
         prop = self.properties.rna_type.properties[prop_name]
         if not prop.type in ("INT", "FLOAT"):
