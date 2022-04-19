@@ -1378,7 +1378,8 @@ class StatefulOperator:
         undo = False
         values = []
         props = self.get_property()
-        if not is_picked and props:
+        use_create = state.use_create
+        if use_create and not is_picked and props:
             if is_numeric:
                 # numeric edit is supported for one property only
                 values = [self.get_numeric_value(context, coords), ]
@@ -1589,6 +1590,7 @@ OperatorState = namedtuple(
         "types",  # Types the pointer property can accept
         "no_event",  # Trigger state without an event
         "interactive",  # Always evaluate state and confirm by user input
+        "use_create", # Enables or Disables creation of the element
         "state_func",  # Function to get the state property value from mouse coordinates
         "allow_prefill",  # Define if state should be filled from selected entities when invoked
         "parse_selection",  # Prefill Function which chooses entity to use for this stat
@@ -1614,6 +1616,7 @@ def state_from_args(name, **kwargs):
         "types": (),
         "no_event": False,
         "interactive": False,
+        "use_create" : True,
         "state_func": None,
         "allow_prefill": True,
         "parse_selection": None,
@@ -2073,11 +2076,10 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         state_from_args(
             wp_face_state1_doc[0],
             description=wp_face_state1_doc[1],
-            state_func="get_orientation",
+            use_create=False,
             pointer="face",
             types=(bpy.types.MeshPolygon, ),
             interactive=True,
-            create_element="create_normal3d",
         ),
     )
 
