@@ -244,12 +244,15 @@ class Preferences(AddonPreferences):
 classes =     (
     SKETCHER_MT_theme_presets,
     SKETCHER_PT_theme_presets,
+    Preferences,
 )
 
 def register():
     from bpy.utils import register_class
-    register_class(Preferences)
+    for cls in classes:
+        register_class(cls)
 
 def unregister():
     from bpy.utils import unregister_class
-    unregister_class(Preferences)
+    for cls in reversed(classes):
+        unregister_class(cls)
