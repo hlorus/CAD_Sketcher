@@ -577,6 +577,9 @@ numeric_events = (
     "NUMPAD_MINUS",
 )
 
+def get_evaluated_obj(context, object):
+    return object.evaluated_get(context.evaluated_depsgraph_get())
+
 def get_mesh_element(context, coords, vertex=False, edge=False, face=False, threshold=0.5, object=None):
     from bpy_extras import view3d_utils
 
@@ -596,14 +599,16 @@ def get_mesh_element(context, coords, vertex=False, edge=False, face=False, thre
         result = loc != None
         ob = object
 
+    obj_eval = get_evaluated_obj(context, ob)
+
     if not result:
         return None, None, None
 
     closest_type = ""
     closest_dist = None
 
-    loc = ob.matrix_world.inverted() @ loc
-    me = ob.data
+    loc = obj_eval.matrix_world.inverted() @ loc
+    me = obj_eval.data
     polygon = me.polygons[face_index]
 
     def get_closest(deltas):
@@ -745,7 +750,7 @@ class StatefulOperator:
                 obj_name = self._state_data[global_ob_index]["object_name"]
             else:
                 obj_name = data["object_name"]
-            obj = bpy.data.objects[obj_name]
+            obj = get_evaluated_obj(bpy.context, bpy.data.objects[obj_name])
 
         if pointer_type in mesh_element_types:
             index = data["mesh_index"]
@@ -2092,7 +2097,7 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         sse = context.scene.sketcher.entities
 
         ob_name, face_index = self.get_state_pointer(index=0, implicit=True)
-        ob = context.scene.objects[ob_name]
+        ob = get_evaluated_obj(context, bpy.data.objects[ob_name])
         mesh = ob.data
         face = mesh.polygons[face_index]
 
