@@ -12,6 +12,7 @@ from bpy.types import AddonPreferences, Panel, Menu
 
 import sys
 from pathlib import Path
+import logging
 
 from . import functions, global_data, theme, units
 
@@ -25,6 +26,7 @@ log_levels = [
     ("NOTSET", "Notset", "", 5),
 ]
 
+logger = logging.getLogger(__name__)
 
 def get_log_level(self):
     prop = self.bl_rna.properties["logging_level"]
@@ -210,7 +212,7 @@ class Preferences(AddonPreferences):
         subrow = row.row()
         subrow.alignment = "RIGHT"
         if global_data.registered:
-            ui.SKETCHER_PT_theme_presets.draw_panel_header(subrow)
+            SKETCHER_PT_theme_presets.draw_panel_header(subrow)
 
         if self.show_theme_settings:
             row = box.row()
