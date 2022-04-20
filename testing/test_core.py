@@ -1,6 +1,6 @@
 from unittest import skip
-from geometry_sketcher.testing.utils import BgsTestCase
-from geometry_sketcher import class_defines
+from CAD_Sketcher.testing.utils import BgsTestCase
+from CAD_Sketcher import class_defines
 
 from sys import float_info
 
@@ -41,6 +41,3 @@ class TestEntities(BgsTestCase):
 
         del bpy.types.Scene.test_group
         unregister_class(PointerTest)
-
-
-

@@ -1,5 +1,5 @@
 import bpy
-prefs = bpy.context.preferences.addons["geometry_sketcher"].preferences
+prefs = bpy.context.preferences.addons["CAD_Sketcher"].preferences
 theme = prefs.theme_settings
 entity = theme.entity
 constraint = theme.constraint

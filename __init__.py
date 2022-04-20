@@ -1,10 +1,10 @@
 bl_info = {
-    "name": "Geometry Sketcher",
+    "name": "CAD Sketcher",
     "author": "hlorus",
     "version": (0, 20, 0),
     "blender": (2, 80, 0),
     "location": "View3D > Toolbar",
-    "description": "Dynamic constraint-based geometry sketcher",
+    "description": "Parametric, constraint-based geometry sketcher",
     "warning": "Experimental",
     "category": "3D View",
 }

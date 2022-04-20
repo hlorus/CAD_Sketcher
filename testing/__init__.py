@@ -7,8 +7,8 @@ logger = logging.getLogger(__name__)
 
 
 def run(interactive, log_level=None):
-    from geometry_sketcher.testing import test_solver
-    from geometry_sketcher.testing.utils import BgsTestCase
+    from CAD_Sketcher.testing import test_solver
+    from CAD_Sketcher.testing.utils import BgsTestCase
     BgsTestCase.interactive = True
     if log_level:
         BgsTestCase.log_level = log_level

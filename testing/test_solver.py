@@ -1,5 +1,5 @@
 from unittest import skip
-from geometry_sketcher.testing.utils import BgsTestCase, Sketch2dTestCase
+from CAD_Sketcher.testing.utils import BgsTestCase, Sketch2dTestCase
 
 
 class TestSolver(BgsTestCase):
