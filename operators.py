@@ -599,10 +599,10 @@ def get_mesh_element(context, coords, vertex=False, edge=False, face=False, thre
         result = loc != None
         ob = object
 
-    obj_eval = get_evaluated_obj(context, ob)
-
     if not result:
         return None, None, None
+
+    obj_eval = get_evaluated_obj(context, ob)
 
     closest_type = ""
     closest_dist = None
