@@ -2,6 +2,10 @@
 [![CAD Sketcher](/logos/wide_light.png)](https://hlorus.github.io/CAD_Sketcher/#gh-dark-mode-only)
 
 #
+<a href="https://discord.gg/GzpJsShgxa"><img alt="Discord" src="https://img.shields.io/discord/882152824249667594"></a>
+![GitHub issues by-label](<https://img.shields.io/github/issues/hlorus/CAD_Sketcher/feauture request>)
+![GitHub issues by-label](https://img.shields.io/github/issues/hlorus/CAD_Sketcher/bug)
+
 Constraint-based sketcher addon for [Blender](https://www.blender.org/) that allows to create precise 2d shapes by defining a set of geometric constraints like tangent, distance, angle, equal and more. Sketches stay editable and support a fully non-destructive workflow.
 
 > :warning: **Experimental addon:** This is still work in progress, don't use it on production files without a backup.
