@@ -2909,6 +2909,12 @@ class GenericConstraintOp(GenericEntityOp):
         entities = self.fill_entities()
         c.sketch = self.sketch
 
+        if self.type == "COINCIDENT":
+            # TODO: Implicitly merge points
+            if all([type(e) in class_defines.point for e in entities]):
+                context.scene.sketcher.constraints.remove(c)
+                return False
+
         self.initialize_constraint()
 
         if hasattr(c, "value"):

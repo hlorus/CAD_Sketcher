@@ -2680,6 +2680,11 @@ class SlvsConstraints(PropertyGroup):
         Returns:
             SlvsCoincident: The created constraint.
         """
+
+        if all([type(e) in point for e in (entity1, entity2)]):
+            # TODO: Implicitly merge points
+            return
+
         c = self.coincident.add()
         c.entity1 = entity1
         c.entity2 = entity2
