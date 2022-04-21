@@ -35,6 +35,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         if not offscreen:
             return -1
         with offscreen.bind():
+            bgl.glPixelStorei(bgl.GL_UNPACK_ALIGNMENT, 1)
             bgl.glReadPixels(mouse_x, mouse_y, 1, 1, bgl.GL_RGBA, bgl.GL_FLOAT, buffer)
         if buffer.to_list()[3] > 0:
             index = functions.rgb_to_index(*buffer.to_list()[:-1])
