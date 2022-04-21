@@ -19,6 +19,11 @@ def tool_invoke_kmi(button, tool, operator):
 
 tool_access = (
     tool_invoke_kmi(
+        "P",
+        "sketcher.slvs_add_point2d",
+        operators.View3D_OT_slvs_add_point2d.bl_idname,
+    ),
+    tool_invoke_kmi(
         "L", "sketcher.slvs_add_line2d", operators.View3D_OT_slvs_add_line2d.bl_idname
     ),
     tool_invoke_kmi(
@@ -28,6 +33,11 @@ tool_access = (
     ),
     tool_invoke_kmi(
         "A", "sketcher.slvs_add_arc2d", operators.View3D_OT_slvs_add_arc2d.bl_idname
+    ),
+    tool_invoke_kmi(
+        "R",
+        "sketcher.slvs_add_rectangle",
+        operators.View3D_OT_slvs_add_rectangle.bl_idname,
     ),
     (
         operators.View3D_OT_slvs_add_sketch.bl_idname,
