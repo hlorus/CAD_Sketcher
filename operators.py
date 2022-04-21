@@ -39,6 +39,8 @@ def draw_selection_buffer(context):
                 continue
             if not hasattr(e, "draw_id"):
                 continue
+            if not e.is_selectable(context):
+                continue
             e.draw_id(context)
 
 
