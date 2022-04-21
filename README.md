@@ -1,4 +1,7 @@
-# CAD Sketcher
+[![CAD Sketcher](/logos/wide_dark.png)](https://hlorus.github.io/CAD_Sketcher/#gh-light-mode-only)
+[![CAD Sketcher](/logos/wide_light.png)](https://hlorus.github.io/CAD_Sketcher/#gh-dark-mode-only)
+
+#
 Constraint-based sketcher addon for [Blender](https://www.blender.org/) that allows to create precise 2d shapes by defining a set of geometric constraints like tangent, distance, angle, equal and more. Sketches stay editable and support a fully non-destructive workflow.
 
 > :warning: **Experimental addon:** This is still work in progress, don't use it on production files without a backup.
@@ -7,11 +10,11 @@ Minimum version: Blender 2.92
 
 ## Links:
 
- - [Documentation](https://hlorus.github.io/CAD-Sketcher/)  
- - [Installation](https://hlorus.github.io/CAD-Sketcher/installation)  
+ - [Documentation](https://hlorus.github.io/CAD_Sketcher/)  
+ - [Installation](https://hlorus.github.io/CAD_Sketcher/installation)  
  - [Discord](https://discord.gg/GzpJsShgxa)  
- - [Report a Bug](https://hlorus.github.io/CAD-Sketcher/advanced/#report-a-bug)  
- - [Contribute](https://hlorus.github.io/CAD-Sketcher/advanced/#contribute)
+ - [Report a Bug](https://hlorus.github.io/CAD_Sketcher/advanced/#report-a-bug)  
+ - [Contribute](https://hlorus.github.io/CAD_Sketcher/advanced/#contribute)
 
 
 ## Addon installation
@@ -27,7 +30,17 @@ CAD sketcher heavily depends on the [solvespace python module](https://pypi.org/
 - Inside the addon's preferences check the "Solver Module" tab to see if the module is already available
 - Press "Install from PyPi"
 
-Check the [installation](https://hlorus.github.io/CAD-Sketcher/installation) chapter for in-depth instructions.
+Check the [installation](https://hlorus.github.io/CAD_Sketcher/installation) chapter for in-depth instructions.
 
 ## Usage
-Follow the [getting started](https://hlorus.github.io/CAD-Sketcher/getting_started) guide to get familiar with the addon.
+Follow the [getting started](https://hlorus.github.io/CAD_Sketcher/getting_started) guide to get familiar with the addon.
+
+
+<p>
+<a href="https://www.paypal.com/donate/?business=4A9SCSHAU3ZP6&no_recurring=0&currency_code=CHF">
+<img src="https://user-images.githubusercontent.com/64740362/164417168-b88a9380-76d9-4ddc-b38e-fc3775fe950a.png" width="300" title="Donate">
+</a>
+</p>
+
+
+
