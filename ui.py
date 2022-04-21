@@ -156,6 +156,7 @@ class VIEW3D_PT_sketcher_entities(Panel):
                 continue
 
             row = col.row()
+            row.alert = e.selected
 
             # Left part
             sub = row.row()
