@@ -1212,6 +1212,7 @@ class StatefulOperator:
         self.set_status_text(context)
 
         if go_modal:
+            context.window.cursor_modal_set("CROSSHAIR")
             context.window_manager.modal_handler_add(self)
             return retval
 
@@ -1491,6 +1492,7 @@ class StatefulOperator:
         self.set_state(context, 1)
 
     def _end(self, context, succeede):
+        context.window.cursor_modal_restore()
         if hasattr(self, "fini"):
             self.fini(context, succeede)
         global_data.ignore_list.clear()
