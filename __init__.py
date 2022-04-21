@@ -7,6 +7,8 @@ bl_info = {
     "description": "Parametric, constraint-based geometry sketcher",
     "warning": "Experimental",
     "category": "3D View",
+    "doc_url": "https://hlorus.github.io/CAD_Sketcher",
+    "tracker_url": "https://github.com/hlorus/CAD_Sketcher/issues/new/choose",
 }
 
 if "bpy" in locals():
