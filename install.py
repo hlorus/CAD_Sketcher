@@ -90,7 +90,7 @@ class View3D_OT_slvs_install_package(Operator):
                 check_module()
                 self.report({"INFO"}, "Package successfully installed")
             except ModuleNotFoundError:
-                self.report({"WARNING"}, "Package should be available but cannot be found, check console for detailed info")
+                self.report({"WARNING"}, "Package should be available but cannot be found, check console for detailed info. Try restarting blender, otherwise get in contact.")
             functions.show_package_info("py_slvs")
         else:
             self.report({"WARNING"}, "Cannot install package: {}".format(self.package))
