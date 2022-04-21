@@ -108,9 +108,9 @@ tool_keymap = (
         {"properties": [("name", VIEW3D_T_slvs_select.bl_idname)]},
     ),
     (
-        operators.View3D_OT_slvs_context_menu.bl_idname,
+        "wm.tool_set_by_id",
         {"type": "RIGHTMOUSE", "value": "PRESS"},
-        None,
+        {"properties": [("name", VIEW3D_T_slvs_select.bl_idname)]},
     ),
 )
 
