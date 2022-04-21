@@ -126,7 +126,28 @@ def operator_access(operator):
     )
 
 
-class View3D_T_slvs_add_point3d(WorkSpaceTool):
+class GenericStateTool():
+    @classmethod
+    @property
+    def bl_description(cls):
+        op_name = cls.bl_operator if hasattr(cls, "bl_operator") else ""
+        desc = ""
+
+        if op_name:
+            import _bpy
+            desc = _bpy.ops.get_rna_type(op_name).description
+
+        for kmi in tool_access:
+            if kmi[0] == operators.View3D_OT_invoke_tool.bl_idname:
+                props = kmi[2]["properties"]
+                i = [prop[0] for prop in props].index("tool_name")
+                if props[i][1] == cls.bl_idname:
+                    button = kmi[1]["type"]
+                    desc += "\n\nInvoke Shortcut: " + button
+
+        return desc
+
+class View3D_T_slvs_add_point3d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = tool_prefix + "slvs_add_point3d"
@@ -141,7 +162,7 @@ class View3D_T_slvs_add_point3d(WorkSpaceTool):
     )
 
 
-class View3D_T_slvs_add_point2d(WorkSpaceTool):
+class View3D_T_slvs_add_point2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = tool_prefix + "slvs_add_point2d"
@@ -156,7 +177,7 @@ class View3D_T_slvs_add_point2d(WorkSpaceTool):
     )
 
 
-class View3D_T_slvs_add_line3d(WorkSpaceTool):
+class View3D_T_slvs_add_line3d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = tool_prefix + "slvs_add_line3d"
@@ -175,7 +196,7 @@ class View3D_T_slvs_add_line3d(WorkSpaceTool):
         layout.prop(props, "continuose_draw")
 
 
-class View3D_T_slvs_add_line2d(WorkSpaceTool):
+class View3D_T_slvs_add_line2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = tool_prefix + "slvs_add_line2d"
@@ -194,7 +215,7 @@ class View3D_T_slvs_add_line2d(WorkSpaceTool):
         layout.prop(props, "continuose_draw")
 
 
-class View3D_T_slvs_add_circle2d(WorkSpaceTool):
+class View3D_T_slvs_add_circle2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = tool_prefix + "slvs_add_circle2d"
@@ -209,7 +230,7 @@ class View3D_T_slvs_add_circle2d(WorkSpaceTool):
     )
 
 
-class View3D_T_slvs_add_arc2d(WorkSpaceTool):
+class View3D_T_slvs_add_arc2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = tool_prefix + "slvs_add_arc2d"
@@ -224,7 +245,7 @@ class View3D_T_slvs_add_arc2d(WorkSpaceTool):
     )
 
 
-class View3D_T_slvs_add_rectangle(WorkSpaceTool):
+class View3D_T_slvs_add_rectangle(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = tool_prefix + "slvs_add_rectangle"
@@ -238,7 +259,7 @@ class View3D_T_slvs_add_rectangle(WorkSpaceTool):
         *operator_access(operators.View3D_OT_slvs_add_rectangle.bl_idname),
     )
 
-class View3D_T_slvs_add_workplane_face(WorkSpaceTool):
+class View3D_T_slvs_add_workplane_face(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = tool_prefix + "slvs_add_workplane_face"
@@ -252,7 +273,7 @@ class View3D_T_slvs_add_workplane_face(WorkSpaceTool):
         *operator_access(operators.View3D_OT_slvs_add_workplane_face.bl_idname),
     )
 
-class View3D_T_slvs_add_workplane(WorkSpaceTool):
+class View3D_T_slvs_add_workplane(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = tool_prefix + "slvs_add_workplane"
