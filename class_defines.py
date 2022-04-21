@@ -18,7 +18,7 @@ from gpu_extras.batch import batch_for_shader
 from . import global_data
 
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-import math
+import math, mathutils
 
 from .shaders import Shaders
 from .solver import solve_system, Solver
