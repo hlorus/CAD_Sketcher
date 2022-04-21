@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 import logging
 
-from . import functions, global_data, theme, units
+from . import functions, global_data, theme, units, install
 
 
 log_levels = [
