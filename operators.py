@@ -2101,14 +2101,10 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         mesh = ob.data
         face = mesh.polygons[face_index]
 
-        if False: # Disable for now
-            nm = sse.add_ref_normal_3d(ob, face_index)
-            origin = sse.add_projected_origin(nm)
-        else:
-            quat = class_defines.get_face_orientation(mesh, face)
-            pos = class_defines.get_face_midpoint(quat, ob, face)
-            origin = sse.add_point_3d(pos)
-            nm = sse.add_normal_3d(quat)
+        quat = class_defines.get_face_orientation(mesh, face)
+        pos = class_defines.get_face_midpoint(quat, ob, face)
+        origin = sse.add_point_3d(pos)
+        nm = sse.add_normal_3d(quat)
 
         self.target = sse.add_workplane(origin, nm)
         ignore_hover(self.target)
@@ -2556,82 +2552,6 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         return point.slvs_index
 
 
-ref_state1_doc = ("Entity", "Entity to reference and project onto active sketch")
-
-class View3D_OT_slvs_reference(Operator, Operator2d):
-    bl_idname = "view3d.slvs_reference"
-    bl_label = "Reference Geometry"
-    bl_options = {"REGISTER", "UNDO"}
-
-
-    states = (
-        state_from_args(
-            ref_state1_doc[0],
-            description=ref_state1_doc[1],
-            pointer="entity",
-            types=(
-                class_defines.SlvsPoint3D,
-                class_defines.SlvsPoint2D,
-                class_defines.SlvsLine3D,
-                class_defines.SlvsLine2D,
-            ),
-        ),
-    )
-
-    __doc__ = stateful_op_desc(
-        "Reference entities from active sketch",
-        state_desc(*ref_state1_doc, (class_defines.SlvsPoint3D,
-                            class_defines.SlvsPoint2D,
-                            class_defines.SlvsLine3D,
-                            class_defines.SlvsLine2D,)),
-    )
-
-    def _get_references(self, context):
-        sketch = self.sketch
-        sse = context.scene.sketcher.entities
-        for e in sse.refpoints:
-            if not e.sketch == sketch:
-                continue
-            yield e
-
-    def main(self, context):
-        e = self.entity
-        sketch = self.sketch
-        sse = context.scene.sketcher.entities
-
-        references = list(self._get_references(context))
-        def reference(point):
-            """Check if point to reference is already being referenced in sketch"""
-            for p in references:
-                if p.point == point:
-                    return p
-            # Add new reference
-            return sse.add_ref_point(point, sketch)
-
-
-        if type(e) in (class_defines.SlvsPoint3D, class_defines.SlvsPoint2D):
-            reference(e)
-        elif type(e) in class_defines.line:
-            points = []
-            for p in (e.p1, e.p2):
-                points.append(reference(p))
-
-            # TODO: Don't add line if points are already connected
-            if e.is_3d():
-                sse.add_line_3d(*points)
-            else:
-                sse.add_line_2d(*points, sketch)
-
-        return True
-
-    def init(self, context, event):
-        self.sketch = context.scene.sketcher.active_sketch
-        functions.get_prefs().all_entities_selectable = True
-
-    def fini(self, context, succeede):
-        functions.get_prefs().all_entities_selectable = False # TODO: Just reset!
-
-
 class View3D_OT_slvs_test(Operator, GenericEntityOp):
     bl_idname = "view3d.slvs_test"
     bl_label = "Test StateOps"
@@ -2649,15 +2569,9 @@ class View3D_OT_slvs_test(Operator, GenericEntityOp):
             description="Pick an element to print",
             pointer="element",
             types=(
-                class_defines.SlvsPoint3D,
-                class_defines.SlvsRefVertex3D,
-                class_defines.SlvsPoint2D,
-                class_defines.SlvsRefPoint2D,
-                class_defines.SlvsRefVertex2D,
-                class_defines.SlvsLine3D,
-                class_defines.SlvsLine2D,
-                class_defines.SlvsCircle,
-                class_defines.SlvsArc,
+                *class_defines.point,
+                *class_defines.line,
+                *class_defines.curve,
                 bpy.types.MeshVertex,
                 bpy.types.MeshEdge,
                 bpy.types.MeshPolygon,
@@ -3417,7 +3331,6 @@ classes = (
     View3D_OT_slvs_add_circle2d,
     View3D_OT_slvs_add_arc2d,
     View3D_OT_slvs_add_rectangle,
-    View3D_OT_slvs_reference,
     View3D_OT_slvs_test,
     View3D_OT_invoke_tool,
     View3D_OT_slvs_set_active_sketch,

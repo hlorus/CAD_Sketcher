@@ -31,8 +31,6 @@ There are different types of entities, some of them apply in 2 dimensional space
 
 ::: geometry_sketcher.class_defines.SlvsPoint3D
 
-::: geometry_sketcher.class_defines.SlvsRefVertex3D
-
 ::: geometry_sketcher.class_defines.SlvsLine3D
 
 ::: geometry_sketcher.class_defines.SlvsNormal3D
@@ -42,10 +40,6 @@ There are different types of entities, some of them apply in 2 dimensional space
 ::: geometry_sketcher.class_defines.SlvsSketch
 
 ::: geometry_sketcher.class_defines.SlvsPoint2D
-
-::: geometry_sketcher.class_defines.SlvsRefPoint2D
-
-::: geometry_sketcher.class_defines.SlvsRefVertex2D
 
 ::: geometry_sketcher.class_defines.SlvsLine2D
 

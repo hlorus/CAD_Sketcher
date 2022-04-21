@@ -109,9 +109,6 @@ class VIEW3D_PT_sketcher(Panel):
 
         layout.separator()
 
-        layout.operator(operators.View3D_OT_slvs_reference.bl_idname)
-        layout.separator()
-
         layout.label(text="Constraints:")
         col = layout.column(align=True)
         for op in operators.constraint_operators:
