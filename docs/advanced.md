@@ -1,11 +1,11 @@
 ## Report a Bug
 Whenever encountering a bug follow these steps:
 
-- Check if the bug is already reported on [github](https://github.com/hlorus/geometry_sketcher/labels/bug)
+- Check if the bug is already reported on [github](https://github.com/hlorus/CAD_Sketcher/labels/bug)
 - Try to reliably reproduce the bug and simplify the steps to reproduce
 - Collect the [addon logs](#access-logs)
 - In case of a crash also collect blender's [crash report](https://docs.blender.org/manual/en/latest/troubleshooting/crash.html#:~:text=%2Do%20%25MEM%20.-,Crash%20Log,as%20some%20other%20debug%20information)
-- Post the bug on [github](https://github.com/hlorus/geometry_sketcher/issues/new?assignees=&labels=bug&template=bug-report.md&title=%5BBUG%5D)
+- Post the bug on [github](https://github.com/hlorus/CAD_Sketcher/issues/new?assignees=&labels=bug&template=bug-report.md&title=%5BBUG%5D)
 
 ## Console Output
 Blender doesn't print system output in it's info editor but only in the
@@ -28,7 +28,7 @@ The addon logs information to the [system console](#console-output) and to the s
 folder. The filepath to this folder will be printed to the console whenever the
 addon gets registered.
 
-> geometry_sketcher:{INFO}: Logging into: C:\Users\USERNAME\AppData\Local\Temp\geometry_sketcher.log
+> CAD_Sketcher:{INFO}: Logging into: C:\Users\USERNAME\AppData\Local\Temp\CAD_Sketcher.log
 
 ### Blender Crash Log
 When blender crashes it writes a crash report file, see: [crash report](https://docs.blender.org/manual/en/latest/troubleshooting/crash.html#crash-log).
@@ -43,7 +43,7 @@ Just grab the latest version, play around, provide feedback and redo!
 ### Documentation
 Documentation is generated from the source repository with [MkDocs](https://www.mkdocs.org/).
 In order to contribute either post a pull request with your changes on
-[github](https://github.com/hlorus/geometry_sketcher) or ask on [discord](https://discord.gg/GzpJsShgxa) for commit access.
+[github](https://github.com/hlorus/CAD_Sketcher) or ask on [discord](https://discord.gg/GzpJsShgxa) for commit access.
 
 <!-- TODO: Workboard -->
 

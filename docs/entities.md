@@ -23,26 +23,26 @@ Entities can be fixed via the entity's [context menu](user_interface#context-men
 
 
 ## Types
-There are different types of entities, some of them apply in 2 dimensional space which requires a [sketch](#geometry_sketcher.class_defines.SlvsSketch) as a parameter.
+There are different types of entities, some of them apply in 2 dimensional space which requires a [sketch](#CAD_Sketcher.class_defines.SlvsSketch) as a parameter.
 
 >Entity types follow the implementation of [solvespace](https://solvespace.readthedocs.io/en/latest/entities/index.html).
 
 > Only 2D entities can be converted later, check the chapter [integration](integration.md) for details.
 
-::: geometry_sketcher.class_defines.SlvsPoint3D
+::: CAD_Sketcher.class_defines.SlvsPoint3D
 
-::: geometry_sketcher.class_defines.SlvsLine3D
+::: CAD_Sketcher.class_defines.SlvsLine3D
 
-::: geometry_sketcher.class_defines.SlvsNormal3D
+::: CAD_Sketcher.class_defines.SlvsNormal3D
 
-::: geometry_sketcher.class_defines.SlvsWorkplane
+::: CAD_Sketcher.class_defines.SlvsWorkplane
 
-::: geometry_sketcher.class_defines.SlvsSketch
+::: CAD_Sketcher.class_defines.SlvsSketch
 
-::: geometry_sketcher.class_defines.SlvsPoint2D
+::: CAD_Sketcher.class_defines.SlvsPoint2D
 
-::: geometry_sketcher.class_defines.SlvsLine2D
+::: CAD_Sketcher.class_defines.SlvsLine2D
 
-::: geometry_sketcher.class_defines.SlvsArc
+::: CAD_Sketcher.class_defines.SlvsArc
 
-::: geometry_sketcher.class_defines.SlvsCircle
+::: CAD_Sketcher.class_defines.SlvsCircle

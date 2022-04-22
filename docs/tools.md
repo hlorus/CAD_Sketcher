@@ -1,13 +1,13 @@
-Tools in Geometry Sketcher are either exposed as a workspacetool or as an operator. Note however
+Tools in CAD Sketcher are either exposed as a workspacetool or as an operator. Note however
 that either of those use the same [interaction system](interaction_system.md).
 
 
 ## Generic Tools
-::: geometry_sketcher.operators.View3D_OT_slvs_add_sketch
+::: CAD_Sketcher.operators.View3D_OT_slvs_add_sketch
 
-::: geometry_sketcher.operators.View3D_OT_slvs_delete_entity
+::: CAD_Sketcher.operators.View3D_OT_slvs_delete_entity
 
-::: geometry_sketcher.operators.View3D_OT_slvs_delete_constraint
+::: CAD_Sketcher.operators.View3D_OT_slvs_delete_constraint
 
 
 ## Workspacetools
@@ -27,9 +27,11 @@ Whenever one of the addon's tools is active the tool access keymap allows to qui
 |Key|Modifier|Action|
 |:---:|---|---|
 |ESC|-   |Activate Tool: Select|
+|P|-   |Activate Tool: Add Point 2D|
 |L|-   |Activate Tool: Add Line 2D|
 |C|-   |Activate Tool: Add Circle|
 |A|-   |Activate Tool: Add Arc|
+|R|-   |Activate Tool: Add Rectangle|
 |S|-   |Activate Tool: Add Sketch|
 
 ### Basic Tool Keymap
@@ -51,7 +53,7 @@ The basic tool interaction is consistent between tools.
 |Minus(-)|-|Toggle between positive and negative values|
 
 
-::: geometry_sketcher.operators.View3D_OT_slvs_select
+::: CAD_Sketcher.operators.View3D_OT_slvs_select
 **Keymap:**
 
 |Key|Modifier|Action|
@@ -63,18 +65,18 @@ The basic tool interaction is consistent between tools.
 
 > **INFO:** LMB in empty space will also deselect all.
 
-::: geometry_sketcher.operators.View3D_OT_slvs_add_point3d
+::: CAD_Sketcher.operators.View3D_OT_slvs_add_point3d
 
-::: geometry_sketcher.operators.View3D_OT_slvs_add_line3d
+::: CAD_Sketcher.operators.View3D_OT_slvs_add_line3d
 
-::: geometry_sketcher.operators.View3D_OT_slvs_add_point2d
+::: CAD_Sketcher.operators.View3D_OT_slvs_add_point2d
 
-::: geometry_sketcher.operators.View3D_OT_slvs_add_line2d
+::: CAD_Sketcher.operators.View3D_OT_slvs_add_line2d
 
-::: geometry_sketcher.operators.View3D_OT_slvs_add_circle2d
+::: CAD_Sketcher.operators.View3D_OT_slvs_add_circle2d
 
-::: geometry_sketcher.operators.View3D_OT_slvs_add_arc2d
+::: CAD_Sketcher.operators.View3D_OT_slvs_add_arc2d
 
-::: geometry_sketcher.operators.View3D_OT_slvs_add_rectangle
+::: CAD_Sketcher.operators.View3D_OT_slvs_add_rectangle
 
-::: geometry_sketcher.operators.View3D_OT_slvs_add_workplane
+::: CAD_Sketcher.operators.View3D_OT_slvs_add_workplane

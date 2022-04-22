@@ -3,7 +3,7 @@ This guide takes you through the first steps in order to get familiar with the a
 ## Installation
 ![!Preferences](images/preferences.png){style="width:100%; height:200px; object-fit:cover;"}
 
-Download the [Latest Release](https://github.com/hlorus/geometry_sketcher/releases)
+Download the [Latest Release](https://github.com/hlorus/CAD_Sketcher/releases)
 of the addon and install it from the addons tab in blender's preferences. Get the
 solvespace module by pressing the install button in the addon's preferences.
 See [here](installation.md) if

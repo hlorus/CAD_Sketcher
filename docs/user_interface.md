@@ -51,7 +51,7 @@ gizmo that supports it or through the corresponding button in one of the element
 
 ## Preferences
 Access the preferences by expanding the enabled addon under
-Edit > Preferences > Add-ons > Geometry Sketcher.
+Edit > Preferences > Add-ons > CAD Sketcher.
 
 ![!Preferences](images/preferences.png){align=left style="height:300px; width:calc(50% - 1em); object-fit:cover;"}
 ![!Preferences](images/preferences_theme.png){align=right style="height:300px; width:calc(50% - 1em); object-fit:cover;"}

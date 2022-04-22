@@ -16,30 +16,30 @@ will be colored red, additionally the failed sketch will be marked.
 [solvespace](https://solvespace.readthedocs.io/en/latest/constraints/index.html).
 
 ### Geometric Constraints
-::: geometry_sketcher.class_defines.SlvsCoincident
+::: CAD_Sketcher.class_defines.SlvsCoincident
 
-::: geometry_sketcher.class_defines.SlvsVertical
+::: CAD_Sketcher.class_defines.SlvsVertical
 
-::: geometry_sketcher.class_defines.SlvsHorizontal
+::: CAD_Sketcher.class_defines.SlvsHorizontal
 
 >**Note:** It’s good to use horizontal and vertical constraints whenever possible. These constraints are very simple to solve, and will not lead to convergence problems. Whenever possible, define the workplanes so that lines are horizontal and vertical within those workplanes.
 
 
-::: geometry_sketcher.class_defines.SlvsParallel
+::: CAD_Sketcher.class_defines.SlvsParallel
 
-::: geometry_sketcher.class_defines.SlvsPerpendicular
+::: CAD_Sketcher.class_defines.SlvsPerpendicular
 
-::: geometry_sketcher.class_defines.SlvsEqual
+::: CAD_Sketcher.class_defines.SlvsEqual
 
-::: geometry_sketcher.class_defines.SlvsTangent
+::: CAD_Sketcher.class_defines.SlvsTangent
 
-::: geometry_sketcher.class_defines.SlvsMidpoint
+::: CAD_Sketcher.class_defines.SlvsMidpoint
 
-::: geometry_sketcher.class_defines.SlvsRatio
+::: CAD_Sketcher.class_defines.SlvsRatio
 
 ### Dimensional Constraints
-::: geometry_sketcher.class_defines.SlvsDistance
+::: CAD_Sketcher.class_defines.SlvsDistance
 
-::: geometry_sketcher.class_defines.SlvsDiameter
+::: CAD_Sketcher.class_defines.SlvsDiameter
 
-::: geometry_sketcher.class_defines.SlvsAngle
+::: CAD_Sketcher.class_defines.SlvsAngle

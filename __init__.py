@@ -107,7 +107,7 @@ def register():
     icon_manager.load()
 
     logger.info(
-        "Enabled Geometry Sketcher base, version: {}".format(bl_info["version"])
+        "Enabled CAD Sketcher base, version: {}".format(bl_info["version"])
     )
 
     # Check Module and register all modules

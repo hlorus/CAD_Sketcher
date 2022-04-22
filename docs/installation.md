@@ -1,6 +1,6 @@
 ## Addon installation
 === "ZIP File"
-    - Download the [ZIP archive](https://github.com/hlorus/geometry_sketcher/archive/refs/heads/main.zip) from github (do not unpack it after downloading)
+    - Download the [ZIP archive](https://github.com/hlorus/CAD_Sketcher/archive/refs/heads/main.zip) from github (do not unpack it after downloading)
     - Open Blender and go to: Edit > Preferences > Add-ons > Press "Install..." button
     - Browse to the location of the ZIP and select it, then press "Install Add-on"
     - Enable the addon by pressing the checkbox
@@ -21,12 +21,12 @@
         ```
     - Clone the addon repository
         ``` sh linenums="4"
-        git clone https://github.com/hlorus/geometry_sketcher.git
+        git clone https://github.com/hlorus/CAD_Sketcher.git
         ```
     - Blender will now automatically load addons from that path
 
 ## Dependency installation
-Geometry sketcher heavily depends on the [solvespace python module](https://pypi.org/project/py-slvs/) and won't be functional without it.
+CAD Sketcher heavily depends on the [solvespace python module](https://pypi.org/project/py-slvs/) and won't be functional without it.
 
 Inside the addon's preferences check the "Solver Module" tab to see if the module is already available, otherwise follow one of the guides below.
 
@@ -64,7 +64,7 @@ There are multiple reasons why the installation might fail. Try the following:
 
     - Open the addon folder in a terminal
         ``` sh linenums="1"
-        cd ~/BLENDER_SCRIPTS_PATH/geometry_sketcher
+        cd ~/BLENDER_SCRIPTS_PATH/CAD_Sketcher
         ```
     - Pull the changes
         ``` sh linenums="2"

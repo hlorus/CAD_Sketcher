@@ -1,13 +1,13 @@
 #
-# Welcome to the official documentation of Geometry Sketcher
+# Welcome to the official documentation of CAD Sketcher
 
-## What is Geometry Sketcher?
+## What is CAD Sketcher?
 
-Geometry Sketcher is a constraint-based sketcher addon for [Blender](https://www.blender.org/download/) that allows to create precise 2d shapes by defining a set of geometric constraints like tangent, distance, angle, equal and more. Sketches stay editable and support a fully non-destructive workflow.
+CAD Sketcher is a constraint-based sketcher addon for [Blender](https://www.blender.org/download/) that allows to create precise 2d shapes by defining a set of geometric constraints like tangent, distance, angle, equal and more. Sketches stay editable and support a fully non-destructive workflow.
 
 ## Overview
 
-Geometry Sketcher integrates the solver of Solvespace and closely follows it's design.
+CAD Sketcher integrates the solver of Solvespace and closely follows it's design.
 Therefore the [Solvespace Documentation](https://solvespace.readthedocs.io/en/latest/) is generally also relevant.
 
 In order to have a parametric representation of a geometric system where curves
@@ -27,9 +27,9 @@ to get native Blender geometry types which then allow further modifications with
 <!-- Check the [Workflow](solver.md#Workflow) section to see how it's intended to be used. -->
 
 ## Links
-- [Releases](https://github.com/hlorus/geometry_sketcher/releases) - Get the addon
-- [Bug Report](https://github.com/hlorus/geometry_sketcher/wiki/Advanced#Report-a-Bug) - Report a bug
-- [Github Issues](https://github.com/hlorus/geometry_sketcher/issues) - Suggest features and follow the development
+- [Releases](https://github.com/hlorus/CAD_Sketcher/releases) - Get the addon
+- [Bug Report](https://github.com/hlorus/CAD_Sketcher/wiki/Advanced#Report-a-Bug) - Report a bug
+- [Github Issues](https://github.com/hlorus/CAD_Sketcher/issues) - Suggest features and follow the development
 - [Discord](https://discord.gg/GzpJsShgxa) - A place for discussions
 - [Contribute](advanced.md#contribute) - Looking to help out in some way?
 
@@ -40,7 +40,7 @@ to get native Blender geometry types which then allow further modifications with
 -
 
 ## What's New
-Check the release logs on [github](https://github.com/hlorus/geometry_sketcher/releases).
+Check the release logs on [github](https://github.com/hlorus/CAD_Sketcher/releases).
 
 ## FAQ
 - -->
