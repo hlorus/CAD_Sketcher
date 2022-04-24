@@ -2,7 +2,6 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 from bpy.app import background
 
-from functools import cache
 from pathlib import Path
 
 from . import functions
