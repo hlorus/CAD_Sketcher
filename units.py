@@ -3,7 +3,7 @@
 import bpy
 from . import functions
 
-import math
+import math, typing
 
 from bpy.props import EnumProperty
 imperial_precision_prop = EnumProperty(
@@ -16,6 +16,26 @@ imperial_precision_prop = EnumProperty(
            ('64', "1/64\"", "1/64th Inch")),
     name="Imperial Precision",
     description="Measurement Precision for Imperial Units")
+
+# Note: one Blender Unit (BU) is 1m
+INCH_TO_CM = 2.54
+INCHES_PER_FEET = 12
+INCHES_PER_MILE = 5280 * INCHES_PER_FEET
+THOU_PER_INCH = 1000
+# Conversion factor from Blender Units to Inches / Feet
+BU_TO_INCHES = 100.0 / INCH_TO_CM
+BU_TO_FEET = 100.0 / (INCH_TO_CM * INCHES_PER_FEET)
+
+def _inches_to_fraction(inches: float, precision: int) -> typing.Tuple[int, int, int]:
+    """
+    (Internal) Returns the integer and fractional part as a tuple of integer
+    part, numerator and denominator (all integers), rounded to precision
+    (expressed as 1/n'th of an inch).
+    """
+    inches_ = round(inches * int(precision)) / float(precision)
+    frac, int_ = math.modf(inches_)
+    num, denom = frac.as_integer_ratio()
+    return (int(int_), num, denom)
 
 def _format_metric_length(
         value: float, precision: int, unit_length: str = 'METERS',
