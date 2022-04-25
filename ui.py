@@ -119,6 +119,8 @@ class VIEW3D_PT_sketcher(Panel):
             layout.use_property_split = False
             layout.separator()
             layout.label(text="Debug:")
+            layout.label(text="Version: " + str(context.scene.sketcher.version[:]))
+
             layout.operator(operators.VIEW3D_OT_slvs_write_selection_texture.bl_idname)
             layout.operator(operators.View3D_OT_slvs_solve.bl_idname)
             layout.operator(
