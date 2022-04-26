@@ -1103,6 +1103,19 @@ class StatefulOperator:
             i -= 1
         return False
 
+    def gather_selection(self, context):
+        # Return list filled with all selected verts/edges/faces/objects
+        selected = []
+        states = self.get_states()
+        types = [s.types for s in states]
+        # Note: Where to take mesh elements from? Editmode data is only written
+        # when left probably making it impossible to use selected elements in realtime.
+        if any([t == bpy.types.Object for t in types]):
+            selected.extend(context.selected_objects)
+
+        return selected
+
+    # Gets called for every state
     def parse_selection(self, context, selected, index=None):
         # Look for a valid element in selection
         # should go through objects, vertices, entities depending on state.types
@@ -1129,8 +1142,7 @@ class StatefulOperator:
 
 
     def prefill_state_props(self, context):
-        # Todo: make extensible
-        selected = context.scene.sketcher.entities.selected_entities
+        selected = self.gather_selection(context)
         states = self.get_states_definition()
 
         # Iterate states and try to prefill state props
@@ -1566,6 +1578,8 @@ class StatefulOperator:
 # check_pointer(self, prop_name) -> is_set(bool)
 #   check if a state pointer is set
 
+# gather_selection(self, context) -> selected(list(ANY))
+#   gather the currently selected elements that are later used to fill state pointers with
 
 # State Definition
 # state_func(self, context, coords) property_value(ANY)
@@ -1793,6 +1807,15 @@ class GenericEntityOp(StatefulOperator):
                 i = value.slvs_index
             data["entity_index"] = i
             return True
+
+    def gather_selection(self, context):
+        # Return list filled with all selected verts/edges/faces/objects
+        selected = super().gather_selection(context)
+        states = self.get_states()
+        types = [s.types for s in states]
+
+        selected.extend(list(context.scene.sketcher.entities.selected_entities))
+        return selected
 
 
 class Operator3d(GenericEntityOp):
@@ -2838,6 +2861,7 @@ class GenericConstraintOp(GenericEntityOp):
         return True
 
     def _available_entities(self):
+        # Gets entities that are already set
         cls = class_defines.SlvsConstraints.cls_from_type(self.type)
         entities = [None] * len(cls.signature)
         for i, name in enumerate(self._entity_prop_names):
