@@ -1385,9 +1385,8 @@ class StatefulOperator:
         ok = False
         undo = False
         values = []
-        props = self.get_property()
         use_create = state.use_create
-        if use_create and not is_picked and props:
+        if use_create and not is_picked:
             if is_numeric:
                 # numeric edit is supported for one property only
                 values = [self.get_numeric_value(context, coords), ]
@@ -1396,10 +1395,12 @@ class StatefulOperator:
                 values = to_list(position_cb(context, coords)) if position_cb else None
 
             if values:
-                for i, v in enumerate(values):
-                    setattr(self, props[i], v)
-                undo = True
-                ok = not state.pointer
+                props = self.get_property()
+                if props:
+                    for i, v in enumerate(values):
+                        setattr(self, props[i], v)
+                    undo = True
+                    ok = not state.pointer
 
         # Set state pointer
         pointer = None
