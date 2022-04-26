@@ -92,7 +92,12 @@ def ensure_addon_presets(force_write=False):
     if force_write or not is_existing:
         bundled_presets = os.path.join(os.path.dirname(__file__), "presets")
         files = os.listdir(bundled_presets)
-        shutil.copytree(bundled_presets, presets_dir, dirs_exist_ok=True)
+
+        kwargs = {}
+        if sys.version >= (3, 8):
+            kwargs = {"dirs_exist_ok": True}
+
+        shutil.copytree(bundled_presets, presets_dir, **kwargs)
 
         logger.info("Copy addon presets to: " + presets_dir)
 

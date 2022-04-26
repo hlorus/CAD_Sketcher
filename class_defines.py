@@ -23,7 +23,6 @@ import math, mathutils
 from .shaders import Shaders
 from .solver import solve_system, Solver
 from .functions import unique_attribute_setter
-from functools import cached_property
 
 logger = logging.getLogger(__name__)
 

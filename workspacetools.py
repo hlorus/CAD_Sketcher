@@ -138,8 +138,7 @@ def operator_access(operator):
 
 class GenericStateTool():
     @classmethod
-    @property
-    def bl_description(cls):
+    def bl_description(cls, context, item, keymap):
         op_name = cls.bl_operator if hasattr(cls, "bl_operator") else ""
         desc = ""
 
