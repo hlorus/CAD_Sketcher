@@ -213,6 +213,7 @@ class Solver:
 
             if report and sketch:
                 sketch.solver_state = self.result.index
+                sketch.dof = self.solvesys.Dof
 
             if retval != 0:
                 self.ok = False

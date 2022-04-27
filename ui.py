@@ -71,19 +71,26 @@ class VIEW3D_PT_sketcher(Panel):
         layout.use_property_decorate = False
 
         if sketch:
+            row = layout.row()
+            row.alignment = "CENTER"
+            row.scale_y = 1.2
 
             if sketch.solver_state != "OKAY":
                 state = sketch.get_solver_state()
-
-                row = layout.row()
-                row.alignment = "CENTER"
-                row.scale_y = 1.2
                 row.operator(
                     operators.View3D_OT_slvs_show_solver_state.bl_idname,
                     text=state.name,
                     icon=state.icon,
                     emboss=False,
                 ).index = sketch.slvs_index
+            else:
+                dof = sketch.dof
+                dof_ok = dof <= 0
+                dof_msg = "Fully defined sketch" if dof_ok else "Degrees of freedom: " + str(dof)
+                dof_icon = "CHECKMARK" if dof_ok else "ERROR"
+                row.label(text=dof_msg, icon=dof_icon)
+
+            layout.separator()
 
             row = layout.row()
             row.prop(sketch, "name")

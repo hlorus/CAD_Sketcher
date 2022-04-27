@@ -632,6 +632,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     solver_state: EnumProperty(
         name="Solver Status", items=global_data.solver_state_items
     )
+    dof: IntProperty(name="Degrees of Freedom", max=6)
     target_curve: PointerProperty(type=bpy.types.Curve)
     target_curve_object: PointerProperty(type=bpy.types.Object)
     target_mesh: PointerProperty(type=bpy.types.Mesh)
