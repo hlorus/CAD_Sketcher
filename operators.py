@@ -716,7 +716,8 @@ class StatefulOperator:
                 return
 
             if hasattr(cls, pointer_name):
-                raise NameError("Cannot register state pointer getter/setter, class {} already has attribute of name {}".format(cls, pointer_name))
+                # This can happen when the addon is re-enabled in the same session
+                continue
 
             get, set = _get_pointer_get_set(i)
             setattr(cls, pointer_name, get)
@@ -3388,9 +3389,9 @@ def register():
 
 
 def unregister():
-    offscreen = global_data.offscreen
-    if offscreen:
-        offscreen.free()
+    if global_data.offscreen:
+        global_data.offscreen.free()
+        global_data.offscreen = None
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
