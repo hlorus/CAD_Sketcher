@@ -1280,7 +1280,11 @@ class StatefulOperator:
             units = context.scene.unit_settings
             unit = prop.unit
             type = prop.type
-            if unit != "NONE":
+            value = None
+
+            if input == "-":
+                pass
+            elif unit != "NONE":
                 try:
                     value = bpy.utils.units.to_value(units.system, unit, input)
                 except ValueError:
@@ -1291,8 +1295,9 @@ class StatefulOperator:
                 value = float(input)
             elif type == "INT":
                 value = int(input)
-            else:
-                value = prop.default
+
+            if value == None:
+                return prop.default
             return value
 
         size = max(1, self._substate_count)
