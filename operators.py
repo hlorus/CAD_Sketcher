@@ -2166,6 +2166,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
             pointer="wp",
             types=(class_defines.SlvsWorkplane,),
             property=None,
+            use_create=False,
         ),
     )
 
