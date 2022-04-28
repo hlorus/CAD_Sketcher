@@ -80,6 +80,7 @@ def update_logger():
 def ensure_addon_presets(force_write=False):
     import os
     import shutil
+    import sys
 
     scripts_folder = bpy.utils.user_resource("SCRIPTS")
     presets_dir = os.path.join(scripts_folder, "presets", "bgs")
@@ -94,7 +95,7 @@ def ensure_addon_presets(force_write=False):
         files = os.listdir(bundled_presets)
 
         kwargs = {}
-        if sys.version >= (3, 8):
+        if sys.version_info >= (3, 8):
             kwargs = {"dirs_exist_ok": True}
 
         shutil.copytree(bundled_presets, presets_dir, **kwargs)
