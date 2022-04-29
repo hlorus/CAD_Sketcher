@@ -5,8 +5,7 @@ labels: bug
 body:
   - type: markdown
     attributes:
-      value: |
-        Thanks for taking the time to fill out this bug report!
+      value: Thanks for taking the time to fill out this bug report!
   - type: input
     id: contact
     attributes:
@@ -15,28 +14,28 @@ body:
       placeholder: ex. email@example.com
     validations:
       required: false
-   - type: textarea
-      id: what-happened
-      attributes:
-        label: Description
-        description: What happened? Also tell us what you've expect to happen.
-        placeholder: Tell us what you see!
-        value: "A bug happened!"
-      validations:
-        required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Description
+      description: What happened? Also tell us what you've expect to happen.
+      placeholder: Tell us what you see!
+      value: "A bug happened!"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Addon Version
+      description: In what version(s) of CAD Sketcher does this bug happen?
+      placeholder: 0.20 - latest
+    validations:
+      required: true
     - type: input
-      id: version
-      attributes:
-        label: Addon Version
-        description: In what version(s) of CAD Sketcher does this bug happen?
-        placeholder: 0.20 - latest
-      validations:
-        required: true
-      - type: input
-      id: version
-      attributes:
-        label: Blender Version
-        description: In what version(s) of Blender does this bug happen?
-        placeholder: 2.92 - 2.93 
-      validations:
-        required: true
+    id: version
+    attributes:
+      label: Blender Version
+      description: In what version(s) of Blender does this bug happen?
+      placeholder: 2.92 - 2.93 
+    validations:
+      required: true
