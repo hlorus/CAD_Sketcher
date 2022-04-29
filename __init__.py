@@ -87,7 +87,6 @@ def ensure_addon_presets(force_write=False):
 
     is_existing = True
     if not os.path.isdir(presets_dir):
-        os.makedirs(presets_dir)
         is_existing = False
 
     if force_write or not is_existing:
