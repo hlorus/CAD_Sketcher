@@ -61,17 +61,23 @@ class SlvsGenericEntity:
 
     @property
     def _shader(self):
-        if self.is_dashed():
+        dashed = self.is_dashed()
+        if dashed:
             return Shaders.dashed_uniform_color_3d()
-        return Shaders.uniform_color_3d()
+
+        if self.is_point():
+            return Shaders.uniform_color_3d()
+        return Shaders.uniform_color_line_3d()
 
     @property
     def _id_shader(self):
-        return Shaders.id_shader_3d()
+        if self.is_point():
+            return Shaders.id_shader_3d()
+        return Shaders.id_line_3d()
 
     @property
     def point_size(self):
-        return 6 * preferences.get_scale()
+        return 5 * preferences.get_scale()
 
     @property
     def point_size_select(self):
@@ -210,40 +216,46 @@ class SlvsGenericEntity:
         shader.bind()
 
         bgl.glEnable(bgl.GL_BLEND)
-
         bgl.glPointSize(self.point_size)
-        bgl.glLineWidth(self.line_width)
-
-        if self.is_dashed():
-            shader.uniform_float("u_Scale", 20)
 
         col = self.color(context)
         shader.uniform_float("color", col)
 
-        self._batch.draw(shader)
+        if self.is_dashed():
+            shader.uniform_float("u_Scale", 20)
+            bgl.glLineWidth(self.line_width)
 
+        elif not self.is_point():
+            viewport = [context.area.width, context.area.height]
+            shader.uniform_float("Viewport", viewport)
+            shader.uniform_float("thickness", self.line_width)
+
+        self._batch.draw(shader)
+        gpu.shader.unbind()
         self.restore_opengl_defaults()
 
-    def draw_id(self, context):
 
+    def draw_id(self, context):
         # Note: Design Question, should it be possible to select elements that are not active?!
         # e.g. to activate a sketch
         # maybe it should be dynamicly defined what is selectable (points only, lines only, ...)
-        # if not self.is_visible(context):
         if not self.is_selectable(context):
             return
 
         batch = self._batch
-
         shader = self._id_shader
         shader.bind()
 
         bgl.glPointSize(self.point_size_select)
-        bgl.glLineWidth(self.line_width_select)
 
         shader.uniform_float("color", (*functions.index_to_rgb(self.slvs_index), 1.0))
-        batch.draw(shader)
+        if not self.is_point():
+            viewport = [context.area.width, context.area.height]
+            shader.uniform_float("Viewport", viewport)
+            shader.uniform_float("thickness", self.line_width_select)
 
+        batch.draw(shader)
+        gpu.shader.unbind()
         self.restore_opengl_defaults()
 
     def create_slvs_data(self, solvesys):
@@ -548,20 +560,16 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         if not self.is_visible(context):
             return
 
-        shader = self._shader
-        shader.bind()
-
-        bgl.glEnable(bgl.GL_BLEND)
-
-        bgl.glPointSize(self.point_size)
-        bgl.glLineWidth(self.line_width)
-
         col = self.color(context)
-        shader.uniform_float("color", col)
+        # Let parent draw outline
+        super().draw(context)
 
-        self._batch.draw(shader)
-
+        # Additionaly draw a face
         col_surface = col[:-1] + (0.2,)
+
+        shader = Shaders.uniform_color_3d()
+        shader.bind()
+        bgl.glEnable(bgl.GL_BLEND)
 
         shader.uniform_float("color", col_surface)
         mat = self.matrix_basis
@@ -569,7 +577,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         coords = functions.draw_rect_2d(0, 0, self.size, self.size)
         coords = [(mat @ Vector(co))[:] for co in coords]
         indices = ((0, 1, 2), (0, 2, 3))
-        batch = batch_for_shader(self._shader, "TRIS", {"pos": coords}, indices=indices)
+        batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
         batch.draw(shader)
 
         self.restore_opengl_defaults()
