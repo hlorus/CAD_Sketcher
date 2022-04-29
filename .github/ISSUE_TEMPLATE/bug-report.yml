@@ -23,3 +23,19 @@ body:
       value: "A bug happened!"
     validations:
       required: true
+  - type: input
+    id: version-addon
+    attributes:
+      label: Addon Version
+      description: In what version(s) of CAD Sketcher does this bug happen?
+      placeholder: 0.20 - latest
+    validations:
+      required: true
+    - type: input
+    id: version-blender
+    attributes:
+      label: Blender Version
+      description: In what version(s) of Blender does this bug happen?
+      placeholder: 2.92 - 2.93 
+    validations:
+      required: true
