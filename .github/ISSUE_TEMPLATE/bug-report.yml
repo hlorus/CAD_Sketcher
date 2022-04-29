@@ -31,7 +31,7 @@ body:
       placeholder: 0.20 - latest
     validations:
       required: true
-    - type: input
+  - type: input
     id: version-blender
     attributes:
       label: Blender Version
