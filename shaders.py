@@ -116,7 +116,7 @@ class Shaders:
             }
         '''
 
-        return GPUShader(cls.base_vertex_shader_3d, cls.base_fragment_shader_3d, geocode=geometry_shader, name="uniform_color_line_3d")
+        return GPUShader(cls.base_vertex_shader_3d, cls.base_fragment_shader_3d, geocode=geometry_shader)
 
 
     @staticmethod
@@ -141,7 +141,7 @@ class Shaders:
               fragColor = color;
             }
         """
-        return GPUShader(vertex_shader, fragment_shader, name="id_shader_3d")
+        return GPUShader(vertex_shader, fragment_shader)
 
     @staticmethod
     @cache
@@ -174,4 +174,4 @@ class Shaders:
                 fragColor = color;
             }
         '''
-        return GPUShader(vertex_shader, fragment_shader, name="dashed_uniform_color_3d")
+        return GPUShader(vertex_shader, fragment_shader)
