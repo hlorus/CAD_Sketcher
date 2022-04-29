@@ -39,13 +39,13 @@ body:
       placeholder: 2.92 - 2.93 
     validations:
       required: true
-- type: dropdown
-  id: platform
-  attributes:
-    label: What platform are you running on?
-    options:
-      - Linux
-      - Windows
-      - Mac OSX
-  validations:
-    required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: What platform are you running on?
+      options:
+        - Linux
+        - Windows
+        - Mac OSX
+    validations:
+      required: true
