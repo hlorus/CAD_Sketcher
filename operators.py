@@ -2991,6 +2991,11 @@ class VIEW3D_OT_slvs_add_distance(
     )
     type = "DISTANCE"
 
+    def fini(self, context, succeede):
+        super().fini(context, succeede)
+        if hasattr(self, "target"):
+            self.target.draw_offset = 0.05 * context.region_data.view_distance
+
 
 class VIEW3D_OT_slvs_add_angle(
     Operator, GenericConstraintOp
@@ -3005,6 +3010,10 @@ class VIEW3D_OT_slvs_add_angle(
     setting: BoolProperty(name="Invert")
     type = "ANGLE"
 
+    def fini(self, context, succeede):
+        super().fini(context, succeede)
+        if hasattr(self, "target"):
+            self.target.draw_offset = 0.1 * context.region_data.view_distance
 
 class VIEW3D_OT_slvs_add_diameter(
     Operator, GenericConstraintOp
