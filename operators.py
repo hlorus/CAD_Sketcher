@@ -3240,14 +3240,18 @@ class SKETCHER_OT_add_preset_theme(AddPresetBase, Operator):
 
     preset_subdir = "bgs/theme"
 
-def mesh_from_temporary(mesh, name):
+def mesh_from_temporary(mesh, name, existing_mesh=None):
     import bmesh
     bm = bmesh.new()
     bm.from_mesh(mesh)
 
     bmesh.ops.dissolve_limit(bm, angle_limit=math.radians(0.1), verts=bm.verts, edges=bm.edges)
 
-    new_mesh = bpy.data.meshes.new(name)
+    if existing_mesh:
+        existing_mesh.clear_geometry()
+        new_mesh = existing_mesh
+    else:
+        new_mesh = bpy.data.meshes.new(name)
     bm.to_mesh(new_mesh)
     bm.free()
     return new_mesh
@@ -3319,10 +3323,10 @@ def update_convertor_geometry(scene):
         if mode == "MESH":
             # Create mesh data
             temp_mesh = sketch.target_curve_object.to_mesh()
-            mesh = mesh_from_temporary(temp_mesh, name)
+            mesh = mesh_from_temporary(temp_mesh, name, existing_mesh=sketch.target_mesh)
             sketch.target_curve_object.to_mesh_clear()
 
-            sketch.target_mesh = mesh.copy()
+            sketch.target_mesh = mesh#.copy()
 
             # Create mesh object
             if not sketch.target_object:
