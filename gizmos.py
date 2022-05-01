@@ -273,15 +273,24 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
     )
 
     def _create_shape(self, context, constr, select=False):
-        dist = constr.value / 2 / context.preferences.system.ui_scale
+        ui_scale = context.preferences.system.ui_scale
+        dist = constr.value / 2 / ui_scale
         offset = self.target_get_value("offset")
         overshoot = math.copysign(0.04, offset)
 
+        scale = context.preferences.system.ui_scale
+
+        base_offset1 = (constr.matrix_basis().inverted() @ constr.entity1.co.to_3d()).y / ui_scale
+        if type(constr.entity2) in class_defines.point:
+            base_offset2 = (constr.matrix_basis().inverted() @ constr.entity2.co.to_3d()).y / ui_scale
+        else:
+            base_offset2 = Vector()
+
         helplines = (
             (-dist, offset + overshoot, 0.0),
-            (-dist, 0.0, 0.0),
+            (-dist, base_offset1, 0.0),
             (dist, offset + overshoot, 0.0),
-            (dist, 0.0, 0.0),
+            (dist, base_offset2, 0.0),
         )
 
         p1 = Vector((-dist, offset, 0.0))

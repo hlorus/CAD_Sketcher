@@ -1943,6 +1943,13 @@ def get_distance_value(self):
 
 def set_distance_value(self, value):
     self['value'] = abs(value)
+
+align_items = [
+    ("NONE", "None", "", 1),
+    ("HORIZONTAL", "Horizontal", "", 2),
+    ("VERTICAL", "Vertical", "", 3),
+]
+
 class SlvsDistance(GenericConstraint, PropertyGroup):
     """Sets the distance between a point and some other entity (point/line/Workplane).
     """
@@ -1956,6 +1963,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         set=set_distance_value,
     )
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
+    align: EnumProperty(name="Align", items=align_items, update=update_system_cb,)
     type = "DISTANCE"
     signature = (point, (*point, *line, SlvsWorkplane))
 
@@ -1982,17 +1990,35 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
         func = None
         set_wp = False
+        alignment = self.align
+        align = alignment != "NONE"
+        handles = []
 
         if type(e2) in line:
             func = solvesys.addPointLineDistance
             set_wp = True
-        elif type(e2) in point:
-            func = solvesys.addPointsDistance
-            set_wp = True
         elif isinstance(e2, SlvsWorkplane):
             func = solvesys.addPointPlaneDistance
+        elif type(e2) in point:
+            if align and all([e.is_2d() for e in (e1, e2)]):
+                # Get Point in between
+                p1, p2 = e1.co, e2.co
+                coords = (p2.x, p1.y)
 
-        # TODO: ProjectedDistance ?!
+                params = [solvesys.addParamV(v, group) for v in coords]
+                wp = self.get_workplane()
+                p = solvesys.addPoint2d(wp, *params, group=group)
+
+                handles.append(solvesys.addPointsHorizontal(p, e2.py_data, wp, group=group))
+                handles.append(solvesys.addPointsVertical(p, e1.py_data, wp, group=group))
+
+                base_point = e1 if alignment == "VERTICAL" else e2
+                handles.append(solvesys.addPointsDistance(self.value, p, base_point.py_data, wrkpln=wp, group=group))
+                return handles
+            else:
+                func = solvesys.addPointsDistance
+            set_wp = True
+
 
         kwargs = {
             "group": group,
@@ -2010,10 +2036,15 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
         sketch = self.sketch
         x_axis = Vector((1, 0))
+        alignment = self.align
+        align = alignment != "NONE"
 
         if type(self.entity2) in point_2d:
             p1, p2 = self.entity1.co, self.entity2.co
-            v_rotation = p2 - p1
+            if align:
+                v_rotation = Vector((1.0, 0.0)) if alignment == "HORIZONTAL" else Vector((0.0, 1.0))
+            else:
+                v_rotation = p2 - p1
             v_translation = (p2 + p1) / 2
 
             angle = v_rotation.angle_signed(x_axis)
@@ -2065,6 +2096,9 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
     def draw_props(self, layout):
         layout.prop(self, "value")
+        layout.prop(self, "align", text="")
+        if preferences.is_experimental():
+            layout.prop(self, "draw_offset")
 
     def value_placement(self, context):
         """location to display the constraint value"""

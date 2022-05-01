@@ -1556,6 +1556,9 @@ class StatefulOperator:
                 for p in props:
                     layout.prop(self, p, text="")
 
+        if hasattr(self, "draw_settings"):
+            self.draw_settings(context)
+
 
 # StatefulOperator Doc
 
@@ -2977,6 +2980,9 @@ class GenericConstraintOp(GenericEntityOp):
         if hasattr(c, "setting"):
             layout.prop(self, "setting")
 
+        if hasattr(self, "draw_settings"):
+            self.draw_settings(context)
+
 
 # Dimensional constarints
 class VIEW3D_OT_slvs_add_distance(
@@ -2989,12 +2995,18 @@ class VIEW3D_OT_slvs_add_distance(
     value: FloatProperty(
         name="Distance", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
     )
+    align: EnumProperty(name="Alignment", items=class_defines.align_items)
     type = "DISTANCE"
 
     def fini(self, context, succeede):
         super().fini(context, succeede)
         if hasattr(self, "target"):
+            self.target.align = self.align
             self.target.draw_offset = 0.05 * context.region_data.view_distance
+
+    def draw_settings(self, context):
+        layout = self.layout
+        layout.prop(self, "align")
 
 
 class VIEW3D_OT_slvs_add_angle(
