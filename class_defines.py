@@ -528,7 +528,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         nm (SlvsNormal3D): Normal which defines the orientation
     """
 
-    size = 5
+    size = 0.5
 
     def dependencies(self):
         return [self.p1, self.nm]
@@ -555,32 +555,45 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         )
         self.is_dirty = False
 
+    def _matrix_scale_view(self, context):
+        scale = context.region_data.view_distance
+        gpu.matrix.scale(Vector((scale, scale, scale)))
+
     # NOTE: probably better to avoid overwritting draw func..
     def draw(self, context):
         if not self.is_visible(context):
             return
 
-        col = self.color(context)
-        # Let parent draw outline
-        super().draw(context)
+        with gpu.matrix.push_pop():
+            self._matrix_scale_view(context)
 
-        # Additionaly draw a face
-        col_surface = col[:-1] + (0.2,)
+            col = self.color(context)
+            # Let parent draw outline
+            super().draw(context)
 
-        shader = Shaders.uniform_color_3d()
-        shader.bind()
-        bgl.glEnable(bgl.GL_BLEND)
+            # Additionaly draw a face
+            col_surface = col[:-1] + (0.2,)
 
-        shader.uniform_float("color", col_surface)
-        mat = self.matrix_basis
+            shader = Shaders.uniform_color_3d()
+            shader.bind()
+            bgl.glEnable(bgl.GL_BLEND)
 
-        coords = functions.draw_rect_2d(0, 0, self.size, self.size)
-        coords = [(mat @ Vector(co))[:] for co in coords]
-        indices = ((0, 1, 2), (0, 2, 3))
-        batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
-        batch.draw(shader)
+            shader.uniform_float("color", col_surface)
+            mat = self.matrix_basis
 
+            coords = functions.draw_rect_2d(0, 0, self.size, self.size)
+            coords = [(mat @ Vector(co))[:] for co in coords]
+            indices = ((0, 1, 2), (0, 2, 3))
+            batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
+
+            batch.draw(shader)
         self.restore_opengl_defaults()
+
+
+    def draw_id(self, context):
+        with gpu.matrix.push_pop():
+            self._matrix_scale_view(context)
+            super().draw_id(context)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addWorkplane(self.p1.py_data, self.nm.py_data, group=group)
