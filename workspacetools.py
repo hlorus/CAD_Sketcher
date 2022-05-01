@@ -16,6 +16,71 @@ def tool_invoke_kmi(button, tool, operator):
         {"properties": [("tool_name", tool), ("operator", operator)]},
     )
 
+constraint_access = (
+    (
+        operators.VIEW3D_OT_slvs_add_coincident.bl_idname,
+        {"type": "C", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+    (
+        operators.VIEW3D_OT_slvs_add_vertical.bl_idname,
+        {"type": "V", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+    (
+        operators.VIEW3D_OT_slvs_add_horizontal.bl_idname,
+        {"type": "H", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+    (
+        operators.VIEW3D_OT_slvs_add_equal.bl_idname,
+        {"type": "E", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+    (
+        operators.VIEW3D_OT_slvs_add_parallel.bl_idname,
+        {"type": "P", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+    (
+        operators.VIEW3D_OT_slvs_add_perpendicular.bl_idname,
+        {"type": "N", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+    (
+        operators.VIEW3D_OT_slvs_add_tangent.bl_idname,
+        {"type": "T", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+    (
+        operators.VIEW3D_OT_slvs_add_midpoint.bl_idname,
+        {"type": "M", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+    (
+        operators.VIEW3D_OT_slvs_add_ratio.bl_idname,
+        {"type": "R", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+
+    # Dimensional Constraints
+    (
+        operators.VIEW3D_OT_slvs_add_distance.bl_idname,
+        {"type": "D", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+    (
+        operators.VIEW3D_OT_slvs_add_angle.bl_idname,
+        {"type": "A", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+    (
+        operators.VIEW3D_OT_slvs_add_diameter.bl_idname,
+        {"type": "O", "value": "PRESS", "shift": True},
+        {"properties": [("wait_for_input", True), ]}
+    ),
+
+)
 
 tool_access = (
     tool_invoke_kmi(
@@ -43,9 +108,9 @@ tool_access = (
         operators.View3D_OT_slvs_add_sketch.bl_idname,
         {"type": "S", "value": "PRESS"},
         {"properties": [("wait_for_input", True), ]}
-    )
+    ),
+    *constraint_access,
 )
-
 
 def tool_numeric_invoke_km(operator):
     km = []

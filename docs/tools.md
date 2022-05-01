@@ -34,6 +34,22 @@ Whenever one of the addon's tools is active the tool access keymap allows to qui
 |R|-   |Activate Tool: Add Rectangle|
 |S|-   |Activate Tool: Add Sketch|
 
+**Constraints:**
+|Key|Modifier|Action|
+|---|---|---|
+|Shift + D|-   |Distance|
+|Shift + A|-   |Angle|
+|Shift + O|-   |Diameter|
+|Shift + C|-   |Coincident|
+|Shift + V|-   |Vertical|
+|Shift + H|-   |Horizontal|
+|Shift + E|-   |Equal|
+|Shift + P|-   |Parallel|
+|Shift + N|-   |Perpendicular|
+|Shift + T|-   |Tangent|
+|Shift + M|-   |Midpoint|
+|Shift + R|-   |Ratio|
+
 ### Basic Tool Keymap
 The basic tool interaction is consistent between tools.
 
@@ -60,7 +76,6 @@ The basic tool interaction is consistent between tools.
 |---|---|---|
 |LMB|-   |Toggle Select|
 |ESC|-   |Deselect All|
-
 
 
 > **INFO:** LMB in empty space will also deselect all.
