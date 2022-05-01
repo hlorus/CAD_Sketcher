@@ -2135,9 +2135,10 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         mesh = ob.data
         face = mesh.polygons[face_index]
 
+        mat_obj = ob.matrix_world
         quat = class_defines.get_face_orientation(mesh, face)
-        # pos = class_defines.get_face_midpoint(quat, ob, face)
-        pos = face.center
+        quat.rotate(mat_obj)
+        pos = mat_obj @ face.center
         origin = sse.add_point_3d(pos)
         nm = sse.add_normal_3d(quat)
 
