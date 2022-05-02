@@ -239,8 +239,6 @@ class SlvsGenericEntity:
         # Note: Design Question, should it be possible to select elements that are not active?!
         # e.g. to activate a sketch
         # maybe it should be dynamicly defined what is selectable (points only, lines only, ...)
-        if not self.is_selectable(context):
-            return
 
         batch = self._batch
         shader = self._id_shader
@@ -533,11 +531,11 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
     def dependencies(self):
         return [self.p1, self.nm]
 
-    def is_active(self, active_sketch):
-        return not active_sketch
+    # def is_active(self, active_sketch):
+    #     return not active_sketch
 
-    def is_selectable(self, context):
-        return self.is_active(context.scene.sketcher.active_sketch)
+    # def is_selectable(self, context):
+    #     return self.is_active(context.scene.sketcher.active_sketch)
 
     def update(self):
         if bpy.app.background:
