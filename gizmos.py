@@ -278,11 +278,22 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
         offset = self.target_get_value("offset")
         overshoot = math.copysign(0.04, offset)
 
-        base_offset1 = (constr.matrix_basis().inverted() @ constr.entity1.location.to_3d()).y / ui_scale
+        # Get constraints points in local space and adjust helplines based on their position
+        mat_inv = constr.matrix_basis().inverted()
+        points_local = []
+        points_local.append((mat_inv @ constr.entity1.location.to_3d()) / ui_scale)
         if type(constr.entity2) in class_defines.point:
-            base_offset2 = (constr.matrix_basis().inverted() @ constr.entity2.location.to_3d()).y / ui_scale
+            points_local.append((mat_inv @ constr.entity2.location.to_3d()) / ui_scale)
         else:
-            base_offset2 = 0
+            # Todo: if entity2 is line, get the point closest to the distance line
+            points_local.append(Vector())
+
+        if points_local[0].x < points_local[1].x:
+            base_offset1 = points_local[0].y
+            base_offset2 = points_local[1].y
+        else:
+            base_offset1 = points_local[1].y
+            base_offset2 = points_local[0].y
 
         helplines = (
             (-dist, offset + overshoot, 0.0),
