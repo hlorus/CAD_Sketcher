@@ -528,7 +528,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         nm (SlvsNormal3D): Normal which defines the orientation
     """
 
-    size = 5
+    size = 0.4
 
     def dependencies(self):
         return [self.p1, self.nm]
@@ -560,7 +560,9 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             return
 
         with gpu.matrix.push_pop():
+            scale = context.region_data.view_distance
             gpu.matrix.multiply_matrix(self.matrix_basis)
+            gpu.matrix.scale(Vector((scale, scale, scale)))
 
             col = self.color(context)
             # Let parent draw outline
@@ -585,7 +587,9 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     def draw_id(self, context):
         with gpu.matrix.push_pop():
+            scale = context.region_data.view_distance
             gpu.matrix.multiply_matrix(self.matrix_basis)
+            gpu.matrix.scale(Vector((scale, scale, scale)))
             super().draw_id(context)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
