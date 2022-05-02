@@ -544,10 +544,9 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             return
 
         p1, nm = self.p1, self.nm
-        mat = self.matrix_basis
 
         coords = functions.draw_rect_2d(0, 0, self.size, self.size)
-        coords = [(mat @ Vector(co))[:] for co in coords]
+        coords = [(Vector(co))[:] for co in coords]
 
         indices = ((0, 1), (1, 2), (2, 3), (3, 0))
         self._batch = batch_for_shader(
@@ -560,27 +559,34 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         if not self.is_visible(context):
             return
 
-        col = self.color(context)
-        # Let parent draw outline
-        super().draw(context)
+        with gpu.matrix.push_pop():
+            gpu.matrix.multiply_matrix(self.matrix_basis)
 
-        # Additionaly draw a face
-        col_surface = col[:-1] + (0.2,)
+            col = self.color(context)
+            # Let parent draw outline
+            super().draw(context)
 
-        shader = Shaders.uniform_color_3d()
-        shader.bind()
-        bgl.glEnable(bgl.GL_BLEND)
+            # Additionaly draw a face
+            col_surface = col[:-1] + (0.2,)
 
-        shader.uniform_float("color", col_surface)
-        mat = self.matrix_basis
+            shader = Shaders.uniform_color_3d()
+            shader.bind()
+            bgl.glEnable(bgl.GL_BLEND)
 
-        coords = functions.draw_rect_2d(0, 0, self.size, self.size)
-        coords = [(mat @ Vector(co))[:] for co in coords]
-        indices = ((0, 1, 2), (0, 2, 3))
-        batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
-        batch.draw(shader)
+            shader.uniform_float("color", col_surface)
+
+            coords = functions.draw_rect_2d(0, 0, self.size, self.size)
+            coords = [Vector(co)[:] for co in coords]
+            indices = ((0, 1, 2), (0, 2, 3))
+            batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
+            batch.draw(shader)
 
         self.restore_opengl_defaults()
+
+    def draw_id(self, context):
+        with gpu.matrix.push_pop():
+            gpu.matrix.multiply_matrix(self.matrix_basis)
+            super().draw_id(context)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addWorkplane(self.p1.py_data, self.nm.py_data, group=group)
