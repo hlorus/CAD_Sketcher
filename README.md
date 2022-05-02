@@ -17,7 +17,7 @@ Minimum version: Blender 2.92
  - [Preferred Download Method](https://gumroad.com/a/891069555) (This way we can update you about big updates and ask your opinion on big changes)
  - [Documentation](https://hlorus.github.io/CAD_Sketcher/)  
  - [Installation](https://hlorus.github.io/CAD_Sketcher/installation)  
- - [Discord](https://discord.gg/GzpJsShgxa)  
+ - [Discord](https://discord.gg/EyRjypztmf)  
  - [Report a Bug](https://hlorus.github.io/CAD_Sketcher/advanced/#report-a-bug)  
  - [Contribute](https://hlorus.github.io/CAD_Sketcher/advanced/#contribute)
 
