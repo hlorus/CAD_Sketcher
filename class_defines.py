@@ -1940,9 +1940,9 @@ def set_distance_value(self, value):
     self['value'] = abs(value)
 
 align_items = [
-    ("NONE", "None", "", 1),
-    ("HORIZONTAL", "Horizontal", "", 2),
-    ("VERTICAL", "Vertical", "", 3),
+    ("NONE", "None", "", 0),
+    ("HORIZONTAL", "Horizontal", "", 1),
+    ("VERTICAL", "Vertical", "", 2),
 ]
 
 class SlvsDistance(GenericConstraint, PropertyGroup):
