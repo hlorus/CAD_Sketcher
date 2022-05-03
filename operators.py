@@ -3005,8 +3005,14 @@ class VIEW3D_OT_slvs_add_distance(
             self.target.draw_offset = 0.05 * context.region_data.view_distance
 
     def draw_settings(self, context):
+        if not hasattr(self, "target"):
+            return
+
         layout = self.layout
-        layout.prop(self, "align")
+
+        row = layout.row()
+        row.active = self.target.use_align()
+        row.prop(self, "align")
 
 
 class VIEW3D_OT_slvs_add_angle(

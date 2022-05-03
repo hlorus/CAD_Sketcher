@@ -1981,6 +1981,10 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     def use_flipping(self):
         # Only use flipping for constraint between point and line/workplane
         return type(self.entity2) in (*line, SlvsWorkplane)
+
+    def use_align(self):
+        return type(self.entity2) in point
+
     def get_value(self):
         value = self.value
         if self.use_flipping() and self.flip:
@@ -1996,7 +2000,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         func = None
         set_wp = False
         alignment = self.align
-        align = alignment != "NONE"
+        align = self.use_align() and alignment != "NONE"
         handles = []
 
         value = self.get_value()
@@ -2108,7 +2112,11 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
     def draw_props(self, layout):
         layout.prop(self, "value")
-        layout.prop(self, "align", text="")
+
+        layout.label(text="Alignment:")
+        row = layout.row()
+        row.active = self.use_align()
+        row.prop(self, "align", text="")
 
         row = layout.row()
         row.active = self.use_flipping()
