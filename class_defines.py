@@ -1957,6 +1957,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         get=get_distance_value,
         set=set_distance_value,
     )
+    flip: BoolProperty(name="Flip", update=update_system_cb)
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     align: EnumProperty(name="Align", items=align_items, update=update_system_cb,)
     type = "DISTANCE"
@@ -1977,6 +1978,15 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             return WpReq.FREE
         return WpReq.OPTIONAL
 
+    def use_flipping(self):
+        # Only use flipping for constraint between point and line/workplane
+        return type(self.entity2) in (*line, SlvsWorkplane)
+    def get_value(self):
+        value = self.value
+        if self.use_flipping() and self.flip:
+            return value * -1
+        return value
+
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         if self.entity1 == self.entity2:
             raise AttributeError("Cannot create constraint between one entity itself")
@@ -1988,6 +1998,8 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         alignment = self.align
         align = alignment != "NONE"
         handles = []
+
+        value = self.get_value()
 
         if type(e2) in line:
             func = solvesys.addPointLineDistance
@@ -2008,7 +2020,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
                 handles.append(solvesys.addPointsVertical(p, e1.py_data, wp, group=group))
 
                 base_point = e1 if alignment == "VERTICAL" else e2
-                handles.append(solvesys.addPointsDistance(self.value, p, base_point.py_data, wrkpln=wp, group=group))
+                handles.append(solvesys.addPointsDistance(value, p, base_point.py_data, wrkpln=wp, group=group))
                 return handles
             else:
                 func = solvesys.addPointsDistance
@@ -2022,7 +2034,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         if set_wp:
             kwargs["wrkpln"] = self.get_workplane()
 
-        return func(self.value, e1.py_data, e2.py_data, **kwargs)
+        return func(value, e1.py_data, e2.py_data, **kwargs)
 
     def matrix_basis(self):
         if self.sketch_i == -1 or not isinstance(self.entity1, SlvsPoint2D):
@@ -2083,6 +2095,11 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             )
         else:
             value = (e1.location - e2.location).length
+
+        if self.use_flipping() and value < 0:
+            value = abs(value)
+            self.flip = not self.flip
+
         self.value = value
         return value, None
 
@@ -2092,8 +2109,15 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     def draw_props(self, layout):
         layout.prop(self, "value")
         layout.prop(self, "align", text="")
+
+        row = layout.row()
+        row.active = self.use_flipping()
+        row.prop(self, "flip")
+
         if preferences.is_experimental():
+            layout.separator()
             layout.prop(self, "draw_offset")
+
 
     def value_placement(self, context):
         """location to display the constraint value"""
