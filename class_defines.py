@@ -2112,6 +2112,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
     def draw_props(self, layout):
         layout.prop(self, "value")
+        layout.separator()
 
         layout.label(text="Alignment:")
         row = layout.row()
