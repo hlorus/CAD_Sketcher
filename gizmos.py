@@ -278,28 +278,52 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
         offset = self.target_get_value("offset")
         overshoot = math.copysign(0.04, offset)
 
+        entity1 = constr.entity1
+        entity2 = constr.entity2
+
         # Get constraints points in local space and adjust helplines based on their position
         mat_inv = constr.matrix_basis().inverted()
-        points_local = []
-        points_local.append((mat_inv @ constr.entity1.location.to_3d()) / ui_scale)
-        if type(constr.entity2) in class_defines.point:
-            points_local.append((mat_inv @ constr.entity2.location.to_3d()) / ui_scale)
-        else:
-            # Todo: if entity2 is line, get the point closest to the distance line
-            points_local.append(Vector())
 
-        if points_local[0].x < points_local[1].x:
-            base_offset1 = points_local[0].y
-            base_offset2 = points_local[1].y
+        def get_local(point):
+            return (mat_inv @ point.location.to_3d()) / ui_scale
+
+        # Store the two endpoints of the helplines in local space
+        points_local = []
+        points_local.append(get_local(entity1))
+
+        if type(entity2) in class_defines.point:
+            points_local.append(get_local(entity2))
+
+        elif type(entity2) in class_defines.line:
+            line_points = (get_local(entity2.p1), get_local(entity2.p2))
+            line_points_side = [pos.y - offset > 0 for pos in line_points]
+
+            x = math.copysign(dist, line_points[0].x)
+            y = offset
+
+            if line_points_side[0] != line_points_side[1]:
+                # Distance line is between line points
+                y = offset
+            else:
+                # Get the closest point
+                points_delta = [abs(p.y - offset) for p in line_points]
+                i = int(points_delta[0] > points_delta[1])
+                y = line_points[i].y
+            points_local.append(Vector((x, y, 0.0)))
+
+
+        # Pick the points based on their x location
+        if points_local[0].x > points_local[1].x:
+            point_right, point_left = points_local
         else:
-            base_offset1 = points_local[1].y
-            base_offset2 = points_local[0].y
+            point_right, point_left = reversed(points_local)
+
 
         helplines = (
             (-dist, offset + overshoot, 0.0),
-            (-dist, base_offset1, 0.0),
+            (-dist, point_left.y, 0.0),
             (dist, offset + overshoot, 0.0),
-            (dist, base_offset2, 0.0),
+            (dist, point_right.y, 0.0),
         )
 
         p1 = Vector((-dist, offset, 0.0))
