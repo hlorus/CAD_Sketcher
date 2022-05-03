@@ -3279,28 +3279,14 @@ def mesh_from_temporary(mesh, name, existing_mesh=None):
 
 
 def _cleanup_data(sketch, mode):
-    if sketch.target_mesh and mode != "MESH":
-        sketch.target_mesh = None
     if sketch.target_object and mode != "MESH":
         sketch.target_object.sketch_index = -1
         bpy.data.objects.remove(sketch.target_object, do_unlink=True)
         sketch.target_object = None
-    if sketch.target_curve and mode != "BEZIER":
-        sketch.target_curve = None
     if sketch.target_curve_object and mode != "BEZIER":
         sketch.target_curve_object.sketch_index = -1
         bpy.data.objects.remove(sketch.target_curve_object, do_unlink=True)
         sketch.target_curve_object = None
-
-def _ensure_curve_data(sketch):
-    if not sketch.target_curve:
-        curve = bpy.data.objects.data.curves.new(sketch.name, "CURVE")
-        sketch.target_curve = curve
-        return curve
-
-    # Clear existing curve data
-    sketch.target_curve.splines.clear()
-    return sketch.target_curve
 
 def _link_unlink_object(scene, ob, keep):
     objects = scene.collection.objects
@@ -3322,40 +3308,37 @@ def update_convertor_geometry(scene):
         data = bpy.data
         name = sketch.name
 
+        # Create curve object
+        if not sketch.target_curve_object:
+            curve = bpy.data.objects.data.curves.new(name, "CURVE")
+            object = bpy.data.objects.new(name, curve)
+            sketch.target_curve_object = object
+
         # Convert geometry to curve data
         conv = convertors.BezierConvertor(scene, sketch)
         conv.run()
         # TODO: Avoid re-converting sketches where nothing has changed!
         logger.info("Convert sketch {} to {}: ".format(sketch, mode.lower()))
-        curve_data = _ensure_curve_data(sketch)
+        curve_data = sketch.target_curve_object.data
         conv.to_bezier(curve_data)
         data = curve_data
-
-
-        # Create curve object
-        if not sketch.target_curve_object:
-            object = bpy.data.objects.new(name, curve_data)
-            sketch.target_curve_object = object
 
         # Link / unlink curve object
         _link_unlink_object(scene, sketch.target_curve_object, mode == "BEZIER")
 
-
         if mode == "MESH":
             # Create mesh data
             temp_mesh = sketch.target_curve_object.to_mesh()
-            mesh = mesh_from_temporary(temp_mesh, name, existing_mesh=sketch.target_mesh)
+            mesh = mesh_from_temporary(temp_mesh, name, existing_mesh=(sketch.target_object.data if sketch.target_object else None))
             sketch.target_curve_object.to_mesh_clear()
-
-            sketch.target_mesh = mesh#.copy()
 
             # Create mesh object
             if not sketch.target_object:
-                mesh_object = bpy.data.objects.new(name, sketch.target_mesh)
+                mesh_object = bpy.data.objects.new(name, mesh)
                 scene.collection.objects.link(mesh_object)
                 sketch.target_object = mesh_object
             else:
-                sketch.target_object.data = sketch.target_mesh
+                sketch.target_object.data = mesh
 
 
         _cleanup_data(sketch, mode)
