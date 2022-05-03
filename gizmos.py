@@ -272,12 +272,11 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
         "index",
     )
 
-    def _create_shape(self, context, constr, select=False):
+    def _get_helplines(self, context, constr):
         ui_scale = context.preferences.system.ui_scale
         dist = constr.value / 2 / ui_scale
         offset = self.target_get_value("offset")
         overshoot = math.copysign(0.04, offset)
-
         entity1 = constr.entity1
         entity2 = constr.entity2
 
@@ -319,12 +318,18 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
             point_right, point_left = reversed(points_local)
 
 
-        helplines = (
+        return (
             (-dist, offset + overshoot, 0.0),
             (-dist, point_left.y, 0.0),
             (dist, offset + overshoot, 0.0),
             (dist, point_right.y, 0.0),
         )
+
+
+    def _create_shape(self, context, constr, select=False):
+        ui_scale = context.preferences.system.ui_scale
+        dist = constr.value / 2 / ui_scale
+        offset = self.target_get_value("offset")
 
         p1 = Vector((-dist, offset, 0.0))
         p2 = Vector((dist, offset, 0.0))
@@ -343,7 +348,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
             *draw_arrow_shape(
                 p2, p2 - Vector((arrow_2[0], 0, 0)), arrow_2[1], is_3d=True
             ),
-            *(helplines if not select else ()),
+            *(self._get_helplines(context, constr) if not select else ()),
         )
 
         self.custom_shape = self.new_custom_shape("LINES", coords)
