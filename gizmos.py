@@ -637,12 +637,8 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 set_gizmo_colors(gz, c.failed)
 
                 gz.use_draw_modal = True
-
-                if hasattr(c, "draw_props"):
-                    op = operators.View3D_OT_slvs_context_menu.bl_idname
-                else:
-                    op = operators.View3D_OT_slvs_delete_constraint.bl_idname
-
+                
+                op = operators.View3D_OT_slvs_context_menu.bl_idname
                 props = gz.target_set_operator(op)
                 props.type = c.type
                 props.index = gz.index

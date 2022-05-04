@@ -269,6 +269,13 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
     def poll(cls, context):
         return True
 
+    @classmethod
+    def description(cls, context, properties):
+        cls.handle_highlight_hover(context, properties)
+        if properties.type:
+            return properties.type.capitalize()
+        return cls.__doc__
+
     def execute(self, context):
         is_entity = True
         entity_index = None
