@@ -264,6 +264,7 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
 
     type: StringProperty(name="Type", options={'SKIP_SAVE'})
     index: IntProperty(name="Index", default=-1, options={'SKIP_SAVE'})
+    delayed: BoolProperty(default=True)
 
     @classmethod
     def poll(cls, context):
@@ -275,6 +276,18 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
         if properties.type:
             return properties.type.capitalize()
         return cls.__doc__
+
+    def invoke(self, context, event):
+        if not self.delayed:
+            return self.execute(context)
+
+        context.window_manager.modal_handler_add(self)
+        return {"RUNNING_MODAL"}
+
+    def modal(self, context, event):
+        if event.value == "RELEASE":
+            return self.execute(context)
+        return {"RUNNING_MODAL"}
 
     def execute(self, context):
         is_entity = True
