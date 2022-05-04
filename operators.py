@@ -91,7 +91,7 @@ class HighlightElement:
     """
     Mix-in class to highlight the element this operator acts on. The element can
     either be an entity or a constraint. The element has to be specified by an index
-    property for entities and additionaly with a type property for constraints.
+    property for entities and additionally with a type property for constraints.
 
         index: IntProperty
         type: StringProperty
@@ -508,7 +508,7 @@ def write_selection_buffer_image(image_name):
 
 
 class VIEW3D_OT_slvs_write_selection_texture(Operator):
-    """Write selection texture to image for debuging"""
+    """Write selection texture to image for debugging"""
 
     bl_idname = "view3d.slvs_write_selection_texture"
     bl_label = "Write selection texture"
@@ -1232,7 +1232,7 @@ class StatefulOperator:
             if retval == {"FINISHED"}:
                 go_modal = False
 
-            # NOTE: It might make sense to cancle Operator if no prop could be filled
+            # NOTE: It might make sense to cancel Operator if no prop could be filled
             # Otherwise it might not be obvious that an operator is running
             # if self.state_index == 0:
             #     return self._end(context, False)
@@ -1240,7 +1240,7 @@ class StatefulOperator:
             if not self.executed and self.check_props():
                 self.run_op(context)
                 self.executed = True
-            context.area.tag_redraw()  # doesnt seem to work...
+            context.area.tag_redraw()  # doesn't seem to work...
 
         self.set_status_text(context)
 
@@ -1372,14 +1372,14 @@ class StatefulOperator:
                 self.iterate_substate()
                 self.set_status_text(context)
         elif is_numeric_event:
-            # Initalize
+            # Initialize
             is_numeric_edit = self.init_numeric(True)
 
         if event.type in {"RIGHTMOUSE", "ESC"}:
             return self._end(context, False)
 
         # HACK: when calling ops.ed.undo() inside an operator a mousemove event
-        # is getting triggered. manually check if theres a mousemove...
+        # is getting triggered. manually check if there's a mousemove...
         mousemove_threshold = 0.1
         is_mousemove = (coords - self._last_coords).length > mousemove_threshold
         self._last_coords = coords
@@ -1597,7 +1597,7 @@ class StatefulOperator:
 #   method to set state pointer, either of active state or by state index
 
 # check_props(self) -> succeede(bool)
-#   additional poll function to check if all neccesary operator properties
+#   additional poll function to check if all necessary operator properties
 #   are set and the main function can be called
 
 # init(self, context, event) -> None
@@ -1632,7 +1632,7 @@ OperatorState = namedtuple(
         "description",  # Text to be displayed in statusbar
         # Operator property this state acts upon
         # Can also be a list of property names or a callback that returns
-        # a set of properties dynamicly. When not explicitly set to None the
+        # a set of properties dynamically. When not explicitly set to None the
         # operators state_property function will be called.
         "property",
         # Optional: A state can reference an element, pointer attribute set the name of property function
@@ -1965,7 +1965,7 @@ class View3D_OT_slvs_add_point3d(Operator, Operator3d):
     def main(self, context):
         self.target = context.scene.sketcher.entities.add_point_3d(self.location)
 
-        # Store hovered entity to use for auto-coincident since it doesnt get
+        # Store hovered entity to use for auto-coincident since it doesn't get
         # stored for non-interactive tools
         hovered = global_data.hover
         if self._check_constrain(context, hovered):
@@ -2220,7 +2220,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         sketch = sse.add_sketch(self.wp)
 
         # Add point at origin
-        # NOTE: Maybe this could create a refrence entity of the main origin?
+        # NOTE: Maybe this could create a reference entity of the main origin?
         p = sse.add_point_2d((0.0, 0.0), sketch)
         p.fixed = True
 
@@ -2266,7 +2266,7 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
             self.coordinates, sketch
         )
 
-        # Store hovered entity to use for auto-coincident since it doesnt get
+        # Store hovered entity to use for auto-coincident since it doesn't get
         # stored for non-interactive tools
         hovered = global_data.hover
         if self._check_constrain(context, hovered):
@@ -2869,7 +2869,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
             for i in indices:
                 e = context.scene.sketcher.entities.get(i)
 
-                # NOTE: this might be slow when alot of entities are selected, improve!
+                # NOTE: this might be slow when a lot of entities are selected, improve!
                 if is_referenced(e, context):
                     continue
                 self.delete(e, context)
@@ -3004,7 +3004,7 @@ class GenericConstraintOp(GenericEntityOp):
             self.draw_settings(context)
 
 
-# Dimensional constarints
+# Dimensional constraints
 class VIEW3D_OT_slvs_add_distance(
     Operator, GenericConstraintOp
 ):
@@ -3186,7 +3186,7 @@ class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
     def execute(self, context):
         constraints = context.scene.sketcher.constraints
 
-        # NOTE: It's not really neccesary to first get the
+        # NOTE: It's not really necessary to first get the
         # constraint from it's index before deleting
 
         constr = constraints.get_from_type_index(self.type, self.index)

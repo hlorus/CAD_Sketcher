@@ -133,7 +133,7 @@ class Preferences(AddonPreferences):
     all_entities_selectable: BoolProperty(
         name="Make all Entities Selectable", update=functions.update_cb
     )
-    force_redraw: BoolProperty(name="Force Entitie Redraw", default=True)
+    force_redraw: BoolProperty(name="Force Entity Redraw", default=True)
 
     decimal_precision: IntProperty(
         name="Decimal Precision",

@@ -27,7 +27,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         # ensure selection texture is up to date
         operators.ensure_selection_texture(context)
 
-        # sample selection texture and mark hovered entitiy
+        # sample selection texture and mark hovered entity
         mouse_x, mouse_y = location
 
         buffer = bgl.Buffer(bgl.GL_FLOAT, 4)
@@ -156,7 +156,7 @@ def _get_formatted_value(context, constr):
 
 
 class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
-    """Display the value of a dimensonal constraint"""
+    """Display the value of a dimensional constraint"""
     bl_idname = "VIEW3D_GT_slvs_constraint_value"
 
     __slots__ = (
@@ -227,7 +227,7 @@ class ConstarintGizmoGeneric(ConstraintGizmo):
 
 
 # NOTE: Idealy the geometry batch wouldn't be recreated every redraw,
-# however the geom changes with the distance value, maybe atleast track changes for that value
+# however the geom changes with the distance value, maybe at least track changes for that value
 # if not hasattr(self, "custom_shape"):
 
 from mathutils import Matrix
@@ -464,7 +464,7 @@ class VIEW3D_GGT_slvs_preselection(GizmoGroup):
     bl_region_type = "WINDOW"
     bl_options = {"3D"}
 
-    # NOTE: it woud be great to expose the hovered entity as a gizmogroup prop
+    # NOTE: it would be great to expose the hovered entity as a gizmogroup prop
     # rather than using global variables...
 
     @classmethod
@@ -491,7 +491,7 @@ def generic_constraints(context):
             yield entity
 
 
-# TODO: This could alrady Skip entities and constraints that are not active
+# TODO: This could already Skip entities and constraints that are not active
 # TODO: only store indices instead of actual objects
 def constraints_mapping(context):
     # Get a constraints per entity mapping

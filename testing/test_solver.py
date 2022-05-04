@@ -26,7 +26,7 @@ class TestSolver(BgsTestCase):
 
 class TestSolver2d(Sketch2dTestCase):
 
-    @skip("Currently failes because of an unknown bug")
+    @skip("Currently fails because of an unknown bug")
     def test_example_2d(self):
         context = self.context
         entities = self.entities

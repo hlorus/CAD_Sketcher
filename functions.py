@@ -335,7 +335,7 @@ def unique_attribute_setter(self, name, value):
         try:
             coll_path = match.group(1)
         except AttributeError:
-            raise TypeError("Propery not element in a collection.")
+            raise TypeError("Property not element in a collection.")
         else:
             return parent.path_resolve(coll_path)
 
@@ -353,7 +353,7 @@ def unique_attribute_setter(self, name, value):
         self[name] = value
         return
     if value == getattr(self, name):
-        # check for assignement of current value
+        # check for assignment of current value
         return
 
     coll = collection_from_element(self)
