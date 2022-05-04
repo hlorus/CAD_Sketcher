@@ -2064,7 +2064,7 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
             description=wp_state2_doc[1],
             state_func="get_orientation",
             pointer="nm",
-            types=(*class_defines.normal_3d, bpy.types.MeshPolygon),
+            types=class_defines.normal_3d,
             interactive=True,
             create_element="create_normal3d",
         ),
