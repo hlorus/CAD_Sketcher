@@ -35,6 +35,7 @@ Whenever one of the addon's tools is active the tool access keymap allows to qui
 |S|-   |Activate Tool: Add Sketch|
 
 **Constraints:**
+
 |Key|Modifier|Action|
 |---|---|---|
 |Shift + D|-   |Distance|
