@@ -10,7 +10,7 @@ def get_addon_version():
 def write_addon_version(context):
     version = get_addon_version()
 
-    logger.debug("Writting addon version: " + str(version))
+    logger.debug("Writing addon version: " + str(version))
 
     # NOTE: Version is written to every scene because there's no global
     # place we can put this value

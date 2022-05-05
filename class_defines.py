@@ -50,7 +50,7 @@ class SlvsGenericEntity:
             return False
         deps = self.dependencies()
         for e in deps:
-            # NOTE: might has to ckech through deps recursivley -> e.is_dirty
+            # NOTE: might has to ckech through deps recursively -> e.is_dirty
             if e.dirty:
                 return True
         return False
@@ -238,7 +238,7 @@ class SlvsGenericEntity:
     def draw_id(self, context):
         # Note: Design Question, should it be possible to select elements that are not active?!
         # e.g. to activate a sketch
-        # maybe it should be dynamicly defined what is selectable (points only, lines only, ...)
+        # maybe it should be dynamically defined what is selectable (points only, lines only, ...)
 
         batch = self._batch
         shader = self._id_shader
@@ -305,9 +305,9 @@ class SlvsGenericEntity:
 
 
 # Drawing a point might not include points coord itself but rather a series of virtual points around it
-# so a Entity might refere another point entity and/or add a set of coords
+# so a Entity might refer another point entity and/or add a set of coords
 #
-# Diffrent shaders are needed:
+# Different shaders are needed:
 # - faces shader
 # - outlines shader
 # each needs a matching batch
@@ -552,7 +552,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         )
         self.is_dirty = False
 
-    # NOTE: probably better to avoid overwritting draw func..
+    # NOTE: probably better to avoid overwriting draw func..
     def draw(self, context):
         if not self.is_visible(context):
             return
@@ -566,7 +566,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             # Let parent draw outline
             super().draw(context)
 
-            # Additionaly draw a face
+            # Additionally draw a face
             col_surface = col[:-1] + (0.2,)
 
             shader = Shaders.uniform_color_3d()
@@ -788,7 +788,7 @@ class SlvsPoint2D(Point2D, PropertyGroup):
 
         self.create_slvs_data(solvesys, group=group)
 
-        # NOTE: When simply initalizing the point on the tweaking positions
+        # NOTE: When simply initializing the point on the tweaking positions
         # the solver fails regularly, addWhereDragged fixes a point and might
         # overconstrain a system. When not using addWhereDragged the tweak point
         # might just jump to the tweaked geometry. Bypass this by creating a line
@@ -997,7 +997,7 @@ CURVE_RESOLUTION = 64
 
 class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
     """Representation of an arc in 2D space around the centerpoint ct. Connects
-    p2 to p3 or (viceversa if the option invert_direction is true) with a
+    p2 to p3 or (vice-versa if the option invert_direction is true) with a
     circle segment that is resolution independent. The arc lies on the sketche's workplane.
 
     Arguments:
@@ -1183,7 +1183,7 @@ slvs_entity_pointer(SlvsArc, "sketch")
 
 
 class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
-    """Representation of a circle in 2D space. The circle is centered at ct whith
+    """Representation of a circle in 2D space. The circle is centered at ct with
     it's size defined by the radius and is resoulution independent.
 
     Arguments:
@@ -1318,7 +1318,7 @@ slvs_entity_pointer(SlvsCircle, "sketch")
 def update_pointers(scene, index_old, index_new):
     """Replaces all references to an entity index with it's new index"""
     logger.debug("Update references {} -> {}".format(index_old, index_new))
-    # NOTE: this should go through all entity pointers and update them if neccesary.
+    # NOTE: this should go through all entity pointers and update them if necessary.
     # It might be possible to use the msgbus to notify and update the IntProperty pointers
 
     if scene.sketcher.active_sketch_i == index_old:
@@ -1774,7 +1774,7 @@ class GenericConstraint:
         return None, None
 
 
-# NOTE: When tweaking it's neccesary to constrain a point that is only temporary available
+# NOTE: When tweaking it's necessary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
 def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
     func = None
@@ -2800,7 +2800,7 @@ class SlvsConstraints(PropertyGroup):
             entity1: -
             entity2: -
             sketch: The sketch this constraint belongs to.
-            init: Initalize the constraint based on the given entities.
+            init: Initialize the constraint based on the given entities.
 
         Returns:
             SlvsDistance: The created constraint.
@@ -2821,7 +2821,7 @@ class SlvsConstraints(PropertyGroup):
             entity1: -
             entity2: -
             sketch: The sketch this constraint belongs to.
-            init: Initalize the constraint based on the given entities.
+            init: Initialize the constraint based on the given entities.
 
         Returns:
             SlvsAngle: The created constraint.
@@ -2841,7 +2841,7 @@ class SlvsConstraints(PropertyGroup):
         Arguments:
             entity1: -
             sketch: The sketch this constraint belongs to.
-            init: Initalize the constraint based on the given entities.
+            init: Initialize the constraint based on the given entities.
 
         Returns:
             SlvsDiameter: The created constraint.
@@ -2965,7 +2965,7 @@ class SlvsConstraints(PropertyGroup):
             entity1: -
             entity2: -
             sketch: The sketch this constraint belongs to.
-            init: Initalize the constraint based on the given entities.
+            init: Initialize the constraint based on the given entities.
 
         Returns:
             SlvsRatio: The created constraint.

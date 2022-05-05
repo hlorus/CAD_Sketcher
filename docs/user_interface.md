@@ -11,7 +11,7 @@ interact with elements via the browsers.
 ![!Sketch Selector](images/sketch_selector.png){align=right style="width:200px;"}
 
 Whenever no sketch is active the sidebar will list all available sketches. From there
-you can toogle the visibility of the sketches or set one as active. The UI will change
+you can toggle the visibility of the sketches or set one as active. The UI will change
 when a sketch is active, showing a big blue button which lets you exit the sketch as well as
 some properties of that sketch.
 {style="display:block; height:220px"}
@@ -37,7 +37,7 @@ To interact with the settings of a constraint click it's gizmo to open a menu.
 
 The rest of the constraints use a generic gizmo that is displayed next to the entities
 they depend on. Clicking such a gizmo either shows the constraint's settings or directly
-delets the constraint if it has no settings to show.
+deletes the constraint if it has no settings to show.
 
 <!-- TODO: image -->
 

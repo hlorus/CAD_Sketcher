@@ -1,5 +1,5 @@
 Constraints are used to restrict the movement of entities and define their
-final locations. A constraint can usually be created between diffrent entity types,
+final locations. A constraint can usually be created between different entity types,
 check the corresponding operator's tooltip to find out what's supported.
 
 ## Active

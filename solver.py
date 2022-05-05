@@ -152,8 +152,8 @@ class Solver:
         return e.is_active(self.sketch)
 
     # NOTE: When solving not everything might be relevant...
-    # An approach could be to find all constraints of a sketch and all neccesary entities
-    # and only inizialize them
+    # An approach could be to find all constraints of a sketch and all necessary entities
+    # and only initialize them
 
     # def dummy():
     # wp = None
