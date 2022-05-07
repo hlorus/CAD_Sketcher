@@ -12,13 +12,18 @@ Constraint-based sketcher addon for [Blender](https://www.blender.org/) that all
 
 Minimum version: Blender 2.92
 
+## More than just an addon learn more: [CADsketcher.com](http://cadsketcher.com/)
+
 ## Links:
 
  - [Preferred Download Method](https://gumroad.com/a/891069555) (This way we can update you about big updates and ask your opinion on big changes)
+ - [Easy To Read Roadmap](https://www.cadsketcher.com/cad-sketcher-roadmap)
+ - [Github Roadmap](https://github.com/users/hlorus/projects/1)
  - [Documentation](https://hlorus.github.io/CAD_Sketcher/)  
  - [Installation](https://hlorus.github.io/CAD_Sketcher/installation)  
  - [Discord](https://discord.gg/EyRjypztmf)  
- - [Report a Bug](https://hlorus.github.io/CAD_Sketcher/advanced/#report-a-bug)  
+ - [Report A Bug](https://github.com/hlorus/CAD_Sketcher/discussions/107)
+ - [Feature Request](https://github.com/hlorus/CAD_Sketcher/discussions/106)
  - [Contribute](https://hlorus.github.io/CAD_Sketcher/advanced/#contribute)
 
 
