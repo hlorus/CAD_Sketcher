@@ -1330,6 +1330,8 @@ def update_pointers(scene, index_old, index_new):
             continue
         o.update_pointers(index_old, index_new)
 
+    scene.sketcher.purge_stale_data()
+
 
 # NOTE: currently limited to 16 items!
 entities = (
@@ -2995,7 +2997,6 @@ for cls in constraints:
 from bpy.props import IntVectorProperty
 class SketcherProps(PropertyGroup):
     """The base structure for CAD Sketcher"""
-    hover: IntProperty(name="Hovered Entity", default=-1)
     entities: PointerProperty(type=SlvsEntities)
     constraints: PointerProperty(type=SlvsConstraints)
     show_origin: BoolProperty(name="Show Origin Entities")
@@ -3020,7 +3021,12 @@ class SketcherProps(PropertyGroup):
     def solve(self, context):
         return solve_system(context)
 
-
+    def purge_stale_data(self):
+        global_data.hover = -1
+        global_data.selected.clear()
+        global_data.batches.clear()
+        for e in self.entities.all:
+            e.dirty = True
 
 slvs_entity_pointer(SketcherProps, "active_sketch", update=functions.update_cb)
 

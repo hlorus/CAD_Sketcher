@@ -2835,9 +2835,6 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
 
     @staticmethod
     def delete(entity, context):
-        # TODO: Some data (Select state, hover, ...) is stored based on index,
-        # Clear that data when changing pointers!
-
         entity.selected = False
 
         # Delete constraints that depend on entity
