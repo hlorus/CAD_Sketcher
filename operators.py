@@ -3339,6 +3339,10 @@ def update_convertor_geometry(scene):
             curve = bpy.data.objects.data.curves.new(name, "CURVE")
             object = bpy.data.objects.new(name, curve)
             sketch.target_curve_object = object
+        else:
+            # Clear curve data
+            sketch.target_curve_object.data.splines.clear()
+
 
         # Convert geometry to curve data
         conv = convertors.BezierConvertor(scene, sketch)
