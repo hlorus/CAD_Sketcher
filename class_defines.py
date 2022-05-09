@@ -1432,6 +1432,10 @@ class SlvsEntities(PropertyGroup):
             index: The global index of the entity.
         """
         assert isinstance(index, int)
+
+        if self.get(index).origin:
+            return
+
         entity_list, i = self._get_list_and_index(index)
         entity_list.remove(i)
 
