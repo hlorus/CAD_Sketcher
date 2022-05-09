@@ -8,7 +8,7 @@ bl_info = {
     "warning": "Experimental",
     "category": "3D View",
     "doc_url": "https://hlorus.github.io/CAD_Sketcher",
-    "tracker_url": "https://github.com/hlorus/CAD_Sketcher/issues/new/choose",
+    "tracker_url": "https://github.com/hlorus/CAD_Sketcher/discussions/categories/announcements",
 }
 
 if "bpy" in locals():
