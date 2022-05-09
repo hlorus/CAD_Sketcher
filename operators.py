@@ -2957,17 +2957,9 @@ class GenericConstraintOp(GenericEntityOp):
 
     def main(self, context):
         c = self.target = context.scene.sketcher.constraints.new_from_type(self.type)
-
         self.sketch = context.scene.sketcher.active_sketch
-
         entities = self.fill_entities()
         c.sketch = self.sketch
-
-        if self.type == "COINCIDENT":
-            # TODO: Implicitly merge points
-            if all([type(e) in class_defines.point for e in entities]):
-                context.scene.sketcher.constraints.remove(c)
-                return False
 
         self.initialize_constraint()
 
@@ -3073,6 +3065,14 @@ class VIEW3D_OT_slvs_add_coincident(
 
     type = "COINCIDENT"
 
+    def main(self, context):
+        p1, p2 = self.entity1, self.entity2
+        if all([e.is_point() for e in (p1, p2)]):
+            # Implicitly merge points
+            class_defines.update_pointers(context.scene, p1.slvs_index, p2.slvs_index)
+            context.scene.sketcher.entities.remove(p1.slvs_index)
+            return True
+        return super().main(context)
 
 class VIEW3D_OT_slvs_add_equal(
     Operator, GenericConstraintOp
