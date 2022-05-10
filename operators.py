@@ -3071,6 +3071,7 @@ class VIEW3D_OT_slvs_add_coincident(
             # Implicitly merge points
             class_defines.update_pointers(context.scene, p1.slvs_index, p2.slvs_index)
             context.scene.sketcher.entities.remove(p1.slvs_index)
+            solve_system(context, context.scene.sketcher.active_sketch)
             return True
         return super().main(context)
 
