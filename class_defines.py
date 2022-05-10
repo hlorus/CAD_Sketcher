@@ -814,13 +814,6 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         col.prop(self, "co")
 
 
-
-
-def set_handles(point):
-    point.handle_left_type = "FREE"
-    point.handle_right_type = "FREE"
-
-
 class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     """Representation of a line in 2D space. Connects p1 and p2 and lies on the
     sketche's workplane.
@@ -892,7 +885,9 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         endpoint.co = locations[1]
 
         startpoint.handle_right = locations[0]
+        startpoint.handle_right_type = "VECTOR"
         endpoint.handle_left = locations[1]
+        endpoint.handle_left_type = "VECTOR"
 
         return endpoint
 

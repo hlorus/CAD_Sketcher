@@ -179,7 +179,6 @@ class BezierConvertor:
             s.bezier_points.add(amount - 1)
 
             startpoint = s.bezier_points[0]
-            class_defines.set_handles(startpoint)
             previous_point = startpoint
 
             last_index = len(path_segments) - 1
