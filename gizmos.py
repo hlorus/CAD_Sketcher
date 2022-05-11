@@ -246,9 +246,13 @@ def draw_arrow_shape(target, shoulder, width, is_3d=False):
         target,
     )
 
+DEFAULT_OVERSHOOT = 0.01
+def get_overshoot(scale, dir):
+    if dir == 0:
+        return 0
+    return -math.copysign(DEFAULT_OVERSHOOT * scale, dir)
 
-def get_arrow_size(co, dist, rv3d):
-    scale = functions.get_scale_from_pos(co, rv3d)
+def get_arrow_size(dist, scale):
     length = math.copysign(
         min(
             scale * GIZMO_ARROW_SCALE,
@@ -272,11 +276,10 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
         "index",
     )
 
-    def _get_helplines(self, context, constr):
+    def _get_helplines(self, context, constr, scale_1, scale_2):
         ui_scale = context.preferences.system.ui_scale
         dist = constr.value / 2 / ui_scale
         offset = self.target_get_value("offset")
-        overshoot = math.copysign(0.04, offset)
         entity1 = constr.entity1
         entity2 = constr.entity2
 
@@ -317,11 +320,13 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
         else:
             point_right, point_left = reversed(points_local)
 
+        overshoot_1 = offset + get_overshoot(scale_1, point_left.y - offset)
+        overshoot_2 = offset + get_overshoot(scale_2, point_right.y - offset)
 
         return (
-            (-dist, offset + overshoot, 0.0),
+            (-dist, overshoot_1, 0.0),
             (-dist, point_left.y, 0.0),
-            (dist, offset + overshoot, 0.0),
+            (dist, overshoot_2, 0.0),
             (dist, point_right.y, 0.0),
         )
 
@@ -335,9 +340,11 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
         p2 = Vector((dist, offset, 0.0))
 
         rv3d = context.region_data
+        p1_global, p2_global = [self.matrix_world @ p for p in (p1, p2)]
+        scale_1, scale_2 = [functions.get_scale_from_pos(p, rv3d) for p in (p1_global, p2_global)]
 
-        arrow_1 = get_arrow_size(self.matrix_world @ p1, dist, rv3d)
-        arrow_2 = get_arrow_size(self.matrix_world @ p2, dist, rv3d)
+        arrow_1 = get_arrow_size(dist, scale_1)
+        arrow_2 = get_arrow_size(dist, scale_2)
 
         coords = (
             *draw_arrow_shape(
@@ -348,7 +355,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
             *draw_arrow_shape(
                 p2, p2 - Vector((arrow_2[0], 0, 0)), arrow_2[1], is_3d=True
             ),
-            *(self._get_helplines(context, constr) if not select else ()),
+            *(self._get_helplines(context, constr, scale_1, scale_2) if not select else ()),
         )
 
         self.custom_shape = self.new_custom_shape("LINES", coords)
@@ -365,18 +372,22 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
         "index",
     )
 
+    def _get_helplines(self, context, constr, scale_1, scale_2):
+        angle = abs(constr.value)
+        radius = self.target_get_value("offset")
+
+        overshoot_1 = get_overshoot(scale_1, radius)
+        overshoot_2 = get_overshoot(scale_2, radius)
+        return (
+            (0.0, 0.0),
+            functions.pol2cart(radius - overshoot_1, angle / 2),
+            (0.0, 0.0),
+            functions.pol2cart(radius - overshoot_2, -angle / 2),
+        )
+
     def _create_shape(self, context, constr, select=False):
         angle = abs(constr.value)
-
         radius = self.target_get_value("offset")
-        overshoot = math.copysign(0.04, radius)
-
-        helplines = (
-            (0.0, 0.0),
-            functions.pol2cart(radius + overshoot, angle / 2),
-            (0.0, 0.0),
-            functions.pol2cart(radius + overshoot, -angle / 2),
-        )
 
         offset = -angle / 2
         rv3d = context.region_data
@@ -385,9 +396,10 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
         p2 = functions.pol2cart(radius, offset + angle)
 
         lengths, widths = [], []
+        scales = []
         for p in (p1, p2):
             scale = functions.get_scale_from_pos(self.matrix_world @ p.to_3d(), rv3d)
-
+            scales.append(scale)
             length = min(
                 scale * GIZMO_ARROW_SCALE,
                 abs(0.8 * radius * constr.value / 2),
@@ -414,7 +426,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
                 0, 0, radius, 32, angle=angle, offset=offset, type="LINES"
             ),
             *draw_arrow_shape(p2, p2 + p2_s, widths[1]),
-            *(helplines if not select else ()),
+            *(self._get_helplines(context, constr, *scales) if not select else ()),
         )
 
         self.custom_shape = self.new_custom_shape("LINES", coords)
@@ -440,8 +452,11 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         p1 = functions.pol2cart(-dist, angle)
         p2 = functions.pol2cart(dist, angle)
 
-        arrow_1 = get_arrow_size(self.matrix_world @ p1.to_3d(), dist, rv3d)
-        arrow_2 = get_arrow_size(self.matrix_world @ p2.to_3d(), dist, rv3d)
+        p1_global, p2_global = [self.matrix_world @ p.to_3d() for p in (p1, p2)]
+        scale_1, scale_2 = [functions.get_scale_from_pos(p, rv3d) for p in (p1_global, p2_global)]
+
+        arrow_1 = get_arrow_size(dist, scale_1)
+        arrow_2 = get_arrow_size(dist, scale_2)
 
         coords = (
             *draw_arrow_shape(
@@ -637,7 +652,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 set_gizmo_colors(gz, c.failed)
 
                 gz.use_draw_modal = True
-                
+
                 op = operators.View3D_OT_slvs_context_menu.bl_idname
                 props = gz.target_set_operator(op)
                 props.type = c.type
