@@ -61,10 +61,6 @@ class SlvsGenericEntity:
 
     @property
     def _shader(self):
-        dashed = self.is_dashed()
-        if dashed:
-            return Shaders.dashed_uniform_color_3d()
-
         if self.is_point():
             return Shaders.uniform_color_3d()
         return Shaders.uniform_color_line_3d()
@@ -221,11 +217,10 @@ class SlvsGenericEntity:
         col = self.color(context)
         shader.uniform_float("color", col)
 
-        if self.is_dashed():
-            shader.uniform_float("u_Scale", 20)
-            bgl.glLineWidth(self.line_width)
+        if not self.is_point():
+            shader.uniform_bool("dashed", (self.is_dashed(), ))
 
-        elif not self.is_point():
+        if not self.is_point():
             viewport = [context.area.width, context.area.height]
             shader.uniform_float("Viewport", viewport)
             shader.uniform_float("thickness", self.line_width)
@@ -251,6 +246,7 @@ class SlvsGenericEntity:
             viewport = [context.area.width, context.area.height]
             shader.uniform_float("Viewport", viewport)
             shader.uniform_float("thickness", self.line_width_select)
+            shader.uniform_bool("dashed", (False, ))
 
         batch.draw(shader)
         gpu.shader.unbind()
@@ -423,11 +419,6 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         coords = (p1, p2)
 
         kwargs = {"pos": coords}
-
-        if self.is_dashed():
-            arc_lengths = (0.0, (p2 - p1).length)
-            kwargs["arcLength"] = arc_lengths
-
         self._batch = batch_for_shader(
             self._shader, "LINES", kwargs
         )
@@ -842,10 +833,6 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         coords = (p1, p2)
 
         kwargs = {"pos": coords}
-        if self.is_dashed():
-            arc_lengths = (0.0, (p2 - p1).length)
-            kwargs["arcLength"] = arc_lengths
-
         self._batch = batch_for_shader(self._shader, "LINES", kwargs)
         self.is_dirty = False
 
@@ -1054,16 +1041,6 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
             coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
         kwargs = {"pos": coords}
-
-        if self.is_dashed():
-            r = self.radius
-            a = self.angle
-            length = r * angle
-            v_count = len(coords)
-            step = length / v_count
-            arc_lengths = [i * step for i in range(v_count)]
-            kwargs["arcLength"] = arc_lengths
-
         self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
         self.is_dirty = False
 
@@ -1220,13 +1197,6 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
         kwargs = {"pos": coords}
-        if self.is_dashed():
-            U = math.pi * self.radius * 2
-            v_count = len(coords)
-            step = U / v_count
-            arc_lengths = [i * step for i in range(v_count)]
-            kwargs["arcLength"] = arc_lengths
-
         self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
         self.is_dirty = False
 

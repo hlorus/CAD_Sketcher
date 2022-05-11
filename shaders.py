@@ -14,17 +14,42 @@ class Shaders:
         uniform mat4 ModelViewProjectionMatrix;
 
         in vec3 pos;
+
         vec4 project = ModelViewProjectionMatrix * vec4(pos, 1.0);
         void main() {
            gl_Position = project;
+
         }
     '''
     base_fragment_shader_3d = '''
         uniform vec4 color;
+        uniform float dash_width = 10.0;
+        uniform float dash_factor = 0.40;
+        uniform vec2 Viewport;
+        uniform bool dashed = false;
+
+        noperspective in vec2 stipple_pos;
+        flat in vec2 stipple_start;
 
         out vec4 fragColor;
         void main() {
-            fragColor = color;
+
+            float aspect = Viewport.x/Viewport.y;
+            float distance_along_line = distance(stipple_pos, stipple_start);
+            float normalized_distance = fract(distance_along_line / dash_width);
+
+            if (dashed == true) {
+                if (normalized_distance <= dash_factor) {
+                    discard;
+                }
+                else {
+                    fragColor = color;
+                }
+            }
+            else {
+                fragColor = color;
+            }
+
         }
     '''
 
@@ -55,6 +80,10 @@ class Shaders:
             uniform mat4 ModelViewProjectionMatrix;
             uniform vec2 Viewport;
             uniform float thickness = float(0.1);
+
+            /* We leverage hardware interpolation to compute distance along the line. */
+            noperspective out vec2 stipple_pos; /* In screen space */
+            flat out vec2 stipple_start;        /* In screen space */
 
             out vec2 mTexCoord;
             out float alpha;
@@ -110,6 +139,16 @@ class Shaders:
                     mTexCoord = texCoords[i];
                     gl_Position = coords[i];
                     alpha = lineAlpha;
+
+                    vec4 stipple_base;
+                    if (i < 2) {
+                        stipple_base = vec4(ssp1*p1.w,p1.z,p1.w);
+                    }
+                    else {
+                        stipple_base = vec4(ssp2*p2.w, p2.z, p2.w);
+                    }
+                    stipple_start = stipple_pos = Viewport * 0.5 * (stipple_base.xy / stipple_base.w);
+
                     EmitVertex();
                 }
                 EndPrimitive();
