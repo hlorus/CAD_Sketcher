@@ -1331,6 +1331,8 @@ class StatefulOperator:
         interactive_val = self._get_state_values(context, state, coords)
         if interactive_val == None:
             interactive_val = [None] * size
+        else:
+            interactive_val = to_iterable(interactive_val)
 
         storage = [None] * size
         result = [None] * size
@@ -1413,7 +1415,7 @@ class StatefulOperator:
         pos_val = position_cb(context, coords)
         if pos_val == None:
             return None
-        return to_list(pos_val)
+        return pos_val
 
     def evaluate_state(self, context, event, triggered):
         state = self.state
@@ -1442,7 +1444,7 @@ class StatefulOperator:
                 # numeric edit is supported for one property only
                 values = [self.get_numeric_value(context, coords), ]
             elif not is_picked:
-                values = self._get_state_values(context, state, coords)
+                values = to_list(self._get_state_values(context, state, coords))
 
             if values:
                 props = self.get_property()
