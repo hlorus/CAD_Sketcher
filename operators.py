@@ -1328,8 +1328,9 @@ class StatefulOperator:
             return [item, ]
 
         # TODO: Don't evaluate if not needed
-        position_cb = self.get_func(state, "state_func")
-        interactive_val = to_iterable(position_cb(context, coords))
+        interactive_val = self._get_state_values(context, state, coords)
+        if interactive_val == None:
+            interactive_val = [None] * size
 
         storage = [None] * size
         result = [None] * size
@@ -1342,8 +1343,10 @@ class StatefulOperator:
                 num = parse_input(prop, input)
                 result[sub_index] = num
                 storage[sub_index] = num
-            else:
+            elif interactive_val[sub_index] != None:
                 result[sub_index] = interactive_val[sub_index]
+            else:
+                result[sub_index] = prop.default
 
         self.state_data["numeric_input"] = storage
 
@@ -1402,6 +1405,16 @@ class StatefulOperator:
 
         return self.evaluate_state(context, event, event_triggered)
 
+    def _get_state_values(self, context, state, coords):
+        # Get values of state_func, can be none
+        position_cb = self.get_func(state, "state_func")
+        if not position_cb:
+            return None
+        pos_val = position_cb(context, coords)
+        if pos_val == None:
+            return None
+        return to_list(pos_val)
+
     def evaluate_state(self, context, event, triggered):
         state = self.state
         data = self.state_data
@@ -1429,8 +1442,7 @@ class StatefulOperator:
                 # numeric edit is supported for one property only
                 values = [self.get_numeric_value(context, coords), ]
             elif not is_picked:
-                position_cb = self.get_func(state, "state_func")
-                values = to_list(position_cb(context, coords)) if position_cb else None
+                values = self._get_state_values(context, state, coords)
 
             if values:
                 props = self.get_property()
@@ -1899,6 +1911,9 @@ class Operator2d(GenericEntityOp):
         wp = self.sketch.wp
         origin, end_point = functions.get_picking_origin_end(context, coords)
         pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
+        if pos == None:
+            return None
+
         pos = wp.matrix_basis.inverted() @ pos
         return Vector(pos[:-1])
 
@@ -2401,6 +2416,8 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
     def get_radius(self, context, coords):
         wp = self.sketch.wp
         pos = self.state_func(context, coords)
+        if pos == None:
+            return None
 
         delta = Vector(pos) - self.ct.co
         radius = delta.length
@@ -2467,6 +2484,8 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
 
     def get_endpoint_pos(self, context, coords):
         mouse_pos = self.state_func(context, coords)
+        if mouse_pos == None:
+            return None
 
         # Get angle to mouse pos
         ct = self.get_point(context, 0).co
