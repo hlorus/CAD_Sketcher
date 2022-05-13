@@ -706,6 +706,7 @@ class StatefulOperator:
     _state_data = {}
     _last_coords = Vector((0, 0))
     _numeric_input = {}
+    _undo = False
 
     @classmethod
     def _has_global_object(cls):
@@ -933,6 +934,7 @@ class StatefulOperator:
         self.set_status_text(context)
 
     def next_state(self, context):
+        self._undo = False
         i = self.state_index
         if (i + 1) >= len(self.get_states()):
             return False
@@ -1441,7 +1443,6 @@ class StatefulOperator:
 
         # Set state property
         ok = False
-        undo = False
         values = []
         use_create = state.use_create
         if use_create and not is_picked:
@@ -1456,7 +1457,7 @@ class StatefulOperator:
                 if props:
                     for i, v in enumerate(values):
                         setattr(self, props[i], v)
-                    undo = True
+                    self._undo = True
                     ok = not state.pointer
 
         # Set state pointer
@@ -1465,7 +1466,7 @@ class StatefulOperator:
             if is_picked:
                 pointer = pointer_values
                 self.state_data["is_existing_entity"] = True
-                undo = True
+                self._undo = True
             elif values:
                 # Let pointer be filled from redo_states
                 self.state_data["is_existing_entity"] = False
@@ -1475,14 +1476,16 @@ class StatefulOperator:
                 self.set_state_pointer(pointer, implicit=True)
                 ok = True
 
-        if undo:
+        if self._undo:
             bpy.ops.ed.undo_push(message="Redo: " + self.bl_label)
             bpy.ops.ed.undo()
             global_data.ignore_list.clear()
             self.redo_states(context)
+            self._undo = False
 
         if self.check_props():
             self.run_op(context)
+            self._undo = True
 
         # Iterate state
         if triggered and ok:
