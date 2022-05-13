@@ -92,7 +92,10 @@ class SKETCHER_MT_theme_presets(Menu):
 
 
 def get_prefs():
-    return bpy.context.preferences.addons[__package__].preferences
+    addon = bpy.context.preferences.addons.get(__package__)
+    if not addon:
+        return None
+    return addon.preferences
 
 def get_scale():
     return bpy.context.preferences.system.ui_scale * get_prefs().entity_scale

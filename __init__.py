@@ -74,6 +74,8 @@ logger.addHandler(file_handler)
 
 def update_logger():
     prefs = functions.get_prefs()
+    if not prefs:
+        return
     logger.setLevel(prefs.logging_level)
 
 

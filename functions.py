@@ -5,8 +5,10 @@ import subprocess
 
 
 def get_prefs():
-    return bpy.context.preferences.addons[__package__].preferences
-
+    addon = bpy.context.preferences.addons.get(__package__)
+    if not addon:
+        return None
+    return addon.preferences
 
 def install_pip():
     cmd = [global_data.PYPATH, "-m", "ensurepip", "--upgrade"]
