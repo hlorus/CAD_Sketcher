@@ -64,10 +64,17 @@ def _setup_builtin_handlers():
     add_builtin_handler("version_update", do_versioning)
     add_builtin_handler("save_pre", write_addon_version)
 
+
+def _setup_addon_handlers():
+    from .event_system import add_handler
+    from .convertors import update_convertor_geometry
+    add_handler("SketchLeavePre", update_convertor_geometry)
+
+
 def register():
     _setup_builtin_handlers()
     register_handlers()
-
+    _setup_addon_handlers()
 
 def unregister():
     unregister_handlers()

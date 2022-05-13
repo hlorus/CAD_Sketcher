@@ -2997,7 +2997,23 @@ class SketcherProps(PropertyGroup):
         for e in self.entities.all:
             e.dirty = True
 
-slvs_entity_pointer(SketcherProps, "active_sketch", update=functions.update_cb)
+from .event_system import post_event
+
+
+def active_sketch_update(self, context):
+    functions.update_cb(self, context)
+
+    value=self.active_sketch_i
+    if value == -1:
+        post_event("SketchLeavePre", context)
+    else:
+        post_event("SketchEnterPre", context)
+
+slvs_entity_pointer(
+    SketcherProps,
+    "active_sketch",
+    update=active_sketch_update
+)
 
 
 classes = (
