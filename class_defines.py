@@ -2124,7 +2124,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     )
     leader_angle: FloatProperty(name="Leader Angle", default=45, subtype="ANGLE")
     draw_inside: BoolProperty(name="Draw Inside", default=True)
-    draw_offset: FloatProperty(name="Draw Offset", default=0, subtype="ANGLE")
+    draw_offset: FloatProperty(name="Draw Offset", default=0)
     type = "DIAMETER"
     signature = (curve,)
 
@@ -2160,17 +2160,9 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
-        if self.draw_inside:
-            coords = functions.pol2cart(self.draw_offset,self.leader_angle)
-            coords2 = Vector((coords[0], coords[1], 0.0))
-            coords3 = self.matrix_basis() @ coords2
-            return location_3d_to_region_2d(region, rv3d, coords3)
-
-        else:
-            coords = functions.pol2cart(self.draw_offset,self.leader_angle)
-            coords2 = Vector((coords[0], coords[1], 0.0))
-            coords3 = self.matrix_basis() @ coords2
-            return location_3d_to_region_2d(region, rv3d, coords3)
+        coords = functions.pol2cart(self.draw_offset,self.leader_angle)
+        coords2 = self.matrix_basis() @ Vector((coords[0], coords[1], 0.0))
+        return location_3d_to_region_2d(region, rv3d, coords2)
 
 slvs_entity_pointer(SlvsDiameter, "entity1")
 slvs_entity_pointer(SlvsDiameter, "sketch")
