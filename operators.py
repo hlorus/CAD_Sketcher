@@ -2236,7 +2236,8 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         p = sse.add_point_2d((0.0, 0.0), sketch)
         p.fixed = True
 
-        context.scene.sketcher.active_sketch = sketch
+        activate_sketch(context, sketch.slvs_index, self)
+
         self.target = sketch
         return True
 
@@ -2971,6 +2972,26 @@ class View3D_OT_invoke_tool(Operator):
             op("INVOKE_DEFAULT", **options)
         return {"FINISHED"}
 
+SMOOTHVIEW_FACTOR = 0
+def align_view(rv3d, mat_start, mat_end):
+
+    global SMOOTHVIEW_FACTOR
+    SMOOTHVIEW_FACTOR = 0
+    time_step = 0.01
+    increment = 0.01
+
+    def move_view():
+        global SMOOTHVIEW_FACTOR
+        SMOOTHVIEW_FACTOR += increment
+        mat = mat_start.lerp(mat_end, SMOOTHVIEW_FACTOR)
+        rv3d.view_matrix = mat
+
+        if SMOOTHVIEW_FACTOR < 1:
+            return time_step
+
+    bpy.app.timers.register(move_view)
+
+    # rv3d.view_distance = 6
 
 def switch_sketch_mode(self, context, to_sketch_mode):
     if to_sketch_mode:
@@ -2992,6 +3013,7 @@ def activate_sketch(context, index, operator):
     switch_sketch_mode(self=operator, context=context, to_sketch_mode=(index!=-1))
 
     space_data = context.space_data
+    rv3d = context.region_data
 
     sk = None
     if index != -1:
@@ -3002,9 +3024,29 @@ def activate_sketch(context, index, operator):
 
         space_data.show_object_viewport_curve = False
         space_data.show_object_viewport_mesh = False
+        rv3d.view_perspective = "ORTHO"
+
+        #Align view to normal of wp
+        if functions.get_prefs().use_align_view:
+            matrix_target = sk.wp.matrix_basis.inverted()
+            matrix_start = rv3d.view_matrix
+            align_view(rv3d, matrix_start, matrix_target)
+
     else:
+        #Reset view
+        if functions.get_prefs().use_align_view:
+            matrix_start = rv3d.view_matrix
+            matrix_default = Matrix((
+                (0.4100283980369568, 0.9119764566421509, -0.013264661654829979, 0.0),
+                (-0.4017425775527954, 0.19364342093467712, 0.8950449228286743, 0.0),
+                (0.8188283443450928, -0.36166495084762573, 0.44577890634536743, -17.986562728881836),
+                (0.0, 0.0, 0.0, 1.0)
+            ))
+            align_view(rv3d, matrix_start, matrix_default)
+
         space_data.show_object_viewport_curve = True
         space_data.show_object_viewport_mesh = True
+        rv3d.view_perspective = "PERSP"
 
     last_sketch = context.scene.sketcher.active_sketch
     logger.debug("Activate: {}".format(sk))

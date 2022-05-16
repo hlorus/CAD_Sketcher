@@ -149,6 +149,11 @@ class Preferences(AddonPreferences):
     gizmo_scale: FloatProperty(name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update)
     text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
     arrow_scale: FloatProperty(name="Arrow Scale", default=1, min=0.2, soft_max=3)
+    use_align_view: BoolProperty(
+        name="Align View",
+        description="Automatically align view to workplane when activating a sketch.",
+        default=False,
+        )
 
     def draw(self, context):
         layout = self.layout
@@ -183,6 +188,7 @@ class Preferences(AddonPreferences):
         col.prop(self, "gizmo_scale")
         col.prop(self, "text_size")
         col.prop(self, "arrow_scale")
+        col.prop(self, "use_align_view")
 
         box = layout.box()
         box.label(text="Units")
