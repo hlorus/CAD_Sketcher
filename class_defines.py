@@ -1,4 +1,3 @@
-from distutils import core
 import bpy
 import logging
 from bpy.types import PropertyGroup
@@ -1931,7 +1930,6 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     )
     flip: BoolProperty(name="Flip", update=update_system_cb)
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
-    draw_inside: BoolProperty(name="Draw Inside", default=True)
     align: EnumProperty(name="Align", items=align_items, update=update_system_cb,)
     type = "DISTANCE"
     signature = (point, (*point, *line, SlvsWorkplane))
@@ -2183,7 +2181,6 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     )
     setting: BoolProperty(name="Invert", update=update_system_cb)
     draw_offset: FloatProperty(name="Draw Offset", default=1)
-    draw_inside: BoolProperty(name="Draw Inside", default=True)
     type = "ANGLE"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
 
