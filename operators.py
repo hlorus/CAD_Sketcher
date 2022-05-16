@@ -12,7 +12,7 @@ from bpy.props import (
     BoolProperty,
 )
 import math
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, Euler
 from mathutils.geometry import intersect_line_plane, distance_point_to_plane
 
 import functools
@@ -2236,6 +2236,25 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         sse = context.scene.sketcher.entities
         sketch = sse.add_sketch(self.wp)
 
+        # Align view to wp
+        heading = -math.atan2( self.wp.normal.y, self.wp.normal.x )
+
+        pitch = -math.atan2( math.sqrt( self.wp.normal.x**2 + self.wp.normal.y**2), self.wp.normal.z )
+        
+        euler = Euler( (pitch, 0, heading ) , 'XYZ' )
+        quat  = euler.to_quaternion()
+        
+        C = bpy.context
+        viewports_3D = []
+        for area in C.screen.areas:
+            if area.type == 'VIEW_3D':
+                viewports_3D.append(area)
+                
+        viewports_3D[0].spaces.active.region_3d.view_rotation=quat
+        viewports_3D[0].spaces.active.region_3d.view_location=self.wp.p1.location #lookat this point
+        viewports_3D[0].spaces.active.region_3d.view_distance=6 # from this far away
+        
+        
         # Add point at origin
         # NOTE: Maybe this could create a reference entity of the main origin?
         p = sse.add_point_2d((0.0, 0.0), sketch)
