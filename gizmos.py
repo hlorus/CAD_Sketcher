@@ -444,7 +444,8 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
     )
 
     def _create_shape(self, context, constr, select=False):
-        angle = math.radians(self.target_get_value("offset"))
+        angle = constr.leader_angle
+        offset = constr.draw_offset / context.preferences.system.ui_scale
         dist = constr.value / 2 / context.preferences.system.ui_scale
 
         rv3d = context.region_data
@@ -458,16 +459,25 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         arrow_1 = get_arrow_size(dist, scale_1)
         arrow_2 = get_arrow_size(dist, scale_2)
 
-        coords = (
-            *draw_arrow_shape(
-                p1, functions.pol2cart(arrow_1[0] - dist, angle), arrow_1[1]
-            ),
-            p1,
-            p2,
-            *draw_arrow_shape(
-                p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
-            ),
-        )
+        if constr.draw_inside:
+            coords = (
+                *draw_arrow_shape(
+                    p1, functions.pol2cart(arrow_1[0] - dist, angle), arrow_1[1]
+                ),
+                p1,
+                p2,
+                *draw_arrow_shape(
+                    p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+                ),
+            )
+        else:
+            coords = (
+                *draw_arrow_shape(
+                    p2, functions.pol2cart(arrow_1[0] + dist, angle), arrow_1[1]
+                ),
+                p2,
+                functions.pol2cart(offset, angle),
+            )
 
         self.custom_shape = self.new_custom_shape("LINES", coords)
 

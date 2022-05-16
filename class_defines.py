@@ -1,3 +1,4 @@
+from distutils import core
 import bpy
 import logging
 from bpy.types import PropertyGroup
@@ -1930,6 +1931,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     )
     flip: BoolProperty(name="Flip", update=update_system_cb)
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
+    draw_inside: BoolProperty(name="Draw Inside", default=True)
     align: EnumProperty(name="Align", items=align_items, update=update_system_cb,)
     type = "DISTANCE"
     signature = (point, (*point, *line, SlvsWorkplane))
@@ -2120,7 +2122,9 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     value: FloatProperty(
         name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
     )
-    draw_offset: FloatProperty(name="Draw Offset", default=45, subtype="ANGLE")
+    leader_angle: FloatProperty(name="Leader Angle", default=45, subtype="ANGLE")
+    draw_inside: BoolProperty(name="Draw Inside", default=True)
+    draw_offset: FloatProperty(name="Draw Offset", default=0, subtype="ANGLE")
     type = "DIAMETER"
     signature = (curve,)
 
@@ -2140,12 +2144,14 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         sketch = self.sketch
 
         origin = self.entity1.ct.co
-        rotation = functions.range_2pi(math.radians(self.draw_offset))
+        rotation = functions.range_2pi(math.radians(self.leader_angle))
         mat_local = Matrix.Translation(origin.to_3d())
         return sketch.wp.matrix_basis @ mat_local
 
     def update_draw_offset(self, pos, ui_scale):
-        self.draw_offset = math.degrees(math.atan2(pos[1], pos[0]))  # / ui_scale
+        self.leader_angle = math.atan2(pos[1], pos[0])
+        self.draw_inside = True if pos.length < self.value/2 else False
+        self.draw_offset = pos.length
 
     def draw_props(self, layout):
         layout.prop(self, "value")
@@ -2154,9 +2160,17 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
-        coords = self.matrix_basis() @ Vector()
-        return location_3d_to_region_2d(region, rv3d, coords)
+        if self.draw_inside:
+            coords = functions.pol2cart(self.draw_offset,self.leader_angle)
+            coords2 = Vector((coords[0], coords[1], 0.0))
+            coords3 = self.matrix_basis() @ coords2
+            return location_3d_to_region_2d(region, rv3d, coords3)
 
+        else:
+            coords = functions.pol2cart(self.draw_offset,self.leader_angle)
+            coords2 = Vector((coords[0], coords[1], 0.0))
+            coords3 = self.matrix_basis() @ coords2
+            return location_3d_to_region_2d(region, rv3d, coords3)
 
 slvs_entity_pointer(SlvsDiameter, "entity1")
 slvs_entity_pointer(SlvsDiameter, "sketch")
@@ -2177,6 +2191,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     )
     setting: BoolProperty(name="Invert", update=update_system_cb)
     draw_offset: FloatProperty(name="Draw Offset", default=1)
+    draw_inside: BoolProperty(name="Draw Inside", default=True)
     type = "ANGLE"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
 
