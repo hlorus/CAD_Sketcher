@@ -2236,24 +2236,13 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         sse = context.scene.sketcher.entities
         sketch = sse.add_sketch(self.wp)
 
-        # Align view to wp
-        heading = -math.atan2( self.wp.normal.y, self.wp.normal.x )
-
-        pitch = -math.atan2( math.sqrt( self.wp.normal.x**2 + self.wp.normal.y**2), self.wp.normal.z )
-        
-        euler = Euler( (pitch, 0, heading ) , 'XYZ' )
-        quat  = euler.to_quaternion()
-        
-        C = bpy.context
-        viewports_3D = []
-        for area in C.screen.areas:
-            if area.type == 'VIEW_3D':
-                viewports_3D.append(area)
-                
-        viewports_3D[0].spaces.active.region_3d.view_rotation=quat
-        viewports_3D[0].spaces.active.region_3d.view_location=self.wp.p1.location #lookat this point
-        viewports_3D[0].spaces.active.region_3d.view_distance=6 # from this far away
-        
+        #Align view to normal of wp
+        n = Vector((self.wp.normal.x,self.wp.normal.y,-self.wp.normal.z))
+        v = Vector((0,0,1))        
+        quat = n.rotation_difference(v)
+        context.region_data.view_rotation = quat
+        context.region_data.view_location = self.wp.p1.location #lookat this point
+        context.region_data.view_distance = 6 # from this far away
         
         # Add point at origin
         # NOTE: Maybe this could create a reference entity of the main origin?
@@ -2745,12 +2734,26 @@ def activate_sketch(context, index, operator):
         if not sk:
             operator.report({"ERROR"}, "Invalid index: {}".format(index))
             return {"CANCELLED"}
-
+        
         space_data.show_object_viewport_curve = False
         space_data.show_object_viewport_mesh = False
+        
+        #Align view to normal of wp
+        n = Vector((sk.wp.normal.x,sk.wp.normal.y,-sk.wp.normal.z))
+        v = Vector((0,0,1))        
+        quat = n.rotation_difference(v)
+        context.region_data.view_rotation = quat
+        context.region_data.view_location = sk.wp.p1.location #lookat this point
+        context.region_data.view_distance = 6 # from this far away
+
     else:
         space_data.show_object_viewport_curve = True
         space_data.show_object_viewport_mesh = True
+        
+        #Reset view
+        context.region_data.view_rotation = (Euler((0.7854,0,0.7854*3),'XYZ').to_quaternion())
+        context.region_data.view_location = Vector((0,0,0)) #lookat this point
+        context.region_data.view_distance = 20 # from this far away
 
     logger.debug("Activate: {}".format(sk))
     props.active_sketch_i = index
