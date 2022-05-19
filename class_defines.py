@@ -284,6 +284,16 @@ class SlvsGenericEntity:
             if ob.sketch_index == index_old:
                 ob.sketch_index = index_new
 
+    def draw_props(self, layout):
+        if not preferences.is_experimental():
+            return
+
+        col = layout.column()
+        col.label(text="Dependencies")
+        for e in self.dependencies():
+            col = layout.column()
+            col.label(text=str(e))
+
     def tag_update(self):
         if not self.is_dirty:
             self.is_dirty = True
@@ -397,6 +407,7 @@ class SlvsPoint3D(Point3D, PropertyGroup):
     )
 
     def draw_props(self, layout):
+        super().draw_props(layout)
         layout.prop(self, "location")
 
 
@@ -808,6 +819,7 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         make_coincident(solvesys, self.py_data, edge, wrkpln.py_data, group, entity_type=SlvsLine2D)
 
     def draw_props(self, layout):
+        super().draw_props(layout)
         col = layout.column()
         col.prop(self, "co")
 
@@ -1151,6 +1163,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         return endpoint
 
     def draw_props(self, layout):
+        super().draw_props(layout)
         layout.prop(self, "invert_direction")
 
 
