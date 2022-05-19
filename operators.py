@@ -1461,7 +1461,6 @@ class StatefulOperator:
             if is_picked:
                 pointer = pointer_values
                 self.state_data["is_existing_entity"] = True
-                self._undo = True
             elif values:
                 # Let pointer be filled from redo_states
                 self.state_data["is_existing_entity"] = False
