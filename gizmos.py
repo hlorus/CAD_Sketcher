@@ -605,7 +605,7 @@ class VIEW3D_GGT_slvs_angle(GizmoGroup, ConstraintGenericGGT):
 
 class VIEW3D_GGT_slvs_diameter(GizmoGroup, ConstraintGenericGGT):
     bl_idname = "VIEW3D_GGT_slvs_diameter"
-    bl_label = "Angle Diameter Gizmo Group"
+    bl_label = "Diameter Gizmo Group"
 
     type = class_defines.SlvsDiameter.type
     gizmo_type = VIEW3D_GT_slvs_diameter.bl_idname
@@ -681,7 +681,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
             gz.type = c.type
             gz.index = index
 
-            props = gz.target_set_operator(operators.View3D_OT_slvs_context_menu.bl_idname)
+            props = gz.target_set_operator(operators.View3D_OT_slvs_tweak_constraint_value_pos.bl_idname)
             props.type = c.type
             props.index = index
 
