@@ -149,8 +149,14 @@ def _get_formatted_value(context, constr):
     value = constr.value
 
     if unit == "LENGTH":
-        return units.format_distance(value)
-    if unit == "ROTATION":
+        s = units.format_distance(value)
+        if constr.type == "DIAMETER":
+            if constr.force_radius:
+                s = "R" + units.format_distance(value/2)
+            else:
+                s = "D"+ s   # should be a "⌀" if we can
+        return s
+    elif unit == "ROTATION":
         return units.format_angle(value)
     return ""
 
@@ -219,6 +225,8 @@ class ConstarintGizmoGeneric(ConstraintGizmo):
 
         self._create_shape(context, constr)
         self.draw_custom_shape(self.custom_shape)
+        if hasattr(self, "custom_shape2"):
+            self.draw_custom_shape(self.custom_shape2)
 
     def draw_select(self, context, select_id):
         constr = self._get_constraint(context)
@@ -459,26 +467,59 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         arrow_1 = get_arrow_size(dist, scale_1)
         arrow_2 = get_arrow_size(dist, scale_2)
 
-        if constr.draw_inside:
-            coords = (
-                *draw_arrow_shape(
-                    p1, functions.pol2cart(arrow_1[0] - dist, angle), arrow_1[1]
-                ),
-                p1,
-                p2,
-                *draw_arrow_shape(
-                    p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
-                ),
-            )
-        else:
-            coords = (
-                *draw_arrow_shape(
-                    p2, functions.pol2cart(arrow_1[0] + dist, angle), arrow_1[1]
-                ),
-                p2,
-                functions.pol2cart(offset, angle),
-            )
+        # ARC:
+        #   drawn inside and outside as a single segment 
+        #self.custom_shape2 = ((0,0,))
+        if constr.force_radius:
+            if constr.draw_inside:
+                coords = (
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+                    ),
+                    p2,
+                    (0,0)
+                )
+            else:
+                coords = (
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(arrow_2[0] + dist, angle), arrow_2[1]
+                    ),
+                    p2,
+                    functions.pol2cart(offset, angle),
+                )
 
+        # CIRCLE:
+        #   drawn inside as a single segment
+        #   drawn outside as a 2-segment gizmo
+        else:
+            if constr.draw_inside:
+                coords = (
+                    *draw_arrow_shape(
+                        p1, functions.pol2cart(arrow_2[0] - dist, angle), arrow_2[1]
+                    ),
+                    p1,
+                    p2,
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+                    ),
+                )
+            else: # 2-part gizmo
+                coords = (
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(arrow_1[0] + dist, angle), arrow_1[1]
+                    ),
+                    p2,
+                    functions.pol2cart(offset, angle),
+                )
+                coords2 = (
+                    functions.pol2cart(offset, angle+math.pi),
+                    p1,
+                    *draw_arrow_shape(
+                        p1, functions.pol2cart(dist + arrow_2[0], angle+math.pi), arrow_2[1]
+                    ),
+                )
+                self.custom_shape2 = self.new_custom_shape("LINES", coords2)
+                
         self.custom_shape = self.new_custom_shape("LINES", coords)
 
 
@@ -598,6 +639,7 @@ class VIEW3D_GGT_slvs_distance(GizmoGroup, ConstraintGenericGGT):
 class VIEW3D_GGT_slvs_angle(GizmoGroup, ConstraintGenericGGT):
     bl_idname = "VIEW3D_GGT_slvs_angle"
     bl_label = "Angle Constraint Gizmo Group"
+
 
     type = class_defines.SlvsAngle.type
     gizmo_type = VIEW3D_GT_slvs_angle.bl_idname
