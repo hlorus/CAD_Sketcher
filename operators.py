@@ -2642,6 +2642,167 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         return point.slvs_index
 
 
+
+class Intersection:
+    """Either a intersection between the segment to be trimmed and specified entity or a segment endpoint"""
+
+    def __init__(self, entity, co):
+        self.entity = entity
+        self.co = co
+        self.index = -1
+        self._point = None
+
+    def get_point(self, context):
+        if self.entity.is_point():
+            return self.entity
+
+        if self._point == None:
+            # Implicitly create point at co
+            self._point = context.scene.sketcher.entities.add_point_2d(self.co, context.scene.sketcher.active_sketch)
+        return self._point
+
+    def __str__(self):
+        return "Intersection {}, {}, {}".format(intr.index, intr.co, intr.entity)
+
+
+class TrimSegment:
+    """Holds data of a segment to be trimmed"""
+    def __init__(self, segment, pos):
+        self.segment = segment
+        self.pos = pos
+        self._intersections = []
+        self._is_closed = segment.is_closed()
+
+        # Add connection points as intersections
+        if not self._is_closed:
+            for p in segment.connection_points():
+                self.add(p, p.co)
+
+    def add(self, entity, co):
+        self._intersections.append(Intersection(entity, co))
+
+    def check(self):
+        relevant = self.relevant_intersections()
+        return len(relevant) in (2, 4)
+
+    def _sorted(self):
+        # Return intersections sorted by distance from mousepos
+        return sorted(self._intersections, key=lambda intr : self.segment.distance_along_segment(self.pos, intr.co))
+
+    def get_intersections(self):
+        # Return intersections in order starting from startpoint
+        sorted_intersections = self._sorted()
+        for i, intr in enumerate(sorted_intersections):
+            intr.index = i
+        return sorted_intersections
+
+    def relevant_intersections(self):
+        # Get indices of two neighbouring points
+        ordered = self.get_intersections()
+        closest = ordered[0].index, ordered[-1].index
+
+        # Form a list of relevant intersections, e.g. endpoints and closest points
+        relevant = []
+        for intr in ordered:
+            if intr.entity.is_point():
+                # Add endpoints
+                if intr.index in closest:
+                    # Not if next to trim segment
+                    continue
+                relevant.append(intr)
+
+            if intr.index in closest:
+                relevant.append(intr)
+        return relevant
+
+    def ensure_points(self, context):
+        for intr in self.relevant_intersections():
+            intr.get_point(context)
+
+    def replace(self, context):
+        relevant = self.relevant_intersections()
+
+        # Note: this seems to be needed, explicitly add all points and update viewlayer before starting to replace segments
+        self.ensure_points(context)
+
+        # NOTE: This is needed for some reason, otherwise there's a bug where
+        # a point is suddenly interpreted as a line
+        context.view_layer.update()
+
+        # Create new segments
+        for i, intrs in enumerate([relevant[i*2:i*2+2] for i in range(len(relevant) // 2)]):
+            intr_1, intr_2 = intrs
+            if not intr_1:
+                continue
+
+            self.segment.replace(context, intr_1.get_point(context), intr_2.get_point(context), use_self=i==0)
+
+
+trim_state1_doc = ("Segment", "Segment to trim.")
+
+class View3D_OT_slvs_trim(Operator, Operator2d):
+    bl_idname = "view3d.slvs_trim"
+    bl_label = "Trim Segment"
+    bl_options = {"REGISTER", "UNDO"}
+
+    radius: FloatProperty(name="Radius")
+
+    states = (
+        state_from_args(
+            trim_state1_doc[0],
+            description=trim_state1_doc[1],
+            pointer="segment",
+            types=class_defines.segment,
+            pick_element="pick_element_coords",
+            use_create=False,
+            # interactive=True
+        ),
+    )
+
+    __doc__ = stateful_op_desc(
+        "Trim segment to it's closest intersections.",
+        state_desc(*trim_state1_doc, (class_defines.SlvsPoint2D, )),
+    )
+
+    # TODO: Disable execution based on selection
+    # NOTE: That does not work if run with select -> action
+    def pick_element_coords(self, context, coords):
+        data = self.state_data
+        data["mouse_pos"] = self.state_func(context, coords)
+        return super().pick_element(context, coords)
+
+    def main(self, context):
+        return True
+
+    def fini(self, context, succeede):
+        if not succeede:
+            return
+
+        sketch = context.scene.sketcher.active_sketch
+        segment = self.segment
+
+        mouse_pos = self._state_data[0]["mouse_pos"]
+
+        trim = TrimSegment(segment, mouse_pos)
+
+        # Find intersections
+        for e in sketch.sketch_entities(context):
+            if not type(e) in class_defines.segment:
+                continue
+            if e == segment:
+                continue
+
+            for co in segment.intersect(e):
+                #print("intersect", co)
+                trim.add(e, co)
+
+        if not trim.check():
+            return
+
+        trim.replace(context)
+
+
+
 class View3D_OT_slvs_test(Operator, GenericEntityOp):
     bl_idname = "view3d.slvs_test"
     bl_label = "Test StateOps"
@@ -3505,6 +3666,7 @@ classes = (
     View3D_OT_slvs_add_circle2d,
     View3D_OT_slvs_add_arc2d,
     View3D_OT_slvs_add_rectangle,
+    View3D_OT_slvs_trim,
     View3D_OT_slvs_test,
     View3D_OT_invoke_tool,
     View3D_OT_slvs_set_active_sketch,
