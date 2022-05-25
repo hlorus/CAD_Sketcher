@@ -695,7 +695,7 @@ mesh_element_types = bpy.types.MeshVertex, bpy.types.MeshEdge, bpy.types.MeshPol
 class StatefulOperator:
     state_index: IntProperty(options={"HIDDEN", "SKIP_SAVE"})
     wait_for_input: BoolProperty(options={"HIDDEN", "SKIP_SAVE"}, default=True)
-    continuose_draw: BoolProperty(name="Continuose Draw", default=False)
+    continuous_draw: BoolProperty(name="Continuous Draw", default=False)
 
     executed = False
     _state_data = {}
@@ -1482,8 +1482,8 @@ class StatefulOperator:
         # Iterate state
         if triggered and ok:
             if not self.next_state(context):
-                if self.check_continuose_draw():
-                    self.do_continuose_draw(context)
+                if self.check_continuous_draw():
+                    self.do_continuous_draw(context)
                 else:
                     return self._end(context, True)
 
@@ -1502,8 +1502,8 @@ class StatefulOperator:
             return {"RUNNING_MODAL"}
         return self._handle_pass_through(context, event)
 
-    def check_continuose_draw(self):
-        if self.continuose_draw:
+    def check_continuous_draw(self):
+        if self.continuous_draw:
             if not hasattr(self, "continue_draw") or self.continue_draw():
                 return True
         return False
@@ -1516,7 +1516,7 @@ class StatefulOperator:
             self.set_state_pointer(None, index=i)
         self._state_data.clear()
 
-    def do_continuose_draw(self, context):
+    def do_continuous_draw(self, context):
         # end operator
         self._end(context, True)
         bpy.ops.ed.undo_push(message=self.bl_label)
@@ -2010,7 +2010,7 @@ class View3D_OT_slvs_add_line3d(Operator, Operator3d):
     bl_label = "Add Solvespace 3D Line"
     bl_options = {"REGISTER", "UNDO"}
 
-    continuose_draw: BoolProperty(name="Continuose Draw", default=True)
+    continuous_draw: BoolProperty(name="Continuous Draw", default=True)
 
     states = (
         state_from_args(
@@ -2315,7 +2315,7 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
     bl_label = "Add Solvespace 2D Line"
     bl_options = {"REGISTER", "UNDO"}
 
-    continuose_draw: BoolProperty(name="Continuose Draw", default=True)
+    continuous_draw: BoolProperty(name="Continuous Draw", default=True)
 
     states = (
         state_from_args(

@@ -267,7 +267,7 @@ class View3D_T_slvs_add_line3d(GenericStateTool, WorkSpaceTool):
 
     def draw_settings(context, layout, tool):
         props = tool.operator_properties(operators.View3D_OT_slvs_add_line3d.bl_idname)
-        layout.prop(props, "continuose_draw")
+        layout.prop(props, "continuous_draw")
 
 
 class View3D_T_slvs_add_line2d(GenericStateTool, WorkSpaceTool):
@@ -286,7 +286,7 @@ class View3D_T_slvs_add_line2d(GenericStateTool, WorkSpaceTool):
 
     def draw_settings(context, layout, tool):
         props = tool.operator_properties(operators.View3D_OT_slvs_add_line2d.bl_idname)
-        layout.prop(props, "continuose_draw")
+        layout.prop(props, "continuous_draw")
 
 
 class View3D_T_slvs_add_circle2d(GenericStateTool, WorkSpaceTool):
