@@ -72,7 +72,7 @@ def update_elements(context, force=False):
 
 
 def draw_elements(context):
-    for e in context.scene.sketcher.entities.all:
+    for e in reversed(list(context.scene.sketcher.entities.all)):
         if hasattr(e, "draw"):
             e.draw(context)
 
