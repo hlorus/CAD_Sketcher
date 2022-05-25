@@ -58,7 +58,7 @@ def ensure_selection_texture(context):
 def update_elements(context, force=False):
     entities = list(context.scene.sketcher.entities.all)
     msg = ""
-    for e in reversed(entities):
+    for e in entities:
         if not hasattr(e, "update"):
             continue
         if not force and not e.is_dirty:
