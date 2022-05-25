@@ -309,6 +309,10 @@ class SlvsGenericEntity:
     def is_curve(cls):
         return False
 
+    @classmethod
+    def is_closed(cls):
+        return False
+
 
 # Drawing a point might not include points coord itself but rather a series of virtual points around it
 # so a Entity might refer another point entity and/or add a set of coords
@@ -894,12 +898,49 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         return (self.p1.co + self.p2.co) / 2
 
     def direction_vec(self):
-        return self.p2.co - self.p1.co
+        return (self.p2.co - self.p1.co).normalized()
 
     @property
     def length(self):
         return (self.p2.co - self.p1.co).length
 
+    def intersect(self, other):
+        # NOTE: There can be multiple intersections when intersecting with one or more curves
+        if other.is_line():
+            retval = intersect_line_line_2d(self.p1.co, self.p2.co, other.p1.co, other.p2.co)
+        else:
+            return other.intersect(self)
+
+        if retval in (None, ()):
+            return ()
+        return (retval, )
+
+
+    def replace(self, context, p1, p2, use_self=False):
+        # Replace entity by a similar entity with the connection points p1, and p2
+        # This is used for trimming, points are expected to lie somewhere on the existing entity
+        if use_self:
+            self.p1 = p1
+            self.p2 = p2
+            return self
+
+        sse = context.scene.sketcher.entities
+        sketch = context.scene.sketcher.active_sketch
+        return sse.add_line_2d(
+            p1,
+            p2,
+            sketch,
+        )
+
+    def distance_along_segment(self, p1, p2):
+        start, end = self.p1.co, self.p2.co
+        len_1 = (p1 - end).length
+        len_2 = (p2 - start).length
+
+        threshold = 0.0000001
+        retval = (len_1 + len_2) % (self.length + threshold)
+
+        return retval
 
 slvs_entity_pointer(SlvsLine2D, "p1")
 slvs_entity_pointer(SlvsLine2D, "p2")
@@ -1159,6 +1200,90 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         super().draw_props(layout)
         layout.prop(self, "invert_direction")
 
+    def is_inside(self, coords):
+        # Checks if a position is inside the arcs angle range
+        ct = self.ct.co
+        p = coords - ct
+        p1 = self.start.co - ct
+        p2 = self.end.co - ct
+
+        x_axis = Vector((1, 0))
+
+        # angle_signed interprets clockwise as positive, so invert..
+        a1 = functions.range_2pi(p.angle_signed(p1))
+        a2 = functions.range_2pi(p2.angle_signed(p))
+
+        angle = self.angle
+
+        if not p.length or not p1.length or not p2.length:
+            return False
+
+
+        if a1 < angle > a2:
+            return True
+        return False
+
+
+    def intersect(self, other):
+        def parse_retval(retval):
+            # Intersect might return None, (value, value) or (value, None)
+            values = []
+            if hasattr(retval, "__len__"):
+                for val in retval:
+                    if val == None:
+                        continue
+                    if not self.is_inside(val):
+                        continue
+                    if isinstance(other, SlvsArc) and not other.is_inside(val):
+                        continue
+
+                    values.append(val)
+            elif retval != None:
+                values.append(retval)
+
+            return tuple(values)
+
+        if other.is_line():
+            from mathutils.geometry import intersect_line_sphere_2d
+            return parse_retval(intersect_line_sphere_2d(other.p1.co, other.p2.co, self.ct.co, self.radius))
+        elif other.is_curve():
+            from mathutils.geometry import intersect_sphere_sphere_2d
+            return parse_retval(intersect_sphere_sphere_2d(self.ct.co, self.radius, other.ct.co, other.radius))
+
+    def distance_along_segment(self, p1, p2):
+        def get_angle(p_1, p_2):
+            a = math.atan2(*p_2.yx) - math.atan2(*p_1.yx)
+            return a
+
+        ct = self.ct.co
+        start, end = self.start.co - ct, self.end.co - ct
+
+        len_1 = functions.range_2pi(end.angle_signed(p1 - ct))
+        len_2 = functions.range_2pi((p2 - ct).angle_signed(start))
+
+        threshold = 0.0000001
+        retval = (len_1 + len_2) % (self.angle + threshold)
+
+        return retval
+
+
+    def replace(self, context, p1, p2, use_self=False):
+        if use_self:
+            self.p1 = p1
+            self.p2 = p2
+            return self
+
+        sketch = context.scene.sketcher.active_sketch
+        arc = context.scene.sketcher.entities.add_arc(
+            sketch.wp.nm,
+            self.ct,
+            p1,
+            p2,
+            sketch
+        )
+        arc.invert_direction = self.invert_direction
+        return arc
+
 
 slvs_entity_pointer(SlvsArc, "nm")
 slvs_entity_pointer(SlvsArc, "ct")
@@ -1239,6 +1364,10 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
     def placement(self):
         return self.wp.matrix_basis @ self.point_on_curve(45).to_3d()
 
+    @classmethod
+    def is_closed(cls):
+        return True
+
     def connection_points(self):
         # NOTE: it should probably be possible to lookup coincident points on circle
         return ()
@@ -1286,6 +1415,53 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
             cyclic=True,
         )
         return endpoint
+
+    def intersect(self, other):
+        def parse_retval(retval):
+            # Intersect might return None, (value, value) or (value, None)
+            values = []
+            if hasattr(retval, "__len__"):
+                for val in retval:
+                    if val == None:
+                        continue
+                    values.append(val)
+            elif retval != None:
+                values.append(retval)
+
+            return tuple(values)
+
+        if other.is_line():
+            from mathutils.geometry import intersect_line_sphere_2d
+            return parse_retval(intersect_line_sphere_2d(other.p1.co, other.p2.co, self.ct.co, self.radius))
+        elif isinstance(other, SlvsCircle):
+            from mathutils.geometry import intersect_sphere_sphere_2d
+            return parse_retval(intersect_sphere_sphere_2d(self.ct.co, self.radius, other.ct.co, other.radius))
+        else:
+            return other.intersect(self)
+
+
+
+    def replace(self, context, p1, p2, use_self=False):
+        if use_self:
+            self.p1 = p1
+            self.p2 = p2
+            return self
+
+        sketch = context.scene.sketcher.active_sketch
+        return context.scene.sketcher.entities.add_arc(
+            sketch.wp.nm,
+            self.ct,
+            p1,
+            p2,
+            sketch
+        )
+
+    def distance_along_segment(self, p1, p2):
+        ct = self.ct.co
+        start, end = p1 - ct, p2 - ct
+        angle = functions.range_2pi(math.atan2(*end.yx) - math.atan2(*start.yx))
+        retval = self.radius * angle
+        return retval
 
 
 slvs_entity_pointer(SlvsCircle, "nm")
@@ -1679,7 +1855,7 @@ normal_3d = (SlvsNormal3D,)
 point = (*point_3d, *point_2d)
 line = (SlvsLine3D, SlvsLine2D)
 curve = (SlvsCircle, SlvsArc)
-
+segment = (*line, *curve)
 
 class GenericConstraint:
     failed: BoolProperty(name="Failed")
