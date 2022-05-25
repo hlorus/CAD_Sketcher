@@ -126,6 +126,9 @@ class VIEW3D_PT_sketcher(Panel):
         for op in operators.constraint_operators:
             col.operator(op.bl_idname)
 
+        layout.separator()
+        layout.operator(operators.View3D_OT_slvs_trim.bl_idname)
+
         prefs = functions.get_prefs()
         if prefs.show_debug_settings:
             layout.use_property_split = False
