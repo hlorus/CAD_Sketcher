@@ -2121,7 +2121,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
     )
     leader_angle: FloatProperty(name="Leader Angle", default=45, subtype="ANGLE")
-    force_radius: BoolProperty(name="Force Radius")
+    force_radius: BoolProperty(name="Force Radius", default=False)
     draw_inside: BoolProperty(name="Draw Inside", default=True)
     draw_offset: FloatProperty(name="Draw Offset", default=0)
     type = "DIAMETER"
@@ -2134,12 +2134,8 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         return solvesys.addDiameter(self.value, self.entity1.py_data, group=group)
 
     def init_props(self):
-        if self.entity1.bl_rna.name == "SlvsCircle": # use default
-            self.force_radius = False                # use default
-        elif self.entity1.bl_rna.name == "SlvsArc":
+        if self.entity1.bl_rna.name == "SlvsArc":
             self.force_radius = True                
-        else:
-            debug_breakpoint = True
         return self.entity1.radius * 2, None
 
     def matrix_basis(self):
