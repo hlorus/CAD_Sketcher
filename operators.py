@@ -2672,6 +2672,7 @@ class TrimSegment:
         self.pos = pos
         self._intersections = []
         self._is_closed = segment.is_closed()
+        self.obsolete_points = []
 
         # Add connection points as intersections
         if not self._is_closed:
@@ -2708,6 +2709,8 @@ class TrimSegment:
                 # Add endpoints
                 if intr.index in closest:
                     # Not if next to trim segment
+                    if intr.entity not in self.obsolete_points:
+                        self.obsolete_points.append(intr.entity)
                     continue
                 relevant.append(intr)
 
@@ -2736,6 +2739,10 @@ class TrimSegment:
                 continue
 
             self.segment.replace(context, intr_1.get_point(context), intr_2.get_point(context), use_self=i==0)
+        # Remove unused endpoints
+        for p in self.obsolete_points:
+            # Use operator which checks if other entities depend on this and auto deletes constraints
+            bpy.ops.view3d.slvs_delete_entity(index=p.slvs_index)
 
 
 trim_state1_doc = ("Segment", "Segment to trim.")
