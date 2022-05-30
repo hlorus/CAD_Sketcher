@@ -153,8 +153,6 @@ def _get_formatted_value(context, constr):
         if constr.type == "DIAMETER":
             if constr.force_radius:
                 s = "R" + units.format_distance(value/2)
-            else:
-                s = "D"+ s   # should be a "⌀" if we can
         return s
     elif unit == "ROTATION":
         return units.format_angle(value)
