@@ -2672,11 +2672,12 @@ class TrimSegment:
         self.pos = pos
         self._intersections = []
         self._is_closed = segment.is_closed()
+        self.connection_points = segment.connection_points().copy()
         self.obsolete_points = []
 
         # Add connection points as intersections
         if not self._is_closed:
-            for p in segment.connection_points():
+            for p in self.connection_points:
                 self.add(p, p.co)
 
     def add(self, entity, co):
@@ -2725,6 +2726,17 @@ class TrimSegment:
     def replace(self, context):
         relevant = self.relevant_intersections()
 
+        # Get constraints
+        constrs = {}
+        for c in context.scene.sketcher.constraints.all:
+            if c.type in ("RATIO", ):
+                continue
+            entities = c.entities()
+            if not self.segment in entities:
+                continue
+            constrs[c] = entities
+
+
         # Note: this seems to be needed, explicitly add all points and update viewlayer before starting to replace segments
         self.ensure_points(context)
 
@@ -2733,12 +2745,23 @@ class TrimSegment:
         context.view_layer.update()
 
         # Create new segments
-        for i, intrs in enumerate([relevant[i*2:i*2+2] for i in range(len(relevant) // 2)]):
+        segment_count = len(relevant) // 2
+        for i, intrs in enumerate([relevant[i*2:i*2+2] for i in range(segment_count)]):
+            reuse_segment = i == 0
             intr_1, intr_2 = intrs
             if not intr_1:
                 continue
 
-            self.segment.replace(context, intr_1.get_point(context), intr_2.get_point(context), use_self=i==0)
+            new_segment = self.segment.replace(context, intr_1.get_point(context), intr_2.get_point(context), use_self=reuse_segment)
+
+            if reuse_segment:
+                continue
+            # Copy constraints to new segment
+            for c, ents in constrs.items():
+                i = ents.index(self.segment)
+                ents[i] = new_segment
+                new_constr = c.copy(context, ents)
+
         # Remove unused endpoints
         for p in self.obsolete_points:
             # Use operator which checks if other entities depend on this and auto deletes constraints
@@ -2807,6 +2830,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
             return
 
         trim.replace(context)
+        functions.refresh(context)
 
 
 
