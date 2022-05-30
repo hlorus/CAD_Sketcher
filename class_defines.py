@@ -1370,7 +1370,7 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
 
     def connection_points(self):
         # NOTE: it should probably be possible to lookup coincident points on circle
-        return ()
+        return []
 
     def direction(self, point, is_endpoint=False):
         return False
@@ -2595,7 +2595,7 @@ def connection_point(seg_1, seg_2):
     for p in seg_2.connection_points():
         if p in points:
             return p
-    return None
+    return []
 
 
 class SlvsTangent(GenericConstraint, PropertyGroup):
