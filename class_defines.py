@@ -1857,6 +1857,8 @@ line = (SlvsLine3D, SlvsLine2D)
 curve = (SlvsCircle, SlvsArc)
 segment = (*line, *curve)
 
+ENTITY_PROP_NAMES = ("entity1", "entity2", "entity3", "entity4")
+
 class GenericConstraint:
     failed: BoolProperty(name="Failed")
     signature = ()
@@ -1932,6 +1934,21 @@ class GenericConstraint:
             return wp.p1.location, wp.normal
         # TODO: return drawing plane for constraints in 3d
         return None, None
+
+    def copy(self, context, entities):
+        # copy itself to another set of entities
+        c = context.scene.sketcher.constraints.new_from_type(self.type)
+        if hasattr(self, "sketch"):
+            c.sketch = self.sketch
+        if hasattr(self, "setting"):
+            c.setting = self.setting
+        if hasattr(self, "value"):
+            c.value = self.value
+
+        for prop, e in zip(ENTITY_PROP_NAMES, entities):
+            setattr(c, prop, e)
+
+        return c
 
 
 # NOTE: When tweaking it's necessary to constrain a point that is only temporary available
