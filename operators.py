@@ -2733,7 +2733,7 @@ class TrimSegment:
         # Get constraints
         constrs = {}
         for c in context.scene.sketcher.constraints.all:
-            if c.type in ("RATIO", ):
+            if c.type in ("RATIO", "COINCIDENT"):
                 continue
             entities = c.entities()
             if not self.segment in entities:
@@ -2829,6 +2829,16 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
             for co in segment.intersect(e):
                 #print("intersect", co)
                 trim.add(e, co)
+
+        # Find points that are connected to the segment through a conincident constraint
+        for c in context.scene.sketcher.constraints.coincident:
+            ents = c.entities()
+            if segment not in ents:
+                continue
+            p = ents[0]
+            trim.add(p, p.co)
+
+        # TODO: Get rid of the coincident constraint as it will be a shared connection point
 
         if not trim.check():
             return
