@@ -2648,6 +2648,7 @@ class Intersection:
         self.entity = entity
         self.co = co
         self.index = -1
+        self.is_endpoint = False
         self._point = None
 
     def get_point(self, context):
@@ -2676,10 +2677,13 @@ class TrimSegment:
         # Add connection points as intersections
         if not self._is_closed:
             for p in self.connection_points:
-                self.add(p, p.co)
+                intr = self.add(p, p.co)
+                intr.is_endpoint = True
 
     def add(self, entity, co):
-        self._intersections.append(Intersection(entity, co))
+        intr = Intersection(entity, co)
+        self._intersections.append(intr)
+        return intr
 
     def check(self):
         relevant = self.relevant_intersections()
@@ -2704,7 +2708,7 @@ class TrimSegment:
         # Form a list of relevant intersections, e.g. endpoints and closest points
         relevant = []
         for intr in ordered:
-            if intr.entity.is_point():
+            if intr.is_endpoint:
                 # Add endpoints
                 if intr.index in closest:
                     # Not if next to trim segment
