@@ -2644,24 +2644,35 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
 class Intersection:
     """Either a intersection between the segment to be trimmed and specified entity or a segment endpoint"""
 
-    def __init__(self, entity, co):
-        self.entity = entity
+    def __init__(self, element, co):
+        # Either a intersecting entity, a segment endpoint or a coincident/midpoint constraint
+        self.element = element
         self.co = co
         self.index = -1
-        self.is_endpoint = False
+        self._is_endpoint = False
         self._point = None
 
-    def get_point(self, context):
-        if self.entity.is_point():
-            return self.entity
+    def is_entity(self):
+        return issubclass(type(self.element), class_defines.SlvsGenericEntity)
 
+    def is_constraint(self):
+        return issubclass(type(self.element), class_defines.GenericConstraint)
+
+    def is_endpoint(self):
+        return self._is_endpoint
+
+    def get_point(self, context):
+        if self.is_entity and self.element.is_point():
+            return self.element
+        if self.is_constraint():
+            return self.element.entities()[0]
         if self._point == None:
             # Implicitly create point at co
             self._point = context.scene.sketcher.entities.add_point_2d(self.co, context.scene.sketcher.active_sketch)
         return self._point
 
     def __str__(self):
-        return "Intersection {}, {}, {}".format(intr.index, intr.co, intr.entity)
+        return "Intersection {}, {}, {}".format(intr.index, intr.co, intr.element)
 
 
 class TrimSegment:
@@ -2678,10 +2689,10 @@ class TrimSegment:
         if not self._is_closed:
             for p in self.connection_points:
                 intr = self.add(p, p.co)
-                intr.is_endpoint = True
+                intr._is_endpoint = True
 
-    def add(self, entity, co):
-        intr = Intersection(entity, co)
+    def add(self, element, co):
+        intr = Intersection(element, co)
         self._intersections.append(intr)
         return intr
 
@@ -2708,12 +2719,12 @@ class TrimSegment:
         # Form a list of relevant intersections, e.g. endpoints and closest points
         relevant = []
         for intr in ordered:
-            if intr.is_endpoint:
+            if intr.is_endpoint():
                 # Add endpoints
                 if intr.index in closest:
                     # Not if next to trim segment
-                    if intr.entity not in self.obsolete_points:
-                        self.obsolete_points.append(intr.entity)
+                    if intr.element not in self.obsolete_points:
+                        self.obsolete_points.append(intr.element)
                     continue
                 relevant.append(intr)
 
@@ -2834,7 +2845,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
             if segment not in ents:
                 continue
             p = ents[0]
-            trim.add(p, p.co)
+            trim.add(c, p.co)
 
         # TODO: Get rid of the coincident constraint as it will be a shared connection point
 
