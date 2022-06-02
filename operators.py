@@ -2685,7 +2685,7 @@ class TrimSegment:
         self._intersections = []
         self._is_closed = segment.is_closed()
         self.connection_points = segment.connection_points().copy()
-        self.obsolete_points = []
+        self.obsolete_intersections = []
 
         # Add connection points as intersections
         if not self._is_closed:
@@ -2725,12 +2725,16 @@ class TrimSegment:
                 # Add endpoints
                 if intr.index in closest:
                     # Not if next to trim segment
-                    if intr.element not in self.obsolete_points:
-                        self.obsolete_points.append(intr.element)
+                    if intr.element not in self.obsolete_intersections:
+                        self.obsolete_intersections.append(intr)
                     continue
                 relevant.append(intr)
 
+
             if intr.index in closest:
+                if intr.is_constraint():
+                    if intr not in self.obsolete_intersections:
+                        self.obsolete_intersections.append(intr)
                 relevant.append(intr)
         return relevant
 
@@ -2778,9 +2782,12 @@ class TrimSegment:
                 new_constr = c.copy(context, ents)
 
         # Remove unused endpoints
-        for p in self.obsolete_points:
-            # Use operator which checks if other entities depend on this and auto deletes constraints
-            bpy.ops.view3d.slvs_delete_entity(index=p.slvs_index)
+        for intr in self.obsolete_intersections:
+            if intr.is_entity():
+                # Use operator which checks if other entities depend on this and auto deletes constraints
+                bpy.ops.view3d.slvs_delete_entity(index=intr.element.slvs_index)
+            if intr.is_constraint():
+                context.scene.sketcher.constraints.remove(intr.element)
 
 
 trim_state1_doc = ("Segment", "Segment to trim.")
