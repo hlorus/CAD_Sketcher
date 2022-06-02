@@ -827,6 +827,11 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         col = layout.column()
         col.prop(self, "co")
 
+def round_v(vec, ndigits=None):
+    values = []
+    for v in vec:
+        values.append(round(v, ndigits=ndigits))
+    return Vector(values)
 
 class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     """Representation of a line in 2D space. Connects p1 and p2 and lies on the
@@ -911,10 +916,22 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     def length(self):
         return (self.p2.co - self.p1.co).length
 
+    def overlaps_endpoint(self, co):
+        precision = 5
+        co_rounded = round_v(co, ndigits=precision)
+        if any([co_rounded == round_v(v, ndigits=precision) for v in (self.p1.co, self.p2.co)]):
+            return True
+        return False
+
     def intersect(self, other):
         # NOTE: There can be multiple intersections when intersecting with one or more curves
+        def parse_retval(value):
+            if self.overlaps_endpoint(value) or other.overlaps_endpoint(value):
+                return None
+            return value
+
         if other.is_line():
-            retval = intersect_line_line_2d(self.p1.co, self.p2.co, other.p1.co, other.p2.co)
+            retval = parse_retval(intersect_line_line_2d(self.p1.co, self.p2.co, other.p1.co, other.p2.co))
         else:
             return other.intersect(self)
 
@@ -1230,6 +1247,12 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
             return True
         return False
 
+    def overlaps_endpoint(self, co):
+        precision = 5
+        co_rounded = round_v(co, ndigits=precision)
+        if any([co_rounded == round_v(v, ndigits=precision) for v in (self.p1.co, self.p2.co)]):
+            return True
+        return False
 
     def intersect(self, other):
         def parse_retval(retval):
@@ -1243,9 +1266,13 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
                         continue
                     if isinstance(other, SlvsArc) and not other.is_inside(val):
                         continue
+                    if self.overlaps_endpoint(val) or other.overlaps_endpoint(val):
+                        continue
 
                     values.append(val)
             elif retval != None:
+                if self.overlaps_endpoint(retval) or other.overlaps_endpoint(retval):
+                    return ()
                 values.append(retval)
 
             return tuple(values)
@@ -1421,6 +1448,9 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
             cyclic=True,
         )
         return endpoint
+
+    def overlaps_endpoint(self, co):
+        return False
 
     def intersect(self, other):
         def parse_retval(retval):
