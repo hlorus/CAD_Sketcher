@@ -2748,7 +2748,7 @@ class TrimSegment:
         # Get constraints
         constrs = {}
         for c in context.scene.sketcher.constraints.all:
-            if c.type in ("RATIO", "COINCIDENT"):
+            if c.type in ("RATIO", "COINCIDENT", "MIDPOINT"):
                 continue
             entities = c.entities()
             if not self.segment in entities:
@@ -2783,11 +2783,12 @@ class TrimSegment:
 
         # Remove unused endpoints
         for intr in self.obsolete_intersections:
+            if intr.is_constraint():
+                context.scene.sketcher.constraints.remove(intr.element)
             if intr.is_entity():
                 # Use operator which checks if other entities depend on this and auto deletes constraints
                 bpy.ops.view3d.slvs_delete_entity(index=intr.element.slvs_index)
-            if intr.is_constraint():
-                context.scene.sketcher.constraints.remove(intr.element)
+
 
 
 trim_state1_doc = ("Segment", "Segment to trim.")
@@ -2849,7 +2850,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
                 trim.add(e, co)
 
         # Find points that are connected to the segment through a conincident constraint
-        for c in context.scene.sketcher.constraints.coincident:
+        for c in (*context.scene.sketcher.constraints.coincident, *context.scene.sketcher.constraints.midpoint):
             ents = c.entities()
             if segment not in ents:
                 continue
