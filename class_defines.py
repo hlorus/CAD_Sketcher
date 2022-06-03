@@ -926,18 +926,16 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     def intersect(self, other):
         # NOTE: There can be multiple intersections when intersecting with one or more curves
         def parse_retval(value):
+            if not value:
+                return ()
             if self.overlaps_endpoint(value) or other.overlaps_endpoint(value):
-                return None
-            return value
+                return ()
+            return (value, )
 
         if other.is_line():
-            retval = parse_retval(intersect_line_line_2d(self.p1.co, self.p2.co, other.p1.co, other.p2.co))
+            return parse_retval(intersect_line_line_2d(self.p1.co, self.p2.co, other.p1.co, other.p2.co))
         else:
             return other.intersect(self)
-
-        if retval in (None, ()):
-            return ()
-        return (retval, )
 
 
     def replace(self, context, p1, p2, use_self=False):
@@ -1460,8 +1458,12 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
                 for val in retval:
                     if val == None:
                         continue
+                    if other.overlaps_endpoint(val):
+                        continue
                     values.append(val)
             elif retval != None:
+                if other.overlaps_endpoint(retval):
+                    return ()
                 values.append(retval)
 
             return tuple(values)
