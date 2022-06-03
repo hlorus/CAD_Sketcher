@@ -2657,7 +2657,7 @@ class Intersection:
         return self._is_endpoint
 
     def get_point(self, context):
-        if self.is_entity and self.element.is_point():
+        if self.is_entity() and self.element.is_point():
             return self.element
         if self.is_constraint():
             return self.element.entities()[0]
@@ -2667,7 +2667,7 @@ class Intersection:
         return self._point
 
     def __str__(self):
-        return "Intersection {}, {}, {}".format(intr.index, intr.co, intr.element)
+        return "Intersection {}, {}, {}".format(self.index, self.co, self.element)
 
 
 class TrimSegment:
@@ -2718,7 +2718,7 @@ class TrimSegment:
                 # Add endpoints
                 if intr.index in closest:
                     # Not if next to trim segment
-                    if intr.element not in self.obsolete_intersections:
+                    if intr not in self.obsolete_intersections:
                         self.obsolete_intersections.append(intr)
                     continue
                 relevant.append(intr)
