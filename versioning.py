@@ -55,6 +55,7 @@ def do_versioning(self):
     # NOTE: Versioning is done per scene
 
     msg = "\nUpdate existing file to version {}".format(current_addon_version)
+    context = bpy.context
 
     current_version = get_addon_version()
     for scene in bpy.data.scenes:
@@ -78,5 +79,10 @@ def do_versioning(self):
 
         # if version <= (1, 0, 0):
             # ...
+        if version < (0, 23, 0):
+            entities = scene.sketcher.entities
+            entities.origin_axis_X = None
+            entities.origin_plane_YZ = None
+            entities.ensure_origin_elements(context)
 
     logger.debug(msg)
