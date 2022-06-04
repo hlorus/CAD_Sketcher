@@ -277,6 +277,9 @@ class SlvsGenericEntity:
             if ob.sketch_index == index_old:
                 ob.sketch_index = index_new
 
+    def dependencies(self):
+        return []
+
     def draw_props(self, layout):
         if not preferences.is_experimental():
             return
