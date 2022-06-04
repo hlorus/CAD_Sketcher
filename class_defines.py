@@ -1983,6 +1983,16 @@ class GenericConstraint:
 
         return c
 
+    def draw_props(self, layout):
+        if not preferences.is_experimental():
+            return
+
+        col = layout.column()
+        col.label(text="Dependencies")
+        for e in self.dependencies():
+            col = layout.column()
+            col.label(text=str(e))
+
 
 # NOTE: When tweaking it's necessary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
@@ -2321,6 +2331,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         self.draw_offset = pos[1] / ui_scale
 
     def draw_props(self, layout):
+        super().draw_props(layout)
         layout.prop(self, "value")
         layout.separator()
 
@@ -2434,6 +2445,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         self.draw_offset = pos.length
 
     def draw_props(self, layout):
+        super().draw_props(layout)
         layout.prop(self, "value")
 
         layout.separator()
@@ -2576,6 +2588,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
 
     def draw_props(self, layout):
+        super().draw_props(layout)
         layout.prop(self, "value")
         layout.prop(self, "setting")
 
@@ -2886,6 +2899,7 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
         return value, None
 
     def draw_props(self, layout):
+        super().draw_props(layout)
         layout.prop(self, "value")
 
 
