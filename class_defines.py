@@ -1843,9 +1843,10 @@ class SlvsEntities(PropertyGroup):
             self.origin = p
 
         # axis
+        pi_2 = math.pi / 2
         for name, angles in zip(
             ("origin_axis_X", "origin_axis_Y", "origin_axis_Z"),
-            (Euler((0.0, math.pi / 2, 0.0)), Euler((math.pi / 2, 0.0, 0.0)), Euler()),
+            (Euler((pi_2, 0.0, pi_2)), Euler((pi_2, 0.0, 0.0)), Euler()),
         ):
             if getattr(self, name):
                 continue

@@ -5,10 +5,11 @@ from . import operators, functions, class_defines
 
 class VIEW3D_UL_sketches(UIList):
     def draw_item(
-        self, context, layout, data, item, icon, active_data, active_propname
+        self, context, layout, data, item, icon, active_data, active_propname, index=0
     ):
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             if item:
+                active = index == getattr(active_data, active_propname)
 
                 row = layout.row(align=True)
                 row.alignment = "LEFT"
@@ -41,12 +42,16 @@ class VIEW3D_UL_sketches(UIList):
                     emboss=False,
                 ).index = item.slvs_index
 
-                # row.operator(
-                #     operators.View3D_OT_slvs_delete_entity.bl_idname,
-                #     text="",
-                #     icon="X",
-                #     emboss=False,
-                # ).index = item.slvs_index
+                if active:
+                    row.operator(
+                        operators.View3D_OT_slvs_delete_entity.bl_idname,
+                        text="",
+                        icon="X",
+                        emboss=False,
+                    ).index = item.slvs_index
+                else:
+                    row.separator()
+                    row.separator()
 
             else:
                 layout.label(text="", translate=False, icon_value=icon)
