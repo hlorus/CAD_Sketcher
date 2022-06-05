@@ -2137,9 +2137,9 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         # override default if appropriate
         if self.entity1.bl_rna.name == "SlvsArc":
             self.setting = True
-            return self.entity1.radius, self.setting
-        else:
-            return self.entity1.radius * 2, self.setting
+#            return self.entity1.radius, self.setting
+#        else:
+        return self.entity1.radius * 2, self.setting
 
     def matrix_basis(self):
         if self.sketch_i == -1:
