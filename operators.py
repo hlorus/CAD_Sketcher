@@ -3073,6 +3073,7 @@ class VIEW3D_OT_slvs_add_diameter(
     value: FloatProperty(
         name="Diameter", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
     )
+    setting: BoolProperty(name="Use radius")
     type = "DIAMETER"
 
 

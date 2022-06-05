@@ -149,7 +149,7 @@ def _get_formatted_value(context, constr):
     value = constr.value
 
     if unit == "LENGTH":
-        if constr.type == "DIAMETER" and constr.force_radius:
+        if constr.type == "DIAMETER" and constr.setting:
             s = "R" + units.format_distance(value/2)
         else:
             s = units.format_distance(value)
@@ -465,10 +465,10 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         arrow_1 = get_arrow_size(dist, scale_1)
         arrow_2 = get_arrow_size(dist, scale_2)
 
-        # ARC:
-        #   drawn inside and outside as a single segment 
-        #self.custom_shape2 = ((0,0,))
-        if constr.force_radius:
+        if constr.setting:
+            # RADIUS_MODE:
+            #   drawn inside and outside as a single segment 
+            #self.custom_shape2 = ((0,0,))
             if constr.draw_inside:
                 coords = (
                     *draw_arrow_shape(
@@ -486,10 +486,10 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
                     functions.pol2cart(offset, angle),
                 )
 
-        # CIRCLE:
-        #   drawn inside as a single segment
-        #   drawn outside as a 2-segment gizmo
         else:
+            # DIAMETER_MODE:
+            #   drawn inside as a single segment
+            #   drawn outside as a 2-segment gizmo
             if constr.draw_inside:
                 coords = (
                     *draw_arrow_shape(
