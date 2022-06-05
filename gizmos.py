@@ -468,7 +468,6 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         if constr.setting:
             # RADIUS_MODE:
             #   drawn inside and outside as a single segment 
-            #self.custom_shape2 = ((0,0,))
             if constr.draw_inside:
                 coords = (
                     *draw_arrow_shape(
@@ -501,7 +500,7 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
                         p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
                     ),
                 )
-            else: # 2-part gizmo
+            else:
                 coords = (
                     *draw_arrow_shape(
                         p2, functions.pol2cart(arrow_1[0] + dist, angle), arrow_1[1]

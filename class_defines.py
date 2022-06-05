@@ -2134,12 +2134,12 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         return solvesys.addDiameter(self.value, self.entity1.py_data, group=group)
 
     def init_props(self):
-        # override default is appropriate
+        # override default if appropriate
         if self.entity1.bl_rna.name == "SlvsArc":
             self.setting = True
-            return self.entity1.radius, None
+            return self.entity1.radius, self.setting
         else:
-            return self.entity1.radius * 2, None
+            return self.entity1.radius * 2, self.setting
 
     def matrix_basis(self):
         if self.sketch_i == -1:
