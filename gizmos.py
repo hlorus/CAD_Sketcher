@@ -637,7 +637,6 @@ class VIEW3D_GGT_slvs_angle(GizmoGroup, ConstraintGenericGGT):
     bl_idname = "VIEW3D_GGT_slvs_angle"
     bl_label = "Angle Constraint Gizmo Group"
 
-
     type = class_defines.SlvsAngle.type
     gizmo_type = VIEW3D_GT_slvs_angle.bl_idname
 
