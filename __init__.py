@@ -26,6 +26,7 @@ if "bpy" in locals():
         ui,
         install,
         icon_manager,
+        keymaps,
     )
     for m in my_modules:
         importlib.reload(m)
@@ -43,6 +44,7 @@ else:
         install,
         theme,
         icon_manager,
+        keymaps,
     )
 
 from tempfile import gettempdir

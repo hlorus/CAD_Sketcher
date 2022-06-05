@@ -8,6 +8,7 @@ from . import (
     gizmos,
     workspacetools,
     ui,
+    keymaps,
 )
 from bpy.types import Operator
 
@@ -16,6 +17,7 @@ modules = (
     class_defines,
     operators,
     gizmos,
+    keymaps,
     workspacetools,
     ui,
 )
