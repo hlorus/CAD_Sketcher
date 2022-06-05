@@ -6,7 +6,7 @@ addon_keymaps = []
 def register():
     wm = bpy.context.window_manager
     if wm.keyconfigs.addon:
-        km = wm.keyconfigs.addon.keymaps.new(name='Window', space_type='EMPTY')
+        km = wm.keyconfigs.addon.keymaps.new(name='Object Mode', space_type='EMPTY')
 
         # Select
         kmi = km.keymap_items.new('wm.tool_set_by_id', 'ESC', 'PRESS', ctrl=True)
