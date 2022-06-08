@@ -2137,7 +2137,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
 
     label = "Diameter"
     value: FloatProperty(
-        name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
+        name="Size", subtype="DISTANCE", unit="LENGTH", update=update_system_cb
     )
     setting: BoolProperty(name="Use Radius", get=use_radius_getter, set=use_radius_setter)
     leader_angle: FloatProperty(name="Leader Angle", default=45, subtype="ANGLE")
@@ -2168,6 +2168,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
 
     def init_props(self):
         # override default if appropriate
+
         value = self.entity1.radius
         if self.entity1.bl_rna.name == "SlvsArc":
             # Avoid triggering property's update callback
@@ -2195,7 +2196,11 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
 
     def draw_props(self, layout):
         layout.prop(self, "value")
-        layout.prop(self, "setting")
+
+        layout.separator()
+        row = layout.row()
+        row.prop(self, "setting")
+
 
     def value_placement(self, context):
         """location to display the constraint value"""

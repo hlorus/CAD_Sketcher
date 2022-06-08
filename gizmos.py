@@ -149,8 +149,12 @@ def _get_formatted_value(context, constr):
     value = constr.value
 
     if unit == "LENGTH":
-        return units.format_distance(value)
-    if unit == "ROTATION":
+        if constr.type == "DIAMETER" and constr.setting:
+            s = "R" + units.format_distance(value)
+        else:
+            s = units.format_distance(value)
+        return s
+    elif unit == "ROTATION":
         return units.format_angle(value)
     return ""
 
@@ -459,25 +463,54 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         arrow_1 = get_arrow_size(dist, scale_1)
         arrow_2 = get_arrow_size(dist, scale_2)
 
-        if constr.draw_inside:
-            coords = (
-                *draw_arrow_shape(
-                    p1, functions.pol2cart(arrow_1[0] - dist, angle), arrow_1[1]
-                ),
-                p1,
-                p2,
-                *draw_arrow_shape(
-                    p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
-                ),
-            )
+        if constr.setting:
+            # RADIUS_MODE:
+            #   drawn inside and outside as a single segment 
+            if constr.draw_inside:
+                coords = (
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+                    ),
+                    p2,
+                    (0,0)
+                )
+            else:
+                coords = (
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(arrow_2[0] + dist, angle), arrow_2[1]
+                    ),
+                    p2,
+                    functions.pol2cart(offset, angle),
+                )
+
         else:
-            coords = (
-                *draw_arrow_shape(
-                    p2, functions.pol2cart(arrow_1[0] + dist, angle), arrow_1[1]
-                ),
-                p2,
-                functions.pol2cart(offset, angle),
-            )
+            # DIAMETER_MODE:
+            #   drawn inside as a single segment
+            #   drawn outside as a 2-segment gizmo
+            if constr.draw_inside:
+                coords = (
+                    *draw_arrow_shape(
+                        p1, functions.pol2cart(arrow_2[0] - dist, angle), arrow_2[1]
+                    ),
+                    p1,
+                    p2,
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+                    ),
+                )
+            else:
+                coords = (
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(arrow_1[0] + dist, angle), arrow_1[1]
+                    ),
+                    p2,
+                    functions.pol2cart(offset, angle),
+                    functions.pol2cart(offset, angle+math.pi),
+                    p1,
+                    *draw_arrow_shape(
+                        p1, functions.pol2cart(dist + arrow_2[0], angle+math.pi), arrow_2[1]
+                    ),
+                )
 
         self.custom_shape = self.new_custom_shape("LINES", coords)
 
