@@ -150,7 +150,7 @@ def _get_formatted_value(context, constr):
 
     if unit == "LENGTH":
         if constr.type == "DIAMETER" and constr.setting:
-            s = "R" + units.format_distance(value/2)
+            s = "R" + units.format_distance(value)
         else:
             s = units.format_distance(value)
         return s
