@@ -9,7 +9,7 @@ def register():
         km = wm.keyconfigs.addon.keymaps.new(name='Object Mode', space_type='EMPTY')
 
         # Select
-        kmi = km.keymap_items.new('wm.tool_set_by_id', 'ESC', 'PRESS', ctrl=True)
+        kmi = km.keymap_items.new('wm.tool_set_by_id', 'ESC', 'PRESS', shift=True)
         kmi.properties.name = "sketcher.slvs_select"
         addon_keymaps.append((km, kmi))
 
