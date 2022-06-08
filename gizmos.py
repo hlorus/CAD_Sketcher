@@ -223,8 +223,6 @@ class ConstarintGizmoGeneric(ConstraintGizmo):
 
         self._create_shape(context, constr)
         self.draw_custom_shape(self.custom_shape)
-        if hasattr(self, "custom_shape2"):
-            self.draw_custom_shape(self.custom_shape2)
 
     def draw_select(self, context, select_id):
         constr = self._get_constraint(context)
@@ -507,16 +505,13 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
                     ),
                     p2,
                     functions.pol2cart(offset, angle),
-                )
-                coords2 = (
                     functions.pol2cart(offset, angle+math.pi),
                     p1,
                     *draw_arrow_shape(
                         p1, functions.pol2cart(dist + arrow_2[0], angle+math.pi), arrow_2[1]
                     ),
                 )
-                self.custom_shape2 = self.new_custom_shape("LINES", coords2)
-                
+
         self.custom_shape = self.new_custom_shape("LINES", coords)
 
 
