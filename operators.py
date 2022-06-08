@@ -2733,12 +2733,18 @@ def activate_sketch(context, index, operator):
         space_data.show_object_viewport_curve = True
         space_data.show_object_viewport_mesh = True
 
+    last_sketch = context.scene.sketcher.active_sketch
     logger.debug("Activate: {}".format(sk))
     props.active_sketch_i = index
-
-    if context.mode == "OBJECT":
-        update_convertor_geometry(context.scene)
     context.area.tag_redraw()
+
+    if index != -1:
+        return {"FINISHED"}
+
+    if context.mode != "OBJECT":
+        return {"FINISHED"}
+
+    update_convertor_geometry(context.scene, sketch=last_sketch)
     return {"FINISHED"}
 
 
@@ -3347,8 +3353,9 @@ def _link_unlink_object(scene, ob, keep):
     elif keep:
         objects.link(ob)
 
-def update_convertor_geometry(scene):
-    for sketch in scene.sketcher.entities.sketches:
+def update_convertor_geometry(scene, sketch=None):
+    coll = (sketch,) if sketch else scene.sketcher.entities.sketches
+    for sketch in coll:
         mode = sketch.convert_type
         if sketch.convert_type == "NONE":
             _cleanup_data(sketch, mode)
