@@ -3065,7 +3065,7 @@ class VIEW3D_OT_slvs_add_distance(
     bl_options = {"UNDO", "REGISTER"}
 
     value: FloatProperty(
-        name="Distance", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
+        name="Distance", subtype="DISTANCE", unit="LENGTH", min=0.0, options={"SKIP_SAVE"}
     )
     align: EnumProperty(name="Alignment", items=class_defines.align_items)
     type = "DISTANCE"
@@ -3120,9 +3120,11 @@ class VIEW3D_OT_slvs_add_diameter(
     bl_label = "Diameter"
     bl_options = {"UNDO", "REGISTER"}
 
+    # Either Radius or Diameter
     value: FloatProperty(
-        name="Diameter", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
+        name="Size", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
     )
+    setting: BoolProperty(name="Use Radius")
     type = "DIAMETER"
 
 

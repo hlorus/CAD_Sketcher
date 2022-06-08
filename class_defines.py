@@ -2113,6 +2113,24 @@ slvs_entity_pointer(SlvsDistance, "entity2")
 slvs_entity_pointer(SlvsDistance, "sketch")
 
 
+def use_radius_getter(self):
+    return self.get("setting", self.bl_rna.properties["setting"].default)
+
+def use_radius_setter(self, setting):
+    old_setting = self.get("setting", self.bl_rna.properties["setting"].default)
+    self["setting"] = setting
+
+    distance = None
+    if old_setting and not setting:
+        distance = self.value * 2
+    elif not old_setting and setting:
+        distance = self.value / 2
+
+    if distance != None:
+        # Avoid triggering the property's update callback
+        self["value"] = distance
+
+
 class SlvsDiameter(GenericConstraint, PropertyGroup):
     """Sets the diameter of an arc or a circle.
     """
@@ -2121,20 +2139,43 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     value: FloatProperty(
         name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
     )
+    setting: BoolProperty(name="Use Radius", get=use_radius_getter, set=use_radius_setter)
     leader_angle: FloatProperty(name="Leader Angle", default=45, subtype="ANGLE")
     draw_inside: BoolProperty(name="Draw Inside", default=True)
     draw_offset: FloatProperty(name="Draw Offset", default=0)
     type = "DIAMETER"
     signature = (curve,)
 
+    @property
+    def diameter(self):
+        value = self.value
+        if self.setting:
+            return value * 2
+        return value
+
+    @property
+    def radius(self):
+        value = self.value
+        if self.setting:
+            return value
+        return value / 2
+
     def needs_wp(self):
         return WpReq.OPTIONAL
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        return solvesys.addDiameter(self.value, self.entity1.py_data, group=group)
+        return solvesys.addDiameter(self.diameter, self.entity1.py_data, group=group)
 
     def init_props(self):
-        return self.entity1.radius * 2, None
+        # override default if appropriate
+        value = self.entity1.radius
+        if self.entity1.bl_rna.name == "SlvsArc":
+            # Avoid triggering property's update callback
+            self["setting"] = True
+        else:
+            value = value * 2
+
+        return value, self.setting
 
     def matrix_basis(self):
         if self.sketch_i == -1:
@@ -2149,11 +2190,12 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
 
     def update_draw_offset(self, pos, ui_scale):
         self.leader_angle = math.atan2(pos[1], pos[0])
-        self.draw_inside = True if pos.length < self.value/2 else False
+        self.draw_inside = True if pos.length < self.radius else False
         self.draw_offset = pos.length
 
     def draw_props(self, layout):
         layout.prop(self, "value")
+        layout.prop(self, "setting")
 
     def value_placement(self, context):
         """location to display the constraint value"""

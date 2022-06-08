@@ -446,7 +446,7 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
     def _create_shape(self, context, constr, select=False):
         angle = constr.leader_angle
         offset = constr.draw_offset / context.preferences.system.ui_scale
-        dist = constr.value / 2 / context.preferences.system.ui_scale
+        dist = constr.radius / context.preferences.system.ui_scale
 
         rv3d = context.region_data
 
