@@ -2778,7 +2778,8 @@ def activate_sketch(context, index, operator):
     logger.debug("Activate: {}".format(sk))
     props.active_sketch_i = index
 
-    update_convertor_geometry(context.scene)
+    if context.mode == "OBJECT":
+        update_convertor_geometry(context.scene)
     context.area.tag_redraw()
     return {"FINISHED"}
 
