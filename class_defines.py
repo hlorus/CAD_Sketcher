@@ -2137,7 +2137,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
 
     label = "Diameter"
     value: FloatProperty(
-        name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
+        name="Size", subtype="DISTANCE", unit="LENGTH", update=update_system_cb
     )
     setting: BoolProperty(name="Use Radius", get=use_radius_getter, set=use_radius_setter)
     leader_angle: FloatProperty(name="Leader Angle", default=45, subtype="ANGLE")
