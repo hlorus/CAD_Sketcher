@@ -58,7 +58,7 @@ def ensure_selection_texture(context):
 def update_elements(context, force=False):
     entities = list(context.scene.sketcher.entities.all)
     msg = ""
-    for e in reversed(entities):
+    for e in entities:
         if not hasattr(e, "update"):
             continue
         if not force and not e.is_dirty:
@@ -72,7 +72,7 @@ def update_elements(context, force=False):
 
 
 def draw_elements(context):
-    for e in context.scene.sketcher.entities.all:
+    for e in reversed(list(context.scene.sketcher.entities.all)):
         if hasattr(e, "draw"):
             e.draw(context)
 
@@ -695,7 +695,7 @@ mesh_element_types = bpy.types.MeshVertex, bpy.types.MeshEdge, bpy.types.MeshPol
 class StatefulOperator:
     state_index: IntProperty(options={"HIDDEN", "SKIP_SAVE"})
     wait_for_input: BoolProperty(options={"HIDDEN", "SKIP_SAVE"}, default=True)
-    continuose_draw: BoolProperty(name="Continuose Draw", default=False)
+    continuous_draw: BoolProperty(name="Continuous Draw", default=False)
 
     executed = False
     _state_data = {}
@@ -1482,8 +1482,8 @@ class StatefulOperator:
         # Iterate state
         if triggered and ok:
             if not self.next_state(context):
-                if self.check_continuose_draw():
-                    self.do_continuose_draw(context)
+                if self.check_continuous_draw():
+                    self.do_continuous_draw(context)
                 else:
                     return self._end(context, True)
 
@@ -1502,8 +1502,8 @@ class StatefulOperator:
             return {"RUNNING_MODAL"}
         return self._handle_pass_through(context, event)
 
-    def check_continuose_draw(self):
-        if self.continuose_draw:
+    def check_continuous_draw(self):
+        if self.continuous_draw:
             if not hasattr(self, "continue_draw") or self.continue_draw():
                 return True
         return False
@@ -1516,7 +1516,7 @@ class StatefulOperator:
             self.set_state_pointer(None, index=i)
         self._state_data.clear()
 
-    def do_continuose_draw(self, context):
+    def do_continuous_draw(self, context):
         # end operator
         self._end(context, True)
         bpy.ops.ed.undo_push(message=self.bl_label)
@@ -2010,7 +2010,7 @@ class View3D_OT_slvs_add_line3d(Operator, Operator3d):
     bl_label = "Add Solvespace 3D Line"
     bl_options = {"REGISTER", "UNDO"}
 
-    continuose_draw: BoolProperty(name="Continuose Draw", default=True)
+    continuous_draw: BoolProperty(name="Continuous Draw", default=True)
 
     states = (
         state_from_args(
@@ -2315,7 +2315,7 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
     bl_label = "Add Solvespace 2D Line"
     bl_options = {"REGISTER", "UNDO"}
 
-    continuose_draw: BoolProperty(name="Continuose Draw", default=True)
+    continuous_draw: BoolProperty(name="Continuous Draw", default=True)
 
     states = (
         state_from_args(
@@ -2985,9 +2985,9 @@ class GenericConstraintOp(GenericEntityOp):
         self.initialize_constraint()
 
         if hasattr(c, "value"):
-            c.value = self.value
+            c["value"] = self.value
         if hasattr(c, "setting"):
-            c.setting = self.setting
+            c["setting"] = self.setting
 
         deselect_all(context)
         solve_system(context, sketch=self.sketch)
@@ -3023,7 +3023,7 @@ class VIEW3D_OT_slvs_add_distance(
     bl_options = {"UNDO", "REGISTER"}
 
     value: FloatProperty(
-        name="Distance", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
+        name="Distance", subtype="DISTANCE", unit="LENGTH", min=0.0, options={"SKIP_SAVE"}
     )
     align: EnumProperty(name="Alignment", items=class_defines.align_items)
     type = "DISTANCE"
@@ -3070,10 +3070,12 @@ class VIEW3D_OT_slvs_add_diameter(
     bl_label = "Diameter"
     bl_options = {"UNDO", "REGISTER"}
 
+    # Either Radius or Diameter
     value: FloatProperty(
-        name="Diameter", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
+        name="Size", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
     )
-    setting: BoolProperty(name="Use radius")
+
+    setting: BoolProperty(name="Use Radius")
     type = "DIAMETER"
 
 

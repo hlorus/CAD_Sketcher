@@ -1,7 +1,7 @@
 bl_info = {
     "name": "CAD Sketcher",
     "author": "hlorus",
-    "version": (0, 22, 6),
+    "version": (0, 23, 0),
     "blender": (2, 80, 0),
     "location": "View3D > Toolbar",
     "description": "Parametric, constraint-based geometry sketcher",
@@ -26,6 +26,7 @@ if "bpy" in locals():
         ui,
         install,
         icon_manager,
+        keymaps,
     )
     for m in my_modules:
         importlib.reload(m)
@@ -43,6 +44,7 @@ else:
         install,
         theme,
         icon_manager,
+        keymaps,
     )
 
 from tempfile import gettempdir
