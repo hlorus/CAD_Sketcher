@@ -89,6 +89,11 @@ constraint_access = (
         {"type": "O", "value": "PRESS", "alt": True},
         {"properties": [("wait_for_input", True), ]}
     ),
+    (
+        operators.VIEW3D_OT_slvs_add_diameter.bl_idname,
+        {"type": "R", "value": "PRESS", "alt": True},
+        {"properties": [("wait_for_input", True), ("setting", True)]}
+    ),
 
 )
 
