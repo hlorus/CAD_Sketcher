@@ -27,8 +27,15 @@ from .functions import unique_attribute_setter
 logger = logging.getLogger(__name__)
 
 
+def entity_name_getter(self):
+    return self.get("name", str(self))
+
+def entity_name_setter(self, new_name):
+    self["name"] = new_name
+
 class SlvsGenericEntity:
     slvs_index: IntProperty(name="Global Index", default=-1)
+    name: StringProperty(name="Name", get=entity_name_getter, set=entity_name_setter, options={"SKIP_SAVE"})
     fixed: BoolProperty(name="Fixed")
     visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
     origin: BoolProperty(name="Origin")
@@ -1327,7 +1334,6 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         nm (SlvsNormal2D):
         sketch (SlvsSketch): The sketch this entity belongs to
     """
-
     radius: FloatProperty(
         name="Radius",
         description="The radius of the circle",
@@ -1499,7 +1505,6 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
 slvs_entity_pointer(SlvsCircle, "nm")
 slvs_entity_pointer(SlvsCircle, "ct")
 slvs_entity_pointer(SlvsCircle, "sketch")
-
 
 def update_pointers(scene, index_old, index_new):
     """Replaces all references to an entity index with it's new index"""
