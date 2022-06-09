@@ -209,7 +209,7 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         self.height = 0
 
 
-class ConstarintGizmoGeneric(ConstraintGizmo):
+class ConstraintGizmoGeneric(ConstraintGizmo):
     def _update_matrix_basis(self, constr):
         self.matrix_basis = constr.matrix_basis()
 
@@ -244,10 +244,12 @@ def draw_arrow_shape(target, shoulder, width, is_3d=False):
     v.length = abs(width / 2)
 
     return (
-        target,
         ((shoulder + v)),
-        ((shoulder - v)),
         target,
+        target,
+        ((shoulder - v)),
+        ((shoulder - v)),
+        ((shoulder + v)),
     )
 
 DEFAULT_OVERSHOOT = 0.01
@@ -256,20 +258,19 @@ def get_overshoot(scale, dir):
         return 0
     return -math.copysign(DEFAULT_OVERSHOOT * scale, dir)
 
+
 def get_arrow_size(dist, scale):
-    length = math.copysign(
+    size = math.copysign(
         min(
             scale * GIZMO_ARROW_SCALE,
             abs(dist * 0.8),
         ),
         dist,
     )
-
-    width = length * 0.4
-    return length, width
+    return size, size / 2
 
 
-class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
+class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
     bl_idname = "VIEW3D_GT_slvs_distance"
     type = class_defines.SlvsDistance.type
 
@@ -365,7 +366,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
         self.custom_shape = self.new_custom_shape("LINES", coords)
 
 
-class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
+class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
     bl_idname = "VIEW3D_GT_slvs_angle"
     type = class_defines.SlvsAngle.type
 
@@ -436,7 +437,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
         self.custom_shape = self.new_custom_shape("LINES", coords)
 
 
-class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
+class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
     bl_idname = "VIEW3D_GT_slvs_diameter"
     type = class_defines.SlvsDiameter.type
 
