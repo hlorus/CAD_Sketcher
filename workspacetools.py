@@ -39,12 +39,12 @@ constraint_access = (
     ),
     (
         operators.VIEW3D_OT_slvs_add_parallel.bl_idname,
-        {"type": "P", "value": "PRESS", "shift": True},
+        {"type": "A", "value": "PRESS", "shift": True},
         {"properties": [("wait_for_input", True), ]}
     ),
     (
         operators.VIEW3D_OT_slvs_add_perpendicular.bl_idname,
-        {"type": "N", "value": "PRESS", "shift": True},
+        {"type": "P", "value": "PRESS", "shift": True},
         {"properties": [("wait_for_input", True), ]}
     ),
     (
@@ -66,7 +66,7 @@ constraint_access = (
     # Dimensional Constraints
     (
         operators.VIEW3D_OT_slvs_add_distance.bl_idname,
-        {"type": "D", "value": "PRESS", "shift": True},
+        {"type": "D", "value": "PRESS", "alt": True},
         {"properties": [("wait_for_input", True), ]}
     ),
     (
@@ -81,12 +81,12 @@ constraint_access = (
     ),
     (
         operators.VIEW3D_OT_slvs_add_angle.bl_idname,
-        {"type": "A", "value": "PRESS", "shift": True},
+        {"type": "A", "value": "PRESS", "alt": True},
         {"properties": [("wait_for_input", True), ]}
     ),
     (
         operators.VIEW3D_OT_slvs_add_diameter.bl_idname,
-        {"type": "O", "value": "PRESS", "shift": True},
+        {"type": "O", "value": "PRESS", "alt": True},
         {"properties": [("wait_for_input", True), ]}
     ),
 
