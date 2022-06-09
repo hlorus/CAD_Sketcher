@@ -2998,7 +2998,13 @@ class GenericConstraintOp(GenericEntityOp):
     def initialize_constraint(self):
         c = self.target
         if not self.initialized and hasattr(c, "init_props"):
-            value, setting = c.init_props()
+            kwargs = {}
+            if hasattr(self, "value") and self.properties.is_property_set("value"):
+                kwargs["value"] = self.value
+            if hasattr(self, "setting") and self.properties.is_property_set("setting"):
+                kwargs["setting"] = self.setting
+
+            value, setting = c.init_props(**kwargs)
             if value is not None:
                 self.value = value
             if setting is not None:

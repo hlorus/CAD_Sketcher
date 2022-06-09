@@ -2046,7 +2046,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         mat_local = Matrix.Translation(v_translation.to_3d()) @ mat_rot.to_4x4()
         return sketch.wp.matrix_basis @ mat_local
 
-    def init_props(self):
+    def init_props(self, **kwargs):
         # Set initial distance value to the current spacing
         e1, e2 = self.entity1, self.entity2
         if isinstance(e2, SlvsWorkplane):
@@ -2168,6 +2168,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
 
     def init_props(self):
         # override default if appropriate
+    def init_props(self, **kwargs):
 
         value = self.entity1.radius
         if self.entity1.bl_rna.name == "SlvsArc":
@@ -2321,7 +2322,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         )
         dist = max(
             (line1.midpoint() - origin).length,
-            (line2.midpoint() - origin).length, 
+            (line2.midpoint() - origin).length,
             0.5
         )
         self.draw_offset = dist if not setting else -dist
@@ -2634,7 +2635,7 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
             group=group,
         )
 
-    def init_props(self):
+    def init_props(self, **kwargs):
         line1, line2 = self.entity1, self.entity2
 
         value = line1.length / line2.length
