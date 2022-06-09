@@ -2670,8 +2670,14 @@ class Intersection:
         if self.is_constraint():
             return self.element.entities()[0]
         if self._point == None:
+            sketch = context.scene.sketcher.active_sketch
             # Implicitly create point at co
-            self._point = context.scene.sketcher.entities.add_point_2d(self.co, context.scene.sketcher.active_sketch)
+            self._point = context.scene.sketcher.entities.add_point_2d(self.co, sketch)
+
+            # Add coincident constraint
+            if self.is_entity(): # and self.element.is_segment()
+                c = context.scene.sketcher.constraints.add_coincident(self._point, self.element, sketch=sketch)
+
         return self._point
 
     def __str__(self):
