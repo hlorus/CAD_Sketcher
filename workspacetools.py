@@ -70,6 +70,16 @@ constraint_access = (
         {"properties": [("wait_for_input", True), ]}
     ),
     (
+        operators.VIEW3D_OT_slvs_add_distance.bl_idname,
+        {"type": "V", "value": "PRESS", "alt": True},
+        {"properties": [("wait_for_input", True), ("align", "VERTICAL")]}
+    ),
+    (
+        operators.VIEW3D_OT_slvs_add_distance.bl_idname,
+        {"type": "H", "value": "PRESS", "alt": True},
+        {"properties": [("wait_for_input", True), ("align", "HORIZONTAL")]}
+    ),
+    (
         operators.VIEW3D_OT_slvs_add_angle.bl_idname,
         {"type": "A", "value": "PRESS", "shift": True},
         {"properties": [("wait_for_input", True), ]}
