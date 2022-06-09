@@ -174,6 +174,16 @@ class VIEW3D_PT_sketcher_entities(Panel):
             sub = row.row()
             sub.alignment = "LEFT"
 
+            # Select operator
+            props = sub.operator(
+                operators.View3D_OT_slvs_select.bl_idname,
+                text="",
+                emboss=False,
+                icon=("RADIOBUT_ON" if e.selected else "RADIOBUT_OFF"),
+            )
+            props.index = e.slvs_index
+            props.highlight_hover = True
+
             # Visibility toggle
             sub.prop(
                 e,
@@ -183,15 +193,7 @@ class VIEW3D_PT_sketcher_entities(Panel):
                 emboss=False,
             )
 
-            # Select operator
-            props = sub.operator(
-                operators.View3D_OT_slvs_select.bl_idname,
-                text=str(e),
-                emboss=False
-                )
-            props.index = e.slvs_index
-            props.highlight_hover = True
-
+            sub.prop(e, "name", text="")
 
             # Right part
             sub = row.row()
