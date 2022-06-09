@@ -2743,6 +2743,14 @@ class TrimSegment:
                     if intr not in self.obsolete_intersections:
                         self.obsolete_intersections.append(intr)
                 relevant.append(intr)
+
+        def _get_log_msg():
+            msg = "Trimming:"
+            for intr in ordered:
+                is_relevant = intr in relevant
+                msg += "\n - " + ("RELEVANT " if is_relevant else "IGNORE ") + str(intr)
+            return msg
+        logger.debug(_get_log_msg())
         return relevant
 
     def ensure_points(self, context):
