@@ -2679,6 +2679,7 @@ class TrimSegment:
         self._is_closed = segment.is_closed()
         self.connection_points = segment.connection_points().copy()
         self.obsolete_intersections = []
+        self.reuse_segment = False
 
         # Add connection points as intersections
         if not self._is_closed:
@@ -2759,7 +2760,7 @@ class TrimSegment:
         # Create new segments
         segment_count = len(relevant) // 2
         for i, intrs in enumerate([relevant[i*2:i*2+2] for i in range(segment_count)]):
-            reuse_segment = i == 0
+            reuse_segment = i == 0 and not isinstance(self.segment, class_defines.SlvsCircle)
             intr_1, intr_2 = intrs
             if not intr_1:
                 continue
@@ -2767,6 +2768,7 @@ class TrimSegment:
             new_segment = self.segment.replace(context, intr_1.get_point(context), intr_2.get_point(context), use_self=reuse_segment)
 
             if reuse_segment:
+                self.reuse_segment = True
                 continue
             # Copy constraints to new segment
             for c, ents in constrs.items():
@@ -2782,6 +2784,9 @@ class TrimSegment:
                 # Use operator which checks if other entities depend on this and auto deletes constraints
                 bpy.ops.view3d.slvs_delete_entity(index=intr.element.slvs_index)
 
+        # Remove original segment if not used
+        if not self.reuse_segment:
+            context.scene.sketcher.entities.remove(self.segment.slvs_index)
 
 
 trim_state1_doc = ("Segment", "Segment to trim.")
