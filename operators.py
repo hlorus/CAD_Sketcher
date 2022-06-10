@@ -3464,6 +3464,10 @@ def update_convertor_geometry(scene, sketch=None):
 
         target_ob.sketch_index = sketch.slvs_index
 
+        # Update object name
+        target_ob.name = sketch.name
+
+
 
 constraint_operators = (
     VIEW3D_OT_slvs_add_distance,
