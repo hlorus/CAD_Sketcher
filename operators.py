@@ -2795,6 +2795,14 @@ class TrimSegment:
                 ents[i] = new_segment
                 new_constr = c.copy(context, ents)
 
+
+        def _get_msg_obsolete():
+            msg = "Remove obsolete intersections:"
+            for intr in self.obsolete_intersections:
+                msg += "\n - {}".format(intr)
+            return msg
+        logger.debug(_get_msg_obsolete())
+
         # Remove unused endpoints
         for intr in self.obsolete_intersections:
             if intr.is_constraint():
