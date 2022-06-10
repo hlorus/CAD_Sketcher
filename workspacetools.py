@@ -120,7 +120,7 @@ tool_access = (
         operators.View3D_OT_slvs_add_rectangle.bl_idname,
     ),
     tool_invoke_kmi(
-        "T",
+        "Y",
         "sketcher.slvs_trim",
         operators.View3D_OT_slvs_trim.bl_idname,
     ),
