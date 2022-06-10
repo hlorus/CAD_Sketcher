@@ -300,6 +300,16 @@ class SlvsGenericEntity:
         return False
 
 
+class SlvsGenericSegmentedEntity(SlvsGenericEntity):
+    resolution: IntProperty(name="Resolution", default=2, min=2, max=64)
+
+    def bezier_segment_count(self):
+        return self.resolution
+
+    def bezier_point_count(self):
+        return self.bezier_segment_count()
+
+
 # Drawing a point might not include points coord itself but rather a series of virtual points around it
 # so a Entity might refer another point entity and/or add a set of coords
 #
@@ -977,7 +987,7 @@ def create_bezier_curve(
 CURVE_RESOLUTION = 64
 
 
-class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
+class SlvsArc(SlvsGenericSegmentedEntity, PropertyGroup, Entity2D):
     """Representation of an arc in 2D space around the centerpoint ct. Connects
     p2 to p3 or (vice-versa if the option invert_direction is true) with a
     circle segment that is resolution independent. The arc lies on the sketche's workplane.
@@ -1089,13 +1099,6 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         else:
             return point == self.end
 
-    def bezier_segment_count(self):
-        max_angle = math.pi / 2
-        return math.ceil(self.angle / max_angle)
-
-    def bezier_point_count(self):
-        return self.bezier_segment_count() + 1
-
     def point_on_curve(self, angle):
         return functions.pol2cart(self.radius, self.start_angle + angle) + self.ct.co
 
@@ -1154,7 +1157,7 @@ slvs_entity_pointer(SlvsArc, "p2")
 slvs_entity_pointer(SlvsArc, "sketch")
 
 
-class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
+class SlvsCircle(SlvsGenericSegmentedEntity, PropertyGroup, Entity2D):
     """Representation of a circle in 2D space. The circle is centered at ct with
     it's size defined by the radius and is resoulution independent.
 
@@ -1232,12 +1235,6 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
 
     def direction(self, point, is_endpoint=False):
         return False
-
-    def bezier_segment_count(self):
-        return 4
-
-    def bezier_point_count(self):
-        return self.bezier_segment_count()
 
     def to_bezier(
         self,

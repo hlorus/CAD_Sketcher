@@ -327,6 +327,11 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
                     col.label(text="Index: " + str(element.slvs_index))
                 col.label(text="Is Origin: " + str(element.origin))
                 col.separator()
+
+                if hasattr(element, "resolution"):
+                    col.prop(element, "resolution")
+                    col.separator()
+                    
                 col.prop(element, "visible")
                 col.prop(element, "fixed")
                 col.prop(element, "construction")
