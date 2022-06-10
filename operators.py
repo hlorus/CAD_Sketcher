@@ -2221,19 +2221,13 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         state_desc(*sketch_state1_doc, (class_defines.SlvsWorkplane,)),
     )
 
-    def ensure_preselect_gizmo(self, context, _coords):
-        tool = context.workspace.tools.from_space_view3d_mode(context.mode)
-        if tool.widget != gizmos.VIEW3D_GGT_slvs_preselection.bl_idname:
-            bpy.ops.wm.tool_set_by_id(name="sketcher.slvs_select")
-        return True
-
-    def prepare_origin_elements(self, context, _coords):
+    def prepare_origin_elements(self, context):
         context.scene.sketcher.entities.ensure_origin_elements(context)
         return True
 
     def init(self, context, event):
-        self.ensure_preselect_gizmo(context, None)
-        self.prepare_origin_elements(context, None)
+        switch_sketch_mode(self, context, to_sketch_mode=True)
+        self.prepare_origin_elements(context)
         bpy.ops.ed.undo_push(message="Ensure Origin Elements")
         context.scene.sketcher.show_origin = True
 
@@ -2250,13 +2244,15 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         self.target = sketch
         return True
 
-    def fini(self, context, succeede):
+    def fini(self, context, succeed):
         context.scene.sketcher.show_origin = False
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
 
-        if succeede:
+        if succeed:
             self.wp.visible = False
+        else:
+            switch_sketch_mode(self, context, to_sketch_mode=False)
 
 
 p2d_state1_doc = ("Coordinates", "Set point's coordinates on the sketch.")
@@ -2717,11 +2713,24 @@ class View3D_OT_invoke_tool(Operator):
         return {"FINISHED"}
 
 
+def switch_sketch_mode(self, context, to_sketch_mode):
+    if to_sketch_mode:
+        tool = context.workspace.tools.from_space_view3d_mode(context.mode)
+        if tool.widget != gizmos.VIEW3D_GGT_slvs_preselection.bl_idname:
+            bpy.ops.wm.tool_set_by_id(name="sketcher.slvs_select")
+        return True
+
+    bpy.ops.wm.tool_set_by_index(index=0)
+    return True
+
+
 def activate_sketch(context, index, operator):
     props = context.scene.sketcher
 
     if index == props.active_sketch_i:
         return {"CANCELLED"}
+
+    switch_sketch_mode(self=operator, context=context, to_sketch_mode=(index!=-1))
 
     space_data = context.space_data
 
