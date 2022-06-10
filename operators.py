@@ -2806,7 +2806,9 @@ class TrimSegment:
         # Remove unused endpoints
         for intr in self.obsolete_intersections:
             if intr.is_constraint():
-                context.scene.sketcher.constraints.remove(intr.element)
+                c = intr.element
+                i = context.scene.sketcher.constraints.get_index(c)
+                bpy.ops.view3d.slvs_delete_constraint(type=c.type, index=i)
             if intr.is_entity():
                 # Use operator which checks if other entities depend on this and auto deletes constraints
                 bpy.ops.view3d.slvs_delete_entity(index=intr.element.slvs_index)
