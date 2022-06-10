@@ -1286,17 +1286,14 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
             return parse_retval(intersect_sphere_sphere_2d(self.ct.co, self.radius, other.ct.co, other.radius))
 
     def distance_along_segment(self, p1, p2):
-        def get_angle(p_1, p_2):
-            a = math.atan2(*p_2.yx) - math.atan2(*p_1.yx)
-            return a
-
         ct = self.ct.co
         start, end = self.start.co - ct, self.end.co - ct
+        points = (p1, p2) if self.invert_direction else (p2, p1)
 
-        len_1 = functions.range_2pi(end.angle_signed(p1 - ct))
-        len_2 = functions.range_2pi((p2 - ct).angle_signed(start))
+        len_1 = functions.range_2pi(end.angle_signed(points[1] - ct))
+        len_2 = functions.range_2pi((points[0] - ct).angle_signed(start))
 
-        threshold = 0.0000001
+        threshold = 0.000001
         retval = (len_1 + len_2) % (self.angle + threshold)
 
         return retval
