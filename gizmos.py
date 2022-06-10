@@ -62,7 +62,6 @@ def context_mode_check(context, widget_group):
 
 GIZMO_OFFSET = Vector((10.0, 10.0))
 GIZMO_GENERIC_SIZE = 5
-GIZMO_ARROW_SCALE = 0.02
 
 class ConstraintGizmo:
     def _get_constraint(self, context):
@@ -255,7 +254,7 @@ def get_overshoot(scale, dir):
 def get_arrow_size(dist, scale):
     length = math.copysign(
         min(
-            scale * GIZMO_ARROW_SCALE,
+            scale * functions.get_prefs().arrow_scale / 100,
             abs(dist * 0.8),
         ),
         dist,
@@ -401,9 +400,10 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
             scale = functions.get_scale_from_pos(self.matrix_world @ p.to_3d(), rv3d)
             scales.append(scale)
             length = min(
-                scale * GIZMO_ARROW_SCALE,
+                get_arrow_size(radius,scale)[0],
                 abs(0.8 * radius * constr.value / 2),
             )
+
             lengths.append(length)
             widths.append(length * 0.4)
 
