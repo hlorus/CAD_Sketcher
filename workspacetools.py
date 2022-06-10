@@ -119,6 +119,11 @@ tool_access = (
         "sketcher.slvs_add_rectangle",
         operators.View3D_OT_slvs_add_rectangle.bl_idname,
     ),
+    tool_invoke_kmi(
+        "T",
+        "sketcher.slvs_trim",
+        operators.View3D_OT_slvs_trim.bl_idname,
+    ),
     (
         operators.View3D_OT_slvs_add_sketch.bl_idname,
         {"type": "S", "value": "PRESS"},
