@@ -2761,7 +2761,7 @@ class TrimSegment:
         # Get constraints
         constrs = {}
         for c in context.scene.sketcher.constraints.all:
-            if c.type in ("RATIO", "COINCIDENT", "MIDPOINT"):
+            if c.type in ("RATIO", "COINCIDENT", "MIDPOINT", "TANGENT"):
                 continue
             entities = c.entities()
             if not self.segment in entities:
