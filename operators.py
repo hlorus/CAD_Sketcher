@@ -57,18 +57,23 @@ def ensure_selection_texture(context):
 
 def update_elements(context, force=False):
     entities = list(context.scene.sketcher.entities.all)
-    msg = ""
+
     for e in entities:
         if not hasattr(e, "update"):
             continue
         if not force and not e.is_dirty:
             continue
-
-        msg += "\n - " + str(e) + str(e.is_dirty)
         e.update()
 
-    if msg:
-        logger.debug("Update geometry batches:" + msg)
+    def _get_msg():
+        msg = "Update geometry batches:"
+        for e in entities:
+            if not e.is_dirty:
+                continue
+            msg += "\n - " + str(e)
+        return msg
+
+    logger.debug(_get_msg())
 
 
 def draw_elements(context):
