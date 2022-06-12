@@ -1,3 +1,4 @@
+from cmath import pi
 import bpy
 import logging
 from bpy.types import PropertyGroup
@@ -2169,6 +2170,13 @@ slvs_entity_pointer(SlvsDiameter, "sketch")
 
 from mathutils.geometry import intersect_line_line_2d
 
+def invert_angle_getter(self):
+    return self.get("setting", self.bl_rna.properties["setting"].default)
+
+def invert_angle_setter(self, setting):
+    self["setting"] = setting
+    self["value"] = math.pi - self["value"]
+
 
 class SlvsAngle(GenericConstraint, PropertyGroup):
     """Sets the angle between two lines, applies in 2D only.
@@ -2180,7 +2188,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     value: FloatProperty(
         name=label, subtype="ANGLE", unit="ROTATION", update=update_system_cb
     )
-    setting: BoolProperty(name="Invert", update=update_system_cb)
+    setting: BoolProperty(name="Invert", get=invert_angle_getter, set=invert_angle_setter)
     draw_offset: FloatProperty(name="Draw Offset", default=1)
     type = "ANGLE"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
