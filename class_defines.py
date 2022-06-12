@@ -1,4 +1,3 @@
-from cmath import pi
 import bpy
 import logging
 from bpy.types import PropertyGroup
