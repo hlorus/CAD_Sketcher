@@ -235,6 +235,8 @@ class VIEW3D_PT_sketcher_constraints(Panel):
         col = box.column(align=True)
         col.scale_y = 0.8
 
+        layout.operator_enum(operators.View3D_OT_slvs_set_all_constraints_visibility.bl_idname, "visibility")
+
         sketch = context.scene.sketcher.active_sketch
         for c in context.scene.sketcher.constraints.all:
             if not c.is_active(sketch):
@@ -244,6 +246,14 @@ class VIEW3D_PT_sketcher_constraints(Panel):
             # Left part
             sub = row.row()
             sub.alignment = "LEFT"
+
+            sub.prop(
+                c,
+                "visible",
+                icon_only=True,
+                icon=("HIDE_OFF" if c.visible else "HIDE_ON"),
+                emboss=False,
+            )
 
             # Failed hint
             sub.label(
