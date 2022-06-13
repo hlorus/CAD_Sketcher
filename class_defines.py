@@ -1899,6 +1899,7 @@ ENTITY_PROP_NAMES = ("entity1", "entity2", "entity3", "entity4")
 
 class GenericConstraint:
     failed: BoolProperty(name="Failed")
+    visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
     signature = ()
 
     def needs_wp(args):
@@ -1956,12 +1957,17 @@ class GenericConstraint:
                 continue
             _update(prop_name)
 
+    def is_visible(self, context):
+        if hasattr(self, "sketch"):
+            return self.sketch.is_visible(context) and self.visible
+        return self.visible
+
     def is_active(self, active_sketch):
         if not hasattr(self, "sketch"):
             return not active_sketch
 
         show_inactive = not functions.get_prefs().hide_inactive_constraints
-        if show_inactive and self.sketch.visible:
+        if show_inactive and self.is_visible():
             return True
 
         return self.sketch == active_sketch

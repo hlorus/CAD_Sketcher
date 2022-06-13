@@ -124,6 +124,8 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
 
     def draw(self, context):
         constraint = self._get_constraint(context)
+        if not constraint.visible:
+            return
         col = self._set_colors(context, constraint)
         self._update_matrix_basis(context, constraint)
 
@@ -179,7 +181,8 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
 
     def draw(self, context):
         constr = self._get_constraint(context)
-        if not hasattr(constr, "value_placement"):
+
+        if not constr.visible or not hasattr(constr, "value_placement"):
             return
         pos = constr.value_placement(context)
 
@@ -217,6 +220,8 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
 
     def draw(self, context):
         constr = self._get_constraint(context)
+        if not constr.visible:
+            return
         self._set_colors(context, constr)
         self._update_matrix_basis(constr)
 
@@ -225,6 +230,8 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
 
     def draw_select(self, context, select_id):
         constr = self._get_constraint(context)
+        if not constr.visible:
+            return
         self._create_shape(context, constr, select=True)
         self.draw_custom_shape(self.custom_shape, select_id=select_id)
 
