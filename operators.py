@@ -2865,12 +2865,14 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
 
     def fini(self, context, succeede):
         if not succeede:
-            return
+            return False
 
         sketch = context.scene.sketcher.active_sketch
         segment = self.segment
 
-        mouse_pos = self._state_data[0]["mouse_pos"]
+        mouse_pos = self._state_data[0].get("mouse_pos")
+        if mouse_pos == None:
+            return False
 
         trim = TrimSegment(segment, mouse_pos)
 
