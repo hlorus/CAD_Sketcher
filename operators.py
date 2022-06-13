@@ -2764,8 +2764,6 @@ class TrimSegment:
         # Get constraints
         constrs = {}
         for c in context.scene.sketcher.constraints.all:
-            if c.type in ("RATIO", "COINCIDENT", "MIDPOINT", "TANGENT"):
-                continue
             entities = c.entities()
             if not self.segment in entities:
                 continue
@@ -2781,8 +2779,8 @@ class TrimSegment:
 
         # Create new segments
         segment_count = len(relevant) // 2
-        for i, intrs in enumerate([relevant[i*2:i*2+2] for i in range(segment_count)]):
-            reuse_segment = i == 0 and not isinstance(self.segment, class_defines.SlvsCircle)
+        for index, intrs in enumerate([relevant[i*2:i*2+2] for i in range(segment_count)]):
+            reuse_segment = index == 0 and not isinstance(self.segment, class_defines.SlvsCircle)
             intr_1, intr_2 = intrs
             if not intr_1:
                 continue
@@ -2792,11 +2790,19 @@ class TrimSegment:
             if reuse_segment:
                 self.reuse_segment = True
                 continue
+
             # Copy constraints to new segment
             for c, ents in constrs.items():
                 i = ents.index(self.segment)
-                ents[i] = new_segment
-                new_constr = c.copy(context, ents)
+                if index != 0:
+                    if c.type in ("RATIO", "COINCIDENT", "MIDPOINT", "TANGENT"):
+                        continue
+                    ents[i] = new_segment
+                    new_constr = c.copy(context, ents)
+                else:
+                    # if the original segment doesn't get reused the original constraints
+                    # have to be remapped to the new segment
+                    setattr(c, "entity{}_i".format(i+1), new_segment.slvs_index)
 
 
         def _get_msg_obsolete():
@@ -2807,6 +2813,7 @@ class TrimSegment:
         logger.debug(_get_msg_obsolete())
 
         # Remove unused endpoints
+        delete_constraints = []
         for intr in self.obsolete_intersections:
             if intr.is_constraint():
                 c = intr.element
