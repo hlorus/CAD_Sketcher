@@ -171,7 +171,7 @@ class VIEW3D_PT_sketcher_entities(Panel):
             row.alert = e.selected
 
             # Left part
-            sub = row.row()
+            sub = row.row(align=True)
             sub.alignment = "LEFT"
 
             # Select operator
