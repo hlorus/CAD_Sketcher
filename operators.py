@@ -341,6 +341,10 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
                 element.draw_props(col)
                 col.separator()
 
+            if hasattr(element, "visible"):
+                col.prop(element, "visible")
+                col.separator()
+
             # Delete operator
             if is_entity:
                 col.operator(View3D_OT_slvs_delete_entity.bl_idname, icon='X').index = element.slvs_index
@@ -3262,6 +3266,36 @@ class VIEW3D_OT_slvs_add_ratio(
     type = "RATIO"
 
 
+class View3D_OT_slvs_set_all_constraints_visibility(Operator, HighlightElement):
+    """Set all constraints' visibility
+    """
+    bl_idname = "view3d.slvs_hide_all_constraints"
+    bl_label = "Hide all constraints"
+    bl_options = {"UNDO"}
+    bl_description = "Hide all constraints"
+
+    visibility: EnumProperty(
+        name="Visibility",
+        description="Visiblity",
+        items=[
+            ("HIDE", "Hide all", "Hide all constraints"),
+            ("SHOW", "Show all", "Show all constraints"),
+        ])
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def execute(self, context):
+        constraint_lists = context.scene.sketcher.constraints.get_lists()
+        for constraint_list in constraint_lists:
+            for constraint in constraint_list:
+                if not hasattr(constraint, "visible"):
+                    continue
+                constraint.visible = self.visibility == "SHOW"
+        return {"FINISHED"}
+
+
 class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
     """Delete constraint by type and index
     """
@@ -3522,6 +3556,7 @@ classes = (
     View3D_OT_slvs_test,
     View3D_OT_invoke_tool,
     View3D_OT_slvs_set_active_sketch,
+    View3D_OT_slvs_set_all_constraints_visibility,
     View3D_OT_slvs_delete_entity,
     *constraint_operators,
     View3D_OT_slvs_solve,
