@@ -3055,7 +3055,7 @@ class VIEW3D_OT_slvs_add_angle(
     value: FloatProperty(
         name="Angle", subtype="ANGLE", unit="ROTATION", options={"SKIP_SAVE"}
     )
-    setting: BoolProperty(name="Invert")
+    setting: BoolProperty(name="Invert", get=class_defines.invert_angle_getter, set=class_defines.invert_angle_setter)
     type = "ANGLE"
 
     def fini(self, context, succeede):
