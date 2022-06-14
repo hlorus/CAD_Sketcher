@@ -347,6 +347,10 @@ def draw_object_context_menu(self, context):
         row.active = False
     layout.separator()
 
+def draw_add_sketch_in_add_menu(self, context):
+    self.layout.separator()
+    self.layout.operator_context = "INVOKE_DEFAULT"
+    self.layout.operator("view3d.slvs_add_sketch", text="Sketch")
 
 classes = (
     VIEW3D_UL_sketches,
@@ -362,9 +366,11 @@ def register():
         bpy.utils.register_class(cls)
 
     bpy.types.VIEW3D_MT_object_context_menu.prepend(draw_object_context_menu)
+    bpy.types.VIEW3D_MT_add.append(draw_add_sketch_in_add_menu)
 
 def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
     bpy.types.VIEW3D_MT_object_context_menu.remove(draw_object_context_menu)
+    bpy.types.VIEW3D_MT_add.remove(draw_add_sketch_in_add_menu)
