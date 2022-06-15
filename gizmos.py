@@ -185,26 +185,28 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
 
         if not constr.visible or not hasattr(constr, "value_placement"):
             return
-        pos = constr.value_placement(context)
-
-        if not pos:
-            return
-
-        # Update Matrix for selection
-        self.matrix_basis = Matrix.Translation(pos.to_3d())
-
-        text = _get_formatted_value(context, constr)
-        font_id = 0
 
         prefs = functions.get_prefs()
         theme = prefs.theme_settings
         color = theme.constraint.text_highlight if self.is_highlight else theme.constraint.text
+        text = _get_formatted_value(context, constr)
+        font_id = 0
+        dpi = context.preferences.system.dpi
+
         blf.color(font_id, *color)
-
-        blf.size(font_id, prefs.text_size, context.preferences.system.dpi)
-
+        blf.size(font_id, prefs.text_size, dpi)
         self.width, self.height = blf.dimensions(font_id, text)
-        blf.position(font_id, pos[0]-self.width/2, pos[1], 0)
+
+        margin = math.copysign(
+            self.width /2 / dpi,
+            constr.draw_offset
+        )
+        pos = constr.value_placement(context, margin)
+        if not pos:
+            return
+        self.matrix_basis = Matrix.Translation(pos.to_3d()) # Update Matrix for selection
+
+        blf.position(font_id, pos[0]-self.width/2, pos[1]-self.height/2, 0)
         blf.draw(font_id, text)
 
     def setup(self):
@@ -259,11 +261,11 @@ def draw_arrow_shape(target, shoulder, width, is_3d=False):
         ((shoulder + v)),
     )
 
-DEFAULT_OVERSHOOT = 0.01
 def get_overshoot(scale, dir):
     if dir == 0:
         return 0
-    return -math.copysign(DEFAULT_OVERSHOOT * scale, dir)
+    overshoot = scale * functions.get_prefs().arrow_scale / 100
+    return -math.copysign(overshoot, dir)
 
 
 def get_arrow_size(dist, scale):
@@ -325,7 +327,6 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
                 y = line_points[i].y
             points_local.append(Vector((x, y, 0.0)))
 
-
         # Pick the points based on their x location
         if points_local[0].x > points_local[1].x:
             point_right, point_left = points_local
@@ -341,7 +342,6 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
             (dist, overshoot_2, 0.0),
             (dist, point_right.y, 0.0),
         )
-
 
     def _create_shape(self, context, constr, select=False):
         ui_scale = context.preferences.system.ui_scale
