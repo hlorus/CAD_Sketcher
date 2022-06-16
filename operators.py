@@ -1,8 +1,10 @@
 ############### Operators ###############
 import bpy, bgl, gpu
-from gpu_extras.batch import batch_for_shader
 from bpy.types import Operator
 from . import global_data, functions, class_defines, convertors
+from .keymaps import get_key_map_desc
+from .declarations import Operators, GizmoGroups, WorkSpaceTools
+
 from bpy.props import (
     IntProperty,
     StringProperty,
@@ -13,9 +15,8 @@ from bpy.props import (
 )
 import math
 from mathutils import Vector, Matrix
-from mathutils.geometry import intersect_line_plane, distance_point_to_plane
+from mathutils.geometry import intersect_line_plane
 
-import functools
 import logging
 
 logger = logging.getLogger(__name__)
@@ -166,7 +167,7 @@ class HighlightElement:
 
 
 class View3D_OT_slvs_register_draw_cb(Operator):
-    bl_idname = "view3d.slvs_register_draw_cb"
+    bl_idname = Operators.RegisterDrawCB
     bl_label = "Register Draw Callback"
 
     def execute(self, context):
@@ -178,7 +179,7 @@ class View3D_OT_slvs_register_draw_cb(Operator):
 
 
 class View3D_OT_slvs_unregister_draw_cb(Operator):
-    bl_idname = "view3d.slvs_unregister_draw_cb"
+    bl_idname = Operators.UnregisterDrawCB
     bl_label = ""
 
     def execute(self, context):
@@ -223,7 +224,7 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
 
     """
 
-    bl_idname = "view3d.slvs_select"
+    bl_idname = Operators.Select
     bl_label = "Select Solvespace Entities"
 
     index: IntProperty(name="Index", default=-1)
@@ -247,7 +248,7 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
 class View3D_OT_slvs_select_all(Operator):
     """Select / Deselect all entities"""
 
-    bl_idname = "view3d.slvs_select_all"
+    bl_idname = Operators.SelectAll
     bl_label = "Select / Deselect Entities"
 
     deselect: BoolProperty(name="Deselect")
@@ -264,7 +265,7 @@ class View3D_OT_slvs_select_all(Operator):
 class View3D_OT_slvs_context_menu(Operator, HighlightElement):
     """Show element's settings"""
 
-    bl_idname = "view3d.slvs_context_menu"
+    bl_idname = Operators.ContextMenu
     bl_label = "Solvespace Context Menu"
 
     type: StringProperty(name="Type", options={'SKIP_SAVE'})
@@ -347,7 +348,7 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
 
             # Delete operator
             if is_entity:
-                col.operator(View3D_OT_slvs_delete_entity.bl_idname, icon='X').index = element.slvs_index
+                col.operator(Operators.DeleteEntity, icon='X').index = element.slvs_index
             else:
                 props = col.operator(View3D_OT_slvs_delete_constraint.bl_idname, icon='X')
                 props.type = element.type
@@ -359,7 +360,7 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
 class View3D_OT_slvs_show_solver_state(Operator):
     """Show details about solver status"""
 
-    bl_idname = "view3d.slvs_show_solver_state"
+    bl_idname = Operators.ShowSolverState
     bl_label = "Solver Status"
 
     index: IntProperty(default=-1)
@@ -393,7 +394,7 @@ from .solver import Solver, solve_system
 
 
 class View3D_OT_slvs_solve(Operator):
-    bl_idname = "view3d.slvs_solve"
+    bl_idname = Operators.Solve
     bl_label = "Solve"
 
     all: BoolProperty(name="Solve All", options={"SKIP_SAVE"})
@@ -424,7 +425,7 @@ def add_point(context, pos, name=""):
 class View3D_OT_slvs_tweak(Operator):
     """Tweak the hovered element"""
 
-    bl_idname = "view3d.slvs_tweak"
+    bl_idname = Operators.Tweak
     bl_label = "Tweak Solvespace Entities"
     bl_options = {"UNDO"}
 
@@ -521,7 +522,7 @@ def write_selection_buffer_image(image_name):
 class VIEW3D_OT_slvs_write_selection_texture(Operator):
     """Write selection texture to image for debugging"""
 
-    bl_idname = "view3d.slvs_write_selection_texture"
+    bl_idname = Operators.WriteSelectionTexture
     bl_label = "Write selection texture"
 
     def execute(self, context):
@@ -640,7 +641,7 @@ def get_mesh_element(context, coords, vertex=False, edge=False, face=False, thre
     closest_type = ""
     closest_dist = None
 
-    loc = obj_eval.matrix_world.inverted() @ loc
+    loc = obj_eval.matrix_worl.inverted() @ loc
     me = obj_eval.data
     polygon = me.polygons[face_index]
 
@@ -1973,7 +1974,7 @@ p3d_state1_doc = ("Location", "Set point's location.")
 
 
 class View3D_OT_slvs_add_point3d(Operator, Operator3d):
-    bl_idname = "view3d.slvs_add_point3d"
+    bl_idname = Operators.AddPoint3D
     bl_label = "Add Solvespace 3D Point"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2019,7 +2020,7 @@ l3d_state2_doc = ("Endpoint", "Pick or place line's ending point.")
 
 
 class View3D_OT_slvs_add_line3d(Operator, Operator3d):
-    bl_idname = "view3d.slvs_add_line3d"
+    bl_idname = Operators.AddLine3D
     bl_label = "Add Solvespace 3D Line"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2078,7 +2079,7 @@ wp_state2_doc = ("Orientation", "Set workplane's orientation.")
 
 
 class View3D_OT_slvs_add_workplane(Operator, Operator3d):
-    bl_idname = "view3d.slvs_add_workplane"
+    bl_idname = Operators.AddWorkPlane
     bl_label = "Add Solvespace Workplane"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2159,7 +2160,7 @@ wp_face_state1_doc = ("Face", "Pick a mesh face to use as workplanes's transform
 
 
 class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
-    bl_idname = "view3d.slvs_add_workplane_face"
+    bl_idname = Operators.AddWorkPlaneFace
     bl_label = "Add Solvespace Workplane"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2208,7 +2209,7 @@ sketch_state1_doc = ["Workplane", "Pick a workplane as base for the sketch."]
 # TODO:
 # - Draw sketches
 class View3D_OT_slvs_add_sketch(Operator, Operator3d):
-    bl_idname = "view3d.slvs_add_sketch"
+    bl_idname = Operators.AddSketch
     bl_label = "Add Sketch"
     bl_options = {"UNDO"}
 
@@ -2267,7 +2268,7 @@ p2d_state1_doc = ("Coordinates", "Set point's coordinates on the sketch.")
 
 
 class View3D_OT_slvs_add_point2d(Operator, Operator2d):
-    bl_idname = "view3d.slvs_add_point2d"
+    bl_idname = Operators.AddPoint2D
     bl_label = "Add Solvespace 2D Point"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2320,7 +2321,7 @@ l2d_state2_doc = ("Endpoint", "Pick or place line's ending Point.")
 
 
 class View3D_OT_slvs_add_line2d(Operator, Operator2d):
-    bl_idname = "view3d.slvs_add_line2d"
+    bl_idname = Operators.AddLine2D
     bl_label = "Add Solvespace 2D Line"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2395,7 +2396,7 @@ circle_state2_doc = ("Radius", "Set circle's radius.")
 
 
 class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
-    bl_idname = "view3d.slvs_add_circle2d"
+    bl_idname = Operators.AddCircle2D
     bl_label = "Add Solvespace 2D Circle"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2458,7 +2459,7 @@ arc_state3_doc = ("Endpoint", "Pick or place ending point.")
 
 
 class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
-    bl_idname = "view3d.slvs_add_arc2d"
+    bl_idname = Operators.AddArc2D
     bl_label = "Add Solvespace 2D Arc"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2541,7 +2542,7 @@ rect_state2_doc = ("Endpoint", "Pick or place ending point.")
 
 
 class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
-    bl_idname = "view3d.slvs_add_rectangle"
+    bl_idname = Operators.AddRectangle
     bl_label = "Add Rectangle"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2830,7 +2831,7 @@ class TrimSegment:
 trim_state1_doc = ("Segment", "Segment to trim.")
 
 class View3D_OT_slvs_trim(Operator, Operator2d):
-    bl_idname = "view3d.slvs_trim"
+    bl_idname = Operators.Trim
     bl_label = "Trim Segment"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2906,7 +2907,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
 
 
 class View3D_OT_slvs_test(Operator, GenericEntityOp):
-    bl_idname = "view3d.slvs_test"
+    bl_idname = Operators.Test
     bl_label = "Test StateOps"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2942,7 +2943,7 @@ class View3D_OT_slvs_test(Operator, GenericEntityOp):
 
 
 class View3D_OT_invoke_tool(Operator):
-    bl_idname = "view3d.invoke_tool"
+    bl_idname = Operators.InvokeTool
     bl_label = "Invoke Tool"
 
     tool_name: StringProperty(name="Tool ID")
@@ -2987,8 +2988,8 @@ class View3D_OT_invoke_tool(Operator):
 def switch_sketch_mode(self, context, to_sketch_mode):
     if to_sketch_mode:
         tool = context.workspace.tools.from_space_view3d_mode(context.mode)
-        if tool.widget != gizmos.VIEW3D_GGT_slvs_preselection.bl_idname:
-            bpy.ops.wm.tool_set_by_id(name="sketcher.slvs_select")
+        if tool.widget != GizmoGroups.Preselection:
+            bpy.ops.wm.tool_set_by_id(name=WorkSpaceTools.Select)
         return True
 
     bpy.ops.wm.tool_set_by_index(index=0)
@@ -3036,7 +3037,7 @@ def activate_sketch(context, index, operator):
 class View3D_OT_slvs_set_active_sketch(Operator):
     """Set the active sketch"""
 
-    bl_idname = "view3d.slvs_set_active_sketch"
+    bl_idname = Operators.SetActiveSketch
     bl_label = "Set active Sketch"
     bl_options = {"UNDO"}
 
@@ -3105,7 +3106,7 @@ def get_constraint_local_indices(entity, context):
 class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
     """Delete Entity by index or based on the selection if index isn't provided
     """
-    bl_idname = "view3d.slvs_delete_entity"
+    bl_idname = Operators.DeleteEntity
     bl_label = "Delete Solvespace Entity"
     bl_options = {"UNDO"}
     bl_description = (
@@ -3261,7 +3262,7 @@ class GenericConstraintOp(GenericEntityOp):
 
         states = [state_desc(s.name, s.description, s.types) for s in cls.get_states_definition()]
 
-        return stateful_op_desc("Add {} constraint".format(cls_constraint.label), *states)
+        return stateful_op_desc(f"Add {cls_constraint.label} constraint{get_key_map_desc(cls.bl_idname)}", *states)
 
     def fill_entities(self):
         c = self.target
@@ -3316,7 +3317,7 @@ class GenericConstraintOp(GenericEntityOp):
 class VIEW3D_OT_slvs_add_distance(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_distance"
+    bl_idname = Operators.AddDistance
     bl_label = "Distance"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3346,7 +3347,7 @@ class VIEW3D_OT_slvs_add_distance(
 class VIEW3D_OT_slvs_add_angle(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_angle"
+    bl_idname = Operators.AddAngle
     bl_label = "Angle"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3364,7 +3365,7 @@ class VIEW3D_OT_slvs_add_angle(
 class VIEW3D_OT_slvs_add_diameter(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_diameter"
+    bl_idname = Operators.AddDiameter
     bl_label = "Diameter"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3381,7 +3382,7 @@ class VIEW3D_OT_slvs_add_diameter(
 class VIEW3D_OT_slvs_add_coincident(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_coincident"
+    bl_idname = Operators.AddCoincident
     bl_label = "Coincident"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3400,7 +3401,7 @@ class VIEW3D_OT_slvs_add_coincident(
 class VIEW3D_OT_slvs_add_equal(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_equal"
+    bl_idname = Operators.AddEqual
     bl_label = "Equal"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3410,7 +3411,7 @@ class VIEW3D_OT_slvs_add_equal(
 class VIEW3D_OT_slvs_add_vertical(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_vertical"
+    bl_idname = Operators.AddVertical
     bl_label = "Vertical"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3420,7 +3421,7 @@ class VIEW3D_OT_slvs_add_vertical(
 class VIEW3D_OT_slvs_add_horizontal(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_horizontal"
+    bl_idname = Operators.AddHorizontal
     bl_label = "Horizontal"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3430,7 +3431,7 @@ class VIEW3D_OT_slvs_add_horizontal(
 class VIEW3D_OT_slvs_add_parallel(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_parallel"
+    bl_idname = Operators.AddParallel
     bl_label = "Parallel"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3440,7 +3441,7 @@ class VIEW3D_OT_slvs_add_parallel(
 class VIEW3D_OT_slvs_add_perpendicular(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_perpendicular"
+    bl_idname = Operators.AddPerpendicular
     bl_label = "Perpendicular"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3450,7 +3451,7 @@ class VIEW3D_OT_slvs_add_perpendicular(
 class VIEW3D_OT_slvs_add_tangent(
     Operator, GenericConstraintOp, GenericEntityOp
 ):
-    bl_idname = "view3d.slvs_add_tangent"
+    bl_idname = Operators.AddTangent
     bl_label = "Tangent"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3460,7 +3461,7 @@ class VIEW3D_OT_slvs_add_tangent(
 class VIEW3D_OT_slvs_add_midpoint(
     Operator, GenericConstraintOp, GenericEntityOp
 ):
-    bl_idname = "view3d.slvs_add_midpoint"
+    bl_idname = Operators.AddMidPoint
     bl_label = "Midpoint"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3474,7 +3475,7 @@ class VIEW3D_OT_slvs_add_ratio(
     value: FloatProperty(
         name="Ratio", subtype="UNSIGNED", options={"SKIP_SAVE"}, min=0.0
     )
-    bl_idname = "view3d.slvs_add_ratio"
+    bl_idname = Operators.AddRatio
     bl_label = "Ratio"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3484,10 +3485,10 @@ class VIEW3D_OT_slvs_add_ratio(
 class View3D_OT_slvs_set_all_constraints_visibility(Operator, HighlightElement):
     """Set all constraints' visibility
     """
-    bl_idname = "view3d.slvs_hide_all_constraints"
-    bl_label = "Hide all constraints"
+    bl_idname = Operators.SetAllConstraintsVisibility
+    bl_label = "Set all constraints' visibility"
     bl_options = {"UNDO"}
-    bl_description = "Hide all constraints"
+    bl_description = "Set all constraints' visibility"
 
     visibility: EnumProperty(
         name="Visibility",
@@ -3514,7 +3515,7 @@ class View3D_OT_slvs_set_all_constraints_visibility(Operator, HighlightElement):
 class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
     """Delete constraint by type and index
     """
-    bl_idname = "view3d.slvs_delete_constraint"
+    bl_idname = Operators.DeleteConstraint
     bl_label = "Delete Constraint"
     bl_options = {"UNDO"}
     bl_description = "Delete Constraint"
@@ -3551,7 +3552,7 @@ class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
 
 
 class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
-    bl_idname = "view3d.slvs_tweak_constraint_value_pos"
+    bl_idname = Operators.TweakConstraintValuePos
     bl_label = "Tweak Constraint"
     bl_options = {"UNDO"}
     bl_description = "Tweak constraint's value or display position"
@@ -3610,7 +3611,7 @@ from bl_operators.presets import AddPresetBase
 class SKETCHER_OT_add_preset_theme(AddPresetBase, Operator):
     """Add an Theme Preset"""
 
-    bl_idname = "bgs.theme_preset_add"
+    bl_idname = Operators.AddPresetTheme
     bl_label = "Add Theme Preset"
     preset_menu = "SKETCHER_MT_theme_presets"
 
