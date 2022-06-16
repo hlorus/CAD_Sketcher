@@ -2173,8 +2173,11 @@ def invert_angle_getter(self):
     return self.get("setting", self.bl_rna.properties["setting"].default)
 
 def invert_angle_setter(self, setting):
+    if not self.inhibit:
+        if setting != self.old_setting:
+            self["value"] = math.pi - self.value
     self["setting"] = setting
-    self["value"] = math.pi - self["value"]
+    self["old_setting"] = setting
 
 
 class SlvsAngle(GenericConstraint, PropertyGroup):
@@ -2187,6 +2190,8 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     value: FloatProperty(
         name=label, subtype="ANGLE", unit="ROTATION", update=update_system_cb
     )
+    inhibit: BoolProperty(default = True)
+    old_setting: BoolProperty(default = False)
     setting: BoolProperty(name="Invert", get=invert_angle_getter, set=invert_angle_setter)
     draw_offset: FloatProperty(name="Draw Offset", default=1)
     type = "ANGLE"
@@ -2254,43 +2259,26 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
 
         return math.degrees(math.acos(x))
 
-    @staticmethod
-    def _get_angle_inv(A, B):
-        # (A dot B)/(|A||B|) = -cos(valA)
-        divisor = A.length * B.length
-        if not divisor:
-            return 0.0
-
-        x = -A.dot(B) / divisor
-        x = max(-1, min(x, 1))
-
-        return math.degrees(math.acos(x))
-
     def init_props(self):
         # Set initial angle value to the current angle
         line1, line2 = self.entity1, self.entity2
-
         vec1, vec2 = line1.direction_vec(), line2.direction_vec()
         angle_std = self._get_angle(vec1, vec2)
-        angle_inv = self._get_angle_inv(vec1, vec2)
-
-        setting = angle_inv < angle_std
-        angle = angle_inv if setting else angle_std
-
-        self.value = angle
+        angle_inv = 180 - angle_std
+        setting = angle_inv < 90
         self.setting = setting
+        self.old_setting = setting
+        angle = angle_inv if setting else angle_std
 
         # Get the radius
         origin = functions.get_line_intersection(
             *functions.line_abc_form(line1.p1.co, line1.p2.co),
             *functions.line_abc_form(line2.p1.co, line2.p2.co),
         )
-
         dist = max(
             (line1.midpoint() - origin).length, (line2.midpoint() - origin).length, 0.5
         )
         self.draw_offset = dist if not setting else -dist
-
         return math.radians(angle), setting
 
     def update_draw_offset(self, pos, ui_scale):
