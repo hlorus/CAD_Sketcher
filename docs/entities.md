@@ -11,7 +11,7 @@ sketch or, for 3D entities, when no sketch is active.
 
 ## Visibility
 Entities can be hidden. Access the setting from the entity's [context menu](user_interface#context-menu)
-or from the [entity browser](user_interface#Entity Browser).
+or from the [entity browser](user_interface#Entity-Browser).
 
 ## Construction
 Entities have a construction parameter which can be set via the entity's [context menu](user_interface#context-menu). If it's set to true the entity will be ignored when converting the geometry however it's still used to solve the geometric system. It's generally good practice to mark entities as construction if they're not part of the final geometry.
