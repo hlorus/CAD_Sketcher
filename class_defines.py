@@ -2173,11 +2173,13 @@ def invert_angle_getter(self):
     return self.get("setting", self.bl_rna.properties["setting"].default)
 
 def invert_angle_setter(self, setting):
-    if not self.inhibit:
-        if setting != self.old_setting:
-            self["value"] = math.pi - self.value
+#    old_val = self.value  #for the debug printout only
+    self["value"] = math.pi - self.value
+#    print("class_defines::invert_angle_setter() - " 
+#    + "   " + str(old_val)
+#    + "   " + str(setting)
+#    + "   " + str(self.value))
     self["setting"] = setting
-    self["old_setting"] = setting
 
 
 class SlvsAngle(GenericConstraint, PropertyGroup):
@@ -2190,8 +2192,6 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     value: FloatProperty(
         name=label, subtype="ANGLE", unit="ROTATION", update=update_system_cb
     )
-    inhibit: BoolProperty(default = True)
-    old_setting: BoolProperty(default = False)
     setting: BoolProperty(name="Invert", get=invert_angle_getter, set=invert_angle_setter)
     draw_offset: FloatProperty(name="Draw Offset", default=1)
     type = "ANGLE"
@@ -2267,7 +2267,6 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         angle_inv = 180 - angle_std
         setting = angle_inv < 90
         self.setting = setting
-        self.old_setting = setting
         angle = angle_inv if setting else angle_std
 
         # Get the radius
