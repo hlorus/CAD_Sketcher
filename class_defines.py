@@ -951,11 +951,13 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
 
         sse = context.scene.sketcher.entities
         sketch = context.scene.sketcher.active_sketch
-        return sse.add_line_2d(
+        line = sse.add_line_2d(
             p1,
             p2,
             sketch,
         )
+        line.construction = self.construction
+        return line
 
     def distance_along_segment(self, p1, p2):
         start, end = self.p1.co, self.p2.co
@@ -1313,6 +1315,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
             p2,
             sketch
         )
+        arc.construction = self.construction
         arc.invert_direction = self.invert_direction
         return arc
 
@@ -1486,13 +1489,15 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
             return self
 
         sketch = context.scene.sketcher.active_sketch
-        return context.scene.sketcher.entities.add_arc(
+        arc = context.scene.sketcher.entities.add_arc(
             sketch.wp.nm,
             self.ct,
             p1,
             p2,
             sketch
         )
+        arc.construction = self.construction
+        return arc
 
     def distance_along_segment(self, p1, p2):
         ct = self.ct.co
