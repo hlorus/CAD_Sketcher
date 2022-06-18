@@ -194,7 +194,7 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         self.width, self.height = blf.dimensions(font_id, text)
 
         margin = math.copysign(
-            self.width /2 / dpi,
+            self.width / dpi,
             constr.draw_offset
         )
         pos = constr.value_placement(context, margin)
