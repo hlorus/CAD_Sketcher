@@ -641,7 +641,7 @@ def get_mesh_element(context, coords, vertex=False, edge=False, face=False, thre
     closest_type = ""
     closest_dist = None
 
-    loc = obj_eval.matrix_worl.inverted() @ loc
+    loc = obj_eval.matrix_world.inverted() @ loc
     me = obj_eval.data
     polygon = me.polygons[face_index]
 
