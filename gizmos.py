@@ -227,6 +227,7 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
         self._update_matrix_basis(constr)
 
         self._create_shape(context, constr)
+        gpu.state.line_width_set(functions.get_prefs().gizmo_width)
         self.draw_custom_shape(self.custom_shape)
 
     def draw_select(self, context, select_id):
