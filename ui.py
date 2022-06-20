@@ -122,7 +122,6 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 context.scene.sketcher,
                 "ui_active_sketch",
             )
-            layout.operator(Operators.Update, icon="FILE_REFRESH")
 
 
 class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
@@ -313,7 +312,7 @@ def sketch_selector(
     is_header: bool = False,
     show_selector: bool = True,
 ):
-    row = layout.row(align=is_header)
+    row = layout.row(align=True)
     index = context.scene.sketcher.active_sketch_i
     name = "Sketches"
 
@@ -331,15 +330,15 @@ def sketch_selector(
         row.scale_y = scale_y
 
     else:
+
         row.scale_y = scale_y
         # TODO: Don't show text when is_header
         row.operator(Operators.AddSketch, icon="ADD").wait_for_input = True
 
-        if not is_header:
-            row = layout.row()
         if show_selector:
             row.menu(VIEW3D_MT_sketches.bl_idname, text=name)
 
+    row.operator(Operators.Update, icon="FILE_REFRESH", text="")
 
 def draw_object_context_menu(self, context: Context):
     layout = self.layout
