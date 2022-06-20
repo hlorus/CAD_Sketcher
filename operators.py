@@ -3119,7 +3119,7 @@ class VIEW3D_OT_slvs_add_angle(
     value: FloatProperty(
         name="Angle", subtype="ANGLE", unit="ROTATION", options={"SKIP_SAVE"}
     )
-    old_setting: BoolProperty(default = False)
+    old_setting: BoolProperty(default = False, options={"SKIP_SAVE"})
     setting: BoolProperty(name="Invert", default = False, get=invert_angle_getter, set=invert_angle_setter)
     type = "ANGLE"
 
