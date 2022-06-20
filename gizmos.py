@@ -253,11 +253,11 @@ def draw_arrow_shape(target, shoulder, width, is_3d=False):
         ((shoulder + v)),
     )
 
+DEFAULT_OVERSHOOT = 0.01
 def get_overshoot(scale, dir):
     if dir == 0:
         return 0
-    overshoot = scale * functions.get_prefs().arrow_scale / 100
-    return -math.copysign(overshoot, dir)
+    return -math.copysign(DEFAULT_OVERSHOOT * scale, dir)
 
 
 def get_arrow_size(dist, scale):
