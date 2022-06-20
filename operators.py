@@ -414,10 +414,10 @@ class View3D_OT_slvs_solve(Operator):
         return {"FINISHED"}
 
 
-class View3D_OT_resolve(Operator):
+class View3D_OT_update(Operator):
     """Solve all sketches and update converted geometry"""
-    bl_idname = Operators.Resolve
-    bl_label = "Resolve"
+    bl_idname = Operators.Update
+    bl_label = "Force Update"
 
     def execute(self, context):
         solver = Solver(context, None, all=True)
@@ -3840,7 +3840,7 @@ classes = (
     View3D_OT_slvs_delete_entity,
     *constraint_operators,
     View3D_OT_slvs_solve,
-    View3D_OT_resolve,
+    View3D_OT_update,
     View3D_OT_slvs_delete_constraint,
     View3D_OT_slvs_tweak_constraint_value_pos,
     SKETCHER_OT_add_preset_theme,
