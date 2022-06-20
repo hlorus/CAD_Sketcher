@@ -122,7 +122,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 context.scene.sketcher,
                 "ui_active_sketch",
             )
-            layout.operator(Operators.Resolve)
+            layout.operator(Operators.Resolve, icon="FILE_REFRESH")
 
 
 class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
