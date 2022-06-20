@@ -76,6 +76,11 @@ class Panels(str, Enum):
     SketcherEntities = "VIEW3D_PT_sketcher_entities"
 
 
+class VisibilityTypes(str, Enum):
+    Hide = "HIDE"
+    Show = "SHOW"
+
+
 class WorkSpaceTools(str, Enum):
     AddArc2D = "sketcher.slvs_add_arc2d"
     AddCircle2D = "sketcher.slvs_add_circle2d"
