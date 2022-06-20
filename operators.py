@@ -3,7 +3,7 @@ import bpy, bgl, gpu
 from bpy.types import Operator
 from . import global_data, functions, class_defines, convertors
 from .keymaps import get_key_map_desc
-from .declarations import Operators, GizmoGroups, WorkSpaceTools
+from .declarations import Operators, GizmoGroups, VisibilityTypes, WorkSpaceTools
 
 from bpy.props import (
     IntProperty,
@@ -3548,6 +3548,11 @@ class VIEW3D_OT_slvs_add_ratio(
 class View3D_OT_slvs_set_all_constraints_visibility(Operator, HighlightElement):
     """Set all constraints' visibility
     """
+    _visibility_items = [
+        (VisibilityTypes.Hide, "Hide all", "Hide all constraints"),
+        (VisibilityTypes.Show, "Show all", "Show all constraints"),
+    ]
+
     bl_idname = Operators.SetAllConstraintsVisibility
     bl_label = "Set all constraints' visibility"
     bl_options = {"UNDO"}
@@ -3556,14 +3561,18 @@ class View3D_OT_slvs_set_all_constraints_visibility(Operator, HighlightElement):
     visibility: EnumProperty(
         name="Visibility",
         description="Visiblity",
-        items=[
-            ("HIDE", "Hide all", "Hide all constraints"),
-            ("SHOW", "Show all", "Show all constraints"),
-        ])
+        items=_visibility_items)
 
     @classmethod
     def poll(cls, context):
         return True
+
+    @classmethod
+    def description(cls, context, properties):
+        for vi in cls._visibility_items:
+            if vi[0] == properties.visibility:
+                return vi[2]
+        return None
 
     def execute(self, context):
         constraint_lists = context.scene.sketcher.constraints.get_lists()
