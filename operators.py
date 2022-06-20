@@ -414,6 +414,19 @@ class View3D_OT_slvs_solve(Operator):
         return {"FINISHED"}
 
 
+class View3D_OT_resolve(Operator):
+    """Solve all sketches and update converted geometry"""
+    bl_idname = Operators.Resolve
+    bl_label = "Resolve"
+
+    def execute(self, context):
+        solver = Solver(context, None, all=True)
+        solver.solve()
+
+        update_convertor_geometry(context.scene)
+        return {"FINISHED"}
+
+
 def add_point(context, pos, name=""):
     data = bpy.data
     ob = data.objects.new(name, None)
@@ -3827,6 +3840,7 @@ classes = (
     View3D_OT_slvs_delete_entity,
     *constraint_operators,
     View3D_OT_slvs_solve,
+    View3D_OT_resolve,
     View3D_OT_slvs_delete_constraint,
     View3D_OT_slvs_tweak_constraint_value_pos,
     SKETCHER_OT_add_preset_theme,
