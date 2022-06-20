@@ -2474,8 +2474,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
-        ui_scale = context.preferences.system.ui_scale
-        offset = ui_scale * (self.draw_offset + margin)
+        offset = self.draw_offset + margin
         coords = functions.pol2cart(offset, self.leader_angle)
         coords2 = self.matrix_basis() @ Vector((coords[0], coords[1], 0.0))
         return location_3d_to_region_2d(region, rv3d, coords2)
@@ -2616,7 +2615,8 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         region = context.region
         rv3d = context.space_data.region_3d
         ui_scale = context.preferences.system.ui_scale
-        offset = ui_scale * (self.draw_offset + margin)
+#        offset = ui_scale * (self.draw_offset + margin)
+        offset = ui_scale * (self.draw_offset + (3*margin))
         coords = self.matrix_basis() @ Vector((offset, 0, 0))
         return location_3d_to_region_2d(region, rv3d, coords)
 
