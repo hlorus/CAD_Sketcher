@@ -1,6 +1,6 @@
 # Please keep this file in alphabetical order
+from enum import Enum
 
-from enum import  Enum
 
 class Gizmos(str, Enum):
     Angle = "VIEW3D_GT_slvs_angle"
@@ -10,6 +10,7 @@ class Gizmos(str, Enum):
     Distance = "VIEW3D_GT_slvs_distance"
     Preselection = "VIEW3D_GT_slvs_preselection"
 
+
 class GizmoGroups(str, Enum):
     Angle = "VIEW3D_GGT_slvs_angle"
     Constraint = "VIEW3D_GGT_slvs_constraint"
@@ -17,8 +18,10 @@ class GizmoGroups(str, Enum):
     Distance = "VIEW3D_GGT_slvs_distance"
     Preselection = "VIEW3D_GGT_slvs_preselection"
 
+
 class Menus(str, Enum):
     Sketches = "VIEW3D_MT_sketches"
+
 
 class Operators(str, Enum):
     AddAngle = "view3d.slvs_add_angle"
@@ -54,7 +57,7 @@ class Operators(str, Enum):
     SelectAll = "view3d.slvs_select_all"
     SetActiveSketch = "view3d.slvs_set_active_sketch"
     SetAllConstraintsVisibility = "view3d.slvs_set_all_constraints_visibility"
-    ShowSolverState =  "view3d.slvs_show_solver_state"
+    ShowSolverState = "view3d.slvs_show_solver_state"
     Solve = "view3d.slvs_solve"
     Test = "view3d.slvs_test"
     Trim = "view3d.slvs_trim"
@@ -63,10 +66,14 @@ class Operators(str, Enum):
     UnregisterDrawCB = "view3d.slvs_unregister_draw_cb"
     WriteSelectionTexture = "view3d.slvs_write_selection_texture"
 
+
 class Panels(str, Enum):
     Sketcher = "VIEW3D_PT_sketcher"
+    SketcherDebugPanel = "VIEW3D_PT_sketcher_debug_panel"
+    SketcherAddContraint = "VIEW3D_PT_sketcher_add_contraint"
     SketcherContraints = "VIEW3D_PT_sketcher_constraints"
     SketcherEntities = "VIEW3D_PT_sketcher_entities"
+
 
 class WorkSpaceTools(str, Enum):
     AddArc2D = "sketcher.slvs_add_arc2d"
