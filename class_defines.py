@@ -2348,7 +2348,6 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         region = context.region
         rv3d = context.space_data.region_3d
         ui_scale = context.preferences.system.ui_scale
-#        offset = ui_scale * (self.draw_offset + margin)
         offset = ui_scale * (self.draw_offset + (3*margin))
         coords = self.matrix_basis() @ Vector((offset, 0, 0))
         return location_3d_to_region_2d(region, rv3d, coords)
