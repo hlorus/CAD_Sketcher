@@ -261,11 +261,12 @@ def draw_arrow_shape(target, shoulder, width, is_3d=False):
         ((shoulder + v)),
     )
 
-DEFAULT_OVERSHOOT = 0.01
+
 def get_overshoot(scale, dir):
     if dir == 0:
         return 0
-    return -math.copysign(DEFAULT_OVERSHOOT * scale, dir)
+    overshoot = (scale/100) * functions.get_prefs().arrow_scale
+    return -math.copysign(overshoot, dir)
 
 
 def get_arrow_size(dist, scale):
@@ -457,9 +458,10 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
     )
 
     def _create_shape(self, context, constr, select=False):
+        ui_scale = context.preferences.system.ui_scale
         angle = constr.leader_angle
-        offset = constr.draw_offset / context.preferences.system.ui_scale
-        dist = constr.radius / context.preferences.system.ui_scale
+        offset = constr.draw_offset / ui_scale
+        dist = constr.radius / ui_scale
 
         rv3d = context.region_data
 
@@ -514,10 +516,10 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
                     ),
                     p2,
                     functions.pol2cart(offset, angle),
-                    functions.pol2cart(offset, angle+math.pi),
+                    functions.pol2cart(min(offset, dist + (4 * arrow_2[0])), angle + math.pi), #limit length to 4 arrowheads
                     p1,
                     *draw_arrow_shape(
-                        p1, functions.pol2cart(dist + arrow_2[0], angle+math.pi), arrow_2[1]
+                        p1, functions.pol2cart(dist + arrow_2[0], angle + math.pi), arrow_2[1]
                     ),
                 )
 
