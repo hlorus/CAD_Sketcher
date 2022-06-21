@@ -265,14 +265,14 @@ def draw_arrow_shape(target, shoulder, width, is_3d=False):
 def get_overshoot(scale, dir):
     if dir == 0:
         return 0
-    overshoot = (scale/100) * functions.get_prefs().arrow_scale
+    overshoot = scale * 0.005 * functions.get_prefs().arrow_scale
     return -math.copysign(overshoot, dir)
 
 
 def get_arrow_size(dist, scale):
     size = math.copysign(
         min(
-            scale * functions.get_prefs().arrow_scale / 100,
+            scale * 0.01 * functions.get_prefs().arrow_scale,
             abs(dist * 0.8),
         ),
         dist,
@@ -516,7 +516,7 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
                     ),
                     p2,
                     functions.pol2cart(offset, angle),
-                    functions.pol2cart(min(offset, dist + (4 * arrow_2[0])), angle + math.pi), #limit length to 4 arrowheads
+                    functions.pol2cart(dist + (3 * arrow_2[0]), angle + math.pi), #limit length to 3 arrowheads
                     p1,
                     *draw_arrow_shape(
                         p1, functions.pol2cart(dist + arrow_2[0], angle + math.pi), arrow_2[1]
