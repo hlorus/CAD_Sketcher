@@ -1,7 +1,25 @@
-import bpy
-from . import global_data
-from mathutils import Vector, Matrix
+from collections import deque
+import math
+from math import pi, cos, sin, tau
 import subprocess
+import re
+import site
+from importlib import reload
+from typing import Any, List, Tuple, Union
+
+import bpy
+import bmesh
+from bpy.types import Context, RegionView3D, Object
+from bpy_extras.view3d_utils import (
+    location_3d_to_region_2d,
+    region_2d_to_location_3d,
+    region_2d_to_vector_3d,
+    region_2d_to_origin_3d,
+)
+from mathutils import Vector, Matrix
+from mathutils.bvhtree import BVHTree
+
+from . import global_data
 
 
 def get_prefs():
@@ -9,6 +27,7 @@ def get_prefs():
 
 
 def install_pip():
+    """ Subprocess call ensurepip module"""
     cmd = [global_data.PYPATH, "-m", "ensurepip", "--upgrade"]
     return not subprocess.call(cmd)
 
@@ -18,11 +37,21 @@ def update_pip():
     return not subprocess.call(cmd)
 
 
-def install_package(package):
+def refresh_path():
+    """ refresh path to packages found after install """
+    reload(site)
+
+
+def install_package(package: str, no_deps: bool = True):
     update_pip()
-    cmd = [global_data.PYPATH, "-m", "pip", "install", "--upgrade"] + package.split(" ")
-    ok = subprocess.call(cmd) == 0
-    return ok
+    base_call = [global_data.PYPATH, "-m", "pip", "install"]
+    args = ["--upgrade"]
+    if no_deps:
+        args += ["--no-deps"]
+    cmd = base_call + args + package.split(" ")
+    ret_val = subprocess.call(cmd)
+    refresh_path()
+    return ret_val == 0
 
 
 def ensure_pip():
@@ -31,19 +60,28 @@ def ensure_pip():
     return True
 
 
-def show_package_info(package):
+def show_package_info(package: str):
     try:
         subprocess.call([global_data.PYPATH, "-m", "pip", "show", package])
-    except:
+    except Exception as e:
+        print(e)
         pass
 
 
-import math
+def add_new_empty(context, location: Vector, name="") -> Object:
+    """ NOTE: No used """
+    data = bpy.data
+    empty = data.objects.new(name, None)
+    empty.location = location
+    context.collection.objects.link(empty)
+    return empty
 
-# circle outline
-def draw_circle_2d(cx, cy, r, num_segments):
+
+def draw_circle_2d(cx: float, cy: float, r: float, num_segments: int):
+    """ NOTE: Not used?"""
+    # circle outline
     # NOTE: also see gpu_extras.presets.draw_circle_2d
-    theta = 2 * 3.1415926 / num_segments
+    theta = 2 * pi / num_segments
 
     # precalculate the sine and cosine
     c = math.cos(theta)
@@ -53,7 +91,7 @@ def draw_circle_2d(cx, cy, r, num_segments):
     x = r
     y = 0
     coords = []
-    for i in range(num_segments):
+    for _ in range(num_segments):
         coords.append((x + cx, y + cy))
         # apply the rotation matrix
         t = x
@@ -63,8 +101,8 @@ def draw_circle_2d(cx, cy, r, num_segments):
     return coords
 
 
-# NOTE: this currently returns xyz coordinates, might make sense to return 2d coords
-def draw_rect_2d(cx, cy, width, height):
+def draw_rect_2d(cx: float, cy: float, width: float, height: float):
+    # NOTE: this currently returns xyz coordinates, might make sense to return 2d coords
     ox = cx - (width / 2)
     oy = cy - (height / 2)
     cz = 0
@@ -76,7 +114,7 @@ def draw_rect_2d(cx, cy, width, height):
     )
 
 
-def draw_rect_3d(origin, orientation, width):
+def draw_rect_3d(origin: Vector, orientation: Vector, width: float) -> List[Vector]:
     mat_rot = global_data.Z_AXIS.rotation_difference(orientation).to_matrix()
     mat = Matrix.Translation(origin) @ mat_rot.to_4x4()
     coords = draw_rect_2d(0, 0, width, width)
@@ -84,7 +122,7 @@ def draw_rect_3d(origin, orientation, width):
     return coords
 
 
-def draw_quad_3d(cx, cy, cz, width):
+def draw_quad_3d(cx: float, cy: float, cz: float, width: float):
     half_width = width / 2
     coords = (
         (cx - half_width, cy - half_width, cz),
@@ -96,11 +134,11 @@ def draw_quad_3d(cx, cy, cz, width):
     return coords, indices
 
 
-def tris_from_quad_ids(id0, id1, id2, id3):
+def tris_from_quad_ids(id0: int, id1: int, id2: int, id3: int):
     return (id0, id1, id2), (id1, id2, id3)
 
 
-def draw_cube_3d(cx, cy, cz, width):
+def draw_cube_3d(cx: float, cy: float, cz: float, width: float):
     half_width = width / 2
     coords = []
     for x in (cx - half_width, cx + half_width):
@@ -120,10 +158,7 @@ def draw_cube_3d(cx, cy, cz, width):
     return coords, indices
 
 
-from math import pi, cos, sin
-
-
-def coords_circle_2d(x, y, radius, segments):
+def coords_circle_2d(x: float, y: float, radius: float, segments: int):
     coords = []
     m = (1.0 / (segments - 1)) * (pi * 2)
 
@@ -135,9 +170,16 @@ def coords_circle_2d(x, y, radius, segments):
 
 
 def coords_arc_2d(
-    x, y, radius, segments, angle=(pi * 2), offset=0.0, type="LINE_STRIP"
+    x: float,
+    y: float,
+    radius: float,
+    segments: int,
+    angle=tau,
+    offset: float = 0.0,
+    type="LINE_STRIP",
 ):
-    coords = []
+    # coords = []
+    coords = deque()
     segments = max(segments, 1)
 
     m = (1.0 / segments) * angle
@@ -156,106 +198,94 @@ def coords_arc_2d(
     return coords
 
 
-pi_2 = pi * 2
-
-
-def range_2pi(angle):
+def range_2pi(angle: float) -> float:
     """Map angle range -Pi/+Pi to 0/2*Pi"""
-    return (angle + pi_2) % pi_2
+    return (angle + tau) % tau
 
 
-def pol2cart(radius, angle):
-    x = radius * math.cos(angle)
-    y = radius * math.sin(angle)
+def pol2cart(radius: float, angle: float) -> Vector:
+    x = radius * cos(angle)
+    y = radius * sin(angle)
     return Vector((x, y))
 
 
-def index_to_rgb(i):
+def index_to_rgb(i: int):
     r = (i & int("0x000000FF", 16)) / 255
     g = ((i & int("0x0000FF00", 16)) >> 8) / 255
     b = ((i & int("0x00FF0000", 16)) >> 16) / 255
     return r, g, b
 
 
-def rgb_to_index(r, g, b):
+def rgb_to_index(r: int, g: int, b: int) -> int:
     i = int(r * 255 + g * 255 * 256 + b * 255 * 256 * 256)
     return i
 
 
-def get_picking_origin_dir(context, coords):
-    from bpy_extras import view3d_utils
-
+def get_picking_origin_dir(context: Context, coords: Vector) -> Tuple[Vector, Vector]:
     scene = context.scene
     region = context.region
     rv3d = context.region_data
     viewlayer = context.view_layer
 
     # get the ray from the viewport and mouse
-    view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coords)
-    ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coords)
+    view_vector = region_2d_to_vector_3d(region, rv3d, coords)
+    ray_origin = region_2d_to_origin_3d(region, rv3d, coords)
     return ray_origin, view_vector
 
 
-def get_picking_origin_end(context, coords):
-    from bpy_extras import view3d_utils
-
+def get_picking_origin_end(context: Context, coords: Vector) -> Tuple[Vector, Vector]:
     scene = context.scene
     region = context.region
     rv3d = context.region_data
     viewlayer = context.view_layer
 
     # get the ray from the viewport and mouse
-    view_vector = view3d_utils.region_2d_to_vector_3d(region, rv3d, coords)
-    ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coords)
+    view_vector = region_2d_to_vector_3d(region, rv3d, coords)
+    ray_origin = region_2d_to_origin_3d(region, rv3d, coords)
 
     # view vector needs to be scaled and translated
     end_point = view_vector * context.space_data.clip_end + ray_origin
     return ray_origin, end_point
 
 
-def nearest_point_line_line(p1, d1, p2, d2):
+def nearest_point_line_line(p1: float, d1: float, p2: float, d2: float) -> Vector:
     n = d1.cross(d2)
     n2 = d2.cross(n)
     return p1 + ((p2 - p1).dot(n2) / d1.dot(n2)) * d1
 
 
-from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_vector_3d
-
-
-def get_placement_pos(context, coords):
+def get_placement_pos(context: Context, coords: Vector) -> Vector:
     region = context.region
     rv3d = context.region_data
     view_vector = region_2d_to_vector_3d(region, rv3d, coords)
     return region_2d_to_location_3d(region, rv3d, coords, view_vector)
 
 
-from bpy_extras.view3d_utils import location_3d_to_region_2d
-
-
-def get_2d_coords(context, pos):
+def get_2d_coords(context, pos: Vector) -> Vector:
     region = context.region
     rv3d = context.space_data.region_3d
     return location_3d_to_region_2d(region, rv3d, pos)
 
 
-def line_abc_form(p1, p2):
-    A = p2.y - p1.y
-    B = p1.x - p2.x
-    return A, B, A * p1.x + B * p1.y
+def line_abc_form(p1: Vector, p2: Vector) -> Tuple[float, float, float]:
+    a = p2.y - p1.y
+    b = p1.x - p2.x
+    return a, b, a * p1.x + b * p1.y
 
 
-def get_line_intersection(A1, B1, C1, A2, B2, C2):
-    det = A1 * B2 - A2 * B1
+def get_line_intersection(a1, b1, c1, a2, b2, c2) -> Vector:
+    det = a1 * b2 - a2 * b1
     if det == 0:
         # Parallel lines
         return Vector((math.inf, math.inf))
     else:
-        x = (B2 * C1 - B1 * C2) / det
-        y = (A1 * C2 - A2 * C1) / det
+        x = (b2 * c1 - b1 * c2) / det
+        y = (a1 * c2 - a2 * c1) / det
         return Vector((x, y))
 
 
-def get_scale_from_pos(co, rv3d):
+def get_scale_from_pos(co: Vector, rv3d: RegionView3D) -> Vector:
+
     if rv3d.view_perspective == "ORTHO":
         scale = rv3d.view_distance
     else:
@@ -263,8 +293,8 @@ def get_scale_from_pos(co, rv3d):
     return scale
 
 
-def refresh(context):
-    # update gizmos!
+def refresh(context: Context):
+    """ Update gizmos """
     if context.space_data and context.space_data.type == "VIEW_3D":
         context.space_data.show_gizmo = True
 
@@ -272,7 +302,7 @@ def refresh(context):
         context.area.tag_redraw()
 
 
-def update_cb(self, context):
+def update_cb(self, context: Context):
     if not context.space_data:
         return
     # update gizmos!
@@ -280,12 +310,17 @@ def update_cb(self, context):
         context.space_data.show_gizmo = True
 
 
-# NOTE: this is currently based on the enum_items list,
-# alternatively this could also work on registered EnumProperties
 class bpyEnum:
-    """Helper class to interact with bpy enums"""
+    """
+    Helper class to interact with bpy enums
 
-    def __init__(self, data, index=None, identifier=None):
+    NOTE: this is currently based on the enum_items list,
+    alternatively this could also work on registered EnumProperties
+    """
+
+    def __init__(
+        self, data, index: Union[int, None] = None, identifier: Union[None, str] = None
+    ):
         self.data = data
 
         if not identifier:
@@ -324,11 +359,9 @@ class bpyEnum:
 # cls.__setattr__ = functions.unique_attribute_setter
 
 
-def unique_attribute_setter(self, name, value):
-    import re
-
+def unique_attribute_setter(self, name: str, value: Any):
     def collection_from_element(self):
-        # this gets the collection that the element is in
+        """ Get the collection containing the element """
         path = self.path_from_id()
         match = re.match("(.*)\[\d*\]", path)
         parent = self.id_data
@@ -340,7 +373,7 @@ def unique_attribute_setter(self, name, value):
             return parent.path_resolve(coll_path)
 
     def new_val(stem, nbr):
-        # simply for formatting
+        """ Simply for formatting """
         return "{st}.{nbr:03d}".format(st=stem, nbr=nbr)
 
     property_func = getattr(self.__class__, name, None)
@@ -363,7 +396,7 @@ def unique_attribute_setter(self, name, value):
         return
 
     # see if value is already in a format like 'name.012'
-    match = re.match("(.*)\.(\d{3,})", value)
+    match = re.match(r"(.*)\.(\d{3,})", value)
     if match is None:
         stem, nbr = value, 1
     else:
@@ -377,22 +410,22 @@ def unique_attribute_setter(self, name, value):
     self[name] = new_value
 
 
-def breakdown_index(index):
+def breakdown_index(index: int):
     type_index = index >> 20
     local_index = index & 0xFFFFF
     return type_index, local_index
 
-def bvhtree_from_object(object):
-    import bmesh
-    from mathutils.bvhtree import BVHTree
-    bm = bmesh.new()
 
+def bvhtree_from_object(object: Context) -> BVHTree:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     object_eval = object.evaluated_get(depsgraph)
     mesh = object_eval.to_mesh()
+
+    bm = bmesh.new()
     bm.from_mesh(mesh)
     bm.transform(object.matrix_world)
 
     bvhtree = BVHTree.FromBMesh(bm)
     object_eval.to_mesh_clear()
+    bm.free()
     return bvhtree
