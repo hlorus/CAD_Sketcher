@@ -2365,12 +2365,13 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             layout.prop(self, "draw_offset")
 
 
-    def value_placement(self, context):
+    def value_placement(self, context, margin):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
         ui_scale = context.preferences.system.ui_scale
-        coords = self.matrix_basis() @ Vector((0, self.draw_offset * ui_scale, 0))
+        offset = ui_scale * (self.draw_offset + margin)
+        coords = self.matrix_basis() @ Vector((0, offset, 0))
         return location_3d_to_region_2d(region, rv3d, coords)
 
 slvs_entity_pointer(SlvsDistance, "entity1")
@@ -2469,11 +2470,12 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         row.prop(self, "setting")
 
 
-    def value_placement(self, context):
+    def value_placement(self, context, margin):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
-        coords = functions.pol2cart(self.draw_offset,self.leader_angle)
+        offset = self.draw_offset + margin
+        coords = functions.pol2cart(offset, self.leader_angle)
         coords2 = self.matrix_basis() @ Vector((coords[0], coords[1], 0.0))
         return location_3d_to_region_2d(region, rv3d, coords2)
 
@@ -2608,12 +2610,13 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         layout.prop(self, "value")
         layout.prop(self, "setting")
 
-    def value_placement(self, context):
+    def value_placement(self, context, margin):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
         ui_scale = context.preferences.system.ui_scale
-        coords = self.matrix_basis() @ Vector((self.draw_offset * ui_scale, 0, 0))
+        offset = ui_scale * (self.draw_offset + (3*margin))
+        coords = self.matrix_basis() @ Vector((offset, 0, 0))
         return location_3d_to_region_2d(region, rv3d, coords)
 
 
