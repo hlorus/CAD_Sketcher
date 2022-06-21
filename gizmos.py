@@ -263,6 +263,7 @@ def draw_arrow_shape(target, shoulder, width, is_3d=False):
 def get_overshoot(scale, dir):
     if dir == 0:
         return 0
+    #use factor of 0.005 for one-half arrowhead
     overshoot = scale * 0.005 * functions.get_prefs().arrow_scale
     return -math.copysign(overshoot, dir)
 
