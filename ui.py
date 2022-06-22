@@ -288,6 +288,24 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
             props.highlight_hover = True
 
 
+class VIEW3D_PT_sketcher_attributes(VIEW3D_PT_sketcher_base):
+    bl_label = "Attributes"
+    bl_idname = "VIEW3D_PT_sketcher_attributes"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Sketcher"
+
+    def draw(self, context):
+        layout = self.layout
+
+        sketch = context.scene.sketcher.active_sketch
+        if not sketch:
+            layout.label(text="No sketch active")
+            return
+
+        sketch.draw_attributes(layout, is_panel=True)
+
+
 class VIEW3D_MT_sketches(Menu):
     bl_label = "Sketches"
     bl_idname = Menus.Sketches

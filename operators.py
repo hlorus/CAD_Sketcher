@@ -3688,9 +3688,181 @@ def _link_unlink_object(scene, ob, keep):
     elif keep:
         objects.link(ob)
 
+
+
+class SKETCHER_OT_add_attribute(Operator):
+    """Add custom geometry attribute"""
+
+    bl_idname = "sketcher.add_attribute"
+    bl_label = "Add Attribute"
+    bl_options = {"REGISTER", "UNDO"}
+
+    name: StringProperty(name="Name", default="attribute", options={"SKIP_SAVE"})
+    domain: EnumProperty(name="Domain", items=class_defines.domain_types, options={"SKIP_SAVE"})
+    type: EnumProperty(name="Type", items=class_defines.attribute_types, options={"SKIP_SAVE"})
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.sketcher.active_sketch_i != -1
+
+    def invoke(self, context, event):
+        self.is_domain_set = self.properties.is_property_set("domain")
+
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
+    def execute(self, context):
+        sketch = context.scene.sketcher.active_sketch
+        if not sketch:
+            return {"CANCELLED"}
+
+        sketch.add_attribute(self.domain, self.type, name=self.name)
+        return {"FINISHED"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.prop(self, "name")
+        if not self.is_domain_set:
+            layout.prop(self, "domain")
+        layout.prop(self, "type")
+
+
+
+class SKETCHER_OT_edit_attribute(Operator):
+    """Edit custom geometry attribute"""
+
+    bl_idname = "sketcher.edit_attribute"
+    bl_label = "Edit Attribute"
+    bl_options = {"UNDO"}
+
+    name: StringProperty(name="Name")
+    value_boolean: BoolProperty(name="Value", options={"SKIP_SAVE"})
+    value_integer: IntProperty(name="Value", options={"SKIP_SAVE"})
+    value_float: FloatProperty(name="Value", options={"SKIP_SAVE"})
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.sketcher.active_sketch_i != -1
+
+    def invoke(self, context, event):
+        self.attribute = self._get_attribute()
+        if not self.attribute:
+            self.report({"WARNING"}, "No existing attribute named " + self.name)
+            return {"CANCELLED"}
+
+        self.value_prop = self._get_type_value(self.attribute.type)
+
+        # Set value to currently set value
+        entity = self.entity
+        value = entity.get_attribute(self.name)
+        if value != None:
+            setattr(self, self.value_prop, value)
+
+        # Invoke popup
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
+    def _get_type_value(self, type):
+        if type == "BOOLEAN":
+            return "value_boolean"
+        if type == "INT":
+            return "value_integer"
+        if type == "FLOAT":
+            return "value_float"
+
+    def _get_attribute(self):
+        entity = self.entity
+        sketch = entity if isinstance(entity, class_defines.SlvsSketch) else entity.sketch
+        return sketch.attributes.get(self.name)
+
+    def execute(self, context):
+        value = getattr(self, self.value_prop)
+        entity = self.entity
+        entity.set_attribute(self.name, value)
+        return {"FINISHED"}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        is_set = self.entity.has_attribute(self.name)
+        if not is_set:
+            layout.label(text="Not set")
+        layout.prop(self, self.value_prop)
+
+
+class_defines.slvs_entity_pointer(SKETCHER_OT_edit_attribute, "entity")
+
+
+def write_sketch_attributes(sketch):
+    target_ob = sketch.target_object
+    if not target_ob:
+        return
+
+    for custom_attr in sketch.attributes:
+        if not custom_attr.domain == "OBJECT":
+            continue
+
+        name = custom_attr.name
+
+        # Write attributes to object
+        if hasattr(target_ob, name):
+            logger.debug("Set object-level property: {}".format(name))
+            setattr(target_ob, name, sketch.get_attribute(name))
+
+        # Write attributes to object data
+        data = target_ob.data
+        if hasattr(data, name):
+            logger.debug("Set object_data-level property: {}".format(name))
+            setattr(data, name, sketch.get_attribute(name))
+
+def write_mesh_attributes(sketch):
+    # Note: this is temporary, ideally attributs would be written per
+    # element but that requires attributes support for curves
+    # Simply write value stored on sketch for all elements
+
+    mesh = sketch.target_object.data
+    if not mesh:
+        return
+
+    for attribute in sketch.attributes:
+        if attribute.domain not in ("POINT", "SEGMENT"):
+            continue
+
+        name = attribute.name
+        domain = {"POINT": "POINT", "SEGMENT": "EDGE"}[attribute.domain]
+        attr = mesh.attributes.get(name)
+
+        value = sketch.get_attribute(attribute.name)
+
+        # Check if domain has property with same name
+        _element_type = {"POINT": bpy.types.MeshVertex, "EDGE": bpy.types.MeshEdge}[domain]
+        if name in _element_type.bl_rna.properties:
+            logger.debug("Set mesh_element-level property: {} {}".format(domain, name))
+            _element_coll = {"POINT": mesh.vertices, "EDGE": mesh.edges}[domain]
+            count = len(_element_coll)
+            _element_coll.foreach_set(name, [value] * count)
+            continue
+
+        if attr:
+            if not domain == attr.domain:
+                logger.debug("Skip writting attribute {}, Mesh has existing attribute with different domain type: {}".format(attribute.name, attr.domain))
+                continue
+            if not attribute.type == attr.type:
+                logger.debug("Skip writting attribute {}, Mesh has existing attribute with different data type: {}".format(attribute.name, attr.type))
+                continue
+        else:
+            attr = mesh.attributes.new(attribute.name, attribute.type, domain)
+
+        logger.debug("Set geometry attribute: {} {}".format(domain, name))
+        attr.data.foreach_set("value", [value] * len(attr.data))
+        attr.data.update()
+
+
 def update_convertor_geometry(scene, sketch=None):
     coll = (sketch,) if sketch else scene.sketcher.entities.sketches
     for sketch in coll:
+
         mode = sketch.convert_type
         if sketch.convert_type == "NONE":
             _cleanup_data(sketch, mode)
@@ -3735,6 +3907,7 @@ def update_convertor_geometry(scene, sketch=None):
             else:
                 sketch.target_object.data = mesh
 
+            write_mesh_attributes(sketch)
 
         _cleanup_data(sketch, mode)
 
@@ -3745,6 +3918,11 @@ def update_convertor_geometry(scene, sketch=None):
 
         # Update object name
         target_ob.name = sketch.name
+
+
+
+        write_sketch_attributes(sketch)
+
 
 
 
@@ -3794,6 +3972,8 @@ classes = (
     View3D_OT_slvs_delete_constraint,
     View3D_OT_slvs_tweak_constraint_value_pos,
     SKETCHER_OT_add_preset_theme,
+    SKETCHER_OT_add_attribute,
+    SKETCHER_OT_edit_attribute,
 )
 
 

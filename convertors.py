@@ -39,6 +39,7 @@ class BezierConvertor:
         self.scene = scene
         self.sketch = sketch
         self.points, self.entities = point_entity_mapping(scene)
+        # self.attributes = {}
 
         # TODO: use sketch.entities?
         sketch_index = self.sketch.slvs_index
@@ -49,7 +50,33 @@ class BezierConvertor:
                 continue
             if e.construction:
                 continue
+
             self.sketch_entities.append(e)
+
+        # self._collect_attributes()
+
+    def _collect_attributes(self):
+        # Store entity attributes in form:
+        # {
+        # attribute_name: {converted_element_index:value, ...},
+        # ...
+        # }
+
+        sketch = self.sketch
+        # for attribute in sketch.attributes:
+        #     self.attributes[attribute.name] = {}
+
+        sketch_index = self.sketch.slvs_index
+        for entity in self.scene.sketcher.entities.all:
+            if not hasattr(entity, "sketch") or entity.sketch_i != sketch_index:
+                continue
+
+            entity_attrs = entity.get(class_defines.ATTRIBUTES_ID_PROP, {})
+
+            for attr_name in entity_attrs.keys():
+                attr_list = self.attributes.setdefault(attr_name, {})
+                attr_list[str(entity.slvs_index)] = entity.get_attribute(attr_name)
+        print(self.attributes)
 
     def _get_connected_entities(self, point):
         return self.entities[self.points.index(point)]

@@ -1,6 +1,7 @@
 import bpy
 import logging
 from bpy.types import PropertyGroup
+from typing import Union, Tuple, Type, Any
 from bpy.props import (
     CollectionProperty,
     PointerProperty,
@@ -25,6 +26,8 @@ from .solver import solve_system, Solver
 from .functions import unique_attribute_setter
 
 logger = logging.getLogger(__name__)
+
+ATTRIBUTES_ID_PROP = "attribute_values"
 
 
 def entity_name_getter(self):
@@ -287,7 +290,7 @@ class SlvsGenericEntity:
     def dependencies(self):
         return []
 
-    def draw_props(self, layout):
+    def draw_props(self, layout, **kwargs):
         if not preferences.is_experimental():
             return
 
@@ -296,6 +299,8 @@ class SlvsGenericEntity:
         for e in self.dependencies():
             col = layout.column()
             col.label(text=str(e))
+
+        self.draw_attributes(layout, **kwargs)
 
     def tag_update(self):
         if not self.is_dirty:
@@ -322,6 +327,102 @@ class SlvsGenericEntity:
     @classmethod
     def is_closed(cls):
         return False
+
+    def _get_attribute_definition(self, name: str):
+        sketch = self if isinstance(self, SlvsSketch) else self.sketch
+        attribute = sketch.attributes.get(name)
+        if not attribute:
+            raise AttributeError("No existing attribute named " + name)
+        if not hasattr(self, "ATTRIBUTE_DOMAIN_TYPES"):
+            raise TypeError(
+                "Attributes not supported for entities of type ", self.__class__
+            )
+
+        if not attribute.domain in self.ATTRIBUTE_DOMAIN_TYPES:
+            raise AttributeError("Wrong domain type of attribute " + attribute.name)
+        return attribute
+
+    def has_attribute(self, name: str) -> bool:
+        """Check if a value is stored on entity for a given attribute"""
+        entity_attrs = self.get(ATTRIBUTES_ID_PROP)
+        if entity_attrs and name in entity_attrs:
+            return True
+        return False
+
+    def get_attribute(self, name: str):
+        """
+        Get the attribute value stored on the entity, fallback to value stored
+        on sketch or attribute's default if entity doesn't store a value
+        """
+        entity_attrs = self.get(ATTRIBUTES_ID_PROP)
+
+        if not entity_attrs or not name in entity_attrs:
+            # Fallback to value stored on sketch
+            if self.is_2d():
+                return self.sketch.get_attribute(name)
+
+            attribute = self._get_attribute_definition(name)
+            return attribute.default
+        return entity_attrs.get(name)
+
+    def set_attribute(self, name: str, value: Any):
+        attribute = self._get_attribute_definition(name)
+        func = attribute.get_type_func()
+
+        if not ATTRIBUTES_ID_PROP in self:
+            self[ATTRIBUTES_ID_PROP] = {}
+        entity_attrs = self.get(ATTRIBUTES_ID_PROP)
+        entity_attrs[attribute.name] = func(value)
+
+
+    def draw_attributes(self, layout, **kwargs):
+        is_panel = kwargs.get("is_panel", False)
+        # List attributes
+        sketch = self if isinstance(self, SlvsSketch) else self.sketch
+        if not sketch:
+            return
+
+        # Label
+        if len(sketch.attributes) and not is_panel:
+            layout.separator()
+            layout.label(text="Attributes:")
+
+        # List Attributes
+        container = layout.box().column() if is_panel else layout.column()
+        container.scale_y = 0.8
+
+        for custom_attr in sketch.attributes:
+            if not custom_attr.domain in self.ATTRIBUTE_DOMAIN_TYPES:
+                continue
+            row = container.row()
+            attr_name = custom_attr.name
+
+            def edit_op(l, icon_only=False):
+                text = "" if icon_only else attr_name
+                icon = "OUTLINER_DATA_GP_LAYER" if icon_only else "NONE"
+
+                l.operator_context = "INVOKE_DEFAULT"
+                props = l.operator("sketcher.edit_attribute", text=text, icon=icon, emboss=False)
+                props.entity_i = self.slvs_index
+                props.name = attr_name
+
+            if is_panel:
+                row.label(text=attr_name)
+                row.label(text=str(custom_attr.domain))
+                is_set = self.has_attribute(attr_name)
+                value = self.get_attribute(attr_name)
+                text = str(value) if is_set else "*" + str(value)
+                row.label(text=text)
+                edit_op(row, icon_only=True)
+            else:
+                edit_op(row)
+
+        # Add Attribute Operator
+        row = container.row()
+        row.operator_context = "INVOKE_DEFAULT"
+        props = row.operator("sketcher.add_attribute", emboss=False)
+        if len(self.ATTRIBUTE_DOMAIN_TYPES) == 1:
+            props.domain = self.ATTRIBUTE_DOMAIN_TYPES[0]
 
 
 # Drawing a point might not include points coord itself but rather a series of virtual points around it
@@ -413,8 +514,8 @@ class SlvsPoint3D(Point3D, PropertyGroup):
         update=tag_update
     )
 
-    def draw_props(self, layout):
-        super().draw_props(layout)
+    def draw_props(self, layout, **kwargs):
+        super().draw_props(layout, **kwargs)
         layout.prop(self, "location")
 
 
@@ -638,6 +739,100 @@ def hide_sketch(self, context):
         self.visible = False
 
 
+# Store attributes that are used in any of the sketch's entities
+# implicitly add here when adding attrs on ents
+# store values as id props(dictionaries) on ents
+# entity["attributes"]{"attr1":12, "attr2":0.123, ...}
+
+
+# bad! breaks stuff (leads to name conflicts, attribute named like a real property)
+#   entity["attr1"] = 12
+#   entity["attr2"] = 0,123
+
+domain_types = (
+    ("POINT", "Point", "", 1),
+    ("SEGMENT", "Edge", "", 2),
+    ("OBJECT", "Object", "", 3),
+    #("DATA", "Data", "", 4),
+)
+attribute_types = (
+    ("BOOLEAN", "Boolean", "", 1),
+    ("INT", "Integer", "", 2),
+    ("FLOAT", "Float", "", 3),
+    ("STRING", "String", "", 4),
+)
+
+
+def generic_enum_getter(name):
+    def get_value(self):
+        prop = self.bl_rna.properties[name]
+        items = prop.enum_items
+        default_value = items[prop.default].value
+        item = items[self.get(name, default_value)]
+        return item.value
+    return get_value
+
+def generic_enum_setter(name):
+    def set_value(self, value):
+        items = self.bl_rna.properties[name].enum_items
+        item = items[value]
+        level = item.identifier
+        self[name] = level
+    return set_value
+
+
+class CustomAttribute(PropertyGroup):
+    unique_names = ["name"]
+    name: StringProperty(name="Name")
+    domain: EnumProperty(
+        name="Domain",
+        items=domain_types,
+        get=generic_enum_getter("domain"),
+        set=generic_enum_setter("domain"),
+    )
+    type: EnumProperty(
+        name="Type",
+        items=attribute_types,
+        get=generic_enum_getter("type"),
+        set=generic_enum_setter("type"),
+    )
+
+    DEFAULT_VALUE_PROP = "_defalut_value"
+
+    @property
+    def default(self):
+        func = self.get_type_func()
+        value = self.get(self.DEFAULT_VALUE_PROP)
+        if value:
+            return func(value)
+        return self._fallback_default()
+
+    @default.setter
+    def default(self, value):
+        self[self.DEFAULT_VALUE_PROP] = value
+
+    def _fallback_default(self):
+        type = self.type
+        if type == "BOOLEAN":
+            return False
+        if type == "INT":
+            return 0
+        if type == "FLOAT":
+            return 0.0
+
+    def get_type_func(self):
+        type = self.type
+        if type == "BOOLEAN":
+            return bool
+        if type == "INT":
+            return int
+        if type == "FLOAT":
+            return float
+
+
+CustomAttribute.__setattr__ = functions.unique_attribute_setter
+
+
 # TODO: draw sketches and allow selecting
 class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     """A sketch groups 2 dimensional entities together and is used to later
@@ -649,7 +844,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         wp (SlvsWorkplane): The base workplane of the sketch
     """
     unique_names = ["name"]
-
+    ATTRIBUTE_DOMAIN_TYPES = ("POINT", "SEGMENT", "OBJECT")
     convert_type: EnumProperty(
         name="Convert Type",
         items=convert_items,
@@ -669,6 +864,17 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     target_curve_object: PointerProperty(type=bpy.types.Object)
     target_mesh: PointerProperty(type=bpy.types.Mesh)
     target_object: PointerProperty(type=bpy.types.Object)
+
+    attributes: CollectionProperty(type=CustomAttribute)
+
+    def add_attribute(self, domain, type, name=None):
+        if not name:
+            name = "Attribute"
+        a = self.attributes.add()
+        a.name = name
+        a.domain = domain
+        a.type = type
+        return a
 
     def dependencies(self):
         return [
@@ -727,6 +933,8 @@ class Entity2D:
 
 class Point2D(SlvsGenericEntity, Entity2D):
 
+    ATTRIBUTE_DOMAIN_TYPES = ("POINT",)
+
     @classmethod
     def is_point(cls):
         return True
@@ -784,6 +992,7 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         sketch (SlvsSketch): The sketch this entity belongs to
     """
 
+    ATTRIBUTE_DOMAIN_TYPES = ("POINT",)
     co: FloatVectorProperty(
         name="Coordinates",
         description="The coordinates of the point on it's sketch",
@@ -825,8 +1034,9 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         edge = solvesys.addLineSegment(startpoint, endpoint, group=group)
         make_coincident(solvesys, self.py_data, edge, wrkpln.py_data, group, entity_type=SlvsLine2D)
 
-    def draw_props(self, layout):
-        super().draw_props(layout)
+    def draw_props(self, layout, **kwargs):
+        super().draw_props(layout, **kwargs)
+
         col = layout.column()
         col.prop(self, "co")
 
@@ -835,6 +1045,10 @@ def round_v(vec, ndigits=None):
     for v in vec:
         values.append(round(v, ndigits=ndigits))
     return Vector(values)
+
+def set_handles(point):
+    point.handle_left_type = "FREE"
+    point.handle_right_type = "FREE"
 
 class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     """Representation of a line in 2D space. Connects p1 and p2 and lies on the
@@ -845,6 +1059,8 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         p2 (SlvsPoint2D): Line's endpoint
         sketch (SlvsSketch): The sketch this entity belongs to
     """
+
+    ATTRIBUTE_DOMAIN_TYPES = ("SEGMENT",)
 
     @classmethod
     def is_line(cls):
@@ -1080,6 +1296,8 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
     def is_curve(cls):
         return True
 
+    ATTRIBUTE_DOMAIN_TYPES = ("SEGMENT",)
+
     @property
     def start(self):
         return self.p2 if self.invert_direction else self.p1
@@ -1223,8 +1441,8 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
 
         return endpoint
 
-    def draw_props(self, layout):
-        super().draw_props(layout)
+    def draw_props(self, layout, **kwargs):
+        super().draw_props(layout, **kwargs)
         layout.prop(self, "invert_direction")
 
     def is_inside(self, coords):
@@ -1337,6 +1555,9 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         nm (SlvsNormal2D):
         sketch (SlvsSketch): The sketch this entity belongs to
     """
+
+    ATTRIBUTE_DOMAIN_TYPES = ("SEGMENT",)
+
     radius: FloatProperty(
         name="Radius",
         description="The radius of the circle",
@@ -1555,8 +1776,6 @@ entity_collections = (
     "arcs",
     "circles",
 )
-
-from typing import Union, Tuple, Type
 
 class SlvsEntities(PropertyGroup):
     """Holds all Solvespace Entities"""
@@ -2346,8 +2565,9 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = pos[1] / ui_scale
 
-    def draw_props(self, layout):
-        super().draw_props(layout)
+    def draw_props(self, layout, **kwargs):
+        super().draw_props(layout, **kwargs)
+        
         layout.prop(self, "value")
         layout.separator()
 
@@ -2461,8 +2681,8 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         self.draw_inside = True if pos.length < self.radius else False
         self.draw_offset = pos.length
 
-    def draw_props(self, layout):
-        super().draw_props(layout)
+    def draw_props(self, layout, **kwargs):
+        super().draw_props(layout, **kwargs)
         layout.prop(self, "value")
 
         layout.separator()
@@ -2605,8 +2825,8 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
 
-    def draw_props(self, layout):
-        super().draw_props(layout)
+    def draw_props(self, layout, **kwargs):
+        super().draw_props(layout, **kwargs)
         layout.prop(self, "value")
         layout.prop(self, "setting")
 
@@ -2917,8 +3137,8 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
         value = line1.length / line2.length
         return value, None
 
-    def draw_props(self, layout):
-        super().draw_props(layout)
+    def draw_props(self, layout, **kwargs):
+        super().draw_props(layout, **kwargs)
         layout.prop(self, "value")
 
 
@@ -3325,6 +3545,7 @@ slvs_entity_pointer(SketcherProps, "active_sketch", update=functions.update_cb)
 
 
 classes = (
+    CustomAttribute,
     *entities,
     SlvsEntities,
     *constraints,
