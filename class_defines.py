@@ -2009,6 +2009,12 @@ class GenericConstraint:
             col = layout.column()
             col.label(text=str(e))
 
+    def index(self):
+        """Return elements index inside its collection"""
+        # HACK: Elements of collectionproperties currently don't expose an index
+        # method, path_from_id writes the index however, use this hack instead
+        # of looping over elements
+        return int(self.path_from_id().split('[')[1].split(']')[0])
 
 # NOTE: When tweaking it's necessary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
