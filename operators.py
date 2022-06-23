@@ -321,38 +321,8 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
                 col.label(text="Nothing hovered")
                 return
 
-            col.label(text="Type: " + type(element).__name__)
+            element.draw_props(col)
 
-            if is_entity:
-                if functions.get_prefs().show_debug_settings:
-                    col.label(text="Index: " + str(element.slvs_index))
-                col.label(text="Is Origin: " + str(element.origin))
-                col.separator()
-                col.prop(element, "name", text="")
-                col.separator()
-                col.prop(element, "visible")
-                col.prop(element, "fixed")
-                col.prop(element, "construction")
-
-            elif element.failed:
-                col.label(text="Failed", icon="ERROR")
-            col.separator()
-
-            if hasattr(element, "draw_props"):
-                element.draw_props(col)
-                col.separator()
-
-            if hasattr(element, "visible"):
-                col.prop(element, "visible")
-                col.separator()
-
-            # Delete operator
-            if is_entity:
-                col.operator(Operators.DeleteEntity, icon='X').index = element.slvs_index
-            else:
-                props = col.operator(View3D_OT_slvs_delete_constraint.bl_idname, icon='X')
-                props.type = element.type
-                props.index = constraint_index
 
         context.window_manager.popup_menu(draw_context_menu)
         return {"FINISHED"}
