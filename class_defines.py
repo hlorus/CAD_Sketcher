@@ -23,6 +23,7 @@ import math, mathutils
 from .shaders import Shaders
 from .solver import solve_system, Solver
 from .functions import unique_attribute_setter
+from .declarations import Operators
 
 logger = logging.getLogger(__name__)
 
@@ -288,14 +289,40 @@ class SlvsGenericEntity:
         return []
 
     def draw_props(self, layout):
-        if not preferences.is_experimental():
-            return
+        is_experimental = preferences.is_experimental()
 
-        col = layout.column()
-        col.label(text="Dependencies")
-        for e in self.dependencies():
-            col = layout.column()
-            col.label(text=str(e))
+        # Header
+        layout.prop(self, "name", text="")
+
+        # Info block
+        layout.separator()
+        layout.label(text="Type: " + type(self).__name__)
+        layout.label(text="Is Origin: " + str(self.origin))
+
+        if is_experimental:
+            sub = layout.column()
+            sub.scale_y = 0.8
+            sub.label(text="Index: " + str(self.slvs_index))
+            sub.label(text="Dependencies:")
+            for e in self.dependencies():
+                sub.label(text=str(e))
+
+        # General props
+        layout.separator()
+        layout.prop(self, "visible")
+        layout.prop(self, "fixed")
+        layout.prop(self, "construction")
+
+        # Specific prop
+        layout.separator()
+        sub = layout.column()
+
+        # Delete
+        layout.separator()
+        layout.operator(Operators.DeleteEntity, icon='X').index = self.slvs_index
+
+        return sub
+
 
     def tag_update(self):
         if not self.is_dirty:
@@ -414,9 +441,9 @@ class SlvsPoint3D(Point3D, PropertyGroup):
     )
 
     def draw_props(self, layout):
-        super().draw_props(layout)
-        layout.prop(self, "location")
-
+        sub = super().draw_props(layout)
+        sub.prop(self, "location")
+        return sub
 
 class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
     """Representation of a line in 3D Space.
@@ -826,9 +853,9 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         make_coincident(solvesys, self.py_data, edge, wrkpln.py_data, group, entity_type=SlvsLine2D)
 
     def draw_props(self, layout):
-        super().draw_props(layout)
-        col = layout.column()
-        col.prop(self, "co")
+        sub = super().draw_props(layout)
+        sub.prop(self, "co")
+        return sub
 
 def round_v(vec, ndigits=None):
     values = []
@@ -1224,8 +1251,9 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         return endpoint
 
     def draw_props(self, layout):
-        super().draw_props(layout)
-        layout.prop(self, "invert_direction")
+        sub = super().draw_props(layout)
+        sub.prop(self, "invert_direction")
+        return sub
 
     def is_inside(self, coords):
         # Checks if a position is inside the arcs angle range
@@ -2000,14 +2028,37 @@ class GenericConstraint:
         return c
 
     def draw_props(self, layout):
-        if not preferences.is_experimental():
-            return
+        is_experimental = preferences.is_experimental()
 
-        col = layout.column()
-        col.label(text="Dependencies")
-        for e in self.dependencies():
-            col = layout.column()
-            col.label(text=str(e))
+        layout.label(text="Type: " + type(self).__name__)
+
+        if self.failed:
+            layout.label(text="Failed", icon="ERROR")
+
+        # Info block
+        layout.separator()
+        if is_experimental:
+            sub = layout.column()
+            sub.scale_y = 0.8
+            sub.label(text="Dependencies:")
+            for e in self.dependencies():
+                sub.label(text=str(e))
+
+        # General props
+        layout.separator()
+        layout.prop(self, "visible")
+
+        # Specific props
+        layout.separator()
+        sub = layout.column()
+
+        # Delete
+        layout.separator()
+        props = layout.operator(Operators.DeleteConstraint, icon='X')
+        props.type = self.type
+        props.index = self.index()
+
+        return sub
 
     def index(self):
         """Return elements index inside its collection"""
@@ -2353,22 +2404,24 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         self.draw_offset = pos[1] / ui_scale
 
     def draw_props(self, layout):
-        super().draw_props(layout)
-        layout.prop(self, "value")
-        layout.separator()
+        sub = super().draw_props(layout)
 
-        layout.label(text="Alignment:")
+        sub.separator()
+        sub.prop(self, "value")
+
+        row = sub.row()
+        row.active = self.use_flipping()
+        row.prop(self, "flip")
+
+        sub.label(text="Alignment:")
         row = layout.row()
         row.active = self.use_align()
         row.prop(self, "align", text="")
 
-        row = layout.row()
-        row.active = self.use_flipping()
-        row.prop(self, "flip")
-
         if preferences.is_experimental():
-            layout.separator()
-            layout.prop(self, "draw_offset")
+            sub.prop(self, "draw_offset")
+
+        return sub
 
 
     def value_placement(self, context, margin):
@@ -2468,13 +2521,13 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         self.draw_offset = pos.length
 
     def draw_props(self, layout):
-        super().draw_props(layout)
-        layout.prop(self, "value")
+        sub = super().draw_props(layout)
 
-        layout.separator()
-        row = layout.row()
+        sub.prop(self, "value")
+
+        row = sub.row()
         row.prop(self, "setting")
-
+        return sub
 
     def value_placement(self, context, margin):
         """location to display the constraint value"""
@@ -2612,9 +2665,11 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
 
     def draw_props(self, layout):
-        super().draw_props(layout)
-        layout.prop(self, "value")
-        layout.prop(self, "setting")
+        sub = super().draw_props(layout)
+
+        sub.prop(self, "value")
+        sub.prop(self, "setting")
+        return sub
 
     def value_placement(self, context, margin):
         """location to display the constraint value"""
@@ -2924,9 +2979,9 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
         return value, None
 
     def draw_props(self, layout):
-        super().draw_props(layout)
-        layout.prop(self, "value")
-
+        sub = super().draw_props(layout)
+        sub.prop(self, "value")
+        return sub
 
 slvs_entity_pointer(SlvsRatio, "entity1")
 slvs_entity_pointer(SlvsRatio, "entity2")
