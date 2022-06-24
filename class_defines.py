@@ -2544,6 +2544,13 @@ slvs_entity_pointer(SlvsDiameter, "sketch")
 
 from mathutils.geometry import intersect_line_line_2d
 
+def invert_angle_getter(self):
+    return self.get("setting", self.bl_rna.properties["setting"].default)
+
+def invert_angle_setter(self, setting):
+    self["value"] = math.pi - self.value
+    self["setting"] = setting
+
 
 class SlvsAngle(GenericConstraint, PropertyGroup):
     """Sets the angle between two lines, applies in 2D only.
@@ -2555,7 +2562,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     value: FloatProperty(
         name=label, subtype="ANGLE", unit="ROTATION", update=update_system_cb
     )
-    setting: BoolProperty(name="Invert", update=update_system_cb)
+    setting: BoolProperty(name="Measure supplementary angle", get=invert_angle_getter, set=invert_angle_setter)
     draw_offset: FloatProperty(name="Draw Offset", default=1)
     type = "ANGLE"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
@@ -2622,43 +2629,30 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
 
         return math.degrees(math.acos(x))
 
-    @staticmethod
-    def _get_angle_inv(A, B):
-        # (A dot B)/(|A||B|) = -cos(valA)
-        divisor = A.length * B.length
-        if not divisor:
-            return 0.0
-
-        x = -A.dot(B) / divisor
-        x = max(-1, min(x, 1))
-
-        return math.degrees(math.acos(x))
-
     def init_props(self, **kwargs):
-        # Set initial angle value to the current angle
+        '''
+        initializes value (angle, in radians),
+            setting ("measure supplimentary angle")
+            and distance to dimension text (draw_offset)
+        '''
+
         line1, line2 = self.entity1, self.entity2
-
         vec1, vec2 = line1.direction_vec(), line2.direction_vec()
-        angle_std = self._get_angle(vec1, vec2)
-        angle_inv = self._get_angle_inv(vec1, vec2)
+        angle = self._get_angle(vec1, vec2)
+        setting = angle > 90
+        if not setting:
+            angle = 180 - angle
 
-        setting = angle_inv < angle_std
-        angle = angle_inv if setting else angle_std
-
-        self.value = angle
-        self.setting = setting
-
-        # Get the radius
         origin = functions.get_line_intersection(
             *functions.line_abc_form(line1.p1.co, line1.p2.co),
             *functions.line_abc_form(line2.p1.co, line2.p2.co),
         )
-
         dist = max(
-            (line1.midpoint() - origin).length, (line2.midpoint() - origin).length, 0.5
+            (line1.midpoint() - origin).length,
+            (line2.midpoint() - origin).length, 
+            0.5
         )
         self.draw_offset = dist if not setting else -dist
-
         return math.radians(angle), setting
 
     def update_draw_offset(self, pos, ui_scale):

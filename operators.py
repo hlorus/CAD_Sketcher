@@ -3326,6 +3326,13 @@ class VIEW3D_OT_slvs_add_distance(
         row.active = self.target.use_align()
         row.prop(self, "align")
 
+def invert_angle_getter(self):
+    return self.get("setting", self.bl_rna.properties["setting"].default)
+
+def invert_angle_setter(self, setting):
+    self["value"] = math.pi - self.value
+    self["setting"] = setting
+
 
 class VIEW3D_OT_slvs_add_angle(
     Operator, GenericConstraintOp
@@ -3337,13 +3344,14 @@ class VIEW3D_OT_slvs_add_angle(
     value: FloatProperty(
         name="Angle", subtype="ANGLE", unit="ROTATION", options={"SKIP_SAVE"}
     )
-    setting: BoolProperty(name="Invert")
+    setting: BoolProperty(name="Measure supplementary angle", default = False, get=invert_angle_getter, set=invert_angle_setter)
     type = "ANGLE"
 
     def fini(self, context, succeede):
         super().fini(context, succeede)
         if hasattr(self, "target"):
             self.target.draw_offset = 0.1 * context.region_data.view_distance
+
 
 class VIEW3D_OT_slvs_add_diameter(
     Operator, GenericConstraintOp
