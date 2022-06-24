@@ -3027,9 +3027,9 @@ class GenericConstraintOp(GenericEntityOp):
         self.initialize_constraint()
 
         if hasattr(c, "value"):
-            c.value = self.value
+            c["value"] = self.value
         if hasattr(c, "setting"):
-            c.setting = self.setting
+            c["setting"] = self.setting
 
         deselect_all(context)
         solve_system(context, sketch=self.sketch)
@@ -3090,23 +3090,8 @@ def invert_angle_getter(self):
     return self.get("setting", self.bl_rna.properties["setting"].default)
 
 def invert_angle_setter(self, setting):
-#    old_val = self.value  #for the debug printout only
-
-    # after the 1st pass, setting will be != old_setting
-    # the One time we want to skip this Angle adjustment
-    # is on the initial pass, if the new Angle defaults
-    # to not Inverted.  This relys on old_setting being
-    # initialized to False.
-    if setting != self.old_setting:
-        self["value"] = math.pi - self.value
-#    print("")
-#    print("operators::invert_angle_setter() - " 
-#    + "   " + str(old_val)
-#    + "   " + str(self.old_setting)
-#    + "   " + str(setting)
-#    + "   " + str(self.value))
+    self["value"] = math.pi - self.value
     self["setting"] = setting
-    self["old_setting"] = setting
 
 
 class VIEW3D_OT_slvs_add_angle(
@@ -3119,23 +3104,13 @@ class VIEW3D_OT_slvs_add_angle(
     value: FloatProperty(
         name="Angle", subtype="ANGLE", unit="ROTATION", options={"SKIP_SAVE"}
     )
-    old_setting: BoolProperty(default = False, options={"SKIP_SAVE"})
-    setting: BoolProperty(name="Invert", default = False, get=invert_angle_getter, set=invert_angle_setter)
+    setting: BoolProperty(name="Measure supplementary angle", default = False, get=invert_angle_getter, set=invert_angle_setter)
     type = "ANGLE"
 
     def fini(self, context, succeede):
         super().fini(context, succeede)
         if hasattr(self, "target"):
             self.target.draw_offset = 0.1 * context.region_data.view_distance
-            # This Operator is using invert_angle_setter() to adjust the Angle
-            # based on the Invert flag.  It updates target.value, but then the
-            # Target also uses its own Setter for the same (redundent) purpose.
-            # This causes the Operator and the Constraint to disagree on the
-            # Angle value.
-            # We undo this damage here.  Once the Operator closes, the Constraint
-            # setter will handle things quite well on its own.
-            self.target.value = math.pi - self.target.value
-#            print(self.target.value)
 
 
 class VIEW3D_OT_slvs_add_diameter(
