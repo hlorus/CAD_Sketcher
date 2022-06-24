@@ -1,13 +1,13 @@
 import bpy, bgl, gpu, blf
-from . import functions, operators, global_data, class_defines, preferences, icon_manager
-
+from . import functions, operators, global_data, class_defines, icon_manager
+from .declarations import GizmoGroups, Gizmos, Operators
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector, Matrix
 
 # NOTE: idealy gizmo would expose active element as a property and
 # operators would access hovered element from there
 class VIEW3D_GT_slvs_preselection(Gizmo):
-    bl_idname = "VIEW3D_GT_slvs_preselection"
+    bl_idname = Gizmos.Preselection
 
     __slots__ = ()
 
@@ -25,6 +25,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             context.area.tag_redraw()
 
         # ensure selection texture is up to date
+        # TODO: avoid dependency on operators module?
         operators.ensure_selection_texture(context)
 
         # sample selection texture and mark hovered entity
@@ -62,7 +63,6 @@ def context_mode_check(context, widget_group):
 
 GIZMO_OFFSET = Vector((10.0, 10.0))
 GIZMO_GENERIC_SIZE = 5
-GIZMO_ARROW_SCALE = 0.02
 
 class ConstraintGizmo:
     def _get_constraint(self, context):
@@ -86,7 +86,7 @@ class ConstraintGizmo:
         return col
 
 class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
-    bl_idname = "VIEW3D_GT_slvs_constraint"
+    bl_idname = Gizmos.Constraint
 
     __slots__ = (
         "custom_shape",
@@ -125,6 +125,8 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
 
     def draw(self, context):
         constraint = self._get_constraint(context)
+        if not constraint.visible:
+            return
         col = self._set_colors(context, constraint)
         self._update_matrix_basis(context, constraint)
 
@@ -149,15 +151,19 @@ def _get_formatted_value(context, constr):
     value = constr.value
 
     if unit == "LENGTH":
-        return units.format_distance(value)
-    if unit == "ROTATION":
+        if constr.type == "DIAMETER" and constr.setting:
+            s = "R" + units.format_distance(value)
+        else:
+            s = units.format_distance(value)
+        return s
+    elif unit == "ROTATION":
         return units.format_angle(value)
     return ""
 
 
 class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
     """Display the value of a dimensional constraint"""
-    bl_idname = "VIEW3D_GT_slvs_constraint_value"
+    bl_idname = Gizmos.ConstraintValue
 
     __slots__ = (
         "type",
@@ -176,28 +182,30 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
 
     def draw(self, context):
         constr = self._get_constraint(context)
-        if not hasattr(constr, "value_placement"):
+
+        if not constr.visible or not hasattr(constr, "value_placement"):
             return
-        pos = constr.value_placement(context)
-
-        if not pos:
-            return
-
-        # Update Matrix for selection
-        self.matrix_basis = Matrix.Translation(pos.to_3d())
-
-        text = _get_formatted_value(context, constr)
-        font_id = 0
 
         prefs = functions.get_prefs()
         theme = prefs.theme_settings
         color = theme.constraint.text_highlight if self.is_highlight else theme.constraint.text
+        text = _get_formatted_value(context, constr)
+        font_id = 0
+        dpi = context.preferences.system.dpi
+        text_size = prefs.text_size
+
         blf.color(font_id, *color)
-
-        blf.size(font_id, prefs.text_size, context.preferences.system.dpi)
-
+        blf.size(font_id, text_size, dpi)
         self.width, self.height = blf.dimensions(font_id, text)
-        blf.position(font_id, pos[0]-self.width/2, pos[1], 0)
+
+        margin = text_size / 4
+
+        pos = constr.value_placement(context)
+        if not pos:
+            return
+        self.matrix_basis = Matrix.Translation(pos.to_3d()) # Update Matrix for selection
+
+        blf.position(font_id, pos[0]-self.width/2, pos[1] + margin, 0)
         blf.draw(font_id, text)
 
     def setup(self):
@@ -205,7 +213,7 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         self.height = 0
 
 
-class ConstarintGizmoGeneric(ConstraintGizmo):
+class ConstraintGizmoGeneric(ConstraintGizmo):
     def _update_matrix_basis(self, constr):
         self.matrix_basis = constr.matrix_basis()
 
@@ -214,6 +222,8 @@ class ConstarintGizmoGeneric(ConstraintGizmo):
 
     def draw(self, context):
         constr = self._get_constraint(context)
+        if not constr.visible:
+            return
         self._set_colors(context, constr)
         self._update_matrix_basis(constr)
 
@@ -222,6 +232,8 @@ class ConstarintGizmoGeneric(ConstraintGizmo):
 
     def draw_select(self, context, select_id):
         constr = self._get_constraint(context)
+        if not constr.visible:
+            return
         self._create_shape(context, constr, select=True)
         self.draw_custom_shape(self.custom_shape, select_id=select_id)
 
@@ -240,33 +252,36 @@ def draw_arrow_shape(target, shoulder, width, is_3d=False):
     v.length = abs(width / 2)
 
     return (
-        target,
         ((shoulder + v)),
-        ((shoulder - v)),
         target,
+        target,
+        ((shoulder - v)),
+        ((shoulder - v)),
+        ((shoulder + v)),
     )
 
-DEFAULT_OVERSHOOT = 0.01
+
 def get_overshoot(scale, dir):
     if dir == 0:
         return 0
-    return -math.copysign(DEFAULT_OVERSHOOT * scale, dir)
+    #use factor of 0.005 for one-half arrowhead
+    overshoot = scale * 0.005 * functions.get_prefs().arrow_scale
+    return -math.copysign(overshoot, dir)
+
 
 def get_arrow_size(dist, scale):
-    length = math.copysign(
+    size = math.copysign(
         min(
-            scale * GIZMO_ARROW_SCALE,
+            scale * 0.01 * functions.get_prefs().arrow_scale,
             abs(dist * 0.8),
         ),
         dist,
     )
-
-    width = length * 0.4
-    return length, width
+    return size, size / 2
 
 
-class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
-    bl_idname = "VIEW3D_GT_slvs_distance"
+class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
+    bl_idname = Gizmos.Distance
     type = class_defines.SlvsDistance.type
 
     bl_target_properties = ({"id": "offset", "type": "FLOAT", "array_length": 1},)
@@ -313,7 +328,6 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
                 y = line_points[i].y
             points_local.append(Vector((x, y, 0.0)))
 
-
         # Pick the points based on their x location
         if points_local[0].x > points_local[1].x:
             point_right, point_left = points_local
@@ -329,7 +343,6 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
             (dist, overshoot_2, 0.0),
             (dist, point_right.y, 0.0),
         )
-
 
     def _create_shape(self, context, constr, select=False):
         ui_scale = context.preferences.system.ui_scale
@@ -361,8 +374,8 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstarintGizmoGeneric):
         self.custom_shape = self.new_custom_shape("LINES", coords)
 
 
-class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
-    bl_idname = "VIEW3D_GT_slvs_angle"
+class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
+    bl_idname = Gizmos.Angle
     type = class_defines.SlvsAngle.type
 
     bl_target_properties = ({"id": "offset", "type": "FLOAT", "array_length": 1},)
@@ -401,9 +414,10 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
             scale = functions.get_scale_from_pos(self.matrix_world @ p.to_3d(), rv3d)
             scales.append(scale)
             length = min(
-                scale * GIZMO_ARROW_SCALE,
+                get_arrow_size(radius,scale)[0],
                 abs(0.8 * radius * constr.value / 2),
             )
+
             lengths.append(length)
             widths.append(length * 0.4)
 
@@ -432,8 +446,8 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstarintGizmoGeneric):
         self.custom_shape = self.new_custom_shape("LINES", coords)
 
 
-class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
-    bl_idname = "VIEW3D_GT_slvs_diameter"
+class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
+    bl_idname = Gizmos.Diameter
     type = class_defines.SlvsDiameter.type
 
     bl_target_properties = ({"id": "offset", "type": "FLOAT", "array_length": 1},)
@@ -444,9 +458,10 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
     )
 
     def _create_shape(self, context, constr, select=False):
+        ui_scale = context.preferences.system.ui_scale
         angle = constr.leader_angle
-        offset = constr.draw_offset / context.preferences.system.ui_scale
-        dist = constr.value / 2 / context.preferences.system.ui_scale
+        offset = constr.draw_offset / ui_scale
+        dist = constr.radius / ui_scale
 
         rv3d = context.region_data
 
@@ -459,31 +474,60 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstarintGizmoGeneric):
         arrow_1 = get_arrow_size(dist, scale_1)
         arrow_2 = get_arrow_size(dist, scale_2)
 
-        if constr.draw_inside:
-            coords = (
-                *draw_arrow_shape(
-                    p1, functions.pol2cart(arrow_1[0] - dist, angle), arrow_1[1]
-                ),
-                p1,
-                p2,
-                *draw_arrow_shape(
-                    p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
-                ),
-            )
+        if constr.setting:
+            # RADIUS_MODE:
+            #   drawn inside and outside as a single segment
+            if constr.draw_inside:
+                coords = (
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+                    ),
+                    p2,
+                    (0,0)
+                )
+            else:
+                coords = (
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(arrow_2[0] + dist, angle), arrow_2[1]
+                    ),
+                    p2,
+                    functions.pol2cart(offset, angle),
+                )
+
         else:
-            coords = (
-                *draw_arrow_shape(
-                    p2, functions.pol2cart(arrow_1[0] + dist, angle), arrow_1[1]
-                ),
-                p2,
-                functions.pol2cart(offset, angle),
-            )
+            # DIAMETER_MODE:
+            #   drawn inside as a single segment
+            #   drawn outside as a 2-segment gizmo
+            if constr.draw_inside:
+                coords = (
+                    *draw_arrow_shape(
+                        p1, functions.pol2cart(arrow_2[0] - dist, angle), arrow_2[1]
+                    ),
+                    p1,
+                    p2,
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+                    ),
+                )
+            else:
+                coords = (
+                    *draw_arrow_shape(
+                        p2, functions.pol2cart(arrow_1[0] + dist, angle), arrow_1[1]
+                    ),
+                    p2,
+                    functions.pol2cart(offset, angle),
+                    functions.pol2cart(dist + (3 * arrow_2[0]), angle + math.pi), #limit length to 3 arrowheads
+                    p1,
+                    *draw_arrow_shape(
+                        p1, functions.pol2cart(dist + arrow_2[0], angle + math.pi), arrow_2[1]
+                    ),
+                )
 
         self.custom_shape = self.new_custom_shape("LINES", coords)
 
 
 class VIEW3D_GGT_slvs_preselection(GizmoGroup):
-    bl_idname = "VIEW3D_GGT_slvs_preselection"
+    bl_idname = GizmoGroups.Preselection
     bl_label = "preselection ggt"
     bl_space_type = "VIEW_3D"
     bl_region_type = "WINDOW"
@@ -570,9 +614,7 @@ class ConstraintGenericGGT:
             gz.use_draw_modal = True
             gz.target_set_prop("offset", c, "draw_offset")
 
-            props = gz.target_set_operator(
-                operators.View3D_OT_slvs_tweak_constraint_value_pos.bl_idname
-            )
+            props = gz.target_set_operator(Operators.TweakConstraintValuePos)
             props.type = self.type
             props.index = gz.index
 
@@ -588,7 +630,7 @@ class ConstraintGenericGGT:
 
 
 class VIEW3D_GGT_slvs_distance(GizmoGroup, ConstraintGenericGGT):
-    bl_idname = "VIEW3D_GGT_slvs_distance"
+    bl_idname = GizmoGroups.Distance
     bl_label = "Distance Constraint Gizmo Group"
 
     type = class_defines.SlvsDistance.type
@@ -596,7 +638,7 @@ class VIEW3D_GGT_slvs_distance(GizmoGroup, ConstraintGenericGGT):
 
 
 class VIEW3D_GGT_slvs_angle(GizmoGroup, ConstraintGenericGGT):
-    bl_idname = "VIEW3D_GGT_slvs_angle"
+    bl_idname = GizmoGroups.Angle
     bl_label = "Angle Constraint Gizmo Group"
 
     type = class_defines.SlvsAngle.type
@@ -604,7 +646,7 @@ class VIEW3D_GGT_slvs_angle(GizmoGroup, ConstraintGenericGGT):
 
 
 class VIEW3D_GGT_slvs_diameter(GizmoGroup, ConstraintGenericGGT):
-    bl_idname = "VIEW3D_GGT_slvs_diameter"
+    bl_idname = GizmoGroups.Diameter
     bl_label = "Diameter Gizmo Group"
 
     type = class_defines.SlvsDiameter.type
@@ -618,7 +660,7 @@ def iter_dimenional_constraints(context):
             yield c
 
 class VIEW3D_GGT_slvs_constraint(GizmoGroup):
-    bl_idname = "VIEW3D_GGT_slvs_constraint"
+    bl_idname = GizmoGroups.Constraint
     bl_label = "Constraint Gizmo Group"
     bl_space_type = "VIEW_3D"
     bl_region_type = "WINDOW"
@@ -663,7 +705,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
 
                 gz.use_draw_modal = True
 
-                op = operators.View3D_OT_slvs_context_menu.bl_idname
+                op = Operators.ContextMenu
                 props = gz.target_set_operator(op)
                 props.type = c.type
                 props.index = gz.index
@@ -681,7 +723,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
             gz.type = c.type
             gz.index = index
 
-            props = gz.target_set_operator(operators.View3D_OT_slvs_tweak_constraint_value_pos.bl_idname)
+            props = gz.target_set_operator(Operators.TweakConstraintValuePos)
             props.type = c.type
             props.index = index
 

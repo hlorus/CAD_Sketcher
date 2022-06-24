@@ -103,12 +103,12 @@ class Solver:
 
             e.create_slvs_data(self.solvesys, group=group)
 
-        def _get_msg():
+        def _get_msg_entities():
             msg = "Initialize entities:"
             for e in context.scene.sketcher.entities.all:
                 msg += "\n  - {}".format(e)
             return msg
-        logger.debug(_get_msg())
+        logger.debug(_get_msg_entities())
 
 
         # Initialize Constraints
@@ -129,12 +129,12 @@ class Solver:
                 c, indices if isinstance(indices, Iterable) else (indices,)
             )
 
-        def _get_msg():
+        def _get_msg_constraints():
             msg = "Initialize constraints:"
             for c in context.scene.sketcher.constraints.all:
                 msg += "\n  - {}".format(c)
             return msg
-        logger.debug(_get_msg())
+        logger.debug(_get_msg_constraints())
 
 
 
@@ -186,6 +186,13 @@ class Solver:
     #         constraints.append(c)
     #     return constraints
 
+    def needs_update(self, e):
+        if hasattr(e, "sketch") and  e.sketch in self.failed_sketches:
+            # Skip entities that belong to a failed sketch
+            return False
+        # TODO: skip entities that aren't in active group
+        return True
+
     def solve(self, report=True):
         self.report = report
         self._init_slvs_data()
@@ -232,27 +239,29 @@ class Solver:
                     constr = self.constraints[i]
                     constr.failed = True
 
-                def _get_msg():
+                def _get_msg_failed():
                     msg = "Failed constraints:"
                     for i in fails:
                         constr = self.constraints[i]
                         msg += "\n  - {}".format(constr)
                     return msg
-                logger.debug(_get_msg())
+                logger.debug(_get_msg_failed())
 
-
-        msg = ""
+        # Update entities from solver
         for e in self.entities:
-            # Skip entities that belong to a failed sketch
-            if hasattr(e, "sketch") and  e.sketch in self.failed_sketches:
+            if not self.needs_update(e):
                 continue
-            # TODO: skip entities that aren't in active group
 
-            msg += "\n - " + str(e)
             e.update_from_slvs(self.solvesys)
 
-        if msg:
-            logger.debug("Update entities from solver:" + msg)
+        def _get_msg_update():
+            msg = "Update entities from solver:"
+            for e in self.entities:
+                if not self.needs_update(e):
+                    continue
+                msg += "\n - " + str(e)
+            return msg
+        logger.debug(_get_msg_update())
 
         return self.ok
 

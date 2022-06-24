@@ -1,8 +1,10 @@
 ############### Operators ###############
 import bpy, bgl, gpu
-from gpu_extras.batch import batch_for_shader
 from bpy.types import Operator
 from . import global_data, functions, class_defines, convertors
+from .keymaps import get_key_map_desc
+from .declarations import Operators, GizmoGroups, VisibilityTypes, WorkSpaceTools
+
 from bpy.props import (
     IntProperty,
     StringProperty,
@@ -13,9 +15,8 @@ from bpy.props import (
 )
 import math
 from mathutils import Vector, Matrix
-from mathutils.geometry import intersect_line_plane, distance_point_to_plane
+from mathutils.geometry import intersect_line_plane
 
-import functools
 import logging
 
 logger = logging.getLogger(__name__)
@@ -57,18 +58,23 @@ def ensure_selection_texture(context):
 
 def update_elements(context, force=False):
     entities = list(context.scene.sketcher.entities.all)
-    msg = ""
+
     for e in entities:
         if not hasattr(e, "update"):
             continue
         if not force and not e.is_dirty:
             continue
-
-        msg += "\n - " + str(e) + str(e.is_dirty)
         e.update()
 
-    if msg:
-        logger.debug("Update geometry batches:" + msg)
+    def _get_msg():
+        msg = "Update geometry batches:"
+        for e in entities:
+            if not e.is_dirty:
+                continue
+            msg += "\n - " + str(e)
+        return msg
+
+    logger.debug(_get_msg())
 
 
 def draw_elements(context):
@@ -161,7 +167,7 @@ class HighlightElement:
 
 
 class View3D_OT_slvs_register_draw_cb(Operator):
-    bl_idname = "view3d.slvs_register_draw_cb"
+    bl_idname = Operators.RegisterDrawCB
     bl_label = "Register Draw Callback"
 
     def execute(self, context):
@@ -173,7 +179,7 @@ class View3D_OT_slvs_register_draw_cb(Operator):
 
 
 class View3D_OT_slvs_unregister_draw_cb(Operator):
-    bl_idname = "view3d.slvs_unregister_draw_cb"
+    bl_idname = Operators.UnregisterDrawCB
     bl_label = ""
 
     def execute(self, context):
@@ -218,7 +224,7 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
 
     """
 
-    bl_idname = "view3d.slvs_select"
+    bl_idname = Operators.Select
     bl_label = "Select Solvespace Entities"
 
     index: IntProperty(name="Index", default=-1)
@@ -242,7 +248,7 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
 class View3D_OT_slvs_select_all(Operator):
     """Select / Deselect all entities"""
 
-    bl_idname = "view3d.slvs_select_all"
+    bl_idname = Operators.SelectAll
     bl_label = "Select / Deselect Entities"
 
     deselect: BoolProperty(name="Deselect")
@@ -259,7 +265,7 @@ class View3D_OT_slvs_select_all(Operator):
 class View3D_OT_slvs_context_menu(Operator, HighlightElement):
     """Show element's settings"""
 
-    bl_idname = "view3d.slvs_context_menu"
+    bl_idname = Operators.ContextMenu
     bl_label = "Solvespace Context Menu"
 
     type: StringProperty(name="Type", options={'SKIP_SAVE'})
@@ -315,32 +321,8 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
                 col.label(text="Nothing hovered")
                 return
 
-            col.label(text="Type: " + type(element).__name__)
+            element.draw_props(col)
 
-            if is_entity:
-                if functions.get_prefs().show_debug_settings:
-                    col.label(text="Index: " + str(element.slvs_index))
-                col.label(text="Is Origin: " + str(element.origin))
-                col.separator()
-                col.prop(element, "visible")
-                col.prop(element, "fixed")
-                col.prop(element, "construction")
-
-            elif element.failed:
-                col.label(text="Failed", icon="ERROR")
-            col.separator()
-
-            if hasattr(element, "draw_props"):
-                element.draw_props(col)
-                col.separator()
-
-            # Delete operator
-            if is_entity:
-                col.operator(View3D_OT_slvs_delete_entity.bl_idname, icon='X').index = element.slvs_index
-            else:
-                props = col.operator(View3D_OT_slvs_delete_constraint.bl_idname, icon='X')
-                props.type = element.type
-                props.index = constraint_index
 
         context.window_manager.popup_menu(draw_context_menu)
         return {"FINISHED"}
@@ -348,7 +330,7 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
 class View3D_OT_slvs_show_solver_state(Operator):
     """Show details about solver status"""
 
-    bl_idname = "view3d.slvs_show_solver_state"
+    bl_idname = Operators.ShowSolverState
     bl_label = "Solver Status"
 
     index: IntProperty(default=-1)
@@ -382,7 +364,7 @@ from .solver import Solver, solve_system
 
 
 class View3D_OT_slvs_solve(Operator):
-    bl_idname = "view3d.slvs_solve"
+    bl_idname = Operators.Solve
     bl_label = "Solve"
 
     all: BoolProperty(name="Solve All", options={"SKIP_SAVE"})
@@ -402,6 +384,19 @@ class View3D_OT_slvs_solve(Operator):
         return {"FINISHED"}
 
 
+class View3D_OT_update(Operator):
+    """Solve all sketches and update converted geometry"""
+    bl_idname = Operators.Update
+    bl_label = "Force Update"
+
+    def execute(self, context):
+        solver = Solver(context, None, all=True)
+        solver.solve()
+
+        update_convertor_geometry(context.scene)
+        return {"FINISHED"}
+
+
 def add_point(context, pos, name=""):
     data = bpy.data
     ob = data.objects.new(name, None)
@@ -413,7 +408,7 @@ def add_point(context, pos, name=""):
 class View3D_OT_slvs_tweak(Operator):
     """Tweak the hovered element"""
 
-    bl_idname = "view3d.slvs_tweak"
+    bl_idname = Operators.Tweak
     bl_label = "Tweak Solvespace Entities"
     bl_options = {"UNDO"}
 
@@ -510,7 +505,7 @@ def write_selection_buffer_image(image_name):
 class VIEW3D_OT_slvs_write_selection_texture(Operator):
     """Write selection texture to image for debugging"""
 
-    bl_idname = "view3d.slvs_write_selection_texture"
+    bl_idname = Operators.WriteSelectionTexture
     bl_label = "Write selection texture"
 
     def execute(self, context):
@@ -701,6 +696,7 @@ class StatefulOperator:
     _state_data = {}
     _last_coords = Vector((0, 0))
     _numeric_input = {}
+    _undo = False
 
     @classmethod
     def _has_global_object(cls):
@@ -928,6 +924,7 @@ class StatefulOperator:
         self.set_status_text(context)
 
     def next_state(self, context):
+        self._undo = False
         i = self.state_index
         if (i + 1) >= len(self.get_states()):
             return False
@@ -1436,7 +1433,6 @@ class StatefulOperator:
 
         # Set state property
         ok = False
-        undo = False
         values = []
         use_create = state.use_create
         if use_create and not is_picked:
@@ -1451,7 +1447,7 @@ class StatefulOperator:
                 if props:
                     for i, v in enumerate(values):
                         setattr(self, props[i], v)
-                    undo = True
+                    self._undo = True
                     ok = not state.pointer
 
         # Set state pointer
@@ -1460,7 +1456,6 @@ class StatefulOperator:
             if is_picked:
                 pointer = pointer_values
                 self.state_data["is_existing_entity"] = True
-                undo = True
             elif values:
                 # Let pointer be filled from redo_states
                 self.state_data["is_existing_entity"] = False
@@ -1470,14 +1465,16 @@ class StatefulOperator:
                 self.set_state_pointer(pointer, implicit=True)
                 ok = True
 
-        if undo:
+        if self._undo:
             bpy.ops.ed.undo_push(message="Redo: " + self.bl_label)
             bpy.ops.ed.undo()
             global_data.ignore_list.clear()
             self.redo_states(context)
+            self._undo = False
 
         if self.check_props():
             self.run_op(context)
+            self._undo = True
 
         # Iterate state
         if triggered and ok:
@@ -1960,7 +1957,7 @@ p3d_state1_doc = ("Location", "Set point's location.")
 
 
 class View3D_OT_slvs_add_point3d(Operator, Operator3d):
-    bl_idname = "view3d.slvs_add_point3d"
+    bl_idname = Operators.AddPoint3D
     bl_label = "Add Solvespace 3D Point"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2006,7 +2003,7 @@ l3d_state2_doc = ("Endpoint", "Pick or place line's ending point.")
 
 
 class View3D_OT_slvs_add_line3d(Operator, Operator3d):
-    bl_idname = "view3d.slvs_add_line3d"
+    bl_idname = Operators.AddLine3D
     bl_label = "Add Solvespace 3D Line"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2065,7 +2062,7 @@ wp_state2_doc = ("Orientation", "Set workplane's orientation.")
 
 
 class View3D_OT_slvs_add_workplane(Operator, Operator3d):
-    bl_idname = "view3d.slvs_add_workplane"
+    bl_idname = Operators.AddWorkPlane
     bl_label = "Add Solvespace Workplane"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2146,7 +2143,7 @@ wp_face_state1_doc = ("Face", "Pick a mesh face to use as workplanes's transform
 
 
 class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
-    bl_idname = "view3d.slvs_add_workplane_face"
+    bl_idname = Operators.AddWorkPlaneFace
     bl_label = "Add Solvespace Workplane"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2195,7 +2192,7 @@ sketch_state1_doc = ["Workplane", "Pick a workplane as base for the sketch."]
 # TODO:
 # - Draw sketches
 class View3D_OT_slvs_add_sketch(Operator, Operator3d):
-    bl_idname = "view3d.slvs_add_sketch"
+    bl_idname = Operators.AddSketch
     bl_label = "Add Sketch"
     bl_options = {"UNDO"}
 
@@ -2216,19 +2213,13 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         state_desc(*sketch_state1_doc, (class_defines.SlvsWorkplane,)),
     )
 
-    def ensure_preselect_gizmo(self, context, _coords):
-        tool = context.workspace.tools.from_space_view3d_mode(context.mode)
-        if tool.widget != gizmos.VIEW3D_GGT_slvs_preselection.bl_idname:
-            bpy.ops.wm.tool_set_by_id(name="sketcher.slvs_select")
-        return True
-
-    def prepare_origin_elements(self, context, _coords):
+    def prepare_origin_elements(self, context):
         context.scene.sketcher.entities.ensure_origin_elements(context)
         return True
 
     def init(self, context, event):
-        self.ensure_preselect_gizmo(context, None)
-        self.prepare_origin_elements(context, None)
+        switch_sketch_mode(self, context, to_sketch_mode=True)
+        self.prepare_origin_elements(context)
         bpy.ops.ed.undo_push(message="Ensure Origin Elements")
         context.scene.sketcher.show_origin = True
 
@@ -2245,20 +2236,22 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         self.target = sketch
         return True
 
-    def fini(self, context, succeede):
+    def fini(self, context, succeed):
         context.scene.sketcher.show_origin = False
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
 
-        if succeede:
+        if succeed:
             self.wp.visible = False
+        else:
+            switch_sketch_mode(self, context, to_sketch_mode=False)
 
 
 p2d_state1_doc = ("Coordinates", "Set point's coordinates on the sketch.")
 
 
 class View3D_OT_slvs_add_point2d(Operator, Operator2d):
-    bl_idname = "view3d.slvs_add_point2d"
+    bl_idname = Operators.AddPoint2D
     bl_label = "Add Solvespace 2D Point"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2311,7 +2304,7 @@ l2d_state2_doc = ("Endpoint", "Pick or place line's ending Point.")
 
 
 class View3D_OT_slvs_add_line2d(Operator, Operator2d):
-    bl_idname = "view3d.slvs_add_line2d"
+    bl_idname = Operators.AddLine2D
     bl_label = "Add Solvespace 2D Line"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2386,7 +2379,7 @@ circle_state2_doc = ("Radius", "Set circle's radius.")
 
 
 class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
-    bl_idname = "view3d.slvs_add_circle2d"
+    bl_idname = Operators.AddCircle2D
     bl_label = "Add Solvespace 2D Circle"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2449,7 +2442,7 @@ arc_state3_doc = ("Endpoint", "Pick or place ending point.")
 
 
 class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
-    bl_idname = "view3d.slvs_add_arc2d"
+    bl_idname = Operators.AddArc2D
     bl_label = "Add Solvespace 2D Arc"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2532,7 +2525,7 @@ rect_state2_doc = ("Endpoint", "Pick or place ending point.")
 
 
 class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
-    bl_idname = "view3d.slvs_add_rectangle"
+    bl_idname = Operators.AddRectangle
     bl_label = "Add Rectangle"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2633,8 +2626,271 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         return point.slvs_index
 
 
+
+class Intersection:
+    """Either a intersection between the segment to be trimmed and specified entity or a segment endpoint"""
+
+    def __init__(self, element, co):
+        # Either a intersecting entity, a segment endpoint or a coincident/midpoint constraint
+        self.element = element
+        self.co = co
+        self.index = -1
+        self._is_endpoint = False
+        self._point = None
+
+    def is_entity(self):
+        return issubclass(type(self.element), class_defines.SlvsGenericEntity)
+
+    def is_constraint(self):
+        return issubclass(type(self.element), class_defines.GenericConstraint)
+
+    def is_endpoint(self):
+        return self._is_endpoint
+
+    def get_point(self, context):
+        if self.is_entity() and self.element.is_point():
+            return self.element
+        if self.is_constraint():
+            return self.element.entities()[0]
+        if self._point == None:
+            sketch = context.scene.sketcher.active_sketch
+            # Implicitly create point at co
+            self._point = context.scene.sketcher.entities.add_point_2d(self.co, sketch)
+
+            # Add coincident constraint
+            if self.is_entity(): # and self.element.is_segment()
+                c = context.scene.sketcher.constraints.add_coincident(self._point, self.element, sketch=sketch)
+
+        return self._point
+
+    def __str__(self):
+        return "Intersection {}, {}, {}".format(self.index, self.co, self.element)
+
+
+class TrimSegment:
+    """Holds data of a segment to be trimmed"""
+    def __init__(self, segment, pos):
+        self.segment = segment
+        self.pos = pos
+        self._intersections = []
+        self._is_closed = segment.is_closed()
+        self.connection_points = segment.connection_points().copy()
+        self.obsolete_intersections = []
+        self.reuse_segment = False
+
+        # Add connection points as intersections
+        if not self._is_closed:
+            for p in self.connection_points:
+                intr = self.add(p, p.co)
+                intr._is_endpoint = True
+
+    def add(self, element, co):
+        intr = Intersection(element, co)
+        self._intersections.append(intr)
+        return intr
+
+    def check(self):
+        relevant = self.relevant_intersections()
+        return len(relevant) in (2, 4)
+
+    def _sorted(self):
+        # Return intersections sorted by distance from mousepos
+        return sorted(self._intersections, key=lambda intr : self.segment.distance_along_segment(self.pos, intr.co))
+
+    def get_intersections(self):
+        # Return intersections in order starting from startpoint
+        sorted_intersections = self._sorted()
+        for i, intr in enumerate(sorted_intersections):
+            intr.index = i
+        return sorted_intersections
+
+    def relevant_intersections(self):
+        # Get indices of two neighbouring points
+        ordered = self.get_intersections()
+        closest = ordered[0].index, ordered[-1].index
+
+        # Form a list of relevant intersections, e.g. endpoints and closest points
+        relevant = []
+        for intr in ordered:
+            if intr.is_endpoint():
+                # Add endpoints
+                if intr.index in closest:
+                    # Not if next to trim segment
+                    if intr not in self.obsolete_intersections:
+                        self.obsolete_intersections.append(intr)
+                    continue
+                relevant.append(intr)
+
+
+            if intr.index in closest:
+                if intr.is_constraint():
+                    if intr not in self.obsolete_intersections:
+                        self.obsolete_intersections.append(intr)
+                relevant.append(intr)
+
+        def _get_log_msg():
+            msg = "Trimming:"
+            for intr in ordered:
+                is_relevant = intr in relevant
+                msg += "\n - " + ("RELEVANT " if is_relevant else "IGNORE ") + str(intr)
+            return msg
+        logger.debug(_get_log_msg())
+        return relevant
+
+    def ensure_points(self, context):
+        for intr in self.relevant_intersections():
+            intr.get_point(context)
+
+    def replace(self, context):
+        relevant = self.relevant_intersections()
+
+        # Get constraints
+        constrs = {}
+        for c in context.scene.sketcher.constraints.all:
+            entities = c.entities()
+            if not self.segment in entities:
+                continue
+            constrs[c] = entities
+
+
+        # Note: this seems to be needed, explicitly add all points and update viewlayer before starting to replace segments
+        self.ensure_points(context)
+
+        # NOTE: This is needed for some reason, otherwise there's a bug where
+        # a point is suddenly interpreted as a line
+        context.view_layer.update()
+
+        # Create new segments
+        segment_count = len(relevant) // 2
+        for index, intrs in enumerate([relevant[i*2:i*2+2] for i in range(segment_count)]):
+            reuse_segment = index == 0 and not isinstance(self.segment, class_defines.SlvsCircle)
+            intr_1, intr_2 = intrs
+            if not intr_1:
+                continue
+
+            new_segment = self.segment.replace(context, intr_1.get_point(context), intr_2.get_point(context), use_self=reuse_segment)
+
+            if reuse_segment:
+                self.reuse_segment = True
+                continue
+
+            # Copy constraints to new segment
+            for c, ents in constrs.items():
+                i = ents.index(self.segment)
+                if index != 0:
+                    if c.type in ("RATIO", "COINCIDENT", "MIDPOINT", "TANGENT"):
+                        continue
+                    ents[i] = new_segment
+                    new_constr = c.copy(context, ents)
+                else:
+                    # if the original segment doesn't get reused the original constraints
+                    # have to be remapped to the new segment
+                    setattr(c, "entity{}_i".format(i+1), new_segment.slvs_index)
+
+
+        def _get_msg_obsolete():
+            msg = "Remove obsolete intersections:"
+            for intr in self.obsolete_intersections:
+                msg += "\n - {}".format(intr)
+            return msg
+        logger.debug(_get_msg_obsolete())
+
+        # Remove unused endpoints
+        delete_constraints = []
+        for intr in self.obsolete_intersections:
+            if intr.is_constraint():
+                c = intr.element
+                i = context.scene.sketcher.constraints.get_index(c)
+                bpy.ops.view3d.slvs_delete_constraint(type=c.type, index=i)
+            if intr.is_entity():
+                # Use operator which checks if other entities depend on this and auto deletes constraints
+                bpy.ops.view3d.slvs_delete_entity(index=intr.element.slvs_index)
+
+        # Remove original segment if not used
+        if not self.reuse_segment:
+            context.scene.sketcher.entities.remove(self.segment.slvs_index)
+
+
+trim_state1_doc = ("Segment", "Segment to trim.")
+
+class View3D_OT_slvs_trim(Operator, Operator2d):
+    bl_idname = Operators.Trim
+    bl_label = "Trim Segment"
+    bl_options = {"REGISTER", "UNDO"}
+
+    radius: FloatProperty(name="Radius")
+
+    states = (
+        state_from_args(
+            trim_state1_doc[0],
+            description=trim_state1_doc[1],
+            pointer="segment",
+            types=class_defines.segment,
+            pick_element="pick_element_coords",
+            use_create=False,
+            # interactive=True
+        ),
+    )
+
+    __doc__ = stateful_op_desc(
+        "Trim segment to it's closest intersections.",
+        state_desc(*trim_state1_doc, (class_defines.SlvsPoint2D, )),
+    )
+
+    # TODO: Disable execution based on selection
+    # NOTE: That does not work if run with select -> action
+    def pick_element_coords(self, context, coords):
+        data = self.state_data
+        data["mouse_pos"] = self.state_func(context, coords)
+        return super().pick_element(context, coords)
+
+    def main(self, context):
+        return True
+
+    def fini(self, context, succeede):
+        if not succeede:
+            return False
+
+        sketch = context.scene.sketcher.active_sketch
+        segment = self.segment
+
+        mouse_pos = self._state_data[0].get("mouse_pos")
+        if mouse_pos == None:
+            return False
+
+        trim = TrimSegment(segment, mouse_pos)
+
+        # Find intersections
+        for e in sketch.sketch_entities(context):
+            if not type(e) in class_defines.segment:
+                continue
+            if e == segment:
+                continue
+
+            for co in segment.intersect(e):
+                #print("intersect", co)
+                trim.add(e, co)
+
+        # Find points that are connected to the segment through a conincident constraint
+        for c in (*context.scene.sketcher.constraints.coincident, *context.scene.sketcher.constraints.midpoint):
+            ents = c.entities()
+            if segment not in ents:
+                continue
+            p = ents[0]
+            trim.add(c, p.co)
+
+        # TODO: Get rid of the coincident constraint as it will be a shared connection point
+
+        if not trim.check():
+            return
+
+        trim.replace(context)
+        functions.refresh(context)
+
+
+
 class View3D_OT_slvs_test(Operator, GenericEntityOp):
-    bl_idname = "view3d.slvs_test"
+    bl_idname = Operators.Test
     bl_label = "Test StateOps"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -2670,7 +2926,7 @@ class View3D_OT_slvs_test(Operator, GenericEntityOp):
 
 
 class View3D_OT_invoke_tool(Operator):
-    bl_idname = "view3d.invoke_tool"
+    bl_idname = Operators.InvokeTool
     bl_label = "Invoke Tool"
 
     tool_name: StringProperty(name="Tool ID")
@@ -2712,11 +2968,24 @@ class View3D_OT_invoke_tool(Operator):
         return {"FINISHED"}
 
 
+def switch_sketch_mode(self, context, to_sketch_mode):
+    if to_sketch_mode:
+        tool = context.workspace.tools.from_space_view3d_mode(context.mode)
+        if tool.widget != GizmoGroups.Preselection:
+            bpy.ops.wm.tool_set_by_id(name=WorkSpaceTools.Select)
+        return True
+
+    bpy.ops.wm.tool_set_by_index(index=0)
+    return True
+
+
 def activate_sketch(context, index, operator):
     props = context.scene.sketcher
 
     if index == props.active_sketch_i:
         return {"CANCELLED"}
+
+    switch_sketch_mode(self=operator, context=context, to_sketch_mode=(index!=-1))
 
     space_data = context.space_data
 
@@ -2733,18 +3002,25 @@ def activate_sketch(context, index, operator):
         space_data.show_object_viewport_curve = True
         space_data.show_object_viewport_mesh = True
 
+    last_sketch = context.scene.sketcher.active_sketch
     logger.debug("Activate: {}".format(sk))
     props.active_sketch_i = index
-
-    update_convertor_geometry(context.scene)
     context.area.tag_redraw()
+
+    if index != -1:
+        return {"FINISHED"}
+
+    if context.mode != "OBJECT":
+        return {"FINISHED"}
+
+    update_convertor_geometry(context.scene, sketch=last_sketch)
     return {"FINISHED"}
 
 
 class View3D_OT_slvs_set_active_sketch(Operator):
     """Set the active sketch"""
 
-    bl_idname = "view3d.slvs_set_active_sketch"
+    bl_idname = Operators.SetActiveSketch
     bl_label = "Set active Sketch"
     bl_options = {"UNDO"}
 
@@ -2813,7 +3089,7 @@ def get_constraint_local_indices(entity, context):
 class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
     """Delete Entity by index or based on the selection if index isn't provided
     """
-    bl_idname = "view3d.slvs_delete_entity"
+    bl_idname = Operators.DeleteEntity
     bl_label = "Delete Solvespace Entity"
     bl_options = {"UNDO"}
     bl_description = (
@@ -2949,7 +3225,13 @@ class GenericConstraintOp(GenericEntityOp):
     def initialize_constraint(self):
         c = self.target
         if not self.initialized and hasattr(c, "init_props"):
-            value, setting = c.init_props()
+            kwargs = {}
+            if hasattr(self, "value") and self.properties.is_property_set("value"):
+                kwargs["value"] = self.value
+            if hasattr(self, "setting") and self.properties.is_property_set("setting"):
+                kwargs["setting"] = self.setting
+
+            value, setting = c.init_props(**kwargs)
             if value is not None:
                 self.value = value
             if setting is not None:
@@ -2963,7 +3245,7 @@ class GenericConstraintOp(GenericEntityOp):
 
         states = [state_desc(s.name, s.description, s.types) for s in cls.get_states_definition()]
 
-        return stateful_op_desc("Add {} constraint".format(cls_constraint.label), *states)
+        return stateful_op_desc(f"Add {cls_constraint.label} constraint{get_key_map_desc(cls.bl_idname)}", *states)
 
     def fill_entities(self):
         c = self.target
@@ -3018,12 +3300,12 @@ class GenericConstraintOp(GenericEntityOp):
 class VIEW3D_OT_slvs_add_distance(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_distance"
+    bl_idname = Operators.AddDistance
     bl_label = "Distance"
     bl_options = {"UNDO", "REGISTER"}
 
     value: FloatProperty(
-        name="Distance", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
+        name="Distance", subtype="DISTANCE", unit="LENGTH", min=0.0, options={"SKIP_SAVE"}
     )
     align: EnumProperty(name="Alignment", items=class_defines.align_items)
     type = "DISTANCE"
@@ -3055,7 +3337,7 @@ def invert_angle_setter(self, setting):
 class VIEW3D_OT_slvs_add_angle(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_angle"
+    bl_idname = Operators.AddAngle
     bl_label = "Angle"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3074,13 +3356,16 @@ class VIEW3D_OT_slvs_add_angle(
 class VIEW3D_OT_slvs_add_diameter(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_diameter"
+    bl_idname = Operators.AddDiameter
     bl_label = "Diameter"
     bl_options = {"UNDO", "REGISTER"}
 
+    # Either Radius or Diameter
     value: FloatProperty(
-        name="Diameter", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
+        name="Size", subtype="DISTANCE", unit="LENGTH", options={"SKIP_SAVE"}
     )
+
+    setting: BoolProperty(name="Use Radius")
     type = "DIAMETER"
 
 
@@ -3088,7 +3373,7 @@ class VIEW3D_OT_slvs_add_diameter(
 class VIEW3D_OT_slvs_add_coincident(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_coincident"
+    bl_idname = Operators.AddCoincident
     bl_label = "Coincident"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3107,7 +3392,7 @@ class VIEW3D_OT_slvs_add_coincident(
 class VIEW3D_OT_slvs_add_equal(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_equal"
+    bl_idname = Operators.AddEqual
     bl_label = "Equal"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3117,7 +3402,7 @@ class VIEW3D_OT_slvs_add_equal(
 class VIEW3D_OT_slvs_add_vertical(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_vertical"
+    bl_idname = Operators.AddVertical
     bl_label = "Vertical"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3127,7 +3412,7 @@ class VIEW3D_OT_slvs_add_vertical(
 class VIEW3D_OT_slvs_add_horizontal(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_horizontal"
+    bl_idname = Operators.AddHorizontal
     bl_label = "Horizontal"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3137,7 +3422,7 @@ class VIEW3D_OT_slvs_add_horizontal(
 class VIEW3D_OT_slvs_add_parallel(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_parallel"
+    bl_idname = Operators.AddParallel
     bl_label = "Parallel"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3147,7 +3432,7 @@ class VIEW3D_OT_slvs_add_parallel(
 class VIEW3D_OT_slvs_add_perpendicular(
     Operator, GenericConstraintOp
 ):
-    bl_idname = "view3d.slvs_add_perpendicular"
+    bl_idname = Operators.AddPerpendicular
     bl_label = "Perpendicular"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3157,7 +3442,7 @@ class VIEW3D_OT_slvs_add_perpendicular(
 class VIEW3D_OT_slvs_add_tangent(
     Operator, GenericConstraintOp, GenericEntityOp
 ):
-    bl_idname = "view3d.slvs_add_tangent"
+    bl_idname = Operators.AddTangent
     bl_label = "Tangent"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3167,7 +3452,7 @@ class VIEW3D_OT_slvs_add_tangent(
 class VIEW3D_OT_slvs_add_midpoint(
     Operator, GenericConstraintOp, GenericEntityOp
 ):
-    bl_idname = "view3d.slvs_add_midpoint"
+    bl_idname = Operators.AddMidPoint
     bl_label = "Midpoint"
     bl_options = {"UNDO", "REGISTER"}
 
@@ -3181,17 +3466,56 @@ class VIEW3D_OT_slvs_add_ratio(
     value: FloatProperty(
         name="Ratio", subtype="UNSIGNED", options={"SKIP_SAVE"}, min=0.0
     )
-    bl_idname = "view3d.slvs_add_ratio"
+    bl_idname = Operators.AddRatio
     bl_label = "Ratio"
     bl_options = {"UNDO", "REGISTER"}
 
     type = "RATIO"
 
 
+class View3D_OT_slvs_set_all_constraints_visibility(Operator, HighlightElement):
+    """Set all constraints' visibility
+    """
+    _visibility_items = [
+        (VisibilityTypes.Hide, "Hide all", "Hide all constraints"),
+        (VisibilityTypes.Show, "Show all", "Show all constraints"),
+    ]
+
+    bl_idname = Operators.SetAllConstraintsVisibility
+    bl_label = "Set all constraints' visibility"
+    bl_options = {"UNDO"}
+    bl_description = "Set all constraints' visibility"
+
+    visibility: EnumProperty(
+        name="Visibility",
+        description="Visiblity",
+        items=_visibility_items)
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    @classmethod
+    def description(cls, context, properties):
+        for vi in cls._visibility_items:
+            if vi[0] == properties.visibility:
+                return vi[2]
+        return None
+
+    def execute(self, context):
+        constraint_lists = context.scene.sketcher.constraints.get_lists()
+        for constraint_list in constraint_lists:
+            for constraint in constraint_list:
+                if not hasattr(constraint, "visible"):
+                    continue
+                constraint.visible = self.visibility == "SHOW"
+        return {"FINISHED"}
+
+
 class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
     """Delete constraint by type and index
     """
-    bl_idname = "view3d.slvs_delete_constraint"
+    bl_idname = Operators.DeleteConstraint
     bl_label = "Delete Constraint"
     bl_options = {"UNDO"}
     bl_description = "Delete Constraint"
@@ -3228,7 +3552,7 @@ class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
 
 
 class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
-    bl_idname = "view3d.slvs_tweak_constraint_value_pos"
+    bl_idname = Operators.TweakConstraintValuePos
     bl_label = "Tweak Constraint"
     bl_options = {"UNDO"}
     bl_description = "Tweak constraint's value or display position"
@@ -3287,7 +3611,7 @@ from bl_operators.presets import AddPresetBase
 class SKETCHER_OT_add_preset_theme(AddPresetBase, Operator):
     """Add an Theme Preset"""
 
-    bl_idname = "bgs.theme_preset_add"
+    bl_idname = Operators.AddPresetTheme
     bl_label = "Add Theme Preset"
     preset_menu = "SKETCHER_MT_theme_presets"
 
@@ -3351,8 +3675,9 @@ def _link_unlink_object(scene, ob, keep):
     elif keep:
         objects.link(ob)
 
-def update_convertor_geometry(scene):
-    for sketch in scene.sketcher.entities.sketches:
+def update_convertor_geometry(scene, sketch=None):
+    coll = (sketch,) if sketch else scene.sketcher.entities.sketches
+    for sketch in coll:
         mode = sketch.convert_type
         if sketch.convert_type == "NONE":
             _cleanup_data(sketch, mode)
@@ -3405,6 +3730,10 @@ def update_convertor_geometry(scene):
 
         target_ob.sketch_index = sketch.slvs_index
 
+        # Update object name
+        target_ob.name = sketch.name
+
+
 
 constraint_operators = (
     VIEW3D_OT_slvs_add_distance,
@@ -3440,12 +3769,15 @@ classes = (
     View3D_OT_slvs_add_circle2d,
     View3D_OT_slvs_add_arc2d,
     View3D_OT_slvs_add_rectangle,
+    View3D_OT_slvs_trim,
     View3D_OT_slvs_test,
     View3D_OT_invoke_tool,
     View3D_OT_slvs_set_active_sketch,
+    View3D_OT_slvs_set_all_constraints_visibility,
     View3D_OT_slvs_delete_entity,
     *constraint_operators,
     View3D_OT_slvs_solve,
+    View3D_OT_update,
     View3D_OT_slvs_delete_constraint,
     View3D_OT_slvs_tweak_constraint_value_pos,
     SKETCHER_OT_add_preset_theme,

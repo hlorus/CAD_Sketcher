@@ -23,12 +23,20 @@ import math, mathutils
 from .shaders import Shaders
 from .solver import solve_system, Solver
 from .functions import unique_attribute_setter
+from .declarations import Operators
 
 logger = logging.getLogger(__name__)
 
 
+def entity_name_getter(self):
+    return self.get("name", str(self))
+
+def entity_name_setter(self, new_name):
+    self["name"] = new_name
+
 class SlvsGenericEntity:
     slvs_index: IntProperty(name="Global Index", default=-1)
+    name: StringProperty(name="Name", get=entity_name_getter, set=entity_name_setter, options={"SKIP_SAVE"})
     fixed: BoolProperty(name="Fixed")
     visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
     origin: BoolProperty(name="Origin")
@@ -277,6 +285,45 @@ class SlvsGenericEntity:
             if ob.sketch_index == index_old:
                 ob.sketch_index = index_new
 
+    def dependencies(self):
+        return []
+
+    def draw_props(self, layout):
+        is_experimental = preferences.is_experimental()
+
+        # Header
+        layout.prop(self, "name", text="")
+
+        # Info block
+        layout.separator()
+        layout.label(text="Type: " + type(self).__name__)
+        layout.label(text="Is Origin: " + str(self.origin))
+
+        if is_experimental:
+            sub = layout.column()
+            sub.scale_y = 0.8
+            sub.label(text="Index: " + str(self.slvs_index))
+            sub.label(text="Dependencies:")
+            for e in self.dependencies():
+                sub.label(text=str(e))
+
+        # General props
+        layout.separator()
+        layout.prop(self, "visible")
+        layout.prop(self, "fixed")
+        layout.prop(self, "construction")
+
+        # Specific prop
+        layout.separator()
+        sub = layout.column()
+
+        # Delete
+        layout.separator()
+        layout.operator(Operators.DeleteEntity, icon='X').index = self.slvs_index
+
+        return sub
+
+
     def tag_update(self):
         if not self.is_dirty:
             self.is_dirty = True
@@ -297,6 +344,10 @@ class SlvsGenericEntity:
 
     @classmethod
     def is_curve(cls):
+        return False
+
+    @classmethod
+    def is_closed(cls):
         return False
 
 
@@ -390,8 +441,9 @@ class SlvsPoint3D(Point3D, PropertyGroup):
     )
 
     def draw_props(self, layout):
-        layout.prop(self, "location")
-
+        sub = super().draw_props(layout)
+        sub.prop(self, "location")
+        return sub
 
 class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
     """Representation of a line in 3D Space.
@@ -801,9 +853,15 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         make_coincident(solvesys, self.py_data, edge, wrkpln.py_data, group, entity_type=SlvsLine2D)
 
     def draw_props(self, layout):
-        col = layout.column()
-        col.prop(self, "co")
+        sub = super().draw_props(layout)
+        sub.prop(self, "co")
+        return sub
 
+def round_v(vec, ndigits=None):
+    values = []
+    for v in vec:
+        values.append(round(v, ndigits=ndigits))
+    return Vector(values)
 
 class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     """Representation of a line in 2D space. Connects p1 and p2 and lies on the
@@ -882,12 +940,61 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         return (self.p1.co + self.p2.co) / 2
 
     def direction_vec(self):
-        return self.p2.co - self.p1.co
+        return (self.p2.co - self.p1.co).normalized()
 
     @property
     def length(self):
         return (self.p2.co - self.p1.co).length
 
+    def overlaps_endpoint(self, co):
+        precision = 5
+        co_rounded = round_v(co, ndigits=precision)
+        if any([co_rounded == round_v(v, ndigits=precision) for v in (self.p1.co, self.p2.co)]):
+            return True
+        return False
+
+    def intersect(self, other):
+        # NOTE: There can be multiple intersections when intersecting with one or more curves
+        def parse_retval(value):
+            if not value:
+                return ()
+            if self.overlaps_endpoint(value) or other.overlaps_endpoint(value):
+                return ()
+            return (value, )
+
+        if other.is_line():
+            return parse_retval(intersect_line_line_2d(self.p1.co, self.p2.co, other.p1.co, other.p2.co))
+        else:
+            return other.intersect(self)
+
+
+    def replace(self, context, p1, p2, use_self=False):
+        # Replace entity by a similar entity with the connection points p1, and p2
+        # This is used for trimming, points are expected to lie somewhere on the existing entity
+        if use_self:
+            self.p1 = p1
+            self.p2 = p2
+            return self
+
+        sse = context.scene.sketcher.entities
+        sketch = context.scene.sketcher.active_sketch
+        line = sse.add_line_2d(
+            p1,
+            p2,
+            sketch,
+        )
+        line.construction = self.construction
+        return line
+
+    def distance_along_segment(self, p1, p2):
+        start, end = self.p1.co, self.p2.co
+        len_1 = (p1 - end).length
+        len_2 = (p2 - start).length
+
+        threshold = 0.0000001
+        retval = (len_1 + len_2) % (self.length + threshold)
+
+        return retval
 
 slvs_entity_pointer(SlvsLine2D, "p1")
 slvs_entity_pointer(SlvsLine2D, "p2")
@@ -1144,7 +1251,101 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         return endpoint
 
     def draw_props(self, layout):
-        layout.prop(self, "invert_direction")
+        sub = super().draw_props(layout)
+        sub.prop(self, "invert_direction")
+        return sub
+
+    def is_inside(self, coords):
+        # Checks if a position is inside the arcs angle range
+        ct = self.ct.co
+        p = coords - ct
+        p1 = self.start.co - ct
+        p2 = self.end.co - ct
+
+        x_axis = Vector((1, 0))
+
+        # angle_signed interprets clockwise as positive, so invert..
+        a1 = functions.range_2pi(p.angle_signed(p1))
+        a2 = functions.range_2pi(p2.angle_signed(p))
+
+        angle = self.angle
+
+        if not p.length or not p1.length or not p2.length:
+            return False
+
+
+        if a1 < angle > a2:
+            return True
+        return False
+
+    def overlaps_endpoint(self, co):
+        precision = 5
+        co_rounded = round_v(co, ndigits=precision)
+        if any([co_rounded == round_v(v, ndigits=precision) for v in (self.p1.co, self.p2.co)]):
+            return True
+        return False
+
+    def intersect(self, other):
+        def parse_retval(retval):
+            # Intersect might return None, (value, value) or (value, None)
+            values = []
+            if hasattr(retval, "__len__"):
+                for val in retval:
+                    if val == None:
+                        continue
+                    if not self.is_inside(val):
+                        continue
+                    if isinstance(other, SlvsArc) and not other.is_inside(val):
+                        continue
+                    if self.overlaps_endpoint(val) or other.overlaps_endpoint(val):
+                        continue
+
+                    values.append(val)
+            elif retval != None:
+                if self.overlaps_endpoint(retval) or other.overlaps_endpoint(retval):
+                    return ()
+                values.append(retval)
+
+            return tuple(values)
+
+        if other.is_line():
+            from mathutils.geometry import intersect_line_sphere_2d
+            return parse_retval(intersect_line_sphere_2d(other.p1.co, other.p2.co, self.ct.co, self.radius))
+        elif other.is_curve():
+            from mathutils.geometry import intersect_sphere_sphere_2d
+            return parse_retval(intersect_sphere_sphere_2d(self.ct.co, self.radius, other.ct.co, other.radius))
+
+    def distance_along_segment(self, p1, p2):
+        ct = self.ct.co
+        start, end = self.start.co - ct, self.end.co - ct
+        points = (p1, p2) if self.invert_direction else (p2, p1)
+
+        len_1 = functions.range_2pi(end.angle_signed(points[1] - ct))
+        len_2 = functions.range_2pi((points[0] - ct).angle_signed(start))
+
+        threshold = 0.000001
+        retval = (len_1 + len_2) % (self.angle + threshold)
+
+        return retval
+
+
+    def replace(self, context, p1, p2, use_self=False):
+        if use_self:
+            self.p1 = p1
+            self.p2 = p2
+            return self
+
+        sketch = context.scene.sketcher.active_sketch
+        arc = context.scene.sketcher.entities.add_arc(
+            sketch.wp.nm,
+            self.ct,
+            p1,
+            p2,
+            sketch
+        )
+        arc.construction = self.construction
+        arc.invert_direction = self.invert_direction
+        return arc
 
 
 slvs_entity_pointer(SlvsArc, "nm")
@@ -1164,7 +1365,6 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         nm (SlvsNormal2D):
         sketch (SlvsSketch): The sketch this entity belongs to
     """
-
     radius: FloatProperty(
         name="Radius",
         description="The radius of the circle",
@@ -1226,9 +1426,13 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
     def placement(self):
         return self.wp.matrix_basis @ self.point_on_curve(45).to_3d()
 
+    @classmethod
+    def is_closed(cls):
+        return True
+
     def connection_points(self):
         # NOTE: it should probably be possible to lookup coincident points on circle
-        return ()
+        return []
 
     def direction(self, point, is_endpoint=False):
         return False
@@ -1274,11 +1478,66 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         )
         return endpoint
 
+    def overlaps_endpoint(self, co):
+        return False
+
+    def intersect(self, other):
+        def parse_retval(retval):
+            # Intersect might return None, (value, value) or (value, None)
+            values = []
+            if hasattr(retval, "__len__"):
+                for val in retval:
+                    if val == None:
+                        continue
+                    if other.overlaps_endpoint(val):
+                        continue
+                    values.append(val)
+            elif retval != None:
+                if other.overlaps_endpoint(retval):
+                    return ()
+                values.append(retval)
+
+            return tuple(values)
+
+        if other.is_line():
+            from mathutils.geometry import intersect_line_sphere_2d
+            return parse_retval(intersect_line_sphere_2d(other.p1.co, other.p2.co, self.ct.co, self.radius))
+        elif isinstance(other, SlvsCircle):
+            from mathutils.geometry import intersect_sphere_sphere_2d
+            return parse_retval(intersect_sphere_sphere_2d(self.ct.co, self.radius, other.ct.co, other.radius))
+        else:
+            return other.intersect(self)
+
+
+
+    def replace(self, context, p1, p2, use_self=False):
+        if use_self:
+            self.p1 = p1
+            self.p2 = p2
+            return self
+
+        sketch = context.scene.sketcher.active_sketch
+        arc = context.scene.sketcher.entities.add_arc(
+            sketch.wp.nm,
+            self.ct,
+            p1,
+            p2,
+            sketch
+        )
+        arc.construction = self.construction
+        return arc
+
+    def distance_along_segment(self, p1, p2):
+        ct = self.ct.co
+        start, end = p1 - ct, p2 - ct
+        angle = functions.range_2pi(math.atan2(*end.yx) - math.atan2(*start.yx))
+        retval = self.radius * angle
+        return retval
+
 
 slvs_entity_pointer(SlvsCircle, "nm")
 slvs_entity_pointer(SlvsCircle, "ct")
 slvs_entity_pointer(SlvsCircle, "sketch")
-
 
 def update_pointers(scene, index_old, index_new):
     """Replaces all references to an entity index with it's new index"""
@@ -1667,10 +1926,13 @@ normal_3d = (SlvsNormal3D,)
 point = (*point_3d, *point_2d)
 line = (SlvsLine3D, SlvsLine2D)
 curve = (SlvsCircle, SlvsArc)
+segment = (*line, *curve)
 
+ENTITY_PROP_NAMES = ("entity1", "entity2", "entity3", "entity4")
 
 class GenericConstraint:
     failed: BoolProperty(name="Failed")
+    visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
     signature = ()
 
     def needs_wp(args):
@@ -1728,12 +1990,17 @@ class GenericConstraint:
                 continue
             _update(prop_name)
 
+    def is_visible(self, context):
+        if hasattr(self, "sketch"):
+            return self.sketch.is_visible(context) and self.visible
+        return self.visible
+
     def is_active(self, active_sketch):
         if not hasattr(self, "sketch"):
             return not active_sketch
 
         show_inactive = not functions.get_prefs().hide_inactive_constraints
-        if show_inactive and self.sketch.visible:
+        if show_inactive and self.is_visible():
             return True
 
         return self.sketch == active_sketch
@@ -1745,6 +2012,60 @@ class GenericConstraint:
         # TODO: return drawing plane for constraints in 3d
         return None, None
 
+    def copy(self, context, entities):
+        # copy itself to another set of entities
+        c = context.scene.sketcher.constraints.new_from_type(self.type)
+        if hasattr(self, "sketch"):
+            c.sketch = self.sketch
+        if hasattr(self, "setting"):
+            c.setting = self.setting
+        if hasattr(self, "value"):
+            c.value = self.value
+
+        for prop, e in zip(ENTITY_PROP_NAMES, entities):
+            setattr(c, prop, e)
+
+        return c
+
+    def draw_props(self, layout):
+        is_experimental = preferences.is_experimental()
+
+        layout.label(text="Type: " + type(self).__name__)
+
+        if self.failed:
+            layout.label(text="Failed", icon="ERROR")
+
+        # Info block
+        layout.separator()
+        if is_experimental:
+            sub = layout.column()
+            sub.scale_y = 0.8
+            sub.label(text="Dependencies:")
+            for e in self.dependencies():
+                sub.label(text=str(e))
+
+        # General props
+        layout.separator()
+        layout.prop(self, "visible")
+
+        # Specific props
+        layout.separator()
+        sub = layout.column()
+
+        # Delete
+        layout.separator()
+        props = layout.operator(Operators.DeleteConstraint, icon='X')
+        props.type = self.type
+        props.index = self.index()
+
+        return sub
+
+    def index(self):
+        """Return elements index inside its collection"""
+        # HACK: Elements of collectionproperties currently don't expose an index
+        # method, path_from_id writes the index however, use this hack instead
+        # of looping over elements
+        return int(self.path_from_id().split('[')[1].split(']')[0])
 
 # NOTE: When tweaking it's necessary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
@@ -2046,7 +2367,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         mat_local = Matrix.Translation(v_translation.to_3d()) @ mat_rot.to_4x4()
         return sketch.wp.matrix_basis @ mat_local
 
-    def init_props(self):
+    def init_props(self, **kwargs):
         # Set initial distance value to the current spacing
         e1, e2 = self.entity1, self.entity2
         if isinstance(e2, SlvsWorkplane):
@@ -2083,21 +2404,24 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         self.draw_offset = pos[1] / ui_scale
 
     def draw_props(self, layout):
-        layout.prop(self, "value")
-        layout.separator()
+        sub = super().draw_props(layout)
 
-        layout.label(text="Alignment:")
+        sub.separator()
+        sub.prop(self, "value")
+
+        row = sub.row()
+        row.active = self.use_flipping()
+        row.prop(self, "flip")
+
+        sub.label(text="Alignment:")
         row = layout.row()
         row.active = self.use_align()
         row.prop(self, "align", text="")
 
-        row = layout.row()
-        row.active = self.use_flipping()
-        row.prop(self, "flip")
-
         if preferences.is_experimental():
-            layout.separator()
-            layout.prop(self, "draw_offset")
+            sub.prop(self, "draw_offset")
+
+        return sub
 
 
     def value_placement(self, context):
@@ -2105,12 +2429,31 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         region = context.region
         rv3d = context.space_data.region_3d
         ui_scale = context.preferences.system.ui_scale
-        coords = self.matrix_basis() @ Vector((0, self.draw_offset * ui_scale, 0))
+        offset = ui_scale * (self.draw_offset)
+        coords = self.matrix_basis() @ Vector((0, offset, 0))
         return location_3d_to_region_2d(region, rv3d, coords)
 
 slvs_entity_pointer(SlvsDistance, "entity1")
 slvs_entity_pointer(SlvsDistance, "entity2")
 slvs_entity_pointer(SlvsDistance, "sketch")
+
+
+def use_radius_getter(self):
+    return self.get("setting", self.bl_rna.properties["setting"].default)
+
+def use_radius_setter(self, setting):
+    old_setting = self.get("setting", self.bl_rna.properties["setting"].default)
+    self["setting"] = setting
+
+    distance = None
+    if old_setting and not setting:
+        distance = self.value * 2
+    elif not old_setting and setting:
+        distance = self.value / 2
+
+    if distance != None:
+        # Avoid triggering the property's update callback
+        self["value"] = distance
 
 
 class SlvsDiameter(GenericConstraint, PropertyGroup):
@@ -2119,22 +2462,47 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
 
     label = "Diameter"
     value: FloatProperty(
-        name=label, subtype="DISTANCE", unit="LENGTH", update=update_system_cb
+        name="Size", subtype="DISTANCE", unit="LENGTH", update=update_system_cb
     )
+    setting: BoolProperty(name="Use Radius", get=use_radius_getter, set=use_radius_setter)
     leader_angle: FloatProperty(name="Leader Angle", default=45, subtype="ANGLE")
     draw_inside: BoolProperty(name="Draw Inside", default=True)
     draw_offset: FloatProperty(name="Draw Offset", default=0)
     type = "DIAMETER"
     signature = (curve,)
 
+    @property
+    def diameter(self):
+        value = self.value
+        if self.setting:
+            return value * 2
+        return value
+
+    @property
+    def radius(self):
+        value = self.value
+        if self.setting:
+            return value
+        return value / 2
+
     def needs_wp(self):
         return WpReq.OPTIONAL
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        return solvesys.addDiameter(self.value, self.entity1.py_data, group=group)
+        return solvesys.addDiameter(self.diameter, self.entity1.py_data, group=group)
 
-    def init_props(self):
-        return self.entity1.radius * 2, None
+    def init_props(self, **kwargs):
+        # Get operators setting value
+        setting = kwargs.get("setting")
+
+        value = self.entity1.radius
+        if setting == None and self.entity1.bl_rna.name == "SlvsArc":
+            self["setting"] = True
+
+        if not setting:
+            value = value * 2
+
+        return value, None
 
     def matrix_basis(self):
         if self.sketch_i == -1:
@@ -2149,17 +2517,24 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
 
     def update_draw_offset(self, pos, ui_scale):
         self.leader_angle = math.atan2(pos[1], pos[0])
-        self.draw_inside = True if pos.length < self.value/2 else False
+        self.draw_inside = True if pos.length < self.radius else False
         self.draw_offset = pos.length
 
     def draw_props(self, layout):
-        layout.prop(self, "value")
+        sub = super().draw_props(layout)
+
+        sub.prop(self, "value")
+
+        row = sub.row()
+        row.prop(self, "setting")
+        return sub
 
     def value_placement(self, context):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
-        coords = functions.pol2cart(self.draw_offset,self.leader_angle)
+        offset = self.draw_offset
+        coords = functions.pol2cart(offset, self.leader_angle)
         coords2 = self.matrix_basis() @ Vector((coords[0], coords[1], 0.0))
         return location_3d_to_region_2d(region, rv3d, coords2)
 
@@ -2254,7 +2629,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
 
         return math.degrees(math.acos(x))
 
-    def init_props(self):
+    def init_props(self, **kwargs):
         '''
         initializes value (angle, in radians),
             setting ("measure supplimentary angle")
@@ -2284,15 +2659,19 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
 
     def draw_props(self, layout):
-        layout.prop(self, "value")
-        layout.prop(self, "setting")
+        sub = super().draw_props(layout)
+
+        sub.prop(self, "value")
+        sub.prop(self, "setting")
+        return sub
 
     def value_placement(self, context):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
         ui_scale = context.preferences.system.ui_scale
-        coords = self.matrix_basis() @ Vector((self.draw_offset * ui_scale, 0, 0))
+        offset = ui_scale * (self.draw_offset)
+        coords = self.matrix_basis() @ Vector((offset, 0, 0))
         return location_3d_to_region_2d(region, rv3d, coords)
 
 
@@ -2401,7 +2780,7 @@ def connection_point(seg_1, seg_2):
     for p in seg_2.connection_points():
         if p in points:
             return p
-    return None
+    return []
 
 
 class SlvsTangent(GenericConstraint, PropertyGroup):
@@ -2587,15 +2966,16 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
             group=group,
         )
 
-    def init_props(self):
+    def init_props(self, **kwargs):
         line1, line2 = self.entity1, self.entity2
 
         value = line1.length / line2.length
         return value, None
 
     def draw_props(self, layout):
-        layout.prop(self, "value")
-
+        sub = super().draw_props(layout)
+        sub.prop(self, "value")
+        return sub
 
 slvs_entity_pointer(SlvsRatio, "entity1")
 slvs_entity_pointer(SlvsRatio, "entity2")
