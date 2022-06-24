@@ -192,21 +192,20 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         text = _get_formatted_value(context, constr)
         font_id = 0
         dpi = context.preferences.system.dpi
+        text_size = prefs.text_size
 
         blf.color(font_id, *color)
-        blf.size(font_id, prefs.text_size, dpi)
+        blf.size(font_id, text_size, dpi)
         self.width, self.height = blf.dimensions(font_id, text)
 
-        margin = math.copysign(
-            self.width / dpi,
-            constr.draw_offset
-        )
-        pos = constr.value_placement(context, margin)
+        margin = text_size / 4
+
+        pos = constr.value_placement(context)
         if not pos:
             return
         self.matrix_basis = Matrix.Translation(pos.to_3d()) # Update Matrix for selection
 
-        blf.position(font_id, pos[0]-self.width/2, pos[1]-self.height/2, 0)
+        blf.position(font_id, pos[0]-self.width/2, pos[1] + margin, 0)
         blf.draw(font_id, text)
 
     def setup(self):
@@ -477,7 +476,7 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
 
         if constr.setting:
             # RADIUS_MODE:
-            #   drawn inside and outside as a single segment 
+            #   drawn inside and outside as a single segment
             if constr.draw_inside:
                 coords = (
                     *draw_arrow_shape(
