@@ -1023,6 +1023,10 @@ class StatefulOperator:
 
     def check_event(self, event):
         state = self.state
+
+        if event.type == "LEFT_SHIFT":
+            bpy.context.scene.sketcher.selectable_constraints = event.value == "RELEASE"
+
         if (
             event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER")
             and event.value == "PRESS"

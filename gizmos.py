@@ -114,6 +114,9 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
             self.matrix_basis = mat
 
     def test_select(self, context, location):
+        if not context.scene.sketcher.selectable_constraints:
+            return -1
+
         location = Vector(location).to_3d()
         location -= self.matrix_basis.translation
         location *= 1.0 / self.scale_basis
@@ -173,6 +176,9 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
     )
 
     def test_select(self, context, location):
+        if not context.scene.sketcher.selectable_constraints:
+            return -1
+
         coords = Vector(location) - self.matrix_basis.translation.to_2d()
 
         width, height = self.width, self.height
@@ -231,6 +237,9 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
         self.draw_custom_shape(self.custom_shape)
 
     def draw_select(self, context, select_id):
+        if not context.scene.sketcher.selectable_constraints:
+            return
+
         constr = self._get_constraint(context)
         if not constr.visible:
             return
@@ -297,7 +306,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
         offset = self.target_get_value("offset")
         entity1, entity2 = constr.entity1, constr.entity2
         if entity1.is_line():
-            entity1, entity2 = entity1.p1, entity1.p2 
+            entity1, entity2 = entity1.p1, entity1.p2
 
         # Get constraints points in local space and adjust helplines based on their position
         mat_inv = constr.matrix_basis().inverted()
