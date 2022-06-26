@@ -3210,6 +3210,8 @@ class GenericConstraintOp(GenericEntityOp):
             else:
                 types = cls_constraint.signature[i]
 
+            if not types:
+                break
 
             states.append(
                 state_from_args(

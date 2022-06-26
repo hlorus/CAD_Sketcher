@@ -2649,7 +2649,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         )
         dist = max(
             (line1.midpoint() - origin).length,
-            (line2.midpoint() - origin).length, 
+            (line2.midpoint() - origin).length,
             0.5
         )
         self.draw_offset = dist if not setting else -dist
@@ -2713,18 +2713,33 @@ class SlvsHorizontal(GenericConstraint, PropertyGroup):
 
     type = "HORIZONTAL"
     label = "Horizontal"
-    signature = ((SlvsLine2D,),)
+    signature = ((SlvsLine2D, SlvsPoint2D), (SlvsPoint2D,))
+
+    @classmethod
+    def get_types(cls, index, entities):
+        if index == 1:
+            # return None if first entity is line
+            if entities[0] and entities[0].is_line():
+                return None
+
+        return cls.signature[index]
 
     def needs_wp(self):
         return WpReq.NOT_FREE
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+        wp = self.get_workplane()
+        if self.entity1.is_point():
+            return solvesys.addPointsHorizontal(
+                self.entity1.py_data, self.entity2.py_data, wp, group=group
+            )
         return solvesys.addLineHorizontal(
-            self.entity1.py_data, wrkpln=self.get_workplane(), group=group
+            self.entity1.py_data, wrkpln=wp, group=group
         )
 
 
 slvs_entity_pointer(SlvsHorizontal, "entity1")
+slvs_entity_pointer(SlvsHorizontal, "entity2")
 slvs_entity_pointer(SlvsHorizontal, "sketch")
 
 
@@ -2735,18 +2750,33 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
 
     type = "VERTICAL"
     label = "Vertical"
-    signature = ((SlvsLine2D,),)
+    signature = ((SlvsLine2D, SlvsPoint2D), (SlvsPoint2D,))
+
+    @classmethod
+    def get_types(cls, index, entities):
+        if index == 1:
+            # return None if first entity is line
+            if entities[0] and entities[0].is_line():
+                return None
+
+        return cls.signature[index]
 
     def needs_wp(self):
         return WpReq.NOT_FREE
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+        wp = self.get_workplane()
+        if self.entity1.is_point():
+            return solvesys.addPointsVertical(
+                self.entity1.py_data, self.entity2.py_data, wp, group=group
+            )
         return solvesys.addLineVertical(
-            self.entity1.py_data, wrkpln=self.get_workplane(), group=group
+            self.entity1.py_data, wrkpln=wp, group=group
         )
 
 
 slvs_entity_pointer(SlvsVertical, "entity1")
+slvs_entity_pointer(SlvsVertical, "entity2")
 slvs_entity_pointer(SlvsVertical, "sketch")
 
 
