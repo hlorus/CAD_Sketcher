@@ -3206,7 +3206,7 @@ class GenericConstraintOp(GenericEntityOp):
         for i, _ in enumerate(cls_constraint.signature):
             name_index = i + 1
             if hasattr(cls_constraint, "get_types") and operator:
-                types = cls_constraint.get_types(i, *operator._available_entities())
+                types = cls_constraint.get_types(i, operator._available_entities())
             else:
                 types = cls_constraint.signature[i]
 
