@@ -295,8 +295,9 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
         ui_scale = context.preferences.system.ui_scale
         dist = constr.value / 2 / ui_scale
         offset = self.target_get_value("offset")
-        entity1 = constr.entity1
-        entity2 = constr.entity2
+        entity1, entity2 = constr.entity1, constr.entity2
+        if entity1.is_line():
+            entity1, entity2 = entity1.p1, entity1.p2 
 
         # Get constraints points in local space and adjust helplines based on their position
         mat_inv = constr.matrix_basis().inverted()
