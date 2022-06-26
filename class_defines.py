@@ -2254,16 +2254,19 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     align: EnumProperty(name="Align", items=align_items, update=update_system_cb,)
     type = "DISTANCE"
-    signature = (point, (*point, *line, SlvsWorkplane))
+    signature = ((*point, *line), (*point, *line, SlvsWorkplane))
 
     @classmethod
     def get_types(cls, index, entities):
         e = entities[1] if index == 0 else entities[0]
+
         if e:
+            if index == 1 and e.is_line():
+                # Allow constraining a single line
+                return None
             if e.is_3d():
                 return ((SlvsPoint3D, ), (SlvsPoint3D, SlvsLine3D, SlvsWorkplane))[index]
-            else:
-                return (point_2d, (*point_2d, SlvsLine2D))[index]
+            return (point_2d, (*point_2d, SlvsLine2D))[index]
         return cls.signature[index]
 
     def needs_wp(self):
@@ -2276,7 +2279,9 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         return type(self.entity2) in (*line, SlvsWorkplane)
 
     def use_align(self):
-        return type(self.entity2) in point
+        if type(self.entity2) in (*line, SlvsWorkplane):
+            return False
+        return True
 
     def get_value(self):
         value = self.value
@@ -2289,6 +2294,8 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             raise AttributeError("Cannot create constraint between one entity itself")
 
         e1, e2 = self.entity1, self.entity2
+        if e1.is_line():
+            e1, e2 = e1.p1, e1.p2
 
         func = None
         set_wp = False
@@ -2334,17 +2341,21 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         return func(value, e1.py_data, e2.py_data, **kwargs)
 
     def matrix_basis(self):
-        if self.sketch_i == -1 or not isinstance(self.entity1, SlvsPoint2D):
+        if self.sketch_i == -1 or not self.entity1.is_2d():
             # TODO: Support distance in 3d
             return Matrix()
+
+        e1, e2 = self.entity1, self.entity2
+        if e1.is_line():
+            e1, e2 = e1.p1, e1.p2
 
         sketch = self.sketch
         x_axis = Vector((1, 0))
         alignment = self.align
         align = alignment != "NONE"
 
-        if type(self.entity2) in point_2d:
-            p1, p2 = self.entity1.co, self.entity2.co
+        if type(e2) in point_2d:
+            p1, p2 = e1.co, e2.co
             if align:
                 v_rotation = Vector((1.0, 0.0)) if alignment == "HORIZONTAL" else Vector((0.0, 1.0))
             else:
@@ -2354,14 +2365,14 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             angle = v_rotation.angle_signed(x_axis)
             mat_rot = Matrix.Rotation(angle, 2, "Z")
 
-        elif isinstance(self.entity2, SlvsLine2D):
-            line = self.entity2
+        elif isinstance(e2, SlvsLine2D):
+            line = e2
             orig = line.p1.co
             end = line.p2.co - orig
             angle = functions.range_2pi(math.atan2(end[1], end[0])) + math.pi / 2
 
             mat_rot = Matrix.Rotation(angle, 2, "Z")
-            p1 = self.entity1.co - orig
+            p1 = e1.co - orig
             v_translation = (p1 + p1.project(end)) / 2 + orig
 
         mat_local = Matrix.Translation(v_translation.to_3d()) @ mat_rot.to_4x4()
@@ -2370,7 +2381,9 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     def init_props(self, **kwargs):
         # Set initial distance value to the current spacing
         e1, e2 = self.entity1, self.entity2
-        if isinstance(e2, SlvsWorkplane):
+        if e1.is_line():
+            value = e1.length
+        elif isinstance(e2, SlvsWorkplane):
             # Returns the signed distance to the plane
             value = distance_point_to_plane(e1.location, e2.p1.location, e2.normal)
         elif type(e2) in line:
