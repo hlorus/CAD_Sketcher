@@ -2157,8 +2157,8 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
     signature = (line_arc_circle, line_arc_circle)
 
     @classmethod
-    def get_types(cls, index, e1, e2):
-        e = e2 if index == 0 else e1
+    def get_types(cls, index, entities):
+        e = entities[1] if index == 0 else entities[0]
         if e:
             if type(e) in (SlvsLine2D, SlvsArc):
                 return (SlvsLine2D, SlvsArc)
@@ -2257,8 +2257,8 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     signature = (point, (*point, *line, SlvsWorkplane))
 
     @classmethod
-    def get_types(cls, index, e1, e2):
-        e = e2 if index == 0 else e1
+    def get_types(cls, index, entities):
+        e = entities[1] if index == 0 else entities[0]
         if e:
             if e.is_3d():
                 return ((SlvsPoint3D, ), (SlvsPoint3D, SlvsLine3D, SlvsWorkplane))[index]
