@@ -20,6 +20,18 @@ def tool_numeric_invoke_km(operator):
         )
     return km
 
+generic_keymap = (
+    (
+        "wm.context_set_boolean",
+        {"type": "LEFT_SHIFT", "value": "PRESS"},
+        {"properties": [("data_path", "scene.sketcher.selectable_constraints"), ("value", False)]}
+    ),
+    (
+        "wm.context_set_boolean",
+        {"type": "LEFT_SHIFT", "value": "RELEASE"},
+        {"properties": [("data_path", "scene.sketcher.selectable_constraints"), ("value", True)]}
+    ),
+)
 
 class VIEW3D_T_slvs_select(WorkSpaceTool):
     bl_space_type = "VIEW_3D"
@@ -30,6 +42,7 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
     bl_icon = "ops.generic.select"
     bl_widget = GizmoGroups.Preselection
     bl_keymap = (
+        *generic_keymap,
         (
             Operators.SelectAll,
             {"type": "ESC", "value": "PRESS"},
@@ -42,7 +55,7 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
         ),
         (
             Operators.Select,
-            {"type": "LEFTMOUSE", "value": "CLICK"},
+            {"type": "LEFTMOUSE", "value": "CLICK", "any":True},
             None,
         ),
         (
@@ -73,6 +86,7 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
 
 
 tool_keymap = (
+    *generic_keymap,
     (
         "wm.tool_set_by_id",
         {"type": "ESC", "value": "PRESS"},
@@ -91,7 +105,7 @@ def operator_access(operator):
         *tool_numeric_invoke_km(operator),
         (
             operator,
-            {"type": "LEFTMOUSE", "value": "PRESS"},
+            {"type": "LEFTMOUSE", "value": "PRESS", "any": True},
             {"properties": [("wait_for_input", False)]},
         ),
     )
@@ -108,7 +122,7 @@ class GenericStateTool():
             desc = _bpy.ops.get_rna_type(op_name).description
 
         return desc
-    
+
     def get_label(id_name, label):
         def _filter_key_map(id_name, key_map):
             properties = key_map[2]["properties"]

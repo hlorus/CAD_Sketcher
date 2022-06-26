@@ -3390,6 +3390,7 @@ class SketcherProps(PropertyGroup):
     entities: PointerProperty(type=SlvsEntities)
     constraints: PointerProperty(type=SlvsConstraints)
     show_origin: BoolProperty(name="Show Origin Entities")
+    selectable_constraints: BoolProperty(name="Constraints Selectability", default=True, options={"SKIP_SAVE"})
 
 
     version: IntVectorProperty(
