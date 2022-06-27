@@ -2236,20 +2236,13 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         sse = context.scene.sketcher.entities
         sketch = sse.add_sketch(self.wp)
 
-        #Align view to normal of wp
-        n = Vector((self.wp.normal.x,self.wp.normal.y,-self.wp.normal.z))
-        v = Vector((0,0,1))        
-        quat = n.rotation_difference(v)
-        context.region_data.view_rotation = quat
-        context.region_data.view_location = self.wp.p1.location #lookat this point
-        context.region_data.view_distance = 6 # from this far away
-        
         # Add point at origin
         # NOTE: Maybe this could create a reference entity of the main origin?
         p = sse.add_point_2d((0.0, 0.0), sketch)
         p.fixed = True
 
-        context.scene.sketcher.active_sketch = sketch
+        activate_sketch(context, sketch.slvs_index, self)
+
         self.target = sketch
         return True
 
@@ -2719,6 +2712,26 @@ class View3D_OT_invoke_tool(Operator):
             op("INVOKE_DEFAULT", **options)
         return {"FINISHED"}
 
+SMOOTHVIEW_FACTOR = 0
+def align_view(rv3d, mat_start, mat_end):
+
+    global SMOOTHVIEW_FACTOR
+    SMOOTHVIEW_FACTOR = 0
+    time_step = 0.01
+    increment = 0.01
+
+    def move_view():
+        global SMOOTHVIEW_FACTOR
+        SMOOTHVIEW_FACTOR += increment
+        mat = mat_start.lerp(mat_end, SMOOTHVIEW_FACTOR)
+        rv3d.view_matrix = mat
+
+        if SMOOTHVIEW_FACTOR < 1:
+            return time_step
+
+    bpy.app.timers.register(move_view)
+
+    # rv3d.view_distance = 6
 
 def activate_sketch(context, index, operator):
     props = context.scene.sketcher
@@ -2727,6 +2740,7 @@ def activate_sketch(context, index, operator):
         return {"CANCELLED"}
 
     space_data = context.space_data
+    rv3d = context.region_data
 
     sk = None
     if index != -1:
@@ -2734,26 +2748,32 @@ def activate_sketch(context, index, operator):
         if not sk:
             operator.report({"ERROR"}, "Invalid index: {}".format(index))
             return {"CANCELLED"}
-        
+
         space_data.show_object_viewport_curve = False
         space_data.show_object_viewport_mesh = False
-        
+        rv3d.view_perspective = "ORTHO"
+
         #Align view to normal of wp
-        n = Vector((sk.wp.normal.x,sk.wp.normal.y,-sk.wp.normal.z))
-        v = Vector((0,0,1))        
-        quat = n.rotation_difference(v)
-        context.region_data.view_rotation = quat
-        context.region_data.view_location = sk.wp.p1.location #lookat this point
-        context.region_data.view_distance = 6 # from this far away
+        if functions.get_prefs().use_align_view:
+            matrix_target = sk.wp.matrix_basis.inverted()
+            matrix_start = rv3d.view_matrix
+            align_view(rv3d, matrix_start, matrix_target)
 
     else:
+        #Reset view
+        if functions.get_prefs().use_align_view:
+            matrix_start = rv3d.view_matrix
+            matrix_default = Matrix((
+                (0.4100283980369568, 0.9119764566421509, -0.013264661654829979, 0.0),
+                (-0.4017425775527954, 0.19364342093467712, 0.8950449228286743, 0.0),
+                (0.8188283443450928, -0.36166495084762573, 0.44577890634536743, -17.986562728881836),
+                (0.0, 0.0, 0.0, 1.0)
+            ))
+            align_view(rv3d, matrix_start, matrix_default)
+
         space_data.show_object_viewport_curve = True
         space_data.show_object_viewport_mesh = True
-        
-        #Reset view
-        context.region_data.view_rotation = (Euler((0.7854,0,0.7854*3),'XYZ').to_quaternion())
-        context.region_data.view_location = Vector((0,0,0)) #lookat this point
-        context.region_data.view_distance = 20 # from this far away
+        rv3d.view_perspective = "PERSP"
 
     logger.debug("Activate: {}".format(sk))
     props.active_sketch_i = index
