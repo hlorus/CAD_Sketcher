@@ -154,6 +154,11 @@ class Preferences(AddonPreferences):
         default=False,
         )
     arrow_scale: FloatProperty(name="Arrow Scale", default=1, min=0.2, soft_max=3)
+    use_align_view: BoolProperty(
+        name="Align View",
+        description="Automatically align view to workplane when activating a sketch.",
+        default=False,
+        )
 
     def draw(self, context):
         layout = self.layout
@@ -189,6 +194,7 @@ class Preferences(AddonPreferences):
         col.prop(self, "text_size")
         col.prop(self, "use_align_view")
         col.prop(self, "arrow_scale")
+        col.prop(self, "use_align_view")
 
         box = layout.box()
         box.label(text="Units")
