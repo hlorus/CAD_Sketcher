@@ -25,7 +25,7 @@ from typing import Union, Tuple, Type, Callable, Mapping
 
 from .shaders import Shaders
 from .solver import solve_system, Solver
-from .functions import unique_attribute_setter
+from .functions import pol2cart, unique_attribute_setter
 from .declarations import Operators
 
 logger = logging.getLogger(__name__)
@@ -2262,8 +2262,9 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         set=set_distance_value,
     )
     flip: BoolProperty(name="Flip", update=GenericConstraint.update_system_cb)
-    draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     align: EnumProperty(name="Align", items=align_items, update=GenericConstraint.update_system_cb,)
+    draw_offset: FloatProperty(name="Draw Offset", default=0.3)
+    draw_outset: FloatProperty(name="Draw Outset", default=0.0)
     type = "DISTANCE"
     signature = ((*point, *line), (*point, *line, SlvsWorkplane))
 
@@ -2340,7 +2341,6 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             else:
                 func = solvesys.addPointsDistance
             set_wp = True
-
 
         kwargs = {
             "group": group,
@@ -2425,8 +2425,12 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         self.value = value
         return value, None
 
+    def text_inside(self, ui_scale):
+        return (ui_scale * abs(self.draw_outset)) < self.value/2
+
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = pos[1] / ui_scale
+        self.draw_outset = pos[0] / ui_scale
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)
@@ -2447,14 +2451,15 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
         return sub
 
-
     def value_placement(self, context):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
         ui_scale = context.preferences.system.ui_scale
-        offset = ui_scale * (self.draw_offset)
-        coords = self.matrix_basis() @ Vector((0, offset, 0))
+
+        offset = ui_scale * self.draw_offset
+        outset = ui_scale * self.draw_outset
+        coords = self.matrix_basis() @ Vector((outset, offset, 0))
         return location_3d_to_region_2d(region, rv3d, coords)
 
 slvs_entity_pointer(SlvsDistance, "entity1")
@@ -2489,7 +2494,6 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     )
     setting: BoolProperty(name="Use Radius", get=use_radius_getter, set=use_radius_setter)
     leader_angle: FloatProperty(name="Leader Angle", default=45, subtype="ANGLE")
-    draw_inside: BoolProperty(name="Draw Inside", default=True)
     draw_offset: FloatProperty(name="Draw Offset", default=0)
     type = "DIAMETER"
     signature = (curve,)
@@ -2530,18 +2534,18 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     def matrix_basis(self):
         if self.sketch_i == -1:
             return Matrix()
-
         sketch = self.sketch
-
         origin = self.entity1.ct.co
         rotation = functions.range_2pi(math.radians(self.leader_angle))
         mat_local = Matrix.Translation(origin.to_3d())
         return sketch.wp.matrix_basis @ mat_local
 
+    def text_inside(self):
+        return self.draw_offset < self.radius
+
     def update_draw_offset(self, pos, ui_scale):
-        self.leader_angle = math.atan2(pos[1], pos[0])
-        self.draw_inside = True if pos.length < self.radius else False
         self.draw_offset = pos.length
+        self.leader_angle = math.atan2(pos.y, pos.x)
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)
@@ -2583,6 +2587,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     )
     setting: BoolProperty(name="Measure supplementary angle", get=invert_angle_getter, set=invert_angle_setter)
     draw_offset: FloatProperty(name="Draw Offset", default=1)
+    draw_outset: FloatProperty(name="Draw Outset", default=0)
     type = "ANGLE"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
 
@@ -2674,12 +2679,15 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         self.draw_offset = dist if not setting else -dist
         return math.radians(angle), setting
 
+    def text_inside(self):
+        return abs(self.draw_outset) < (self.value/2)
+
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
+        self.draw_outset = math.atan(pos.y / pos.x)
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)
-
         sub.prop(self, "value")
         sub.prop(self, "setting")
         return sub
@@ -2689,8 +2697,11 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         region = context.region
         rv3d = context.space_data.region_3d
         ui_scale = context.preferences.system.ui_scale
-        offset = ui_scale * (self.draw_offset)
-        coords = self.matrix_basis() @ Vector((offset, 0, 0))
+
+        offset = ui_scale * self.draw_offset
+        outset = self.draw_outset
+        co = pol2cart(offset, outset)
+        coords = self.matrix_basis() @ Vector((co[0], co[1], 0))
         return location_3d_to_region_2d(region, rv3d, coords)
 
 
