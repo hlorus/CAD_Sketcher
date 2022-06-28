@@ -410,6 +410,7 @@ def unique_attribute_setter(self, name: str, value: Any):
 
 
 def breakdown_index(index: int):
+    # See SlvsEntities._set_index for the reverse operation
     type_index = index >> 20
     local_index = index & 0xFFFFF
     return type_index, local_index

@@ -743,7 +743,6 @@ class StatefulOperator:
         for a in annotations.keys():
             if hasattr(cls, a):
                 raise NameError("Cannot register implicit pointer properties, class {} already has attribute of name {}".format(cls, a))
-        setattr(cls, "__annotations__", annotations)
 
 
     def state_property(self, state_index):
