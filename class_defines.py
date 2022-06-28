@@ -2254,12 +2254,11 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     align: EnumProperty(name="Align", items=align_items, update=update_system_cb,)
     type = "DISTANCE"
-    signature = ((*point, *line), (*point, *line, SlvsWorkplane))
+    signature = ((*point, *line, SlvsCircle), (*point, *line, SlvsWorkplane))
 
     @classmethod
     def get_types(cls, index, entities):
         e = entities[1] if index == 0 else entities[0]
-
         if e:
             if index == 1 and e.is_line():
                 # Allow constraining a single line
@@ -2346,7 +2345,9 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             return Matrix()
 
         e1, e2 = self.entity1, self.entity2
-        if e1.is_line():
+        if e1.is_curve():
+            return Matrix()
+        elif e1.is_line():
             e1, e2 = e1.p1, e1.p2
 
         sketch = self.sketch
@@ -2372,6 +2373,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             angle = functions.range_2pi(math.atan2(end[1], end[0])) + math.pi / 2
 
             mat_rot = Matrix.Rotation(angle, 2, "Z")
+
             p1 = e1.co - orig
             v_translation = (p1 + p1.project(end)) / 2 + orig
 
@@ -2379,9 +2381,57 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         return sketch.wp.matrix_basis @ mat_local
 
     def init_props(self, **kwargs):
-        # Set initial distance value to the current spacing
+        ''' 
+        Set initial distance value to the current spacing
+        '''
         e1, e2 = self.entity1, self.entity2
-        if e1.is_line():
+        if isinstance(e1, SlvsCircle):
+            # There is no native support in solvesys/py-slvs
+            # for a Distance from Circle to Line.
+            # We must create the necessary entities and constraints
+
+            scene = bpy.context.scene
+            sketcher = scene.sketcher
+            sketch = sketcher.active_sketch
+            entities = sketcher.entities
+            constraints = sketcher.constraints
+
+            if e2.is_line():
+                coords = (e2.p1.co + e2.p2.co) / 2
+                p_end = entities.add_point_2d(coords, sketch)
+                p_end.construction = True
+                p_end.visible = False
+                p_end.name = "hidden end point"
+                constr = constraints.add_coincident(p_end, e2, sketch)
+                constr.visible = False
+            else:
+                p_end = e2
+
+            hidden_line = entities.add_line_2d(e1.ct, p_end, sketch)
+            hidden_line.construction = True
+            hidden_line.visible = False
+            hidden_line.name = "hidden construction line"
+            if e2.is_line():
+                constr = constraints.add_perpendicular(hidden_line, e2, sketch)
+                constr.visible = False
+
+            coords = (hidden_line.p1.co + hidden_line.p2.co) / 2
+            p_start = entities.add_point_2d(coords, sketch)
+            p_start.construction = True
+            p_start.visible = False
+            p_start.name = "hidden start point"
+            constr = constraints.add_coincident(p_start, hidden_line, sketch)
+            constr.visible = False
+            constr = constraints.add_coincident(p_start, e1, sketch)
+            constr.visible = False
+
+            # here we play a trick on the operator, replacing the Circle and Line it thought
+            # it was constraining with our new pair of points
+            self.entity1 = p_start
+            self.entity2 = p_end
+            value = (p_end.location - p_start.location).length
+
+        elif e1.is_line():
             value = e1.length
         elif isinstance(e2, SlvsWorkplane):
             # Returns the signed distance to the plane
@@ -2733,7 +2783,6 @@ class SlvsHorizontal(GenericConstraint, PropertyGroup):
             # return None if first entity is line
             if entities[0] and entities[0].is_line():
                 return None
-
         return cls.signature[index]
 
     def needs_wp(self):
@@ -2770,7 +2819,6 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
             # return None if first entity is line
             if entities[0] and entities[0].is_line():
                 return None
-
         return cls.signature[index]
 
     def needs_wp(self):
