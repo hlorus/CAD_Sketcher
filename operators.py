@@ -4,6 +4,7 @@ from bpy.types import Operator
 from . import global_data, functions, class_defines, convertors
 from .keymaps import get_key_map_desc
 from .declarations import Operators, GizmoGroups, VisibilityTypes, WorkSpaceTools
+from . import preferences
 
 from bpy.props import (
     IntProperty,
@@ -3016,6 +3017,7 @@ def activate_sketch(context, index, operator):
     rv3d = context.region_data
 
     sk = None
+    do_align_view = preferences.use_experimental("use_align_view", False)
     if index != -1:
         sk = context.scene.sketcher.entities.get(index)
         if not sk:
@@ -3024,17 +3026,18 @@ def activate_sketch(context, index, operator):
 
         space_data.show_object_viewport_curve = False
         space_data.show_object_viewport_mesh = False
-        rv3d.view_perspective = "ORTHO"
 
         #Align view to normal of wp
-        if functions.get_prefs().use_align_view:
+        if do_align_view:
             matrix_target = sk.wp.matrix_basis.inverted()
             matrix_start = rv3d.view_matrix
             align_view(rv3d, matrix_start, matrix_target)
+            rv3d.view_perspective = "ORTHO"
 
     else:
         #Reset view
-        if functions.get_prefs().use_align_view:
+        if do_align_view:
+            rv3d.view_distance = 18
             matrix_start = rv3d.view_matrix
             matrix_default = Matrix((
                 (0.4100283980369568, 0.9119764566421509, -0.013264661654829979, 0.0),
@@ -3043,10 +3046,10 @@ def activate_sketch(context, index, operator):
                 (0.0, 0.0, 0.0, 1.0)
             ))
             align_view(rv3d, matrix_start, matrix_default)
+            rv3d.view_perspective = "PERSP"
 
         space_data.show_object_viewport_curve = True
         space_data.show_object_viewport_mesh = True
-        rv3d.view_perspective = "PERSP"
 
     last_sketch = context.scene.sketcher.active_sketch
     logger.debug("Activate: {}".format(sk))

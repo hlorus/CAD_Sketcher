@@ -100,6 +100,13 @@ def get_scale():
 def is_experimental():
     return get_prefs().show_debug_settings
 
+def use_experimental(setting, fallback):
+    """Ensure experimental setting is unused when not in experimental mode"""
+    if not is_experimental():
+        return fallback
+    prefs = get_prefs()
+    return getattr(prefs, setting)
+
 
 class Preferences(AddonPreferences):
     bl_idname = __package__
