@@ -1934,6 +1934,8 @@ class GenericConstraint:
     failed: BoolProperty(name="Failed")
     visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
     signature = ()
+    entity_delete = [] # store temporary entities
+    constr_delete = [] # store temp constraints
 
     def needs_wp(args):
         return WpReq.OPTIONAL
@@ -2390,8 +2392,8 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             # for a Distance from Circle to Line.
             # We must create the necessary entities and constraints
 
-            scene = bpy.context.scene
-            sketcher = scene.sketcher
+            sketcher = bpy.context.scene.sketcher
+
             sketch = sketcher.active_sketch
             entities = sketcher.entities
             constraints = sketcher.constraints
@@ -2402,8 +2404,10 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
                 p_end.construction = True
                 p_end.visible = False
                 p_end.name = "hidden end point"
+
                 constr = constraints.add_coincident(p_end, e2, sketch)
                 constr.visible = False
+                self.constr_delete.append(constr)
             else:
                 p_end = e2
 
@@ -2411,19 +2415,29 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             hidden_line.construction = True
             hidden_line.visible = False
             hidden_line.name = "hidden construction line"
+
             if e2.is_line():
                 constr = constraints.add_perpendicular(hidden_line, e2, sketch)
                 constr.visible = False
+                self.constr_delete.append(constr)
 
-            coords = (hidden_line.p1.co + hidden_line.p2.co) / 2
+            coords = (hidden_line.p1.co + hidden_line.p2.co) / 2 # midpoint is reliable
             p_start = entities.add_point_2d(coords, sketch)
             p_start.construction = True
             p_start.visible = False
             p_start.name = "hidden start point"
+
+            self.entity_delete.append(p_start.slvs_index)
+            self.entity_delete.append(p_end.slvs_index)
+            self.entity_delete.append(hidden_line.slvs_index)
+
             constr = constraints.add_coincident(p_start, hidden_line, sketch)
             constr.visible = False
+            self.constr_delete.append(constr)
+
             constr = constraints.add_coincident(p_start, e1, sketch)
             constr.visible = False
+            self.constr_delete.append(constr)
 
             # here we play a trick on the operator, replacing the Circle and Line it thought
             # it was constraining with our new pair of points

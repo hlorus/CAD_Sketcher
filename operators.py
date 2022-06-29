@@ -3549,6 +3549,14 @@ class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
         constr = constraints.get_from_type_index(self.type, self.index)
         logger.debug("Delete: {}".format(constr))
 
+        for c in constr.constr_delete:
+            constraints.remove(c)
+        constr.constr_delete.clear()
+
+        for e in constr.entity_delete:
+            context.scene.sketcher.entities.remove(e)
+        constr.entity_delete.clear()
+
         constraints.remove(constr)
 
         sketch = context.scene.sketcher.active_sketch
