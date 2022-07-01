@@ -2254,7 +2254,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     align: EnumProperty(name="Align", items=align_items, update=update_system_cb,)
     type = "DISTANCE"
-    signature = ((*point, *line), (*point, *line, SlvsWorkplane))
+    signature = ((*point, *line, SlvsCircle, SlvsArc), (*point, *line, SlvsWorkplane))
 
     @classmethod
     def get_types(cls, index, entities):
