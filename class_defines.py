@@ -2310,13 +2310,27 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         # circle/arc -> line/point
         if type(e1) in curve:
             p_center = e1.ct.co
-            params = [solvesys.addParamV(v, group) for v in p_center]
-            h_pt_on_circle = solvesys.addPoint2d(wp, *params, group)    #            handles.append(h_pt_on_circle)
-            h_pt_on_line = solvesys.addPoint2d(wp, *params, group)      #            handles.append(h_pt_on_line)
-            make_coincident(solvesys, h_pt_on_circle, e1, wp, group)
-            handle = solvesys.addPointsDistance(value, h_pt_on_circle, h_pt_on_line, wp, group)
+            h_center = e1.py_data
+
+            if type(e2) in line:
+                endpoint, whatever = intersect_point_line(p_center, e2.p1.co, e2.p2.co)
+                params = [solvesys.addParamV(v, group) for v in endpoint]
+                h_endpoint = solvesys.addPoint2d(wp, *params, group)      #            handles.append(h_pt_on_line)
+            else:
+                assert(isinstance(e2, SlvsPoint2D))
+                endpoint = e2.co
+                params = [solvesys.addParamV(v, group) for v in endpoint]
+                h_endpoint = e2.py_data
+            handles.append(h_endpoint)
+
+            h_pt = solvesys.addPoint2d(wp, *params, group)
+            h_startpoint = solvesys.addPointOnCircle(h_pt, h_center, group)
+            handles.append(h_startpoint)
+
+            handle = solvesys.addPointsDistance(value, h_startpoint, h_endpoint, wp, group)
             self.py_data = handle
-            return handle
+            handles.append(handle)
+            return handles
         elif type(e2) in line:
             func = solvesys.addPointLineDistance
             set_wp = True
