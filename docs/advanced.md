@@ -49,11 +49,14 @@ In order to contribute either post a pull request with your changes on
 
 ### Development
 If you'd like to help with development simply submit pull requests or reach out on
-[discord](https://discord.gg/GzpJsShgxa), twitter or email.
+[discord](https://discord.gg/GzpJsShgxa), or [github](https://github.com/hlorus/CAD_Sketcher).
 
-You can take a look at the code reference however a lot of it is still WIP.
-[Code Reference](reference.md)
+Take a look at the existing [code documentation](code_docs.md), this isn't complete yet,
+if you are missing some specific information feel free to ask in the discord's contribute channel.
 
-<!-- TODO: Workboard -->
+Have a look at the open issues on [github](https://github.com/hlorus/CAD_Sketcher/issues).
+Some of them are alos marked with the "good first issue" tag, see [here](https://github.com/hlorus/CAD_Sketcher/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). Also take a look at
+the [raodmap](https://github.com/users/hlorus/projects/1) to see where the priority
+currently lies.
 
 <!-- ### Donate -->
