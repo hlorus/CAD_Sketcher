@@ -18,7 +18,7 @@ from gpu_extras.batch import batch_for_shader
 from . import global_data
 
 from bpy_extras.view3d_utils import location_3d_to_region_2d
-import math, mathutils
+import math, mathutils, mathutils.geometry
 
 from .shaders import Shaders
 from .solver import solve_system, Solver
@@ -2297,6 +2297,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         e1, e2 = self.entity1, self.entity2
         if e1.is_line():
             e1, e2 = e1.p1, e1.p2
+        wp = self.get_workplane()
 
         func = None
         set_wp = False
@@ -2306,11 +2307,24 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
         value = self.get_value()
 
-        if type(e2) in line:
+        # circle/arc -> line/point
+        if isinstance(e1, SlvsCircle):
+            p_center = e1.ct.co
+            params = [solvesys.addParamV(v, group) for v in p_center]
+            h_pt_on_circle = solvesys.addPoint2d(wp, *params, group)    #            handles.append(h_pt_on_circle)
+            h_pt_on_line = solvesys.addPoint2d(wp, *params, group)      #            handles.append(h_pt_on_line)
+            make_coincident(solvesys, h_pt_on_circle, e1, wp, group)
+            handle = solvesys.addPointsDistance(value, h_pt_on_circle, h_pt_on_line, wp, group)
+            self.py_data = handle
+            return handle
+
+        elif type(e2) in line:
             func = solvesys.addPointLineDistance
             set_wp = True
+
         elif isinstance(e2, SlvsWorkplane):
             func = solvesys.addPointPlaneDistance
+
         elif type(e2) in point:
             if align and all([e.is_2d() for e in (e1, e2)]):
                 # Get Point in between
@@ -2331,7 +2345,6 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
                 func = solvesys.addPointsDistance
             set_wp = True
 
-
         kwargs = {
             "group": group,
         }
@@ -2341,21 +2354,35 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
         return func(value, e1.py_data, e2.py_data, **kwargs)
 
+
     def matrix_basis(self):
         if self.sketch_i == -1 or not self.entity1.is_2d():
             # TODO: Support distance in 3d
             return Matrix()
 
-        e1, e2 = self.entity1, self.entity2
-        if e1.is_curve():
-            return Matrix()
-        elif e1.is_line():
-            e1, e2 = e1.p1, e1.p2
-
         sketch = self.sketch
-        x_axis = Vector((1, 0))
         alignment = self.align
         align = alignment != "NONE"
+        x_axis = Vector((1, 0))
+
+        e1, e2 = self.entity1, self.entity2
+        curve2line = isinstance(e1, SlvsCircle)
+        if curve2line:
+            e1 = e1.ct
+        elif isinstance(e1, SlvsLine2D):
+            e1, e2 = e1.p1, e1.p2
+
+        if isinstance(e2, SlvsLine2D):
+            if curve2line:
+                e2 = e2.p1
+            else:
+                line = e2
+                orig = line.p1.co
+                end = line.p2.co - orig
+                angle = functions.range_2pi(math.atan2(end[1], end[0])) + math.pi / 2
+                mat_rot = Matrix.Rotation(angle, 2, "Z")
+                p1 = e1.co - orig
+                v_translation = (p1 + p1.project(end)) / 2 + orig
 
         if type(e2) in point_2d:
             p1, p2 = e1.co, e2.co
@@ -2363,21 +2390,9 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
                 v_rotation = Vector((1.0, 0.0)) if alignment == "HORIZONTAL" else Vector((0.0, 1.0))
             else:
                 v_rotation = p2 - p1
-            v_translation = (p2 + p1) / 2
-
             angle = v_rotation.angle_signed(x_axis)
             mat_rot = Matrix.Rotation(angle, 2, "Z")
-
-        elif isinstance(e2, SlvsLine2D):
-            line = e2
-            orig = line.p1.co
-            end = line.p2.co - orig
-            angle = functions.range_2pi(math.atan2(end[1], end[0])) + math.pi / 2
-
-            mat_rot = Matrix.Rotation(angle, 2, "Z")
-
-            p1 = e1.co - orig
-            v_translation = (p1 + p1.project(end)) / 2 + orig
+            v_translation = (p2 + p1) / 2
 
         mat_local = Matrix.Translation(v_translation.to_3d()) @ mat_rot.to_4x4()
         return sketch.wp.matrix_basis @ mat_local
@@ -2385,68 +2400,21 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     def init_props(self, **kwargs):
         ''' 
         Set initial distance value to the current spacing
+
         '''
         e1, e2 = self.entity1, self.entity2
-        if isinstance(e1, SlvsCircle):
-            # There is no native support in solvesys/py-slvs
-            # for a Distance from Circle to Line.
-            # We must create the necessary entities and constraints
 
-            sketcher = bpy.context.scene.sketcher
-
-            sketch = sketcher.active_sketch
-            entities = sketcher.entities
-            constraints = sketcher.constraints
-
-            if e2.is_line():
-                coords = (e2.p1.co + e2.p2.co) / 2
-                p_end = entities.add_point_2d(coords, sketch)
-                p_end.construction = True
-                p_end.visible = False
-                p_end.name = "hidden end point"
-
-                constr = constraints.add_coincident(p_end, e2, sketch)
-                constr.visible = False
-                self.constr_delete.append(constr)
-            else:
-                p_end = e2
-
-            hidden_line = entities.add_line_2d(e1.ct, p_end, sketch)
-            hidden_line.construction = True
-            hidden_line.visible = False
-            hidden_line.name = "hidden construction line"
-
-            if e2.is_line():
-                constr = constraints.add_perpendicular(hidden_line, e2, sketch)
-                constr.visible = False
-                self.constr_delete.append(constr)
-
-            coords = (hidden_line.p1.co + hidden_line.p2.co) / 2 # midpoint is reliable
-            p_start = entities.add_point_2d(coords, sketch)
-            p_start.construction = True
-            p_start.visible = False
-            p_start.name = "hidden start point"
-
-            self.entity_delete.append(p_start.slvs_index)
-            self.entity_delete.append(p_end.slvs_index)
-            self.entity_delete.append(hidden_line.slvs_index)
-
-            constr = constraints.add_coincident(p_start, hidden_line, sketch)
-            constr.visible = False
-            self.constr_delete.append(constr)
-
-            constr = constraints.add_coincident(p_start, e1, sketch)
-            constr.visible = False
-            self.constr_delete.append(constr)
-
-            # here we play a trick on the operator, replacing the Circle and Line it thought
-            # it was constraining with our new pair of points
-            self.entity1 = p_start
-            self.entity2 = p_end
-            value = (p_end.location - p_start.location).length
-
-        elif e1.is_line():
+        if e1.is_line():
             value = e1.length
+        elif isinstance(e1, SlvsCircle):
+            centerpoint = e1.ct.co
+            if isinstance(e2, SlvsLine2D):
+                endpoint, whatever = intersect_point_line(centerpoint, e2.p1.co, e2.p2.co)
+            else:
+                assert isinstance(e2, SlvsPoint2D)
+                endpoint = e2.co
+            value = (centerpoint - endpoint).length - e1.radius
+
         elif isinstance(e2, SlvsWorkplane):
             # Returns the signed distance to the plane
             value = distance_point_to_plane(e1.location, e2.p1.location, e2.normal)

@@ -1,8 +1,12 @@
 import bpy, bgl, gpu, blf
+
+from .solver import solve_system, Solver
+#from solver import solve_system
 from . import functions, operators, global_data, class_defines, icon_manager
 from .declarations import GizmoGroups, Gizmos, Operators
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector, Matrix
+from mathutils.geometry import intersect_point_line
 
 # NOTE: idealy gizmo would expose active element as a property and
 # operators would access hovered element from there
@@ -316,27 +320,45 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
 
         # Store the two endpoints of the helplines in local space
         points_local = []
-        points_local.append(get_local(entity1))
 
-        if type(entity2) in class_defines.point:
-            points_local.append(get_local(entity2))
-
-        elif type(entity2) in class_defines.line:
-            line_points = (get_local(entity2.p1), get_local(entity2.p2))
-            line_points_side = [pos.y - offset > 0 for pos in line_points]
-
-            x = math.copysign(dist, line_points[0].x)
-            y = offset
-
-            if line_points_side[0] != line_points_side[1]:
-                # Distance line is between line points
-                y = offset
+        if isinstance(entity1, class_defines.SlvsCircle):
+            if isinstance(entity2, class_defines.SlvsPoint2D):
+                points_local.append(get_local(entity2))
             else:
-                # Get the closest point
-                points_delta = [abs(p.y - offset) for p in line_points]
-                i = int(points_delta[0] > points_delta[1])
-                y = line_points[i].y
-            points_local.append(Vector((x, y, 0.0)))
+                assert(isinstance(entity2, class_defines.SlvsLine2D))
+                pt_on_line, whatever = intersect_point_line(entity1.ct.co, entity2.p1.co, entity2.p2.co)
+                points_local.append((mat_inv @ pt_on_line.to_3d()) / ui_scale)
+
+            #CALCULATE pt_on_circle
+            centerpoint = entity1.ct.co
+            vec_to_line = pt_on_line - centerpoint
+            pt_on_circle =  centerpoint + (entity1.radius * vec_to_line/vec_to_line.length)
+
+            pt_on_circle = 0
+            points_local.append((mat_inv @ pt_on_circle.to_3d()) / ui_scale)
+
+        else:
+            points_local.append(get_local(entity1))
+
+            if type(entity2) in class_defines.point:
+                points_local.append(get_local(entity2))
+
+            elif type(entity2) in class_defines.line:
+                line_points = (get_local(entity2.p1), get_local(entity2.p2))
+                line_points_side = [pos.y - offset > 0 for pos in line_points]
+
+                x = math.copysign(dist, line_points[0].x)
+                y = offset
+
+                if line_points_side[0] != line_points_side[1]:
+                    # Distance line is between line points
+                    y = offset
+                else:
+                    # Get the closest point
+                    points_delta = [abs(p.y - offset) for p in line_points]
+                    i = int(points_delta[0] > points_delta[1])
+                    y = line_points[i].y
+                points_local.append(Vector((x, y, 0.0)))
 
         # Pick the points based on their x location
         if points_local[0].x > points_local[1].x:
@@ -348,10 +370,10 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
         overshoot_2 = offset + get_overshoot(scale_2, point_right.y - offset)
 
         return (
-            (-dist, overshoot_1, 0.0),
-            (-dist, point_left.y, 0.0),
-            (dist, overshoot_2, 0.0),
-            (dist, point_right.y, 0.0),
+            (-dist, overshoot_1, 0.0),  # -0.5, 0.3252777, 0
+            (-dist, point_left.y, 0.0), # -0.5, 3.0, 0
+            (dist, overshoot_2, 0.0),   #  0.5, 0.3252777, 0
+            (dist, point_right.y, 0.0), #  0.5, 2.0, 0
         )
 
     def _create_shape(self, context, constr, select=False):
