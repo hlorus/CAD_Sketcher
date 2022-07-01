@@ -2300,13 +2300,24 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
         func = None
         set_wp = False
+        wp = self.get_workplane()
         alignment = self.align
         align = self.use_align() and alignment != "NONE"
         handles = []
 
         value = self.get_value()
 
-        if type(e2) in line:
+        # circle/arc -> line/point
+        if type(e1) in curve:
+            p_center = e1.ct.co
+            params = [solvesys.addParamV(v, group) for v in p_center]
+            h_pt_on_circle = solvesys.addPoint2d(wp, *params, group)    #            handles.append(h_pt_on_circle)
+            h_pt_on_line = solvesys.addPoint2d(wp, *params, group)      #            handles.append(h_pt_on_line)
+            make_coincident(solvesys, h_pt_on_circle, e1, wp, group)
+            handle = solvesys.addPointsDistance(value, h_pt_on_circle, h_pt_on_line, wp, group)
+            self.py_data = handle
+            return handle
+        elif type(e2) in line:
             func = solvesys.addPointLineDistance
             set_wp = True
         elif isinstance(e2, SlvsWorkplane):
@@ -2318,7 +2329,6 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
                 coords = (p2.x, p1.y)
 
                 params = [solvesys.addParamV(v, group) for v in coords]
-                wp = self.get_workplane()
                 p = solvesys.addPoint2d(wp, *params, group=group)
 
                 handles.append(solvesys.addPointsHorizontal(p, e2.py_data, wp, group=group))
