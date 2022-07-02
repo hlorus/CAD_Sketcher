@@ -2312,6 +2312,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
         # circle/arc -> line/point
         if type(e1) in curve:
+            # TODO: make Horizontal and Vertical alignment work
             if type(e2) in line:
                 return solvesys.addPointLineDistance(value + e1.radius, e1.ct.py_data, e2.py_data, wp, group)
             else:
