@@ -2422,7 +2422,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
                 vec = end - orig
                 angle = (math.tau/4) + functions.range_2pi(math.atan2(vec[1], vec[0]))
                 mat_rot = Matrix.Rotation(angle, 2, "Z")
-                p1 -= orig
+                p1 = p1 - orig
                 v_translation = orig + (p1 + p1.project(vec)) / 2
 
         mat_local = Matrix.Translation(v_translation.to_3d()) @ mat_rot.to_4x4()
