@@ -323,13 +323,14 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
 
             if isinstance(entity2, class_defines.SlvsPoint2D):
                 points_local.append(get_local(entity2.location))
+                targetpoint = entity2.co
             else:
                 assert(isinstance(entity2, class_defines.SlvsLine2D))
-                pt_on_line, whatever = intersect_point_line(centerpoint, entity2.p1.co, entity2.p2.co)
-                points_local.append(get_local(pt_on_line))
+                targetpoint , whatever = intersect_point_line(centerpoint, entity2.p1.co, entity2.p2.co)
+                points_local.append(get_local(targetpoint))
 
-            vec_to_line = pt_on_line - centerpoint
-            points_local.append(get_local(centerpoint + entity1.radius*vec_to_line/vec_to_line.length))
+            targetvec = targetpoint - centerpoint
+            points_local.append(get_local(centerpoint + entity1.radius*targetvec/targetvec.length))
 
         else:
             points_local.append(get_local(entity1.location))
