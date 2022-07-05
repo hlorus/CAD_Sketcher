@@ -2277,7 +2277,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
     def use_flipping(self):
         # Only use flipping for constraint between point and line/workplane
-        if self.entity1.is_curve:
+        if self.entity1.is_curve():
             return False
         return type(self.entity2) in (*line, SlvsWorkplane)
 
@@ -2379,7 +2379,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             # reframe as point->point and continue
             centerpoint = e1.ct.co
             if e2.is_line():
-                p2, whatever = intersect_point_line(centerpoint, e2.p1.co, e2.p2.co)
+                p2, _ = intersect_point_line(centerpoint, e2.p1.co, e2.p2.co)
             else:
                 assert(isinstance(e2, SlvsPoint2D))
                 p2 = e2.co
@@ -2436,7 +2436,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         elif type(e1) in curve:
             centerpoint = e1.ct.co
             if isinstance(e2, SlvsLine2D):
-                endpoint, whatever = intersect_point_line(centerpoint, e2.p1.co, e2.p2.co)
+                endpoint, _ = intersect_point_line(centerpoint, e2.p1.co, e2.p2.co)
             else:
                 assert isinstance(e2, SlvsPoint2D)
                 endpoint = e2.co
