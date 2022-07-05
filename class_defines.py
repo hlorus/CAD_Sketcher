@@ -2383,8 +2383,15 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             else:
                 assert(isinstance(e2, SlvsPoint2D))
                 p2 = e2.co
-            vec = (p2 - centerpoint) / (p2 - centerpoint).length
-            p1 = centerpoint + (e1.radius * Vector(vec))
+            if (p2 - centerpoint).length > 0:
+                vec = (p2 - centerpoint) / (p2 - centerpoint).length
+                p1 = centerpoint + (e1.radius * Vector(vec))
+            else:
+            # This is a curve->line where the centerpoint of the curve is
+            # coincident with the line.  By reassigning p1 to an endpoint
+            # of the line, we avoid p1=p2 errors and the result is
+            # (correctly) an invalid constraint
+                p1 = e2.p1.co
         elif e1.is_line():
             # reframe as point->point and continue
             e1, e2 = e1.p1, e1.p2
@@ -2393,11 +2400,10 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             assert(isinstance(e1,SlvsPoint2D))
             p1 = e1.co
 
-
-        # NOTE: p2 is still not defined if e1 is point
         if type(e2) in point_2d:
-        # this includes "Line Length" (became Point->Point)
-        # and Curve -> Point
+        # this includes "Line Length" (now point->point)
+        # and curve -> point
+            p2 = e2.co
             if not align:
                 v_rotation = p2 - p1
             else:
@@ -2407,12 +2413,17 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             v_translation = (p2 + p1) / 2
 
         elif e2.is_line():
+        # curve -> line
+        # or point -> line
             if e1.is_curve():
                 if not align:
                     v_rotation = p2 - p1
                 else:
                     v_rotation = Vector((1.0, 0.0)) if alignment == "HORIZONTAL" else Vector((0.0, 1.0))
-                angle = v_rotation.angle_signed(x_axis)
+                if v_rotation.length != 0:
+                    angle = v_rotation.angle_signed(x_axis)
+                else:
+                    angle = 0
                 mat_rot = Matrix.Rotation(angle, 2, "Z")
                 v_translation = (p2 + p1) / 2
             else:
