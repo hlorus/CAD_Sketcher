@@ -1,24 +1,14 @@
 from bpy.types import WorkSpaceTool
 import os
+
 from .declarations import GizmoGroups, Operators, WorkSpaceTools
-from .keymaps import tool_access, get_key_map_desc
-from .operators import numeric_events
+from .keymaps import tool_access
+from .stateful_operator.utilities.keymap import operator_access
+from .stateful_operator.tool import GenericStateTool
+
 
 def get_addon_icon_path(icon_name):
     return os.path.join(os.path.dirname(__file__), "icons", icon_name)
-
-
-def tool_numeric_invoke_km(operator):
-    km = []
-    for event in numeric_events:
-        km.append(
-            (
-                operator,
-                {"type": event, "value": "PRESS"},
-                None,
-            )
-        )
-    return km
 
 generic_keymap = (
     (
@@ -98,57 +88,6 @@ tool_keymap = (
         {"properties": [("name", VIEW3D_T_slvs_select.bl_idname)]},
     ),
 )
-
-
-def operator_access(operator):
-    return (
-        *tool_numeric_invoke_km(operator),
-        (
-            operator,
-            {"type": "LEFTMOUSE", "value": "PRESS", "any": True},
-            {"properties": [("wait_for_input", False)]},
-        ),
-    )
-
-def get_subclasses():
-    from .operators import StatefulOperator
-    def _get_classes(cls_list):
-        ret = []
-        for c in cls_list:
-            sub_classes = c.__subclasses__()
-            if not len(sub_classes):
-                continue
-            ret.extend(_get_classes(sub_classes))
-        return cls_list + ret
-    return _get_classes(StatefulOperator.__subclasses__())
-
-class GenericStateTool():
-
-    @classmethod
-    def bl_description(cls, context, item, keymap):
-
-        # Get description from operator
-        op_name = cls.bl_operator if hasattr(cls, "bl_operator") else ""
-        if op_name:
-            import _bpy
-
-            func = None
-            for op in get_subclasses():
-                if not hasattr(op, "bl_idname"):
-                    continue
-                if op.bl_idname != op_name:
-                    continue
-
-                func = op.description
-                break
-
-            if func:
-                return func(context, None)
-
-            rna_type = _bpy.ops.get_rna_type(op_name)
-            return rna_type.description
-        return cls.__doc__
-
 
 class View3D_T_slvs_add_point3d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"

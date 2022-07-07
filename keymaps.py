@@ -1,15 +1,7 @@
 import bpy
-from bpy.types import KeyMapItem
-from typing import List
 
 from .declarations import Operators, WorkSpaceTools
-
-def tool_invoke_kmi(button, tool, operator):
-    return (
-        Operators.InvokeTool,
-        {"type": button, "value": "PRESS"},
-        {"properties": [("tool_name", tool), ("operator", operator)]},
-    )
+from .stateful_operator.utilities.keymap import tool_invoke_kmi
 
 constraint_access = (
     (
@@ -131,74 +123,6 @@ tool_access = (
 )
 
 addon_keymaps = []
-
-def _get_key_hint(kmi):
-    """
-    Returns a string representing the keymap item in the form:
-    "ctrl + alt + shift + key"
-    """
-
-    modifiers = {"ctrl": "Ctrl", "alt": "Alt", "shift": "Shift"}
-
-    elements = []
-    for m in modifiers.keys():
-        if not getattr(kmi, m):
-            continue
-        elements.append(modifiers[m])
-
-    elements.append(kmi.type)
-    return " + ".join(elements)
-
-def _get_matching_kmi(id_name, filter_func=None) -> List[KeyMapItem]:
-    """
-    Returns a list of keymap items that act on given operator.
-    Optionally filtered by filter_func.
-    """
-    wm = bpy.context.window_manager
-    kc = wm.keyconfigs.addon
-
-    km_items = []
-    for km in kc.keymaps:
-        for kmi in km.keymap_items:
-            if not kmi.idname == id_name:
-                continue
-            if kmi.type in ("LEFTMOUSE", "MIDDLEMOUSE", "RIGHTMOUSE"):
-                continue
-
-            from .operators import numeric_events
-            if kmi.type in numeric_events:
-                continue
-
-            if filter_func and not filter_func(kmi):
-                continue
-            km_items.append(kmi)
-    return km_items
-
-def get_key_map_desc(id_name) -> str:
-    """
-    Returns a list of shortcut hints to operator with given idname.
-    Looks through keymaps in addon keyconfig.
-    """
-
-    km_items = _get_matching_kmi(id_name)
-    km_items.extend(
-        _get_matching_kmi(
-            Operators.InvokeTool,
-            filter_func=lambda kmi: kmi.properties["operator"] == id_name
-            )
-        )
-
-    if not len(km_items):
-        return ""
-
-    hints = []
-    for kmi in km_items:
-        hint = _get_key_hint(kmi)
-        if hint in hints:
-            continue
-        hints.append(hint)
-
-    return "({})".format(", ".join(hints))
 
 
 def register():

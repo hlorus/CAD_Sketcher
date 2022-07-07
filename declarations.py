@@ -50,7 +50,6 @@ class Operators(str, Enum):
     ContextMenu = "view3d.slvs_context_menu"
     DeleteConstraint = "view3d.slvs_delete_constraint"
     DeleteEntity = "view3d.slvs_delete_entity"
-    InvokeTool = "view3d.invoke_tool"
     InstallPackage = "view3d.slvs_install_package"
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
     Select = "view3d.slvs_select"
