@@ -142,6 +142,7 @@ class Preferences(AddonPreferences):
         name='Angle Precision', min=0, max=5, default=0,
         description="Angle decimal precision")
 
+    auto_hide_objects: BoolProperty(name="Hide curves/meshes while in sketch mode", default=True)
     entity_scale: FloatProperty(name="Entity Scale", default=1.0, min=0.1, soft_max=3.0, update=theme.update)
     gizmo_scale: FloatProperty(name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update)
     text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
@@ -179,6 +180,7 @@ class Preferences(AddonPreferences):
         box = layout.box()
         box.label(text="General")
         col = box.column(align=True)
+        col.prop(self, "auto_hide_objects")
         col.prop(self, "entity_scale")
         col.prop(self, "gizmo_scale")
         col.prop(self, "text_size")
