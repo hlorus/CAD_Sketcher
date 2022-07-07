@@ -110,31 +110,51 @@ def operator_access(operator):
         ),
     )
 
+def get_subclasses():
+    from .operators import StatefulOperator
+    def _get_classes(cls_list):
+        ret = []
+        for c in cls_list:
+            sub_classes = c.__subclasses__()
+            if not len(sub_classes):
+                continue
+            ret.extend(_get_classes(sub_classes))
+        return cls_list + ret
+    return _get_classes(StatefulOperator.__subclasses__())
+
 class GenericStateTool():
 
     @classmethod
     def bl_description(cls, context, item, keymap):
-        op_name = cls.bl_operator if hasattr(cls, "bl_operator") else ""
-        desc = ""
 
+        # Get description from operator
+        op_name = cls.bl_operator if hasattr(cls, "bl_operator") else ""
         if op_name:
             import _bpy
-            desc = _bpy.ops.get_rna_type(op_name).description
 
-        return desc
+            func = None
+            for op in get_subclasses():
+                if not hasattr(op, "bl_idname"):
+                    continue
+                if op.bl_idname != op_name:
+                    continue
 
-    def get_label(id_name, label):
-        def _filter_key_map(id_name, key_map):
-            properties = key_map[2]["properties"]
-            tool_name_index = [property[0] for property in properties].index("tool_name")
-            return properties[tool_name_index][1] == id_name
-        return f"{label}{get_key_map_desc(Operators.InvokeTool, id_name, _filter_key_map)}"
+                func = op.description
+                break
+
+            if func:
+                return func(context, None)
+
+            rna_type = _bpy.ops.get_rna_type(op_name)
+            return rna_type.description
+        return cls.__doc__
+
 
 class View3D_T_slvs_add_point3d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddPoint3D
-    bl_label = GenericStateTool.get_label(WorkSpaceTools.AddPoint3D, "Add 3D Point")
+    bl_label = "Add 3D Point"
     bl_operator = Operators.AddPoint3D
     bl_icon = get_addon_icon_path("ops.bgs.add_point")
     bl_widget = GizmoGroups.Preselection
@@ -149,7 +169,7 @@ class View3D_T_slvs_add_point2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddPoint2D
-    bl_label = GenericStateTool.get_label(WorkSpaceTools.AddPoint2D, "Add 2D Point")
+    bl_label = "Add 2D Point"
     bl_operator = Operators.AddPoint2D
     bl_icon = get_addon_icon_path("ops.bgs.add_point")
     bl_widget = GizmoGroups.Preselection
@@ -164,7 +184,7 @@ class View3D_T_slvs_add_line3d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddLine3D
-    bl_label = GenericStateTool.get_label(WorkSpaceTools.AddLine3D, "Add 3D Line")
+    bl_label = "Add 3D Line"
     bl_operator = Operators.AddLine3D
     bl_icon = "ops.gpencil.primitive_line"
     bl_widget = GizmoGroups.Preselection
@@ -183,7 +203,7 @@ class View3D_T_slvs_add_line2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddLine2D
-    bl_label = GenericStateTool.get_label(WorkSpaceTools.AddLine2D, "Add 2D Line")
+    bl_label = "Add 2D Line"
     bl_operator = Operators.AddLine2D
     bl_icon = "ops.gpencil.primitive_line"
     bl_widget = GizmoGroups.Preselection
@@ -202,7 +222,7 @@ class View3D_T_slvs_add_circle2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddCircle2D
-    bl_label = GenericStateTool.get_label(WorkSpaceTools.AddCircle2D, "Add 2D Circle")
+    bl_label = "Add 2D Circle"
     bl_operator = Operators.AddCircle2D
     bl_icon = "ops.gpencil.primitive_circle"
     bl_widget = GizmoGroups.Preselection
@@ -217,7 +237,7 @@ class View3D_T_slvs_add_arc2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddArc2D
-    bl_label = GenericStateTool.get_label(WorkSpaceTools.AddArc2D, "Add 2D Arc")
+    bl_label = "Add 2D Arc"
     bl_operator = Operators.AddArc2D
     bl_icon = "ops.gpencil.primitive_arc"
     bl_widget = GizmoGroups.Preselection
@@ -232,7 +252,7 @@ class View3D_T_slvs_add_rectangle(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddRectangle
-    bl_label = GenericStateTool.get_label(WorkSpaceTools.AddRectangle, "Add Rectangle")
+    bl_label = "Add Rectangle"
     bl_operator = Operators.AddRectangle
     bl_icon = "ops.gpencil.primitive_box"
     bl_widget = GizmoGroups.Preselection
@@ -246,7 +266,7 @@ class View3D_T_slvs_trim(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.Trim
-    bl_label = GenericStateTool.get_label(WorkSpaceTools.Trim, "Trim")
+    bl_label = "Trim"
     bl_operator = Operators.Trim
     bl_icon = "ops.gpencil.stroke_cutter"
     bl_widget = GizmoGroups.Preselection
@@ -260,7 +280,7 @@ class View3D_T_slvs_add_workplane_face(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddWorkplaneFace
-    bl_label = GenericStateTool.get_label(WorkSpaceTools.AddWorkplaneFace, "Add Workplane on mesh face")
+    bl_label = "Add Workplane on mesh face"
     bl_operator = Operators.AddWorkPlaneFace
     bl_icon = "ops.mesh.primitive_grid_add_gizmo"
     bl_widget = GizmoGroups.Preselection
@@ -274,7 +294,7 @@ class View3D_T_slvs_add_workplane(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddWorkplane
-    bl_label = GenericStateTool.get_label(WorkSpaceTools.AddWorkplane, "Add Workplane")
+    bl_label = "Add Workplane"
     bl_operator = Operators.AddWorkPlane
     bl_icon = "ops.mesh.primitive_grid_add_gizmo"
     bl_widget = GizmoGroups.Preselection

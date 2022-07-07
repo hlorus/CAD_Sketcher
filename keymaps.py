@@ -1,4 +1,6 @@
 import bpy
+from bpy.types import KeyMapItem
+from typing import List
 
 from .declarations import Operators, WorkSpaceTools
 
@@ -130,42 +132,73 @@ tool_access = (
 
 addon_keymaps = []
 
-def get_key_map_desc(id_name1, id_name2=None, filter_func=None) -> str:
-    key_maps = []
-    for key_map in tool_access:
-        if key_map[0] == id_name1:
-            if not filter_func or filter_func(id_name2, key_map):
-                key_maps.append(key_map)
+def _get_key_hint(kmi):
+    """
+    Returns a string representing the keymap item in the form:
+    "ctrl + alt + shift + key"
+    """
 
-    key_map_count = len(key_maps)
-    if key_map_count == 0:
+    modifiers = {"ctrl": "Ctrl", "alt": "Alt", "shift": "Shift"}
+
+    elements = []
+    for m in modifiers.keys():
+        if not getattr(kmi, m):
+            continue
+        elements.append(modifiers[m])
+
+    elements.append(kmi.type)
+    return " + ".join(elements)
+
+def _get_matching_kmi(id_name, filter_func=None) -> List[KeyMapItem]:
+    """
+    Returns a list of keymap items that act on given operator.
+    Optionally filtered by filter_func.
+    """
+    wm = bpy.context.window_manager
+    kc = wm.keyconfigs.addon
+
+    km_items = []
+    for km in kc.keymaps:
+        for kmi in km.keymap_items:
+            if not kmi.idname == id_name:
+                continue
+            if kmi.type in ("LEFTMOUSE", "MIDDLEMOUSE", "RIGHTMOUSE"):
+                continue
+
+            from .operators import numeric_events
+            if kmi.type in numeric_events:
+                continue
+
+            if filter_func and not filter_func(kmi):
+                continue
+            km_items.append(kmi)
+    return km_items
+
+def get_key_map_desc(id_name) -> str:
+    """
+    Returns a list of shortcut hints to operator with given idname.
+    Looks through keymaps in addon keyconfig.
+    """
+
+    km_items = _get_matching_kmi(id_name)
+    km_items.extend(
+        _get_matching_kmi(
+            Operators.InvokeTool,
+            filter_func=lambda kmi: kmi.properties["operator"] == id_name
+            )
+        )
+
+    if not len(km_items):
         return ""
-    
-    def _append_key_map_modifier(key_map, key_map_info, modifer, modifer_name):
-        if modifer in key_map_info and key_map_info[modifer]:
-            key_map = f"{key_map}{modifer_name} + "
-        return key_map
 
-    def _get_key_map(key_map_info):
-        key_map = ""
-        key_map_type = key_map_info["type"]
-        key_map = _append_key_map_modifier(key_map, key_map_info, "ctl", "Ctrl")
-        key_map = _append_key_map_modifier(key_map, key_map_info, "alt", "Alt")
-        key_map = _append_key_map_modifier(key_map, key_map_info, "shift", "Shift")
-        key_map = f"{key_map}{key_map_type}"
+    hints = []
+    for kmi in km_items:
+        hint = _get_key_hint(kmi)
+        if hint in hints:
+            continue
+        hints.append(hint)
 
-        return key_map
-
-    final_key_map_desc = ""
-    for key_map in key_maps:
-        key_map_info = key_map[1]
-        key_map_desc = _get_key_map(key_map_info)
-        if len(final_key_map_desc) > 0:
-            final_key_map_desc = f"{final_key_map_desc}, {key_map_desc}"
-        else:
-            final_key_map_desc = key_map_desc
-    
-    return f" ({final_key_map_desc})" if final_key_map_desc else ""
+    return "({})".format(", ".join(hints))
 
 
 def register():
