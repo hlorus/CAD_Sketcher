@@ -710,7 +710,7 @@ the fact that entities are implemented from scratch.</p>
 framework to allow defining complex tools in a declarative fashion. Besides the
 base class itself which implements logic for native blender types there's also
 the GenericEntityOp which adds support for addon specific types. Have a look at
-the <a href="interactionn_system.md">interaction chapter</a> in the docs.</p>
+the <a href="../interaction_system/">interaction chapter</a> in the docs.</p>
 <p>The addon also makes heavy use of workspacetools. Note that they depend on some
 functionality defined in the StatefulOperator class to display the correct description
 and get the tools shortcuts.</p>
@@ -739,12 +739,12 @@ the solver. This is later used to check which constraints have failed to solve.<
 <p>When the solver was successful it will again go through all the entities and call their
 update_from_slvs methods to update the blender data from the solver system.</p>
 <h2 id="converter">Converter</h2>
-<p>Currently there is only one native converter implemented, namely the BezierConvertor
+<p>Currently there is only one native converter implemented, namely the BezierConverter
 defined in converters.py. When converting to mesh the target bezier object is simply
 converted again with blenders to_mesh function. This is a design choice to workaround
 the problem of finding the area to fill for a given shape.</p>
 <p>As a bezier spline is defined by a list of bezier control-points entities we have to
-create a list of connected entities. This is done by the BezierConvertor.walker() method.
+create a list of connected entities. This is done by the BezierConverter.walker() method.
 After that we cam simply loop through these connected entities and call their to_bezier() method.</p>
 <h2 id="faq">FAQ</h2>
 <h3 id="what-happens-when-a-button-is-pressed">What happens when a button is pressed?</h3>
