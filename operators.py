@@ -20,7 +20,7 @@ from bpy.props import (
     StringProperty,
 )
 from bpy.types import Context, Event, Mesh, Object, Operator, PropertyGroup, Scene
-from mathutils import Vector
+from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_plane
 
 from . import class_defines, convertors, functions, global_data, preferences
@@ -33,14 +33,11 @@ from .class_defines import (
     SlvsPoint3D,
     SlvsNormal3D,
     SlvsSketch,
-    solve_system,
-    SlvsEntities,
 )
 from .declarations import GizmoGroups, Operators, WorkSpaceTools
 from .keymaps import get_key_map_desc
-from .solver import Solver
+from .solver import Solver, solve_system
 from .functions import show_ui_message_popup
-from .viewport_drawing.drawing import DrawnMesh
 
 logger = logging.getLogger(__name__)
 
