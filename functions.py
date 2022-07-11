@@ -68,6 +68,21 @@ def show_package_info(package: str):
         pass
 
 
+def show_ui_message_popup(
+    message: str = "", title: str = "Sketcher Warning", icon: str = "INFO"
+):
+    """
+    Trigger a ui popup message
+    NOTE: Perhaps better located in ui.py, but would currently require circular
+          dependency with operators.py
+    """
+
+    def draw(self, context: Context):
+        self.layout.label(text=message)
+
+    bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
+
+
 def add_new_empty(context, location: Vector, name="") -> Object:
     """ NOTE: No used """
     data = bpy.data
@@ -284,7 +299,6 @@ def get_line_intersection(a1, b1, c1, a2, b2, c2) -> Vector:
 
 
 def get_scale_from_pos(co: Vector, rv3d: RegionView3D) -> Vector:
-
     if rv3d.view_perspective == "ORTHO":
         scale = rv3d.view_distance
     else:
