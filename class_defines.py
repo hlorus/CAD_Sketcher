@@ -23,7 +23,6 @@ from gpu_extras.batch import batch_for_shader
 import mathutils
 from mathutils import Vector, Matrix, Euler
 from mathutils.geometry import intersect_line_line_2d, intersect_sphere_sphere_2d, intersect_line_sphere_2d, distance_point_to_plane
-from py_slvs import slvs
 
 from . import global_data, functions, preferences
 from .shaders import Shaders
@@ -2001,6 +2000,7 @@ class GenericConstraint:
         elif needs_wp == WpReq.NOT_FREE:
             return None
         else:
+            from py_slvs import slvs
             return slvs.SLVS_FREE_IN_3D
 
     def entities(self):
