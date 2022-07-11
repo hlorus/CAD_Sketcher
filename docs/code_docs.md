@@ -100,7 +100,7 @@ Most of the viewport operators inherit from the StatefulOperator class which is 
 framework to allow defining complex tools in a declarative fashion. Besides the
 base class itself which implements logic for native blender types there's also
 the GenericEntityOp which adds support for addon specific types. Have a look at
-the [interaction chapter](interactionn_system.md) in the docs.
+the [interaction chapter](interaction_system.md) in the docs.
 
 The addon also makes heavy use of workspacetools. Note that they depend on some
 functionality defined in the StatefulOperator class to display the correct description
