@@ -2257,7 +2257,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         p = sse.add_point_2d((0.0, 0.0), sketch)
         p.fixed = True
 
-        context.scene.sketcher.active_sketch = sketch
+        activate_sketch(context, sketch.slvs_index, self)
         self.target = sketch
         return True
 
