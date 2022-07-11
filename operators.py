@@ -1630,6 +1630,17 @@ class StatefulOperator:
         if hasattr(self, "draw_settings"):
             self.draw_settings(context)
 
+    @classmethod
+    def description(cls, context, properties):
+        states = [state_desc(s.name, s.description, s.types) for s in cls.get_states_definition()]
+        descs = []
+        hint = get_key_map_desc(cls.bl_idname)
+        if hint:
+            descs.append(hint)
+        if cls.__doc__:
+            descs.append(cls.__doc__)
+        return stateful_op_desc(" ".join(descs), *states)
+
 
 # StatefulOperator Doc
 
@@ -1994,6 +2005,8 @@ class_defines.slvs_entity_pointer(Operator2d, "sketch")
 
 
 class View3D_OT_slvs_add_point3d(Operator, Operator3d):
+    """Add a point in 3d space"""
+    
     bl_idname = Operators.AddPoint3D
     bl_label = "Add Solvespace 3D Point"
     bl_options = {"REGISTER", "UNDO"}
@@ -2005,10 +2018,6 @@ class View3D_OT_slvs_add_point3d(Operator, Operator3d):
         state_from_args(
             p3d_state1_doc[0], description=p3d_state1_doc[1], property="location",
         ),
-    )
-
-    __doc__ = stateful_op_desc(
-        "Add a point in 3d space", state_desc(*p3d_state1_doc, None),
     )
 
     def main(self, context):
@@ -2035,6 +2044,8 @@ types_point_3d = (
 
 
 class View3D_OT_slvs_add_line3d(Operator, Operator3d):
+    """Add a line in 3d space"""
+    
     bl_idname = Operators.AddLine3D
     bl_label = "Add Solvespace 3D Line"
     bl_options = {"REGISTER", "UNDO"}
@@ -2058,12 +2069,6 @@ class View3D_OT_slvs_add_line3d(Operator, Operator3d):
             types=types_point_3d,
             interactive=True,
         ),
-    )
-
-    __doc__ = stateful_op_desc(
-        "Add a line in 3d space",
-        state_desc(*l3d_state1_doc, types_point_3d),
-        state_desc(*l3d_state2_doc, types_point_3d),
     )
 
     def main(self, context):
@@ -2093,6 +2098,8 @@ class View3D_OT_slvs_add_line3d(Operator, Operator3d):
 
 
 class View3D_OT_slvs_add_workplane(Operator, Operator3d):
+    """Add a workplane"""
+    
     bl_idname = Operators.AddWorkPlane
     bl_label = "Add Solvespace Workplane"
     bl_options = {"REGISTER", "UNDO"}
@@ -2116,12 +2123,6 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
             interactive=True,
             create_element="create_normal3d",
         ),
-    )
-
-    __doc__ = stateful_op_desc(
-        "Add a workplane",
-        state_desc(*wp_state1_doc, types_point_3d),
-        state_desc(*wp_state2_doc, None),
     )
 
     def get_normal(self, context, index):
@@ -2173,6 +2174,8 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
 
 
 class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
+    """Add a statically placed workplane, orientation and location is copied from selected mesh face"""
+    
     bl_idname = Operators.AddWorkPlaneFace
     bl_label = "Add Solvespace Workplane"
     bl_options = {"REGISTER", "UNDO"}
@@ -2191,11 +2194,6 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
             types=(bpy.types.MeshPolygon,),
             interactive=True,
         ),
-    )
-
-    __doc__ = stateful_op_desc(
-        "Add a statically placed workplane, orientation and location is copied from selected mesh face",
-        state_desc(*wp_face_state1_doc, types_point_3d),
     )
 
     def main(self, context):
@@ -2221,6 +2219,8 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
 # TODO:
 # - Draw sketches
 class View3D_OT_slvs_add_sketch(Operator, Operator3d):
+    """Add a sketch"""
+    
     bl_idname = Operators.AddSketch
     bl_label = "Add Sketch"
     bl_options = {"UNDO"}
@@ -2236,10 +2236,6 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
             property=None,
             use_create=False,
         ),
-    )
-
-    __doc__ = stateful_op_desc(
-        "Add a sketch", state_desc(*sketch_state1_doc, (class_defines.SlvsWorkplane,)),
     )
 
     def prepare_origin_elements(self, context):
@@ -2277,6 +2273,8 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
 
 
 class View3D_OT_slvs_add_point2d(Operator, Operator2d):
+    """Add a point to the active sketch"""
+    
     bl_idname = Operators.AddPoint2D
     bl_label = "Add Solvespace 2D Point"
     bl_options = {"REGISTER", "UNDO"}
@@ -2288,10 +2286,6 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
         state_from_args(
             p2d_state1_doc[0], description=p2d_state1_doc[1], property="coordinates",
         ),
-    )
-
-    __doc__ = stateful_op_desc(
-        "Add a point to the active sketch", state_desc(*p2d_state1_doc, None),
     )
 
     def main(self, context):
@@ -2325,6 +2319,8 @@ types_point_2d = (
 
 
 class View3D_OT_slvs_add_line2d(Operator, Operator2d):
+    """Add a line to the active sketch"""
+
     bl_idname = Operators.AddLine2D
     bl_label = "Add Solvespace 2D Line"
     bl_options = {"REGISTER", "UNDO"}
@@ -2348,12 +2344,6 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
             types=types_point_2d,
             interactive=True,
         ),
-    )
-
-    __doc__ = stateful_op_desc(
-        "Add a line to the active sketch",
-        state_desc(*l2d_state1_doc, types_point_2d),
-        state_desc(*l2d_state2_doc, types_point_2d),
     )
 
     def main(self, context):
@@ -2397,6 +2387,8 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
 
 
 class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
+    """Add a circle to the active sketch"""
+    
     bl_idname = Operators.AddCircle2D
     bl_label = "Add Solvespace 2D Circle"
     bl_options = {"REGISTER", "UNDO"}
@@ -2429,12 +2421,6 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
         ),
     )
 
-    __doc__ = stateful_op_desc(
-        "Add a circle to the active sketch",
-        state_desc(*circle_state1_doc, types_point_2d),
-        state_desc(*circle_state2_doc, None),
-    )
-
     def get_radius(self, context, coords):
         wp = self.sketch.wp
         pos = self.state_func(context, coords)
@@ -2464,6 +2450,8 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
 
 
 class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
+    """Add an arc to the active sketch"""
+    
     bl_idname = Operators.AddArc2D
     bl_label = "Add Solvespace 2D Arc"
     bl_options = {"REGISTER", "UNDO"}
@@ -2494,13 +2482,6 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
             state_func="get_endpoint_pos",
             interactive=True,
         ),
-    )
-
-    __doc__ = stateful_op_desc(
-        "Add an arc to the active sketch",
-        state_desc(*arc_state1_doc, types_point_2d),
-        state_desc(*arc_state2_doc, types_point_2d),
-        state_desc(*arc_state3_doc, types_point_2d),
     )
 
     def get_endpoint_pos(self, context, coords):
@@ -2551,6 +2532,8 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
 
 
 class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
+    """Add a rectangle to the active sketch"""
+    
     bl_idname = Operators.AddRectangle
     bl_label = "Add Rectangle"
     bl_options = {"REGISTER", "UNDO"}
@@ -2573,12 +2556,6 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
             interactive=True,
             create_element="create_point",
         ),
-    )
-
-    __doc__ = stateful_op_desc(
-        "Add a rectangle to the active sketch",
-        state_desc(*rect_state1_doc, types_point_2d),
-        state_desc(*rect_state1_doc, types_point_2d),
     )
 
     def main(self, context):
@@ -2853,6 +2830,8 @@ class TrimSegment:
 
 
 class View3D_OT_slvs_trim(Operator, Operator2d):
+    """Trim segment to it's closest intersections"""
+    
     bl_idname = Operators.Trim
     bl_label = "Trim Segment"
     bl_options = {"REGISTER", "UNDO"}
@@ -2873,11 +2852,6 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
             use_create=False,
             # interactive=True
         ),
-    )
-
-    __doc__ = stateful_op_desc(
-        "Trim segment to it's closest intersections.",
-        state_desc(*trim_state1_doc, (class_defines.SlvsPoint2D,)),
     )
 
     # TODO: Disable execution based on selection
@@ -3336,21 +3310,6 @@ class GenericConstraintOp(GenericEntityOp):
                 self.setting = setting
         self.initialized = True
 
-    @classmethod
-    def description(cls, context, properties):
-        constraint_type = cls.type
-        cls_constraint = SlvsConstraints.cls_from_type(constraint_type)
-
-        states = [
-            state_desc(s.name, s.description, s.types)
-            for s in cls.get_states_definition()
-        ]
-
-        return stateful_op_desc(
-            f"Add {cls_constraint.label} constraint{get_key_map_desc(cls.bl_idname)}",
-            *states,
-        )
-
     def fill_entities(self):
         c = self.target
         args = []
@@ -3402,6 +3361,8 @@ class GenericConstraintOp(GenericEntityOp):
 
 # Dimensional constraints
 class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
+    """Add a distance constraint"""
+
     bl_idname = Operators.AddDistance
     bl_label = "Distance"
     bl_options = {"UNDO", "REGISTER"}
@@ -3444,6 +3405,8 @@ def invert_angle_setter(self, setting):
 
 
 class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
+    """Add an angle constraint"""
+
     bl_idname = Operators.AddAngle
     bl_label = "Angle"
     bl_options = {"UNDO", "REGISTER"}
@@ -3465,6 +3428,8 @@ class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
 
 
 class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
+    """Add a diameter constraint"""
+
     bl_idname = Operators.AddDiameter
     bl_label = "Diameter"
     bl_options = {"UNDO", "REGISTER"}
@@ -3484,6 +3449,8 @@ class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
 
 # Geomteric constraints
 class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
+    """Add a coincident constraint"""
+
     bl_idname = Operators.AddCoincident
     bl_label = "Coincident"
     bl_options = {"UNDO", "REGISTER"}
@@ -3502,6 +3469,8 @@ class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
 
 
 class VIEW3D_OT_slvs_add_equal(Operator, GenericConstraintOp):
+    """Add an equal constraint"""
+
     bl_idname = Operators.AddEqual
     bl_label = "Equal"
     bl_options = {"UNDO", "REGISTER"}
@@ -3510,6 +3479,8 @@ class VIEW3D_OT_slvs_add_equal(Operator, GenericConstraintOp):
 
 
 class VIEW3D_OT_slvs_add_vertical(Operator, GenericConstraintOp):
+    """Add a vertical constraint"""
+
     bl_idname = Operators.AddVertical
     bl_label = "Vertical"
     bl_options = {"UNDO", "REGISTER"}
@@ -3518,6 +3489,8 @@ class VIEW3D_OT_slvs_add_vertical(Operator, GenericConstraintOp):
 
 
 class VIEW3D_OT_slvs_add_horizontal(Operator, GenericConstraintOp):
+    """Add a horizontal constraint"""
+
     bl_idname = Operators.AddHorizontal
     bl_label = "Horizontal"
     bl_options = {"UNDO", "REGISTER"}
@@ -3526,6 +3499,8 @@ class VIEW3D_OT_slvs_add_horizontal(Operator, GenericConstraintOp):
 
 
 class VIEW3D_OT_slvs_add_parallel(Operator, GenericConstraintOp):
+    """Add a parallel constraint"""
+    
     bl_idname = Operators.AddParallel
     bl_label = "Parallel"
     bl_options = {"UNDO", "REGISTER"}
@@ -3534,6 +3509,8 @@ class VIEW3D_OT_slvs_add_parallel(Operator, GenericConstraintOp):
 
 
 class VIEW3D_OT_slvs_add_perpendicular(Operator, GenericConstraintOp):
+    """Add a perpendicular constraint"""
+    
     bl_idname = Operators.AddPerpendicular
     bl_label = "Perpendicular"
     bl_options = {"UNDO", "REGISTER"}
@@ -3542,6 +3519,8 @@ class VIEW3D_OT_slvs_add_perpendicular(Operator, GenericConstraintOp):
 
 
 class VIEW3D_OT_slvs_add_tangent(Operator, GenericConstraintOp, GenericEntityOp):
+    """Add a tagent constraint"""
+    
     bl_idname = Operators.AddTangent
     bl_label = "Tangent"
     bl_options = {"UNDO", "REGISTER"}
@@ -3550,6 +3529,8 @@ class VIEW3D_OT_slvs_add_tangent(Operator, GenericConstraintOp, GenericEntityOp)
 
 
 class VIEW3D_OT_slvs_add_midpoint(Operator, GenericConstraintOp, GenericEntityOp):
+    """Add a midpoint constraint"""
+    
     bl_idname = Operators.AddMidPoint
     bl_label = "Midpoint"
     bl_options = {"UNDO", "REGISTER"}
@@ -3558,6 +3539,7 @@ class VIEW3D_OT_slvs_add_midpoint(Operator, GenericConstraintOp, GenericEntityOp
 
 
 class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp, GenericEntityOp):
+    """Add a ratio constraint"""
 
     value: FloatProperty(
         name="Ratio", subtype="UNSIGNED", options={"SKIP_SAVE"}, min=0.0, precision=5,
