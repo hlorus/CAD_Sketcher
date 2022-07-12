@@ -5,7 +5,7 @@ from .keymaps import tool_access, get_key_map_desc
 from .operators import numeric_events
 
 def get_addon_icon_path(icon_name):
-    return os.path.join(os.path.dirname(__file__), "icons", icon_name)
+    return os.path.join(os.path.dirname(__file__), "ressources/icons", icon_name)
 
 
 def tool_numeric_invoke_km(operator):
