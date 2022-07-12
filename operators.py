@@ -3192,13 +3192,15 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         elif is_entity_referenced(entity, context):
             deps = list(get_entity_deps(entity, context))
 
-            message = f"Unable to delete {entity.name}, {deps} depend on it."
+            message = f"Unable to delete {entity.name}, other entities depend on it:\n"+ "\n".join(
+                [f" - {d}" for d in deps]
+            )
             show_ui_message_popup(message=message, icon="ERROR")
 
             operator.report(
                 {"WARNING"},
-                "Cannot delete {}, other entities {} depend on it.".format(
-                    entity.name, deps
+                "Cannot delete {}, other entities depend on it.".format(
+                    entity.name
                 ),
             )
             return {"CANCELLED"}

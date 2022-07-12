@@ -77,8 +77,14 @@ def show_ui_message_popup(
           dependency with operators.py
     """
 
+    lines = message.split("\n")
+
     def draw(self, context: Context):
-        self.layout.label(text=message)
+        layout = self.layout
+        for line_str in lines:
+            row = layout.row()
+            row.label(text=line_str)
+        
 
     bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
 
