@@ -15,49 +15,27 @@ import bpy
 
 from . import theme, preferences, install, icon_manager, global_data, functions
 
-from tempfile import gettempdir
-from pathlib import Path
 
 import logging
 
-logger = logging.getLogger(__name__)
-
-# Clear handlers
-if logger.hasHandlers():
-    logger.handlers.clear()
-
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(name)s:{%(levelname)s}: %(message)s")
-
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(formatter)
-logger.addHandler(stream_handler)
-
-filepath = Path(gettempdir()) / (__name__ + ".log")
-
-logger.info("Logging into: " + str(filepath))
-file_handler = logging.FileHandler(filepath, mode="w")
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-
-
-
-def update_logger():
-    prefs = functions.get_prefs()
-    logger.setLevel(prefs.logging_level)
 from .utilities.register import cleanse_modules
 from .utilities.presets import ensure_addon_presets
-
-
+from .utilities.logging import setup_logger, update_logger
 
 
 def register():
+    logger = logging.getLogger(__name__)
+    # Setup root logger
+    setup_logger(logger)
+
+
     # Register base
     ensure_addon_presets()
     theme.register()
     preferences.register()
     install.register()
-    update_logger()
+
+    update_logger(logger)
     icon_manager.load()
 
     logger.info(
