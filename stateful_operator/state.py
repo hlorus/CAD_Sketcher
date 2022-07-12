@@ -19,7 +19,7 @@ OperatorState = namedtuple(
         "types",  # Types the pointer property can accept
         "no_event",  # Trigger state without an event
         "interactive",  # Always evaluate state and confirm by user input
-        "use_create", # Enables or Disables creation of the element
+        "use_create",  # Enables or Disables creation of the element
         "state_func",  # Function to get the state property value from mouse coordinates
         "allow_prefill",  # Define if state should be filled from selected entities when invoked
         "parse_selection",  # Prefill Function which chooses entity to use for this stat
@@ -34,7 +34,7 @@ del namedtuple
 
 
 
-def state_from_args(name, **kwargs):
+def state_from_args(name: str, **kwargs):
     """
     Use so each state can avoid defining all members of the named tuple.
     """
@@ -46,7 +46,7 @@ def state_from_args(name, **kwargs):
         "types": (),
         "no_event": False,
         "interactive": False,
-        "use_create" : True,
+        "use_create": True,
         "state_func": None,
         "allow_prefill": True,
         "parse_selection": None,

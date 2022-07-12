@@ -1,5 +1,6 @@
 import bpy
 from bpy.props import IntProperty, BoolProperty
+from bpy.types import Context, Event
 from mathutils import Vector
 
 # TODO: Move to entity extended op
@@ -9,6 +10,7 @@ from .utilities.generic import to_list
 from .utilities.description import state_desc, stateful_op_desc
 from .utilities.keymap import get_key_map_desc, is_numeric_input, is_unit_input, get_unit_value, get_value_from_event
 
+from typing import Optional
 
 class StatefulOperatorLogic:
     """Base class which implements the behaviour logic"""
@@ -23,12 +25,12 @@ class StatefulOperatorLogic:
     _numeric_input = {}
     _undo = False
 
-    def get_property(self, index=None):
-        if index == None:
+    def get_property(self, index: Optional[int] = None):
+        if index is None:
             index = self.state_index
         state = self.get_states()[index]
 
-        if state.property == None:
+        if state.property is None:
             return None
 
         if callable(state.property):
@@ -69,12 +71,12 @@ class StatefulOperatorLogic:
     def state(self, state):
         self.state_index = self._index_from_state(state)
 
-    def set_state(self, context, index):
+    def set_state(self, context: Context, index: int):
         self.state_index = index
         self.init_numeric(False)
         self.set_status_text(context)
 
-    def next_state(self, context):
+    def next_state(self, context: Context):
         self._undo = False
         i = self.state_index
         if (i + 1) >= len(self.get_states()):
@@ -82,7 +84,7 @@ class StatefulOperatorLogic:
         self.set_state(context, i + 1)
         return True
 
-    def set_status_text(self, context):
+    def set_status_text(self, context: Context):
         # Setup state
         state = self.state
         desc = (
@@ -187,7 +189,7 @@ class StatefulOperatorLogic:
             return True
         return False
 
-    def evaluate_numeric_event(self, event):
+    def evaluate_numeric_event(self, event: Event):
         type = event.type
         if type == "BACK_SPACE":
             input = self.numeric_input
@@ -216,7 +218,7 @@ class StatefulOperatorLogic:
             i -= 1
         return False
 
-    def prefill_state_props(self, context):
+    def prefill_state_props(self, context: Context):
         selected = self.gather_selection(context)
         states = self.get_states_definition()
 
@@ -265,7 +267,7 @@ class StatefulOperatorLogic:
             return getattr(self, name)
         return None
 
-    def invoke(self, context, event):
+    def invoke(self, context: Context, event: Event):
         self._state_data.clear()
         if hasattr(self, "init"):
             self.init(context, event)
@@ -313,7 +315,7 @@ class StatefulOperatorLogic:
             pass
         return self._end(context, succeede)
 
-    def run_op(self, context):
+    def run_op(self, context: Context):
         if not hasattr(self, "main"):
             raise NotImplementedError(
                 "StatefulOperators need to have a main method defined!"
@@ -323,7 +325,7 @@ class StatefulOperatorLogic:
         return retval
 
     # Creates non-persistent data
-    def redo_states(self, context):
+    def redo_states(self, context: Context):
         for i, state in enumerate(self.get_states()):
             if i > self.state_index:
                 # TODO: don't depend on active state, idealy it's possible to go back
@@ -336,17 +338,19 @@ class StatefulOperatorLogic:
                 if props and not is_existing_entity:
                     create = self.get_func(state, "create_element")
 
-                    ret_values = create(context, [getattr(self, p) for p in props], state, data)
+                    ret_values = create(
+                        context, [getattr(self, p) for p in props], state, data
+                    )
                     values = to_list(ret_values)
                     self.set_state_pointer(values, index=i, implicit=True)
 
-    def execute(self, context):
+    def execute(self, context: Context):
         self.redo_states(context)
         ok = self.main(context)
         return self._end(context, ok)
         # maybe allow to be modal again?
 
-    def get_numeric_value(self, context, coords):
+    def get_numeric_value(self, context: Context, coords):
         state = self.state
         prop_name = self.get_property()[0]
         prop = self.properties.rna_type.properties[prop_name]
@@ -371,7 +375,7 @@ class StatefulOperatorLogic:
             elif type == "INT":
                 value = int(input)
 
-            if value == None:
+            if value is None:
                 return prop.default
             return value
 
@@ -380,11 +384,13 @@ class StatefulOperatorLogic:
         def to_iterable(item):
             if hasattr(item, "__iter__") or hasattr(item, "__getitem__"):
                 return list(item)
-            return [item, ]
+            return [
+                item,
+            ]
 
         # TODO: Don't evaluate if not needed
         interactive_val = self._get_state_values(context, state, coords)
-        if interactive_val == None:
+        if interactive_val is None:
             interactive_val = [None] * size
         else:
             interactive_val = to_iterable(interactive_val)
@@ -411,13 +417,13 @@ class StatefulOperatorLogic:
             return result[0]
         return result
 
-    def _handle_pass_through(self, context, event):
+    def _handle_pass_through(self, context: Context, event: Event):
         # Only pass through navigation events
-        if event.type in {'MIDDLEMOUSE', 'WHEELUPMOUSE', 'WHEELDOWNMOUSE', "MOUSEMOVE"}:
+        if event.type in {"MIDDLEMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE", "MOUSEMOVE"}:
             return {"PASS_THROUGH"}
         return {"RUNNING_MODAL"}
 
-    def modal(self, context, event):
+    def modal(self, context: Context, event: Event):
         state = self.state
         event_triggered = self.check_event(event)
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
@@ -462,17 +468,17 @@ class StatefulOperatorLogic:
 
         return self.evaluate_state(context, event, event_triggered)
 
-    def _get_state_values(self, context, state, coords):
+    def _get_state_values(self, context: Context, state, coords):
         # Get values of state_func, can be none
         position_cb = self.get_func(state, "state_func")
         if not position_cb:
             return None
         pos_val = position_cb(context, coords)
-        if pos_val == None:
+        if pos_val is None:
             return None
         return pos_val
 
-    def evaluate_state(self, context, event, triggered):
+    def evaluate_state(self, context: Context, event, triggered):
         state = self.state
         data = self.state_data
         is_numeric = self.state_data.get("is_numeric_edit", False)
@@ -496,7 +502,9 @@ class StatefulOperatorLogic:
         if use_create and not is_picked:
             if is_numeric:
                 # numeric edit is supported for one property only
-                values = [self.get_numeric_value(context, coords), ]
+                values = [
+                    self.get_numeric_value(context, coords),
+                ]
             elif not is_picked:
                 values = to_list(self._get_state_values(context, state, coords))
 
@@ -547,7 +555,6 @@ class StatefulOperatorLogic:
                 # This is needed in order for the geometry to update
                 self.evaluate_state(context, event, False)
         context.area.tag_redraw()
-
 
         if triggered and not ok:
             # Event was triggered on non-valid selection, cancel operator to avoid confusion
@@ -640,5 +647,5 @@ class StatefulOperatorLogic:
         return stateful_op_desc(" ".join(descs), *states)
 
     # Dummy methods
-    def gather_selection(self, context):
+    def gather_selection(self, context: Context):
         raise NotImplementedError

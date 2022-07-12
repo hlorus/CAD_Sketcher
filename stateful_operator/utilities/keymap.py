@@ -1,6 +1,7 @@
 from ..constants import Operators, numeric_events, unit_key_types
 
-from bpy.types import KeyMapItem, Context
+from bpy.types import KeyMapItem, Context, Event
+
 from typing import List
 
 def _get_key_hint(kmi: KeyMapItem) -> List[str]:
@@ -71,7 +72,7 @@ def get_key_map_desc(context: Context, id_name: str) -> str:
 
     return "({})".format(", ".join(hints))
 
-def _tool_numeric_invoke_km(operator):
+def _tool_numeric_invoke_km(operator: str):
     km = []
     for event in numeric_events:
         km.append(
@@ -83,7 +84,7 @@ def _tool_numeric_invoke_km(operator):
         )
     return km
 
-def operator_access(operator):
+def operator_access(operator: str):
     return (
         *_tool_numeric_invoke_km(operator),
         (
@@ -93,24 +94,24 @@ def operator_access(operator):
         ),
     )
 
-def tool_invoke_kmi(button, tool, operator):
+def tool_invoke_kmi(button: str, tool: str, operator: str):
     return (
         Operators.InvokeTool,
         {"type": button, "value": "PRESS"},
         {"properties": [("tool_name", tool), ("operator", operator)]},
     )
 
-def is_numeric_input(event):
+def is_numeric_input(event: Event):
     return event.type in (*numeric_events, "BACK_SPACE")
 
-def is_unit_input(event):
+def is_unit_input(event: Event):
     return event.type in unit_key_types
 
-def get_unit_value(event):
+def get_unit_value(event: Event):
     type = event.type
     return type.lower()
 
-def get_value_from_event(event):
+def get_value_from_event(event: Event):
     type = event.type
     if type in ("ZERO", "NUMPAD_0"):
         return "0"

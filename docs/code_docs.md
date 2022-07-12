@@ -100,7 +100,7 @@ Most of the viewport operators inherit from the StatefulOperator class which is 
 framework to allow defining complex tools in a declarative fashion. Besides the
 base class itself which implements logic for native blender types there's also
 the GenericEntityOp which adds support for addon specific types. Have a look at
-the [interaction chapter](interactionn_system.md) in the docs.
+the [interaction chapter](interaction_system.md) in the docs.
 
 The addon also makes heavy use of workspacetools. Note that they depend on some
 functionality defined in the StatefulOperator class to display the correct description
@@ -137,13 +137,13 @@ When the solver was successful it will again go through all the entities and cal
 update_from_slvs methods to update the blender data from the solver system.
 
 ## Converter
-Currently there is only one native converter implemented, namely the BezierConvertor
+Currently there is only one native converter implemented, namely the BezierConverter
 defined in converters.py. When converting to mesh the target bezier object is simply
 converted again with blenders to_mesh function. This is a design choice to workaround
 the problem of finding the area to fill for a given shape.
 
 As a bezier spline is defined by a list of bezier control-points entities we have to
-create a list of connected entities. This is done by the BezierConvertor.walker() method.
+create a list of connected entities. This is done by the BezierConverter.walker() method.
 After that we cam simply loop through these connected entities and call their to_bezier() method.
 
 

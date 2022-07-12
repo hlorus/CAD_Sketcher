@@ -1,11 +1,13 @@
 def to_list(val):
-    if val == None:
+    if val is None:
         return []
     if type(val) in (list, tuple):
         return list(val)
-    return [val,]
+    return [
+        val,
+    ]
 
-def get_pointer_get_set(index):
+def get_pointer_get_set(index: int):
     @property
     def func(self):
         return self.get_state_pointer(index=index)

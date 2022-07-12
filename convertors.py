@@ -31,7 +31,7 @@ def point_entity_mapping(scene):
 
 
 # TODO: make generic path creator class?
-class BezierConvertor:
+class BezierConverter:
     def __init__(self, scene, sketch):
         self.sketch_entities = []
         self.paths = []

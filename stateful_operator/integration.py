@@ -14,6 +14,10 @@ from .utilities.generic import get_pointer_get_set, to_list
 from .utilities.geometry import get_evaluated_obj, get_mesh_element
 
 import bpy
+from bpy.types import Context
+
+from typing import Optional
+
 
 class StatefulOperator(StatefulOperatorLogic):
     """Extends logic class with native blender integration"""
@@ -37,7 +41,7 @@ class StatefulOperator(StatefulOperatorLogic):
 
         # Have some specific logic: pointer name "object" is used as global object
         # otherwise define ob_name for each element
-        has_global_object = cls._has_global_object()
+        # has_global_object = cls._has_global_object()
 
         for i, s in enumerate(states):
             pointer_name = s.pointer
@@ -63,11 +67,14 @@ class StatefulOperator(StatefulOperatorLogic):
             if hasattr(cls, a):
                 raise NameError("Cannot register implicit pointer properties, class {} already has attribute of name {}".format(cls, a))
 
-
     def state_property(self, state_index):
         return None
 
-    def get_state_pointer(self, index=None, implicit=False):
+    def get_state_pointer(
+        self,
+        index: Optional[int] = None,
+        implicit: Optional[bool] = False
+    ):
         # Creates pointer value from it's implicitly stored props
         if index is None:
             index = self.state_index
@@ -75,7 +82,7 @@ class StatefulOperator(StatefulOperatorLogic):
         state = self.get_states_definition()[index]
         pointer_name = state.pointer
         data = self._state_data.get(index, {})
-        if not "type" in data.keys():
+        if "type" not in data.keys():
             return None
 
         pointer_type = data["type"]
@@ -126,7 +133,7 @@ class StatefulOperator(StatefulOperatorLogic):
         pointer_type = data["type"]
 
         def get_value(index):
-            if values == None:
+            if values is None:
                 return None
             return values[index]
 
@@ -141,7 +148,9 @@ class StatefulOperator(StatefulOperatorLogic):
         elif pointer_type in mesh_element_types:
             obj_name = get_value(0) if implicit else get_value(0).name
             if self._has_global_object():
-                self._state_data[self._get_global_object_index()]["object_name"] = obj_name
+                self._state_data[self._get_global_object_index()][
+                    "object_name"
+                ] = obj_name
             else:
                 data["object_name"] = obj_name
 
@@ -149,7 +158,7 @@ class StatefulOperator(StatefulOperatorLogic):
             return True
 
 
-    def pick_element(self, context, coords):
+    def pick_element(self, context: Context, coords):
         # return a list of implicit prop values if pointer need implicit props
         state = self.state
         data = self.state_data
@@ -168,7 +177,9 @@ class StatefulOperator(StatefulOperatorLogic):
 
         global_ob = None
         if self._has_global_object():
-            global_ob_name = self._state_data[self._get_global_object_index()].get("object_name")
+            global_ob_name = self._state_data[self._get_global_object_index()].get(
+                "object_name"
+            )
             if global_ob_name:
                 global_ob = bpy.data.objects[global_ob_name]
 
@@ -191,7 +202,7 @@ class StatefulOperator(StatefulOperatorLogic):
         return ob.name, index
 
 
-    def gather_selection(self, context):
+    def gather_selection(self, context: Context):
         # Return list filled with all selected verts/edges/faces/objects
         selected = []
         states = self.get_states()

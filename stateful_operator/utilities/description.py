@@ -12,8 +12,6 @@ def stateful_op_desc(base, *state_descs):
     states = ""
     length = len(state_descs)
     for i, state in enumerate(state_descs):
-        states += " - {}{}".format(
-            state, ("  \n" if i < length - 1 else "")
-        )
+        states += " - {}{}".format(state, ("  \n" if i < length - 1 else ""))
     desc = "{}  \n  \nStates:  \n{}".format(base, states)
     return desc

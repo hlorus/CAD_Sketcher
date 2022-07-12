@@ -1,8 +1,23 @@
-def get_evaluated_obj(context, object):
+from bpy.types import Context, Object
+from bpy_extras import view3d_utils
+
+# TODO: Move into StateOps
+from ... import functions
+
+from typing import Optional
+
+def get_evaluated_obj(context: Context, object: Object):
     return object.evaluated_get(context.evaluated_depsgraph_get())
 
-def get_mesh_element(context, coords, vertex=False, edge=False, face=False, threshold=0.5, object=None):
-    from bpy_extras import view3d_utils
+def get_mesh_element(
+    context: Context,
+    coords,
+    vertex=False,
+    edge=False,
+    face=False,
+    threshold=0.5,
+    object: Optional[Object] = None,
+):
 
     # get the ray from the viewport and mouse
     region = context.region
@@ -11,11 +26,12 @@ def get_mesh_element(context, coords, vertex=False, edge=False, face=False, thre
     ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coords)
     depsgraph = context.view_layer.depsgraph
     scene = context.scene
-    result, loc, _normal, face_index, ob, _matrix = scene.ray_cast(depsgraph, ray_origin, view_vector)
+    result, loc, _normal, face_index, ob, _matrix = scene.ray_cast(
+        depsgraph, ray_origin, view_vector
+    )
 
     if object:
         # Alternatively do a object raycast if we know the object already
-        from .. import functions
         tree = functions.bvhtree_from_object(ob)
         loc, _normal, face_index, _distance = tree.ray_cast(ray_origin, view_vector)
         result = loc != None
@@ -47,7 +63,9 @@ def get_mesh_element(context, coords, vertex=False, edge=False, face=False, thre
         return False
 
     if vertex:
-        i, dist = get_closest([(me.vertices[i].co - loc).length for i in polygon.vertices])
+        i, dist = get_closest(
+            [(me.vertices[i].co - loc).length for i in polygon.vertices]
+        )
         if i is not None:
             closest_type = "VERTEX"
             closest_index = polygon.vertices[i]
@@ -56,8 +74,11 @@ def get_mesh_element(context, coords, vertex=False, edge=False, face=False, thre
     if edge:
         face_edge_map = {ek: me.edges[i] for i, ek in enumerate(me.edge_keys)}
         i, dist = get_closest(
-            [(((me.vertices[start].co + me.vertices[end].co)/2)-loc).length for start, end in polygon.edge_keys]
-            )
+            [
+                (((me.vertices[start].co + me.vertices[end].co)/2)-loc).length
+                for start, end in polygon.edge_keys
+            ]
+        )
         if i is not None and is_closer(dist, closest_dist):
             closest_type = "EDGE"
             closest_index = face_edge_map[polygon.edge_keys[i]].index

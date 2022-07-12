@@ -1,5 +1,5 @@
 import bpy
-from bpy.types import Operator
+from bpy.types import Operator, Context
 from bpy.props import StringProperty
 
 from .constants import Operators
@@ -13,7 +13,7 @@ class View3D_OT_invoke_tool(Operator):
     # TODO: get the operator from tool attribute (tool.bl_operator)?
     operator: StringProperty(name="Operator ID")
 
-    def execute(self, context):
+    def execute(self, context: Context):
         bpy.ops.wm.tool_set_by_id(name=self.tool_name)
 
         # get the tool operator props
