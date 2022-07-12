@@ -3185,9 +3185,8 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
             entity.remove_objects()
 
             deps = get_sketch_deps_indicies(entity, context)
-            # deps.sort(reverse=True)
 
-            for i in deps:
+            for i in reversed(deps):
                 operator.delete(entities.get(i), context)
 
         elif is_entity_referenced(entity, context):
@@ -3213,10 +3212,9 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         # Delete constraints that depend on entity
         constraints = context.scene.sketcher.constraints
 
-        for data_coll, indices in get_constraint_local_indices(entity, context):
+        for data_coll, indices in reversed(get_constraint_local_indices(entity, context)):
             if not indices:
                 continue
-            indices.sort(reverse=True)
             for i in indices:
                 logger.debug("Delete: {}".format(data_coll[i]))
                 data_coll.remove(i)
