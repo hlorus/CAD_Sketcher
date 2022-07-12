@@ -3227,12 +3227,18 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
 
     def execute(self, context: Context):
         index = self.index
+        selected = context.scene.sketcher.entities.selected_entities
 
         if index != -1:
+            # Entity is specified via property
             self.main(context, index, self)
+        elif len(selected) == 1:
+            # Treat single selection same as specified entity
+            self.main(context, selected[0].slvs_index, self)
         else:
+            # Batch deletion
             indices = []
-            for e in context.scene.sketcher.entities.selected_entities:
+            for e in selected:
                 indices.append(e.slvs_index)
 
             indices.sort(reverse=True)
