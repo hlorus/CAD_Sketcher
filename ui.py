@@ -276,6 +276,7 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
             props.index = index
             props.highlight_hover = True
             props.highlight_active = True
+            props.highlight_members = True
 
             # Right part
             sub = row.row()
@@ -288,6 +289,7 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
             props.type = c.type
             props.index = index
             props.highlight_hover = True
+            props.highlight_members = True
 
 
 class VIEW3D_MT_sketches(Menu):

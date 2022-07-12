@@ -133,7 +133,7 @@ class HighlightElement:
     Settings:
     highlight_hover -> highlights the element as soon as the tooltip is shown
     highlight_active -> highlights the element when the operator is invoked
-    highlight_members -> highlights the element members e.g. the entities dependencies or
+    highlight_members -> highlights the element members e.g. the entity's dependencies or
                 the entities the constraint acts on
     """
 
@@ -146,24 +146,28 @@ class HighlightElement:
         if not properties.is_property_set("index"):
             return cls.__doc__
 
+        # Clear previous highlights
+        global_data.highlight_constraint = None
+        global_data.highlight_entities = []
+
         index = properties.index
         members = properties.highlight_members
 
         if hasattr(properties, "type") and properties.is_property_set("type"):
             type = properties.type
             c = context.scene.sketcher.constraints.get_from_type_index(type, index)
+            
+            global_data.highlight_constraint = c
             if members:
                 global_data.highlight_entities.extend(c.entities())
-            else:
-                global_data.highlight_constraint = c
+            
         else:
+            # Set hover so this could be used as selection
+            global_data.hover = properties.index
             if members:
                 e = context.scene.sketcher.entities.get(index)
                 global_data.highlight_entities.extend(e.dependencies())
-            else:
-                # Set hover so this could be used as selection
-                global_data.hover = properties.index
-
+                
         context.area.tag_redraw()
         return cls.__doc__
 
