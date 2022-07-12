@@ -11,41 +11,9 @@ bl_info = {
     "tracker_url": "https://github.com/hlorus/CAD_Sketcher/discussions/categories/announcements",
 }
 
-if "bpy" in locals():
-    import importlib
+import bpy
 
-    my_modules = (
-        theme,
-        preferences,
-        functions,
-        global_data,
-        gizmos,
-        operators,
-        workspacetools,
-        class_defines,
-        ui,
-        install,
-        icon_manager,
-        keymaps,
-    )
-    for m in my_modules:
-        importlib.reload(m)
-else:
-    import bpy
-    from . import (
-        preferences,
-        functions,
-        global_data,
-        gizmos,
-        operators,
-        workspacetools,
-        class_defines,
-        ui,
-        install,
-        theme,
-        icon_manager,
-        keymaps,
-    )
+from . import theme, preferences, install, icon_manager, global_data, functions
 
 from tempfile import gettempdir
 from pathlib import Path
@@ -77,6 +45,7 @@ logger.addHandler(file_handler)
 def update_logger():
     prefs = functions.get_prefs()
     logger.setLevel(prefs.logging_level)
+from .utilities.register import cleanse_modules
 
 
 def ensure_addon_presets(force_write=False):
@@ -136,3 +105,5 @@ def unregister():
         return
 
     install.unregister_full()
+    
+    cleanse_modules(__package__)
