@@ -105,5 +105,5 @@ def unregister():
         return
 
     install.unregister_full()
-    
+
     cleanse_modules(__package__)
