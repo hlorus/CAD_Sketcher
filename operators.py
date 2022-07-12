@@ -106,8 +106,8 @@ def draw_elements(context: Context):
 def draw_cb():
     context = bpy.context
 
-    prefs = functions.get_prefs()
-    update_elements(context, force=prefs.force_redraw)
+    force = preferences.use_experimental("force_redraw", True)
+    update_elements(context, force=force)
     draw_elements(context)
 
     global_data.redraw_selection_buffer = True

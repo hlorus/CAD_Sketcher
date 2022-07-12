@@ -171,8 +171,7 @@ class SlvsGenericEntity:
         if not self.is_visible(context):
             return False
 
-        prefs = functions.get_prefs()
-        if prefs.all_entities_selectable:
+        if preferences.use_experimental("all_entities_selectable", False):
             return True
 
         active_sketch = context.scene.sketcher.active_sketch
@@ -2052,8 +2051,8 @@ class GenericConstraint:
         if not hasattr(self, "sketch"):
             return not active_sketch
 
-        show_inactive = not functions.get_prefs().hide_inactive_constraints
-        if show_inactive and self.is_visible():
+        show_inactive = not preferences.use_experimental("hide_inactive_constraints", True)
+        if show_inactive: # and self.is_visible(context)
             return True
 
         return self.sketch == active_sketch
