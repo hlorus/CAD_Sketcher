@@ -293,9 +293,9 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
     bl_idname = Operators.ContextMenu
     bl_label = "Solvespace Context Menu"
 
-    type: StringProperty(name="Type", options={"SKIP_SAVE"})
-    index: IntProperty(name="Index", default=-1, options={"SKIP_SAVE"})
-    delayed: BoolProperty(default=True)
+    type: StringProperty(name="Type", options={'SKIP_SAVE'})
+    index: IntProperty(name="Index", default=-1, options={'SKIP_SAVE'})
+    delayed: BoolProperty(default=False)
 
     @classmethod
     def description(cls, context: Context, properties: PropertyGroup):

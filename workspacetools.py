@@ -71,7 +71,7 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
         (
             Operators.ContextMenu,
             {"type": "RIGHTMOUSE", "value": "PRESS"},
-            None,
+            {"properties": [("delayed", True)]},
         ),
         (
             Operators.DeleteEntity,
