@@ -73,7 +73,7 @@ def load():
     if background:
         return
     # Read icons from filepath and store as python data(batch?) for easy access
-    filepath = Path(Path(__file__).parent, "icons")
+    filepath = Path(Path(__file__).parent, "ressources/icons")
 
     for icon in filepath.iterdir():
         read_icon(icon)
