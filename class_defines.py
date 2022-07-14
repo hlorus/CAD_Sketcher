@@ -24,7 +24,8 @@ import mathutils
 from mathutils import Vector, Matrix, Euler
 from mathutils.geometry import intersect_line_line_2d, intersect_sphere_sphere_2d, intersect_line_sphere_2d, distance_point_to_plane
 
-from . import global_data, functions, preferences
+from . import global_data, functions
+from .utilities import preferences
 from .shaders import Shaders
 from .solver import solve_system, Solver
 from .functions import pol2cart, unique_attribute_setter

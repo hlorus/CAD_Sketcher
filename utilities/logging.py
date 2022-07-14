@@ -26,6 +26,6 @@ def setup_logger(logger):
     logger.addHandler(file_handler)
 
 def update_logger(logger):
-    from ..preferences import get_prefs
+    from .preferences import get_prefs
     prefs = get_prefs()
     logger.setLevel(prefs.logging_level)
