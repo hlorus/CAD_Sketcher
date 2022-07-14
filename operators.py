@@ -23,7 +23,8 @@ from bpy.types import Context, Event, Mesh, Object, Operator, PropertyGroup, Sce
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_plane
 
-from . import class_defines, convertors, functions, global_data, preferences
+from . import class_defines, convertors, functions, global_data
+from .utilities import preferences
 from .keymaps import get_key_map_desc
 from .declarations import Operators, GizmoGroups, VisibilityTypes, WorkSpaceTools
 from .class_defines import (
