@@ -11,13 +11,12 @@ bl_info = {
     "tracker_url": "https://github.com/hlorus/CAD_Sketcher/discussions/categories/announcements",
 }
 
-import bpy
-
-from . import theme, preferences, install, icon_manager, global_data, functions
-
-
 import logging
 
+from .utilities.install import check_module
+
+from . import icon_manager, global_data, base
+from . import register_full
 from .utilities.register import cleanse_modules
 from .utilities.presets import ensure_addon_presets
 from .utilities.logging import setup_logger, update_logger
@@ -31,12 +30,9 @@ def register():
     # Setup root logger
     setup_logger(logger)
 
-
     # Register base
     ensure_addon_presets()
-    theme.register()
-    preferences.register()
-    install.register()
+    base.register()
 
     update_logger(logger)
     icon_manager.load()
@@ -47,22 +43,22 @@ def register():
 
     # Check Module and register all modules
     try:
-        install.check_module()
+        check_module("py_slvs")
+        register_full.register()
+
+        global_data.registered = True
         logger.info("Solvespace available, fully registered modules")
     except ModuleNotFoundError:
+        global_data.registered = False
         logger.warning(
             "Solvespace module isn't available, only base modules registered"
         )
 
 
 def unregister():
-    install.unregister()
-    preferences.unregister()
-    theme.unregister()
+    if global_data.registered:
+        register_full.unregister()
 
-    if not global_data.registered:
-        return
-
-    install.unregister_full()
+    base.unregister()
 
     cleanse_modules(__package__)
