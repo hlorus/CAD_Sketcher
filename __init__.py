@@ -23,8 +23,11 @@ from .utilities.presets import ensure_addon_presets
 from .utilities.logging import setup_logger, update_logger
 
 
+# Globals
+logger = logging.getLogger(__name__)
+
 def register():
-    logger = logging.getLogger(__name__)
+
     # Setup root logger
     setup_logger(logger)
 
