@@ -2,6 +2,7 @@ import logging
 from tempfile import gettempdir
 from pathlib import Path
 
+from .register import get_name
 
 def setup_logger(logger):
     """Configures a logger, this is intended to be run on the root logger"""
@@ -17,7 +18,7 @@ def setup_logger(logger):
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-    filepath = Path(gettempdir()) / (__name__ + ".log")
+    filepath = Path(gettempdir()) / (get_name() + ".log")
 
     logger.info("Logging into: " + str(filepath))
     file_handler = logging.FileHandler(filepath, mode="w")
