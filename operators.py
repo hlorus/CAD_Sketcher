@@ -104,8 +104,8 @@ def draw_elements(context: Context):
 def draw_cb():
     context = bpy.context
 
-    prefs = functions.get_prefs()
-    update_elements(context, force=prefs.force_redraw)
+    force = preferences.use_experimental("force_redraw", True)
+    update_elements(context, force=force)
     draw_elements(context)
 
     global_data.redraw_selection_buffer = True
@@ -131,7 +131,7 @@ class HighlightElement:
     Settings:
     highlight_hover -> highlights the element as soon as the tooltip is shown
     highlight_active -> highlights the element when the operator is invoked
-    highlight_members -> highlights the element members e.g. the entities dependencies or
+    highlight_members -> highlights the element members e.g. the entity's dependencies or
                 the entities the constraint acts on
     """
 
@@ -144,24 +144,28 @@ class HighlightElement:
         if not properties.is_property_set("index"):
             return cls.__doc__
 
+        # Clear previous highlights
+        global_data.highlight_constraint = None
+        global_data.highlight_entities = []
+
         index = properties.index
         members = properties.highlight_members
 
         if hasattr(properties, "type") and properties.is_property_set("type"):
             type = properties.type
             c = context.scene.sketcher.constraints.get_from_type_index(type, index)
+            
+            global_data.highlight_constraint = c
             if members:
                 global_data.highlight_entities.extend(c.entities())
-            else:
-                global_data.highlight_constraint = c
+            
         else:
+            # Set hover so this could be used as selection
+            global_data.hover = properties.index
             if members:
                 e = context.scene.sketcher.entities.get(index)
                 global_data.highlight_entities.extend(e.dependencies())
-            else:
-                # Set hover so this could be used as selection
-                global_data.hover = properties.index
-
+                
         context.area.tag_redraw()
         return cls.__doc__
 
@@ -287,9 +291,9 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
     bl_idname = Operators.ContextMenu
     bl_label = "Solvespace Context Menu"
 
-    type: StringProperty(name="Type", options={"SKIP_SAVE"})
-    index: IntProperty(name="Index", default=-1, options={"SKIP_SAVE"})
-    delayed: BoolProperty(default=True)
+    type: StringProperty(name="Type", options={'SKIP_SAVE'})
+    index: IntProperty(name="Index", default=-1, options={'SKIP_SAVE'})
+    delayed: BoolProperty(default=False)
 
     @classmethod
     def description(cls, context: Context, properties: PropertyGroup):
@@ -1966,21 +1970,22 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
             entity.remove_objects()
 
             deps = get_sketch_deps_indicies(entity, context)
-            # deps.sort(reverse=True)
 
-            for i in deps:
+            for i in reversed(deps):
                 operator.delete(entities.get(i), context)
 
         elif is_entity_referenced(entity, context):
             deps = list(get_entity_deps(entity, context))
 
-            message = f"Unable to delete {entity.name}, {deps} depend on it."
+            message = f"Unable to delete {entity.name}, other entities depend on it:\n"+ "\n".join(
+                [f" - {d}" for d in deps]
+            )
             show_ui_message_popup(message=message, icon="ERROR")
 
             operator.report(
                 {"WARNING"},
-                "Cannot delete {}, other entities {} depend on it.".format(
-                    entity.name, deps
+                "Cannot delete {}, other entities depend on it.".format(
+                    entity.name
                 ),
             )
             return {"CANCELLED"}
@@ -1994,10 +1999,9 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         # Delete constraints that depend on entity
         constraints = context.scene.sketcher.constraints
 
-        for data_coll, indices in get_constraint_local_indices(entity, context):
+        for data_coll, indices in reversed(get_constraint_local_indices(entity, context)):
             if not indices:
                 continue
-            indices.sort(reverse=True)
             for i in indices:
                 logger.debug("Delete: {}".format(data_coll[i]))
                 data_coll.remove(i)
@@ -2008,12 +2012,18 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
 
     def execute(self, context: Context):
         index = self.index
+        selected = context.scene.sketcher.entities.selected_entities
 
         if index != -1:
+            # Entity is specified via property
             self.main(context, index, self)
+        elif len(selected) == 1:
+            # Treat single selection same as specified entity
+            self.main(context, selected[0].slvs_index, self)
         else:
+            # Batch deletion
             indices = []
-            for e in context.scene.sketcher.entities.selected_entities:
+            for e in selected:
                 indices.append(e.slvs_index)
 
             indices.sort(reverse=True)
