@@ -14,8 +14,10 @@ import sys
 from pathlib import Path
 import logging
 
-from . import functions, global_data, theme, units, install
-
+from . import theme
+from .. import functions, global_data, units
+from ..declarations import Operators
+from ..utilities.register import get_path, get_name
 
 log_levels = [
     ("CRITICAL", "Critical", "", 0),
@@ -91,25 +93,13 @@ class SKETCHER_MT_theme_presets(Menu):
 
 
 
-def get_prefs():
-    return bpy.context.preferences.addons[__package__].preferences
 
-def get_scale():
-    return bpy.context.preferences.system.ui_scale * get_prefs().entity_scale
-
-def is_experimental():
-    return get_prefs().show_debug_settings
-
-def use_experimental(setting, fallback):
-    """Ensure experimental setting is unused when not in experimental mode"""
-    if not is_experimental():
-        return fallback
-    prefs = get_prefs()
-    return getattr(prefs, setting)
 
 
 class Preferences(AddonPreferences):
-    bl_idname = __package__
+    path = get_path()
+    bl_idname = get_name()
+    
     theme_settings: PointerProperty(type=theme.ThemeSettings)
 
     show_debug_settings: BoolProperty(
@@ -178,14 +168,12 @@ class Preferences(AddonPreferences):
             split = box.split(factor=0.8)
             split.prop(self, "package_path", text="")
             split.operator(
-                install.View3D_OT_slvs_install_package.bl_idname,
-                text="Install from File",
+                Operators.InstallPackage, text="Install from File",
             ).package = self.package_path
 
             row = box.row()
             row.operator(
-                install.View3D_OT_slvs_install_package.bl_idname,
-                text="Install from PIP",
+                Operators.InstallPackage, text="Install from PIP",
             ).package = "py-slvs"
 
         box = layout.box()

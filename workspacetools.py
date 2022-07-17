@@ -8,7 +8,7 @@ from .stateful_operator.tool import GenericStateTool
 
 
 def get_addon_icon_path(icon_name):
-    return os.path.join(os.path.dirname(__file__), "icons", icon_name)
+    return os.path.join(os.path.dirname(__file__), "ressources/icons", icon_name)
 
 generic_keymap = (
     (
