@@ -4,7 +4,7 @@ from bpy.types import Operator
 from .. import functions, global_data
 from ..declarations import Operators
 from ..utilities.install import check_module
-from ..register_full import register as register_full
+from ..registration import register_full
 
 class View3D_OT_slvs_install_package(Operator):
     """Install module from local .whl file or from PyPi"""

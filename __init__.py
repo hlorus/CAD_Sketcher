@@ -13,10 +13,9 @@ bl_info = {
 
 import logging
 
+from . import icon_manager, global_data
+from .registration import register_base, unregister_base, register_full, unregister_full
 from .utilities.install import check_module
-
-from . import icon_manager, global_data, base
-from . import register_full
 from .utilities.register import cleanse_modules
 from .utilities.presets import ensure_addon_presets
 from .utilities.logging import setup_logger, update_logger
@@ -32,7 +31,7 @@ def register():
 
     # Register base
     ensure_addon_presets()
-    base.register()
+    register_base()
 
     update_logger(logger)
     icon_manager.load()
@@ -44,7 +43,7 @@ def register():
     # Check Module and register all modules
     try:
         check_module("py_slvs")
-        register_full.register()
+        register_full()
 
         global_data.registered = True
         logger.info("Solvespace available, fully registered modules")
@@ -57,8 +56,8 @@ def register():
 
 def unregister():
     if global_data.registered:
-        register_full.unregister()
+        unregister_full()
 
-    base.unregister()
+    unregister_base()
 
     cleanse_modules(__package__)
