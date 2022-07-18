@@ -1,5 +1,3 @@
-
-import imp
 from bpy.types import Operator, Context
 from bpy.props import IntProperty, BoolProperty
 from bpy.utils import register_classes_factory
