@@ -1,5 +1,5 @@
-[![CAD Sketcher](/logos/wide_dark.png)](https://hlorus.github.io/CAD_Sketcher/#gh-light-mode-only)
-[![CAD Sketcher](/logos/wide_light.png)](https://hlorus.github.io/CAD_Sketcher/#gh-dark-mode-only)
+[![CAD Sketcher](/ressources/logos/wide_dark.png)](https://hlorus.github.io/CAD_Sketcher/#gh-light-mode-only)
+[![CAD Sketcher](/ressources/logos/wide_light.png)](https://hlorus.github.io/CAD_Sketcher/#gh-dark-mode-only)
 
 #
 <a href="https://discord.gg/GzpJsShgxa"><img alt="Discord" src="https://img.shields.io/discord/882152824249667594"></a>
