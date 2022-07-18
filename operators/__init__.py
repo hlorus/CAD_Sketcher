@@ -7,6 +7,7 @@ modules = [
     "solver_state",
     "solve",
     "update",
+    "tweak",
 ]
 
 register, unregister = module_register_factory(__name__, modules)
