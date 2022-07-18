@@ -1,4 +1,4 @@
-from bpy.utils import register_submodule_factory
+from .utilities.register import module_register_factory
 
 base_modules = [
     "base",
@@ -15,6 +15,6 @@ core_modules = [
     "draw_handler",
 ]
 
-register_base, unregister_base = register_submodule_factory(__package__, base_modules)
-register_full, unregister_full = register_submodule_factory(__package__, core_modules)
+register_base, unregister_base = module_register_factory(__package__, base_modules)
+register_full, unregister_full = module_register_factory(__package__, core_modules)
 
