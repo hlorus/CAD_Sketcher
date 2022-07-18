@@ -4,7 +4,6 @@ from bpy.types import Operator
 from .. import functions, global_data
 from ..declarations import Operators
 from ..utilities.install import check_module
-from ..registration import register_full
 
 class View3D_OT_slvs_install_package(Operator):
     """Install module from local .whl file or from PyPi"""
@@ -33,6 +32,7 @@ class View3D_OT_slvs_install_package(Operator):
         if functions.install_package(self.package):
             try:
                 check_module("py_slvs")
+                from ..registration import register_full
                 register_full()
 
                 self.report({"INFO"}, "Package successfully installed")
