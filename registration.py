@@ -18,15 +18,3 @@ core_modules = [
 register_base, unregister_base = register_submodule_factory(__package__, base_modules)
 register_full, unregister_full = register_submodule_factory(__package__, core_modules)
 
-
-# def register_base():
-#     pass
-
-# def unregister_base():
-#     pass
-
-# def register_full():
-#     pass
-
-# def unregister_full():
-#     pass

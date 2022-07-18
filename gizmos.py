@@ -1,8 +1,11 @@
 import bpy, bgl, gpu, blf
-from . import functions, operators, global_data, class_defines, icon_manager
-from .declarations import GizmoGroups, Gizmos, Operators
+
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector, Matrix
+
+from . import functions, operators, global_data, class_defines, icon_manager
+from .declarations import GizmoGroups, Gizmos, Operators
+from .draw_handler import ensure_selection_texture
 
 # NOTE: idealy gizmo would expose active element as a property and
 # operators would access hovered element from there
@@ -26,7 +29,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
 
         # ensure selection texture is up to date
         # TODO: avoid dependency on operators module?
-        operators.ensure_selection_texture(context)
+        ensure_selection_texture(context)
 
         # sample selection texture and mark hovered entity
         mouse_x, mouse_y = location
