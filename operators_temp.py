@@ -4,9 +4,8 @@ Operators
 import logging
 import math
 from collections import deque, namedtuple
-from typing import Deque, Generator, Union
+from typing import Deque, Generator
 
-import bgl
 import bpy
 from bl_operators.presets import AddPresetBase
 from bpy.props import (
@@ -28,21 +27,19 @@ from .declarations import Operators, GizmoGroups, VisibilityTypes, WorkSpaceTool
 from .class_defines import (
     SlvsConstraints,
     SlvsGenericEntity,
-    SlvsPoint2D,
-    SlvsPoint3D,
-    SlvsNormal3D,
     SlvsSketch,
 )
 from .declarations import GizmoGroups, Operators, WorkSpaceTools
 from .solver import solve_system
 from .functions import show_ui_message_popup
 from .convertors import update_convertor_geometry
+from .utilities.highlighting import HighlightElement
+from .stateful_operator.integration import StatefulOperator
+from .stateful_operator.state import state_from_args
+from .operators.base_stateful import GenericEntityOp
+from .operators.utilities import deselect_all, ignore_hover
 
 logger = logging.getLogger(__name__)
-
-
-from .utilities.highlighting import HighlightElement
-from .operators.utilities import deselect_all
 
 
 def add_point(context, pos, name=""):
@@ -52,301 +49,8 @@ def add_point(context, pos, name=""):
     context.collection.objects.link(ob)
     return ob
 
-# NOTE: The draw handler has to be registered before this has any effect, currently it's possible that
-# entities are first created with an entity that was hovered in the previous state
-# Not sure if it's possible to force draw handlers...
-# Also note that a running modal operator might prevent redraws, avoid returning running_modal
-def ignore_hover(entity):
-    ignore_list = global_data.ignore_list
-    ignore_list.append(entity.slvs_index)
-
-
-# TODO: could probably check entity type only through index, instead of getting the entity first...
-def get_hovered(context: Context, *types):
-    hovered = global_data.hover
-    entity = None
-
-    if hovered != -1:
-        entity = context.scene.sketcher.entities.get(hovered)
-        if type(entity) in types:
-            return entity
-    return None
-
-
-from .stateful_operator.integration import StatefulOperator
-from .stateful_operator.state import state_from_args
-
-class GenericEntityOp(StatefulOperator):
-    """Extend StatefulOperator with addon specific types"""
-
-    def check_event(self, event):
-        # Hardcode shift event to toggle constraint selectability
-        if event.type == "LEFT_SHIFT":
-            bpy.context.scene.sketcher.selectable_constraints = event.value == "RELEASE"
-        return super().check_event(event)
-
-    def pick_element(self, context, coords):
-        retval = super().pick_element(context, coords)
-        if retval != None:
-            return retval
-
-        state = self.state
-        data = self.state_data
-
-        hovered = get_hovered(context, *state.types)
-        if hovered and self.is_in_previous_states(hovered):
-            hovered = None
-
-        # Set the hovered entity for constraining if not directly used
-        hovered_index = -1
-        if not hovered and hasattr(self, "_check_constrain"):
-            hover = global_data.hover
-            if hover and self._check_constrain(context, hover):
-                hovered_index = hover
-
-        data["hovered"] = hovered_index
-        data["type"] = type(hovered) if hovered else None
-        return hovered.slvs_index if hovered else None
-
-    def add_coincident(self, context: Context, point, state, state_data):
-        index = state_data.get("hovered", -1)
-        if index != -1:
-            hovered = context.scene.sketcher.entities.get(index)
-            constraints = context.scene.sketcher.constraints
-
-            sketch = None
-            if hasattr(self, "sketch"):
-                sketch = self.sketch
-            state_data["coincident"] = constraints.add_coincident(
-                point, hovered, sketch=sketch
-            )
-
-    def has_coincident(self):
-        for state_index, data in self._state_data.items():
-            if data.get("coincident", None):
-                return True
-        return False
-
-    @classmethod
-    def register_properties(cls):
-        super().register_properties()
-
-        states = cls.get_states_definition()
-
-        for s in states:
-            if not s.pointer:
-                continue
-
-            name = s.pointer
-            types = s.types
-
-            annotations = {}
-            if hasattr(cls, "__annotations__"):
-                annotations = cls.__annotations__.copy()
-
-            # handle SlvsPoint3D fallback props
-            if any([t == SlvsPoint3D for t in types]):
-                kwargs = {"size": 3, "subtype": "XYZ", "unit": "LENGTH"}
-                annotations[name + "_fallback"] = FloatVectorProperty(
-                    name=name, **kwargs
-                )
-
-            # handle SlvsPoint2D fallback props
-            if any([t == SlvsPoint2D for t in types]):
-                kwargs = {"size": 2, "subtype": "XYZ", "unit": "LENGTH"}
-                annotations[name + "_fallback"] = FloatVectorProperty(
-                    name=name, **kwargs
-                )
-
-            if any([t == SlvsNormal3D for t in types]):
-                kwargs = {"size": 3, "subtype": "EULER", "unit": "ROTATION"}
-                annotations[name + "_fallback"] = FloatVectorProperty(
-                    name=name, **kwargs
-                )
-
-            for a in annotations.keys():
-                if hasattr(cls, a):
-                    raise NameError(
-                        f"Class {cls} already has attribute of name {a}, "
-                        + "cannot register implicit pointer properties"
-                    )
-            setattr(cls, "__annotations__", annotations)
-
-    def state_property(self, state_index):
-        # Return state_prop / properties. Handle multiple types
-        props = super().state_property(state_index)
-        if props:
-            return props
-
-        state = self.get_states_definition()[state_index]
-
-        pointer_name = state.pointer
-        if not pointer_name:
-            return ""
-
-        if any([issubclass(t, SlvsGenericEntity) for t in state.types]):
-            return pointer_name + "_fallback"
-        return ""
-
-    def get_state_pointer(self, index=Union[None, int], implicit=False):
-        retval = super().get_state_pointer(index=index, implicit=implicit)
-        if retval:
-            return retval
-
-        # Creates pointer from it's implicitly stored props
-        if index is None:
-            index = self.state_index
-
-        state = self.get_states_definition()[index]
-        pointer_name = state.pointer
-        data = self._state_data.get(index, {})
-        if not "type" in data.keys():
-            return None
-
-        pointer_type = data["type"]
-        if not pointer_type:
-            return None
-
-        if issubclass(pointer_type, SlvsGenericEntity):
-            i = data["entity_index"]
-            if implicit:
-                return i
-
-            if i == -1:
-                return None
-            return bpy.context.scene.sketcher.entities.get(i)
-
-    def set_state_pointer(self, values, index=None, implicit=False):
-        retval = super().set_state_pointer(values, index=index, implicit=implicit)
-        if retval:
-            return retval
-
-        # handles type specific setters
-        if index is None:
-            index = self.state_index
-
-        state = self.get_states_definition()[index]
-        pointer_name = state.pointer
-        data = self._state_data.get(index, {})
-        pointer_type = data["type"]
-
-        if issubclass(pointer_type, SlvsGenericEntity):
-            value = values[0] if values != None else None
-
-            if value is None:
-                i = -1
-            elif implicit:
-                i = value
-            else:
-                i = value.slvs_index
-            data["entity_index"] = i
-            return True
-
-    def gather_selection(self, context: Context):
-        # Return list filled with all selected verts/edges/faces/objects
-        selected = super().gather_selection(context)
-        states = self.get_states()
-        types = [s.types for s in states]
-
-        selected.extend(list(context.scene.sketcher.entities.selected_entities))
-        return selected
-
-
-class Operator3d(GenericEntityOp):
-    @classmethod
-    def poll(cls, context: Context):
-        return context.scene.sketcher.active_sketch_i == -1
-
-    def init(self, context: Context, event: Event):
-        pass
-
-    def state_func(self, context, coords):
-        return functions.get_placement_pos(context, coords)
-
-    def create_element(self, context, values, state, state_data):
-        sse = context.scene.sketcher.entities
-        loc = values[0]
-        point = sse.add_point_3d(loc)
-        self.add_coincident(context, point, state, state_data)
-
-        ignore_hover(point)
-        state_data["type"] = type(point)
-        return point.slvs_index
-
-    # Check if hovered entity should be constrained
-    def _check_constrain(self, context, index):
-        type = context.scene.sketcher.entities.type_from_index(index)
-        return type in (class_defines.SlvsLine3D, class_defines.SlvsWorkplane)
-
-    def get_point(self, context, index):
-        states = self.get_states_definition()
-        state = states[index]
-        data = self._state_data[index]
-        type = data["type"]
-        sse = context.scene.sketcher.entities
-
-        if type == bpy.types.MeshVertex:
-            ob_name, v_index = self.get_state_pointer(index=index, implicit=True)
-            ob = bpy.data.objects[ob_name]
-            return sse.add_ref_vertex_3d(ob, v_index)
-        return getattr(self, state.pointer)
-
-
-class Operator2d(GenericEntityOp):
-    @classmethod
-    def poll(cls, context):
-        return context.scene.sketcher.active_sketch_i != -1
-
-    def init(self, context, event):
-        self.sketch = context.scene.sketcher.active_sketch
-
-    def state_func(self, context, coords):
-        wp = self.sketch.wp
-        origin, end_point = functions.get_picking_origin_end(context, coords)
-        pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
-        if pos is None:
-            return None
-
-        pos = wp.matrix_basis.inverted() @ pos
-        return Vector(pos[:-1])
-
-    # create element depending on mode
-    def create_element(self, context, values, state, state_data):
-        sse = context.scene.sketcher.entities
-        sketch = self.sketch
-        loc = values[0]
-        point = sse.add_point_2d(loc, sketch)
-        self.add_coincident(context, point, state, state_data)
-
-        ignore_hover(point)
-        state_data["type"] = type(point)
-        return point.slvs_index
-
-    def _check_constrain(self, context, index):
-        type = context.scene.sketcher.entities.type_from_index(index)
-        return type in (
-            class_defines.SlvsLine2D,
-            class_defines.SlvsCircle,
-            class_defines.SlvsArc,
-        )
-
-    def get_point(self, context, index):
-        states = self.get_states_definition()
-        state = states[index]
-        data = self._state_data[index]
-        type = data["type"]
-        sse = context.scene.sketcher.entities
-        sketch = self.sketch
-
-        if type == bpy.types.MeshVertex:
-            ob_name, v_index = self.get_state_pointer(index=index, implicit=True)
-            ob = bpy.data.objects[ob_name]
-            return sse.add_ref_vertex_2d(ob, v_index, sketch)
-        return getattr(self, state.pointer)
-
-
-class_defines.slvs_entity_pointer(Operator2d, "sketch")
-
+from .operators.base_3d import Operator3d
+from .operators.base_2d import Operator2d
 
 class View3D_OT_slvs_add_point3d(Operator, Operator3d):
     """Add a point in 3d space"""

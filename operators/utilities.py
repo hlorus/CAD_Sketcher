@@ -29,3 +29,22 @@ def select_all(context: Context):
 
 def deselect_all(context: Context):
     global_data.selected.clear()
+
+# NOTE: The draw handler has to be registered before this has any effect, currently it's possible that
+# entities are first created with an entity that was hovered in the previous state
+# Not sure if it's possible to force draw handlers...
+# Also note that a running modal operator might prevent redraws, avoid returning running_modal
+def ignore_hover(entity):
+    ignore_list = global_data.ignore_list
+    ignore_list.append(entity.slvs_index)
+
+# TODO: could probably check entity type only through index, instead of getting the entity first...
+def get_hovered(context: Context, *types):
+    hovered = global_data.hover
+    entity = None
+
+    if hovered != -1:
+        entity = context.scene.sketcher.entities.get(hovered)
+        if type(entity) in types:
+            return entity
+    return None
