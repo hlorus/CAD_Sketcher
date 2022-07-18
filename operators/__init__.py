@@ -8,6 +8,7 @@ modules = [
     "solve",
     "update",
     "tweak",
+    "save_offscreen",
 ]
 
 register, unregister = module_register_factory(__name__, modules)

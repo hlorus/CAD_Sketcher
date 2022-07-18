@@ -52,43 +52,6 @@ def add_point(context, pos, name=""):
     context.collection.objects.link(ob)
     return ob
 
-
-def write_selection_buffer_image(image_name: str):
-    offscreen = global_data.offscreen
-    width, height = offscreen.width, offscreen.height
-    buffer = bgl.Buffer(bgl.GL_FLOAT, width * height * 4)
-    with offscreen.bind():
-        bgl.glReadPixels(0, 0, width, height, bgl.GL_RGBA, bgl.GL_FLOAT, buffer)
-
-    if image_name not in bpy.data.images:
-        bpy.data.images.new(image_name, width, height)
-    image = bpy.data.images[image_name]
-    image.scale(width, height)
-    image.pixels = buffer
-    return image
-
-
-class VIEW3D_OT_slvs_write_selection_texture(Operator):
-    """Write selection texture to image for debugging"""
-
-    bl_idname = Operators.WriteSelectionTexture
-    bl_label = "Write selection texture"
-
-    def execute(self, context: Context):
-        if context.area.type != "VIEW_3D":
-            self.report({"WARNING"}, "View3D not found, cannot run operator")
-            return {"CANCELLED"}
-
-        if not global_data.offscreen:
-            self.report({"WARNING"}, "Selection texture is not available")
-            return {"CANCELLED"}
-
-        image = write_selection_buffer_image("selection_buffer")
-        self.report({"INFO"}, "Wrote buffer to image: {}".format(image.name))
-
-        return {"FINISHED"}
-
-
 # NOTE: The draw handler has to be registered before this has any effect, currently it's possible that
 # entities are first created with an entity that was hovered in the previous state
 # Not sure if it's possible to force draw handlers...
@@ -2073,7 +2036,6 @@ from .stateful_operator.invoke_op import View3D_OT_invoke_tool
 
 classes = (
     View3D_OT_slvs_add_point3d,
-    VIEW3D_OT_slvs_write_selection_texture,
     View3D_OT_slvs_add_line3d,
     View3D_OT_slvs_add_workplane,
     View3D_OT_slvs_add_workplane_face,
