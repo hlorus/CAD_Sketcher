@@ -8,7 +8,6 @@ from typing import Deque, Generator, Union
 
 import bgl
 import bpy
-import bmesh
 from bl_operators.presets import AddPresetBase
 from bpy.props import (
     BoolProperty,
@@ -18,12 +17,12 @@ from bpy.props import (
     IntProperty,
     StringProperty,
 )
-from bpy.types import Context, Event, Mesh, Object, Operator, PropertyGroup, Scene
+from bpy.types import Context, Event, Operator, Scene
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_plane
 
 
-from . import class_defines, convertors, functions, global_data
+from . import class_defines, functions, global_data
 from .utilities import preferences
 from .declarations import Operators, GizmoGroups, VisibilityTypes, WorkSpaceTools
 from .class_defines import (
@@ -37,46 +36,13 @@ from .class_defines import (
 from .declarations import GizmoGroups, Operators, WorkSpaceTools
 from .solver import Solver, solve_system
 from .functions import show_ui_message_popup
+from .convertors import update_convertor_geometry
 
 logger = logging.getLogger(__name__)
 
 
 from .utilities.highlighting import HighlightElement
 from .operators.utilities import deselect_all
-
-
-class View3D_OT_slvs_solve(Operator):
-    bl_idname = Operators.Solve
-    bl_label = "Solve"
-
-    all: BoolProperty(name="Solve All", options={"SKIP_SAVE"})
-
-    def execute(self, context: Context):
-        sketch = context.scene.sketcher.active_sketch
-        solver = Solver(context, sketch, all=self.all)
-        ok = solver.solve()
-
-        # Keep messages simple, sketches are marked with solvestate
-        if ok:
-            self.report({"INFO"}, "Successfully solved")
-        else:
-            self.report({"WARNING"}, "Solver failed")
-
-        context.area.tag_redraw()
-        return {"FINISHED"}
-
-
-class View3D_OT_update(Operator):
-    """Solve all sketches and update converted geometry"""
-    bl_idname = Operators.Update
-    bl_label = "Force Update"
-
-    def execute(self, context):
-        solver = Solver(context, None, all=True)
-        solver.solve()
-
-        update_convertor_geometry(context.scene)
-        return {"FINISHED"}
 
 
 def add_point(context, pos, name=""):
@@ -2164,110 +2130,6 @@ class SKETCHER_OT_add_preset_theme(AddPresetBase, Operator):
     preset_subdir = "bgs/theme"
 
 
-def mesh_from_temporary(mesh: Mesh, name: str, existing_mesh: Union[bool, None] = None):
-
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-
-    bmesh.ops.dissolve_limit(
-        bm, angle_limit=math.radians(0.1), verts=bm.verts, edges=bm.edges
-    )
-
-    if existing_mesh:
-        existing_mesh.clear_geometry()
-        new_mesh = existing_mesh
-    else:
-        new_mesh = bpy.data.meshes.new(name)
-    bm.to_mesh(new_mesh)
-    bm.free()
-    return new_mesh
-
-
-def _cleanup_data(sketch, mode: str):
-    if sketch.target_object and mode != "MESH":
-        sketch.target_object.sketch_index = -1
-        bpy.data.objects.remove(sketch.target_object, do_unlink=True)
-        sketch.target_object = None
-    if sketch.target_curve_object and mode != "BEZIER":
-        sketch.target_curve_object.sketch_index = -1
-        bpy.data.objects.remove(sketch.target_curve_object, do_unlink=True)
-        sketch.target_curve_object = None
-
-
-def _link_unlink_object(scene: Scene, ob: Object, keep: bool):
-    objects = scene.collection.objects
-    exists = ob.name in objects
-
-    if exists:
-        if not keep:
-            objects.unlink(ob)
-    elif keep:
-        objects.link(ob)
-
-
-def update_convertor_geometry(scene: Scene, sketch=None):
-    coll = (sketch,) if sketch else scene.sketcher.entities.sketches
-    for sketch in coll:
-        mode = sketch.convert_type
-        if sketch.convert_type == "NONE":
-            _cleanup_data(sketch, mode)
-            continue
-
-        data = bpy.data
-        name = sketch.name
-
-        # Create curve object
-        if not sketch.target_curve_object:
-            curve = bpy.data.objects.data.curves.new(name, "CURVE")
-            object = bpy.data.objects.new(name, curve)
-            sketch.target_curve_object = object
-        else:
-            # Clear curve data
-            sketch.target_curve_object.data.splines.clear()
-
-        # Convert geometry to curve data
-        conv = convertors.BezierConverter(scene, sketch)
-        conv.run()
-        # TODO: Avoid re-converting sketches where nothing has changed!
-        logger.info("Convert sketch {} to {}: ".format(sketch, mode.lower()))
-        curve_data = sketch.target_curve_object.data
-        conv.to_bezier(curve_data)
-        data = curve_data
-
-        # Link / unlink curve object
-        _link_unlink_object(scene, sketch.target_curve_object, mode == "BEZIER")
-
-        if mode == "MESH":
-            # Create mesh data
-            temp_mesh = sketch.target_curve_object.to_mesh()
-            mesh = mesh_from_temporary(
-                temp_mesh,
-                name,
-                existing_mesh=(
-                    sketch.target_object.data if sketch.target_object else None
-                ),
-            )
-            sketch.target_curve_object.to_mesh_clear()
-
-            # Create mesh object
-            if not sketch.target_object:
-                mesh_object = bpy.data.objects.new(name, mesh)
-                scene.collection.objects.link(mesh_object)
-                sketch.target_object = mesh_object
-            else:
-                sketch.target_object.data = mesh
-
-        _cleanup_data(sketch, mode)
-
-        target_ob = (
-            sketch.target_object if mode == "MESH" else sketch.target_curve_object
-        )
-        target_ob.matrix_world = sketch.wp.matrix_basis
-
-        target_ob.sketch_index = sketch.slvs_index
-
-        # Update object name
-        target_ob.name = sketch.name
 
 
 constraint_operators = (
@@ -2307,8 +2169,6 @@ classes = (
     View3D_OT_slvs_set_all_constraints_visibility,
     View3D_OT_slvs_delete_entity,
     *constraint_operators,
-    View3D_OT_slvs_solve,
-    View3D_OT_update,
     View3D_OT_slvs_delete_constraint,
     View3D_OT_slvs_tweak_constraint_value_pos,
     SKETCHER_OT_add_preset_theme,

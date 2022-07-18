@@ -5,6 +5,8 @@ modules = [
     "select",
     "context_menu",
     "solver_state",
+    "solve",
+    "update",
 ]
 
 register, unregister = module_register_factory(__name__, modules)
