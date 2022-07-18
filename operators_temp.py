@@ -42,82 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 from .utilities.highlighting import HighlightElement
-
-
-def deselect_all(context: Context):
-    global_data.selected.clear()
-
-
-def entities_3d(context: Context) -> Generator[SlvsGenericEntity, None, None]:
-    for entity in context.scene.sketcher.entities.all:
-        if hasattr(entity, "sketch"):
-            continue
-        yield entity
-
-
-def select_all(context: Context):
-    sketch = context.scene.sketcher.active_sketch
-    if sketch:
-        generator = sketch.sketch_entities(context)
-    else:
-        generator = entities_3d(context)
-
-    for e in generator:
-        if e.selected:
-            continue
-        if not e.is_visible(context):
-            continue
-        if not e.is_active(context.scene.sketcher.active_sketch):
-            continue
-        e.selected = True
-
-
-class View3D_OT_slvs_select(Operator, HighlightElement):
-    """
-    TODO: Add selection modes
-
-    Select an entity
-
-    Either the entity specified by the index property or the hovered index
-    if the index property is not set
-
-    """
-
-    bl_idname = Operators.Select
-    bl_label = "Select Solvespace Entities"
-
-    index: IntProperty(name="Index", default=-1)
-
-    def execute(self, context: Context):
-        index = (
-            self.index
-            if self.properties.is_property_set("index")
-            else global_data.hover
-        )
-        if index != -1:
-            entity = context.scene.sketcher.entities.get(index)
-            entity.selected = not entity.selected
-        else:
-            deselect_all(context)
-        context.area.tag_redraw()
-        return {"FINISHED"}
-
-
-class View3D_OT_slvs_select_all(Operator):
-    """Select / Deselect all entities"""
-
-    bl_idname = Operators.SelectAll
-    bl_label = "Select / Deselect Entities"
-
-    deselect: BoolProperty(name="Deselect")
-
-    def execute(self, context: Context):
-        if self.deselect:
-            deselect_all(context)
-        else:
-            select_all(context)
-        context.area.tag_redraw()
-        return {"FINISHED"}
+from .operators.utilities import deselect_all
 
 
 class View3D_OT_slvs_context_menu(Operator, HighlightElement):
@@ -2457,8 +2382,6 @@ constraint_operators = (
 from .stateful_operator.invoke_op import View3D_OT_invoke_tool
 
 classes = (
-    View3D_OT_slvs_select,
-    View3D_OT_slvs_select_all,
     View3D_OT_slvs_context_menu,
     View3D_OT_slvs_show_solver_state,
     View3D_OT_slvs_tweak,

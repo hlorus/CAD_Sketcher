@@ -47,10 +47,11 @@ def register():
 
         global_data.registered = True
         logger.info("Solvespace available, fully registered modules")
-    except ModuleNotFoundError:
+    except ModuleNotFoundError as e:
         global_data.registered = False
         logger.warning(
-            "Solvespace module isn't available, only base modules registered"
+            "Solvespace module isn't available, only base modules registered\n"
+            + e
         )
 
 
