@@ -22,6 +22,9 @@ modules = [
     "set_sketch",
     "delete_entity",
     "delete_constraint",
+    "constraint_visibility",
+    "tweak_constraint",
+    "presets",
 ]
 
 def _register_unregister_extern():

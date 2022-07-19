@@ -5,24 +5,18 @@ import logging
 import math
 
 import bpy
-from bl_operators.presets import AddPresetBase
 from bpy.props import (
     BoolProperty,
     EnumProperty,
     FloatProperty,
-    IntProperty,
-    StringProperty,
 )
-from bpy.types import Context, Event, Operator
-from mathutils import Vector
-from mathutils.geometry import intersect_line_plane
+from bpy.types import Context, Operator
 
 
-from . import class_defines, functions, global_data
+from . import class_defines, global_data
 
-from .declarations import Operators, VisibilityTypes
+from .declarations import Operators
 from .solver import solve_system
-from .utilities.highlighting import HighlightElement
 from .stateful_operator.integration import StatefulOperator
 from .operators.base_stateful import GenericEntityOp
 
@@ -231,126 +225,6 @@ class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp, GenericEntityOp):
     type = "RATIO"
 
 
-class View3D_OT_slvs_set_all_constraints_visibility(Operator, HighlightElement):
-    """Set all constraints' visibility
-    """
-    _visibility_items = [
-        (VisibilityTypes.Hide, "Hide all", "Hide all constraints"),
-        (VisibilityTypes.Show, "Show all", "Show all constraints"),
-    ]
-
-    bl_idname = Operators.SetAllConstraintsVisibility
-    bl_label = "Set all constraints' visibility"
-    bl_options = {"UNDO"}
-    bl_description = "Set all constraints' visibility"
-
-    visibility: EnumProperty(
-        name="Visibility",
-        description="Visiblity",
-        items=_visibility_items)
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    @classmethod
-    def description(cls, context, properties):
-        for vi in cls._visibility_items:
-            if vi[0] == properties.visibility:
-                return vi[2]
-        return None
-
-    def execute(self, context):
-        constraint_lists = context.scene.sketcher.constraints.get_lists()
-        for constraint_list in constraint_lists:
-            for constraint in constraint_list:
-                if not hasattr(constraint, "visible"):
-                    continue
-                constraint.visible = self.visibility == "SHOW"
-        return {"FINISHED"}
-
-
-class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
-    bl_idname = Operators.TweakConstraintValuePos
-    bl_label = "Tweak Constraint"
-    bl_options = {"UNDO"}
-    bl_description = "Tweak constraint's value or display position"
-
-    type: StringProperty(name="Type")
-    index: IntProperty(default=-1)
-
-    def invoke(self, context: Context, event: Event):
-        self.tweak = False
-        self.init_mouse_pos = Vector((event.mouse_region_x, event.mouse_region_y))
-        context.window_manager.modal_handler_add(self)
-        return {"RUNNING_MODAL"}
-
-    def modal(self, context: Context, event: Event):
-        delta = (
-            self.init_mouse_pos - Vector((event.mouse_region_x, event.mouse_region_y))
-        ).length
-        if not self.tweak and delta > 6:
-            self.tweak = True
-
-        if event.type == "LEFTMOUSE" and event.value == "RELEASE":
-            if not self.tweak:
-                self.execute(context)
-            return {"FINISHED"}
-
-        if not self.tweak:
-            return {"RUNNING_MODAL"}
-
-        coords = event.mouse_region_x, event.mouse_region_y
-
-        constraints = context.scene.sketcher.constraints
-        constr = constraints.get_from_type_index(self.type, self.index)
-
-        origin, end_point = functions.get_picking_origin_end(context, coords)
-        pos = intersect_line_plane(origin, end_point, *constr.draw_plane())
-
-        mat = constr.matrix_basis()
-        pos = mat.inverted() @ pos
-
-        constr.update_draw_offset(pos, context.preferences.system.ui_scale)
-        context.space_data.show_gizmo = True
-        return {"RUNNING_MODAL"}
-
-    def execute(self, context: Context):
-        bpy.ops.view3d.slvs_context_menu(type=self.type, index=self.index)
-        return {"FINISHED"}
-
-
-class SKETCHER_OT_add_preset_theme(AddPresetBase, Operator):
-    """Add an Theme Preset"""
-
-    bl_idname = Operators.AddPresetTheme
-    bl_label = "Add Theme Preset"
-    preset_menu = "SKETCHER_MT_theme_presets"
-
-    preset_defines = [
-        'prefs = bpy.context.preferences.addons["CAD_Sketcher"].preferences',
-        "theme = prefs.theme_settings",
-        "entity = theme.entity",
-        "constraint = theme.constraint",
-    ]
-
-    preset_values = [
-        "entity.default",
-        "entity.highlight",
-        "entity.selected",
-        "entity.selected_highlight",
-        "entity.inactive",
-        "entity.inactive_selected",
-        "constraint.default",
-        "constraint.highlight",
-        "constraint.failed",
-        "constraint.failed_highlight",
-        "constraint.text",
-    ]
-
-    preset_subdir = "bgs/theme"
-
-
 
 
 constraint_operators = (
@@ -372,10 +246,7 @@ from .stateful_operator.invoke_op import View3D_OT_invoke_tool
 
 classes = (
     View3D_OT_invoke_tool,
-    View3D_OT_slvs_set_all_constraints_visibility,
     *constraint_operators,
-    View3D_OT_slvs_tweak_constraint_value_pos,
-    SKETCHER_OT_add_preset_theme,
 )
 
 
