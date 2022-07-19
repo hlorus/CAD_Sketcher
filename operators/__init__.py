@@ -11,6 +11,7 @@ modules = [
     "save_offscreen",
     "add_point_3d",
     "add_line_3d",
+    "add_workplane",
 ]
 
 register, unregister = module_register_factory(__name__, modules)

@@ -53,126 +53,6 @@ from .operators.base_3d import Operator3d
 from .operators.base_2d import Operator2d
 from .operators.constants import types_point_3d, types_point_2d
 
-from .stateful_operator.utilities.geometry import get_mesh_element, get_evaluated_obj
-
-class View3D_OT_slvs_add_workplane(Operator, Operator3d):
-    """Add a workplane"""
-
-    bl_idname = Operators.AddWorkPlane
-    bl_label = "Add Solvespace Workplane"
-    bl_options = {"REGISTER", "UNDO"}
-
-    wp_state1_doc = ("Origin", "Pick or place workplanes's origin.")
-    wp_state2_doc = ("Orientation", "Set workplane's orientation.")
-
-    states = (
-        state_from_args(
-            wp_state1_doc[0],
-            description=wp_state1_doc[1],
-            pointer="p1",
-            types=types_point_3d,
-        ),
-        state_from_args(
-            wp_state2_doc[0],
-            description=wp_state2_doc[1],
-            state_func="get_orientation",
-            pointer="nm",
-            types=class_defines.normal_3d,
-            interactive=True,
-            create_element="create_normal3d",
-        ),
-    )
-
-    def get_normal(self, context, index):
-        states = self.get_states_definition()
-        state = states[index]
-        data = self._state_data[index]
-        type = data["type"]
-        sse = context.scene.sketcher.entities
-
-        if type == bpy.types.MeshPolygon:
-            ob_name, nm_index = self.get_state_pointer(index=index, implicit=True)
-            ob = bpy.data.objects[ob_name]
-            return sse.add_ref_normal_3d(ob, nm_index)
-        return getattr(self, state.pointer)
-
-    def get_orientation(self, context, coords):
-        # TODO: also support edges
-        data = self.state_data
-        ob, type, index = get_mesh_element(context, coords, edge=False, face=True)
-
-        p1 = self.get_point(context, 0)
-        mousepos = functions.get_placement_pos(context, coords)
-        vec = mousepos - p1.location
-        return global_data.Z_AXIS.rotation_difference(vec).to_euler()
-
-    def create_normal3d(self, context, values, state, state_data):
-        sse = context.scene.sketcher.entities
-
-        v = values[0].to_quaternion()
-        nm = sse.add_normal_3d(v)
-        state_data["type"] = class_defines.SlvsNormal3D
-        return nm.slvs_index
-
-    def main(self, context):
-        sse = context.scene.sketcher.entities
-        p1 = self.get_point(context, 0)
-        nm = self.get_normal(context, 1)
-        self.target = sse.add_workplane(p1, nm)
-        ignore_hover(self.target)
-        return True
-
-    def fini(self, context, succeede):
-        if hasattr(self, "target"):
-            logger.debug("Add: {}".format(self.target))
-
-        if succeede:
-            if self.has_coincident:
-                solve_system(context)
-
-
-class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
-    """Add a statically placed workplane, orientation and location is copied from selected mesh face"""
-
-    bl_idname = Operators.AddWorkPlaneFace
-    bl_label = "Add Solvespace Workplane"
-    bl_options = {"REGISTER", "UNDO"}
-
-    wp_face_state1_doc = (
-        "Face",
-        "Pick a mesh face to use as workplanes's transformation.",
-    )
-
-    states = (
-        state_from_args(
-            wp_face_state1_doc[0],
-            description=wp_face_state1_doc[1],
-            use_create=False,
-            pointer="face",
-            types=(bpy.types.MeshPolygon,),
-            interactive=True,
-        ),
-    )
-
-    def main(self, context):
-        sse = context.scene.sketcher.entities
-
-        ob_name, face_index = self.get_state_pointer(index=0, implicit=True)
-        ob = get_evaluated_obj(context, bpy.data.objects[ob_name])
-        mesh = ob.data
-        face = mesh.polygons[face_index]
-
-        mat_obj = ob.matrix_world
-        quat = class_defines.get_face_orientation(mesh, face)
-        quat.rotate(mat_obj)
-        pos = mat_obj @ face.center
-        origin = sse.add_point_3d(pos)
-        nm = sse.add_normal_3d(quat)
-
-        self.target = sse.add_workplane(origin, nm)
-        ignore_hover(self.target)
-        return True
-
 
 # TODO:
 # - Draw sketches
@@ -1644,8 +1524,6 @@ constraint_operators = (
 from .stateful_operator.invoke_op import View3D_OT_invoke_tool
 
 classes = (
-    View3D_OT_slvs_add_workplane,
-    View3D_OT_slvs_add_workplane_face,
     View3D_OT_slvs_add_sketch,
     View3D_OT_slvs_add_point2d,
     View3D_OT_slvs_add_line2d,
