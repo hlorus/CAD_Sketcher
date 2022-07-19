@@ -242,10 +242,7 @@ constraint_operators = (
     VIEW3D_OT_slvs_add_ratio,
 )
 
-from .stateful_operator.invoke_op import View3D_OT_invoke_tool
-
 classes = (
-    View3D_OT_invoke_tool,
     *constraint_operators,
 )
 
