@@ -10,6 +10,7 @@ modules = [
     "tweak",
     "save_offscreen",
     "add_point_3d",
+    "add_line_3d",
 ]
 
 register, unregister = module_register_factory(__name__, modules)

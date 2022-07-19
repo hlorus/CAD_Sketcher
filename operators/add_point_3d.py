@@ -9,6 +9,7 @@ from bpy.utils import register_classes_factory
 
 from .. import global_data
 from ..declarations import Operators
+from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from .base_3d import Operator3d
 
@@ -47,4 +48,4 @@ class View3D_OT_slvs_add_point3d(Operator, Operator3d):
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
 
-register, unregister = register_classes_factory((View3D_OT_slvs_add_point3d,))
+register, unregister = register_stateops_factory((View3D_OT_slvs_add_point3d,))

@@ -51,68 +51,9 @@ def add_point(context, pos, name=""):
 
 from .operators.base_3d import Operator3d
 from .operators.base_2d import Operator2d
+from .operators.constants import types_point_3d, types_point_2d
 
-
-
-types_point_3d = (
-    *class_defines.point_3d,
-    *((bpy.types.MeshVertex,) if False else ()),
-)
-
-
-class View3D_OT_slvs_add_line3d(Operator, Operator3d):
-    """Add a line in 3d space"""
-
-    bl_idname = Operators.AddLine3D
-    bl_label = "Add Solvespace 3D Line"
-    bl_options = {"REGISTER", "UNDO"}
-
-    l3d_state1_doc = ("Startpoint", "Pick or place line's starting point.")
-    l3d_state2_doc = ("Endpoint", "Pick or place line's ending point.")
-
-    continuous_draw: BoolProperty(name="Continuous Draw", default=True)
-
-    states = (
-        state_from_args(
-            l3d_state1_doc[0],
-            description=l3d_state1_doc[1],
-            pointer="p1",
-            types=types_point_3d,
-        ),
-        state_from_args(
-            l3d_state2_doc[0],
-            description=l3d_state2_doc[1],
-            pointer="p2",
-            types=types_point_3d,
-            interactive=True,
-        ),
-    )
-
-    def main(self, context):
-        p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
-
-        self.target = context.scene.sketcher.entities.add_line_3d(p1, p2)
-        ignore_hover(self.target)
-        return True
-
-    def continue_draw(self):
-        last_state = self._state_data[1]
-        if last_state["is_existing_entity"]:
-            return False
-
-        # also not when last state has coincident constraint
-        if last_state.get("coincident"):
-            return False
-        return True
-
-    def fini(self, context, succeede):
-        if hasattr(self, "target"):
-            logger.debug("Add: {}".format(self.target))
-
-        if succeede:
-            if self.has_coincident:
-                solve_system(context)
-
+from .stateful_operator.utilities.geometry import get_mesh_element, get_evaluated_obj
 
 class View3D_OT_slvs_add_workplane(Operator, Operator3d):
     """Add a workplane"""
@@ -328,11 +269,6 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
             if self.has_coincident:
                 solve_system(context, sketch=self.sketch)
 
-
-types_point_2d = (
-    *class_defines.point_2d,
-    *((bpy.types.MeshVertex,) if False else ()),
-)
 
 
 class View3D_OT_slvs_add_line2d(Operator, Operator2d):
@@ -1708,7 +1644,6 @@ constraint_operators = (
 from .stateful_operator.invoke_op import View3D_OT_invoke_tool
 
 classes = (
-    View3D_OT_slvs_add_line3d,
     View3D_OT_slvs_add_workplane,
     View3D_OT_slvs_add_workplane_face,
     View3D_OT_slvs_add_sketch,
