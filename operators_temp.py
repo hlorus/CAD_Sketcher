@@ -3,8 +3,6 @@ Operators
 """
 import logging
 import math
-from collections import deque, namedtuple
-from typing import Deque, Generator
 
 import bpy
 from bl_operators.presets import AddPresetBase
@@ -15,7 +13,7 @@ from bpy.props import (
     IntProperty,
     StringProperty,
 )
-from bpy.types import Context, Event, Operator, Scene
+from bpy.types import Context, Event, Operator
 from mathutils import Vector
 from mathutils.geometry import intersect_line_plane
 
@@ -25,12 +23,8 @@ from . import class_defines, functions, global_data
 from .declarations import Operators, VisibilityTypes
 from .class_defines import (
     SlvsConstraints,
-    SlvsGenericEntity,
-    SlvsSketch,
 )
 from .solver import solve_system
-from .functions import show_ui_message_popup
-from .operators.utilities import activate_sketch
 from .utilities.highlighting import HighlightElement
 from .stateful_operator.integration import StatefulOperator
 from .stateful_operator.state import state_from_args
@@ -48,173 +42,6 @@ def add_point(context, pos, name=""):
     return ob
 
 
-
-def get_flat_deps(entity):
-    """Return flattened list of entities given entity depends on"""
-    list = []
-
-    def walker(entity, is_root=False):
-        if entity in list:
-            return
-        if not is_root:
-            list.append(entity)
-        if not hasattr(entity, "dependencies"):
-            return
-        for e in entity.dependencies():
-            if e in list:
-                continue
-            walker(e)
-
-    walker(entity, is_root=True)
-    return list
-
-
-def get_scene_constraints(scene: Scene):
-    return scene.sketcher.constraints.all
-
-
-def get_scene_entities(scene: Scene):
-    return scene.sketcher.entities.all
-
-
-def get_entity_deps(
-    entity: SlvsGenericEntity, context: Context
-) -> Generator[SlvsGenericEntity, None, None]:
-    for scene_entity in get_scene_entities(context.scene):
-        deps = set(get_flat_deps(scene_entity))
-        if entity in deps:
-            yield scene_entity
-
-
-def is_entity_referenced(entity: SlvsGenericEntity, context: Context) -> bool:
-    """Check if entity is a dependency of another entity"""
-    deps = get_entity_deps(entity, context)
-    try:
-        next(deps)
-    except StopIteration:
-        return False
-    return True
-
-
-def get_sketch_deps_indicies(sketch: SlvsSketch, context: Context):
-    deps = deque()
-    for entity in get_scene_entities(context.scene):
-        if not hasattr(entity, "sketch_i"):
-            continue
-        if sketch.slvs_index != entity.sketch.slvs_index:
-            continue
-        deps.append(entity.slvs_index)
-    return deps
-
-
-def get_constraint_local_indices(
-    entity: SlvsGenericEntity, context: Context
-) -> Deque[int]:
-    constraints = context.scene.sketcher.constraints
-    ret_list = deque()
-
-    for data_coll in constraints.get_lists():
-        indices = deque()
-        for c in data_coll:
-            if entity in c.dependencies():
-                indices.append(constraints.get_index(c))
-        ret_list.append((data_coll, indices))
-    return ret_list
-
-
-class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
-    """Delete Entity by index or based on the selection if index isn't provided"""
-
-    bl_idname = Operators.DeleteEntity
-    bl_label = "Delete Solvespace Entity"
-    bl_options = {"UNDO"}
-    bl_description = (
-        "Delete Entity by index or based on the selection if index isn't provided"
-    )
-
-    index: IntProperty(default=-1)
-
-    @staticmethod
-    def main(context: Context, index: int, operator: Operator):
-        entities = context.scene.sketcher.entities
-        entity = entities.get(index)
-
-        if not entity:
-            return {"CANCELLED"}
-
-        if isinstance(entity, class_defines.SlvsSketch):
-            if context.scene.sketcher.active_sketch_i != -1:
-                activate_sketch(context, -1, operator)
-            entity.remove_objects()
-
-            deps = get_sketch_deps_indicies(entity, context)
-
-            for i in reversed(deps):
-                operator.delete(entities.get(i), context)
-
-        elif is_entity_referenced(entity, context):
-            deps = list(get_entity_deps(entity, context))
-
-            message = f"Unable to delete {entity.name}, other entities depend on it:\n"+ "\n".join(
-                [f" - {d}" for d in deps]
-            )
-            show_ui_message_popup(message=message, icon="ERROR")
-
-            operator.report(
-                {"WARNING"},
-                "Cannot delete {}, other entities depend on it.".format(
-                    entity.name
-                ),
-            )
-            return {"CANCELLED"}
-
-        operator.delete(entity, context)
-
-    @staticmethod
-    def delete(entity, context: Context):
-        entity.selected = False
-
-        # Delete constraints that depend on entity
-        constraints = context.scene.sketcher.constraints
-
-        for data_coll, indices in reversed(get_constraint_local_indices(entity, context)):
-            if not indices:
-                continue
-            for i in indices:
-                logger.debug("Delete: {}".format(data_coll[i]))
-                data_coll.remove(i)
-
-        logger.debug("Delete: {}".format(entity))
-        entities = context.scene.sketcher.entities
-        entities.remove(entity.slvs_index)
-
-    def execute(self, context: Context):
-        index = self.index
-        selected = context.scene.sketcher.entities.selected_entities
-
-        if index != -1:
-            # Entity is specified via property
-            self.main(context, index, self)
-        elif len(selected) == 1:
-            # Treat single selection same as specified entity
-            self.main(context, selected[0].slvs_index, self)
-        else:
-            # Batch deletion
-            indices = []
-            for e in selected:
-                indices.append(e.slvs_index)
-
-            indices.sort(reverse=True)
-            for i in indices:
-                e = context.scene.sketcher.entities.get(i)
-
-                # NOTE: this might be slow when a lot of entities are selected, improve!
-                if is_entity_referenced(e, context):
-                    continue
-                self.delete(e, context)
-
-        functions.refresh(context)
-        return {"FINISHED"}
 
 
 state_docstr = "Pick entity to constrain."
@@ -559,42 +386,6 @@ class View3D_OT_slvs_set_all_constraints_visibility(Operator, HighlightElement):
         return {"FINISHED"}
 
 
-class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
-    """Delete constraint by type and index
-    """
-
-    bl_idname = Operators.DeleteConstraint
-    bl_label = "Delete Constraint"
-    bl_options = {"UNDO"}
-    bl_description = "Delete Constraint"
-
-    type: StringProperty(name="Type")
-    index: IntProperty(default=-1)
-
-    @classmethod
-    def description(cls, context, properties):
-        cls.handle_highlight_hover(context, properties)
-        if properties.type:
-            return "Delete: " + properties.type.capitalize()
-        return ""
-
-    def execute(self, context: Context):
-        constraints = context.scene.sketcher.constraints
-
-        # NOTE: It's not really necessary to first get the
-        # constraint from it's index before deleting
-
-        constr = constraints.get_from_type_index(self.type, self.index)
-        logger.debug("Delete: {}".format(constr))
-
-        constraints.remove(constr)
-
-        sketch = context.scene.sketcher.active_sketch
-        solve_system(context, sketch=sketch)
-        functions.refresh(context)
-        return {"FINISHED"}
-
-
 class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
     bl_idname = Operators.TweakConstraintValuePos
     bl_label = "Tweak Constraint"
@@ -698,9 +489,7 @@ from .stateful_operator.invoke_op import View3D_OT_invoke_tool
 classes = (
     View3D_OT_invoke_tool,
     View3D_OT_slvs_set_all_constraints_visibility,
-    View3D_OT_slvs_delete_entity,
     *constraint_operators,
-    View3D_OT_slvs_delete_constraint,
     View3D_OT_slvs_tweak_constraint_value_pos,
     SKETCHER_OT_add_preset_theme,
 )

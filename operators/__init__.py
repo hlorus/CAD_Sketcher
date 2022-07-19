@@ -20,6 +20,8 @@ modules = [
     "add_rectangle",
     "trim",
     "set_sketch",
+    "delete_entity",
+    "delete_constraint",
 ]
 
 def _register_unregister_extern():
