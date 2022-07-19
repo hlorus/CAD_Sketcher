@@ -3,6 +3,7 @@ from bpy.types import Panel, Menu, UIList, Context, UILayout
 
 from . import functions, class_defines, operators_temp
 from .declarations import Menus, Operators, Panels
+from .stateful_operator.constants import Operators as StatefulOperators
 
 
 class VIEW3D_UL_sketches(UIList):
@@ -136,7 +137,7 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
         layout.operator(Operators.Solve)
         layout.operator(Operators.Solve, text="Solve All").all = True
 
-        layout.operator(Operators.Test)
+        layout.operator(StatefulOperators.Test)
         layout.prop(context.scene.sketcher, "show_origin")
         layout.prop(prefs, "hide_inactive_constraints")
         layout.prop(prefs, "all_entities_selectable")

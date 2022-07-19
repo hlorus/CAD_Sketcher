@@ -48,35 +48,6 @@ def add_point(context, pos, name=""):
     return ob
 
 
-class View3D_OT_slvs_test(Operator, GenericEntityOp):
-    bl_idname = Operators.Test
-    bl_label = "Test StateOps"
-    bl_options = {"REGISTER", "UNDO"}
-
-    states = (
-        state_from_args("ob", pointer="object", types=(bpy.types.Object,),),
-        state_from_args(
-            "Pick Element",
-            description="Pick an element to print",
-            pointer="element",
-            types=(
-                *class_defines.point,
-                *class_defines.line,
-                *class_defines.curve,
-                bpy.types.MeshVertex,
-                bpy.types.MeshEdge,
-                bpy.types.MeshPolygon,
-            ),
-        ),
-    )
-
-    def main(self, context: Context):
-        element = self.element
-        if element:
-            self.report({"INFO"}, "Picked element " + str(element))
-            return True
-        return False
-
 
 class View3D_OT_slvs_set_active_sketch(Operator):
     """Set the active sketch"""
@@ -738,7 +709,6 @@ constraint_operators = (
 from .stateful_operator.invoke_op import View3D_OT_invoke_tool
 
 classes = (
-    View3D_OT_slvs_test,
     View3D_OT_invoke_tool,
     View3D_OT_slvs_set_active_sketch,
     View3D_OT_slvs_set_all_constraints_visibility,

@@ -59,7 +59,6 @@ class Operators(str, Enum):
     ShowSolverState = "view3d.slvs_show_solver_state"
     Solve = "view3d.slvs_solve"
     Update = "view3d.slvs_update"
-    Test = "view3d.slvs_test"
     Trim = "view3d.slvs_trim"
     Tweak = "view3d.slvs_tweak"
     TweakConstraintValuePos = "view3d.slvs_tweak_constraint_value_pos"

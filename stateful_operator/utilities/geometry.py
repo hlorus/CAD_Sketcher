@@ -92,4 +92,4 @@ def get_mesh_element(
 
     if closest_type:
         return ob, closest_type, closest_index
-    return ob, bpy.types.Object, None
+    return ob, Object, None
