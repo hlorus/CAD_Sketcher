@@ -12,6 +12,7 @@ modules = [
     "add_point_3d",
     "add_line_3d",
     "add_workplane",
+    "add_sketch",
 ]
 
 register, unregister = module_register_factory(__name__, modules)

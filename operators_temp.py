@@ -17,22 +17,21 @@ from bpy.props import (
     StringProperty,
 )
 from bpy.types import Context, Event, Operator, Scene
-from mathutils import Vector, Matrix
+from mathutils import Vector
 from mathutils.geometry import intersect_line_plane
 
 
 from . import class_defines, functions, global_data
-from .utilities import preferences
-from .declarations import Operators, GizmoGroups, VisibilityTypes, WorkSpaceTools
+
+from .declarations import Operators, VisibilityTypes
 from .class_defines import (
     SlvsConstraints,
     SlvsGenericEntity,
     SlvsSketch,
 )
-from .declarations import GizmoGroups, Operators, WorkSpaceTools
 from .solver import solve_system
 from .functions import show_ui_message_popup
-from .convertors import update_convertor_geometry
+from .operators.utilities import activate_sketch
 from .utilities.highlighting import HighlightElement
 from .stateful_operator.integration import StatefulOperator
 from .stateful_operator.state import state_from_args
@@ -49,65 +48,9 @@ def add_point(context, pos, name=""):
     context.collection.objects.link(ob)
     return ob
 
-from .operators.base_3d import Operator3d
 from .operators.base_2d import Operator2d
 from .operators.constants import types_point_3d, types_point_2d
 
-
-# TODO:
-# - Draw sketches
-class View3D_OT_slvs_add_sketch(Operator, Operator3d):
-    """Add a sketch"""
-
-    bl_idname = Operators.AddSketch
-    bl_label = "Add Sketch"
-    bl_options = {"UNDO"}
-
-    sketch_state1_doc = ["Workplane", "Pick a workplane as base for the sketch."]
-
-    states = (
-        state_from_args(
-            sketch_state1_doc[0],
-            description=sketch_state1_doc[1],
-            pointer="wp",
-            types=(class_defines.SlvsWorkplane,),
-            property=None,
-            use_create=False,
-        ),
-    )
-
-    def prepare_origin_elements(self, context):
-        context.scene.sketcher.entities.ensure_origin_elements(context)
-        return True
-
-    def init(self, context: Context, event: Event):
-        switch_sketch_mode(self, context, to_sketch_mode=True)
-        self.prepare_origin_elements(context)
-        bpy.ops.ed.undo_push(message="Ensure Origin Elements")
-        context.scene.sketcher.show_origin = True
-
-    def main(self, context: Context):
-        sse = context.scene.sketcher.entities
-        sketch = sse.add_sketch(self.wp)
-
-        # Add point at origin
-        # NOTE: Maybe this could create a reference entity of the main origin?
-        p = sse.add_point_2d((0.0, 0.0), sketch)
-        p.fixed = True
-
-        activate_sketch(context, sketch.slvs_index, self)
-        self.target = sketch
-        return True
-
-    def fini(self, context: Context, succeed):
-        context.scene.sketcher.show_origin = False
-        if hasattr(self, "target"):
-            logger.debug("Add: {}".format(self.target))
-
-        if succeed:
-            self.wp.visible = False
-        else:
-            switch_sketch_mode(self, context, to_sketch_mode=False)
 
 
 class View3D_OT_slvs_add_point2d(Operator, Operator2d):
@@ -771,99 +714,6 @@ class View3D_OT_slvs_test(Operator, GenericEntityOp):
         return False
 
 
-SMOOTHVIEW_FACTOR = 0
-def align_view(rv3d, mat_start, mat_end):
-
-    global SMOOTHVIEW_FACTOR
-    SMOOTHVIEW_FACTOR = 0
-    time_step = 0.01
-    increment = 0.01
-
-    def move_view():
-        global SMOOTHVIEW_FACTOR
-        SMOOTHVIEW_FACTOR += increment
-        mat = mat_start.lerp(mat_end, SMOOTHVIEW_FACTOR)
-        rv3d.view_matrix = mat
-
-        if SMOOTHVIEW_FACTOR < 1:
-            return time_step
-
-    bpy.app.timers.register(move_view)
-
-    # rv3d.view_distance = 6
-
-def switch_sketch_mode(self, context: Context, to_sketch_mode: bool):
-    if to_sketch_mode:
-        tool = context.workspace.tools.from_space_view3d_mode(context.mode)
-        if tool.widget != GizmoGroups.Preselection:
-            bpy.ops.wm.tool_set_by_id(name=WorkSpaceTools.Select)
-        return True
-
-    bpy.ops.wm.tool_set_by_index(index=0)
-    return True
-
-
-def activate_sketch(context: Context, index: int, operator: Operator):
-    props = context.scene.sketcher
-
-    if index == props.active_sketch_i:
-        return {"CANCELLED"}
-
-    switch_sketch_mode(self=operator, context=context, to_sketch_mode=(index != -1))
-
-    space_data = context.space_data
-    rv3d = context.region_data
-
-    sk = None
-    do_align_view = preferences.use_experimental("use_align_view", False)
-    if index != -1:
-        sk = context.scene.sketcher.entities.get(index)
-        if not sk:
-            operator.report({"ERROR"}, "Invalid index: {}".format(index))
-            return {"CANCELLED"}
-
-        space_data.show_object_viewport_curve = False
-        space_data.show_object_viewport_mesh = False
-
-        #Align view to normal of wp
-        if do_align_view:
-            matrix_target = sk.wp.matrix_basis.inverted()
-            matrix_start = rv3d.view_matrix
-            align_view(rv3d, matrix_start, matrix_target)
-            rv3d.view_perspective = "ORTHO"
-
-    else:
-        #Reset view
-        if do_align_view:
-            rv3d.view_distance = 18
-            matrix_start = rv3d.view_matrix
-            matrix_default = Matrix((
-                (0.4100283980369568, 0.9119764566421509, -0.013264661654829979, 0.0),
-                (-0.4017425775527954, 0.19364342093467712, 0.8950449228286743, 0.0),
-                (0.8188283443450928, -0.36166495084762573, 0.44577890634536743, -17.986562728881836),
-                (0.0, 0.0, 0.0, 1.0)
-            ))
-            align_view(rv3d, matrix_start, matrix_default)
-            rv3d.view_perspective = "PERSP"
-
-        space_data.show_object_viewport_curve = True
-        space_data.show_object_viewport_mesh = True
-
-    last_sketch = context.scene.sketcher.active_sketch
-    logger.debug("Activate: {}".format(sk))
-    props.active_sketch_i = index
-    context.area.tag_redraw()
-
-    if index != -1:
-        return {"FINISHED"}
-
-    if context.mode != "OBJECT":
-        return {"FINISHED"}
-
-    update_convertor_geometry(context.scene, sketch=last_sketch)
-    return {"FINISHED"}
-
-
 class View3D_OT_slvs_set_active_sketch(Operator):
     """Set the active sketch"""
 
@@ -1524,7 +1374,6 @@ constraint_operators = (
 from .stateful_operator.invoke_op import View3D_OT_invoke_tool
 
 classes = (
-    View3D_OT_slvs_add_sketch,
     View3D_OT_slvs_add_point2d,
     View3D_OT_slvs_add_line2d,
     View3D_OT_slvs_add_circle2d,
