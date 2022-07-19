@@ -49,19 +49,6 @@ def add_point(context, pos, name=""):
 
 
 
-class View3D_OT_slvs_set_active_sketch(Operator):
-    """Set the active sketch"""
-
-    bl_idname = Operators.SetActiveSketch
-    bl_label = "Set active Sketch"
-    bl_options = {"UNDO"}
-
-    index: IntProperty(default=-1)
-
-    def execute(self, context: Context):
-        return activate_sketch(context, self.index, self)
-
-
 def get_flat_deps(entity):
     """Return flattened list of entities given entity depends on"""
     list = []
@@ -710,7 +697,6 @@ from .stateful_operator.invoke_op import View3D_OT_invoke_tool
 
 classes = (
     View3D_OT_invoke_tool,
-    View3D_OT_slvs_set_active_sketch,
     View3D_OT_slvs_set_all_constraints_visibility,
     View3D_OT_slvs_delete_entity,
     *constraint_operators,

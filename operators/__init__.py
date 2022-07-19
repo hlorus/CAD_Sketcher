@@ -19,6 +19,7 @@ modules = [
     "add_arc",
     "add_rectangle",
     "trim",
+    "set_sketch",
 ]
 
 def _register_unregister_extern():
