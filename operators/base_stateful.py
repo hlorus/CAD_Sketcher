@@ -67,14 +67,12 @@ class GenericEntityOp(StatefulOperator):
 
         states = cls.get_states_definition()
 
-        print("########", cls.__name__)
         for s in states:
             if not s.pointer:
                 continue
 
             name = s.pointer
             types = s.types
-            print(name, types)
 
             annotations = {}
             if hasattr(cls, "__annotations__"):

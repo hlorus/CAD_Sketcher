@@ -13,6 +13,11 @@ modules = [
     "add_line_3d",
     "add_workplane",
     "add_sketch",
+    "add_point_2d",
+    "add_line_2d",
+    "add_circle",
+    "add_arc",
+    "add_rectangle",
 ]
 
 register, unregister = module_register_factory(__name__, modules)
