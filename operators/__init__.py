@@ -18,6 +18,7 @@ modules = [
     "add_circle",
     "add_arc",
     "add_rectangle",
+    "trim",
 ]
 
 register, unregister = module_register_factory(__name__, modules)
