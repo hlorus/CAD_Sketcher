@@ -9,7 +9,7 @@ from .. import global_data
 from ..declarations import GizmoGroups, WorkSpaceTools
 from ..class_defines import SlvsGenericEntity
 from ..convertors import update_convertor_geometry
-from ..utilities.preferences import use_experimental
+from ..utilities.preferences import use_experimental, get_prefs
 
 logger = logging.getLogger(__name__)
 
@@ -91,26 +91,26 @@ def switch_sketch_mode(self, context: Context, to_sketch_mode: bool):
 
 
 def activate_sketch(context: Context, index: int, operator: Operator):
-    props = context.scene.sketcher
-
-    if index == props.active_sketch_i:
-        return {"CANCELLED"}
-
-    switch_sketch_mode(self=operator, context=context, to_sketch_mode=(index != -1))
-
     space_data = context.space_data
     rv3d = context.region_data
 
+    props = context.scene.sketcher
+    if index == props.active_sketch_i:
+        return {"CANCELLED"}
+
+    sketch_mode = (index != -1)
+    switch_sketch_mode(self=operator, context=context, to_sketch_mode=sketch_mode)
+
     sk = None
     do_align_view = use_experimental("use_align_view", False)
-    if index != -1:
+    if sketch_mode:
         sk = context.scene.sketcher.entities.get(index)
         if not sk:
             operator.report({"ERROR"}, "Invalid index: {}".format(index))
             return {"CANCELLED"}
-
-        space_data.show_object_viewport_curve = False
-        space_data.show_object_viewport_mesh = False
+        auto_hide_objects = not get_prefs().auto_hide_objects
+        space_data.show_object_viewport_curve = auto_hide_objects
+        space_data.show_object_viewport_mesh = auto_hide_objects
 
         #Align view to normal of wp
         if do_align_view:
@@ -132,7 +132,6 @@ def activate_sketch(context: Context, index: int, operator: Operator):
             ))
             align_view(rv3d, matrix_start, matrix_default)
             rv3d.view_perspective = "PERSP"
-
         space_data.show_object_viewport_curve = True
         space_data.show_object_viewport_mesh = True
 
