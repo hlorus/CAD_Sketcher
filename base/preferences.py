@@ -181,12 +181,13 @@ class Preferences(AddonPreferences):
         box.label(text="General")
         col = box.column(align=True)
         col.prop(self, "auto_hide_objects")
+        if self.show_debug_settings:
+            col.prop(self, "use_align_view")
+        
         col.prop(self, "entity_scale")
         col.prop(self, "gizmo_scale")
         col.prop(self, "text_size")
         col.prop(self, "arrow_scale")
-        if self.show_debug_settings:
-            col.prop(self, "use_align_view")
 
         box = layout.box()
         box.label(text="Units")
