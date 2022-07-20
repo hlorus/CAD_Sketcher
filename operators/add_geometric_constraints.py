@@ -1,35 +1,17 @@
-"""
-Operators
-"""
 import logging
 
-import bpy
+from bpy.types import Operator, Context
 from bpy.props import FloatProperty
-from bpy.types import Context, Operator
 
-
-from . import class_defines, global_data
-
-from .declarations import Operators
-from .solver import solve_system
-from .stateful_operator.integration import StatefulOperator
-from .operators.base_stateful import GenericEntityOp
+from .. import class_defines
+from ..solver import solve_system
+from ..declarations import Operators
+from ..stateful_operator.utilities.register import register_stateops_factory
+from .base_constraint import GenericConstraintOp
 
 logger = logging.getLogger(__name__)
 
 
-def add_point(context, pos, name=""):
-    data = bpy.data
-    ob = data.objects.new(name, None)
-    ob.location = pos
-    context.collection.objects.link(ob)
-    return ob
-
-
-from .operators.base_constraint import GenericConstraintOp
-
-
-# Geomteric constraints
 class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
     """Add a coincident constraint"""
 
@@ -100,7 +82,7 @@ class VIEW3D_OT_slvs_add_perpendicular(Operator, GenericConstraintOp):
     type = "PERPENDICULAR"
 
 
-class VIEW3D_OT_slvs_add_tangent(Operator, GenericConstraintOp, GenericEntityOp):
+class VIEW3D_OT_slvs_add_tangent(Operator, GenericConstraintOp):
     """Add a tagent constraint"""
 
     bl_idname = Operators.AddTangent
@@ -110,7 +92,7 @@ class VIEW3D_OT_slvs_add_tangent(Operator, GenericConstraintOp, GenericEntityOp)
     type = "TANGENT"
 
 
-class VIEW3D_OT_slvs_add_midpoint(Operator, GenericConstraintOp, GenericEntityOp):
+class VIEW3D_OT_slvs_add_midpoint(Operator, GenericConstraintOp):
     """Add a midpoint constraint"""
 
     bl_idname = Operators.AddMidPoint
@@ -120,7 +102,7 @@ class VIEW3D_OT_slvs_add_midpoint(Operator, GenericConstraintOp, GenericEntityOp
     type = "MIDPOINT"
 
 
-class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp, GenericEntityOp):
+class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp):
     """Add a ratio constraint"""
 
     value: FloatProperty(
@@ -131,8 +113,6 @@ class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp, GenericEntityOp):
     bl_options = {"UNDO", "REGISTER"}
 
     type = "RATIO"
-
-
 
 
 constraint_operators = (
@@ -147,23 +127,4 @@ constraint_operators = (
     VIEW3D_OT_slvs_add_ratio,
 )
 
-classes = (
-    *constraint_operators,
-)
-
-
-def register():
-    for cls in classes:
-        if issubclass(cls, StatefulOperator):
-            cls.register_properties()
-
-        bpy.utils.register_class(cls)
-
-
-def unregister():
-    if global_data.offscreen:
-        global_data.offscreen.free()
-        global_data.offscreen = None
-
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
+register, unregister = register_stateops_factory(constraint_operators)

@@ -1,6 +1,8 @@
 # Please keep this file in alphabetical order
 from enum import Enum
 
+from kiwisolver import Constraint
+
 
 class Gizmos(str, Enum):
     Angle = "VIEW3D_GT_slvs_angle"
@@ -91,3 +93,19 @@ class WorkSpaceTools(str, Enum):
     AddWorkplaneFace = "sketcher.slvs_add_workplane_face"
     Select = "sketcher.slvs_select"
     Trim = "sketcher.slvs_trim"
+
+
+ConstraintOperators = (
+    Operators.AddDistance,
+    Operators.AddDiameter,
+    Operators.AddAngle,
+    Operators.AddCoincident,
+    Operators.AddEqual,
+    Operators.AddVertical,
+    Operators.AddHorizontal,
+    Operators.AddParallel,
+    Operators.AddPerpendicular,
+    Operators.AddTangent,
+    Operators.AddMidPoint,
+    Operators.AddRatio,
+)

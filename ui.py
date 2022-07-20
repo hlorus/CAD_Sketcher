@@ -1,8 +1,8 @@
 import bpy
 from bpy.types import Panel, Menu, UIList, Context, UILayout
 
-from . import functions, class_defines, operators_temp
-from .declarations import Menus, Operators, Panels
+from . import functions, class_defines
+from .declarations import Menus, Operators, Panels, ConstraintOperators
 from .stateful_operator.constants import Operators as StatefulOperators
 
 
@@ -160,8 +160,8 @@ class VIEW3D_PT_sketcher_add_constraints(VIEW3D_PT_sketcher_base):
         layout = self.layout
         layout.label(text="Constraints:")
         col = layout.column(align=True)
-        for op in operators_temp.constraint_operators:
-            col.operator(op.bl_idname)
+        for op in ConstraintOperators:
+            col.operator(op)
 
 
 class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):

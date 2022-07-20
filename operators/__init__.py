@@ -28,6 +28,7 @@ modules = [
     "add_distance",
     "add_diameter",
     "add_angle",
+    "add_geometric_constraints",
 ]
 
 def _register_unregister_extern():

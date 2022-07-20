@@ -8,7 +8,6 @@ core_modules = [
     "handlers",
     "class_defines",
     "operators",
-    "operators_temp",
     "gizmos",
     "keymaps",
     "workspacetools",
