@@ -24,10 +24,6 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
 
     trim_state1_doc = ("Segment", "Segment to trim.")
 
-    radius: FloatProperty(
-        name="Radius", precision=5,
-    )
-
     states = (
         state_from_args(
             trim_state1_doc[0],

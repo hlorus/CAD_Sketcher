@@ -201,7 +201,7 @@ class TrimSegment:
             if intr.is_entity():
                 # Use operator which checks if other entities depend on this and auto deletes constraints
                 # TODO: Make this a class reference
-                bpy.ops.view3d.slvs_delete_entity(index=intr.element.slvs_index)
+                bpy.ops.view3d.slvs_delete_entity(index=intr.element.slvs_index, do_report=False)
 
         # Remove original segment if not used
         if not self.reuse_segment:

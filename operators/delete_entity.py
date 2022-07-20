@@ -1,7 +1,7 @@
 import logging
 
 from bpy.utils import register_classes_factory
-from bpy.props import IntProperty
+from bpy.props import IntProperty, BoolProperty
 from bpy.types import Operator, Context
 
 from .. import class_defines
@@ -30,6 +30,9 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
     )
 
     index: IntProperty(default=-1)
+    do_report: BoolProperty(
+        name="Report", description="Report entities that prevent deletion", default=True
+    )
 
     @staticmethod
     def main(context: Context, index: int, operator: Operator):
@@ -50,19 +53,19 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
                 operator.delete(entities.get(i), context)
 
         elif is_entity_referenced(entity, context):
-            deps = list(get_entity_deps(entity, context))
+            if operator.do_report:
+                deps = list(get_entity_deps(entity, context))
+                message = f"Unable to delete {entity.name}, other entities depend on it:\n"+ "\n".join(
+                    [f" - {d}" for d in deps]
+                )
+                show_ui_message_popup(message=message, icon="ERROR")
 
-            message = f"Unable to delete {entity.name}, other entities depend on it:\n"+ "\n".join(
-                [f" - {d}" for d in deps]
-            )
-            show_ui_message_popup(message=message, icon="ERROR")
-
-            operator.report(
-                {"WARNING"},
-                "Cannot delete {}, other entities depend on it.".format(
-                    entity.name
-                ),
-            )
+                operator.report(
+                    {"WARNING"},
+                    "Cannot delete {}, other entities depend on it.".format(
+                        entity.name
+                    ),
+                )
             return {"CANCELLED"}
 
         operator.delete(entity, context)
