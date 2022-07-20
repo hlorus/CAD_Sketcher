@@ -2,14 +2,9 @@
 Operators
 """
 import logging
-import math
 
 import bpy
-from bpy.props import (
-    BoolProperty,
-    EnumProperty,
-    FloatProperty,
-)
+from bpy.props import FloatProperty
 from bpy.types import Context, Operator
 
 
@@ -32,93 +27,6 @@ def add_point(context, pos, name=""):
 
 
 from .operators.base_constraint import GenericConstraintOp
-
-# Dimensional constraints
-class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
-    """Add a distance constraint"""
-
-    bl_idname = Operators.AddDistance
-    bl_label = "Distance"
-    bl_options = {"UNDO", "REGISTER"}
-
-    value: FloatProperty(
-        name="Distance",
-        subtype="DISTANCE",
-        unit="LENGTH",
-        min=0.0,
-        precision=5,
-        options={"SKIP_SAVE"},
-    )
-    align: EnumProperty(name="Alignment", items=class_defines.align_items)
-    type = "DISTANCE"
-
-    def fini(self, context, succeede):
-        super().fini(context, succeede)
-        if hasattr(self, "target"):
-            self.target.align = self.align
-            self.target.draw_offset = 0.05 * context.region_data.view_distance
-
-    def draw_settings(self, context):
-        if not hasattr(self, "target"):
-            return
-
-        layout = self.layout
-
-        row = layout.row()
-        row.active = self.target.use_align()
-        row.prop(self, "align")
-
-
-def invert_angle_getter(self):
-    return self.get("setting", self.bl_rna.properties["setting"].default)
-
-
-def invert_angle_setter(self, setting):
-    self["value"] = math.pi - self.value
-    self["setting"] = setting
-
-
-class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
-    """Add an angle constraint"""
-
-    bl_idname = Operators.AddAngle
-    bl_label = "Angle"
-    bl_options = {"UNDO", "REGISTER"}
-
-    value: FloatProperty(
-        name="Angle",
-        subtype="ANGLE",
-        unit="ROTATION",
-        options={"SKIP_SAVE"},
-        precision=5,
-    )
-    setting: BoolProperty(name="Measure supplementary angle", default = False, get=invert_angle_getter, set=invert_angle_setter)
-    type = "ANGLE"
-
-    def fini(self, context, succeede):
-        super().fini(context, succeede)
-        if hasattr(self, "target"):
-            self.target.draw_offset = 0.1 * context.region_data.view_distance
-
-
-class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
-    """Add a diameter constraint"""
-
-    bl_idname = Operators.AddDiameter
-    bl_label = "Diameter"
-    bl_options = {"UNDO", "REGISTER"}
-
-    # Either Radius or Diameter
-    value: FloatProperty(
-        name="Size",
-        subtype="DISTANCE",
-        unit="LENGTH",
-        options={"SKIP_SAVE"},
-        precision=5,
-    )
-
-    setting: BoolProperty(name="Use Radius")
-    type = "DIAMETER"
 
 
 # Geomteric constraints
@@ -228,9 +136,6 @@ class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp, GenericEntityOp):
 
 
 constraint_operators = (
-    VIEW3D_OT_slvs_add_distance,
-    VIEW3D_OT_slvs_add_diameter,
-    VIEW3D_OT_slvs_add_angle,
     VIEW3D_OT_slvs_add_coincident,
     VIEW3D_OT_slvs_add_equal,
     VIEW3D_OT_slvs_add_vertical,

@@ -25,6 +25,9 @@ modules = [
     "constraint_visibility",
     "tweak_constraint",
     "presets",
+    "add_distance",
+    "add_diameter",
+    "add_angle",
 ]
 
 def _register_unregister_extern():
