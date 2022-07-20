@@ -1,8 +1,6 @@
 # Please keep this file in alphabetical order
 from enum import Enum
 
-from kiwisolver import Constraint
-
 
 class Gizmos(str, Enum):
     Angle = "VIEW3D_GT_slvs_angle"
