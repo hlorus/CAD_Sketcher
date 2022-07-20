@@ -362,6 +362,10 @@ class SlvsGenericEntity:
     def is_closed(cls):
         return False
 
+    @classmethod
+    def is_segment(cls):
+        return False
+
 
 # Drawing a point might not include points coord itself but rather a series of virtual points around it
 # so a Entity might refer another point entity and/or add a set of coords
@@ -470,6 +474,10 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
 
     @classmethod
     def is_line(cls):
+        return True
+
+    @classmethod
+    def is_segment(cls):
         return True
 
     def dependencies(self):
@@ -893,6 +901,10 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     def is_line(cls):
         return True
 
+    @classmethod
+    def is_segment(cls):
+        return True
+
     def dependencies(self):
         return [self.p1, self.p2, self.sketch]
 
@@ -1124,6 +1136,10 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
 
     @classmethod
     def is_curve(cls):
+        return True
+
+    @classmethod
+    def is_segment(cls):
         return True
 
     @property
@@ -1401,6 +1417,10 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
 
     @classmethod
     def is_curve(cls):
+        return True
+
+    @classmethod
+    def is_segment(cls):
         return True
 
     def dependencies(self):
