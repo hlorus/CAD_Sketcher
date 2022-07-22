@@ -51,7 +51,7 @@ def register():
         global_data.registered = False
         logger.warning(
             "Solvespace module isn't available, only base modules registered\n"
-            + e
+            + str(e)
         )
 
 
