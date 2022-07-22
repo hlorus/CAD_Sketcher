@@ -27,29 +27,38 @@ Whenever one of the addon's tools is active the tool access keymap allows to qui
 |Key|Modifier|Action|
 |:---:|---|---|
 |ESC|-   |Activate Tool: Select|
-|P|-   |Activate Tool: Add Point 2D|
-|L|-   |Activate Tool: Add Line 2D|
-|C|-   |Activate Tool: Add Circle|
-|A|-   |Activate Tool: Add Arc|
-|R|-   |Activate Tool: Add Rectangle|
-|S|-   |Activate Tool: Add Sketch|
+|P|-   |Invoke Tool: Add Point 2D|
+|L|-   |Invoke Tool: Add Line 2D|
+|C|-   |Invoke Tool: Add Circle|
+|A|-   |Invoke Tool: Add Arc|
+|R|-   |Invoke Tool: Add Rectangle|
+|S|-   |Invoke Tool: Add Sketch|
+|Y|-   |Invoke Tool: Trim|
 
-**Constraints:**
+**Dimensional Constraints:**
 
 |Key|Modifier|Action|
 |---|---|---|
-|Shift + D|-   |Distance|
-|Shift + A|-   |Angle|
-|Shift + O|-   |Diameter|
-|Shift + C|-   |Coincident|
-|Shift + V|-   |Vertical|
-|Shift + H|-   |Horizontal|
-|Shift + E|-   |Equal|
-|Shift + P|-   |Parallel|
-|Shift + N|-   |Perpendicular|
-|Shift + T|-   |Tangent|
-|Shift + M|-   |Midpoint|
-|Shift + R|-   |Ratio|
+|D|Alt   |Distance|
+|V|Alt   |Vertical Distance|
+|H|Alt   |Horizontal Distance|
+|A|Alt   |Angle|
+|O|Alt   |Diameter|
+|R|Alt   |Radius|
+
+**Geometric Constraints:**
+
+|Key|Modifier|Action|
+|---|---|---|
+|C|Shift   |Coincident|
+|V|Shift   |Vertical|
+|H|Shift   |Horizontal|
+|E|Shift   |Equal|
+|P|Shift   |Parallel|
+|N|Shift   |Perpendicular|
+|T|Shift   |Tangent|
+|M|Shift   |Midpoint|
+|R|Shift   |Ratio|
 
 ### Basic Tool Keymap
 The basic tool interaction is consistent between tools.
