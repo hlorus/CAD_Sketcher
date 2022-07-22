@@ -3,7 +3,7 @@ import logging
 import bpy
 from bpy.types import Context
 
-from .. import class_defines
+from .. import class_defines, functions
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,31 @@ class Intersection:
         return "Intersection {}, {}, {}".format(self.index, self.co, self.element)
 
 
+def _get_constraints_map(context: Context, entity: class_defines.SlvsGenericEntity):
+    """Returns a dictionary with constraints that act on a given entity and the constraints entities"""
+    constrs = {}
+    for c in context.scene.sketcher.constraints.all:
+        entities = c.entities()
+        if not entity in entities:
+            continue
+        constrs[c] = entities
+    return constrs
+
+def _copy_constraints(context, constraints_map, old_seg, new_seg, remap=False):
+    """Copies a list of constraints to a new segment. Optionally remaps instead of copies the constraints"""
+    for c, ents in constraints_map.items():
+        i = ents.index(old_seg)
+        if not remap:
+            if c.type in ("RATIO", "COINCIDENT", "MIDPOINT", "TANGENT"):
+                continue
+            ents[i] = new_seg
+            new_constr = c.copy(context, ents)
+        else:
+            # if the original segment doesn't get reused the original constraints
+            # have to be remapped to the new segment
+            setattr(c, "entity{}_i".format(i + 1), new_seg.slvs_index)
+
+
 class TrimSegment:
     """Holds data of a segment to be trimmed"""
 
@@ -65,6 +90,7 @@ class TrimSegment:
         # Add connection points as intersections
         if not self._is_closed:
             for p in self.connection_points:
+                print("add endpoint", p)
                 intr = self.add(p, p.co)
                 intr._is_endpoint = True
 
@@ -128,16 +154,60 @@ class TrimSegment:
         for intr in self.relevant_intersections():
             intr.get_point(context)
 
+
+    def get_split_segments(self, context):
+        sketch = context.scene.sketcher.active_sketch
+
+        p = context.scene.sketcher.entities.add_point_2d(self.pos, sketch)
+        self.ensure_points(context)
+        intrs = self._intersections
+        self.add(p, p.co)
+        if len(intrs) == 3:
+            return intrs[0], intrs[2], intrs[1]
+        raise NotImplementedError
+
+
+    def split(self, context: Context):
+        """Splits the segment at the mouse position"""
+
+        # Add new point at mouse position
+        sketch = context.scene.sketcher.active_sketch
+        # p = context.scene.sketcher.entities.add_point_2d(self.pos, sketch)
+        # self.ensure_points(context)
+
+        # Add point to intersections
+        # self.add(p, p.co)
+
+        relevant = self.get_split_segments(context)
+        print("relevant", *relevant)
+
+        constraints_map = _get_constraints_map(context, self.segment)
+
+        segment_count = max(1, len(relevant) - 1)
+        for index, intrs in enumerate(
+            [relevant[i : i + 2] for i in range(segment_count)]
+        ):
+            reuse_segment = index == 0 and not self.segment.is_closed()
+            intr_1, intr_2 = intrs
+            print("create segment", intrs)
+            if not intr_1:
+                continue
+
+            new_segment = self.segment.replace(
+                context,
+                intr_1.get_point(context),
+                intr_2.get_point(context),
+                use_self=reuse_segment,
+            )
+
+            _copy_constraints(context, constraints_map, self.segment, new_segment, remap=reuse_segment)
+
+
     def replace(self, context: Context):
         relevant = self.relevant_intersections()
 
         # Get constraints
-        constrs = {}
-        for c in context.scene.sketcher.constraints.all:
-            entities = c.entities()
-            if not self.segment in entities:
-                continue
-            constrs[c] = entities
+        constraints_map = _get_constraints_map(context, self.segment)
 
         # Note: this seems to be needed, explicitly add all points and update viewlayer before starting to replace segments
         self.ensure_points(context)
@@ -151,9 +221,7 @@ class TrimSegment:
         for index, intrs in enumerate(
             [relevant[i * 2 : i * 2 + 2] for i in range(segment_count)]
         ):
-            reuse_segment = index == 0 and not isinstance(
-                self.segment, class_defines.SlvsCircle
-            )
+            reuse_segment = index == 0 and not self.segment.is_closed()
             intr_1, intr_2 = intrs
             if not intr_1:
                 continue
@@ -169,18 +237,7 @@ class TrimSegment:
                 self.reuse_segment = True
                 continue
 
-            # Copy constraints to new segment
-            for c, ents in constrs.items():
-                i = ents.index(self.segment)
-                if index != 0:
-                    if c.type in ("RATIO", "COINCIDENT", "MIDPOINT", "TANGENT"):
-                        continue
-                    ents[i] = new_segment
-                    new_constr = c.copy(context, ents)
-                else:
-                    # if the original segment doesn't get reused the original constraints
-                    # have to be remapped to the new segment
-                    setattr(c, "entity{}_i".format(i + 1), new_segment.slvs_index)
+            _copy_constraints(context, constraints_map, self.segment, new_segment, remap=reuse_segment)
 
         def _get_msg_obsolete():
             msg = "Remove obsolete intersections:"

@@ -215,6 +215,20 @@ class View3D_T_slvs_trim(GenericStateTool, WorkSpaceTool):
         *operator_access(Operators.Trim),
     )
 
+class View3D_T_slvs_split(GenericStateTool, WorkSpaceTool):
+    bl_space_type = "VIEW_3D"
+    bl_context_mode = "OBJECT"
+    bl_idname = WorkSpaceTools.Split
+    bl_label = "Split Segment"
+    bl_operator = Operators.Split
+    bl_icon = "None"
+    bl_widget = GizmoGroups.Preselection
+    bl_keymap = (
+        *tool_keymap,
+        *tool_access,
+        *operator_access(Operators.Split),
+    )
+
 class View3D_T_slvs_add_workplane_face(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
@@ -263,9 +277,10 @@ tools = (
     (View3D_T_slvs_add_circle2d, {"separator": False, "group": False}),
     (View3D_T_slvs_add_arc2d, {"separator": False, "group": False}),
     (View3D_T_slvs_add_rectangle, {"separator": False, "group": False}),
-    (View3D_T_slvs_trim, {"separator": False, "group": False}),
+    (View3D_T_slvs_trim, {"separator": False, "group": True}),
+    (View3D_T_slvs_split, {"after": {WorkSpaceTools.Trim}}),
     (View3D_T_slvs_add_workplane_face, {"separator": True, "group": True}),
-    (View3D_T_slvs_add_workplane, {"after": {View3D_T_slvs_add_workplane_face.bl_idname}}),
+    (View3D_T_slvs_add_workplane, {"after": {WorkSpaceTools.AddWorkplaneFace}}),
 )
 
 import bpy

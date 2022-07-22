@@ -273,6 +273,16 @@ def nearest_point_line_line(p1: Vector, d1: Vector, p2: Vector, d2: Vector) -> V
     n2 = d2.cross(n)
     return p1 + ((p2 - p1).dot(n2) / d1.dot(n2)) * d1
 
+def nearest_point_line_circle():
+    
+    pass
+    # For 2D entities it should be enough precise to get picking point from intersection with workplane
+    # wp = entity.sketch.wp
+    # coords = (event.mouse_region_x, event.mouse_region_y)
+    # origin, dir = functions.get_picking_origin_dir(context, coords)
+    # end_point = dir * context.space_data.clip_end + origin
+    # pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
+
 
 def get_placement_pos(context: Context, coords: Vector) -> Vector:
     region = context.region

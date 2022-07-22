@@ -114,6 +114,11 @@ tool_access = (
         WorkSpaceTools.Trim,
         Operators.Trim,
     ),
+        tool_invoke_kmi(
+        "S",
+        WorkSpaceTools.Split,
+        Operators.Split,
+    ),
     (
         Operators.AddSketch,
         {"type": "S", "value": "PRESS"},

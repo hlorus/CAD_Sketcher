@@ -19,6 +19,7 @@ modules = [
     "add_arc",
     "add_rectangle",
     "trim",
+    "split",
     "set_sketch",
     "delete_entity",
     "delete_constraint",
