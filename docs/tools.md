@@ -3,11 +3,11 @@ that either of those use the same [interaction system](interaction_system.md).
 
 
 ## Generic Tools
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_sketch
+::: CAD_Sketcher.operators.add_sketch.View3D_OT_slvs_add_sketch
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_delete_entity
+::: CAD_Sketcher.operators.delete_entity.View3D_OT_slvs_delete_entity
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_delete_constraint
+::: CAD_Sketcher.operators.delete_constraint.View3D_OT_slvs_delete_constraint
 
 
 ## Workspacetools
@@ -79,7 +79,7 @@ The basic tool interaction is consistent between tools.
 |Minus(-)|-|Toggle between positive and negative values|
 
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_select
+::: CAD_Sketcher.operators.select.View3D_OT_slvs_select
 **Keymap:**
 
 |Key|Modifier|Action|
@@ -90,18 +90,22 @@ The basic tool interaction is consistent between tools.
 
 > **INFO:** LMB in empty space will also deselect all.
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_point3d
+::: CAD_Sketcher.operators.add_point_3d.View3D_OT_slvs_add_point3d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_line3d
+::: CAD_Sketcher.operators.add_line_3d.View3D_OT_slvs_add_line3d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_point2d
+::: CAD_Sketcher.operators.add_point_2d.View3D_OT_slvs_add_point2d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_line2d
+::: CAD_Sketcher.operators.add_line_2d.View3D_OT_slvs_add_line2d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_circle2d
+::: CAD_Sketcher.operators.add_circle.View3D_OT_slvs_add_circle2d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_arc2d
+::: CAD_Sketcher.operators.add_arc.View3D_OT_slvs_add_arc2d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_rectangle
+::: CAD_Sketcher.operators.add_rectangle.View3D_OT_slvs_add_rectangle
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_workplane
+::: CAD_Sketcher.operators.add_workplane.View3D_OT_slvs_add_workplane
+
+::: CAD_Sketcher.operators.add_workplane.View3D_OT_slvs_add_workplane_face
+
+::: CAD_Sketcher.operators.trim.View3D_OT_slvs_trim
