@@ -31,9 +31,9 @@ from .solver import solve_system, Solver
 from .functions import pol2cart, unique_attribute_setter
 from .declarations import Operators
 from .global_data import WpReq
+from .utilities.constants import FULL_TURN, HALF_TURN, QUARTER_TURN
 
 logger = logging.getLogger(__name__)
-
 
 class SlvsGenericEntity:
 
@@ -1172,7 +1172,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
             angle = functions.range_2pi(p2.angle_signed(p1))
 
             # TODO: resolution should depend on segment length?!
-            segments = round(CURVE_RESOLUTION * (angle / (math.pi * 2)))
+            segments = round(CURVE_RESOLUTION * (angle / FULL_TURN))
 
             coords = functions.coords_arc_2d(
                 0, 0, radius, segments, angle=angle, offset=offset
@@ -1232,7 +1232,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
             return point == self.end
 
     def bezier_segment_count(self):
-        max_angle = math.pi / 2
+        max_angle = QUARTER_TURN
         return math.ceil(self.angle / max_angle)
 
     def bezier_point_count(self):
@@ -1270,8 +1270,8 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         if set_startpoint:
             startpoint.co = locations[0].to_3d()
 
-        n = 2 * math.pi / angle
-        q = (4 / 3) * math.tan(math.pi / (2 * n))
+        n = FULL_TURN / angle
+        q = (4 / 3) * math.tan(HALF_TURN / (2 * n))
         base_offset = Vector((radius, q * radius))
 
         create_bezier_curve(
@@ -1504,12 +1504,12 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         bezier_points = [startpoint, *midpoints]
 
         locations = get_bezier_curve_midpoint_positions(
-            self, segment_count, bezier_points, 2 * math.pi, cyclic=True
+            self, segment_count, bezier_points, FULL_TURN, cyclic=True
         )
-        angle = 2 * math.pi / segment_count
+        angle = FULL_TURN / segment_count
 
-        n = 2 * math.pi / angle
-        q = (4 / 3) * math.tan(math.pi / (2 * n))
+        n = FULL_TURN / angle
+        q = (4 / 3) * math.tan(HALF_TURN / (2 * n))
         base_offset = Vector((radius, q * radius))
 
         create_bezier_curve(
@@ -1944,7 +1944,7 @@ class SlvsEntities(PropertyGroup):
             self.origin = p
 
         # axis
-        pi_2 = math.pi / 2
+        pi_2 = QUARTER_TURN
         for name, angles in zip(
             ("origin_axis_X", "origin_axis_Y", "origin_axis_Z"),
             (Euler((pi_2, 0.0, pi_2)), Euler((pi_2, 0.0, 0.0)), Euler()),
@@ -2448,7 +2448,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             line = e2
             orig = line.p1.co
             end = line.p2.co - orig
-            angle = functions.range_2pi(math.atan2(end[1], end[0])) + math.pi / 2
+            angle = functions.range_2pi(math.atan2(end[1], end[0])) + QUARTER_TURN
 
             mat_rot = Matrix.Rotation(angle, 2, "Z")
             p1 = e1.co - orig
@@ -2648,7 +2648,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         return self.get("setting", self.bl_rna.properties["setting"].default)
 
     def invert_angle_setter(self, setting):
-        self["value"] = math.pi - self.value
+        self["value"] = HALF_TURN - self.value
         self["setting"] = setting
 
     label = "Angle"
@@ -2700,7 +2700,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         )
 
         if self.setting:
-            rotation = rotation - math.pi / 2
+            rotation = rotation - QUARTER_TURN
 
         mat_rot = Matrix.Rotation(rotation, 2, "Z")
         mat_local = Matrix.Translation(origin.to_3d()) @ mat_rot.to_4x4()

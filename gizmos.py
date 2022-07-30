@@ -6,6 +6,7 @@ from mathutils import Vector, Matrix
 from . import functions, operators, global_data, class_defines, icon_manager
 from .declarations import GizmoGroups, Gizmos, Operators
 from .draw_handler import ensure_selection_texture
+from .utilities.constants import HALF_TURN, QUARTER_TURN
 
 # NOTE: idealy gizmo would expose active element as a property and
 # operators would access hovered element from there
@@ -259,7 +260,7 @@ from mathutils import Matrix
 
 def draw_arrow_shape(target, shoulder, width, is_3d=False):
     v = shoulder - target
-    mat = Matrix.Rotation(math.pi / 2, (3 if is_3d else 2), "Z")
+    mat = Matrix.Rotation(QUARTER_TURN, (3 if is_3d else 2), "Z")
     v.rotate(mat)
     v.length = abs(width / 2)
 
@@ -446,7 +447,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
             # So we rotate the arrowhead by a quarter-turn plus (or minus)
             #     half the amount the arc segment underneath it rotates.
             segment = length / abs(radius)
-            rotation = (math.tau/4 + segment/2) if constr.text_inside() else (math.tau/4 - segment/2)
+            rotation = (QUARTER_TURN + segment/2) if constr.text_inside() else (QUARTER_TURN - segment/2)
             return rotation
 
         rv3d = context.region_data
@@ -577,10 +578,10 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
                     ),
                     p2,
                     functions.pol2cart(offset, angle),
-                    functions.pol2cart(dist + (3 * arrow_2[0]), angle + math.pi), #limit length to 3 arrowheads
+                    functions.pol2cart(dist + (3 * arrow_2[0]), angle + HALF_TURN), #limit length to 3 arrowheads
                     p1,
                     *draw_arrow_shape(
-                        p1, functions.pol2cart(dist + arrow_2[0], angle + math.pi), arrow_2[1]
+                        p1, functions.pol2cart(dist + arrow_2[0], angle + HALF_TURN), arrow_2[1]
                     ),
                 )
 
