@@ -1,6 +1,6 @@
 from collections import deque
 import math
-from math import pi, cos, sin, tau
+from math import sin, cos
 import subprocess
 import re
 import site
@@ -20,7 +20,7 @@ from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
 
 from . import global_data
-
+from .utilities.constants import FULL_TURN
 
 def get_prefs():
     return bpy.context.preferences.addons[__package__].preferences
@@ -102,7 +102,7 @@ def draw_circle_2d(cx: float, cy: float, r: float, num_segments: int):
     """ NOTE: Not used?"""
     # circle outline
     # NOTE: also see gpu_extras.presets.draw_circle_2d
-    theta = 2 * pi / num_segments
+    theta = FULL_TURN / num_segments
 
     # precalculate the sine and cosine
     c = math.cos(theta)
@@ -181,7 +181,7 @@ def draw_cube_3d(cx: float, cy: float, cz: float, width: float):
 
 def coords_circle_2d(x: float, y: float, radius: float, segments: int):
     coords = []
-    m = (1.0 / (segments - 1)) * (pi * 2)
+    m = (1.0 / (segments - 1)) * FULL_TURN
 
     for p in range(segments):
         p1 = x + cos(m * p) * radius
@@ -195,7 +195,7 @@ def coords_arc_2d(
     y: float,
     radius: float,
     segments: int,
-    angle=tau,
+    angle=FULL_TURN,
     offset: float = 0.0,
     type="LINE_STRIP",
 ):
@@ -220,7 +220,7 @@ def coords_arc_2d(
 
 def range_2pi(angle: float) -> float:
     """Map angle range -Pi/+Pi to 0/2*Pi"""
-    return (angle + tau) % tau
+    return (angle + FULL_TURN) % FULL_TURN
 
 
 def pol2cart(radius: float, angle: float) -> Vector:

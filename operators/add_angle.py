@@ -3,6 +3,8 @@ import logging, math
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty, BoolProperty
 
+from ..utilities.constants import HALF_TURN
+
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
@@ -14,7 +16,7 @@ def invert_angle_getter(self):
 
 
 def invert_angle_setter(self, setting):
-    self["value"] = math.pi - self.value
+    self["value"] = HALF_TURN - self.value
     self["setting"] = setting
 
 
