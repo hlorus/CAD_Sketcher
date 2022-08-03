@@ -48,6 +48,33 @@ def select_invert(context: Context):
     for e in generator:
         e.selected = not e.selected
 
+def select_extend(context: Context):
+    sketch = context.scene.sketcher.active_sketch
+    if sketch:
+        generator = sketch.sketch_entities(context)
+    else:
+        generator = entities_3d(context)
+    
+    to_select = []
+    for e in generator:
+        if e.is_line():
+            if e.selected:
+                to_select.append(e.p1)
+                to_select.append(e.p2)
+                continue
+            if e.p1.selected or e.p2.selected:
+                to_select.append(e)    
+                continue
+            
+    is_something_to_select = False
+    for entity in to_select:
+        if not entity.selected:
+            is_something_to_select = True
+            entity.selected = True
+    
+    return is_something_to_select
+
+    
 # NOTE: The draw handler has to be registered before this has any effect, currently it's possible that
 # entities are first created with an entity that was hovered in the previous state
 # Not sure if it's possible to force draw handlers...

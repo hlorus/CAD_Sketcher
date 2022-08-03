@@ -54,6 +54,16 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
             None
         ),
         (
+            Operators.SelectExtend,
+            {"type": "E", "value": "PRESS", "ctrl": True},
+            None
+        ),
+        (
+            Operators.SelectExtendAll,
+            {"type": "E", "value": "PRESS", "ctrl": True, "shift": True},
+            None
+        ),
+        (
             Operators.Tweak,
             {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
             None,
