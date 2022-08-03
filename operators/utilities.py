@@ -57,7 +57,7 @@ def select_extend(context: Context):
     
     to_select = []
     for e in generator:
-        if e.is_line():
+        if e.is_line() or e.is_curve():
             if e.selected:
                 to_select.append(e.p1)
                 to_select.append(e.p2)
