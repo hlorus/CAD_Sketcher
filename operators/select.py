@@ -2,7 +2,7 @@ from bpy.types import Operator, Context
 from bpy.props import IntProperty, BoolProperty
 from bpy.utils import register_classes_factory
 
-from .utilities import select_all, deselect_all, select_invert
+from .utilities import select_all, deselect_all, select_extend, select_invert
 from .. import global_data
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement
@@ -68,5 +68,32 @@ class View3D_OT_slvs_select_invert(Operator):
         context.area.tag_redraw()
         return {"FINISHED"}
 
+class View3D_OT_slvs_select_extend(Operator):
+    """Select neighbour entities"""
 
-register, unregister = register_classes_factory((View3D_OT_slvs_select, View3D_OT_slvs_select_all,View3D_OT_slvs_select_invert))
+    bl_idname = Operators.SelectExtend
+    bl_label = "Select neighbour entities"
+
+    def execute(self, context: Context):
+        select_extend(context)
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+class View3D_OT_slvs_select_extend_all(Operator):
+    """Select neighbour entities"""
+
+    bl_idname = Operators.SelectExtendAll
+    bl_label = "Select neighbour entities"
+
+    def execute(self, context: Context):
+        while select_extend(context):
+            context.area.tag_redraw()
+        return {"FINISHED"}
+
+
+register, unregister = register_classes_factory((
+    View3D_OT_slvs_select,
+    View3D_OT_slvs_select_all,
+    View3D_OT_slvs_select_invert,
+    View3D_OT_slvs_select_extend,
+    View3D_OT_slvs_select_extend_all))
