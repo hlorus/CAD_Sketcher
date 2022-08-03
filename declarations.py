@@ -54,6 +54,7 @@ class Operators(str, Enum):
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
     Select = "view3d.slvs_select"
     SelectAll = "view3d.slvs_select_all"
+    SelectInvert = "view3d.slvs_select_invert"
     SetActiveSketch = "view3d.slvs_set_active_sketch"
     SetAllConstraintsVisibility = "view3d.slvs_set_all_constraints_visibility"
     ShowSolverState = "view3d.slvs_show_solver_state"

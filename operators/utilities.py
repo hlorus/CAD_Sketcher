@@ -38,6 +38,16 @@ def select_all(context: Context):
 def deselect_all(context: Context):
     global_data.selected.clear()
 
+def select_invert(context: Context):
+    sketch = context.scene.sketcher.active_sketch
+    if sketch:
+        generator = sketch.sketch_entities(context)
+    else:
+        generator = entities_3d(context)
+    
+    for e in generator:
+        e.selected = not e.selected
+
 # NOTE: The draw handler has to be registered before this has any effect, currently it's possible that
 # entities are first created with an entity that was hovered in the previous state
 # Not sure if it's possible to force draw handlers...
