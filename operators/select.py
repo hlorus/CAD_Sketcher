@@ -2,10 +2,13 @@ from bpy.types import Operator, Context
 from bpy.props import IntProperty, BoolProperty
 from bpy.utils import register_classes_factory
 
-from .utilities import select_all, deselect_all
+from .utilities import select_all, deselect_all, select_invert
 from .. import global_data
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement
+import logging
+
+logger = logging.getLogger(__name__)
 
 class View3D_OT_slvs_select(Operator, HighlightElement):
     """
@@ -54,5 +57,16 @@ class View3D_OT_slvs_select_all(Operator):
         context.area.tag_redraw()
         return {"FINISHED"}
 
+class View3D_OT_slvs_select_invert(Operator):
+    """Invert entities selection"""
 
-register, unregister = register_classes_factory((View3D_OT_slvs_select, View3D_OT_slvs_select_all))
+    bl_idname = Operators.SelectInvert
+    bl_label = "Invert entities selection"
+
+    def execute(self, context: Context):
+        select_invert(context)
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+
+register, unregister = register_classes_factory((View3D_OT_slvs_select, View3D_OT_slvs_select_all,View3D_OT_slvs_select_invert))

@@ -49,6 +49,11 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
             None,
         ),
         (
+            Operators.SelectInvert,
+            {"type": "I", "value": "PRESS", "ctrl": True},
+            None
+        ),
+        (
             Operators.Tweak,
             {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
             None,
