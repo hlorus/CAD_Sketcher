@@ -75,7 +75,7 @@ class StatefulOperator(StatefulOperatorLogic):
         index: Optional[int] = None,
         implicit: Optional[bool] = False
     ):
-        # Creates pointer value from it's implicitly stored props
+        # Creates pointer value from its implicitly stored props
         if index is None:
             index = self.state_index
 

@@ -22,10 +22,9 @@ class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
         name="Size",
         subtype="DISTANCE",
         unit="LENGTH",
-        options={"SKIP_SAVE"},
         precision=5,
+        options={"SKIP_SAVE"},
     )
-
     setting: BoolProperty(name="Use Radius")
     type = "DIAMETER"
 

@@ -18,6 +18,7 @@ class View3D_OT_slvs_add_point3d(Operator, Operator3d):
     bl_idname = Operators.AddPoint3D
     bl_label = "Add Solvespace 3D Point"
     bl_options = {"REGISTER", "UNDO"}
+
     p3d_state1_doc = ("Location", "Set point's location.")
 
     location: FloatVectorProperty(name="Location", subtype="XYZ", precision=5)

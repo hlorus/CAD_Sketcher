@@ -36,10 +36,10 @@ gather_selection(self, context) -> selected(list(ANY))
 state_func(self, context, coords) property_value(ANY)
   method to get the value for the state property from mouse coordinates
 
-pick_element(self, context, coords) -> element or it's implicit props
+pick_element(self, context, coords) -> element or its implicit props
   method to pick a matching element from mouse coordinates, either return the
-  element or it's implicit prop values, has to set the type of the picked element
+  element or its implicit prop values, has to set the type of the picked element
 
-create_element(self, context, value, state, state_data) -> element or it's implicit props
+create_element(self, context, value, state, state_data) -> element or its implicit props
   method to create state element when no existing element gets picked,
   has to set the type of the created element

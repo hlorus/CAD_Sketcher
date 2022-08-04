@@ -127,7 +127,7 @@ class GenericEntityOp(StatefulOperator):
         if retval:
             return retval
 
-        # Creates pointer from it's implicitly stored props
+        # Creates pointer from its implicitly stored props
         if index is None:
             index = self.state_index
 
