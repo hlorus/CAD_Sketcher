@@ -57,14 +57,23 @@ def select_extend(context: Context):
     
     to_select = []
     for e in generator:
-        if e.is_line() or e.is_curve():
+        if e.is_segment():
             if e.selected:
-                to_select.append(e.p1)
-                to_select.append(e.p2)
+                if hasattr(e, 'p1'):
+                    to_select.append(e.p1)
+                if hasattr(e, 'p2'):
+                    to_select.append(e.p2)
                 continue
-            if e.p1.selected or e.p2.selected:
+            if (hasattr(e,'p1') and e.p1.selected) or (hasattr(e, 'p2') and e.p2.selected):
                 to_select.append(e)    
                 continue
+    
+    for coindident in context.scene.sketcher.constraints.coincident:
+        for entity in coindident.entities():
+            if entity.selected:
+                for entity_to_select in coindident.entities():
+                    to_select.append(entity_to_select)
+                continue    
             
     is_something_to_select = False
     for entity in to_select:
