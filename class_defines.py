@@ -593,11 +593,9 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
     def dependencies(self):
         return [self.p1, self.nm]
 
-    # def is_active(self, active_sketch):
-    #     return not active_sketch
-
-    # def is_selectable(self, context):
-    #     return self.is_active(context.scene.sketcher.active_sketch)
+    @property
+    def size(self):
+        return preferences.get_prefs().workplane_size
 
     def update(self):
         if bpy.app.background:
