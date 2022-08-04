@@ -78,17 +78,30 @@ The basic tool interaction is consistent between tools.
 |0-9|-|Activate numeric edit|
 |Minus(-)|-|Toggle between positive and negative values|
 
-
+### Selection tools
 ::: CAD_Sketcher.operators.select.View3D_OT_slvs_select
+
+::: CAD_Sketcher.operators.select.View3D_OT_slvs_select_all
+
+::: CAD_Sketcher.operators.select.View3D_OT_slvs_select_invert
+
+::: CAD_Sketcher.operators.select.View3D_OT_slvs_select_extend
+
+::: CAD_Sketcher.operators.select.View3D_OT_slvs_select_extend_all
+
 **Keymap:**
 
 |Key|Modifier|Action|
 |---|---|---|
 |LMB|-   |Toggle Select|
 |ESC|-   |Deselect All|
-
+|I|Ctrl |Inverse selection|
+|E|Ctrl |Extend selection in chain|
+|E|Ctrl+Shift   |Select full chain|
 
 > **INFO:** LMB in empty space will also deselect all.
+
+> **INFO:** Chain selection works with coincident constraints too
 
 ::: CAD_Sketcher.operators.add_point_3d.View3D_OT_slvs_add_point3d
 
