@@ -50,7 +50,7 @@ Follow the [getting started](https://hlorus.github.io/CAD_Sketcher/getting_start
 The project accepts donations through Open Collective.
 
 <p>
-<a href="opencollective.com/cadsketcher">
+<a href="https://opencollective.com/cadsketcher/contribute">
 <img src="https://user-images.githubusercontent.com/64740362/182779318-b17ce498-f872-4a60-94c5-50391ec1e119.svg" width="300">
 </a>
 </p>
