@@ -2,7 +2,7 @@
 ![!Sidebar](images/sidebar.png){style="width:200px; height:220px; object-fit:cover;" align=right}
 
 The addon adds a some panels to the "N"-sidebar under the category "Sketcher". From
-here you can set the active sketch, access it's properties, add constraints and
+here you can set the active sketch, access its properties, add constraints and
 interact with elements via the browsers.
 {style="display:block; height:220px"}
 
@@ -31,7 +31,7 @@ state on the left and allows to invoke the constraint's context menu.
 Gizmos are used to display constraints. There are specific gizmo
 types for the three dimensional constraints, angle, distance and diameter.
 
-To interact with the settings of a constraint click it's gizmo to open a menu.
+To interact with the settings of a constraint click its gizmo to open a menu.
 ![!Dimensional Gizmos](images/dimensional_gizmos.png){align=left style="height:300px; width:calc(65% - 1em); object-fit:cover;"}
 ![!Constraint Menu](images/constraint_menu.png){align=right style="height:300px; width:calc(35% - 1em); object-fit:cover;"}
 

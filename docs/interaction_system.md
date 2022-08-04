@@ -5,7 +5,7 @@ selection matters. As the existing system of selection isn't ideal in this conte
 
 Most tools in the addon are implemented as stateful tools. In this context a state represents one target like a selection or a value. When running a tool you will iterate through these states until all states have valid input.
 
-Let's take the "Add Circle" tool as an example. Since a circle is represented by it's center and radius the tool will have two states. One to define the center element and one to set the radius.
+Let's take the "Add Circle" tool as an example. Since a circle is represented by its center and radius the tool will have two states. One to define the center element and one to set the radius.
 
 ### State Types
 
@@ -36,10 +36,10 @@ To be as flexible as possible the interaction system allows to work in different
 ![!Mixed Paradigm](images/selection_paradigm3.gif){style="width:100%;height:200px; object-fit:cover;"}
 
 ### Numerical Edit
-In order to precisely edit a states property it's possible to edit values directly by entering numbers. When the stateproperty is a set of multiple values (e.g. XYZ Location) they will be treated as sub-states, meaning you can iterate (TAB) through them and enter values sequentially.
+In order to precisely edit a states property, it's possible to edit values directly by entering numbers. When the stateproperty is a set of multiple values (e.g. XYZ Location) they will be treated as sub-states, meaning you can iterate (TAB) through them and enter values sequentially.
 
 ### Description
-When learning how a new tool works it's best to take a look at it's tooltip, this will list the different states of the tool. For pointer states this will additionally display the accepted types that can be picked.
+When learning how a new tool works it's best to take a look at its tooltip, this will list the different states of the tool. For pointer states this will additionally display the accepted types that can be picked.
 
 ![!tooltip_arc.png](images/tooltip_arc.png){align=left style="height:160px; width:calc(50% - 1em); object-fit:cover;"}
 
@@ -52,6 +52,6 @@ While running an operation the statusbar will display that information for the c
 ### Immediate Execution
 Most tools support immediate execution which will invoke the tools operations when switching to it and a valid
 selection is given.
->Note that the execution is only triggered when a tool is invoked by it's shortcut.
+>Note that the execution is only triggered when a tool is invoked by its shortcut.
 
 ![!Immediate Execution](images/immediate_execution.gif){style="width:100%;height:200px;object-fit:cover;"}

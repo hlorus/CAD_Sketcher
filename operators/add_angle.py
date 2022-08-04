@@ -31,8 +31,8 @@ class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
         name="Angle",
         subtype="ANGLE",
         unit="ROTATION",
-        options={"SKIP_SAVE"},
         precision=5,
+        options={"SKIP_SAVE"},
     )
     setting: BoolProperty(name="Measure supplementary angle", default = False, get=invert_angle_getter, set=invert_angle_setter)
     type = "ANGLE"

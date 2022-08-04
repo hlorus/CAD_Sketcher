@@ -18,8 +18,8 @@ class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
 
     bl_idname = Operators.DeleteConstraint
     bl_label = "Delete Constraint"
-    bl_options = {"UNDO"}
     bl_description = "Delete Constraint"
+    bl_options = {"UNDO"}
 
     type: StringProperty(name="Type")
     index: IntProperty(default=-1)
@@ -35,7 +35,7 @@ class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
         constraints = context.scene.sketcher.constraints
 
         # NOTE: It's not really necessary to first get the
-        # constraint from it's index before deleting
+        # constraint from its index before deleting
 
         constr = constraints.get_from_type_index(self.type, self.index)
         logger.debug("Delete: {}".format(constr))

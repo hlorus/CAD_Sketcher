@@ -19,6 +19,7 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
     bl_idname = Operators.AddPoint2D
     bl_label = "Add Solvespace 2D Point"
     bl_options = {"REGISTER", "UNDO"}
+
     p2d_state1_doc = ("Coordinates", "Set point's coordinates on the sketch.")
 
     coordinates: FloatVectorProperty(name="Coordinates", size=2, precision=5)

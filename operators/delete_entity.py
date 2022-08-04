@@ -24,10 +24,10 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
 
     bl_idname = Operators.DeleteEntity
     bl_label = "Delete Solvespace Entity"
-    bl_options = {"UNDO"}
     bl_description = (
         "Delete Entity by index or based on the selection if index isn't provided"
     )
+    bl_options = {"UNDO"}
 
     index: IntProperty(default=-1)
     do_report: BoolProperty(

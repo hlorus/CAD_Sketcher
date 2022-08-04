@@ -8,7 +8,7 @@ Whenever encountering a bug follow these steps:
 - Post the bug on [github](https://github.com/hlorus/CAD_Sketcher/issues/new?assignees=&labels=bug&template=bug-report.md&title=%5BBUG%5D)
 
 ## Console Output
-Blender doesn't print system output in it's info editor but only in the
+Blender doesn't print system output in its info editor but only in the
 system terminal. Follow the guide below to access blender's system console.
 
 === "Linux / Mac"

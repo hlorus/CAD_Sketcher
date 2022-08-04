@@ -833,7 +833,7 @@ class SlvsPoint2D(Point2D, PropertyGroup):
 
     co: FloatVectorProperty(
         name="Coordinates",
-        description="The coordinates of the point on it's sketch",
+        description="The coordinates of the point on its sketch",
         subtype="XYZ",
         size=2,
         unit="LENGTH",
@@ -1397,7 +1397,7 @@ slvs_entity_pointer(SlvsArc, "sketch")
 
 class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
     """Representation of a circle in 2D space. The circle is centered at ct with
-    it's size defined by the radius and is resoulution independent.
+    its size defined by the radius and is resoulution independent.
 
     Arguments:
         ct (SlvsPoint2D): Circle's centerpoint
@@ -1586,7 +1586,7 @@ slvs_entity_pointer(SlvsCircle, "sketch")
 
 
 def update_pointers(scene, index_old, index_new):
-    """Replaces all references to an entity index with it's new index"""
+    """Replaces all references to an entity index with its new index"""
     logger.debug("Update references {} -> {}".format(index_old, index_new))
     # NOTE: this should go through all entity pointers and update them if necessary.
     # It might be possible to use the msgbus to notify and update the IntProperty pointers
@@ -2141,7 +2141,7 @@ class GenericConstraint:
         return int(self.path_from_id().split('[')[1].split(']')[0])
 
 
-# NOTE: When tweaking it's necessary to constrain a point that is only temporary available
+# NOTE: When tweaking, it's necessary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
 def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
     func = None
@@ -3194,7 +3194,7 @@ class SlvsConstraints(PropertyGroup):
         return list[index]
 
     def get_index(self, constr: GenericConstraint) -> int:
-        """Get the index of a constraint in it's collection.
+        """Get the index of a constraint in its collection.
 
         Arguments:
             constr: Constraint to get the index for.

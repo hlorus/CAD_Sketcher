@@ -7,7 +7,7 @@ CAD Sketcher is a constraint-based sketcher addon for [Blender](https://www.blen
 
 ## Overview
 
-CAD Sketcher integrates the solver of Solvespace and closely follows it's design.
+CAD Sketcher integrates the solver of Solvespace and closely follows its design.
 Therefore the [Solvespace Documentation](https://solvespace.readthedocs.io/en/latest/) is generally also relevant.
 
 In order to have a parametric representation of a geometric system where curves

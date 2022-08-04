@@ -12,8 +12,8 @@ from ..declarations import Operators
 class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
     bl_idname = Operators.TweakConstraintValuePos
     bl_label = "Tweak Constraint"
-    bl_options = {"UNDO"}
     bl_description = "Tweak constraint's value or display position"
+    bl_options = {"UNDO"}
 
     type: StringProperty(name="Type")
     index: IntProperty(default=-1)

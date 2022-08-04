@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 from ..utilities.trimming import TrimSegment
 
 class View3D_OT_slvs_trim(Operator, Operator2d):
-    """Trim segment to it's closest intersections"""
+    """Trim segment to its closest intersections"""
 
     bl_idname = Operators.Trim
     bl_label = "Trim Segment"
