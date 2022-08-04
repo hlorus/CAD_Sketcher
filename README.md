@@ -46,12 +46,19 @@ Check the [installation](https://hlorus.github.io/CAD_Sketcher/installation) cha
 ## Usage
 Follow the [getting started](https://hlorus.github.io/CAD_Sketcher/getting_started) guide to get familiar with the addon.
 
+## Donations :heart:
+The project accepts donations through Open Collective.
 
 <p>
-<a href="https://www.paypal.com/donate/?business=4A9SCSHAU3ZP6&no_recurring=0&currency_code=CHF">
-<img src="https://user-images.githubusercontent.com/64740362/164417168-b88a9380-76d9-4ddc-b38e-fc3775fe950a.png" width="300" title="Donate">
+<a href="opencollective.com/cadsketcher">
+<img src="https://user-images.githubusercontent.com/64740362/182779318-b17ce498-f872-4a60-94c5-50391ec1e119.svg" width="300">
 </a>
 </p>
+ 
+Alternativley individual developers can link their donation links here:
 
+<a href="https://www.paypal.com/donate/?business=4A9SCSHAU3ZP6&no_recurring=0&currency_code=CHF">
+hlorus - Lead Dev
+</a>
 
 
