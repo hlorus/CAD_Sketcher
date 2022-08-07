@@ -127,7 +127,10 @@ class SlvsGenericEntity:
     # workaround this by saving python objects in a global list
     @property
     def _batch(self):
-        return global_data.batches[self.slvs_index]
+        index = self.slvs_index
+        if not index in global_data.batches:
+            return None
+        return global_data.batches[index]
 
     @_batch.setter
     def _batch(self, value):
@@ -227,6 +230,10 @@ class SlvsGenericEntity:
         if not self.is_visible(context):
             return None
 
+        batch = self._batch
+        if not batch:
+            return
+
         shader = self._shader
         shader.bind()
 
@@ -244,7 +251,7 @@ class SlvsGenericEntity:
             shader.uniform_float("Viewport", viewport)
             shader.uniform_float("thickness", self.line_width)
 
-        self._batch.draw(shader)
+        batch.draw(shader)
         gpu.shader.unbind()
         self.restore_opengl_defaults()
 
@@ -254,6 +261,9 @@ class SlvsGenericEntity:
         # maybe it should be dynamically defined what is selectable (points only, lines only, ...)
 
         batch = self._batch
+        if not batch:
+            return
+
         shader = self._id_shader
         shader.bind()
 
