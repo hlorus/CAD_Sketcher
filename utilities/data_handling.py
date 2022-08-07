@@ -5,6 +5,16 @@ from bpy.types import Scene, Context
 
 from ..class_defines import SlvsGenericEntity, SlvsSketch
 
+def to_list(value):
+    """Ensure value is of type list"""
+    if value is None:
+        return []
+    if type(value) in (list, tuple):
+        return list(value)
+    return [
+        value,
+    ]
+
 def get_flat_deps(entity):
     """Return flattened list of entities given entity depends on"""
     list = []

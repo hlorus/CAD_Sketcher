@@ -114,6 +114,11 @@ tool_access = (
         WorkSpaceTools.Trim,
         Operators.Trim,
     ),
+    tool_invoke_kmi(
+        "B",
+        WorkSpaceTools.Bevel,
+        Operators.Bevel,
+    ),
     (
         Operators.AddSketch,
         {"type": "S", "value": "PRESS"},

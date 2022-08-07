@@ -60,6 +60,7 @@ class Operators(str, Enum):
     Solve = "view3d.slvs_solve"
     Update = "view3d.slvs_update"
     Trim = "view3d.slvs_trim"
+    Bevel = "view3d.slvs_bevel"
     Tweak = "view3d.slvs_tweak"
     TweakConstraintValuePos = "view3d.slvs_tweak_constraint_value_pos"
     UnregisterDrawCB = "view3d.slvs_unregister_draw_cb"
@@ -91,6 +92,7 @@ class WorkSpaceTools(str, Enum):
     AddWorkplaneFace = "sketcher.slvs_add_workplane_face"
     Select = "sketcher.slvs_select"
     Trim = "sketcher.slvs_trim"
+    Bevel = "sketcher.slvs_bevel"
 
 
 ConstraintOperators = (

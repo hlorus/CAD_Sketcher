@@ -58,6 +58,9 @@ class Solver:
         )
         return self.start_sketch_groups + index
 
+    def _get_group_virtual(self):
+        return self.start_sketch_groups + len(self.context.scene.sketcher.entities.sketches)
+
     def _init_slvs_data(self):
         context = self.context
 
@@ -193,9 +196,39 @@ class Solver:
         # TODO: skip entities that aren't in active group
         return True
 
-    def solve(self, report=True):
+    # Allow to solve a system without updating entities
+    # Allow to add additional elements in a new group and read back the solved parmas
+
+    # def cb(solvesys, group):
+    #     h = solvesys.add_point_3d(group=group)
+
+
+    def solve_virtual(self, cb):
+        """Allows to add virtual elements to the system"""
+        group = self._get_group_virtual()
+        cb(self.solvesys, group)
+
+        # TODO: Move "all" option to solve method 
+
+        # self.solve(report=False) #update=False
+        self._init_slvs_data()
+
+
+        return self.solvesys
+
+    # loc = get_updated(
+    #     [
+    #       ("add_point_3d", (0,0,0))
+    # ]
+    # )
+
+    def solve(self, report=True, virtual=None):
         self.report = report
         self._init_slvs_data()
+
+        if virtual:
+            virtual_group = self._get_group_virtual()
+            virtual(self.solvesys, virtual_group)
 
         if self.all:
             sse = self.context.scene.sketcher.entities
