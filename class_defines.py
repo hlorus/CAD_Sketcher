@@ -28,7 +28,7 @@ from . import global_data, functions
 from .utilities import preferences
 from .shaders import Shaders
 from .solver import solve_system, Solver
-from .functions import pol2cart, unique_attribute_setter
+from .functions import pol2cart, range_2pi, unique_attribute_setter
 from .declarations import Operators
 from .global_data import WpReq
 from .utilities.constants import FULL_TURN, HALF_TURN, QUARTER_TURN
@@ -127,7 +127,10 @@ class SlvsGenericEntity:
     # workaround this by saving python objects in a global list
     @property
     def _batch(self):
-        return global_data.batches[self.slvs_index]
+        index = self.slvs_index
+        if not index in global_data.batches:
+            return None
+        return global_data.batches[index]
 
     @_batch.setter
     def _batch(self, value):
@@ -227,6 +230,10 @@ class SlvsGenericEntity:
         if not self.is_visible(context):
             return None
 
+        batch = self._batch
+        if not batch:
+            return
+
         shader = self._shader
         shader.bind()
 
@@ -244,7 +251,7 @@ class SlvsGenericEntity:
             shader.uniform_float("Viewport", viewport)
             shader.uniform_float("thickness", self.line_width)
 
-        self._batch.draw(shader)
+        batch.draw(shader)
         gpu.shader.unbind()
         self.restore_opengl_defaults()
 
@@ -254,6 +261,9 @@ class SlvsGenericEntity:
         # maybe it should be dynamically defined what is selectable (points only, lines only, ...)
 
         batch = self._batch
+        if not batch:
+            return
+
         shader = self._id_shader
         shader.bind()
 
@@ -885,6 +895,12 @@ def round_v(vec, ndigits=None):
     return Vector(values)
 
 
+def get_connection_point(seg_1, seg_2):
+    points = seg_1.connection_points()
+    for p in seg_2.connection_points():
+        if p in points:
+            return p
+
 class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     """Representation of a line in 2D space. Connects p1 and p2 and lies on the
     sketche's workplane.
@@ -931,6 +947,15 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         d1 = self.p2.location - p1  # normalize?
         return functions.nearest_point_line_line(p1, d1, origin, view_vector)
 
+    def project_point(self, coords):
+        """Projects a point onto the line"""
+        nm = self.normal
+        dir_vec = self.direction_vec()
+        p1 = self.p1.co
+
+        local_co = coords - p1
+        return local_co.project(dir_vec) + p1
+
     def placement(self):
         return (self.p1.location + self.p2.location) / 2
 
@@ -943,6 +968,24 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
             return point == self.p1
         else:
             return point == self.p2
+
+    def connection_angle(self, other):
+        """Returns the angle at the connection point between the two entities
+        or None if they're not connected or not in 2d space"""
+
+        point = get_connection_point(self, other)
+
+        if not point:
+            return None
+        if self.is_3d() or other.is_3d():
+            return None
+
+        if not all([e.is_line() for e in (self, other)]):
+            return other.connection_angle(self)
+
+        dir1 = self.direction_vec() if self.direction(point) else (self.direction_vec() * (-1))
+        dir2 = other.direction_vec() if other.direction(point) else (other.direction_vec() * (-1))
+        return dir1.angle_signed(dir2)
 
     def to_bezier(
         self, spline, startpoint, endpoint, invert_direction, set_startpoint=False
@@ -967,6 +1010,12 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
 
     def direction_vec(self):
         return (self.p2.co - self.p1.co).normalized()
+
+    def normal(self):
+        mat_rot = Matrix.Rotation(math.pi/2, 2, "Z")
+        nm = self.direction_vec()
+        nm.rotate(mat_rot)
+        return nm
 
     @property
     def length(self):
@@ -1023,6 +1072,13 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         retval = (len_1 + len_2) % (self.length + threshold)
 
         return retval
+
+    def replace_point(self, old, new):
+        for ptr in ("p1", "p2"):
+            if old != getattr(self, ptr):
+                continue
+            setattr(self, ptr, new)
+            break
 
 
 slvs_entity_pointer(SlvsLine2D, "p1")
@@ -1236,8 +1292,50 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
     def bezier_point_count(self):
         return self.bezier_segment_count() + 1
 
-    def point_on_curve(self, angle):
-        return functions.pol2cart(self.radius, self.start_angle + angle) + self.ct.co
+    def point_on_curve(self, angle, relative=True):
+        start_angle = self.start_angle if relative else 0
+        return functions.pol2cart(self.radius, start_angle + angle) + self.ct.co
+
+    def project_point(self, coords):
+        """Projects a point onto the arc"""
+        local_co = coords - self.ct.co
+        angle = range_2pi(math.atan2(local_co[1], local_co[0]))
+        return self.point_on_curve(angle, relative=False)
+
+    def connection_angle(self, other):
+        """Returns the angle at the connection point between the two entities
+        or None if they're either not connected or not in 2d space"""
+
+        point = get_connection_point(self, other)
+
+        if not point:
+            return None
+        if self.is_3d() or other.is_3d():
+            return None
+
+        def _get_tangent(arc, point):
+            local_co = point.co - arc.ct.co
+            angle = range_2pi(math.atan2(local_co.y, local_co.x))
+            mat_rot = Matrix.Rotation(angle, 2, "Z")
+            tangent = Vector((0,1))
+            tangent.rotate(mat_rot)
+            invert = arc.direction(point)
+            if invert:
+                tangent *= -1
+            return tangent
+
+        # Get directions
+        directions = []
+        for entity in (self, other):
+            if entity.is_curve():
+                directions.append(_get_tangent(entity, point))
+            else:
+                directions.append(
+                    entity.direction_vec() if entity.direction(point) else entity.direction_vec() * (-1)
+                )
+
+        dir1, dir2 = directions
+        return dir1.angle_signed(dir2)
 
     def to_bezier(
         self,
@@ -1384,6 +1482,14 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         arc.construction = self.construction
         arc.invert_direction = self.invert_direction
         return arc
+
+    def replace_point(self, old, new):
+        for ptr in ("ct", "p1", "p2"):
+            if old != getattr(self, ptr):
+                continue
+            setattr(self, ptr, new)
+            break
+
 
 
 slvs_entity_pointer(SlvsArc, "nm")
@@ -1638,7 +1744,7 @@ class SlvsEntities(PropertyGroup):
     # __annotations__ = {
     #         list_name : CollectionProperty(type=entity_cls) for entity_cls, list_name in zip(entities, _entity_collections)
     # }
-    
+
     @classmethod
     def _type_index(cls, entity: SlvsGenericEntity) -> int:
         return cls.entities.index(type(entity))
@@ -1649,7 +1755,7 @@ class SlvsEntities(PropertyGroup):
 
         | entity type index |  entity object index  |
         |:-----------------:|:---------------------:|
-        |      4 bits       |       20 bits         | 
+        |      4 bits       |       20 bits         |
         |            total: 3 Bytes                 |
         """
         type_index = self._type_index(entity)
@@ -2904,13 +3010,6 @@ slvs_entity_pointer(SlvsPerpendicular, "entity2")
 slvs_entity_pointer(SlvsPerpendicular, "sketch")
 
 
-def connection_point(seg_1, seg_2):
-    points = seg_1.connection_points()
-    for p in seg_2.connection_points():
-        if p in points:
-            return p
-    return []
-
 
 class SlvsTangent(GenericConstraint, PropertyGroup):
     """Forces two curves (arc/circle) or a curve and a line to be tangent.
@@ -2928,7 +3027,7 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
         wp = self.get_workplane()
 
         # check if entities share a point
-        point = connection_point(e1, e2)
+        point = get_connection_point(e1, e2)
         if point and not isinstance(e2, SlvsCircle):
             if isinstance(e2, SlvsLine2D):
                 return solvesys.addArcLineTangent(

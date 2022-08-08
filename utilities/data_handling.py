@@ -5,6 +5,16 @@ from bpy.types import Scene, Context
 
 from ..class_defines import SlvsGenericEntity, SlvsSketch
 
+def to_list(value):
+    """Ensure value is of type list"""
+    if value is None:
+        return []
+    if type(value) in (list, tuple):
+        return list(value)
+    return [
+        value,
+    ]
+
 def get_flat_deps(entity):
     """Return flattened list of entities given entity depends on"""
     list = []
@@ -41,6 +51,11 @@ def get_entity_deps(
         if entity in deps:
             yield scene_entity
 
+def _is_referenced_by_constraint(entity, context):
+    for c in context.scene.sketcher.constraints.all:
+        if entity in c.dependencies():
+            return True
+    return False
 
 def is_entity_referenced(entity: SlvsGenericEntity, context: Context) -> bool:
     """Check if entity is a dependency of another entity"""
@@ -48,7 +63,7 @@ def is_entity_referenced(entity: SlvsGenericEntity, context: Context) -> bool:
     try:
         next(deps)
     except StopIteration:
-        return False
+        return _is_referenced_by_constraint(entity, context)
     return True
 
 

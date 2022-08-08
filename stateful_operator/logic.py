@@ -539,7 +539,7 @@ class StatefulOperatorLogic:
             self._undo = False
 
         if self.check_props():
-            self.run_op(context)
+            succeede = self.run_op(context)
             self._undo = True
 
         # Iterate state
@@ -548,7 +548,7 @@ class StatefulOperatorLogic:
                 if self.check_continuous_draw():
                     self.do_continuous_draw(context)
                 else:
-                    return self._end(context, True)
+                    return self._end(context, succeede)
 
             if is_numeric:
                 # NOTE: Run next state already once even if there's no mousemove yet,

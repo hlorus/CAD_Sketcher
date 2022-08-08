@@ -215,6 +215,20 @@ class View3D_T_slvs_trim(GenericStateTool, WorkSpaceTool):
         *operator_access(Operators.Trim),
     )
 
+class View3D_T_slvs_bevel(GenericStateTool, WorkSpaceTool):
+    bl_space_type = "VIEW_3D"
+    bl_context_mode = "OBJECT"
+    bl_idname = WorkSpaceTools.Bevel
+    bl_label = "Bevel"
+    bl_operator = Operators.Bevel
+    bl_icon = get_addon_icon_path("ops.bgs.bevel")
+    bl_widget = GizmoGroups.Preselection
+    bl_keymap = (
+        *tool_keymap,
+        *tool_access,
+        *operator_access(Operators.Bevel),
+    )
+
 class View3D_T_slvs_add_workplane_face(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
@@ -264,6 +278,7 @@ tools = (
     (View3D_T_slvs_add_arc2d, {"separator": False, "group": False}),
     (View3D_T_slvs_add_rectangle, {"separator": False, "group": False}),
     (View3D_T_slvs_trim, {"separator": False, "group": False}),
+    (View3D_T_slvs_bevel, {"separator": False, "group": False}),
     (View3D_T_slvs_add_workplane_face, {"separator": True, "group": True}),
     (View3D_T_slvs_add_workplane, {"after": {View3D_T_slvs_add_workplane_face.bl_idname}}),
 )
