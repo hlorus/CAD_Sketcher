@@ -54,7 +54,7 @@ class SlvsGenericEntity:
     visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
     origin: BoolProperty(name="Origin")
     construction: BoolProperty(name="Construction")
-
+    props = ()
     dirty: BoolProperty(name="Needs Update", default=True, options={"SKIP_SAVE"})
 
     @classmethod
@@ -467,6 +467,7 @@ class SlvsPoint3D(Point3D, PropertyGroup):
         unit="LENGTH",
         update=SlvsGenericEntity.tag_update
     )
+    props = ("location",)
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)
@@ -2104,6 +2105,7 @@ class GenericConstraint:
     failed: BoolProperty(name="Failed")
     visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
     signature = ()
+    props = ()
 
     def needs_wp(args):
         return WpReq.OPTIONAL
@@ -2427,6 +2429,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     draw_outset: FloatProperty(name="Draw Outset", default=0.0)
     type = "DISTANCE"
     signature = ((*point, *line), (*point, *line, SlvsWorkplane))
+    props = ("value", )
 
     @classmethod
     def get_types(cls, index, entities):
@@ -2669,6 +2672,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     draw_offset: FloatProperty(name="Draw Offset", default=0)
     type = "DIAMETER"
     signature = (curve,)
+    props = ("value", )
 
     @property
     def diameter(self):
@@ -2764,6 +2768,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
     draw_outset: FloatProperty(name="Draw Outset", default=0)
     type = "ANGLE"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
+    props = ("value", )
 
     def needs_wp(self):
         return WpReq.NOT_FREE

@@ -208,6 +208,9 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
                 emboss=False,
             )
 
+            # Middle Part
+            sub = row.row()
+            sub.alignment = "LEFT"
             sub.prop(e, "name", text="")
 
             # Right part
@@ -231,6 +234,14 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             )
             props.index = e.slvs_index
             props.highlight_hover = True
+
+            # Props
+            if e.props:
+                row_props = col.row()
+                row_props.alignment = "RIGHT"
+                for entity_prop in e.props:
+                    row_props.prop(e, entity_prop, text="")
+                col.separator()
 
 
 class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
@@ -279,8 +290,8 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
             props.highlight_active = True
             props.highlight_members = True
 
-            if hasattr(c, "value"):
-                sub.prop(c, "value", text="")
+            for constraint_prop in c.props:
+                sub.prop(c, constraint_prop, text="")
 
             # Right part
             sub = row.row()
