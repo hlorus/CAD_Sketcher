@@ -7,7 +7,7 @@ from mathutils import Matrix
 
 from .. import global_data
 from ..declarations import GizmoGroups, WorkSpaceTools
-from ..class_defines import SlvsGenericEntity
+from ..class_defines import SlvsGenericEntity, point
 from ..convertors import update_convertor_geometry
 from ..utilities.preferences import use_experimental, get_prefs
 
@@ -22,8 +22,10 @@ def entities_3d(context: Context) -> Generator[SlvsGenericEntity, None, None]:
 def select_all(context: Context):
     sketch = context.scene.sketcher.active_sketch
     if sketch:
+        logger.debug(f"Selecting all sketcher entities in sketch : {sketch.name} (slvs_index: {sketch.slvs_index})")
         generator = sketch.sketch_entities(context)
     else:
+        logger.debug(f"Selecting all sketcher entities")
         generator = entities_3d(context)
 
     for e in generator:
@@ -36,13 +38,16 @@ def select_all(context: Context):
         e.selected = True
 
 def deselect_all(context: Context):
+    logger.debug("Deselecting all sketcher entities")
     global_data.selected.clear()
 
 def select_invert(context: Context):
     sketch = context.scene.sketcher.active_sketch
     if sketch:
+        logger.debug(f"Inverting selection of sketcher entities in sketch : {sketch.name} (slvs_index: {sketch.slvs_index})")
         generator = sketch.sketch_entities(context)
     else:
+        logger.debug(f"Inverting selection of sketcher entities")
         generator = entities_3d(context)
     
     for e in generator:
@@ -51,32 +56,27 @@ def select_invert(context: Context):
 def select_extend(context: Context):
     sketch = context.scene.sketcher.active_sketch
     if sketch:
+        logger.debug(f"Extending chain selection of sketcher entities in sketch : {sketch.name} (slvs_index: {sketch.slvs_index})")
         generator = sketch.sketch_entities(context)
     else:
+        logger.debug(f"Extending chain selection of sketcher entities")
         generator = entities_3d(context)
     
     to_select = []
     for e in generator:
-        if e.is_segment():
+        if not isinstance(e, point) and isinstance(e, SlvsGenericEntity):
             if e.selected:
-                if hasattr(e, 'p1'):
-                    to_select.append(e.p1)
-                if hasattr(e, 'p2'):
-                    to_select.append(e.p2)
-                continue
-            if (hasattr(e,'p1') and e.p1.selected) or (hasattr(e, 'p2') and e.p2.selected):
-                to_select.append(e)    
-                continue
+                to_select.extend(e.connection_points())
+            elif any(p.selected for p in e.connection_points()):
+                to_select.append(e)
     
     for coincident in context.scene.sketcher.constraints.coincident:
         if any(entity.selected for entity in coincident.entities()):
             to_select.extend(coincident.entities())
             
-    is_something_to_select = False
+    is_something_to_select = not all(e.selected for e in to_select)
     for entity in to_select:
-        if not entity.selected:
-            is_something_to_select = True
-            entity.selected = True
+        entity.selected = True
     
     return is_something_to_select
 

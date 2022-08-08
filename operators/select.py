@@ -8,8 +8,6 @@ from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement
 import logging
 
-logger = logging.getLogger(__name__)
-
 class View3D_OT_slvs_select(Operator, HighlightElement):
     """
     TODO: Add selection modes
