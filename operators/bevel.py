@@ -161,9 +161,6 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         connection_angle = l1.connection_angle(l2)
         self.invert = bool(connection_angle < 0)
 
-        # Create arc
-        self.nm = sse.add_normal_2d(sketch)
-
         refresh(context)
         return True
 
@@ -173,7 +170,9 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
 
         sketch = self.sketch
         sse = context.scene.sketcher.entities
-        arc = sse.add_arc(self.nm, self.ct, *self.points, sketch)
+        
+        # Add Arc
+        arc = sse.add_arc(sketch.wp.nm, self.ct, *self.points, sketch)
         arc.invert_direction = self.invert
 
         # Replace endpoints of existing segments
