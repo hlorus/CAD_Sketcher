@@ -724,6 +724,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     target_curve_object: PointerProperty(type=bpy.types.Object)
     target_mesh: PointerProperty(type=bpy.types.Mesh)
     target_object: PointerProperty(type=bpy.types.Object)
+    curve_resolution: IntProperty(name="Mesh Curve Resolution", default=12, min=1, soft_max=25)
 
     def dependencies(self):
         return [

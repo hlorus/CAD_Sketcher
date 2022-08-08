@@ -107,6 +107,9 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             row = layout.row()
             row.prop(sketch, "name")
             layout.prop(sketch, "convert_type")
+
+            if sketch.convert_type == "MESH":
+                layout.prop(sketch, "curve_resolution")
             if sketch.convert_type != "NONE":
                 layout.prop(sketch, "fill_shape")
 

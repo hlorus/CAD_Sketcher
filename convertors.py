@@ -291,6 +291,10 @@ def update_convertor_geometry(scene: Scene, sketch=None):
         _link_unlink_object(scene, sketch.target_curve_object, mode == "BEZIER")
 
         if mode == "MESH":
+            # Set curve resolution
+            for spline in sketch.target_curve_object.data.splines:
+                spline.resolution_u = sketch.curve_resolution
+
             # Create mesh data
             temp_mesh = sketch.target_curve_object.to_mesh()
             mesh = mesh_from_temporary(
