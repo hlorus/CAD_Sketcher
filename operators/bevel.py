@@ -8,7 +8,7 @@ from mathutils.geometry import intersect_line_line_2d, intersect_line_sphere_2d,
 from .. import class_defines
 from ..functions import refresh
 from ..solver import solve_system
-from ..utilities.data_handling import to_list
+from ..utilities.data_handling import to_list, is_entity_referenced
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
@@ -189,6 +189,11 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         ssc = context.scene.sketcher.constraints
         ssc.add_tangent(arc, seg1, sketch)
         ssc.add_tangent(arc, seg2, sketch)
+
+
+        # Remove original point if not referenced
+        if not is_entity_referenced(point, context):
+            context.scene.sketcher.entities.remove(point.slvs_index)
 
         refresh(context)
         solve_system(context)

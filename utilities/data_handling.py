@@ -51,6 +51,11 @@ def get_entity_deps(
         if entity in deps:
             yield scene_entity
 
+def _is_referenced_by_constraint(entity, context):
+    for c in context.scene.sketcher.constraints.all:
+        if entity in c.dependencies():
+            return True
+    return False
 
 def is_entity_referenced(entity: SlvsGenericEntity, context: Context) -> bool:
     """Check if entity is a dependency of another entity"""
@@ -58,7 +63,7 @@ def is_entity_referenced(entity: SlvsGenericEntity, context: Context) -> bool:
     try:
         next(deps)
     except StopIteration:
-        return False
+        return _is_referenced_by_constraint(entity, context)
     return True
 
 
