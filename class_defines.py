@@ -361,6 +361,10 @@ class SlvsGenericEntity:
         return False
 
     @classmethod
+    def is_path(cls):
+        return False
+
+    @classmethod
     def is_line(cls):
         return False
 
@@ -483,6 +487,10 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         p2 (SlvsPoint3D): Line's endpoint
     """
 
+    @classmethod
+    def is_path(cls):
+        return True
+    
     @classmethod
     def is_line(cls):
         return True
@@ -914,6 +922,10 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     """
 
     @classmethod
+    def is_path(cls):
+        return True
+
+    @classmethod
     def is_line(cls):
         return True
 
@@ -1190,6 +1202,10 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         update=tag_update,
     )
 
+    @classmethod
+    def is_path(cls):
+        return True
+    
     @classmethod
     def is_curve(cls):
         return True
@@ -1520,6 +1536,10 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         unit="LENGTH",
         update=tag_update,
     )
+
+    @classmethod
+    def is_path(cls):
+        return True
 
     @classmethod
     def is_curve(cls):

@@ -50,7 +50,7 @@ class BezierConverter:
         for e in self.scene.sketcher.entities.all:
             if not hasattr(e, "sketch") or e.sketch_i != sketch_index:
                 continue
-            if e.is_point():
+            if not e.is_path():
                 continue
             if e.construction:
                 continue
