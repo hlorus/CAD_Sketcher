@@ -68,12 +68,9 @@ def select_extend(context: Context):
                 to_select.append(e)    
                 continue
     
-    for coindident in context.scene.sketcher.constraints.coincident:
-        for entity in coindident.entities():
-            if entity.selected:
-                for entity_to_select in coindident.entities():
-                    to_select.append(entity_to_select)
-                continue    
+    for coincident in context.scene.sketcher.constraints.coincident:
+        if any(entity.selected for entity in coincident.entities()):
+            to_select.extend(coincident.entities())
             
     is_something_to_select = False
     for entity in to_select:
