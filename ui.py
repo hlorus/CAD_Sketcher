@@ -279,6 +279,9 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
             props.highlight_active = True
             props.highlight_members = True
 
+            if hasattr(c, "value"):
+                sub.prop(c, "value", text="")
+
             # Right part
             sub = row.row()
             sub.alignment = "RIGHT"
