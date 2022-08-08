@@ -297,6 +297,9 @@ class SlvsGenericEntity:
             if ob.sketch_index == index_old:
                 ob.sketch_index = index_new
 
+    def connection_points(self):
+        return []
+
     def dependencies(self):
         return []
 
