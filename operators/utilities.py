@@ -147,4 +147,21 @@ def activate_sketch(context: Context, index: int, operator: Operator):
         return {"FINISHED"}
 
     update_convertor_geometry(context.scene, sketch=last_sketch)
+
+    select_target_ob(context, last_sketch)
+
+
     return {"FINISHED"}
+
+def select_target_ob(context, sketch):
+    mode = sketch.convert_type
+    target_ob = (
+        sketch.target_object if mode == "MESH" else sketch.target_curve_object
+    )
+
+    bpy.ops.object.select_all(action="DESELECT")
+    if not target_ob:
+        return
+    
+    target_ob.select_set(True)
+    context.view_layer.objects.active = target_ob
