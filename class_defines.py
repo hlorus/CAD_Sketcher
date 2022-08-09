@@ -3139,7 +3139,7 @@ class SlvsMidpoint(GenericConstraint, PropertyGroup):
         )
 
     def placements(self):
-        return (self.entity1,)
+        return (self.entity2,)
 
 slvs_entity_pointer(SlvsMidpoint, "entity1")
 slvs_entity_pointer(SlvsMidpoint, "entity2")
