@@ -735,9 +735,20 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
 
     def setup(self, context):
         theme = functions.get_prefs().theme_settings
-        entities, constraints = constraints_mapping(context)
 
-        for e, constrs in zip(entities, constraints):
+        mapping = {}
+        for c in context.scene.sketcher.constraints.all:
+            if not hasattr(c, "placements"):
+                continue
+
+            for e in c.placements():
+                if not mapping.get(e):
+                    mapping[e] = [c,]
+                else:
+                    mapping[e].append(c)
+                print(mapping[e])
+
+        for e, constrs in mapping.items():
             if not hasattr(e, "placement"):
                 continue
             if not e.is_visible(context):

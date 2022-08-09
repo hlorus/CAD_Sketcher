@@ -2267,6 +2267,10 @@ class GenericConstraint:
         # of looping over elements
         return int(self.path_from_id().split('[')[1].split(']')[0])
 
+    def placements(self):
+        """Return the entities where the constraint should be displayed"""
+        return []
+
 
 # NOTE: When tweaking, it's necessary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
@@ -2328,12 +2332,8 @@ class SlvsCoincident(GenericConstraint, PropertyGroup):
             solvesys, self.entity1.py_data, self.entity2, self.get_workplane(), group
         )
 
-    def placement(self, context):
-        """location to display the constraint"""
-        region = context.region
-        rv3d = context.space_data.region_3d
-        coords = self.entity1.location
-        return location_3d_to_region_2d(region, rv3d, coords)
+    def placements(self):
+        return (self.entity1,)
 
 
 slvs_entity_pointer(SlvsCoincident, "entity1")
@@ -2394,14 +2394,8 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
 
         return func(e1.py_data, e2.py_data, **kwargs)
 
-    def placement(self, context):
-        """location to display the constraint"""
-        region = context.region
-        rv3d = context.space_data.region_3d
-        line = self.entity1
-        p1, p2 = line.p1.location, line.p2.location
-        coords = (p1 + p2) / 2
-        return location_3d_to_region_2d(region, rv3d, coords)
+    def placements(self):
+        return (self.entity1, self.entity2)
 
 
 slvs_entity_pointer(SlvsEqual, "entity1")
@@ -2929,6 +2923,9 @@ class SlvsParallel(GenericConstraint, PropertyGroup):
             group=group,
         )
 
+    def placements(self):
+        return (self.entity1, self.entity2)
+
 
 slvs_entity_pointer(SlvsParallel, "entity1")
 slvs_entity_pointer(SlvsParallel, "entity2")
@@ -2967,6 +2964,8 @@ class SlvsHorizontal(GenericConstraint, PropertyGroup):
             self.entity1.py_data, wrkpln=wp, group=group
         )
 
+    def placements(self):
+        return (self.entity1,)
 
 slvs_entity_pointer(SlvsHorizontal, "entity1")
 slvs_entity_pointer(SlvsHorizontal, "entity2")
@@ -3004,6 +3003,8 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
             self.entity1.py_data, wrkpln=wp, group=group
         )
 
+    def placements(self):
+        return (self.entity1,)
 
 slvs_entity_pointer(SlvsVertical, "entity1")
 slvs_entity_pointer(SlvsVertical, "entity2")
@@ -3030,6 +3031,9 @@ class SlvsPerpendicular(GenericConstraint, PropertyGroup):
             group=group,
         )
 
+    def placements(self):
+        point = get_connection_point(self.entity1, self.entity2)
+        return (point,)
 
 slvs_entity_pointer(SlvsPerpendicular, "entity1")
 slvs_entity_pointer(SlvsPerpendicular, "entity2")
@@ -3094,6 +3098,9 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
                 solvesys.addPointOnLine(p, l, group=group, wrkpln=wp),
             )
 
+    def placements(self):
+        point = get_connection_point(self.entity1, self.entity2)
+        return (point,)
 
 slvs_entity_pointer(SlvsTangent, "entity1")
 slvs_entity_pointer(SlvsTangent, "entity2")
@@ -3124,6 +3131,8 @@ class SlvsMidpoint(GenericConstraint, PropertyGroup):
             self.entity1.py_data, self.entity2.py_data, **kwargs,
         )
 
+    def placements(self):
+        return (self.entity1,)
 
 slvs_entity_pointer(SlvsMidpoint, "entity1")
 slvs_entity_pointer(SlvsMidpoint, "entity2")
@@ -3172,6 +3181,8 @@ class SlvsSymmetric(GenericConstraint, PropertyGroup):
                 group=group,
             )
 
+    def placements(self):
+        return (self.entity1, self.entity2, self.entity3)
 
 slvs_entity_pointer(SlvsSymmetric, "entity1")
 slvs_entity_pointer(SlvsSymmetric, "entity2")
@@ -3220,6 +3231,8 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
         sub.prop(self, "value")
         return sub
 
+    def placements(self):
+        return (self.entity1, self.entity2)
 
 slvs_entity_pointer(SlvsRatio, "entity1")
 slvs_entity_pointer(SlvsRatio, "entity2")
