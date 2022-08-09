@@ -247,6 +247,52 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
                 col.separator()
 
 
+def draw_constraint_listitem(context, layout, constraint):
+    row = layout.row()
+
+    # Left part
+    sub = row.row()
+    sub.alignment = "LEFT"
+
+    sub.prop(
+        constraint,
+        "visible",
+        icon_only=True,
+        icon=("HIDE_OFF" if constraint.visible else "HIDE_ON"),
+        emboss=False,
+    )
+
+    # Failed hint
+    sub.label(
+        text="", icon=("ERROR" if constraint.failed else "CHECKMARK"),
+    )
+
+    index = context.scene.sketcher.constraints.get_index(constraint)
+
+    # Context menu, shows constraint name
+    props = sub.operator(Operators.ContextMenu, text=str(constraint), emboss=False,)
+    props.type = constraint.type
+    props.index = index
+    props.highlight_hover = True
+    props.highlight_active = True
+    props.highlight_members = True
+
+    for constraint_prop in constraint.props:
+        sub.prop(constraint, constraint_prop, text="")
+
+    # Right part
+    sub = row.row()
+    sub.alignment = "RIGHT"
+
+    # Delete operator
+    props = sub.operator(
+        Operators.DeleteConstraint, text="", icon="X", emboss=False,
+    )
+    props.type = constraint.type
+    props.index = index
+    props.highlight_hover = True
+    props.highlight_members = True
+
 class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
     bl_label = "Constraints"
     bl_idname = Panels.SketcherContraints
@@ -254,60 +300,34 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
 
     def draw(self, context: Context):
         layout = self.layout
+
+        # Visibility Operators
+        col = layout.column(align=True)
+        col.operator_enum(Operators.SetAllConstraintsVisibility, "visibility")
+
+        # Dimensional Constraints
+        layout.label(text="Dimensional:")
         box = layout.box()
         col = box.column(align=True)
         col.scale_y = 0.8
 
-        layout.operator_enum(Operators.SetAllConstraintsVisibility, "visibility")
-
         sketch = context.scene.sketcher.active_sketch
-        for c in context.scene.sketcher.constraints.all:
+        for c in context.scene.sketcher.constraints.dimensional:
             if not c.is_active(sketch):
                 continue
-            row = col.row()
+            draw_constraint_listitem(context, col, c)
 
-            # Left part
-            sub = row.row()
-            sub.alignment = "LEFT"
+        # Geometric Constraints
+        layout.label(text="Geometric:")
+        box = layout.box()
+        col = box.column(align=True)
+        col.scale_y = 0.8
 
-            sub.prop(
-                c,
-                "visible",
-                icon_only=True,
-                icon=("HIDE_OFF" if c.visible else "HIDE_ON"),
-                emboss=False,
-            )
-
-            # Failed hint
-            sub.label(
-                text="", icon=("ERROR" if c.failed else "CHECKMARK"),
-            )
-
-            index = context.scene.sketcher.constraints.get_index(c)
-
-            # Context menu, shows constraint name
-            props = sub.operator(Operators.ContextMenu, text=str(c), emboss=False,)
-            props.type = c.type
-            props.index = index
-            props.highlight_hover = True
-            props.highlight_active = True
-            props.highlight_members = True
-
-            for constraint_prop in c.props:
-                sub.prop(c, constraint_prop, text="")
-
-            # Right part
-            sub = row.row()
-            sub.alignment = "RIGHT"
-
-            # Delete operator
-            props = sub.operator(
-                Operators.DeleteConstraint, text="", icon="X", emboss=False,
-            )
-            props.type = c.type
-            props.index = index
-            props.highlight_hover = True
-            props.highlight_members = True
+        sketch = context.scene.sketcher.active_sketch
+        for c in context.scene.sketcher.constraints.geometric:
+            if not c.is_active(sketch):
+                continue
+            draw_constraint_listitem(context, col, c)
 
 
 class VIEW3D_MT_sketches(Menu):

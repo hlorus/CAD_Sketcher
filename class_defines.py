@@ -3265,6 +3265,24 @@ slvs_entity_pointer(SlvsRatio, "sketch")
 
 class SlvsConstraints(PropertyGroup):
 
+    _dimensional_constraints = (
+        SlvsDistance,
+        SlvsAngle,
+        SlvsDiameter,
+    )
+
+    _geometric_constraints = (
+        SlvsCoincident,
+        SlvsEqual,
+        SlvsParallel,
+        SlvsHorizontal,
+        SlvsVertical,
+        SlvsTangent,
+        SlvsMidpoint,
+        SlvsPerpendicular,
+        SlvsRatio,
+    )
+
     _constraints = (
         SlvsCoincident,
         SlvsEqual,
@@ -3352,6 +3370,18 @@ class SlvsConstraints(PropertyGroup):
         """
         i = self.get_index(constr)
         self.get_list(constr.type).remove(i)
+
+    @property
+    def dimensional(self):
+        for constraint_type in self._dimensional_constraints:
+            for entity in self.get_list(constraint_type.type):
+                yield entity
+
+    @property
+    def geometric(self):
+        for constraint_type in self._geometric_constraints:
+            for entity in self.get_list(constraint_type.type):
+                yield entity
 
     @property
     def all(self):
