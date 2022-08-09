@@ -85,7 +85,8 @@ class View3D_OT_slvs_select_extend_all(Operator):
 
     def execute(self, context: Context):
         while select_extend(context):
-            context.area.tag_redraw()
+            pass
+        context.area.tag_redraw()
         return {"FINISHED"}
 
 

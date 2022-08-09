@@ -64,7 +64,7 @@ def select_extend(context: Context):
     
     to_select = []
     for e in generator:
-        if not isinstance(e, point) and isinstance(e, SlvsGenericEntity):
+        if not e.is_point():
             if e.selected:
                 to_select.extend(e.connection_points())
             elif any(p.selected for p in e.connection_points()):
