@@ -6,7 +6,6 @@ from .utilities import select_all, deselect_all, select_extend, select_invert
 from .. import global_data
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement
-import logging
 
 class View3D_OT_slvs_select(Operator, HighlightElement):
     """
