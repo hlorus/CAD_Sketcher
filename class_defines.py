@@ -904,12 +904,16 @@ def round_v(vec, ndigits=None):
         values.append(round(v, ndigits=ndigits))
     return Vector(values)
 
-
 def get_connection_point(seg_1, seg_2):
     points = seg_1.connection_points()
     for p in seg_2.connection_points():
         if p in points:
             return p
+
+def set_handles(point):
+    point.handle_left_type = "FREE"
+    point.handle_right_type = "FREE"
+
 
 class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     """Representation of a line in 2D space. Connects p1 and p2 and lies on the
@@ -1013,9 +1017,7 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         endpoint.co = locations[1]
 
         startpoint.handle_right = locations[0]
-        startpoint.handle_right_type = "VECTOR"
         endpoint.handle_left = locations[1]
-        endpoint.handle_left_type = "VECTOR"
 
         return endpoint
 
