@@ -746,7 +746,6 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                     mapping[e] = [c,]
                 else:
                     mapping[e].append(c)
-                print(mapping[e])
 
         for e, constrs in mapping.items():
             if not hasattr(e, "placement"):
