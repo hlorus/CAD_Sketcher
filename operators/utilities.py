@@ -7,7 +7,7 @@ from mathutils import Matrix
 
 from .. import global_data
 from ..declarations import GizmoGroups, WorkSpaceTools
-from ..class_defines import SlvsGenericEntity, point
+from ..class_defines import SlvsGenericEntity
 from ..convertors import update_convertor_geometry
 from ..utilities.preferences import use_experimental, get_prefs
 
