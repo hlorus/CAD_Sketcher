@@ -211,18 +211,16 @@ class Solver:
                 findFreeParams=False,
             )
 
-            # NOTE: For some reason solve() might return undocumented values,
-            # Clamp result value to 4
-            if retval > 3:
+            if retval > 5:
                 logger.debug("Solver returned undocumented value: {}".format(retval))
-                retval = 4
+
             self.result = bpyEnum(solver_state_items, index=retval)
 
             if report and sketch:
                 sketch.solver_state = self.result.index
                 sketch.dof = self.solvesys.Dof
 
-            if retval != 0:
+            if retval != 0 and retval != 5:
                 self.ok = False
 
                 # Store sketch failures
