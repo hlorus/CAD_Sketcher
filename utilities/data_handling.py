@@ -57,15 +57,22 @@ def _is_referenced_by_constraint(entity, context):
             return True
     return False
 
-def is_entity_referenced(entity: SlvsGenericEntity, context: Context) -> bool:
+def is_entity_dependency(entity: SlvsGenericEntity, context: Context) -> bool:
     """Check if entity is a dependency of another entity"""
     deps = get_entity_deps(entity, context)
     try:
         next(deps)
     except StopIteration:
-        return _is_referenced_by_constraint(entity, context)
+        return False
     return True
 
+def is_entity_referenced(entity: SlvsGenericEntity, context: Context) -> bool:
+    """Checks if the entity is referenced from anywhere"""
+    if is_entity_dependency(entity, context):
+        return True
+    if _is_referenced_by_constraint(entity, context):
+        return True
+    return False
 
 def get_sketch_deps_indicies(sketch: SlvsSketch, context: Context):
     deps = deque()

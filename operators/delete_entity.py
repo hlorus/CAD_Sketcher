@@ -11,7 +11,7 @@ from ..utilities.data_handling import (
     get_constraint_local_indices,
     get_entity_deps,
     get_sketch_deps_indicies,
-    is_entity_referenced,
+    is_entity_dependency,
 )
 from ..utilities.highlighting import HighlightElement
 from .utilities import activate_sketch
@@ -52,7 +52,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
             for i in reversed(deps):
                 operator.delete(entities.get(i), context)
 
-        elif is_entity_referenced(entity, context):
+        elif is_entity_dependency(entity, context):
             if operator.do_report:
                 deps = list(get_entity_deps(entity, context))
                 message = f"Unable to delete {entity.name}, other entities depend on it:\n"+ "\n".join(
@@ -109,7 +109,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
                 e = context.scene.sketcher.entities.get(i)
 
                 # NOTE: this might be slow when a lot of entities are selected, improve!
-                if is_entity_referenced(e, context):
+                if is_entity_dependency(e, context):
                     continue
                 self.delete(e, context)
 
