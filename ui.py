@@ -248,10 +248,11 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
 
 
 def draw_constraint_listitem(context, layout, constraint):
+    index = context.scene.sketcher.constraints.get_index(constraint)
     row = layout.row()
 
     # Left part
-    sub = row.row()
+    sub = row.row(align=True)
     sub.alignment = "LEFT"
 
     sub.prop(
@@ -267,22 +268,28 @@ def draw_constraint_listitem(context, layout, constraint):
         text="", icon=("ERROR" if constraint.failed else "CHECKMARK"),
     )
 
-    index = context.scene.sketcher.constraints.get_index(constraint)
+    # Middle Part
+    sub = row.row()
+    sub.alignment = "LEFT"
 
-    # Context menu, shows constraint name
-    props = sub.operator(Operators.ContextMenu, text=str(constraint), emboss=False,)
-    props.type = constraint.type
-    props.index = index
-    props.highlight_hover = True
-    props.highlight_active = True
-    props.highlight_members = True
+    # Label
+    sub.prop(constraint, "name", text="")
 
+    # Dimensional Constraint Values
     for constraint_prop in constraint.props:
         sub.prop(constraint, constraint_prop, text="")
 
     # Right part
     sub = row.row()
     sub.alignment = "RIGHT"
+
+    # Context menu, shows constraint name
+    props = sub.operator(Operators.ContextMenu, text="", icon="OUTLINER_DATA_GP_LAYER", emboss=False)
+    props.type = constraint.type
+    props.index = index
+    props.highlight_hover = True
+    props.highlight_active = True
+    props.highlight_members = True
 
     # Delete operator
     props = sub.operator(

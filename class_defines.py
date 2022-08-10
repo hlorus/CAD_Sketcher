@@ -2128,6 +2128,15 @@ ENTITY_PROP_NAMES = ("entity1", "entity2", "entity3", "entity4")
 
 
 class GenericConstraint:
+    def _name_getter(self):
+        name = self.get("name")
+        if not name:
+            return type(self).__name__
+        return name
+    def _name_setter(self, new_name):
+        self["name"] = new_name
+
+    name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
     failed: BoolProperty(name="Failed")
     visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
     signature = ()
@@ -2235,7 +2244,7 @@ class GenericConstraint:
     def draw_props(self, layout: UILayout):
         is_experimental = preferences.is_experimental()
 
-        layout.label(text="Type: " + type(self).__name__)
+        layout.prop(self, "name", text="")
 
         if self.failed:
             layout.label(text="Failed", icon="ERROR")
