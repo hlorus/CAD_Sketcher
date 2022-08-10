@@ -5,7 +5,7 @@ import subprocess
 import re
 import site
 from importlib import reload
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Sequence, Tuple, Union
 
 import bpy
 import bmesh
@@ -338,7 +338,7 @@ class bpyEnum:
     """
 
     def __init__(
-        self, data, index: Union[int, None] = None, identifier: Union[None, str] = None
+        self, data: Sequence, index: Union[int, None] = None, identifier: Union[None, str] = None
     ):
         self.data = data
 

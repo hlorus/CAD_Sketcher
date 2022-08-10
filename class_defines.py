@@ -1,4 +1,4 @@
-from typing import Generator, Union, Tuple, Type
+from typing import Generator, List, Union, Tuple, Type
 import logging
 import math
 from statistics import mean
@@ -310,7 +310,7 @@ class SlvsGenericEntity:
     def connection_points(self):
         return []
 
-    def dependencies(self):
+    def dependencies(self) -> List["SlvsGenericEntity"]:
         return []
 
     def draw_props(self, layout):
@@ -502,7 +502,7 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
     def is_segment(cls):
         return True
 
-    def dependencies(self):
+    def dependencies(self) -> List[SlvsGenericEntity]:
         return [self.p1, self.p2]
 
     def is_dashed(self):
@@ -612,7 +612,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     size = 0.4
 
-    def dependencies(self):
+    def dependencies(self) -> List[SlvsGenericEntity]:
         return [self.p1, self.nm]
 
     @property
@@ -737,7 +737,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     target_object: PointerProperty(type=bpy.types.Object)
     curve_resolution: IntProperty(name="Mesh Curve Resolution", default=12, min=1, soft_max=25)
 
-    def dependencies(self):
+    def dependencies(self) -> List[SlvsGenericEntity]:
         return [
             self.wp,
         ]
@@ -861,7 +861,7 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         update=SlvsGenericEntity.tag_update
     )
 
-    def dependencies(self):
+    def dependencies(self) -> List[SlvsGenericEntity]:
         return [
             self.sketch,
         ]
@@ -940,7 +940,7 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     def is_segment(cls):
         return True
 
-    def dependencies(self):
+    def dependencies(self) -> List[SlvsGenericEntity]:
         return [self.p1, self.p2, self.sketch]
 
     def is_dashed(self):
@@ -1227,7 +1227,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
     def end(self):
         return self.p1 if self.invert_direction else self.p2
 
-    def dependencies(self):
+    def dependencies(self) -> List[SlvsGenericEntity]:
         return [self.nm, self.ct, self.start, self.end, self.sketch]
 
     def is_dashed(self):
@@ -1554,7 +1554,7 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
     def is_segment(cls):
         return True
 
-    def dependencies(self):
+    def dependencies(self) -> List[SlvsGenericEntity]:
         return [self.nm, self.ct, self.sketch]
 
     def is_dashed(self):
@@ -2172,7 +2172,7 @@ class GenericConstraint:
             props.append(getattr(self, prop_name))
         return props
 
-    def dependencies(self):
+    def dependencies(self) -> List[SlvsGenericEntity]:
         deps = self.entities()
         if hasattr(self, "sketch"):
             s = self.sketch
