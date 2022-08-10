@@ -2,6 +2,7 @@ import bpy
 from bpy.types import Context, Event
 from mathutils import Vector
 from mathutils.geometry import intersect_line_plane
+from typing import Any, List
 
 from .. import functions, class_defines
 from .base_stateful import GenericEntityOp
@@ -27,7 +28,7 @@ class Operator2d(GenericEntityOp):
         return Vector(pos[:-1])
 
     # create element depending on mode
-    def create_element(self, context, values, state, state_data):
+    def create_element(self, context: Context, values: List[Any], state, state_data):
         sse = context.scene.sketcher.entities
         sketch = self.sketch
         loc = values[0]
