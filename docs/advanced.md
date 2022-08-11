@@ -54,9 +54,11 @@ If you'd like to help with development simply submit pull requests or reach out 
 Take a look at the existing [code documentation](code_docs.md), this isn't complete yet,
 if you are missing some specific information feel free to ask in the discord's contribute channel.
 
-Have a look at the open issues on [github](https://github.com/hlorus/CAD_Sketcher/issues).
-Some of them are alos marked with the "good first issue" tag, see [here](https://github.com/hlorus/CAD_Sketcher/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22). Also take a look at
+Have a look at the open issues on [github](https://github.com/hlorus/CAD_Sketcher/issues). Some of them are marked with the [good first issue](https://github.com/hlorus/CAD_Sketcher/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) tag. Also take a look at
 the [raodmap](https://github.com/users/hlorus/projects/1) to see where the priority
 currently lies.
+
+**Code Style**
+The project uses the [Black Formatter](https://github.com/psf/black), make sure to enable it in your code editor before pushing pull requests. 
 
 <!-- ### Donate -->
