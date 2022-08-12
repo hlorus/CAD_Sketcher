@@ -318,16 +318,17 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
         # Store the two endpoints of the helplines in local space
         points_local = []
 
-        if isinstance(entity1, class_defines.SlvsCircle):
+        # Add endpoint for entity1 helpline
+        if entity1.is_curve():
             centerpoint = entity1.ct.co
 
-            if isinstance(entity2, class_defines.SlvsPoint2D):
+            if entity2.is_point():
                 targetpoint = entity2.co
-                points_local.append(get_local(entity2.location))
-            else:
-                assert(isinstance(entity2, class_defines.SlvsLine2D))
+            elif entity2.is_line():
                 targetpoint , _ = intersect_point_line(centerpoint, entity2.p1.co, entity2.p2.co)
-                points_local.append(get_local(targetpoint))
+            else:
+                # TODO: Handle the case for SlvsWorkplane
+                pass
 
             targetvec = targetpoint - centerpoint
             points_local.append(get_local(centerpoint + entity1.radius*targetvec/targetvec.length))
@@ -335,25 +336,27 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
         else:
             points_local.append(get_local(entity1.location))
 
-            if type(entity2) in class_defines.point:
-                points_local.append(get_local(entity2.location))
+        # Add endpoint for entity2 helpline
+        if entity2.is_point():
+            points_local.append(get_local(entity2.location))
 
-            elif type(entity2) in class_defines.line:
-                line_points = (get_local(entity2.p1.location), get_local(entity2.p2.location))
-                line_points_side = [pos.y - offset > 0 for pos in line_points]
+        elif entity2.is_line():
+            line_points = (get_local(entity2.p1.location), get_local(entity2.p2.location))
+            line_points_side = [pos.y - offset > 0 for pos in line_points]
 
-                x = math.copysign(dist, line_points[0].x)
+            x = math.copysign(dist, line_points[0].x)
+            y = offset
+
+            if line_points_side[0] != line_points_side[1]:
+                # Distance line is between line points
                 y = offset
+            else:
+                # Get the closest point
+                points_delta = [abs(p.y - offset) for p in line_points]
+                i = int(points_delta[0] > points_delta[1])
+                y = line_points[i].y
+            points_local.append(Vector((x, y, 0.0)))
 
-                if line_points_side[0] != line_points_side[1]:
-                    # Distance line is between line points
-                    y = offset
-                else:
-                    # Get the closest point
-                    points_delta = [abs(p.y - offset) for p in line_points]
-                    i = int(points_delta[0] > points_delta[1])
-                    y = line_points[i].y
-                points_local.append(Vector((x, y, 0.0)))
 
         # Pick the points based on their x location
         if points_local[0].x > points_local[1].x:
