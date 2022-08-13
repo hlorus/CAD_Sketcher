@@ -66,7 +66,6 @@ def check_pip_installed():
         # Modifies global_data to make it persist for other commands.
         global_data.pip_environment.pop("PYTHONNOUSERSITE", None)
         return subprocess.call(args, env=global_data.pip_environment) == 0
-    return True
 
 def ensure_pip():
     if not check_pip_installed():
