@@ -45,7 +45,7 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
         ),
         (
             Operators.Select,
-            {"type": "LEFTMOUSE", "value": "CLICK", "any":True},
+            {"type": "LEFTMOUSE", "value": "CLICK"},
             None,
         ),
         (
