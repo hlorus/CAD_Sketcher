@@ -4,6 +4,7 @@ from math import sin, cos
 import subprocess
 import re
 import site
+import os
 from importlib import reload
 from typing import Any, List, Sequence, Tuple, Union
 
@@ -27,14 +28,17 @@ def get_prefs():
 
 
 def install_pip():
-    """ Subprocess call ensurepip module"""
-    cmd = [global_data.PYPATH, "-m", "ensurepip", "--upgrade"]
-    return not subprocess.call(cmd)
+    """Call ensurepip to bootstrap pip"""
+    import ensurepip
 
+    # ensurepip.bootstrap without the _ does nothing but discard the exit code 
+    exitcode = ensurepip._bootstrap()
+    os.environ.pop("PIP_REQ_TRACKER", None)
+    return exitcode
 
 def update_pip():
     cmd = [global_data.PYPATH, "-m", "pip", "install", "--upgrade", "pip"]
-    return not subprocess.call(cmd)
+    return not subprocess.call(cmd, env=global_data.pip_environment)
 
 
 def refresh_path():
@@ -45,24 +49,34 @@ def refresh_path():
 def install_package(package: str, no_deps: bool = True):
     update_pip()
     base_call = [global_data.PYPATH, "-m", "pip", "install"]
-    args = ["--upgrade"]
+    args = ["--upgrade", "--user"] # -user here still installs in system pythons usersite.
     if no_deps:
         args += ["--no-deps"]
     cmd = base_call + args + package.split(" ")
-    ret_val = subprocess.call(cmd)
+    ret_val = subprocess.call(cmd, env=global_data.pip_environment)
     refresh_path()
     return ret_val == 0
 
+def check_pip_installed():
+    args = [global_data.PYPATH, "-m", "pip", "--version"]
+    if subprocess.call(args, env=global_data.pip_environment) == 0:
+        return True
+    else:
+        # If python not found in blender, we have to try the usersite version.
+        # Modifies global_data to make it persist for other commands.
+        global_data.pip_environment.pop("PYTHONNOUSERSITE", None)
+        return subprocess.call(args, env=global_data.pip_environment) == 0
+    return True
 
 def ensure_pip():
-    if subprocess.call([global_data.PYPATH, "-m", "pip", "--version"]):
+    if not check_pip_installed():
         return install_pip()
     return True
 
 
 def show_package_info(package: str):
     try:
-        subprocess.call([global_data.PYPATH, "-m", "pip", "show", package])
+        subprocess.call([global_data.PYPATH, "-m", "pip", "show", package], env=global_data.pip_environment)
     except Exception as e:
         print(e)
         pass
