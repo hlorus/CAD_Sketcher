@@ -23,59 +23,16 @@ from mathutils.bvhtree import BVHTree
 from . import global_data
 from .utilities.constants import FULL_TURN
 
+
 def get_prefs():
     return bpy.context.preferences.addons[__package__].preferences
 
 
-def install_pip():
-    """Call ensurepip to bootstrap pip"""
-    import ensurepip
-
-    # ensurepip.bootstrap without the _ does nothing but discard the exit code 
-    exitcode = ensurepip._bootstrap()
-    os.environ.pop("PIP_REQ_TRACKER", None)
-    return exitcode
-
-def update_pip():
-    cmd = [global_data.PYPATH, "-m", "pip", "install", "--upgrade", "pip"]
-    return not subprocess.call(cmd, env=global_data.pip_environment)
-
-
-def refresh_path():
-    """ refresh path to packages found after install """
-    reload(site)
-
-
-def install_package(package: str, no_deps: bool = True):
-    update_pip()
-    base_call = [global_data.PYPATH, "-m", "pip", "install"]
-    args = ["--upgrade", "--user"] # -user here still installs in system pythons usersite.
-    if no_deps:
-        args += ["--no-deps"]
-    cmd = base_call + args + package.split(" ")
-    ret_val = subprocess.call(cmd, env=global_data.pip_environment)
-    refresh_path()
-    return ret_val == 0
-
-def check_pip_installed():
-    args = [global_data.PYPATH, "-m", "pip", "--version"]
-    if subprocess.call(args, env=global_data.pip_environment) == 0:
-        return True
-    else:
-        # If python not found in blender, we have to try the usersite version.
-        # Modifies global_data to make it persist for other commands.
-        global_data.pip_environment.pop("PYTHONNOUSERSITE", None)
-        return subprocess.call(args, env=global_data.pip_environment) == 0
-
-def ensure_pip():
-    if not check_pip_installed():
-        return install_pip()
-    return True
-
-
 def show_package_info(package: str):
     try:
-        subprocess.call([global_data.PYPATH, "-m", "pip", "show", package], env=global_data.pip_environment)
+        subprocess.call(
+            [global_data.PYPATH, "-m", "pip", "show", package], env=global_data.env_vars
+        )
     except Exception as e:
         print(e)
         pass
@@ -97,13 +54,12 @@ def show_ui_message_popup(
         for line_str in lines:
             row = layout.row()
             row.label(text=line_str)
-        
 
     bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
 
 
 def add_new_empty(context, location: Vector, name="") -> Object:
-    """ NOTE: No used """
+    """NOTE: No used"""
     data = bpy.data
     empty = data.objects.new(name, None)
     empty.location = location
@@ -112,7 +68,7 @@ def add_new_empty(context, location: Vector, name="") -> Object:
 
 
 def draw_circle_2d(cx: float, cy: float, r: float, num_segments: int):
-    """ NOTE: Not used?"""
+    """NOTE: Not used?"""
     # circle outline
     # NOTE: also see gpu_extras.presets.draw_circle_2d
     theta = FULL_TURN / num_segments
@@ -326,7 +282,7 @@ def get_scale_from_pos(co: Vector, rv3d: RegionView3D) -> Vector:
 
 
 def refresh(context: Context):
-    """ Update gizmos """
+    """Update gizmos"""
     if context.space_data and context.space_data.type == "VIEW_3D":
         context.space_data.show_gizmo = True
 
@@ -351,7 +307,10 @@ class bpyEnum:
     """
 
     def __init__(
-        self, data: Sequence, index: Union[int, None] = None, identifier: Union[None, str] = None
+        self,
+        data: Sequence,
+        index: Union[int, None] = None,
+        identifier: Union[None, str] = None,
     ):
         self.data = data
 
@@ -393,7 +352,7 @@ class bpyEnum:
 
 def unique_attribute_setter(self, name: str, value: Any):
     def collection_from_element(self):
-        """ Get the collection containing the element """
+        """Get the collection containing the element"""
         path = self.path_from_id()
         match = re.match("(.*)\[\d*\]", path)
         parent = self.id_data
@@ -405,7 +364,7 @@ def unique_attribute_setter(self, name: str, value: Any):
             return parent.path_resolve(coll_path)
 
     def new_val(stem, nbr):
-        """ Simply for formatting """
+        """Simply for formatting"""
         return "{st}.{nbr:03d}".format(st=stem, nbr=nbr)
 
     property_func = getattr(self.__class__, name, None)

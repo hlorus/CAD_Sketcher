@@ -1,16 +1,21 @@
 import os
 import sys
 from enum import Enum
+from pathlib import Path
+
 from mathutils import Vector
 
 registered = False
 
 PYPATH = sys.executable
 
-# Add/Overwrite the PYTHONNOUSERSITE to make pip use the local version
-# partially resolves issue: https://github.com/hlorus/CAD_Sketcher/issues/243
-# will get set to 0 if pip doesn't exist in blender.
-pip_environment = {**dict(os.environ), "PYTHONNOUSERSITE": "1"}
+# Custom userbase for this addon.
+# Python will make a subfolder of this
+# where dependencies will be installed.
+CUSTOM_USER_BASE = str((Path(__file__).parent).resolve())
+
+# Add CUSTOM_USER_SITE to PYTHONUSERBASE for subprocesses to use
+env_vars = {**dict(os.environ), "PYTHONUSERBASE": CUSTOM_USER_BASE}
 
 entities = {}
 batches = {}
@@ -34,7 +39,7 @@ draw_handle = None
 
 # Workplane requirement options
 class WpReq(Enum):
-    OPTIONAL, FREE, NOT_FREE = range(3) 
+    OPTIONAL, FREE, NOT_FREE = range(3)
 
 
 solver_state_items = [

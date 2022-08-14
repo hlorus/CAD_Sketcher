@@ -3,7 +3,8 @@ from bpy.types import Operator
 
 from .. import functions, global_data
 from ..declarations import Operators
-from ..utilities.install import check_module
+from ..utilities import install
+
 
 class View3D_OT_slvs_install_package(Operator):
     """Install module from local .whl file or from PyPi"""
@@ -18,10 +19,11 @@ class View3D_OT_slvs_install_package(Operator):
         return not global_data.registered
 
     def execute(self, context):
-        if not functions.ensure_pip():
+        if not install.ensure_pip():
             self.report(
                 {"WARNING"},
-                "PIP is not available and cannot be installed, please install PIP manually",
+                "PIP is not available and cannot be installed, please install PIP"
+                " manually",
             )
             return {"CANCELLED"}
 
@@ -29,15 +31,21 @@ class View3D_OT_slvs_install_package(Operator):
             self.report({"WARNING"}, "Specify package to be installed")
             return {"CANCELLED"}
 
-        if functions.install_package(self.package):
+        if install.install_package(self.package):
             try:
-                check_module("py_slvs")
+                install.check_module("py_slvs")
                 from ..registration import register_full
+
                 register_full()
 
                 self.report({"INFO"}, "Package successfully installed")
+                global_data.registered = True
             except ModuleNotFoundError:
-                self.report({"WARNING"}, "Package should be available but cannot be found, check console for detailed info. Try restarting blender, otherwise get in contact.")
+                self.report(
+                    {"WARNING"},
+                    "Package should be available but cannot be found, check console for"
+                    " detailed info. Try restarting blender, otherwise get in contact.",
+                )
             functions.show_package_info("py_slvs")
         else:
             self.report({"WARNING"}, "Cannot install package: {}".format(self.package))
