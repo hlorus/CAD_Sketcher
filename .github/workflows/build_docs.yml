@@ -4,7 +4,7 @@ jobs:
   building:
     runs-on: ubuntu-latest
     steps:
-      - run: sudo apt-get install blender
+      - run: sudo apt-get install --fix-missing blender
       - uses: actions/checkout@v3
       - run: python -V
       - run: which python
