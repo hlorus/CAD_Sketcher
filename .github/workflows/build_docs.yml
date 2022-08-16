@@ -18,6 +18,7 @@ jobs:
       - uses: BSFishy/pip-action@v1
         with:
           packages: |
+            markdown<3
             mkdocs
             mkdocs-material
             lightgallery
