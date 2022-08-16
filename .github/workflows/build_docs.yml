@@ -15,10 +15,14 @@ jobs:
       - run: tree -L 2 --dirsfirst
 
       - uses: actions/setup-python@v4
+      - uses: BSFishy/pip-action@v1
         with:
-          python-version: '3.10'
-          cache: 'pip' # caching pip dependencies
-      - run: pip install mkdocs mkdocs-material lightgallery mkdocstrings mkdocs-autorefs
+          packages: |
+            mkdocs
+            mkdocs-material
+            lightgallery
+            mkdocstrings
+            mkdocs-autorefs
 
       - run: python -V
       - run: which python
