@@ -14,7 +14,7 @@ jobs:
         with:
           path: main
 
-      - run: sudo apt-get tree
+      - run: sudo apt-get install tree
       - run: tree -L 2 --dirsfirst
 
       - run: python -V
