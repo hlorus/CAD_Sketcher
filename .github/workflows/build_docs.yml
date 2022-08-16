@@ -4,7 +4,24 @@ jobs:
   building:
     runs-on: ubuntu-latest
     steps:
-      - run: sudo apt-get install --fix-missing blender
+      - uses: actions/checkout
+        with:
+          repository: blender/blender
+          path: blender-git
+          submodules: "true"
+
       - uses: actions/checkout@v3
+        with:
+          path: main
+
+      - run: sudo apt-get tree
+      - run: tree -L 2 --dirsfirst
+
       - run: python -V
       - run: which python
+
+      - run: python -m ensurepip
+      - run: python -m pip install mkdocs mkdocs-material lightgallery mkdocstrings mkdocs-autorefs
+
+      - run: PYTHONPATH=$PYTHONPATH:blender-git/blender/release/
+      - run: $PYTHONPATH
