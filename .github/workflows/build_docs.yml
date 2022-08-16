@@ -5,14 +5,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
         with:
           repository: blender/blender
           path: blender-git
           submodules: "true"
-
-      - uses: actions/checkout@v3
-        with:
-          path: main
 
       - run: sudo apt-get install tree
       - run: tree -L 2 --dirsfirst
@@ -26,5 +23,7 @@ jobs:
       - run: python -V
       - run: which python
 
-      - run: PYTHONPATH=$PYTHONPATH:blender-git/blender/release/
-      - run: $PYTHONPATH
+      - run: PYTHONPATH=$PYTHONPATH:blender-git/blender/release/scripts/modules
+      - run: echo $PYTHONPATH
+
+      - uses: mhausenblas/mkdocs-deploy-gh-pages@master
