@@ -4,7 +4,7 @@ jobs:
   building:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout
+      - uses: actions/checkout@v3
         with:
           repository: blender/blender
           path: blender-git
