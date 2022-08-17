@@ -23,7 +23,7 @@ jobs:
       - run: python -V
       - run: which python
 
-      - run: PYTHONPATH=$PYTHONPATH:blender-git/blender/release/scripts/modules
+      - run: PYTHONPATH=$PYTHONPATH:blender-git/blender/release/scripts/modules:..
       - run: echo $PYTHONPATH
 
       - run: python3.10 -m mkdocs build -f ./mkdocs.yml
