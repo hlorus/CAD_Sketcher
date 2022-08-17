@@ -5,6 +5,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          path: CAD_Sketcher
       - uses: actions/checkout@v3
         with:
           repository: blender/blender
@@ -20,10 +22,7 @@ jobs:
           cache: "pip"
       - run: pip install markdown mkdocs mkdocs-material mkdocstrings mkdocs-autorefs lightgallery mkdocstrings-python
 
-      - run: python -V
-      - run: which python
-
-      - run: PYTHONPATH=$PYTHONPATH:blender-git/blender/release/scripts/modules:..
+      - run: PYTHONPATH=$PYTHONPATH:blender-git/blender/release/scripts/modules:.
       - run: echo $PYTHONPATH
 
-      - run: python3.10 -m mkdocs build -f ./mkdocs.yml
+      - run: python3.10 -m mkdocs build -f ./CAD_Sketcher/mkdocs.yml
