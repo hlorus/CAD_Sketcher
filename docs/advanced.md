@@ -59,6 +59,7 @@ the [raodmap](https://github.com/users/hlorus/projects/1) to see where the prior
 currently lies.
 
 **Code Style**
+
 The project uses the [Black Formatter](https://github.com/psf/black), make sure to enable it in your code editor before pushing pull requests. 
 
 <!-- ### Donate -->
