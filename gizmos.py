@@ -2,6 +2,12 @@ import bpy, bgl, gpu, blf
 
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector, Matrix
+from mathutils.geometry import intersect_point_line
+
+from . import functions, operators, global_data, class_defines, icon_manager
+from .declarations import GizmoGroups, Gizmos, Operators
+from .draw_handler import ensure_selection_texture
+from .utilities.constants import HALF_TURN, QUARTER_TURN
 
 from . import functions, operators, global_data, class_defines, icon_manager
 from .declarations import GizmoGroups, Gizmos, Operators
@@ -312,17 +318,35 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
         mat_inv = constr.matrix_basis().inverted()
 
         def get_local(point):
-            return (mat_inv @ point.location.to_3d()) / ui_scale
+            return (mat_inv @ point.to_3d()) / ui_scale
 
         # Store the two endpoints of the helplines in local space
         points_local = []
-        points_local.append(get_local(entity1))
 
-        if type(entity2) in class_defines.point:
-            points_local.append(get_local(entity2))
+        # Add endpoint for entity1 helpline
+        if entity1.is_curve():
+            centerpoint = entity1.ct.co
 
-        elif type(entity2) in class_defines.line:
-            line_points = (get_local(entity2.p1), get_local(entity2.p2))
+            if entity2.is_point():
+                targetpoint = entity2.co
+            elif entity2.is_line():
+                targetpoint , _ = intersect_point_line(centerpoint, entity2.p1.co, entity2.p2.co)
+            else:
+                # TODO: Handle the case for SlvsWorkplane
+                pass
+
+            targetvec = targetpoint - centerpoint
+            points_local.append(get_local(centerpoint + entity1.radius*targetvec/targetvec.length))
+
+        else:
+            points_local.append(get_local(entity1.location))
+
+        # Add endpoint for entity2 helpline
+        if entity2.is_point():
+            points_local.append(get_local(entity2.location))
+
+        elif entity2.is_line():
+            line_points = (get_local(entity2.p1.location), get_local(entity2.p2.location))
             line_points_side = [pos.y - offset > 0 for pos in line_points]
 
             x = math.copysign(dist, line_points[0].x)
@@ -337,6 +361,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
                 i = int(points_delta[0] > points_delta[1])
                 y = line_points[i].y
             points_local.append(Vector((x, y, 0.0)))
+
 
         # Pick the points based on their x location
         if points_local[0].x > points_local[1].x:
