@@ -9,15 +9,17 @@ jobs:
   building:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Addon
         uses: actions/checkout@v3
-          with:
-            path: CAD_Sketcher
+        with:
+          path: CAD_Sketcher
+
+      - name: Checkout Blender Scripts
         uses: actions/checkout@v3
-          with:
-            repository: blender/blender
-            path: blender-git
-            submodules: "true"
+        with:
+          repository: blender/blender
+          path: blender-git
+          submodules: "true"
 
       - name: Install Dependencies
         uses: actions/setup-python@v4
