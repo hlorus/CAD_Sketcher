@@ -15,15 +15,11 @@ jobs:
       - run: tree -L 2 --dirsfirst
 
       - uses: actions/setup-python@v4
-      - uses: BSFishy/pip-action@v1
         with:
-          packages: |
-            markdown<3
-            mkdocs
-            mkdocs-material
-            lightgallery
-            mkdocstrings
-            mkdocs-autorefs
+          python-version: '3.10'
+          cache: "pip"
+      - run: pip install markdown mkdocs lightgallery mkdocs-material mkdocstrings mkdocs-autorefs
+      - run: pip show lightgallery
 
       - run: python -V
       - run: which python
