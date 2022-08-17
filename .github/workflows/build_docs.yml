@@ -22,5 +22,5 @@ jobs:
 
       - run: PYTHONPATH=$PYTHONPATH:blender-git/blender/release/scripts/modules:.
 
-      - run: python3.10 -m mkdocs build -f ./CAD_Sketcher/mkdocs.yml
-      - run: python3.10 -m mkdocs gh-deploy -f ./CAD_Sketcher/mkdocs.yml
+      - run: cd CAD_Sketcher
+      - run: python3.10 -m mkdocs gh-deploy -f ./mkdocs.yml
