@@ -45,6 +45,8 @@ Documentation is generated from the source repository with [MkDocs](https://www.
 In order to contribute either post a pull request with your changes on
 [github](https://github.com/hlorus/CAD_Sketcher) or ask on [discord](https://discord.gg/GzpJsShgxa) for commit access.
 
+> **Note:** There are github workflows which will automatically test and build the documentation after changes are made. 
+
 <!-- TODO: Workboard -->
 
 ### Development
