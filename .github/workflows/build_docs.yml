@@ -13,16 +13,13 @@ jobs:
           path: blender-git
           submodules: "true"
 
-      - run: sudo apt-get install tree
-      - run: tree -L 2 --dirsfirst
-
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
           cache: "pip"
       - run: pip install markdown mkdocs mkdocs-material mkdocstrings mkdocs-autorefs lightgallery mkdocstrings-python
+      - run: pip install --upgrade griffe>=0.22
 
       - run: PYTHONPATH=$PYTHONPATH:blender-git/blender/release/scripts/modules:.
-      - run: echo $PYTHONPATH
 
       - run: python3.10 -m mkdocs build -f ./CAD_Sketcher/mkdocs.yml
