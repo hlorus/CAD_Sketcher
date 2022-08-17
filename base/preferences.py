@@ -5,7 +5,7 @@ from bpy.props import (
     StringProperty,
     EnumProperty,
     IntProperty,
-    FloatProperty
+    FloatProperty,
 )
 
 from bpy.types import AddonPreferences, Panel, Menu
@@ -30,6 +30,7 @@ log_levels = [
 
 logger = logging.getLogger(__name__)
 
+
 def get_log_level(self):
     prop = self.bl_rna.properties["logging_level"]
     items = prop.enum_items
@@ -46,6 +47,7 @@ def set_log_level(self, value):
     logger.info("setting log level: {}".format(item.name))
     self["logging_level"] = level
     logger.setLevel(level)
+
 
 def get_wheel():
     p = Path(__file__).parent.absolute()
@@ -85,6 +87,7 @@ class SKETCHER_PT_theme_presets(PresetPanel, Panel):
     preset_operator = "script.execute_preset"
     preset_add_operator = "bgs.theme_preset_add"
 
+
 class SKETCHER_MT_theme_presets(Menu):
     bl_label = "Theme Presets"
     preset_subdir = "bgs/theme"
@@ -92,14 +95,10 @@ class SKETCHER_MT_theme_presets(Menu):
     draw = Menu.draw_preset
 
 
-
-
-
-
 class Preferences(AddonPreferences):
     path = get_path()
     bl_idname = get_name()
-    
+
     theme_settings: PointerProperty(type=theme.ThemeSettings)
 
     show_debug_settings: BoolProperty(
@@ -135,24 +134,40 @@ class Preferences(AddonPreferences):
     decimal_precision: IntProperty(
         name="Decimal Precision",
         description="Number of digits after the comma",
-        default=3, min=0, soft_max=7
+        default=3,
+        min=0,
+        soft_max=7,
     )
     imperial_precision: units.imperial_precision_prop
     angle_precision: IntProperty(
-        name='Angle Precision', min=0, max=5, default=0,
-        description="Angle decimal precision")
+        name="Angle Precision",
+        min=0,
+        max=5,
+        default=0,
+        description="Angle decimal precision",
+    )
 
-    auto_hide_objects: BoolProperty(name="Auto Hide Objects", description="Hide curves/meshes while in sketch mode", default=True)
-    entity_scale: FloatProperty(name="Entity Scale", default=1.0, min=0.1, soft_max=3.0, update=theme.update)
-    workplane_size: FloatProperty(name="Workplane Size", default=0.4, soft_min=0.1, soft_max=1.0)
-    gizmo_scale: FloatProperty(name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update)
+    auto_hide_objects: BoolProperty(
+        name="Auto Hide Objects",
+        description="Hide curves/meshes while in sketch mode",
+        default=True,
+    )
+    entity_scale: FloatProperty(
+        name="Entity Scale", default=1.0, min=0.1, soft_max=3.0, update=theme.update
+    )
+    workplane_size: FloatProperty(
+        name="Workplane Size", default=0.4, soft_min=0.1, soft_max=1.0
+    )
+    gizmo_scale: FloatProperty(
+        name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update
+    )
     text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
     arrow_scale: FloatProperty(name="Arrow Scale", default=1, min=0.2, soft_max=3)
     use_align_view: BoolProperty(
         name="Align View",
         description="Automatically align view to workplane when activating a sketch.",
         default=False,
-        )
+    )
 
     def draw(self, context):
         layout = self.layout
@@ -170,12 +185,14 @@ class Preferences(AddonPreferences):
             split = box.split(factor=0.8)
             split.prop(self, "package_path", text="")
             split.operator(
-                Operators.InstallPackage, text="Install from File",
+                Operators.InstallPackage,
+                text="Install from File",
             ).package = self.package_path
 
             row = box.row()
             row.operator(
-                Operators.InstallPackage, text="Install from PIP",
+                Operators.InstallPackage,
+                text="Install from PIP",
             ).package = "py-slvs"
 
         box = layout.box()
@@ -184,7 +201,7 @@ class Preferences(AddonPreferences):
         col.prop(self, "auto_hide_objects")
         if self.show_debug_settings:
             col.prop(self, "use_align_view")
-        
+
         col.prop(self, "entity_scale")
         col.prop(self, "workplane_size")
         col.prop(self, "gizmo_scale")
@@ -250,18 +267,23 @@ class Preferences(AddonPreferences):
 
             list_props_recursiv(self.theme_settings)
 
-classes =     (
+
+classes = (
     SKETCHER_MT_theme_presets,
     SKETCHER_PT_theme_presets,
     Preferences,
 )
 
+
 def register():
     from bpy.utils import register_class
+
     for cls in classes:
         register_class(cls)
 
+
 def unregister():
     from bpy.utils import unregister_class
+
     for cls in reversed(classes):
         unregister_class(cls)

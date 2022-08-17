@@ -7,6 +7,7 @@ from .. import global_data
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement
 
+
 class View3D_OT_slvs_select(Operator, HighlightElement):
     """
     TODO: Add selection modes
@@ -54,6 +55,7 @@ class View3D_OT_slvs_select_all(Operator):
         context.area.tag_redraw()
         return {"FINISHED"}
 
+
 class View3D_OT_slvs_select_invert(Operator):
     """Invert entities selection"""
 
@@ -65,6 +67,7 @@ class View3D_OT_slvs_select_invert(Operator):
         context.area.tag_redraw()
         return {"FINISHED"}
 
+
 class View3D_OT_slvs_select_extend(Operator):
     """Select neighbour entities"""
 
@@ -75,6 +78,7 @@ class View3D_OT_slvs_select_extend(Operator):
         select_extend(context)
         context.area.tag_redraw()
         return {"FINISHED"}
+
 
 class View3D_OT_slvs_select_extend_all(Operator):
     """Select neighbour entities"""
@@ -89,9 +93,12 @@ class View3D_OT_slvs_select_extend_all(Operator):
         return {"FINISHED"}
 
 
-register, unregister = register_classes_factory((
-    View3D_OT_slvs_select,
-    View3D_OT_slvs_select_all,
-    View3D_OT_slvs_select_invert,
-    View3D_OT_slvs_select_extend,
-    View3D_OT_slvs_select_extend_all))
+register, unregister = register_classes_factory(
+    (
+        View3D_OT_slvs_select,
+        View3D_OT_slvs_select_all,
+        View3D_OT_slvs_select_invert,
+        View3D_OT_slvs_select_extend,
+        View3D_OT_slvs_select_extend_all,
+    )
+)

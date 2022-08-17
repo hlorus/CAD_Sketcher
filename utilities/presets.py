@@ -9,6 +9,7 @@ from .register import get_path
 
 logger = logging.getLogger(__name__)
 
+
 def ensure_addon_presets(force_write=False):
 
     scripts_folder = bpy.utils.user_resource("SCRIPTS")

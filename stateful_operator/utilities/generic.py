@@ -7,6 +7,7 @@ def to_list(val):
         val,
     ]
 
+
 def get_pointer_get_set(index: int):
     @property
     def func(self):
@@ -15,7 +16,9 @@ def get_pointer_get_set(index: int):
     @func.setter
     def setter(self, value):
         self.set_state_pointer(value, index=index)
+
     return func, setter
+
 
 def get_subclasses():
     """Get all classes that inherit from StatefulOperatorLogic"""
@@ -29,4 +32,5 @@ def get_subclasses():
                 continue
             ret.extend(_get_classes(sub_classes))
         return cls_list + ret
+
     return _get_classes(StatefulOperatorLogic.__subclasses__())

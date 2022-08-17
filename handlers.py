@@ -21,6 +21,7 @@ _builtin_handlers = {}
 # add_builtin_handler("save_pre", write_addon_version)
 # add_builtin_handler("version_update", do_versioning)
 
+
 def add_builtin_handler(event: str, callback):
     """
     Add to bpy.app.handlers, gets (un)registered on addon enable or disabled.
@@ -30,6 +31,7 @@ def add_builtin_handler(event: str, callback):
     global _builtin_handlers
     func = persistent(callback)
     _builtin_handlers.setdefault(event, list()).append(func)
+
 
 def register_handlers():
     global _builtin_handlers
@@ -41,6 +43,7 @@ def register_handlers():
             msg += "\n  - {}".format(cb.__name__)
 
         logger.debug(msg)
+
 
 def unregister_handlers():
     global _builtin_handlers
@@ -61,8 +64,10 @@ def unregister_handlers():
 
 def _setup_builtin_handlers():
     from .versioning import write_addon_version, do_versioning
+
     add_builtin_handler("version_update", do_versioning)
     add_builtin_handler("save_pre", write_addon_version)
+
 
 def register():
     _setup_builtin_handlers()

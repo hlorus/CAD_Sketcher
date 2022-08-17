@@ -15,6 +15,7 @@ from .utilities import ignore_hover
 
 logger = logging.getLogger(__name__)
 
+
 class View3D_OT_slvs_add_workplane(Operator, Operator3d):
     """Add a workplane"""
 
@@ -132,6 +133,7 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         self.target = sse.add_workplane(origin, nm)
         ignore_hover(self.target)
         return True
+
 
 register, unregister = register_stateops_factory(
     (View3D_OT_slvs_add_workplane, View3D_OT_slvs_add_workplane_face)

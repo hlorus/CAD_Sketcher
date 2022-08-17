@@ -6,8 +6,10 @@ from ... import functions
 
 from typing import Optional
 
+
 def get_evaluated_obj(context: Context, object: Object):
     return object.evaluated_get(context.evaluated_depsgraph_get())
+
 
 def get_mesh_element(
     context: Context,
@@ -75,7 +77,7 @@ def get_mesh_element(
         face_edge_map = {ek: me.edges[i] for i, ek in enumerate(me.edge_keys)}
         i, dist = get_closest(
             [
-                (((me.vertices[start].co + me.vertices[end].co)/2)-loc).length
+                (((me.vertices[start].co + me.vertices[end].co) / 2) - loc).length
                 for start, end in polygon.edge_keys
             ]
         )

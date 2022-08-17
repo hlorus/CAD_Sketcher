@@ -67,4 +67,5 @@ class View3D_OT_slvs_add_line3d(Operator, Operator3d):
             if self.has_coincident:
                 solve_system(context)
 
+
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_line3d,))

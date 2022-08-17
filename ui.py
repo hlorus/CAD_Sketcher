@@ -47,7 +47,10 @@ class VIEW3D_UL_sketches(UIList):
 
                 if active:
                     row.operator(
-                        Operators.DeleteEntity, text="", icon="X", emboss=False,
+                        Operators.DeleteEntity,
+                        text="",
+                        icon="X",
+                        emboss=False,
                     ).index = item.slvs_index
                 else:
                     row.separator()
@@ -114,7 +117,9 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 layout.prop(sketch, "fill_shape")
 
             layout.operator(
-                Operators.DeleteEntity, text="Delete Sketch", icon="X",
+                Operators.DeleteEntity,
+                text="Delete Sketch",
+                icon="X",
             ).index = sketch.slvs_index
 
         else:
@@ -233,7 +238,10 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
 
             # Delete operator
             props = sub.operator(
-                Operators.DeleteEntity, text="", icon="X", emboss=False,
+                Operators.DeleteEntity,
+                text="",
+                icon="X",
+                emboss=False,
             )
             props.index = e.slvs_index
             props.highlight_hover = True
@@ -265,7 +273,8 @@ def draw_constraint_listitem(context, layout, constraint):
 
     # Failed hint
     sub.label(
-        text="", icon=("ERROR" if constraint.failed else "CHECKMARK"),
+        text="",
+        icon=("ERROR" if constraint.failed else "CHECKMARK"),
     )
 
     # Middle Part
@@ -284,7 +293,9 @@ def draw_constraint_listitem(context, layout, constraint):
     sub.alignment = "RIGHT"
 
     # Context menu, shows constraint name
-    props = sub.operator(Operators.ContextMenu, text="", icon="OUTLINER_DATA_GP_LAYER", emboss=False)
+    props = sub.operator(
+        Operators.ContextMenu, text="", icon="OUTLINER_DATA_GP_LAYER", emboss=False
+    )
     props.type = constraint.type
     props.index = index
     props.highlight_hover = True
@@ -293,12 +304,16 @@ def draw_constraint_listitem(context, layout, constraint):
 
     # Delete operator
     props = sub.operator(
-        Operators.DeleteConstraint, text="", icon="X", emboss=False,
+        Operators.DeleteConstraint,
+        text="",
+        icon="X",
+        emboss=False,
     )
     props.type = constraint.type
     props.index = index
     props.highlight_hover = True
     props.highlight_members = True
+
 
 class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
     bl_label = "Constraints"
@@ -372,7 +387,10 @@ def sketch_selector(
         name = sketch.name
 
         row.operator(
-            Operators.SetActiveSketch, text="Leave: " + name, icon="BACK", depress=True,
+            Operators.SetActiveSketch,
+            text="Leave: " + name,
+            icon="BACK",
+            depress=True,
         ).index = -1
 
         row.active = True
@@ -388,6 +406,7 @@ def sketch_selector(
             row.menu(VIEW3D_MT_sketches.bl_idname, text=name)
 
     row.operator(Operators.Update, icon="FILE_REFRESH", text="")
+
 
 def draw_object_context_menu(self, context: Context):
     layout = self.layout

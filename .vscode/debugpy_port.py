@@ -2,9 +2,10 @@ import debugpy
 
 try:
     from colorama import Fore
+
     YELLOW, GREEN, RED, RESET = Fore.YELLOW, Fore.GREEN, Fore.RED, Fore.RESET
 except ImportError:
-    YELLOW, GREEN, RED, RESET = [""]*4
+    YELLOW, GREEN, RED, RESET = [""] * 4
 
 # https://code.visualstudio.com/docs/python/debugging#_debugging-by-attaching-over-a-network-connection
 
@@ -16,4 +17,3 @@ if debugpy.is_client_connected():
     print(f"{GREEN}Debugger attached to client{RESET}")
 else:
     print(f"{RED}Failed to connect to client{RESET}")
-

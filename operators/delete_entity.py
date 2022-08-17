@@ -55,8 +55,9 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         elif is_entity_dependency(entity, context):
             if operator.do_report:
                 deps = list(get_entity_deps(entity, context))
-                message = f"Unable to delete {entity.name}, other entities depend on it:\n"+ "\n".join(
-                    [f" - {d}" for d in deps]
+                message = (
+                    f"Unable to delete {entity.name}, other entities depend on it:\n"
+                    + "\n".join([f" - {d}" for d in deps])
                 )
                 show_ui_message_popup(message=message, icon="ERROR")
 
@@ -77,7 +78,9 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         # Delete constraints that depend on entity
         constraints = context.scene.sketcher.constraints
 
-        for data_coll, indices in reversed(get_constraint_local_indices(entity, context)):
+        for data_coll, indices in reversed(
+            get_constraint_local_indices(entity, context)
+        ):
             if not indices:
                 continue
             for i in indices:
@@ -115,5 +118,6 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
 
         refresh(context)
         return {"FINISHED"}
+
 
 register, unregister = register_classes_factory((View3D_OT_slvs_delete_entity,))

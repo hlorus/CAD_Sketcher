@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+
 class BgsTestCase(TestCase):
     interactive = False
     log_level = "INFO"
@@ -7,6 +8,7 @@ class BgsTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         from CAD_Sketcher.functions import get_prefs
+
         prefs = get_prefs()
         prefs.logging_level = cls.log_level
 
@@ -33,14 +35,13 @@ class BgsTestCase(TestCase):
         data = cls.data
         data.scenes.remove(cls.scene)
 
-
     @staticmethod
     def force_entity_update(scene):
         for entity in scene.sketcher.entities.all:
             entity.update()
 
-class Sketch2dTestCase(BgsTestCase):
 
+class Sketch2dTestCase(BgsTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -48,7 +49,6 @@ class Sketch2dTestCase(BgsTestCase):
         cls.entities.ensure_origin_elements(cls.context)
         wp = cls.entities.origin_plane_XY
         cls.sketch = cls.entities.add_sketch(wp)
-
 
     @classmethod
     def tearDownClass(cls):

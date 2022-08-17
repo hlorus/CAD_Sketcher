@@ -58,4 +58,7 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
         bpy.ops.view3d.slvs_context_menu(type=self.type, index=self.index)
         return {"FINISHED"}
 
-register, unregister = register_classes_factory((View3D_OT_slvs_tweak_constraint_value_pos,))
+
+register, unregister = register_classes_factory(
+    (View3D_OT_slvs_tweak_constraint_value_pos,)
+)

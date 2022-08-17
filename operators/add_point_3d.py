@@ -25,7 +25,9 @@ class View3D_OT_slvs_add_point3d(Operator, Operator3d):
 
     states = (
         state_from_args(
-            p3d_state1_doc[0], description=p3d_state1_doc[1], property="location",
+            p3d_state1_doc[0],
+            description=p3d_state1_doc[1],
+            property="location",
         ),
     )
 
@@ -44,5 +46,6 @@ class View3D_OT_slvs_add_point3d(Operator, Operator3d):
     def fini(self, context: Context, succeede: bool):
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
+
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_point3d,))

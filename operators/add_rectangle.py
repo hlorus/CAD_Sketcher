@@ -82,7 +82,10 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
                     if val is None:
                         continue
                     ssc.add_distance(
-                        startpoint, line, sketch=self.sketch, init=True,
+                        startpoint,
+                        line,
+                        sketch=self.sketch,
+                        init=True,
                     )
 
         if succeede:

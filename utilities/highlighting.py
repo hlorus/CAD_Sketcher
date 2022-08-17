@@ -3,6 +3,7 @@ from bpy.types import PropertyGroup, Context, Event
 
 from .. import global_data
 
+
 class HighlightElement:
     """
     Mix-in class to highlight the element this operator acts on. The element can
@@ -46,18 +47,18 @@ class HighlightElement:
         if hasattr(properties, "type") and properties.is_property_set("type"):
             type = properties.type
             c = context.scene.sketcher.constraints.get_from_type_index(type, index)
-            
+
             global_data.highlight_constraint = c
             if members:
                 global_data.highlight_entities.extend(c.entities())
-            
+
         else:
             # Set hover so this could be used as selection
             global_data.hover = properties.index
             if members:
                 e = context.scene.sketcher.entities.get(index)
                 global_data.highlight_entities.extend(e.dependencies())
-                
+
         context.area.tag_redraw()
         return cls.__doc__
 

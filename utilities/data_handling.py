@@ -5,6 +5,7 @@ from bpy.types import Scene, Context
 
 from ..class_defines import SlvsGenericEntity, SlvsSketch
 
+
 def to_list(value):
     """Ensure value is of type list"""
     if value is None:
@@ -14,6 +15,7 @@ def to_list(value):
     return [
         value,
     ]
+
 
 def get_flat_deps(entity):
     """Return flattened list of entities given entity depends on"""
@@ -51,11 +53,13 @@ def get_entity_deps(
         if entity in deps:
             yield scene_entity
 
+
 def _is_referenced_by_constraint(entity, context):
     for c in context.scene.sketcher.constraints.all:
         if entity in c.dependencies():
             return True
     return False
+
 
 def is_entity_dependency(entity: SlvsGenericEntity, context: Context) -> bool:
     """Check if entity is a dependency of another entity"""
@@ -66,6 +70,7 @@ def is_entity_dependency(entity: SlvsGenericEntity, context: Context) -> bool:
         return False
     return True
 
+
 def is_entity_referenced(entity: SlvsGenericEntity, context: Context) -> bool:
     """Checks if the entity is referenced from anywhere"""
     if is_entity_dependency(entity, context):
@@ -73,6 +78,7 @@ def is_entity_referenced(entity: SlvsGenericEntity, context: Context) -> bool:
     if _is_referenced_by_constraint(entity, context):
         return True
     return False
+
 
 def get_sketch_deps_indicies(sketch: SlvsSketch, context: Context):
     deps = deque()

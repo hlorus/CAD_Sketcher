@@ -1,4 +1,3 @@
-
 from collections import namedtuple
 
 OperatorState = namedtuple(
@@ -31,7 +30,6 @@ OperatorState = namedtuple(
     ),
 )
 del namedtuple
-
 
 
 def state_from_args(name: str, **kwargs):

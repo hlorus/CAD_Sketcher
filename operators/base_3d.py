@@ -5,6 +5,7 @@ from .. import functions, class_defines
 from .base_stateful import GenericEntityOp
 from .utilities import ignore_hover
 
+
 class Operator3d(GenericEntityOp):
     @classmethod
     def poll(cls, context: Context):
@@ -43,4 +44,3 @@ class Operator3d(GenericEntityOp):
             ob = bpy.data.objects[ob_name]
             return sse.add_ref_vertex_3d(ob, v_index)
         return getattr(self, state.pointer)
-

@@ -8,9 +8,16 @@ from .. import global_data
 
 from .utilities.generic import to_list
 from .utilities.description import state_desc, stateful_op_desc
-from .utilities.keymap import get_key_map_desc, is_numeric_input, is_unit_input, get_unit_value, get_value_from_event
+from .utilities.keymap import (
+    get_key_map_desc,
+    is_numeric_input,
+    is_unit_input,
+    get_unit_value,
+    get_value_from_event,
+)
 
 from typing import Optional
+
 
 class StatefulOperatorLogic:
     """Base class which implements the behaviour logic"""
@@ -47,7 +54,6 @@ class StatefulOperatorLogic:
 
         retval = to_list(props)
         return retval
-
 
     @classmethod
     def get_states_definition(cls):
@@ -242,7 +248,6 @@ class StatefulOperatorLogic:
                 continue
             break
         return {"RUNNING_MODAL"}
-
 
     @property
     def state_data(self):
@@ -635,9 +640,12 @@ class StatefulOperatorLogic:
 
     @classmethod
     def description(cls, context, _properties):
-        states = [state_desc(s.name, s.description, s.types) for s in cls.get_states_definition()]
+        states = [
+            state_desc(s.name, s.description, s.types)
+            for s in cls.get_states_definition()
+        ]
         descs = []
-        hint = get_key_map_desc(context ,cls.bl_idname)
+        hint = get_key_map_desc(context, cls.bl_idname)
         if hint:
             descs.append(hint)
 

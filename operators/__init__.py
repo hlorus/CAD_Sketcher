@@ -32,6 +32,7 @@ modules = [
     "add_geometric_constraints",
 ]
 
+
 def _register_unregister_extern():
     """Imports and registers externally defined operators"""
     from ..stateful_operator.invoke_op import View3D_OT_invoke_tool
@@ -40,12 +41,15 @@ def _register_unregister_extern():
     classes = (View3D_OT_invoke_tool, View3D_OT_slvs_test)
     return register_stateops_factory(classes)
 
+
 _register, _unregister = module_register_factory(__name__, modules)
 _register_ext, _unregister_ext = _register_unregister_extern()
+
 
 def register():
     _register()
     _register_ext()
+
 
 def unregister():
     _unregister_ext()

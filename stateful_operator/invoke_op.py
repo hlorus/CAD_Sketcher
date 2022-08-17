@@ -4,6 +4,7 @@ from bpy.props import StringProperty
 
 from .constants import Operators
 
+
 class View3D_OT_invoke_tool(Operator):
     bl_idname = Operators.InvokeTool
     bl_label = "Invoke Tool"

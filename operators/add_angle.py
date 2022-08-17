@@ -11,6 +11,7 @@ from .base_constraint import GenericConstraintOp
 
 logger = logging.getLogger(__name__)
 
+
 def invert_angle_getter(self):
     return self.get("setting", self.bl_rna.properties["setting"].default)
 
@@ -34,12 +35,18 @@ class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
         precision=5,
         options={"SKIP_SAVE"},
     )
-    setting: BoolProperty(name="Measure supplementary angle", default = False, get=invert_angle_getter, set=invert_angle_setter)
+    setting: BoolProperty(
+        name="Measure supplementary angle",
+        default=False,
+        get=invert_angle_getter,
+        set=invert_angle_setter,
+    )
     type = "ANGLE"
 
     def fini(self, context: Context, succeede: bool):
         super().fini(context, succeede)
         if hasattr(self, "target"):
             self.target.draw_offset = 0.1 * context.region_data.view_distance
+
 
 register, unregister = register_stateops_factory((VIEW3D_OT_slvs_add_angle,))

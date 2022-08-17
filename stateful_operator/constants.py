@@ -51,6 +51,7 @@ numeric_events = (
     "NUMPAD_MINUS",
 )
 
+
 class Operators(str, Enum):
     InvokeTool = "view3d.invoke_tool"
     Test = "view3d.stateop_test"

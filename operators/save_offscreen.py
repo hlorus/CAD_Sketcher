@@ -5,6 +5,7 @@ from bpy.utils import register_classes_factory
 from .. import global_data
 from ..declarations import Operators
 
+
 def write_selection_buffer_image(image_name: str):
     offscreen = global_data.offscreen
     width, height = offscreen.width, offscreen.height
@@ -41,4 +42,6 @@ class VIEW3D_OT_slvs_write_selection_texture(Operator):
         return {"FINISHED"}
 
 
-register, unregister = register_classes_factory((VIEW3D_OT_slvs_write_selection_texture,))
+register, unregister = register_classes_factory(
+    (VIEW3D_OT_slvs_write_selection_texture,)
+)

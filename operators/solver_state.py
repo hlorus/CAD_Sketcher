@@ -4,6 +4,7 @@ from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 
+
 class View3D_OT_slvs_show_solver_state(Operator):
     """Show details about solver status"""
 
@@ -31,5 +32,6 @@ class View3D_OT_slvs_show_solver_state(Operator):
 
         context.window_manager.popup_menu(draw_item)
         return {"FINISHED"}
+
 
 register, unregister = register_classes_factory((View3D_OT_slvs_show_solver_state,))

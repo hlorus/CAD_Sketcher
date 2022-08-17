@@ -19,4 +19,5 @@ class View3D_OT_slvs_set_active_sketch(Operator):
     def execute(self, context: Context):
         return activate_sketch(context, self.index, self)
 
+
 register, unregister = register_classes_factory((View3D_OT_slvs_set_active_sketch,))

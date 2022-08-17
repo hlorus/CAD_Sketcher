@@ -96,4 +96,5 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
             logger.debug("Add: {}".format(self.target))
             self.solve_state(context, self.sketch)
 
+
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_arc2d,))

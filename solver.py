@@ -24,12 +24,9 @@ class Solver:
         self.all = all
         self.failed_sketches = []
 
-
         group = self._get_group(sketch) if sketch else self.group_3d
         logger.info(
-            "--- Start solving ---\nAll:{}, Sketch:{}, g:{}".format(
-                all, sketch, group
-            )
+            "--- Start solving ---\nAll:{}, Sketch:{}, g:{}".format(all, sketch, group)
         )
         from py_slvs import slvs
 
@@ -108,8 +105,8 @@ class Solver:
             for e in context.scene.sketcher.entities.all:
                 msg += "\n  - {}".format(e)
             return msg
-        logger.debug(_get_msg_entities())
 
+        logger.debug(_get_msg_entities())
 
         # Initialize Constraints
         for c in context.scene.sketcher.constraints.all:
@@ -134,9 +131,8 @@ class Solver:
             for c in context.scene.sketcher.constraints.all:
                 msg += "\n  - {}".format(c)
             return msg
+
         logger.debug(_get_msg_constraints())
-
-
 
     def tweak(self, entity, pos):
         logger.debug("tweak: {} to: {}".format(entity, pos))
@@ -187,7 +183,7 @@ class Solver:
     #     return constraints
 
     def needs_update(self, e):
-        if hasattr(e, "sketch") and  e.sketch in self.failed_sketches:
+        if hasattr(e, "sketch") and e.sketch in self.failed_sketches:
             # Skip entities that belong to a failed sketch
             return False
         # TODO: skip entities that aren't in active group
@@ -201,7 +197,9 @@ class Solver:
             sse = self.context.scene.sketcher.entities
             sketches = [None, *sse.sketches]
         else:
-            sketches = [self.sketch,]
+            sketches = [
+                self.sketch,
+            ]
 
         for sketch in sketches:
             g = self._get_group(sketch)
@@ -245,6 +243,7 @@ class Solver:
                         constr = self.constraints[i]
                         msg += "\n  - {}".format(constr)
                     return msg
+
                 logger.debug(_get_msg_failed())
 
         # Update entities from solver
@@ -261,6 +260,7 @@ class Solver:
                     continue
                 msg += "\n - " + str(e)
             return msg
+
         logger.debug(_get_msg_update())
 
         return self.ok

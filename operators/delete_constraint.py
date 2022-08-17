@@ -47,4 +47,5 @@ class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
         refresh(context)
         return {"FINISHED"}
 
+
 register, unregister = register_classes_factory((View3D_OT_slvs_delete_constraint,))

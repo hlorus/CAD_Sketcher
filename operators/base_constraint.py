@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 state_docstr = "Pick entity to constrain."
 
+
 class GenericConstraintOp(GenericEntityOp):
     initialized: BoolProperty(options={"SKIP_SAVE", "HIDDEN"})
     _entity_prop_names = ("entity1", "entity2", "entity3", "entity4")

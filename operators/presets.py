@@ -35,4 +35,5 @@ class SKETCHER_OT_add_preset_theme(AddPresetBase, Operator):
 
     preset_subdir = "bgs/theme"
 
+
 register, unregister = register_classes_factory((SKETCHER_OT_add_preset_theme,))

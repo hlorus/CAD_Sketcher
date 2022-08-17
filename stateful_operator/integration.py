@@ -1,4 +1,3 @@
-
 """
 Add integration with native blender types, following are supported:
 
@@ -65,15 +64,17 @@ class StatefulOperator(StatefulOperatorLogic):
 
         for a in annotations.keys():
             if hasattr(cls, a):
-                raise NameError("Cannot register implicit pointer properties, class {} already has attribute of name {}".format(cls, a))
+                raise NameError(
+                    "Cannot register implicit pointer properties, class {} already has attribute of name {}".format(
+                        cls, a
+                    )
+                )
 
     def state_property(self, state_index):
         return None
 
     def get_state_pointer(
-        self,
-        index: Optional[int] = None,
-        implicit: Optional[bool] = False
+        self, index: Optional[int] = None, implicit: Optional[bool] = False
     ):
         # Creates pointer value from its implicitly stored props
         if index is None:
@@ -120,7 +121,6 @@ class StatefulOperator(StatefulOperatorLogic):
                 return obj_name, index
             return obj.data.polygons[index]
 
-
     def set_state_pointer(self, values, index=None, implicit=False):
         # handles type specific setters
         if index is None:
@@ -156,7 +156,6 @@ class StatefulOperator(StatefulOperatorLogic):
 
             data["mesh_index"] = get_value(1) if implicit else get_value(1).index
             return True
-
 
     def pick_element(self, context: Context, coords):
         # return a list of implicit prop values if pointer need implicit props
@@ -201,7 +200,6 @@ class StatefulOperator(StatefulOperatorLogic):
 
         return ob.name, index
 
-
     def gather_selection(self, context: Context):
         # Return list filled with all selected verts/edges/faces/objects
         selected = []
@@ -238,7 +236,6 @@ class StatefulOperator(StatefulOperatorLogic):
             self.set_state_pointer(to_list(result), index=index)
             self.state_data["is_existing_entity"] = True
             return True
-
 
     def draw(self, context):
         layout = self.layout

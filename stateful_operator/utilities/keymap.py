@@ -4,6 +4,7 @@ from bpy.types import KeyMapItem, Context, Event
 
 from typing import List
 
+
 def _get_key_hint(kmi: KeyMapItem) -> List[str]:
     """
     Returns a string representing the keymap item in the form:
@@ -21,7 +22,10 @@ def _get_key_hint(kmi: KeyMapItem) -> List[str]:
     elements.append(kmi.type)
     return " + ".join(elements)
 
-def _get_matching_kmi(context: Context, id_name: str, filter_func=None) -> List[KeyMapItem]:
+
+def _get_matching_kmi(
+    context: Context, id_name: str, filter_func=None
+) -> List[KeyMapItem]:
     """
     Returns a list of keymap items that act on given operator.
     Optionally filtered by filter_func.
@@ -45,6 +49,7 @@ def _get_matching_kmi(context: Context, id_name: str, filter_func=None) -> List[
             km_items.append(kmi)
     return km_items
 
+
 def get_key_map_desc(context: Context, id_name: str) -> str:
     """
     Returns a list of shortcut hints to operator with given idname.
@@ -56,9 +61,9 @@ def get_key_map_desc(context: Context, id_name: str) -> str:
         _get_matching_kmi(
             context,
             Operators.InvokeTool,
-            filter_func=lambda kmi: kmi.properties["operator"] == id_name
-            )
+            filter_func=lambda kmi: kmi.properties["operator"] == id_name,
         )
+    )
 
     if not len(km_items):
         return ""
@@ -72,6 +77,7 @@ def get_key_map_desc(context: Context, id_name: str) -> str:
 
     return "({})".format(", ".join(hints))
 
+
 def _tool_numeric_invoke_km(operator: str):
     km = []
     for event in numeric_events:
@@ -84,6 +90,7 @@ def _tool_numeric_invoke_km(operator: str):
         )
     return km
 
+
 def operator_access(operator: str):
     return (
         *_tool_numeric_invoke_km(operator),
@@ -94,6 +101,7 @@ def operator_access(operator: str):
         ),
     )
 
+
 def tool_invoke_kmi(button: str, tool: str, operator: str):
     return (
         Operators.InvokeTool,
@@ -101,15 +109,19 @@ def tool_invoke_kmi(button: str, tool: str, operator: str):
         {"properties": [("tool_name", tool), ("operator", operator)]},
     )
 
+
 def is_numeric_input(event: Event):
     return event.type in (*numeric_events, "BACK_SPACE")
+
 
 def is_unit_input(event: Event):
     return event.type in unit_key_types
 
+
 def get_unit_value(event: Event):
     type = event.type
     return type.lower()
+
 
 def get_value_from_event(event: Event):
     type = event.type

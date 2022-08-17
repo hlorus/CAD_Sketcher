@@ -66,7 +66,11 @@ class BezierConverter:
     # TODO: rename ignore_point -> start_point / rename path -> spline_path
     def walker(self, entity, path, ignore_point=None, invert=False):
         segments = path[0]
-        logger.debug("goto: {} entrypoint: {} invert_walker {}".format(entity, ignore_point, invert))
+        logger.debug(
+            "goto: {} entrypoint: {} invert_walker {}".format(
+                entity, ignore_point, invert
+            )
+        )
 
         if invert:
             # NOTE: this might be slow
@@ -86,10 +90,7 @@ class BezierConverter:
 
         points = list(
             filter(
-                (
-                    lambda p: p.is_point()
-                    and p != ignore_point
-                ),
+                (lambda p: p.is_point() and p != ignore_point),
                 entity.connection_points(),
             )
         )
@@ -258,6 +259,7 @@ def _link_unlink_object(scene: Scene, ob: Object, keep: bool):
             objects.unlink(ob)
     elif keep:
         objects.link(ob)
+
 
 def update_convertor_geometry(scene: Scene, sketch=None):
     coll = (sketch,) if sketch else scene.sketcher.entities.sketches

@@ -26,7 +26,9 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
 
     states = (
         state_from_args(
-            p2d_state1_doc[0], description=p2d_state1_doc[1], property="coordinates",
+            p2d_state1_doc[0],
+            description=p2d_state1_doc[1],
+            property="coordinates",
         ),
     )
 
@@ -52,5 +54,6 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
         if succeede:
             if self.has_coincident:
                 solve_system(context, sketch=self.sketch)
+
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_point2d,))

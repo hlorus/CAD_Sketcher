@@ -22,12 +22,13 @@ from mathutils.bvhtree import BVHTree
 from . import global_data
 from .utilities.constants import FULL_TURN
 
+
 def get_prefs():
     return bpy.context.preferences.addons[__package__].preferences
 
 
 def install_pip():
-    """ Subprocess call ensurepip module"""
+    """Subprocess call ensurepip module"""
     cmd = [global_data.PYPATH, "-m", "ensurepip", "--upgrade"]
     return not subprocess.call(cmd)
 
@@ -38,7 +39,7 @@ def update_pip():
 
 
 def refresh_path():
-    """ refresh path to packages found after install """
+    """refresh path to packages found after install"""
     reload(site)
 
 
@@ -84,13 +85,12 @@ def show_ui_message_popup(
         for line_str in lines:
             row = layout.row()
             row.label(text=line_str)
-        
 
     bpy.context.window_manager.popup_menu(draw, title=title, icon=icon)
 
 
 def add_new_empty(context, location: Vector, name="") -> Object:
-    """ NOTE: No used """
+    """NOTE: No used"""
     data = bpy.data
     empty = data.objects.new(name, None)
     empty.location = location
@@ -99,7 +99,7 @@ def add_new_empty(context, location: Vector, name="") -> Object:
 
 
 def draw_circle_2d(cx: float, cy: float, r: float, num_segments: int):
-    """ NOTE: Not used?"""
+    """NOTE: Not used?"""
     # circle outline
     # NOTE: also see gpu_extras.presets.draw_circle_2d
     theta = FULL_TURN / num_segments
@@ -313,7 +313,7 @@ def get_scale_from_pos(co: Vector, rv3d: RegionView3D) -> Vector:
 
 
 def refresh(context: Context):
-    """ Update gizmos """
+    """Update gizmos"""
     if context.space_data and context.space_data.type == "VIEW_3D":
         context.space_data.show_gizmo = True
 
@@ -338,7 +338,10 @@ class bpyEnum:
     """
 
     def __init__(
-        self, data: Sequence, index: Union[int, None] = None, identifier: Union[None, str] = None
+        self,
+        data: Sequence,
+        index: Union[int, None] = None,
+        identifier: Union[None, str] = None,
     ):
         self.data = data
 
@@ -380,7 +383,7 @@ class bpyEnum:
 
 def unique_attribute_setter(self, name: str, value: Any):
     def collection_from_element(self):
-        """ Get the collection containing the element """
+        """Get the collection containing the element"""
         path = self.path_from_id()
         match = re.match("(.*)\[\d*\]", path)
         parent = self.id_data
@@ -392,7 +395,7 @@ def unique_attribute_setter(self, name: str, value: Any):
             return parent.path_resolve(coll_path)
 
     def new_val(stem, nbr):
-        """ Simply for formatting """
+        """Simply for formatting"""
         return "{st}.{nbr:03d}".format(st=stem, nbr=nbr)
 
     property_func = getattr(self.__class__, name, None)

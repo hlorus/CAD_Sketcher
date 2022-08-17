@@ -12,7 +12,6 @@ def cleanse_modules(parent_module_name):
             del sys.modules[module_name]
 
 
-
 def get_path():
     return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -24,9 +23,12 @@ def get_name():
 from typing import List
 import importlib
 from traceback import print_exc
+
 # Similar to bpy.utils.register_submodule_factory
 def module_register_factory(parent_module_name: str, module_names: List[str]):
-    modules = [importlib.import_module(f"{parent_module_name}.{name}") for name in module_names]
+    modules = [
+        importlib.import_module(f"{parent_module_name}.{name}") for name in module_names
+    ]
 
     def register():
         for m in modules:

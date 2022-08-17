@@ -7,6 +7,7 @@ from ..declarations import Operators
 from .. import functions
 from ..solver import Solver
 
+
 class View3D_OT_slvs_tweak(Operator):
     """Tweak the hovered element"""
 
@@ -83,5 +84,6 @@ class View3D_OT_slvs_tweak(Operator):
             context.area.tag_redraw()
 
         return {"RUNNING_MODAL"}
+
 
 register, unregister = register_classes_factory((View3D_OT_slvs_tweak,))

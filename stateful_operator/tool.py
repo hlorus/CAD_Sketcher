@@ -22,7 +22,7 @@ class GenericStateTool:
 
             if func:
                 return func(context, None)
-                
+
             rna_type = _bpy.ops.get_rna_type(op_name)
             return rna_type.description
         return cls.__doc__

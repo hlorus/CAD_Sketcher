@@ -28,4 +28,5 @@ class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
     setting: BoolProperty(name="Use Radius")
     type = "DIAMETER"
 
+
 register, unregister = register_stateops_factory((VIEW3D_OT_slvs_add_diameter,))

@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 def run(interactive, log_level=None):
     from CAD_Sketcher.testing import test_solver
     from CAD_Sketcher.testing.utils import BgsTestCase
+
     BgsTestCase.interactive = True
     if log_level:
         BgsTestCase.log_level = log_level
@@ -21,11 +22,13 @@ def run(interactive, log_level=None):
 
     if not interactive:
         import bpy
+
         bpy.ops.wm.quit_blender()
 
 
 if __name__ == "__main__":
     import sys
+
     args = []
     kwargs = {}
     argv = sys.argv
@@ -33,13 +36,12 @@ if __name__ == "__main__":
     interactive = False
     log_level = None
     if "--" in argv:
-        for arg in argv[argv.index("--") + 1:]:
+        for arg in argv[argv.index("--") + 1 :]:
             if not "=" in arg:
                 args.append(arg)
                 continue
             key, value = arg.split("=")
             kwargs[key] = value
-
 
         if "-i" in args or "--interactive" in args:
             interactive = True

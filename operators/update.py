@@ -5,8 +5,10 @@ from ..declarations import Operators
 from ..solver import Solver
 from ..convertors import update_convertor_geometry
 
+
 class View3D_OT_update(Operator):
     """Solve all sketches and update converted geometry"""
+
     bl_idname = Operators.Update
     bl_label = "Force Update"
 
@@ -16,5 +18,6 @@ class View3D_OT_update(Operator):
 
         update_convertor_geometry(context.scene)
         return {"FINISHED"}
+
 
 register, unregister = register_classes_factory((View3D_OT_update,))

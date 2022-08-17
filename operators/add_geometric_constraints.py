@@ -110,7 +110,11 @@ class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp):
     bl_options = {"UNDO", "REGISTER"}
 
     value: FloatProperty(
-        name="Ratio", subtype="UNSIGNED", options={"SKIP_SAVE"}, min=0.0, precision=5,
+        name="Ratio",
+        subtype="UNSIGNED",
+        options={"SKIP_SAVE"},
+        min=0.0,
+        precision=5,
     )
     type = "RATIO"
 

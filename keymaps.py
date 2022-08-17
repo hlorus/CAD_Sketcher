@@ -7,79 +7,126 @@ constraint_access = (
     (
         Operators.AddCoincident,
         {"type": "C", "value": "PRESS", "shift": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     (
         Operators.AddVertical,
         {"type": "V", "value": "PRESS", "shift": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     (
         Operators.AddHorizontal,
         {"type": "H", "value": "PRESS", "shift": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     (
         Operators.AddEqual,
         {"type": "E", "value": "PRESS", "shift": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     (
         Operators.AddParallel,
         {"type": "A", "value": "PRESS", "shift": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     (
         Operators.AddPerpendicular,
         {"type": "P", "value": "PRESS", "shift": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     (
         Operators.AddTangent,
         {"type": "T", "value": "PRESS", "shift": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     (
         Operators.AddMidPoint,
         {"type": "M", "value": "PRESS", "shift": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     (
         Operators.AddRatio,
         {"type": "R", "value": "PRESS", "shift": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
-
     # Dimensional Constraints
     (
         Operators.AddDistance,
         {"type": "D", "value": "PRESS", "alt": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     (
         Operators.AddDistance,
         {"type": "V", "value": "PRESS", "alt": True},
-        {"properties": [("wait_for_input", True), ("align", "VERTICAL")]}
+        {"properties": [("wait_for_input", True), ("align", "VERTICAL")]},
     ),
     (
         Operators.AddDistance,
         {"type": "H", "value": "PRESS", "alt": True},
-        {"properties": [("wait_for_input", True), ("align", "HORIZONTAL")]}
+        {"properties": [("wait_for_input", True), ("align", "HORIZONTAL")]},
     ),
     (
         Operators.AddAngle,
         {"type": "A", "value": "PRESS", "alt": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     (
         Operators.AddDiameter,
         {"type": "O", "value": "PRESS", "alt": True},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     (
         Operators.AddDiameter,
         {"type": "R", "value": "PRESS", "alt": True},
-        {"properties": [("wait_for_input", True), ("setting", True)]}
+        {"properties": [("wait_for_input", True), ("setting", True)]},
     ),
 )
 
@@ -122,7 +169,11 @@ tool_access = (
     (
         Operators.AddSketch,
         {"type": "S", "value": "PRESS"},
-        {"properties": [("wait_for_input", True), ]}
+        {
+            "properties": [
+                ("wait_for_input", True),
+            ]
+        },
     ),
     *constraint_access,
 )
@@ -133,17 +184,20 @@ addon_keymaps = []
 def register():
     wm = bpy.context.window_manager
     if wm.keyconfigs.addon:
-        km = wm.keyconfigs.addon.keymaps.new(name='Object Mode', space_type='EMPTY')
+        km = wm.keyconfigs.addon.keymaps.new(name="Object Mode", space_type="EMPTY")
 
         # Select
-        kmi = km.keymap_items.new('wm.tool_set_by_id', 'ESC', 'PRESS', shift=True)
+        kmi = km.keymap_items.new("wm.tool_set_by_id", "ESC", "PRESS", shift=True)
         kmi.properties.name = WorkSpaceTools.Select
         addon_keymaps.append((km, kmi))
 
         # Add Sketch
-        kmi = km.keymap_items.new(Operators.AddSketch, 'A', 'PRESS', ctrl=True, shift=True)
+        kmi = km.keymap_items.new(
+            Operators.AddSketch, "A", "PRESS", ctrl=True, shift=True
+        )
         kmi.properties.wait_for_input = True
         addon_keymaps.append((km, kmi))
+
 
 def unregister():
     wm = bpy.context.window_manager

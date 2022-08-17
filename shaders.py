@@ -2,15 +2,18 @@ import gpu
 from gpu.types import GPUShader
 
 import sys
+
 if sys.version_info >= (3, 9):
     from functools import cache
 else:
     from functools import lru_cache
+
     cache = lru_cache(maxsize=None)
+
 
 class Shaders:
 
-    base_vertex_shader_3d = '''
+    base_vertex_shader_3d = """
         uniform mat4 ModelViewProjectionMatrix;
 
         in vec3 pos;
@@ -20,8 +23,8 @@ class Shaders:
            gl_Position = project;
 
         }
-    '''
-    base_fragment_shader_3d = '''
+    """
+    base_fragment_shader_3d = """
         uniform vec4 color;
         uniform float dash_width = 10.0;
         uniform float dash_factor = 0.40;
@@ -51,13 +54,12 @@ class Shaders:
             }
 
         }
-    '''
+    """
 
     @staticmethod
     @cache
     def uniform_color_2d():
         return gpu.shader.from_builtin("2D_UNIFORM_COLOR")
-
 
     @staticmethod
     @cache
@@ -73,7 +75,7 @@ class Shaders:
     @classmethod
     @cache
     def uniform_color_line_3d(cls):
-        geometry_shader = '''
+        geometry_shader = """
             layout(lines) in;
             layout(triangle_strip, max_vertices = 10) out;
 
@@ -153,10 +155,13 @@ class Shaders:
                 }
                 EndPrimitive();
             }
-        '''
+        """
 
-        return GPUShader(cls.base_vertex_shader_3d, cls.base_fragment_shader_3d, geocode=geometry_shader)
-
+        return GPUShader(
+            cls.base_vertex_shader_3d,
+            cls.base_fragment_shader_3d,
+            geocode=geometry_shader,
+        )
 
     @staticmethod
     @cache
@@ -185,7 +190,7 @@ class Shaders:
     @staticmethod
     @cache
     def dashed_uniform_color_3d():
-        vertex_shader = '''
+        vertex_shader = """
             uniform mat4 ModelViewProjectionMatrix;
             in vec3 pos;
             in float arcLength;
@@ -198,9 +203,9 @@ class Shaders:
                 v_ArcLength = arcLength;
                 gl_Position = project + offset;
             }
-        '''
+        """
 
-        fragment_shader = '''
+        fragment_shader = """
             uniform float u_Scale;
             uniform vec4 color;
 
@@ -212,5 +217,5 @@ class Shaders:
                 if (step(sin(v_ArcLength * u_Scale), 0.7) == 0) discard;
                 fragColor = color;
             }
-        '''
+        """
         return GPUShader(vertex_shader, fragment_shader)

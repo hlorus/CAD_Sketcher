@@ -10,18 +10,30 @@ from .stateful_operator.tool import GenericStateTool
 def get_addon_icon_path(icon_name):
     return os.path.join(os.path.dirname(__file__), "ressources/icons", icon_name)
 
+
 generic_keymap = (
     (
         "wm.context_set_boolean",
         {"type": "LEFT_SHIFT", "value": "PRESS"},
-        {"properties": [("data_path", "scene.sketcher.selectable_constraints"), ("value", False)]}
+        {
+            "properties": [
+                ("data_path", "scene.sketcher.selectable_constraints"),
+                ("value", False),
+            ]
+        },
     ),
     (
         "wm.context_set_boolean",
         {"type": "LEFT_SHIFT", "value": "RELEASE"},
-        {"properties": [("data_path", "scene.sketcher.selectable_constraints"), ("value", True)]}
+        {
+            "properties": [
+                ("data_path", "scene.sketcher.selectable_constraints"),
+                ("value", True),
+            ]
+        },
     ),
 )
+
 
 class VIEW3D_T_slvs_select(WorkSpaceTool):
     bl_space_type = "VIEW_3D"
@@ -48,20 +60,12 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
             {"type": "LEFTMOUSE", "value": "CLICK"},
             None,
         ),
-        (
-            Operators.SelectInvert,
-            {"type": "I", "value": "PRESS", "ctrl": True},
-            None
-        ),
-        (
-            Operators.SelectExtend,
-            {"type": "E", "value": "PRESS", "ctrl": True},
-            None
-        ),
+        (Operators.SelectInvert, {"type": "I", "value": "PRESS", "ctrl": True}, None),
+        (Operators.SelectExtend, {"type": "E", "value": "PRESS", "ctrl": True}, None),
         (
             Operators.SelectExtendAll,
             {"type": "E", "value": "PRESS", "ctrl": True, "shift": True},
-            None
+            None,
         ),
         (
             Operators.Tweak,
@@ -103,6 +107,7 @@ tool_keymap = (
         {"properties": [("name", VIEW3D_T_slvs_select.bl_idname)]},
     ),
 )
+
 
 class View3D_T_slvs_add_point3d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
@@ -216,6 +221,7 @@ class View3D_T_slvs_add_rectangle(GenericStateTool, WorkSpaceTool):
         *operator_access(Operators.AddRectangle),
     )
 
+
 class View3D_T_slvs_trim(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
@@ -229,6 +235,7 @@ class View3D_T_slvs_trim(GenericStateTool, WorkSpaceTool):
         *tool_access,
         *operator_access(Operators.Trim),
     )
+
 
 class View3D_T_slvs_bevel(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
@@ -244,6 +251,7 @@ class View3D_T_slvs_bevel(GenericStateTool, WorkSpaceTool):
         *operator_access(Operators.Bevel),
     )
 
+
 class View3D_T_slvs_add_workplane_face(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
@@ -257,6 +265,7 @@ class View3D_T_slvs_add_workplane_face(GenericStateTool, WorkSpaceTool):
         *tool_access,
         *operator_access(Operators.AddWorkPlaneFace),
     )
+
 
 class View3D_T_slvs_add_workplane(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
@@ -295,10 +304,15 @@ tools = (
     (View3D_T_slvs_trim, {"separator": False, "group": False}),
     (View3D_T_slvs_bevel, {"separator": False, "group": False}),
     (View3D_T_slvs_add_workplane_face, {"separator": True, "group": True}),
-    (View3D_T_slvs_add_workplane, {"after": {View3D_T_slvs_add_workplane_face.bl_idname}}),
+    (
+        View3D_T_slvs_add_workplane,
+        {"after": {View3D_T_slvs_add_workplane_face.bl_idname}},
+    ),
 )
 
 import bpy
+
+
 def register():
     if bpy.app.background:
         return

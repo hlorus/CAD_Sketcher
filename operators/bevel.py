@@ -3,7 +3,11 @@ import logging
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 from mathutils import Vector
-from mathutils.geometry import intersect_line_line_2d, intersect_line_sphere_2d, intersect_sphere_sphere_2d
+from mathutils.geometry import (
+    intersect_line_line_2d,
+    intersect_line_sphere_2d,
+    intersect_sphere_sphere_2d,
+)
 
 from .. import class_defines
 from ..functions import refresh
@@ -19,9 +23,11 @@ logger = logging.getLogger(__name__)
 
 from enum import Enum
 
+
 class ElementTypes(str, Enum):
     Line = "LINE"
     Sphere = "Sphere"
+
 
 def _get_intersection_func(type_a, type_b):
     if all([t == ElementTypes.Line for t in (type_a, type_b)]):
@@ -30,19 +36,23 @@ def _get_intersection_func(type_a, type_b):
         return intersect_sphere_sphere_2d
     return intersect_line_sphere_2d
 
+
 def _order_intersection_args(arg1, arg2):
     if arg1[0] == ElementTypes.Sphere and arg1[0] == ElementTypes.Line:
         return arg2, arg1
     return arg1, arg2
 
+
 def _get_offset_line(line, offset):
     normal = line.normal()
-    offset_vec = normal * offset 
+    offset_vec = normal * offset
     return (line.p1.co + offset_vec, line.p2.co + offset_vec)
+
 
 def _get_offset_sphere(arc, offset):
     """Return sphere_co and sphere_radius of offset sphere"""
     return arc.ct.co, arc.radius + offset
+
 
 def _get_offset_elements(entity, offset):
     t = ElementTypes.Line if entity.type == "SlvsLine2D" else ElementTypes.Sphere
@@ -52,6 +62,7 @@ def _get_offset_elements(entity, offset):
         (t, func(entity, -offset)),
     )
 
+
 def _get_intersections(*element_list):
     """Find all intersections between all combinations of elements, (type, element)"""
     intersections = []
@@ -60,11 +71,11 @@ def _get_intersections(*element_list):
     for i, elem_a in enumerate(element_list):
         if i + 1 == lenght:
             break
-        for elem_b in element_list[i+1:]:
+        for elem_b in element_list[i + 1 :]:
             a, b = _order_intersection_args(elem_a, elem_b)
             func = _get_intersection_func(a[0], b[0])
             retval = to_list(func(*a[1], *b[1]))
-        
+
             for intr in retval:
                 if not intr:
                     continue
@@ -86,7 +97,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             "Point",
             description="Point to bevel",
             pointer="p1",
-            types=(class_defines.SlvsPoint2D, ),
+            types=(class_defines.SlvsPoint2D,),
         ),
         state_from_args(
             "Radius",
@@ -133,7 +144,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
 
         coords = None
         for i in intersections:
-            
+
             if hasattr(l1, "is_inside") and not l1.is_inside(i):
                 continue
             if hasattr(l2, "is_inside") and not l2.is_inside(i):
@@ -151,11 +162,10 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
 
         if not all([co is not None for co in (p1_co, p2_co)]):
             return False
-        
+
         p1 = sse.add_point_2d(p1_co, sketch)
         p2 = sse.add_point_2d(p2_co, sketch)
         self.points = p1, p2
-
 
         # Get direction of arc
         connection_angle = l1.connection_angle(l2)
@@ -170,7 +180,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
 
         sketch = self.sketch
         sse = context.scene.sketcher.entities
-        
+
         # Add Arc
         arc = sse.add_arc(sketch.wp.nm, self.ct, *self.points, sketch)
         arc.invert_direction = self.invert
@@ -188,7 +198,6 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         ssc = context.scene.sketcher.constraints
         ssc.add_tangent(arc, seg1, sketch)
         ssc.add_tangent(arc, seg2, sketch)
-
 
         # Remove original point if not referenced
         if not is_entity_referenced(point, context):

@@ -5,6 +5,7 @@ from bpy.utils import register_classes_factory
 from ..declarations import Operators
 from ..solver import Solver
 
+
 class View3D_OT_slvs_solve(Operator):
     bl_idname = Operators.Solve
     bl_label = "Solve"
@@ -24,5 +25,6 @@ class View3D_OT_slvs_solve(Operator):
 
         context.area.tag_redraw()
         return {"FINISHED"}
+
 
 register, unregister = register_classes_factory((View3D_OT_slvs_solve,))

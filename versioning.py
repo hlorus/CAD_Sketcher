@@ -3,9 +3,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def get_addon_version():
-    from .import bl_info
+    from . import bl_info
+
     return bl_info["version"]
+
 
 def write_addon_version(context):
     version = get_addon_version()
@@ -38,7 +41,8 @@ def recalc_pointers(scene):
 
 
 def do_versioning(self):
-    from .import bl_info
+    from . import bl_info
+
     logger.debug("Check versioning")
 
     # Current blender version
@@ -68,17 +72,20 @@ def do_versioning(self):
         version = props.version[:]
 
         if version > current_version:
-            logger.warning("Scene {} was saved with a newer version of the addon".format(scene.name))
+            logger.warning(
+                "Scene {} was saved with a newer version of the addon".format(
+                    scene.name
+                )
+            )
             continue
 
         msg += "\n  - Update scene <{}> from version {}".format(scene.name, version)
 
-
         # if version <= (0, 11, 0):
-            # apply some changes that were introduced in v(0, 11, 0)
+        # apply some changes that were introduced in v(0, 11, 0)
 
         # if version <= (1, 0, 0):
-            # ...
+        # ...
         if version < (0, 23, 0):
             entities = scene.sketcher.entities
             entities.origin_axis_X = None

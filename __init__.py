@@ -24,6 +24,7 @@ from .utilities.logging import setup_logger, update_logger
 # Globals
 logger = logging.getLogger(__name__)
 
+
 def register():
 
     # Setup root logger
@@ -36,9 +37,7 @@ def register():
     update_logger(logger)
     icon_manager.load()
 
-    logger.info(
-        "Enabled CAD Sketcher base, version: {}".format(bl_info["version"])
-    )
+    logger.info("Enabled CAD Sketcher base, version: {}".format(bl_info["version"]))
 
     # Check Module and register all modules
     try:
@@ -50,8 +49,7 @@ def register():
     except ModuleNotFoundError as e:
         global_data.registered = False
         logger.warning(
-            "Solvespace module isn't available, only base modules registered\n"
-            + str(e)
+            "Solvespace module isn't available, only base modules registered\n" + str(e)
         )
 
 

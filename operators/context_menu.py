@@ -13,8 +13,8 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
     bl_idname = Operators.ContextMenu
     bl_label = "Solvespace Context Menu"
 
-    type: StringProperty(name="Type", options={'SKIP_SAVE'})
-    index: IntProperty(name="Index", default=-1, options={'SKIP_SAVE'})
+    type: StringProperty(name="Type", options={"SKIP_SAVE"})
+    index: IntProperty(name="Index", default=-1, options={"SKIP_SAVE"})
     delayed: BoolProperty(default=False)
 
     @classmethod
@@ -70,5 +70,6 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
 
         context.window_manager.popup_menu(draw_context_menu)
         return {"FINISHED"}
+
 
 register, unregister = register_classes_factory((View3D_OT_slvs_context_menu,))

@@ -22,7 +22,13 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 import math, mathutils
 from mathutils import Vector, Matrix, Euler
-from mathutils.geometry import intersect_line_line_2d, intersect_sphere_sphere_2d, intersect_line_sphere_2d, distance_point_to_plane, intersect_point_line
+from mathutils.geometry import (
+    intersect_line_line_2d,
+    intersect_sphere_sphere_2d,
+    intersect_line_sphere_2d,
+    distance_point_to_plane,
+    intersect_point_line,
+)
 
 from . import global_data, functions
 from .utilities import preferences
@@ -35,8 +41,8 @@ from .utilities.constants import FULL_TURN, HALF_TURN, QUARTER_TURN
 
 logger = logging.getLogger(__name__)
 
-class SlvsGenericEntity:
 
+class SlvsGenericEntity:
     def entity_name_getter(self):
         return self.get("name", str(self))
 
@@ -344,7 +350,7 @@ class SlvsGenericEntity:
 
         # Delete
         layout.separator()
-        layout.operator(Operators.DeleteEntity, icon='X').index = self.slvs_index
+        layout.operator(Operators.DeleteEntity, icon="X").index = self.slvs_index
 
         return sub
 
@@ -472,7 +478,7 @@ class SlvsPoint3D(Point3D, PropertyGroup):
         description="The location of the point",
         subtype="XYZ",
         unit="LENGTH",
-        update=SlvsGenericEntity.tag_update
+        update=SlvsGenericEntity.tag_update,
     )
     props = ("location",)
 
@@ -493,7 +499,7 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
     @classmethod
     def is_path(cls):
         return True
-    
+
     @classmethod
     def is_line(cls):
         return True
@@ -586,7 +592,7 @@ def get_face_orientation(mesh, face):
 
 
 def get_face_midpoint(quat, ob, face):
-    """ Average distance from origin to face vertices. """
+    """Average distance from origin to face vertices."""
     mesh = ob.data
     coords = [mesh.vertices[i].co.copy() for i in face.vertices]
     quat_inv = quat.inverted()
@@ -735,7 +741,9 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     target_curve_object: PointerProperty(type=bpy.types.Object)
     target_mesh: PointerProperty(type=bpy.types.Mesh)
     target_object: PointerProperty(type=bpy.types.Object)
-    curve_resolution: IntProperty(name="Mesh Curve Resolution", default=12, min=1, soft_max=25)
+    curve_resolution: IntProperty(
+        name="Mesh Curve Resolution", default=12, min=1, soft_max=25
+    )
 
     def dependencies(self) -> List[SlvsGenericEntity]:
         return [
@@ -858,7 +866,7 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         subtype="XYZ",
         size=2,
         unit="LENGTH",
-        update=SlvsGenericEntity.tag_update
+        update=SlvsGenericEntity.tag_update,
     )
 
     def dependencies(self) -> List[SlvsGenericEntity]:
@@ -907,11 +915,13 @@ def round_v(vec, ndigits=None):
         values.append(round(v, ndigits=ndigits))
     return Vector(values)
 
+
 def get_connection_point(seg_1, seg_2):
     points = seg_1.connection_points()
     for p in seg_2.connection_points():
         if p in points:
             return p
+
 
 def set_handles(point):
     point.handle_left_type = "FREE"
@@ -1004,8 +1014,16 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         if not all([e.is_line() for e in (self, other)]):
             return other.connection_angle(self)
 
-        dir1 = self.direction_vec() if self.direction(point) else (self.direction_vec() * (-1))
-        dir2 = other.direction_vec() if other.direction(point) else (other.direction_vec() * (-1))
+        dir1 = (
+            self.direction_vec()
+            if self.direction(point)
+            else (self.direction_vec() * (-1))
+        )
+        dir2 = (
+            other.direction_vec()
+            if other.direction(point)
+            else (other.direction_vec() * (-1))
+        )
         return dir1.angle_signed(dir2)
 
     def to_bezier(
@@ -1031,7 +1049,7 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         return (self.p2.co - self.p1.co).normalized()
 
     def normal(self):
-        mat_rot = Matrix.Rotation(math.pi/2, 2, "Z")
+        mat_rot = Matrix.Rotation(math.pi / 2, 2, "Z")
         nm = self.direction_vec()
         nm.rotate(mat_rot)
         return nm
@@ -1078,7 +1096,11 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
 
         sse = context.scene.sketcher.entities
         sketch = context.scene.sketcher.active_sketch
-        line = sse.add_line_2d(p1, p2, sketch,)
+        line = sse.add_line_2d(
+            p1,
+            p2,
+            sketch,
+        )
         line.construction = self.construction
         return line
 
@@ -1210,7 +1232,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
     @classmethod
     def is_path(cls):
         return True
-    
+
     @classmethod
     def is_curve(cls):
         return True
@@ -1340,7 +1362,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
             local_co = point.co - arc.ct.co
             angle = range_2pi(math.atan2(local_co.y, local_co.x))
             mat_rot = Matrix.Rotation(angle, 2, "Z")
-            tangent = Vector((0,1))
+            tangent = Vector((0, 1))
             tangent.rotate(mat_rot)
             invert = arc.direction(point)
             if invert:
@@ -1354,7 +1376,9 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
                 directions.append(_get_tangent(entity, point))
             else:
                 directions.append(
-                    entity.direction_vec() if entity.direction(point) else entity.direction_vec() * (-1)
+                    entity.direction_vec()
+                    if entity.direction(point)
+                    else entity.direction_vec() * (-1)
                 )
 
         dir1, dir2 = directions
@@ -1512,7 +1536,6 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
                 continue
             setattr(self, ptr, new)
             break
-
 
 
 slvs_entity_pointer(SlvsArc, "nm")
@@ -1740,6 +1763,7 @@ def update_pointers(scene, index_old, index_new):
 
 class SlvsEntities(PropertyGroup):
     """Holds all Solvespace Entities"""
+
     # NOTE: currently limited to 16 items!
     # See _set_index to see how their index is handled
     entities = (
@@ -2101,7 +2125,9 @@ class SlvsEntities(PropertyGroup):
 
 if not hasattr(SlvsEntities, "__annotations__"):
     SlvsEntities.__annotations__ = {}
-for entity_cls, list_name in zip(SlvsEntities.entities, SlvsEntities._entity_collections):
+for entity_cls, list_name in zip(
+    SlvsEntities.entities, SlvsEntities._entity_collections
+):
     SlvsEntities.__annotations__[list_name] = CollectionProperty(type=entity_cls)
 
 
@@ -2133,6 +2159,7 @@ class GenericConstraint:
         if not name:
             return type(self).__name__
         return name
+
     def _name_setter(self, new_name):
         self["name"] = new_name
 
@@ -2162,6 +2189,7 @@ class GenericConstraint:
             return None
         else:
             from py_slvs import slvs
+
             return slvs.SLVS_FREE_IN_3D
 
     def entities(self):
@@ -2213,8 +2241,10 @@ class GenericConstraint:
         if not hasattr(self, "sketch"):
             return not active_sketch
 
-        show_inactive = not preferences.use_experimental("hide_inactive_constraints", True)
-        if show_inactive: # and self.is_visible(context)
+        show_inactive = not preferences.use_experimental(
+            "hide_inactive_constraints", True
+        )
+        if show_inactive:  # and self.is_visible(context)
             return True
 
         return self.sketch == active_sketch
@@ -2268,7 +2298,7 @@ class GenericConstraint:
 
         # Delete
         layout.separator()
-        props = layout.operator(Operators.DeleteConstraint, icon='X')
+        props = layout.operator(Operators.DeleteConstraint, icon="X")
         props.type = self.type
         props.index = self.index()
 
@@ -2279,7 +2309,7 @@ class GenericConstraint:
         # HACK: Elements of collectionproperties currently don't expose an index
         # method, path_from_id writes the index however, use this hack instead
         # of looping over elements
-        return int(self.path_from_id().split('[')[1].split(']')[0])
+        return int(self.path_from_id().split("[")[1].split("]")[0])
 
     def placements(self):
         """Return the entities where the constraint should be displayed"""
@@ -2434,14 +2464,13 @@ align_items = [
 
 
 class SlvsDistance(GenericConstraint, PropertyGroup):
-    """Sets the distance between a point and some other entity (point/line/Workplane).
-    """
+    """Sets the distance between a point and some other entity (point/line/Workplane)."""
 
     def get_distance_value(self):
-        return self.get('value', self.rna_type.properties['value'].default)
+        return self.get("value", self.rna_type.properties["value"].default)
 
     def set_distance_value(self, value):
-        self['value'] = abs(value)
+        self["value"] = abs(value)
 
     label = "Distance"
     value: FloatProperty(
@@ -2453,13 +2482,16 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         set=set_distance_value,
     )
     flip: BoolProperty(name="Flip", update=GenericConstraint.update_system_cb)
-    align: EnumProperty(name="Align", items=align_items, update=GenericConstraint.update_system_cb,)
+    align: EnumProperty(
+        name="Align",
+        items=align_items,
+        update=GenericConstraint.update_system_cb,
+    )
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     draw_outset: FloatProperty(name="Draw Outset", default=0.0)
     type = "DISTANCE"
     signature = ((*point, *line, SlvsCircle, SlvsArc), (*point, *line, SlvsWorkplane))
-    props = ("value", )
-
+    props = ("value",)
 
     @classmethod
     def get_types(cls, index, entities):
@@ -2470,7 +2502,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
                 # Allow constraining a single line
                 return None
             if e.is_3d():
-                return ((SlvsPoint3D, ), (SlvsPoint3D, SlvsLine3D, SlvsWorkplane))[index]
+                return ((SlvsPoint3D,), (SlvsPoint3D, SlvsLine3D, SlvsWorkplane))[index]
             return (point_2d, (*point_2d, SlvsLine2D))[index]
         return cls.signature[index]
 
@@ -2501,7 +2533,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         if self.entity1 == self.entity2:
             raise AttributeError("Cannot create constraint between one entity itself")
-        #TODO: don't allow Distance if Point -> Line if (Point in Line)
+        # TODO: don't allow Distance if Point -> Line if (Point in Line)
 
         e1, e2 = self.entity1, self.entity2
         if e1.is_line():
@@ -2520,10 +2552,14 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         if type(e1) in curve:
             # TODO: make Horizontal and Vertical alignment work
             if type(e2) in line:
-                return solvesys.addPointLineDistance(value + e1.radius, e1.ct.py_data, e2.py_data, wp, group)
+                return solvesys.addPointLineDistance(
+                    value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
+                )
             else:
-                assert(isinstance(e2, SlvsPoint2D))
-                return solvesys.addPointsDistance(value + e1.radius, e1.ct.py_data, e2.py_data, wp, group)
+                assert isinstance(e2, SlvsPoint2D)
+                return solvesys.addPointsDistance(
+                    value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
+                )
 
         elif type(e2) in line:
             func = solvesys.addPointLineDistance
@@ -2594,45 +2630,53 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             if e2.is_line():
                 p2, _ = intersect_point_line(centerpoint, e2.p1.co, e2.p2.co)
             else:
-                assert(isinstance(e2, SlvsPoint2D))
+                assert isinstance(e2, SlvsPoint2D)
                 p2 = e2.co
             if (p2 - centerpoint).length > 0:
                 vec = (p2 - centerpoint) / (p2 - centerpoint).length
                 p1 = centerpoint + (e1.radius * Vector(vec))
             else:
-            # This is a curve->line where the centerpoint of the curve is
-            # coincident with the line.  By reassigning p1 to an endpoint
-            # of the line, we avoid p1=p2 errors and the result is
-            # (correctly) an invalid constraint
+                # This is a curve->line where the centerpoint of the curve is
+                # coincident with the line.  By reassigning p1 to an endpoint
+                # of the line, we avoid p1=p2 errors and the result is
+                # (correctly) an invalid constraint
                 p1 = e2.p1.co
         elif e1.is_line():
             # reframe as point->point and continue
             e1, e2 = e1.p1, e1.p2
             p1, p2 = e1.co, e2.co
         else:
-            assert(isinstance(e1,SlvsPoint2D))
+            assert isinstance(e1, SlvsPoint2D)
             p1 = e1.co
 
         if type(e2) in point_2d:
-        # this includes "Line Length" (now point->point)
-        # and curve -> point
+            # this includes "Line Length" (now point->point)
+            # and curve -> point
             p2 = e2.co
             if not align:
                 v_rotation = p2 - p1
             else:
-                v_rotation = Vector((1.0, 0.0)) if alignment == "HORIZONTAL" else Vector((0.0, 1.0))
+                v_rotation = (
+                    Vector((1.0, 0.0))
+                    if alignment == "HORIZONTAL"
+                    else Vector((0.0, 1.0))
+                )
             angle = v_rotation.angle_signed(x_axis)
             mat_rot = Matrix.Rotation(angle, 2, "Z")
             v_translation = (p2 + p1) / 2
 
         elif e2.is_line():
-        # curve -> line
-        # or point -> line
+            # curve -> line
+            # or point -> line
             if e1.is_curve():
                 if not align:
                     v_rotation = p2 - p1
                 else:
-                    v_rotation = Vector((1.0, 0.0)) if alignment == "HORIZONTAL" else Vector((0.0, 1.0))
+                    v_rotation = (
+                        Vector((1.0, 0.0))
+                        if alignment == "HORIZONTAL"
+                        else Vector((0.0, 1.0))
+                    )
                 if v_rotation.length != 0:
                     angle = v_rotation.angle_signed(x_axis)
                 else:
@@ -2640,11 +2684,11 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
                 mat_rot = Matrix.Rotation(angle, 2, "Z")
                 v_translation = (p2 + p1) / 2
             else:
-                assert(isinstance(e1, SlvsPoint2D))
+                assert isinstance(e1, SlvsPoint2D)
                 orig = e2.p1.co
                 end = e2.p2.co
                 vec = end - orig
-                angle = (math.tau/4) + functions.range_2pi(math.atan2(vec[1], vec[0]))
+                angle = (math.tau / 4) + functions.range_2pi(math.atan2(vec[1], vec[0]))
                 mat_rot = Matrix.Rotation(angle, 2, "Z")
                 p1 = p1 - orig
                 v_translation = orig + (p1 + p1.project(vec)) / 2
@@ -2682,7 +2726,8 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             # The distance is always shown positive on the sketch;
             # to flip to the other side, enter a negative value.
             value = math.copysign(
-                value, get_side_of_line(e2.p1.location, e2.p2.location, e1.location),
+                value,
+                get_side_of_line(e2.p1.location, e2.p2.location, e1.location),
             )
         else:
             value = (e1.location - e2.location).length
@@ -2738,7 +2783,7 @@ slvs_entity_pointer(SlvsDistance, "sketch")
 
 
 class SlvsDiameter(GenericConstraint, PropertyGroup):
-    """ Sets the diameter of an arc or a circle. """
+    """Sets the diameter of an arc or a circle."""
 
     def use_radius_getter(self):
         return self.get("setting", self.bl_rna.properties["setting"].default)
@@ -2759,7 +2804,10 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
 
     label = "Diameter"
     value: FloatProperty(
-        name="Size", subtype="DISTANCE", unit="LENGTH", update=GenericConstraint.update_system_cb
+        name="Size",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=GenericConstraint.update_system_cb,
     )
     setting: BoolProperty(
         name="Use Radius", get=use_radius_getter, set=use_radius_setter
@@ -2768,7 +2816,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     draw_offset: FloatProperty(name="Draw Offset", default=0)
     type = "DIAMETER"
     signature = (curve,)
-    props = ("value", )
+    props = ("value",)
 
     @property
     def diameter(self):
@@ -2857,14 +2905,21 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
 
     label = "Angle"
     value: FloatProperty(
-        name=label, subtype="ANGLE", unit="ROTATION", update=GenericConstraint.update_system_cb
+        name=label,
+        subtype="ANGLE",
+        unit="ROTATION",
+        update=GenericConstraint.update_system_cb,
     )
-    setting: BoolProperty(name="Measure supplementary angle", get=invert_angle_getter, set=invert_angle_setter)
+    setting: BoolProperty(
+        name="Measure supplementary angle",
+        get=invert_angle_getter,
+        set=invert_angle_setter,
+    )
     draw_offset: FloatProperty(name="Draw Offset", default=1)
     draw_outset: FloatProperty(name="Draw Outset", default=0)
     type = "ANGLE"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
-    props = ("value", )
+    props = ("value",)
 
     def needs_wp(self):
         return WpReq.NOT_FREE
@@ -2929,11 +2984,11 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         return math.degrees(math.acos(x))
 
     def init_props(self, **kwargs):
-        '''
+        """
         initializes value (angle, in radians),
             setting ("measure supplimentary angle")
             and distance to dimension text (draw_offset)
-        '''
+        """
 
         line1, line2 = self.entity1, self.entity2
         vec1, vec2 = line1.direction_vec(), line2.direction_vec()
@@ -2947,15 +3002,13 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
             *functions.line_abc_form(line2.p1.co, line2.p2.co),
         )
         dist = max(
-            (line1.midpoint() - origin).length,
-            (line2.midpoint() - origin).length,
-            0.5
+            (line1.midpoint() - origin).length, (line2.midpoint() - origin).length, 0.5
         )
         self.draw_offset = dist if not setting else -dist
         return math.radians(angle), setting
 
     def text_inside(self):
-        return abs(self.draw_outset) < (self.value/2)
+        return abs(self.draw_outset) < (self.value / 2)
 
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
@@ -2986,8 +3039,7 @@ slvs_entity_pointer(SlvsAngle, "sketch")
 
 
 class SlvsParallel(GenericConstraint, PropertyGroup):
-    """Forces two lines to be parallel. Applies only in 2D.
-    """
+    """Forces two lines to be parallel. Applies only in 2D."""
 
     type = "PARALLEL"
     label = "Parallel"
@@ -3041,12 +3093,11 @@ class SlvsHorizontal(GenericConstraint, PropertyGroup):
             return solvesys.addPointsHorizontal(
                 self.entity1.py_data, self.entity2.py_data, wp, group=group
             )
-        return solvesys.addLineHorizontal(
-            self.entity1.py_data, wrkpln=wp, group=group
-        )
+        return solvesys.addLineHorizontal(self.entity1.py_data, wrkpln=wp, group=group)
 
     def placements(self):
         return (self.entity1,)
+
 
 slvs_entity_pointer(SlvsHorizontal, "entity1")
 slvs_entity_pointer(SlvsHorizontal, "entity2")
@@ -3080,12 +3131,11 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
             return solvesys.addPointsVertical(
                 self.entity1.py_data, self.entity2.py_data, wp, group=group
             )
-        return solvesys.addLineVertical(
-            self.entity1.py_data, wrkpln=wp, group=group
-        )
+        return solvesys.addLineVertical(self.entity1.py_data, wrkpln=wp, group=group)
 
     def placements(self):
         return (self.entity1,)
+
 
 slvs_entity_pointer(SlvsVertical, "entity1")
 slvs_entity_pointer(SlvsVertical, "entity2")
@@ -3118,15 +3168,14 @@ class SlvsPerpendicular(GenericConstraint, PropertyGroup):
             return (point,)
         return (self.entity1, self.entity2)
 
+
 slvs_entity_pointer(SlvsPerpendicular, "entity1")
 slvs_entity_pointer(SlvsPerpendicular, "entity2")
 slvs_entity_pointer(SlvsPerpendicular, "sketch")
 
 
-
 class SlvsTangent(GenericConstraint, PropertyGroup):
-    """Forces two curves (arc/circle) or a curve and a line to be tangent.
-    """
+    """Forces two curves (arc/circle) or a curve and a line to be tangent."""
 
     type = "TANGENT"
     label = "Tangent"
@@ -3144,7 +3193,10 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
         if point and not isinstance(e2, SlvsCircle):
             if isinstance(e2, SlvsLine2D):
                 return solvesys.addArcLineTangent(
-                    e1.direction(point), e1.py_data, e2.py_data, group=group,
+                    e1.direction(point),
+                    e1.py_data,
+                    e2.py_data,
+                    group=group,
                 )
             elif isinstance(e2, SlvsArc):
                 return solvesys.addCurvesTangent(
@@ -3185,14 +3237,14 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
         point = get_connection_point(self.entity1, self.entity2)
         return (point,)
 
+
 slvs_entity_pointer(SlvsTangent, "entity1")
 slvs_entity_pointer(SlvsTangent, "entity2")
 slvs_entity_pointer(SlvsTangent, "sketch")
 
 
 class SlvsMidpoint(GenericConstraint, PropertyGroup):
-    """Forces a point to lie on the midpoint of a line.
-    """
+    """Forces a point to lie on the midpoint of a line."""
 
     type = "MIDPOINT"
     label = "Midpoint"
@@ -3211,11 +3263,14 @@ class SlvsMidpoint(GenericConstraint, PropertyGroup):
             kwargs["wrkpln"] = wp
 
         return solvesys.addMidPoint(
-            self.entity1.py_data, self.entity2.py_data, **kwargs,
+            self.entity1.py_data,
+            self.entity2.py_data,
+            **kwargs,
         )
 
     def placements(self):
         return (self.entity2,)
+
 
 slvs_entity_pointer(SlvsMidpoint, "entity1")
 slvs_entity_pointer(SlvsMidpoint, "entity2")
@@ -3252,7 +3307,11 @@ class SlvsSymmetric(GenericConstraint, PropertyGroup):
         # NOTE: this doesn't seem to work correctly, acts like addSymmetricVertical
         if isinstance(e3, SlvsLine2D):
             return solvesys.addSymmetricLine(
-                e1.py_data, e2.py_data, e3.py_data, self.get_workplane(), group=group,
+                e1.py_data,
+                e2.py_data,
+                e3.py_data,
+                self.get_workplane(),
+                group=group,
             )
 
         elif isinstance(e3, SlvsWorkplane):
@@ -3266,6 +3325,7 @@ class SlvsSymmetric(GenericConstraint, PropertyGroup):
 
     def placements(self):
         return (self.entity1, self.entity2, self.entity3)
+
 
 slvs_entity_pointer(SlvsSymmetric, "entity1")
 slvs_entity_pointer(SlvsSymmetric, "entity2")
@@ -3283,7 +3343,10 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
     label = "Ratio"
 
     value: FloatProperty(
-        name=label, subtype="UNSIGNED", update=GenericConstraint.update_system_cb, min=0.0
+        name=label,
+        subtype="UNSIGNED",
+        update=GenericConstraint.update_system_cb,
+        min=0.0,
     )
 
     signature = (
@@ -3300,7 +3363,11 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
         e1, e2 = self.entity1, self.entity2
 
         return solvesys.addLengthRatio(
-            self.value, e1.py_data, e2.py_data, self.get_workplane(), group=group,
+            self.value,
+            e1.py_data,
+            e2.py_data,
+            self.get_workplane(),
+            group=group,
         )
 
     def init_props(self, **kwargs):
@@ -3316,6 +3383,7 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
 
     def placements(self):
         return (self.entity1, self.entity2)
+
 
 slvs_entity_pointer(SlvsRatio, "entity1")
 slvs_entity_pointer(SlvsRatio, "entity2")
@@ -3774,7 +3842,7 @@ class SketcherProps(PropertyGroup):
         name="Constraints Selectability",
         default=True,
         options={"SKIP_SAVE"},
-        update=functions.update_cb
+        update=functions.update_cb,
     )
 
     version: IntVectorProperty(

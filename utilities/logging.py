@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .register import get_name
 
+
 def setup_logger(logger):
     """Configures a logger, this is intended to be run on the root logger"""
 
@@ -25,7 +26,9 @@ def setup_logger(logger):
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
+
 def update_logger(logger):
     from .preferences import get_prefs
+
     prefs = get_prefs()
     logger.setLevel(prefs.logging_level)

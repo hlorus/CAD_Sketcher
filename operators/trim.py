@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 from ..utilities.trimming import TrimSegment
 
+
 class View3D_OT_slvs_trim(Operator, Operator2d):
     """Trim segment to its closest intersections"""
 
@@ -88,7 +89,6 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
 
         trim.replace(context)
         functions.refresh(context)
-
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_trim,))
