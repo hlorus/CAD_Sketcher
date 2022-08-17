@@ -1,26 +1,33 @@
 name: build_docs
-on: [workflow_dispatch]
+on: 
+  workflow_dispatch:
+  push:
+    branches: main
+    paths: "docs/**"
+
 jobs:
   building:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-        with:
-          path: CAD_Sketcher
-      - uses: actions/checkout@v3
-        with:
-          repository: blender/blender
-          path: blender-git
-          submodules: "true"
+      - name: Checkout
+        uses: actions/checkout@v3
+          with:
+            path: CAD_Sketcher
+        uses: actions/checkout@v3
+          with:
+            repository: blender/blender
+            path: blender-git
+            submodules: "true"
 
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-          cache: "pip"
-      - run: pip install markdown mkdocs mkdocs-material mkdocstrings mkdocs-autorefs lightgallery mkdocstrings-python
+      - name: Install Dependencies
+        uses: actions/setup-python@v4
+          with:
+            python-version: '3.10'
+            cache: "pip"
+        run: pip install markdown mkdocs mkdocs-material mkdocstrings mkdocs-autorefs lightgallery mkdocstrings-python
 
-
-      - run: echo "PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/blender-git/blender/release/scripts/modules:$GITHUB_WORKSPACE" >> $GITHUB_ENV
+      - name: Set Pythonpath
+        run: echo "PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/blender-git/blender/release/scripts/modules:$GITHUB_WORKSPACE" >> $GITHUB_ENV
 
       - name: Deploy
         run: python3.10 -m mkdocs gh-deploy -f ./mkdocs.yml --force
