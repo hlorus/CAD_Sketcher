@@ -19,7 +19,8 @@ jobs:
           cache: "pip"
       - run: pip install markdown mkdocs mkdocs-material mkdocstrings mkdocs-autorefs lightgallery mkdocstrings-python
 
-      - run: PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/blender-git/blender/release/scripts/modules:$GITHUB_WORKSPACE
+      - run: PYTHONPATH=$PYTHONPATH:${{GITHUB_WORKSPACE}}/blender-git/blender/release/scripts/modules:${{GITHUB_WORKSPACE}}
+      - run: echo $PYTHONPATH
 
       - name: Deploy
         run: python3.10 -m mkdocs gh-deploy -f ./mkdocs.yml
