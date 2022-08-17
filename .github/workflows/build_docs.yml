@@ -6,7 +6,7 @@ on:
     paths: "docs/**"
 
 jobs:
-  building:
+  deploy-docs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Addon
