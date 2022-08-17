@@ -26,4 +26,4 @@ jobs:
       - run: PYTHONPATH=$PYTHONPATH:blender-git/blender/release/scripts/modules
       - run: echo $PYTHONPATH
 
-      - uses: mhausenblas/mkdocs-deploy-gh-pages@master
+      - run: python3.10 -m mkdocs build -f ./mkdocs.yml
