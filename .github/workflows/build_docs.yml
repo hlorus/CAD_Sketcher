@@ -4,7 +4,24 @@ jobs:
   building:
     runs-on: ubuntu-latest
     steps:
-      - run: sudo apt-get install blender
       - uses: actions/checkout@v3
-      - run: python -V
-      - run: which python
+        with:
+          path: CAD_Sketcher
+      - uses: actions/checkout@v3
+        with:
+          repository: blender/blender
+          path: blender-git
+          submodules: "true"
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: "pip"
+      - run: pip install markdown mkdocs mkdocs-material mkdocstrings mkdocs-autorefs lightgallery mkdocstrings-python
+
+
+      - run: echo "PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/blender-git/blender/release/scripts/modules:$GITHUB_WORKSPACE" >> $GITHUB_ENV
+
+      - name: Deploy
+        run: python3.10 -m mkdocs gh-deploy -f ./mkdocs.yml
+        working-directory: ./CAD_Sketcher
