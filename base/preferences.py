@@ -14,8 +14,10 @@ import sys
 from pathlib import Path
 import logging
 
-from . import functions, global_data, theme, units, install
-
+from . import theme
+from .. import functions, global_data, units
+from ..declarations import Operators
+from ..utilities.register import get_path, get_name
 
 log_levels = [
     ("CRITICAL", "Critical", "", 0),
@@ -91,18 +93,13 @@ class SKETCHER_MT_theme_presets(Menu):
 
 
 
-def get_prefs():
-    return bpy.context.preferences.addons[__package__].preferences
 
-def get_scale():
-    return bpy.context.preferences.system.ui_scale * get_prefs().entity_scale
-
-def is_experimental():
-    return get_prefs().show_debug_settings
 
 
 class Preferences(AddonPreferences):
-    bl_idname = __package__
+    path = get_path()
+    bl_idname = get_name()
+    
     theme_settings: PointerProperty(type=theme.ThemeSettings)
 
     show_debug_settings: BoolProperty(
@@ -145,10 +142,17 @@ class Preferences(AddonPreferences):
         name='Angle Precision', min=0, max=5, default=0,
         description="Angle decimal precision")
 
+    auto_hide_objects: BoolProperty(name="Auto Hide Objects", description="Hide curves/meshes while in sketch mode", default=True)
     entity_scale: FloatProperty(name="Entity Scale", default=1.0, min=0.1, soft_max=3.0, update=theme.update)
+    workplane_size: FloatProperty(name="Workplane Size", default=0.4, soft_min=0.1, soft_max=1.0)
     gizmo_scale: FloatProperty(name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update)
     text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
     arrow_scale: FloatProperty(name="Arrow Scale", default=1, min=0.2, soft_max=3)
+    use_align_view: BoolProperty(
+        name="Align View",
+        description="Automatically align view to workplane when activating a sketch.",
+        default=False,
+        )
 
     def draw(self, context):
         layout = self.layout
@@ -166,20 +170,23 @@ class Preferences(AddonPreferences):
             split = box.split(factor=0.8)
             split.prop(self, "package_path", text="")
             split.operator(
-                install.View3D_OT_slvs_install_package.bl_idname,
-                text="Install from File",
+                Operators.InstallPackage, text="Install from File",
             ).package = self.package_path
 
             row = box.row()
             row.operator(
-                install.View3D_OT_slvs_install_package.bl_idname,
-                text="Install from PIP",
+                Operators.InstallPackage, text="Install from PIP",
             ).package = "py-slvs"
 
         box = layout.box()
         box.label(text="General")
         col = box.column(align=True)
+        col.prop(self, "auto_hide_objects")
+        if self.show_debug_settings:
+            col.prop(self, "use_align_view")
+        
         col.prop(self, "entity_scale")
+        col.prop(self, "workplane_size")
         col.prop(self, "gizmo_scale")
         col.prop(self, "text_size")
         col.prop(self, "arrow_scale")

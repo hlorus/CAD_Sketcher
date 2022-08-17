@@ -45,8 +45,6 @@ class Sketch2dTestCase(BgsTestCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        from mathutils import Quaternion
-
         cls.entities.ensure_origin_elements(cls.context)
         wp = cls.entities.origin_plane_XY
         cls.sketch = cls.entities.add_sketch(wp)

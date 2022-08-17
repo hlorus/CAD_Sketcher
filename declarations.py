@@ -50,18 +50,20 @@ class Operators(str, Enum):
     ContextMenu = "view3d.slvs_context_menu"
     DeleteConstraint = "view3d.slvs_delete_constraint"
     DeleteEntity = "view3d.slvs_delete_entity"
-    InvokeTool = "view3d.invoke_tool"
     InstallPackage = "view3d.slvs_install_package"
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
     Select = "view3d.slvs_select"
     SelectAll = "view3d.slvs_select_all"
+    SelectInvert = "view3d.slvs_select_invert"
+    SelectExtendAll = "view3d.slvs_select_extend_all"
+    SelectExtend = "view3d.slvs_select_extend"
     SetActiveSketch = "view3d.slvs_set_active_sketch"
     SetAllConstraintsVisibility = "view3d.slvs_set_all_constraints_visibility"
     ShowSolverState = "view3d.slvs_show_solver_state"
     Solve = "view3d.slvs_solve"
     Update = "view3d.slvs_update"
-    Test = "view3d.slvs_test"
     Trim = "view3d.slvs_trim"
+    Bevel = "view3d.slvs_bevel"
     Tweak = "view3d.slvs_tweak"
     TweakConstraintValuePos = "view3d.slvs_tweak_constraint_value_pos"
     UnregisterDrawCB = "view3d.slvs_unregister_draw_cb"
@@ -93,3 +95,20 @@ class WorkSpaceTools(str, Enum):
     AddWorkplaneFace = "sketcher.slvs_add_workplane_face"
     Select = "sketcher.slvs_select"
     Trim = "sketcher.slvs_trim"
+    Bevel = "sketcher.slvs_bevel"
+
+
+ConstraintOperators = (
+    Operators.AddDistance,
+    Operators.AddDiameter,
+    Operators.AddAngle,
+    Operators.AddCoincident,
+    Operators.AddEqual,
+    Operators.AddVertical,
+    Operators.AddHorizontal,
+    Operators.AddParallel,
+    Operators.AddPerpendicular,
+    Operators.AddTangent,
+    Operators.AddMidPoint,
+    Operators.AddRatio,
+)

@@ -3,11 +3,11 @@ that either of those use the same [interaction system](interaction_system.md).
 
 
 ## Generic Tools
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_sketch
+::: CAD_Sketcher.operators.add_sketch.View3D_OT_slvs_add_sketch
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_delete_entity
+::: CAD_Sketcher.operators.delete_entity.View3D_OT_slvs_delete_entity
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_delete_constraint
+::: CAD_Sketcher.operators.delete_constraint.View3D_OT_slvs_delete_constraint
 
 
 ## Workspacetools
@@ -27,29 +27,38 @@ Whenever one of the addon's tools is active the tool access keymap allows to qui
 |Key|Modifier|Action|
 |:---:|---|---|
 |ESC|-   |Activate Tool: Select|
-|P|-   |Activate Tool: Add Point 2D|
-|L|-   |Activate Tool: Add Line 2D|
-|C|-   |Activate Tool: Add Circle|
-|A|-   |Activate Tool: Add Arc|
-|R|-   |Activate Tool: Add Rectangle|
-|S|-   |Activate Tool: Add Sketch|
+|P|-   |Invoke Tool: Add Point 2D|
+|L|-   |Invoke Tool: Add Line 2D|
+|C|-   |Invoke Tool: Add Circle|
+|A|-   |Invoke Tool: Add Arc|
+|R|-   |Invoke Tool: Add Rectangle|
+|S|-   |Invoke Tool: Add Sketch|
+|Y|-   |Invoke Tool: Trim|
 
-**Constraints:**
+**Dimensional Constraints:**
 
 |Key|Modifier|Action|
 |---|---|---|
-|Shift + D|-   |Distance|
-|Shift + A|-   |Angle|
-|Shift + O|-   |Diameter|
-|Shift + C|-   |Coincident|
-|Shift + V|-   |Vertical|
-|Shift + H|-   |Horizontal|
-|Shift + E|-   |Equal|
-|Shift + P|-   |Parallel|
-|Shift + N|-   |Perpendicular|
-|Shift + T|-   |Tangent|
-|Shift + M|-   |Midpoint|
-|Shift + R|-   |Ratio|
+|D|Alt   |Distance|
+|V|Alt   |Vertical Distance|
+|H|Alt   |Horizontal Distance|
+|A|Alt   |Angle|
+|O|Alt   |Diameter|
+|R|Alt   |Radius|
+
+**Geometric Constraints:**
+
+|Key|Modifier|Action|
+|---|---|---|
+|C|Shift   |Coincident|
+|V|Shift   |Vertical|
+|H|Shift   |Horizontal|
+|E|Shift   |Equal|
+|P|Shift   |Parallel|
+|N|Shift   |Perpendicular|
+|T|Shift   |Tangent|
+|M|Shift   |Midpoint|
+|R|Shift   |Ratio|
 
 ### Basic Tool Keymap
 The basic tool interaction is consistent between tools.
@@ -69,30 +78,47 @@ The basic tool interaction is consistent between tools.
 |0-9|-|Activate numeric edit|
 |Minus(-)|-|Toggle between positive and negative values|
 
+### Selection tools
+::: CAD_Sketcher.operators.select.View3D_OT_slvs_select
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_select
+::: CAD_Sketcher.operators.select.View3D_OT_slvs_select_all
+
+::: CAD_Sketcher.operators.select.View3D_OT_slvs_select_invert
+
+::: CAD_Sketcher.operators.select.View3D_OT_slvs_select_extend
+
+::: CAD_Sketcher.operators.select.View3D_OT_slvs_select_extend_all
+
 **Keymap:**
 
 |Key|Modifier|Action|
 |---|---|---|
 |LMB|-   |Toggle Select|
 |ESC|-   |Deselect All|
-
+|I|Ctrl |Inverse selection|
+|E|Ctrl |Extend selection in chain|
+|E|Ctrl+Shift   |Select full chain|
 
 > **INFO:** LMB in empty space will also deselect all.
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_point3d
+> **INFO:** Chain selection works with coincident constraints too
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_line3d
+::: CAD_Sketcher.operators.add_point_3d.View3D_OT_slvs_add_point3d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_point2d
+::: CAD_Sketcher.operators.add_line_3d.View3D_OT_slvs_add_line3d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_line2d
+::: CAD_Sketcher.operators.add_point_2d.View3D_OT_slvs_add_point2d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_circle2d
+::: CAD_Sketcher.operators.add_line_2d.View3D_OT_slvs_add_line2d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_arc2d
+::: CAD_Sketcher.operators.add_circle.View3D_OT_slvs_add_circle2d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_rectangle
+::: CAD_Sketcher.operators.add_arc.View3D_OT_slvs_add_arc2d
 
-::: CAD_Sketcher.operators.View3D_OT_slvs_add_workplane
+::: CAD_Sketcher.operators.add_rectangle.View3D_OT_slvs_add_rectangle
+
+::: CAD_Sketcher.operators.add_workplane.View3D_OT_slvs_add_workplane
+
+::: CAD_Sketcher.operators.add_workplane.View3D_OT_slvs_add_workplane_face
+
+::: CAD_Sketcher.operators.trim.View3D_OT_slvs_trim

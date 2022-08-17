@@ -1,7 +1,7 @@
 bl_info = {
     "name": "CAD Sketcher",
     "author": "hlorus",
-    "version": (0, 24, 0),
+    "version": (0, 25, 0),
     "blender": (2, 80, 0),
     "location": "View3D > Toolbar",
     "description": "Parametric, constraint-based geometry sketcher",
@@ -11,106 +11,29 @@ bl_info = {
     "tracker_url": "https://github.com/hlorus/CAD_Sketcher/discussions/categories/announcements",
 }
 
-if "bpy" in locals():
-    import importlib
-
-    my_modules = (
-        theme,
-        preferences,
-        functions,
-        global_data,
-        gizmos,
-        operators,
-        workspacetools,
-        class_defines,
-        ui,
-        install,
-        icon_manager,
-        keymaps,
-    )
-    for m in my_modules:
-        importlib.reload(m)
-else:
-    import bpy
-    from . import (
-        preferences,
-        functions,
-        global_data,
-        gizmos,
-        operators,
-        workspacetools,
-        class_defines,
-        ui,
-        install,
-        theme,
-        icon_manager,
-        keymaps,
-    )
-
-from tempfile import gettempdir
-from pathlib import Path
-
 import logging
 
+from . import icon_manager, global_data
+from .registration import register_base, unregister_base, register_full, unregister_full
+from .utilities.install import check_module
+from .utilities.register import cleanse_modules
+from .utilities.presets import ensure_addon_presets
+from .utilities.logging import setup_logger, update_logger
+
+
+# Globals
 logger = logging.getLogger(__name__)
 
-# Clear handlers
-if logger.hasHandlers():
-    logger.handlers.clear()
-
-logger.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(name)s:{%(levelname)s}: %(message)s")
-
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(formatter)
-logger.addHandler(stream_handler)
-
-filepath = Path(gettempdir()) / (__name__ + ".log")
-
-logger.info("Logging into: " + str(filepath))
-file_handler = logging.FileHandler(filepath, mode="w")
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-
-
-
-def update_logger():
-    prefs = functions.get_prefs()
-    logger.setLevel(prefs.logging_level)
-
-
-def ensure_addon_presets(force_write=False):
-    import os
-    import shutil
-    import sys
-
-    scripts_folder = bpy.utils.user_resource("SCRIPTS")
-    presets_dir = os.path.join(scripts_folder, "presets", "bgs")
-
-    is_existing = True
-    if not os.path.isdir(presets_dir):
-        is_existing = False
-
-    if force_write or not is_existing:
-        bundled_presets = os.path.join(os.path.dirname(__file__), "presets")
-        files = os.listdir(bundled_presets)
-
-        kwargs = {}
-        if sys.version_info >= (3, 8):
-            kwargs = {"dirs_exist_ok": True}
-
-        shutil.copytree(bundled_presets, presets_dir, **kwargs)
-
-        logger.info("Copy addon presets to: " + presets_dir)
-
-
 def register():
+
+    # Setup root logger
+    setup_logger(logger)
+
     # Register base
     ensure_addon_presets()
-    theme.register()
-    preferences.register()
-    install.register()
-    update_logger()
+    register_base()
+
+    update_logger(logger)
     icon_manager.load()
 
     logger.info(
@@ -119,20 +42,23 @@ def register():
 
     # Check Module and register all modules
     try:
-        install.check_module()
+        check_module("py_slvs")
+        register_full()
+
+        global_data.registered = True
         logger.info("Solvespace available, fully registered modules")
-    except ModuleNotFoundError:
+    except ModuleNotFoundError as e:
+        global_data.registered = False
         logger.warning(
-            "Solvespace module isn't available, only base modules registered"
+            "Solvespace module isn't available, only base modules registered\n"
+            + str(e)
         )
 
 
 def unregister():
-    install.unregister()
-    preferences.unregister()
-    theme.unregister()
+    if global_data.registered:
+        unregister_full()
 
-    if not global_data.registered:
-        return
+    unregister_base()
 
-    install.unregister_full()
+    cleanse_modules(__package__)

@@ -11,13 +11,18 @@ icons = {}
 
 def coords_from_icon(data, range_x=255, range_y=255):
     length = len(data)
+    # Take the 1st third of the data
     geometry_data = data[:length // 3]
+    # Cut geometry_data into chunks of 6 bytes
     tris = [geometry_data[i*6:(i+1)*6] for i in range(len(geometry_data) // 6)]
 
     coords = []
     indices = []
     for i, tri in enumerate(tris):
         v1 = tri[0:2]
+        # split the 6 Byte chunk into 2 Byte chunks
+        # Each 2 Byte chunk represent the xy coordinates
+        # of triangles to render for the icon
         verts = [tri[i*2:(i+1)*2] for i in range(3)]
 
         indices.append([])
@@ -68,7 +73,7 @@ def load():
     if background:
         return
     # Read icons from filepath and store as python data(batch?) for easy access
-    filepath = Path(Path(__file__).parent, "icons")
+    filepath = Path(Path(__file__).parent, "ressources/icons")
 
     for icon in filepath.iterdir():
         read_icon(icon)

@@ -1,13 +1,7 @@
 import bpy
 
 from .declarations import Operators, WorkSpaceTools
-
-def tool_invoke_kmi(button, tool, operator):
-    return (
-        Operators.InvokeTool,
-        {"type": button, "value": "PRESS"},
-        {"properties": [("tool_name", tool), ("operator", operator)]},
-    )
+from .stateful_operator.utilities.keymap import tool_invoke_kmi
 
 constraint_access = (
     (
@@ -120,6 +114,11 @@ tool_access = (
         WorkSpaceTools.Trim,
         Operators.Trim,
     ),
+    tool_invoke_kmi(
+        "B",
+        WorkSpaceTools.Bevel,
+        Operators.Bevel,
+    ),
     (
         Operators.AddSketch,
         {"type": "S", "value": "PRESS"},
@@ -129,43 +128,6 @@ tool_access = (
 )
 
 addon_keymaps = []
-
-def get_key_map_desc(id_name1, id_name2=None, filter_func=None) -> str:
-    key_maps = []
-    for key_map in tool_access:
-        if key_map[0] == id_name1:
-            if not filter_func or filter_func(id_name2, key_map):
-                key_maps.append(key_map)
-
-    key_map_count = len(key_maps)
-    if key_map_count == 0:
-        return ""
-    
-    def _append_key_map_modifier(key_map, key_map_info, modifer, modifer_name):
-        if modifer in key_map_info and key_map_info[modifer]:
-            key_map = f"{key_map}{modifer_name} + "
-        return key_map
-
-    def _get_key_map(key_map_info):
-        key_map = ""
-        key_map_type = key_map_info["type"]
-        key_map = _append_key_map_modifier(key_map, key_map_info, "ctl", "Ctrl")
-        key_map = _append_key_map_modifier(key_map, key_map_info, "alt", "Alt")
-        key_map = _append_key_map_modifier(key_map, key_map_info, "shift", "Shift")
-        key_map = f"{key_map}{key_map_type}"
-
-        return key_map
-
-    final_key_map_desc = ""
-    for key_map in key_maps:
-        key_map_info = key_map[1]
-        key_map_desc = _get_key_map(key_map_info)
-        if len(final_key_map_desc) > 0:
-            final_key_map_desc = f"{final_key_map_desc}, {key_map_desc}"
-        else:
-            final_key_map_desc = key_map_desc
-    
-    return f" ({final_key_map_desc})" if final_key_map_desc else ""
 
 
 def register():

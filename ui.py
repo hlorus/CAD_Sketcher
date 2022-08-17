@@ -1,8 +1,9 @@
 import bpy
 from bpy.types import Panel, Menu, UIList, Context, UILayout
 
-from . import functions, class_defines, operators
-from .declarations import Menus, Operators, Panels
+from . import functions, class_defines
+from .declarations import Menus, Operators, Panels, ConstraintOperators
+from .stateful_operator.constants import Operators as StatefulOperators
 
 
 class VIEW3D_UL_sketches(UIList):
@@ -106,6 +107,9 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             row = layout.row()
             row.prop(sketch, "name")
             layout.prop(sketch, "convert_type")
+
+            if sketch.convert_type == "MESH":
+                layout.prop(sketch, "curve_resolution")
             if sketch.convert_type != "NONE":
                 layout.prop(sketch, "fill_shape")
 
@@ -136,12 +140,13 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
         layout.operator(Operators.Solve)
         layout.operator(Operators.Solve, text="Solve All").all = True
 
-        layout.operator(Operators.Test)
+        layout.operator(StatefulOperators.Test)
         layout.prop(context.scene.sketcher, "show_origin")
         layout.prop(prefs, "hide_inactive_constraints")
         layout.prop(prefs, "all_entities_selectable")
         layout.prop(prefs, "force_redraw")
         layout.prop(context.scene.sketcher, "selectable_constraints")
+        layout.prop(prefs, "use_align_view")
 
     @classmethod
     def poll(cls, context: Context):
@@ -158,8 +163,8 @@ class VIEW3D_PT_sketcher_add_constraints(VIEW3D_PT_sketcher_base):
         layout = self.layout
         layout.label(text="Constraints:")
         col = layout.column(align=True)
-        for op in operators.constraint_operators:
-            col.operator(op.bl_idname)
+        for op in ConstraintOperators:
+            col.operator(op)
 
 
 class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
@@ -206,6 +211,9 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
                 emboss=False,
             )
 
+            # Middle Part
+            sub = row.row()
+            sub.alignment = "LEFT"
             sub.prop(e, "name", text="")
 
             # Right part
@@ -230,6 +238,67 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             props.index = e.slvs_index
             props.highlight_hover = True
 
+            # Props
+            if e.props:
+                row_props = col.row()
+                row_props.alignment = "RIGHT"
+                for entity_prop in e.props:
+                    row_props.prop(e, entity_prop, text="")
+                col.separator()
+
+
+def draw_constraint_listitem(context, layout, constraint):
+    index = context.scene.sketcher.constraints.get_index(constraint)
+    row = layout.row()
+
+    # Left part
+    sub = row.row(align=True)
+    sub.alignment = "LEFT"
+
+    sub.prop(
+        constraint,
+        "visible",
+        icon_only=True,
+        icon=("HIDE_OFF" if constraint.visible else "HIDE_ON"),
+        emboss=False,
+    )
+
+    # Failed hint
+    sub.label(
+        text="", icon=("ERROR" if constraint.failed else "CHECKMARK"),
+    )
+
+    # Middle Part
+    sub = row.row()
+    sub.alignment = "LEFT"
+
+    # Label
+    sub.prop(constraint, "name", text="")
+
+    # Dimensional Constraint Values
+    for constraint_prop in constraint.props:
+        sub.prop(constraint, constraint_prop, text="")
+
+    # Right part
+    sub = row.row()
+    sub.alignment = "RIGHT"
+
+    # Context menu, shows constraint name
+    props = sub.operator(Operators.ContextMenu, text="", icon="OUTLINER_DATA_GP_LAYER", emboss=False)
+    props.type = constraint.type
+    props.index = index
+    props.highlight_hover = True
+    props.highlight_active = True
+    props.highlight_members = True
+
+    # Delete operator
+    props = sub.operator(
+        Operators.DeleteConstraint, text="", icon="X", emboss=False,
+    )
+    props.type = constraint.type
+    props.index = index
+    props.highlight_hover = True
+    props.highlight_members = True
 
 class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
     bl_label = "Constraints"
@@ -238,55 +307,34 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
 
     def draw(self, context: Context):
         layout = self.layout
+
+        # Visibility Operators
+        col = layout.column(align=True)
+        col.operator_enum(Operators.SetAllConstraintsVisibility, "visibility")
+
+        # Dimensional Constraints
+        layout.label(text="Dimensional:")
         box = layout.box()
         col = box.column(align=True)
         col.scale_y = 0.8
 
-        layout.operator_enum(Operators.SetAllConstraintsVisibility, "visibility")
-
         sketch = context.scene.sketcher.active_sketch
-        for c in context.scene.sketcher.constraints.all:
+        for c in context.scene.sketcher.constraints.dimensional:
             if not c.is_active(sketch):
                 continue
-            row = col.row()
+            draw_constraint_listitem(context, col, c)
 
-            # Left part
-            sub = row.row()
-            sub.alignment = "LEFT"
+        # Geometric Constraints
+        layout.label(text="Geometric:")
+        box = layout.box()
+        col = box.column(align=True)
+        col.scale_y = 0.8
 
-            sub.prop(
-                c,
-                "visible",
-                icon_only=True,
-                icon=("HIDE_OFF" if c.visible else "HIDE_ON"),
-                emboss=False,
-            )
-
-            # Failed hint
-            sub.label(
-                text="", icon=("ERROR" if c.failed else "CHECKMARK"),
-            )
-
-            index = context.scene.sketcher.constraints.get_index(c)
-
-            # Context menu, shows constraint name
-            props = sub.operator(Operators.ContextMenu, text=str(c), emboss=False,)
-            props.type = c.type
-            props.index = index
-            props.highlight_hover = True
-            props.highlight_active = True
-
-            # Right part
-            sub = row.row()
-            sub.alignment = "RIGHT"
-
-            # Delete operator
-            props = sub.operator(
-                Operators.DeleteConstraint, text="", icon="X", emboss=False,
-            )
-            props.type = c.type
-            props.index = index
-            props.highlight_hover = True
+        sketch = context.scene.sketcher.active_sketch
+        for c in context.scene.sketcher.constraints.geometric:
+            if not c.is_active(sketch):
+                continue
+            draw_constraint_listitem(context, col, c)
 
 
 class VIEW3D_MT_sketches(Menu):

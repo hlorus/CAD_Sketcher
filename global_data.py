@@ -6,7 +6,6 @@ registered = False
 
 PYPATH = sys.executable
 
-
 entities = {}
 batches = {}
 
