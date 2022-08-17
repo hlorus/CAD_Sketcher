@@ -134,3 +134,5 @@ notes.md
 # Utilities
 utils/*
 
+# USERBASE paths into which pip will install dependencies
+Python*/

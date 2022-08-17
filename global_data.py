@@ -1,10 +1,21 @@
+import os
 import sys
 from enum import Enum
+from pathlib import Path
+
 from mathutils import Vector
 
 registered = False
 
 PYPATH = sys.executable
+
+# Custom userbase for this addon.
+# Python will make a subfolder of this
+# where dependencies will be installed.
+CUSTOM_USER_BASE = str((Path(__file__).parent).resolve())
+
+# Add CUSTOM_USER_SITE to PYTHONUSERBASE for subprocesses to use
+env_vars = {**dict(os.environ), "PYTHONUSERBASE": CUSTOM_USER_BASE}
 
 entities = {}
 batches = {}
