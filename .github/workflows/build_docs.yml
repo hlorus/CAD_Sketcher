@@ -18,8 +18,7 @@ jobs:
         with:
           python-version: '3.10'
           cache: "pip"
-      - run: pip install markdown mkdocs lightgallery mkdocs-material mkdocstrings mkdocs-autorefs
-      - run: pip show lightgallery
+      - run: pip install markdown mkdocs mkdocs-material mkdocstrings mkdocs-autorefs
 
       - run: python -V
       - run: which python

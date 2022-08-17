@@ -19,7 +19,6 @@ nav:
 
 plugins:
   - search
-  - autorefs
   - mkdocstrings:
         handlers:
           python:
@@ -34,7 +33,6 @@ plugins:
               show_signature_annotations: false
 
 markdown_extensions:
-    - lightgallery
     - attr_list
     - pymdownx.emoji
     - pymdownx.superfences
