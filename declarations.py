@@ -2,6 +2,29 @@
 from enum import Enum
 
 
+# class Entities(str, Enum):
+#     Point3D = "SlvsPoint3D"
+#     Line3D = "SlvsLine3D"
+#     Normal3D = "SlvsNormal3D"
+#     Workplane = "SlvsWorkplane"
+#     Sketch = "SlvsSketch"
+#     Point2D = "SlvsPoint2D"
+#     Line2D = "SlvsLine2D"
+#     Normal2D = "SlvsNormal2D"
+#     Arc = "SlvsArc"
+#     Circle = "SlvsCircle"
+
+
+# class EntityCategories(tuple, Enum):
+#     Point3D = "POINT3D"
+#     Point2D = "POINT2D"
+#     Normal3D = "NORMAL3D"
+#     Point = "POINT"
+#     Line = "LINE"
+#     Curve = "CURVE"
+#     Segment = "SEGMENT"
+
+
 class Gizmos(str, Enum):
     Angle = "VIEW3D_GT_slvs_angle"
     Constraint = "VIEW3D_GT_slvs_constraint"
