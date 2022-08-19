@@ -575,6 +575,12 @@ class SlvsNormal3D(Normal3D, PropertyGroup):
         orientation (Quaternion): A quaternion which describes the rotation
     """
 
+    def get_orientation(self):
+        return getattr(self, "orientation").to_euler()
+
+    def set_orientation(self, value):
+        self["orientation"] = Euler(value).to_quaternion()
+
     orientation: FloatVectorProperty(
         name="Orientation",
         description="Quaternion which describes the orientation of the normal",
@@ -582,7 +588,21 @@ class SlvsNormal3D(Normal3D, PropertyGroup):
         size=4,
         update=SlvsGenericEntity.tag_update,
     )
-    pass
+    ui_orientation: FloatVectorProperty(
+        name="Orientation",
+        subtype="EULER",
+        size=3,
+        get=get_orientation,
+        set=set_orientation,
+        options={"SKIP_SAVE"},
+        update=SlvsGenericEntity.tag_update,
+    )
+    props = ("ui_orientation",)
+
+    def draw_props(self, layout):
+        sub = super().draw_props(layout)
+        sub.prop(self, "ui_orientation")
+        return sub
 
 
 def get_face_orientation(mesh, face):
@@ -693,6 +713,11 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         quat = self.nm.orientation
         v.rotate(quat)
         return v
+
+    def draw_props(self, layout):
+        # Display the normals props as they're not drawn in the viewport
+        sub = self.nm.draw_props(layout)
+        return sub
 
 
 slvs_entity_pointer(SlvsWorkplane, "p1")
