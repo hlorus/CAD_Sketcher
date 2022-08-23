@@ -123,7 +123,7 @@ class SlvsGenericEntity:
 
     @property
     def py_data(self):
-        return global_data.entities[self.slvs_index]
+        return global_data.entities.get(self.slvs_index, None)
 
     @py_data.setter
     def py_data(self, handle):
@@ -286,9 +286,14 @@ class SlvsGenericEntity:
         gpu.shader.unbind()
         self.restore_opengl_defaults()
 
-    def create_slvs_data(self, solvesys):
-        """Create a solvespace entity from parameters"""
-        raise NotImplementedError
+    def create_slvs_data(self, solvesys, *args, **kwargs):
+        """Create a solvespace entity from parameters
+        Also makes sure that all the dependencies have their data generated.
+        """
+        for e in self.dependencies():
+            if isinstance(e, SlvsGenericEntity) and not getattr(e, "py_data", None):
+                e._create_slvs_data(solvesys)
+        return self._create_slvs_data(solvesys, *args, **kwargs)
 
     def update_from_slvs(self, solvesys):
         """Update parameters from the solvespace entity"""
@@ -448,17 +453,15 @@ class Point3D(SlvsGenericEntity):
     def placement(self):
         return self.location
 
-    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
+    def _create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
         if not coords:
             coords = self.location
 
-        self.params = [solvesys.addParamV(v, group) for v in coords]
-
-        handle = solvesys.addPoint3d(*self.params, group=group)
+        handle = solvesys.add_point_3d(*coords)
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        coords = [solvesys.getParam(i).val for i in self.params]
+        coords = solvesys.params(self.py_data.params)
         self.location = coords
 
     def closest_picking_point(self, origin, view_vector):
@@ -526,8 +529,8 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
 
         self.is_dirty = False
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)
+    def _create_slvs_data(self, solvesys, group=Solver.group_fixed):
+        handle = solvesys.add_line_3d(self.p1.py_data, self.p2.py_data)
         self.py_data = handle
 
     def closest_picking_point(self, origin, view_vector):
@@ -558,9 +561,9 @@ class Normal3D(SlvsGenericEntity):
     def draw_id(self, context: Context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def _create_slvs_data(self, solvesys, group=Solver.group_fixed):
         quat = self.orientation
-        handle = solvesys.addNormal3dV(quat.w, quat.x, quat.y, quat.z, group=group)
+        handle = solvesys.add_normal_3d(quat.w, quat.x, quat.y, quat.z)
         self.py_data = handle
 
 
@@ -698,8 +701,8 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             gpu.matrix.scale(Vector((scale, scale, scale)))
             super().draw_id(context)
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addWorkplane(self.p1.py_data, self.nm.py_data, group=group)
+    def _create_slvs_data(self, solvesys, group=Solver.group_fixed):
+        handle = solvesys.add_work_plane(self.p1.py_data, self.nm.py_data)
         self.py_data = handle
 
     @property
@@ -792,7 +795,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     def draw_id(self, context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def _create_slvs_data(self, solvesys, group=Solver.group_fixed):
         pass
 
     def remove_objects(self):
@@ -856,18 +859,16 @@ class Point2D(SlvsGenericEntity, Entity2D):
     def placement(self):
         return self.location
 
-    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
+    def _create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
         if not coords:
             coords = self.co
-
-        self.params = [solvesys.addParamV(v, group) for v in coords]
-
-        handle = solvesys.addPoint2d(self.wp.py_data, *self.params, group=group)
+        handle = solvesys.add_point_2d(*coords, self.wp.py_data)
+        # self.params = handle.params
+        # handle = solvesys.addPoint2d(self.wp.py_data, *self.params)
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        coords = [solvesys.getParam(i).val for i in self.params]
-        self.co = coords
+        self.co = solvesys.params(self.py_data.params)
 
     def closest_picking_point(self, origin, view_vector):
         """Returns the point on this entity which is closest to the picking ray"""
@@ -900,10 +901,10 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         ]
 
     def tweak(self, solvesys, pos, group):
-        wrkpln = self.sketch.wp
-        u, v, _ = wrkpln.matrix_basis.inverted() @ pos
+        wp = self.sketch.wp
+        u, v, _ = wp.matrix_basis.inverted() @ pos
 
-        self.create_slvs_data(solvesys, group=group)
+        self.create_slvs_data(solvesys)
 
         # NOTE: When simply initializing the point on the tweaking positions
         # the solver fails regularly, addWhereDragged fixes a point and might
@@ -916,16 +917,14 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         tweak_vec = tweak_pos - orig_pos
         perpendicular_vec = Vector((tweak_vec[1], -tweak_vec[0]))
 
-        params = [solvesys.addParamV(val, group) for val in (u, v)]
-        startpoint = solvesys.addPoint2d(wrkpln.py_data, *params, group=group)
+        startpoint = solvesys.add_point_2d(u, v, wp=wp.py_data)
 
         p2 = tweak_pos + perpendicular_vec
-        params = [solvesys.addParamV(val, group) for val in (p2.x, p2.y)]
-        endpoint = solvesys.addPoint2d(wrkpln.py_data, *params, group=group)
+        endpoint = solvesys.add_point_2d(u, v, wp=wp.py_data)
 
-        edge = solvesys.addLineSegment(startpoint, endpoint, group=group)
+        edge = solvesys.add_line_2d(startpoint, endpoint, self.wp.py_data)
         make_coincident(
-            solvesys, self.py_data, edge, wrkpln.py_data, group, entity_type=SlvsLine2D
+            solvesys, self.py_data, edge, wp.py_data, group, entity_type=SlvsLine2D
         )
 
     def draw_props(self, layout):
@@ -992,8 +991,8 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         self._batch = batch_for_shader(self._shader, "LINES", kwargs)
         self.is_dirty = False
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)
+    def _create_slvs_data(self, solvesys, group=Solver.group_fixed):
+        handle = solvesys.add_line_2d(self.p1.py_data, self.p2.py_data, self.wp.py_data)
         self.py_data = handle
 
     def closest_picking_point(self, origin, view_vector):
@@ -1171,8 +1170,8 @@ class SlvsNormal2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     def draw_id(self, context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addNormal2d(self.wp.py_data, group=group)
+    def _create_slvs_data(self, solvesys, group=Solver.group_fixed):
+        handle = solvesys.add_normal_2d(self.wp.py_data)
         self.py_data = handle
 
 
@@ -1310,15 +1309,14 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
         self.is_dirty = False
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addArcOfCircle(
-            self.wp.py_data,
+    def _create_slvs_data(self, solvesys, group=Solver.group_fixed):
+        self.py_data = solvesys.add_arc(
+            self.nm.py_data,
             self.ct.py_data,
             self.start.py_data,
             self.end.py_data,
-            group=group,
+            self.wp.py_data,
         )
-        self.py_data = handle
 
     @property
     def radius(self):
@@ -1624,25 +1622,24 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
         self.is_dirty = False
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        self.param = solvesys.addParamV(self.radius, group)
+    def _create_slvs_data(self, solvesys, group=Solver.group_fixed):
+        # self.param = solvesys.addParamV(self.radius, group)
 
-        nm = None
         if self.nm != -1:
             nm = self.nm
         else:
             nm = self.wp.nm
-
-        handle = solvesys.addCircle(
-            self.ct.py_data,
+        self._radius = solvesys.add_distance(self.radius, self.wp.py_data)
+        entity = solvesys.add_circle(
             self.nm.py_data,
-            solvesys.addDistance(self.param),
-            group=group,
+            self.ct.py_data,
+            self._radius,
+            self.wp.py_data
         )
-        self.py_data = handle
+        self.py_data = entity
 
     def update_from_slvs(self, solvesys):
-        self.radius = solvesys.getParam(self.param).val
+        self.radius = solvesys.params(self._radius.params)[0]
 
     def point_on_curve(self, angle):
         return functions.pol2cart(self.radius, angle) + self.ct.co
@@ -2198,7 +2195,7 @@ class GenericConstraint:
     def __str__(self):
         return self.label
 
-    def get_workplane(self):
+    def get_workplane(self): # -> python_solvespace.slvs.Entity:
         # NOTE: this could also check through the constraints entity workplanes
         needs_wp = self.needs_wp()
 
@@ -2342,34 +2339,23 @@ class GenericConstraint:
 # NOTE: When tweaking, it's necessary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
 def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
-    func = None
-    set_wp = False
-
     if entity_type:
         handle = e2
     else:
         entity_type = type(e2)
         handle = e2.py_data
 
-    if entity_type in line:
-        func = solvesys.addPointOnLine
-        set_wp = True
-    elif entity_type in curve:
-        func = solvesys.addPointOnCircle
-    elif entity_type == SlvsWorkplane:
-        func = solvesys.addPointInPlane
-    elif entity_type in point:
-        func = solvesys.addPointsCoincident
-        set_wp = True
+    if isinstance(e2, curve):
+        # Has to use the C Enum Flag for the constraint, as it hasn't been fixed.
+        # See https://github.com/KmolYuan/solvespace/blob/python/cython/python_solvespace/slvs.pyx#L729
+        # Doc solvesystem: https://github.com/solvespace/solvespace/blob/master/exposed/DOC.txt#L376
+        from python_solvespace import Constraint, Entity 
+        _E_NONE = Entity() # empty entities
+        return solvesys.add_constraint(Constraint.PT_ON_CIRCLE, wp, 0., point_handle, _E_NONE, handle, _E_NONE)
+    if entity_type != SlvsWorkplane:
+        kwargs = {"wp": wp}
 
-    kwargs = {
-        "group": group,
-    }
-
-    if set_wp:
-        kwargs["wrkpln"] = wp
-
-    return func(point_handle, handle, **kwargs)
+    return solvesys.coincident(point_handle, handle, **kwargs)
 
 
 class SlvsCoincident(GenericConstraint, PropertyGroup):
@@ -2436,6 +2422,7 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
         return cls.signature[index]
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+        from python_solvespace import Constraint
         # TODO: Don't allow to add Equal between Line and Circle
         e1, e2 = self.entity1, self.entity2
 
@@ -2443,21 +2430,21 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
         set_wp = False
 
         if all([type(e) in line for e in (e1, e2)]):
-            func = solvesys.addEqualLength
+            func = partial(solvesys.add_constraint, Constraint.EQUAL_LENGTH_LINES)
             set_wp = True
         elif all([type(e) in curve for e in (e1, e2)]):
-            func = solvesys.addEqualRadius
+            func = partial(solvesys.add_constraint, Constraint.EQUAL_RADIUS)
         else:
             # TODO: Do a proper check to see if there's really one Arc and one Line
-            func = solvesys.addEqualLineArcLength
+            func = partial(solvesys.add_constraint, Constraint.EQUAL_LINE_ARC_LEN)
             set_wp = True
-
+        partial()
         kwargs = {
             "group": group,
         }
 
         if set_wp:
-            kwargs["wrkpln"] = self.get_workplane()
+            kwargs["wp"] = self.get_workplane()
 
         return func(e1.py_data, e2.py_data, **kwargs)
 
@@ -2562,8 +2549,6 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         if e1.is_line():
             e1, e2 = e1.p1, e1.p2
 
-        func = None
-        set_wp = False
         wp = self.get_workplane()
         alignment = self.align
         align = self.use_align() and alignment != "NONE"
@@ -2572,58 +2557,34 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         value = self.get_value()
 
         # circle/arc -> line/point
-        if type(e1) in curve:
+        if isinstance(e1, curve):
             # TODO: make Horizontal and Vertical alignment work
-            if type(e2) in line:
-                return solvesys.addPointLineDistance(
-                    value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
+            if isinstance(e2, line) or isinstance(e2, SlvsPoint2D):
+                return solvesys.distance(
+                    e1.ct.py_data, e2.py_data, value + e1.radius, wp
                 )
             else:
-                assert isinstance(e2, SlvsPoint2D)
-                return solvesys.addPointsDistance(
-                    value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
-                )
+                raise NotImplementedError()
+        # elif isinstance(e2, point):
+        #     if align and all([e.is_2d() for e in (e1, e2)]):
+        #         # Get Point in between
+        #         p1, p2 = e1.co, e2.co
 
-        elif type(e2) in line:
-            func = solvesys.addPointLineDistance
-            set_wp = True
-        elif isinstance(e2, SlvsWorkplane):
-            func = solvesys.addPointPlaneDistance
-        elif type(e2) in point:
-            if align and all([e.is_2d() for e in (e1, e2)]):
-                # Get Point in between
-                p1, p2 = e1.co, e2.co
-                coords = (p2.x, p1.y)
+        #         p = solvesys.add_point_2d(p2.x, p1.y, wp)
 
-                params = [solvesys.addParamV(v, group) for v in coords]
-                p = solvesys.addPoint2d(wp, *params, group=group)
+        #         base_point = e1 if alignment == "VERTICAL" else e2
+        #         return [
+        #             solvesys.addPointsHorizontal(p, e2.py_data, wp),
+        #             solvesys.addPointsVertical(p, e1.py_data, wp),
+        #             solvesys.distance_proj( p, base_point.py_data, value, wp),
+        #         ]
 
-                handles.append(
-                    solvesys.addPointsHorizontal(p, e2.py_data, wp, group=group)
-                )
-                handles.append(
-                    solvesys.addPointsVertical(p, e1.py_data, wp, group=group)
-                )
+        # kwargs = {
+        #     "group": group,
+        # }
+        kwargs = {} if isinstance(e2, SlvsWorkplane) else {"wp": self.get_workplane()}
 
-                base_point = e1 if alignment == "VERTICAL" else e2
-                handles.append(
-                    solvesys.addPointsDistance(
-                        value, p, base_point.py_data, wrkpln=wp, group=group
-                    )
-                )
-                return handles
-            else:
-                func = solvesys.addPointsDistance
-            set_wp = True
-
-        kwargs = {
-            "group": group,
-        }
-
-        if set_wp:
-            kwargs["wrkpln"] = self.get_workplane()
-
-        return func(value, e1.py_data, e2.py_data, **kwargs)
+        return solvesys.distance(e1.py_data, e2.py_data, value, **kwargs)
 
     def matrix_basis(self):
         if self.sketch_i == -1 or not self.entity1.is_2d():
@@ -2862,7 +2823,8 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         return WpReq.OPTIONAL
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        return solvesys.addDiameter(self.diameter, self.entity1.py_data, group=group)
+        return solvesys.diamter(self.diameter, self.entity1.py_data)
+        # return solvesys.addDiameter(self.diameter, self.entity1.py_data)
 
     def init_props(self, **kwargs):
         # Get operators setting value
@@ -2956,14 +2918,13 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         }
 
         wp = self.get_workplane()
-        if wp:
-            kwargs["wrkpln"] = wp
+        kwargs = {"wp": wp} if wp else {}
 
-        return solvesys.addAngle(
-            math.degrees(self.value),
-            self.setting,
+        return solvesys.angle(
             self.entity1.py_data,
             self.entity2.py_data,
+            math.degrees(self.value),
+            inverse=self.setting,
             **kwargs,
         )
 
@@ -3075,11 +3036,11 @@ class SlvsParallel(GenericConstraint, PropertyGroup):
         return WpReq.NOT_FREE
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        return solvesys.addParallel(
+        return solvesys.parallel(
             self.entity1.py_data,
             self.entity2.py_data,
-            wrkpln=self.get_workplane(),
-            group=group,
+            wp=self.get_workplane(),
+            
         )
 
     def placements(self):
@@ -3116,10 +3077,11 @@ class SlvsHorizontal(GenericConstraint, PropertyGroup):
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         wp = self.get_workplane()
         if self.entity1.is_point():
-            return solvesys.addPointsHorizontal(
-                self.entity1.py_data, self.entity2.py_data, wp, group=group
+            return solvesys.horizontal(
+                self.entity1.py_data, self.entity2.py_data, wp=wp
             )
-        return solvesys.addLineHorizontal(self.entity1.py_data, wrkpln=wp, group=group)
+        # Documentation lies? This should work for lines in 2D too.
+        return solvesys.horizontal(self.entity1.py_data, wp=wp)
 
     def placements(self):
         return (self.entity1,)
@@ -3154,10 +3116,10 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         wp = self.get_workplane()
         if self.entity1.is_point():
-            return solvesys.addPointsVertical(
-                self.entity1.py_data, self.entity2.py_data, wp, group=group
+            return solvesys.vertical(
+                self.entity1.py_data, self.entity2.py_data, wp=wp
             )
-        return solvesys.addLineVertical(self.entity1.py_data, wrkpln=wp, group=group)
+        return solvesys.vertical(self.entity1.py_data, wp=wp)
 
     def placements(self):
         return (self.entity1,)
@@ -3181,11 +3143,11 @@ class SlvsPerpendicular(GenericConstraint, PropertyGroup):
         return WpReq.NOT_FREE
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        return solvesys.addPerpendicular(
+        return solvesys.perpendicular(
             self.entity1.py_data,
             self.entity2.py_data,
-            wrkpln=self.get_workplane(),
-            group=group,
+            wp=self.get_workplane(),
+            
         )
 
     def placements(self):
@@ -3217,46 +3179,34 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
         # check if entities share a point
         point = get_connection_point(e1, e2)
         if point and not isinstance(e2, SlvsCircle):
-            if isinstance(e2, SlvsLine2D):
-                return solvesys.addArcLineTangent(
-                    e1.direction(point),
+            if isinstance(e2, (SlvsLine2D, SlvsArc)):
+                return solvesys.tangent(
                     e1.py_data,
                     e2.py_data,
-                    group=group,
-                )
-            elif isinstance(e2, SlvsArc):
-                return solvesys.addCurvesTangent(
-                    e1.direction(point),
-                    e2.direction(point),
-                    e1.py_data,
-                    e2.py_data,
-                    wrkpln=wp,
-                    group=group,
+                    wp=wp,
                 )
 
         elif isinstance(e2, SlvsLine2D):
             orig = e2.p1.co
             coords = (e1.ct.co - orig).project(e2.p2.co - orig) + orig
-            params = [solvesys.addParamV(v, group) for v in coords]
-            p = solvesys.addPoint2d(wp, *params, group=group)
-            l = solvesys.addLineSegment(e1.ct.py_data, p, group=group)
+            p = solvesys.add_point_2d(*tuple(coords), wp)
+            l = solvesys.add_line_2d(e1.ct.py_data, p, wp=wp)
 
             return (
-                make_coincident(solvesys, p, e1, wp, group),
-                make_coincident(solvesys, p, e2, wp, group),
-                solvesys.addPerpendicular(e2.py_data, l, wrkpln=wp, group=group),
+                make_coincident(solvesys, p, e1, wp),
+                make_coincident(solvesys, p, e2, wp),
+                solvesys.perpendicular(e2.py_data, l, wp=wp),
             )
 
-        elif type(e2) in curve:
+        elif isinstance(e2, curve):
             coords = (e1.ct.co + e2.ct.co) / 2
-            params = [solvesys.addParamV(v, group) for v in coords]
-            p = solvesys.addPoint2d(wp, *params, group=group)
-            l = solvesys.addLineSegment(e1.ct.py_data, e2.ct.py_data, group=group)
+            p = solvesys.add_point_2d(*tuple(coords), wp)
+            l = solvesys.add_line_2d(e1.ct.py_data, e2.ct.py_data, wp=wp)
 
             return (
-                make_coincident(solvesys, p, e1, wp, group),
-                make_coincident(solvesys, p, e2, wp, group),
-                solvesys.addPointOnLine(p, l, group=group, wrkpln=wp),
+                make_coincident(solvesys, p, e1, wp),
+                make_coincident(solvesys, p, e2, wp),
+                solvesys.addPointOnLine(p, l, wp=wp),
             )
 
     def placements(self):
@@ -3286,7 +3236,7 @@ class SlvsMidpoint(GenericConstraint, PropertyGroup):
 
         wp = self.get_workplane()
         if wp:
-            kwargs["wrkpln"] = wp
+            kwargs["wp"] = wp
 
         return solvesys.addMidPoint(
             self.entity1.py_data,
@@ -3331,23 +3281,14 @@ class SlvsSymmetric(GenericConstraint, PropertyGroup):
         e1, e2, e3 = self.entity1, self.entity2, self.entity3
 
         # NOTE: this doesn't seem to work correctly, acts like addSymmetricVertical
-        if isinstance(e3, SlvsLine2D):
-            return solvesys.addSymmetricLine(
-                e1.py_data,
-                e2.py_data,
-                e3.py_data,
-                self.get_workplane(),
-                group=group,
-            )
-
-        elif isinstance(e3, SlvsWorkplane):
-            return solvesys.addSymmetric(
-                e1.py_data,
-                e2.py_data,
-                e3.py_data,
-                wrkpln=self.get_workplane(),
-                group=group,
-            )
+        kw = {"wp": self.get_workplane()} if isinstance(e3, SlvsLine2D) else {}
+        return solvesys.symmetric(
+            e1.py_data,
+            e2.py_data,
+            e3.py_data,
+            **kw,
+            # 
+        )
 
     def placements(self):
         return (self.entity1, self.entity2, self.entity3)
@@ -3393,7 +3334,7 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
             e1.py_data,
             e2.py_data,
             self.get_workplane(),
-            group=group,
+            
         )
 
     def init_props(self, **kwargs):

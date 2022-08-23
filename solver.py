@@ -28,11 +28,12 @@ class Solver:
         logger.info(
             "--- Start solving ---\nAll:{}, Sketch:{}, g:{}".format(all, sketch, group)
         )
-        from py_slvs import slvs
+        from python_solvespace import slvs
+        # from py_slvs import slvs
 
-        self.solvesys = slvs.System()
+        self.solvesys = slvs.SolverSystem()
 
-        self.FREE_IN_3D = slvs.SLVS_FREE_IN_3D
+        self.FREE_IN_3D = slvs.Entity.FREE_IN_3D
         self.sketch = sketch
 
         self.ok = True
@@ -75,30 +76,28 @@ class Solver:
                     e.tweak(self.solvesys, self.tweak_pos, group)
                 else:
                     if not self.sketch:
-                        params = [
-                            self.solvesys.addParamV(val, group)
-                            for val in self.tweak_pos
-                        ]
-                        p = self.solvesys.addPoint3d(*params, group=group)
+                        # params = [
+                        #     self.solvesys.addParamV(val, group)
+                        #     for val in self.tweak_pos
+                        # ]
+                        p = self.solvesys.add_point_3d(*self.tweak_pos)
                     else:
-                        wrkpln = self.sketch.wp
-                        u, v, _ = wrkpln.matrix_basis.inverted() @ self.tweak_pos
-                        params = [self.solvesys.addParamV(val, group) for val in (u, v)]
-                        p = self.solvesys.addPoint2d(
-                            wrkpln.py_data, *params, group=group
-                        )
+                        wp = self.sketch.wp
+                        u, v, _ = wp.matrix_basis.inverted() @ self.tweak_pos
+                        # params = [self.solvesys.addParamV(val, group) for val in (u, v)]
+                        p = self.solvesys.add_point_2d(u, v, wp.py_data)
 
-                    e.create_slvs_data(self.solvesys, group=group)
+                    e.create_slvs_data(self.solvesys)
 
                     from .class_defines import make_coincident
 
                     self.tweak_constraint = make_coincident(
-                        self.solvesys, p, e, wp, group
+                        self.solvesys, p, e, wp.py_data, group
                     )
-                    self.solvesys.addWhereDragged(p, wrkpln=wp, group=group)
+                    self.solvesys.dragged(p, wp=wp.py_data)
                 continue
 
-            e.create_slvs_data(self.solvesys, group=group)
+            e.create_slvs_data(self.solvesys)
 
         def _get_msg_entities():
             msg = "Initialize entities:"
@@ -121,7 +120,7 @@ class Solver:
             # Store a index-constraint mapping
             from collections.abc import Iterable
 
-            indices = c.create_slvs_data(self.solvesys, group=group)
+            indices = c.create_slvs_data(self.solvesys)
             self._store_constraint_indices(
                 c, indices if isinstance(indices, Iterable) else (indices,)
             )
@@ -190,6 +189,7 @@ class Solver:
         return True
 
     def solve(self, report=True):
+        from python_solvespace import ResultFlag
         self.report = report
         self._init_slvs_data()
 
@@ -203,10 +203,11 @@ class Solver:
 
         for sketch in sketches:
             g = self._get_group(sketch)
+            self.solvesys.set_group(g)
             retval = self.solvesys.solve(
-                group=g,
-                reportFailed=report,
-                findFreeParams=False,
+                # group=g,
+                # reportFailed=report,
+                # findFreeParams=False,
             )
 
             # NOTE: For some reason solve() might return undocumented values,
@@ -218,7 +219,7 @@ class Solver:
 
             if report and sketch:
                 sketch.solver_state = self.result.index
-                sketch.dof = self.solvesys.Dof
+                sketch.dof = self.solvesys.dof()
 
             if retval != 0:
                 self.ok = False
@@ -228,7 +229,8 @@ class Solver:
 
             logger.info(self.result.description)
 
-            fails = self.solvesys.Failed
+            fails = self.solvesys.failures()
+
             if report and fails:
 
                 for i in fails:
