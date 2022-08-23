@@ -2179,11 +2179,9 @@ ENTITY_PROP_NAMES = ("entity1", "entity2", "entity3", "entity4")
 
 
 class GenericConstraint:
+
     def _name_getter(self):
-        name = self.get("name")
-        if not name:
-            return type(self).__name__
-        return name
+        return self.get("name", str(self))
 
     def _name_setter(self, new_name):
         self["name"] = new_name
@@ -2827,7 +2825,10 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
             # Avoid triggering the property's update callback
             self["value"] = distance
 
-    label = "Diameter"
+    @property
+    def label(self):
+        return "Radius" if self.setting else "Diameter"
+
     value: FloatProperty(
         name="Size",
         subtype="DISTANCE",
