@@ -122,7 +122,7 @@ class Solver:
             # Store a index-constraint mapping
             from collections.abc import Iterable
 
-            indices = c.create_slvs_data(self.solvesys, group=group)
+            indices = c.py_data(self.solvesys, group=group)
             self._store_constraint_indices(
                 c, indices if isinstance(indices, Iterable) else (indices,)
             )

@@ -25,6 +25,7 @@ class GenericConstraint:
     name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
     failed: BoolProperty(name="Failed")
     visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
+    is_reference: BoolProperty(name="Construction")
     signature = ()
     props = ()
 
@@ -150,6 +151,7 @@ class GenericConstraint:
         # General props
         layout.separator()
         layout.prop(self, "visible")
+        layout.prop(self, "is_reference")
 
         # Specific props
         layout.separator()
@@ -173,3 +175,8 @@ class GenericConstraint:
     def placements(self):
         """Return the entities where the constraint should be displayed"""
         return []
+    
+    def py_data(self, solvesys: Solver, **kwargs):
+        if self.is_reference:
+            return []
+        return self.create_slvs_data(solvesys, **kwargs)
