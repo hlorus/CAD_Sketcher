@@ -137,7 +137,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         l1, l2 = connected
         self.connected = connected
 
-        # If more than 1 intersection point, then sort them so we prioritise 
+        # If more than 1 intersection point, then sort them so we prioritise
         # the closest ones to the selected point.
         #   (Can happen with intersecting arcs)
         intersections = sorted(
@@ -145,7 +145,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
                 *_get_offset_elements(l1, radius),
                 *_get_offset_elements(l2, radius),
             ),
-            key=lambda i: (i - self.p1.co).length
+            key=lambda i: (i - self.p1.co).length,
         )
 
         coords = None
@@ -175,7 +175,11 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
 
         # Get direction of arc
         connection_angle = l1.connection_angle(l2, connection_point=self.p1)
-        self.invert = connection_angle < 0
+        invert = connection_angle < 0
+
+        # Add Arc
+        self.arc = sse.add_arc(sketch.wp.nm, self.ct, *self.points, sketch)
+        self.arc.invert_direction = invert
 
         refresh(context)
         return True
@@ -185,11 +189,6 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             return
 
         sketch = self.sketch
-        sse = context.scene.sketcher.entities
-
-        # Add Arc
-        arc = sse.add_arc(sketch.wp.nm, self.ct, *self.points, sketch)
-        arc.invert_direction = self.invert
 
         # Replace endpoints of existing segments
         point = self.p1
@@ -200,10 +199,11 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         seg2.replace_point(point, p2)
 
         context.view_layer.update()
+
         # Add tangent constraints
         ssc = context.scene.sketcher.constraints
-        ssc.add_tangent(arc, seg1, sketch)
-        ssc.add_tangent(arc, seg2, sketch)
+        ssc.add_tangent(self.arc, seg1, sketch)
+        ssc.add_tangent(self.arc, seg2, sketch)
 
         # Remove original point if not referenced
         if not is_entity_referenced(point, context):
