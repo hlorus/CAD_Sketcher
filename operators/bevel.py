@@ -137,19 +137,24 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         l1, l2 = connected
         self.connected = connected
 
-        intersections = _get_intersections(
-            *_get_offset_elements(l1, radius),
-            *_get_offset_elements(l2, radius),
+        # If more than 1 intersection point, then sort them so we prioritise 
+        # the closest ones to the selected point.
+        #   (Can happen with intersecting arcs)
+        intersections = sorted(
+            _get_intersections(
+                *_get_offset_elements(l1, radius),
+                *_get_offset_elements(l2, radius),
+            ),
+            key=lambda i: (i - self.p1.co).length
         )
 
         coords = None
-        for i in intersections:
-
-            if hasattr(l1, "is_inside") and not l1.is_inside(i):
+        for intersection in intersections:
+            if hasattr(l1, "is_inside") and not l1.is_inside(intersection):
                 continue
-            if hasattr(l2, "is_inside") and not l2.is_inside(i):
+            if hasattr(l2, "is_inside") and not l2.is_inside(intersection):
                 continue
-            coords = i
+            coords = intersection
             break
 
         if not coords:
@@ -163,13 +168,14 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         if not all([co is not None for co in (p1_co, p2_co)]):
             return False
 
-        p1 = sse.add_point_2d(p1_co, sketch)
-        p2 = sse.add_point_2d(p2_co, sketch)
-        self.points = p1, p2
+        self.points = (
+            sse.add_point_2d(p1_co, sketch),
+            sse.add_point_2d(p2_co, sketch),
+        )
 
         # Get direction of arc
-        connection_angle = l1.connection_angle(l2)
-        self.invert = bool(connection_angle < 0)
+        connection_angle = l1.connection_angle(l2, connection_point=self.p1)
+        self.invert = connection_angle < 0
 
         refresh(context)
         return True
