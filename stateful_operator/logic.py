@@ -352,7 +352,7 @@ class StatefulOperatorLogic:
     def execute(self, context: Context):
         self.redo_states(context)
         ok = self.main(context)
-        return self._end(context, ok)
+        return self._end(context, ok, skip_undo=True)
         # maybe allow to be modal again?
 
     def get_numeric_value(self, context: Context, coords):
@@ -611,19 +611,20 @@ class StatefulOperatorLogic:
         self.set_state_pointer(values, index=0, implicit=True)
         self.set_state(context, 1)
 
-    def _end(self, context, succeede):
+    def _end(self, context, succeede, skip_undo=False):
         context.window.cursor_modal_restore()
         if hasattr(self, "fini"):
             self.fini(context, succeede)
         global_data.ignore_list.clear()
 
         context.workspace.status_text_set(None)
-        if succeede:
-            return {"FINISHED"}
-        else:
+
+        if not succeede and not skip_undo:
             bpy.ops.ed.undo_push(message="Cancelled: " + self.bl_label)
             bpy.ops.ed.undo()
-            return {"CANCELLED"}
+
+        retval = {"FINISHED"} if succeede else {"CANCELLED"}
+        return retval
 
     def check_props(self):
         for i, state in enumerate(self.get_states()):
