@@ -47,7 +47,6 @@ from .model.base_entity import SlvsGenericEntity
 
 from .model.utilities import slvs_entity_pointer
 
-
 from .model.point_3d import SlvsPoint3D
 from .model.line_3d import SlvsLine3D
 from .model.normal_3d import SlvsNormal3D
@@ -59,6 +58,7 @@ from .model.normal_2d import SlvsNormal2D
 from .model.arc import SlvsArc
 from .model.circle import SlvsCircle
 from .model.group_entities import SlvsEntities
+from .model.base_constraint import GenericConstraint
 
 from .model.categories import *
 
@@ -521,7 +521,10 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
             # Avoid triggering the property's update callback
             self["value"] = distance
 
-    label = "Diameter"
+    @property
+    def label(self):
+        return "Radius" if self.setting else "Diameter"
+
     value: FloatProperty(
         name="Size",
         subtype="DISTANCE",
