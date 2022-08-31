@@ -91,19 +91,25 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         else:
             return point == self.p2
 
-    def connection_angle(self, other):
+    def connection_angle(self, other, **kwargs):
         """Returns the angle at the connection point between the two entities
-        or None if they're not connected or not in 2d space"""
+        or None if they're not connected or not in 2d space.
 
-        point = get_connection_point(self, other)
+        `kwargs` key values are propagated to other `get_connection_point` functions
+        """
 
-        if not point:
-            return None
         if self.is_3d() or other.is_3d():
             return None
 
         if not all([e.is_line() for e in (self, other)]):
-            return other.connection_angle(self)
+            return other.connection_angle(self, **kwargs)
+
+        point = get_connection_point(
+            self,
+            other,
+        )
+        if not point:
+            return None
 
         dir1 = (
             self.direction_vec()

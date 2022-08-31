@@ -1,11 +1,14 @@
 from bpy.props import StringProperty, BoolProperty
+from bpy.types import UILayout
 
 
 from .. import functions
+from ..solver import solve_system
 from ..global_data import WpReq
 from ..utilities import preferences
 from ..declarations import Operators
 from .constants import ENTITY_PROP_NAMES
+from .base_entity import SlvsGenericEntity
 
 import logging
 from typing import List
@@ -15,10 +18,7 @@ logger = logging.getLogger(__name__)
 
 class GenericConstraint:
     def _name_getter(self):
-        name = self.get("name")
-        if not name:
-            return type(self).__name__
-        return name
+        return self.get("name", str(self))
 
     def _name_setter(self, new_name):
         self["name"] = new_name

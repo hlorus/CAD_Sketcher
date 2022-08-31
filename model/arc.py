@@ -165,11 +165,17 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         angle = range_2pi(math.atan2(local_co[1], local_co[0]))
         return self.point_on_curve(angle, relative=False)
 
-    def connection_angle(self, other):
+    def connection_angle(self, other, connection_point=None, **kwargs):
         """Returns the angle at the connection point between the two entities
-        or None if they're either not connected or not in 2d space"""
+        or None if they're either not connected or not in 2d space
 
-        point = get_connection_point(self, other)
+        You may use `connection_point` in order to remove ambiguity in case
+        multiple intersections point exist with other entity.
+
+        `kwargs` key values are propagated to other `get_connection_point` functions
+        """
+
+        point = connection_point or get_connection_point(self, other)
 
         if not point:
             return None
