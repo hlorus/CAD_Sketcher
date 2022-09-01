@@ -2,11 +2,13 @@ on: [pull_request]
 name: Python Style Check
 jobs:
   stylecheck:
-    - name: "Checkout" 
-      uses: actions/checkout@master
-      with:
-        ref: ${{ github.event.pull_request.head.sha }}
-    - name: 'Run PEP8'
-      uses: quentinguidee/pep8-action@v1
-      with:
-        arguments: '--max-line-length=100'
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: "Run PEP8"
+        uses: quentinguidee/pep8-action@v1
+        with:
+          arguments: "--max-line-length=100"
