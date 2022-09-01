@@ -2,9 +2,10 @@ on: [pull_request]
 name: Python Style Check
 jobs:
   stylecheck:
-    - uses: actions/checkout@master
+    - name: "Checkout" 
+      uses: actions/checkout@master
       with:
-      ref: ${{ github.event.pull_request.head.sha }}
+        ref: ${{ github.event.pull_request.head.sha }}
     - name: 'Run PEP8'
       uses: quentinguidee/pep8-action@v1
       with:
