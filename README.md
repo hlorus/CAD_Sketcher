@@ -36,6 +36,7 @@ Minimum version: Blender 2.92
 - Enable the addon by pressing the checkbox
 
 ## Dependency installation
+
 CAD sketcher heavily depends on the [solvespace python module](https://pypi.org/project/py-slvs/) and won't be functional without it.
 
 - Inside the addon's preferences check the "Solver Module" tab to see if the module is already available
@@ -44,11 +45,7 @@ CAD sketcher heavily depends on the [solvespace python module](https://pypi.org/
 Check the [installation](https://hlorus.github.io/CAD_Sketcher/installation) chapter for in-depth instructions.
 
 Additionally CAD sketcher for debugging purposes depends on the library [debugpy](https://pypi.org/project/debugpy/) when debugging is done
-throught VSCode. Installing this library with 
-
-```$pip install```  will further mean that the window in VSCode will need to be reloaded using 
-
-```command Palette > Reload window```
+throught VSCode. Installing this library with ```$pip install```  will further mean that the window in VSCode will need to be reloaded using  ```command Palette > Reload window``` .
 
 
 
