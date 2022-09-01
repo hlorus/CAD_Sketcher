@@ -4,12 +4,8 @@ from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
 
-from . import functions, operators, global_data, class_defines, icon_manager
-from .declarations import GizmoGroups, Gizmos, Operators
-from .draw_handler import ensure_selection_texture
-from .utilities.constants import HALF_TURN, QUARTER_TURN
-
-from . import functions, operators, global_data, class_defines, icon_manager
+from . import functions, global_data, icon_manager
+from .model.types import SlvsDistance, SlvsAngle, SlvsDiameter
 from .declarations import GizmoGroups, Gizmos, Operators
 from .draw_handler import ensure_selection_texture
 from .utilities.constants import HALF_TURN, QUARTER_TURN
@@ -308,7 +304,7 @@ def get_arrow_size(dist, scale):
 
 class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
     bl_idname = Gizmos.Distance
-    type = class_defines.SlvsDistance.type
+    type = SlvsDistance.type
 
     bl_target_properties = ({"id": "offset", "type": "FLOAT", "array_length": 1},)
 
@@ -459,7 +455,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
 
 class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
     bl_idname = Gizmos.Angle
-    type = class_defines.SlvsAngle.type
+    type = SlvsAngle.type
 
     bl_target_properties = ({"id": "offset", "type": "FLOAT", "array_length": 1},)
 
@@ -563,7 +559,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
 
 class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
     bl_idname = Gizmos.Diameter
-    type = class_defines.SlvsDiameter.type
+    type = SlvsDiameter.type
 
     bl_target_properties = ({"id": "offset", "type": "FLOAT", "array_length": 1},)
 
@@ -754,7 +750,7 @@ class VIEW3D_GGT_slvs_distance(GizmoGroup, ConstraintGenericGGT):
     bl_idname = GizmoGroups.Distance
     bl_label = "Distance Constraint Gizmo Group"
 
-    type = class_defines.SlvsDistance.type
+    type = SlvsDistance.type
     gizmo_type = VIEW3D_GT_slvs_distance.bl_idname
 
 
@@ -762,7 +758,7 @@ class VIEW3D_GGT_slvs_angle(GizmoGroup, ConstraintGenericGGT):
     bl_idname = GizmoGroups.Angle
     bl_label = "Angle Constraint Gizmo Group"
 
-    type = class_defines.SlvsAngle.type
+    type = SlvsAngle.type
     gizmo_type = VIEW3D_GT_slvs_angle.bl_idname
 
 
@@ -770,7 +766,7 @@ class VIEW3D_GGT_slvs_diameter(GizmoGroup, ConstraintGenericGGT):
     bl_idname = GizmoGroups.Diameter
     bl_label = "Diameter Gizmo Group"
 
-    type = class_defines.SlvsDiameter.type
+    type = SlvsDiameter.type
     gizmo_type = VIEW3D_GT_slvs_diameter.bl_idname
 
 

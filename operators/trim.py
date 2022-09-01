@@ -3,7 +3,8 @@ import logging
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 
-from .. import class_defines, functions
+from .. import functions
+from ..model.categories import segment
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
@@ -30,7 +31,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
             trim_state1_doc[0],
             description=trim_state1_doc[1],
             pointer="segment",
-            types=class_defines.segment,
+            types=segment,
             pick_element="pick_element_coords",
             use_create=False,
             # interactive=True
@@ -62,7 +63,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
 
         # Find intersections
         for e in sketch.sketch_entities(context):
-            if not type(e) in class_defines.segment:
+            if not type(e) in segment:
                 continue
             if e == segment:
                 continue

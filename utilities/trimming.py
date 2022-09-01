@@ -3,7 +3,7 @@ import logging
 import bpy
 from bpy.types import Context
 
-from .. import class_defines
+from ..model.types import SlvsGenericEntity, GenericConstraint, SlvsCircle
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +20,10 @@ class Intersection:
         self._point = None
 
     def is_entity(self):
-        return issubclass(type(self.element), class_defines.SlvsGenericEntity)
+        return issubclass(type(self.element), SlvsGenericEntity)
 
     def is_constraint(self):
-        return issubclass(type(self.element), class_defines.GenericConstraint)
+        return issubclass(type(self.element), GenericConstraint)
 
     def is_endpoint(self):
         return self._is_endpoint
@@ -151,9 +151,7 @@ class TrimSegment:
         for index, intrs in enumerate(
             [relevant[i * 2 : i * 2 + 2] for i in range(segment_count)]
         ):
-            reuse_segment = index == 0 and not isinstance(
-                self.segment, class_defines.SlvsCircle
-            )
+            reuse_segment = index == 0 and not isinstance(self.segment, SlvsCircle)
             intr_1, intr_2 = intrs
             if not intr_1:
                 continue

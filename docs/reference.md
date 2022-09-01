@@ -1,16 +1,16 @@
-::: CAD_Sketcher.class_defines.SketcherProps
+::: CAD_Sketcher.model.types.SketcherProps
     <!-- selection:
       members: true -->
     rendering:
       show_root_heading: true
 
-::: CAD_Sketcher.class_defines.SlvsEntities
+::: CAD_Sketcher.model.types.SlvsEntities
     <!-- selection:
       members: true -->
     rendering:
       show_root_heading: true
 
-::: CAD_Sketcher.class_defines.SlvsConstraints
+::: CAD_Sketcher.model.types.SlvsConstraints
     <!-- selection:
       members: true -->
     rendering:

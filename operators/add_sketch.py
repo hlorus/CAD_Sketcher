@@ -3,7 +3,7 @@ import logging
 import bpy
 from bpy.types import Operator, Context, Event
 
-from .. import class_defines
+from ..model.types import SlvsWorkplane
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
@@ -30,7 +30,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
             sketch_state1_doc[0],
             description=sketch_state1_doc[1],
             pointer="wp",
-            types=(class_defines.SlvsWorkplane,),
+            types=(SlvsWorkplane,),
             property=None,
             use_create=False,
         ),

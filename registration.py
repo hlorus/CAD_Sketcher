@@ -6,7 +6,7 @@ base_modules = [
 
 core_modules = [
     "handlers",
-    "class_defines",
+    "model",
     "operators",
     "gizmos",
     "keymaps",

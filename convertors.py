@@ -5,7 +5,7 @@ from typing import Union
 import bpy, bmesh
 from bpy.types import Mesh, Scene, Object
 
-from . import class_defines
+from .utilities.bezier import set_handles
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class BezierConverter:
         self.sketch_entities.remove(entity)
 
         # Not great..
-        if isinstance(entity, class_defines.SlvsCircle):
+        if entity.is_closed():
             path[1].append(False)
 
         # NOTE: check through connecting points of entity
@@ -147,7 +147,7 @@ class BezierConverter:
 
     def is_cyclic_path(self, path):
         if len(path) == 1:
-            return isinstance(path[0], class_defines.SlvsCircle)
+            return path[0].is_closed()
 
         first, last = path[0], path[-1]
 
@@ -185,7 +185,7 @@ class BezierConverter:
             s.bezier_points.add(amount - 1)
 
             startpoint = s.bezier_points[0]
-            class_defines.set_handles(startpoint)
+            set_handles(startpoint)
             previous_point = startpoint
 
             last_index = len(path_segments) - 1
