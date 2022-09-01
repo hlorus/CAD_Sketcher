@@ -44,7 +44,15 @@ CAD sketcher heavily depends on the [solvespace python module](https://pypi.org/
 Check the [installation](https://hlorus.github.io/CAD_Sketcher/installation) chapter for in-depth instructions.
 
 Additionally CAD sketcher for debugging purposes depends on the library [debugpy](https://pypi.org/project/debugpy/) when debugging is done
-throught VSCode. Installing this library with '''$pip install''' will further mean that the window in VSCode will need to be reloaded using '''command Palette > Reload window '''.
+throught VSCode. Installing this library with 
+
+'''$pip install''' 
+
+will further mean that the window in VSCode will need to be reloaded using 
+
+'''command Palette > Reload window '''
+
+
 
 ## Usage
 Follow the [getting started](https://hlorus.github.io/CAD_Sketcher/getting_started) guide to get familiar with the addon.
