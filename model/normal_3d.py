@@ -3,6 +3,7 @@ import logging
 from bpy.types import PropertyGroup, Context
 from bpy.props import FloatVectorProperty
 from bpy.utils import register_classes_factory
+from mathutils import Euler
 
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
@@ -38,6 +39,12 @@ class SlvsNormal3D(Normal3D, PropertyGroup):
         orientation (Quaternion): A quaternion which describes the rotation
     """
 
+    def get_orientation(self):
+        return getattr(self, "orientation").to_euler()
+
+    def set_orientation(self, value):
+        self["orientation"] = Euler(value).to_quaternion()
+
     orientation: FloatVectorProperty(
         name="Orientation",
         description="Quaternion which describes the orientation of the normal",
@@ -45,7 +52,22 @@ class SlvsNormal3D(Normal3D, PropertyGroup):
         size=4,
         update=SlvsGenericEntity.tag_update,
     )
-    pass
+
+    ui_orientation: FloatVectorProperty(
+        name="Orientation",
+        subtype="EULER",
+        size=3,
+        get=get_orientation,
+        set=set_orientation,
+        options={"SKIP_SAVE"},
+        update=SlvsGenericEntity.tag_update,
+    )
+    props = ("ui_orientation",)
+
+    def draw_props(self, layout):
+        sub = super().draw_props(layout)
+        sub.prop(self, "ui_orientation")
+        return sub
 
 
 register, unregister = register_classes_factory((SlvsNormal3D,))

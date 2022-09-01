@@ -106,6 +106,11 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         v.rotate(quat)
         return v
 
+    def draw_props(self, layout):
+        # Display the normals props as they're not drawn in the viewport
+        sub = self.nm.draw_props(layout)
+        return sub
+
 
 slvs_entity_pointer(SlvsWorkplane, "p1")
 slvs_entity_pointer(SlvsWorkplane, "nm")
