@@ -34,7 +34,8 @@ class View3D_OT_slvs_tweak(Operator):
                 )
                 return {"CANCELLED"}
 
-            # For 2D entities it should be enough precise to get picking point from intersection with workplane
+            # For 2D entities it should be enough precise to get picking point from
+            # intersection with workplane
             wp = entity.sketch.wp
             coords = (event.mouse_region_x, event.mouse_region_y)
             origin, dir = functions.get_picking_origin_dir(context, coords)

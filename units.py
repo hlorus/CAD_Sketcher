@@ -1,11 +1,14 @@
-# Code from MeasureIt_ARCH, see: https://github.com/kevancress/MeasureIt_ARCH/blob/development/measureit_arch_units.py
+# Code from MeasureIt_ARCH, see:
+# https://github.com/kevancress/MeasureIt_ARCH/blob/development/measureit_arch_units.py
+
+import typing
 
 import bpy
+import math
+from bpy.props import EnumProperty
+
 from . import functions
 
-import math, typing
-
-from bpy.props import EnumProperty
 
 imperial_precision_prop = EnumProperty(
     items=(

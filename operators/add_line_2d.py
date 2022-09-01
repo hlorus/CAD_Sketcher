@@ -1,4 +1,4 @@
-import logging, math
+import logging
 
 from bpy.types import Operator, Context
 from bpy.props import BoolProperty

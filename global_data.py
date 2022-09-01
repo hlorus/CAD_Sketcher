@@ -1,5 +1,6 @@
 import sys
 from enum import Enum
+
 from mathutils import Vector
 
 registered = False
@@ -26,8 +27,10 @@ Z_AXIS = Vector((0, 0, 1))
 
 draw_handle = None
 
-# Workplane requirement options
+
 class WpReq(Enum):
+    """Workplane requirement options"""
+
     OPTIONAL, FREE, NOT_FREE = range(3)
 
 

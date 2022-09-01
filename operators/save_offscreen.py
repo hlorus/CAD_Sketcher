@@ -1,4 +1,5 @@
-import bpy, bgl
+import bpy
+import bgl
 from bpy.types import Operator, Context
 from bpy.utils import register_classes_factory
 

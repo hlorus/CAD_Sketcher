@@ -54,24 +54,24 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
             coords = (e1.ct.co - orig).project(e2.p2.co - orig) + orig
             params = [solvesys.addParamV(v, group) for v in coords]
             p = solvesys.addPoint2d(wp, *params, group=group)
-            l = solvesys.addLineSegment(e1.ct.py_data, p, group=group)
+            line = solvesys.addLineSegment(e1.ct.py_data, p, group=group)
 
             return (
                 make_coincident(solvesys, p, e1, wp, group),
                 make_coincident(solvesys, p, e2, wp, group),
-                solvesys.addPerpendicular(e2.py_data, l, wrkpln=wp, group=group),
+                solvesys.addPerpendicular(e2.py_data, line, wrkpln=wp, group=group),
             )
 
         elif type(e2) in curve:
             coords = (e1.ct.co + e2.ct.co) / 2
             params = [solvesys.addParamV(v, group) for v in coords]
             p = solvesys.addPoint2d(wp, *params, group=group)
-            l = solvesys.addLineSegment(e1.ct.py_data, e2.ct.py_data, group=group)
+            line = solvesys.addLineSegment(e1.ct.py_data, e2.ct.py_data, group=group)
 
             return (
                 make_coincident(solvesys, p, e1, wp, group),
                 make_coincident(solvesys, p, e2, wp, group),
-                solvesys.addPointOnLine(p, l, group=group, wrkpln=wp),
+                solvesys.addPointOnLine(p, line, group=group, wrkpln=wp),
             )
 
     def placements(self):

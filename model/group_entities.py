@@ -2,20 +2,16 @@ import logging
 from typing import Type, Union, Tuple
 
 import bpy
+import math
 from bpy.types import PropertyGroup
 from bpy.props import CollectionProperty
 from bpy.utils import register_classes_factory
-import math
 from mathutils import Vector, Euler
 
 from .. import functions, global_data
 from ..utilities.constants import QUARTER_TURN
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer, update_pointers
-
-
-logger = logging.getLogger(__name__)
-
 from .point_3d import SlvsPoint3D
 from .line_3d import SlvsLine3D
 from .normal_3d import SlvsNormal3D
@@ -26,6 +22,8 @@ from .line_2d import SlvsLine2D
 from .normal_2d import SlvsNormal2D
 from .arc import SlvsArc
 from .circle import SlvsCircle
+
+logger = logging.getLogger(__name__)
 
 
 class SlvsEntities(PropertyGroup):
@@ -60,7 +58,7 @@ class SlvsEntities(PropertyGroup):
     )
 
     # __annotations__ = {
-    #         list_name : CollectionProperty(type=entity_cls) for entity_cls, list_name in zip(entities, _entity_collections)
+    #   list_name : CollectionProperty(type=entity_cls) for entity_cls, list_name in zip(entities, _entity_collections)
     # }
 
     @classmethod
@@ -184,11 +182,11 @@ class SlvsEntities(PropertyGroup):
         Returns:
             SlvsLine3D: The created line.
         """
-        l = self.lines3D.add()
-        l.p1 = p1
-        l.p2 = p2
-        self._set_index(l)
-        return l
+        line = self.lines3D.add()
+        line.p1 = p1
+        line.p2 = p2
+        self._set_index(line)
+        return line
 
     def add_normal_3d(self, quat: Tuple[float, float, float, float]) -> SlvsNormal3D:
         """Add a normal in 3d space.
@@ -265,12 +263,12 @@ class SlvsEntities(PropertyGroup):
         Returns:
             SlvsLine2D: The created line.
         """
-        l = self.lines2D.add()
-        l.p1 = p1
-        l.p2 = p2
-        l.sketch = sketch
-        self._set_index(l)
-        return l
+        line = self.lines2D.add()
+        line.p1 = p1
+        line.p2 = p2
+        line.sketch = sketch
+        self._set_index(line)
+        return line
 
     def add_normal_2d(self, sketch: SlvsSketch) -> SlvsNormal2D:
         """Add a normal in 2d space.

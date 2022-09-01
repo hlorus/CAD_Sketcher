@@ -1,5 +1,9 @@
-import bpy, bgl, gpu, blf
+import bpy
+import bgl
+import gpu
+import blf
 
+import math
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
@@ -9,6 +13,7 @@ from .model.types import SlvsDistance, SlvsAngle, SlvsDiameter
 from .declarations import GizmoGroups, Gizmos, Operators
 from .draw_handler import ensure_selection_texture
 from .utilities.constants import HALF_TURN, QUARTER_TURN
+
 
 # NOTE: idealy gizmo would expose active element as a property and
 # operators would access hovered element from there
@@ -158,10 +163,6 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         pass
 
 
-import math
-from mathutils.geometry import intersect_line_plane
-
-
 def _get_formatted_value(context, constr):
     from . import units
 
@@ -267,8 +268,6 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
 # NOTE: Idealy the geometry batch wouldn't be recreated every redraw,
 # however the geom changes with the distance value, maybe at least track changes for that value
 # if not hasattr(self, "custom_shape"):
-
-from mathutils import Matrix
 
 
 def draw_arrow_shape(target, shoulder, width, is_3d=False):

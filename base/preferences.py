@@ -1,4 +1,10 @@
+import sys
+from pathlib import Path
+import logging
+
 import bpy
+from bpy.types import AddonPreferences, Panel, Menu
+from bl_ui.utils import PresetPanel
 from bpy.props import (
     PointerProperty,
     BoolProperty,
@@ -7,12 +13,6 @@ from bpy.props import (
     IntProperty,
     FloatProperty,
 )
-
-from bpy.types import AddonPreferences, Panel, Menu
-
-import sys
-from pathlib import Path
-import logging
 
 from . import theme
 from .. import functions, global_data, units
@@ -77,8 +77,7 @@ def get_wheel():
     return ""
 
 
-### Presets
-from bl_ui.utils import PresetPanel
+# Presets
 
 
 class SKETCHER_PT_theme_presets(PresetPanel, Panel):

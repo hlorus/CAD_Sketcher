@@ -1,4 +1,5 @@
 import logging
+from enum import Enum
 
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
@@ -20,8 +21,6 @@ from .base_2d import Operator2d
 
 
 logger = logging.getLogger(__name__)
-
-from enum import Enum
 
 
 class ElementTypes(str, Enum):

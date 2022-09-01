@@ -9,7 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 class Intersection:
-    """Either a intersection between the segment to be trimmed and specified entity or a segment endpoint"""
+    """
+    Either a intersection between the segment to be trimmed and specified entity
+    or a segment endpoint
+    """
 
     def __init__(self, element, co):
         # Either a intersecting entity, a segment endpoint or a coincident/midpoint constraint
@@ -33,7 +36,7 @@ class Intersection:
             return self.element
         if self.is_constraint():
             return self.element.entities()[0]
-        if self._point == None:
+        if self._point is None:
             sketch = context.scene.sketcher.active_sketch
             # Implicitly create point at co
             self._point = context.scene.sketcher.entities.add_point_2d(self.co, sketch)
@@ -135,15 +138,16 @@ class TrimSegment:
         constrs = {}
         for c in context.scene.sketcher.constraints.all:
             entities = c.entities()
-            if not self.segment in entities:
+            if self.segment not in entities:
                 continue
             constrs[c] = entities
 
-        # Note: this seems to be needed, explicitly add all points and update viewlayer before starting to replace segments
+        # Note: This seems to be needed, explicitly add all points and update viewlayer
+        #       before starting to replace segments
         self.ensure_points(context)
 
         # NOTE: This is needed for some reason, otherwise there's a bug where
-        # a point is suddenly interpreted as a line
+        #       a point is suddenly interpreted as a line
         context.view_layer.update()
 
         # Create new segments
@@ -197,7 +201,8 @@ class TrimSegment:
                 # TODO: Make this a class reference
                 bpy.ops.view3d.slvs_delete_constraint(type=c.type, index=i)
             if intr.is_entity():
-                # Use operator which checks if other entities depend on this and auto deletes constraints
+                # Use operator which checks if other entities depend on this
+                # and auto deletes constraints
                 # TODO: Make this a class reference
                 bpy.ops.view3d.slvs_delete_entity(
                     index=intr.element.slvs_index, do_report=False

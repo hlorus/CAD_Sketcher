@@ -56,8 +56,8 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         for i, start in enumerate(points):
             end = points[i + 1 if i < len(points) - 1 else 0]
 
-            l = sse.add_line_2d(start, end, sketch)
-            lines.append(l)
+            line = sse.add_line_2d(start, end, sketch)
+            lines.append(line)
 
         self.lines = lines
 

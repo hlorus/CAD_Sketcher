@@ -21,7 +21,7 @@ class GenericEntityOp(StatefulOperator):
 
     def pick_element(self, context, coords):
         retval = super().pick_element(context, coords)
-        if retval != None:
+        if retval is not None:
             return retval
 
         state = self.state
@@ -134,7 +134,7 @@ class GenericEntityOp(StatefulOperator):
         state = self.get_states_definition()[index]
         pointer_name = state.pointer
         data = self._state_data.get(index, {})
-        if not "type" in data.keys():
+        if "type" not in data.keys():
             return None
 
         pointer_type = data["type"]
@@ -165,7 +165,7 @@ class GenericEntityOp(StatefulOperator):
         pointer_type = data["type"]
 
         if issubclass(pointer_type, SlvsGenericEntity):
-            value = values[0] if values != None else None
+            value = values[0] if values is not None else None
 
             if value is None:
                 i = -1

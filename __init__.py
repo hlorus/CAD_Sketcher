@@ -1,3 +1,13 @@
+import logging
+
+from . import icon_manager, global_data
+from .registration import register_base, unregister_base, register_full, unregister_full
+from .utilities.install import check_module
+from .utilities.register import cleanse_modules
+from .utilities.presets import ensure_addon_presets
+from .utilities.logging import setup_logger, update_logger
+
+
 bl_info = {
     "name": "CAD Sketcher",
     "author": "hlorus",
@@ -10,15 +20,6 @@ bl_info = {
     "doc_url": "https://hlorus.github.io/CAD_Sketcher",
     "tracker_url": "https://github.com/hlorus/CAD_Sketcher/discussions/categories/announcements",
 }
-
-import logging
-
-from . import icon_manager, global_data
-from .registration import register_base, unregister_base, register_full, unregister_full
-from .utilities.install import check_module
-from .utilities.register import cleanse_modules
-from .utilities.presets import ensure_addon_presets
-from .utilities.logging import setup_logger, update_logger
 
 
 # Globals

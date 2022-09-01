@@ -1,20 +1,17 @@
 import logging
 
 from bpy.types import Operator, Context
-from bpy.props import FloatProperty
 
 from .. import functions
 from ..model.categories import segment
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
+from ..utilities.trimming import TrimSegment
 from .base_2d import Operator2d
 
 
 logger = logging.getLogger(__name__)
-
-
-from ..utilities.trimming import TrimSegment
 
 
 class View3D_OT_slvs_trim(Operator, Operator2d):
@@ -56,7 +53,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
         segment = self.segment
 
         mouse_pos = self._state_data[0].get("mouse_pos")
-        if mouse_pos == None:
+        if mouse_pos is None:
             return False
 
         trim = TrimSegment(segment, mouse_pos)

@@ -1,7 +1,9 @@
 import logging
 from typing import List
 
-import bpy, bgl, gpu
+import bpy
+import bgl
+import gpu
 from mathutils import Vector, Matrix
 from bpy.types import PropertyGroup
 from gpu_extras.batch import batch_for_shader

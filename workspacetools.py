@@ -1,5 +1,7 @@
-from bpy.types import WorkSpaceTool
 import os
+
+import bpy
+from bpy.types import WorkSpaceTool
 
 from .declarations import GizmoGroups, Operators, WorkSpaceTools
 from .keymaps import tool_access
@@ -309,8 +311,6 @@ tools = (
         {"after": {View3D_T_slvs_add_workplane_face.bl_idname}},
     ),
 )
-
-import bpy
 
 
 def register():

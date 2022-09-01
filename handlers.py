@@ -1,10 +1,9 @@
 import bpy
 import logging
 
-logger = logging.getLogger(__name__)
-
 from bpy.app.handlers import persistent
 
+logger = logging.getLogger(__name__)
 
 _builtin_handlers = {}
 

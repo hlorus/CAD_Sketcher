@@ -1,10 +1,9 @@
+from pathlib import Path
+
 import gpu
 from gpu_extras.batch import batch_for_shader
 from bpy.app import background
 
-from pathlib import Path
-
-from . import functions
 from .shaders import Shaders
 
 icons = {}
@@ -34,7 +33,7 @@ def coords_from_icon(data, range_x=255, range_y=255):
             y = (int.from_bytes(v[1], "little") / range_y) - 0.5
             co = (x, y)
 
-            if not co in coords:
+            if co not in coords:
                 coords.append(co)
                 index = len(coords) - 1
             else:

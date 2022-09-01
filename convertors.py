@@ -2,7 +2,8 @@ import logging
 import math
 from typing import Union
 
-import bpy, bmesh
+import bpy
+import bmesh
 from bpy.types import Mesh, Scene, Object
 
 from .utilities.bezier import set_handles
@@ -151,7 +152,7 @@ class BezierConverter:
 
         first, last = path[0], path[-1]
 
-        # NOTE: first and last segment might be connected on one side only when there are 2 segments..
+        # NOTE: first and last segment might be connected on one side only when there are 2 segments
         if len(path) == 2:
             return all(
                 item in first.connection_points() for item in last.connection_points()

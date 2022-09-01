@@ -1,7 +1,8 @@
 import logging
 from typing import List
 
-import gpu, bgl
+import gpu
+import bgl
 from bpy.props import IntProperty, StringProperty, BoolProperty
 from bpy.types import Context
 
@@ -105,7 +106,7 @@ class SlvsGenericEntity:
     @property
     def _batch(self):
         index = self.slvs_index
-        if not index in global_data.batches:
+        if index not in global_data.batches:
             return None
         return global_data.batches[index]
 

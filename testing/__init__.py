@@ -37,7 +37,7 @@ if __name__ == "__main__":
     log_level = None
     if "--" in argv:
         for arg in argv[argv.index("--") + 1 :]:
-            if not "=" in arg:
+            if "=" not in arg:
                 args.append(arg)
                 continue
             key, value = arg.split("=")

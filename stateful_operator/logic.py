@@ -136,7 +136,7 @@ class StatefulOperatorLogic:
             return False
 
         prop = self.properties.rna_type.properties[prop_name]
-        if not prop.type in ("INT", "FLOAT"):
+        if prop.type not in ("INT", "FLOAT"):
             return False
         return True
 
@@ -411,7 +411,7 @@ class StatefulOperatorLogic:
                 num = parse_input(prop, input)
                 result[sub_index] = num
                 storage[sub_index] = num
-            elif interactive_val[sub_index] != None:
+            elif interactive_val[sub_index] is not None:
                 result[sub_index] = interactive_val[sub_index]
             else:
                 result[sub_index] = prop.default
@@ -496,7 +496,7 @@ class StatefulOperatorLogic:
             pick = self.get_func(state, "pick_element")
             pick_retval = pick(context, coords)
 
-            if pick_retval != None:
+            if pick_retval is not None:
                 is_picked = True
                 pointer_values = to_list(pick_retval)
 

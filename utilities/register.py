@@ -1,7 +1,8 @@
-import bpy
-
 import os
 import sys
+import importlib
+from typing import List
+from traceback import print_exc
 
 # From: https://github.com/iyadahmed/bpy_helper/blob/main/bpy_helper/register.py
 def cleanse_modules(parent_module_name):
@@ -19,10 +20,6 @@ def get_path():
 def get_name():
     return os.path.basename(get_path())
 
-
-from typing import List
-import importlib
-from traceback import print_exc
 
 # Similar to bpy.utils.register_submodule_factory
 def module_register_factory(parent_module_name: str, module_names: List[str]):

@@ -1,6 +1,8 @@
 import logging
 
-import bpy, gpu, bgl
+import bpy
+import gpu
+import bgl
 from bpy.types import Context, Operator
 from bpy.utils import register_class, unregister_class
 
