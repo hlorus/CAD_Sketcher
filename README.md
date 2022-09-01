@@ -46,11 +46,9 @@ Check the [installation](https://hlorus.github.io/CAD_Sketcher/installation) cha
 Additionally CAD sketcher for debugging purposes depends on the library [debugpy](https://pypi.org/project/debugpy/) when debugging is done
 throught VSCode. Installing this library with 
 
-'''$pip install''' 
+```$pip install```  will further mean that the window in VSCode will need to be reloaded using 
 
-will further mean that the window in VSCode will need to be reloaded using 
-
-'''command Palette > Reload window '''
+```command Palette > Reload window```
 
 
 
