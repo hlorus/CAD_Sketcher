@@ -1,6 +1,7 @@
 from unittest import skip
 from CAD_Sketcher.testing.utils import BgsTestCase
-from CAD_Sketcher import class_defines
+from CAD_Sketcher.model.types import SlvsPoint3D
+from CAD_Sketcher.model.utilities import slvs_entity_pointer
 
 from sys import float_info
 
@@ -12,7 +13,7 @@ class TestEntities(BgsTestCase):
 
         # Point at origin
         p1 = entities.add_point_3d((0, 0, 0))
-        self.assertIsInstance(p1, class_defines.SlvsPoint3D)
+        self.assertIsInstance(p1, SlvsPoint3D)
         self.assertEqual(tuple(p1.location), (0, 0, 0))
 
     def test_entity_pointer(self):
@@ -24,7 +25,7 @@ class TestEntities(BgsTestCase):
         class PointerTest(PropertyGroup):
             pass
 
-        class_defines.slvs_entity_pointer(PointerTest, "pointer")
+        slvs_entity_pointer(PointerTest, "pointer")
 
         register_class(PointerTest)
 

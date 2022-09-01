@@ -3,7 +3,7 @@ from bpy.types import Context
 from bpy.props import BoolProperty
 
 from .. import functions
-from ..class_defines import SlvsConstraints
+from ..model.types import SlvsConstraints
 from ..solver import solve_system
 from ..stateful_operator.state import state_from_args
 from .base_stateful import GenericEntityOp

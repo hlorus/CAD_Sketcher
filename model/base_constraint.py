@@ -1,6 +1,8 @@
+import logging
+from typing import List
+
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import UILayout
-
 
 from .. import functions
 from ..solver import solve_system
@@ -9,9 +11,6 @@ from ..utilities import preferences
 from ..declarations import Operators
 from .constants import ENTITY_PROP_NAMES
 from .base_entity import SlvsGenericEntity
-
-import logging
-from typing import List
 
 logger = logging.getLogger(__name__)
 

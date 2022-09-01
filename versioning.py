@@ -23,14 +23,16 @@ def write_addon_version(context):
 
 def recalc_pointers(scene):
     """Updates type index of entities keeping local index as is"""
-    from .class_defines import update_pointers, SlvsEntities
+
+    # TODO: Move to utilities.data_handling
+    from .model.utilities import update_pointers
 
     msg = ""
     entities = list(scene.sketcher.entities.all)
     for e in reversed(entities):
         i = e.slvs_index
         # scene.sketcher.entities._set_index(e)
-        SlvsEntities.recalc_type_index(e)
+        scene.sketcher.entities.recalc_type_index(e)
 
         if i != e.slvs_index:
             msg += "\n - {}: {} -> {}".format(e, i, e.slvs_index)

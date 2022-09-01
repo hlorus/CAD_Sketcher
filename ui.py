@@ -1,7 +1,7 @@
 import bpy
 from bpy.types import Panel, Menu, UIList, Context, UILayout
 
-from . import functions, class_defines
+from . import functions
 from .declarations import Menus, Operators, Panels, ConstraintOperators
 from .stateful_operator.constants import Operators as StatefulOperators
 
@@ -187,7 +187,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
         for e in context.scene.sketcher.entities.all:
             if not e.is_active(sketch):
                 continue
-            if isinstance(e, class_defines.SlvsSketch):
+            if e.is_sketch():
                 continue
 
             row = col.row()

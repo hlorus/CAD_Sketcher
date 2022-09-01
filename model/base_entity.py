@@ -1,3 +1,6 @@
+import logging
+from typing import List
+
 import gpu, bgl
 from bpy.props import IntProperty, StringProperty, BoolProperty
 from bpy.types import Context
@@ -6,9 +9,6 @@ from .. import functions, global_data
 from ..utilities import preferences
 from ..shaders import Shaders
 from ..declarations import Operators
-
-import logging
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -358,6 +358,10 @@ class SlvsGenericEntity:
 
     @classmethod
     def is_segment(cls):
+        return False
+
+    @classmethod
+    def is_sketch(cls):
         return False
 
 

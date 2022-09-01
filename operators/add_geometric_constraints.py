@@ -3,7 +3,7 @@ import logging
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 
-from .. import class_defines
+from ..model.utilities import update_pointers
 from ..solver import solve_system
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
@@ -25,7 +25,7 @@ class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
         p1, p2 = self.entity1, self.entity2
         if all([e.is_point() for e in (p1, p2)]):
             # Implicitly merge points
-            class_defines.update_pointers(context.scene, p1.slvs_index, p2.slvs_index)
+            update_pointers(context.scene, p1.slvs_index, p2.slvs_index)
             context.scene.sketcher.entities.remove(p1.slvs_index)
             solve_system(context, context.scene.sketcher.active_sketch)
             return True

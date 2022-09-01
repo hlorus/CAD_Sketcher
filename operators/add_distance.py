@@ -3,7 +3,7 @@ import logging
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty, EnumProperty
 
-from .. import class_defines
+from ..model.distance import align_items
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
@@ -26,7 +26,7 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
         precision=5,
         options={"SKIP_SAVE"},
     )
-    align: EnumProperty(name="Alignment", items=class_defines.align_items)
+    align: EnumProperty(name="Alignment", items=align_items)
     type = "DISTANCE"
 
     def fini(self, context: Context, succeede: bool):

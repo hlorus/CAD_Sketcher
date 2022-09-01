@@ -3,7 +3,7 @@ from typing import Generator, Deque
 
 from bpy.types import Scene, Context
 
-from ..class_defines import SlvsGenericEntity, SlvsSketch
+from ..model.types import SlvsGenericEntity, SlvsSketch
 
 
 def to_list(value):

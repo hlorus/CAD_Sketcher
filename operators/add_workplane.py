@@ -3,7 +3,11 @@ import logging
 import bpy
 from bpy.types import Operator, Context
 
-from .. import class_defines, global_data, functions
+from .. import global_data, functions
+from ..model.types import SlvsNormal3D
+from ..model.categories import normal_3d
+
+from ..utilities.geometry import get_face_orientation
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
@@ -38,7 +42,7 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
             description=wp_state2_doc[1],
             state_func="get_orientation",
             pointer="nm",
-            types=class_defines.normal_3d,
+            types=normal_3d,
             interactive=True,
             create_element="create_normal3d",
         ),
@@ -72,7 +76,7 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
 
         v = values[0].to_quaternion()
         nm = sse.add_normal_3d(v)
-        state_data["type"] = class_defines.SlvsNormal3D
+        state_data["type"] = SlvsNormal3D
         return nm.slvs_index
 
     def main(self, context: Context):
@@ -124,7 +128,7 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         face = mesh.polygons[face_index]
 
         mat_obj = ob.matrix_world
-        quat = class_defines.get_face_orientation(mesh, face)
+        quat = get_face_orientation(mesh, face)
         quat.rotate(mat_obj)
         pos = mat_obj @ face.center
         origin = sse.add_point_3d(pos)

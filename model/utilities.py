@@ -53,11 +53,6 @@ def get_connection_point(seg_1, seg_2):
             return p
 
 
-def set_handles(point):
-    point.handle_left_type = "FREE"
-    point.handle_right_type = "FREE"
-
-
 def get_bezier_curve_midpoint_positions(
     curve_element, segment_count, midpoints, angle, cyclic=False
 ):

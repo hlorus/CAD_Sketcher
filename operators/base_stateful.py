@@ -6,7 +6,7 @@ from bpy.props import FloatVectorProperty
 
 from .. import global_data
 from ..stateful_operator.integration import StatefulOperator
-from ..class_defines import SlvsGenericEntity, SlvsPoint3D, SlvsPoint2D, SlvsNormal3D
+from ..model.types import SlvsGenericEntity, SlvsPoint3D, SlvsPoint2D, SlvsNormal3D
 from .utilities import get_hovered
 
 

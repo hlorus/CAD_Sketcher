@@ -1,10 +1,13 @@
+from typing import Any, List
+
 import bpy
 from bpy.types import Context, Event
 from mathutils import Vector
 from mathutils.geometry import intersect_line_plane
-from typing import Any, List
 
-from .. import functions, class_defines
+from .. import functions
+from ..model.types import SlvsLine2D, SlvsCircle, SlvsArc
+from ..model.utilities import slvs_entity_pointer
 from .base_stateful import GenericEntityOp
 from .utilities import ignore_hover
 
@@ -42,9 +45,9 @@ class Operator2d(GenericEntityOp):
     def _check_constrain(self, context: Context, index: int):
         type = context.scene.sketcher.entities.type_from_index(index)
         return type in (
-            class_defines.SlvsLine2D,
-            class_defines.SlvsCircle,
-            class_defines.SlvsArc,
+            SlvsLine2D,
+            SlvsCircle,
+            SlvsArc,
         )
 
     def get_point(self, context: Context, index: int):
@@ -62,4 +65,4 @@ class Operator2d(GenericEntityOp):
         return getattr(self, state.pointer)
 
 
-class_defines.slvs_entity_pointer(Operator2d, "sketch")
+slvs_entity_pointer(Operator2d, "sketch")

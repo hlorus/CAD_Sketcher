@@ -9,7 +9,7 @@ from mathutils.geometry import (
     intersect_sphere_sphere_2d,
 )
 
-from .. import class_defines
+from ..model.types import SlvsPoint2D
 from ..functions import refresh
 from ..solver import solve_system
 from ..utilities.data_handling import to_list, is_entity_referenced
@@ -97,7 +97,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             "Point",
             description="Point to bevel",
             pointer="p1",
-            types=(class_defines.SlvsPoint2D,),
+            types=(SlvsPoint2D,),
         ),
         state_from_args(
             "Radius",

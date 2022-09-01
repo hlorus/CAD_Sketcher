@@ -105,6 +105,10 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     def solve(self, context):
         return solve_system(context, sketch=self)
 
+    @classmethod
+    def is_sketch(cls):
+        return True
+
 
 slvs_entity_pointer(SlvsSketch, "wp")
 SlvsSketch.__setattr__ = unique_attribute_setter

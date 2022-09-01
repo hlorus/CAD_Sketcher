@@ -1,8 +1,8 @@
-import logging, math
+import logging
 
 from bpy.types import Operator, Context
 
-from .. import class_defines
+from ..model.types import SlvsPoint2D
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
@@ -111,7 +111,7 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         ignore_hover(point)
 
         self.add_coincident(context, point, state, state_data)
-        state_data["type"] = class_defines.SlvsPoint2D
+        state_data["type"] = SlvsPoint2D
         return point.slvs_index
 
 

@@ -4,7 +4,7 @@ from bpy.utils import register_classes_factory
 from bpy.props import IntProperty, BoolProperty
 from bpy.types import Operator, Context
 
-from .. import class_defines
+from ..model.types import SlvsSketch
 from ..functions import show_ui_message_popup, refresh
 from ..declarations import Operators
 from ..utilities.data_handling import (
@@ -42,7 +42,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         if not entity:
             return {"CANCELLED"}
 
-        if isinstance(entity, class_defines.SlvsSketch):
+        if isinstance(entity, SlvsSketch):
             if context.scene.sketcher.active_sketch_i != -1:
                 activate_sketch(context, -1, operator)
             entity.remove_objects()

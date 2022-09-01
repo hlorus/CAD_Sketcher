@@ -1,7 +1,8 @@
 import bpy
 from bpy.types import Context, Event
 
-from .. import functions, class_defines
+from .. import functions
+from ..model.types import SlvsLine3D, SlvsWorkplane
 from .base_stateful import GenericEntityOp
 from .utilities import ignore_hover
 
@@ -30,7 +31,7 @@ class Operator3d(GenericEntityOp):
     # Check if hovered entity should be constrained
     def _check_constrain(self, context, index):
         type = context.scene.sketcher.entities.type_from_index(index)
-        return type in (class_defines.SlvsLine3D, class_defines.SlvsWorkplane)
+        return type in (SlvsLine3D, SlvsWorkplane)
 
     def get_point(self, context, index):
         states = self.get_states_definition()
