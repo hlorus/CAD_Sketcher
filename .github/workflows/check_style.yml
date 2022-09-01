@@ -1,13 +1,11 @@
 on: [pull_request]
 name: Python Style Check
 jobs:
-  pycodestyle:
-    name: pycodestyle
-    runs-on: ubuntu-latest
-    steps:
+  stylecheck:
     - uses: actions/checkout@master
-    - name: pycodestyle
-      uses: ankitvgupta/pycodestyle-action@master
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        PRECOMMAND_MESSAGE: There are style errors. Make sure you're using the [Black Code Formatter](https://github.com/psf/black).
+      with:
+      ref: ${{ github.event.pull_request.head.sha }}
+    - name: 'Run PEP8'
+      uses: quentinguidee/pep8-action@v1
+      with:
+        arguments: '--max-line-length=100'
