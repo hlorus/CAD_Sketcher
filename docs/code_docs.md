@@ -1,6 +1,6 @@
 # Code Documentation
 ## Core
-At the base of the addon there's the properties structure. class_defines.py defines
+At the base of the addon there's the properties structure. The model subpackage defines
 a set of blender [PropertyGroups](https://docs.blender.org/api/current/bpy.types.PropertyGroup.html). This is needed so that values are stored to disk on file save. These PropertyGroups have to be registered
 and then be pointed to from somewhere by a PointerProperty.
 
