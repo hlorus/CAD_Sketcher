@@ -5,7 +5,7 @@ a set of blender [PropertyGroups](https://docs.blender.org/api/current/bpy.types
 and then be pointed to from somewhere by a PointerProperty.
 
 Additionally to pure properties PropertyGroups can also hold methods and attributes,
-the addon makes heavy use of that as it leads a convenient way of working with the data.
+the addon makes heavy use of that as it leads to a convenient way of working with the data.
 
 The root of the addon's data structure is SketcherProps which is registered on blender's
 Scene type and can therefore be accessed as follows:
