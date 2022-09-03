@@ -36,6 +36,7 @@ Minimum version: Blender 2.92
 - Enable the addon by pressing the checkbox
 
 ## Dependency installation
+
 CAD sketcher heavily depends on the [solvespace python module](https://pypi.org/project/py-slvs/) and won't be functional without it.
 
 - Inside the addon's preferences check the "Solver Module" tab to see if the module is already available
