@@ -109,6 +109,27 @@ class ThemeSettingsConstraint(PropertyGroup):
         max=1.0,
         update=update,
     )
+
+    reference: FloatVectorProperty(
+        name="Reference Measurement",
+        subtype="COLOR",
+        default=(0.5, 0.5, 1.0, 0.7),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
+
+    reference_highlight: FloatVectorProperty(
+        name="Reference Highlight",
+        subtype="COLOR",
+        default=(0.6, 0.6, 1.0, 0.95),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
+
     text: FloatVectorProperty(
         name="Text",
         subtype="COLOR",
@@ -118,6 +139,7 @@ class ThemeSettingsConstraint(PropertyGroup):
         max=1.0,
         update=update,
     )
+
     text_highlight: FloatVectorProperty(
         name="Text Highlight",
         subtype="COLOR",
