@@ -5,7 +5,7 @@ from bpy.props import StringProperty, BoolProperty
 from bpy.types import UILayout
 
 from .. import functions
-from ..solver import solve_system
+from ..solver import solve_system, Solver
 from ..global_data import WpReq
 from ..utilities import preferences
 from ..declarations import Operators
@@ -28,6 +28,7 @@ class GenericConstraint:
     is_reference: BoolProperty(name="Construction")
     signature = ()
     props = ()
+    dirty: BoolProperty(name="Needs updating", default=False)
 
     def needs_wp(args):
         return WpReq.OPTIONAL

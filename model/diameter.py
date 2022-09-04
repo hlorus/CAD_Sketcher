@@ -42,11 +42,26 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     def label(self):
         return "Radius" if self.setting else "Diameter"
 
+    def __set_value(self, val: float):
+        self["value"] = val
+        self.dirty= True
+
+    def __get_value(self):
+        if self.dirty:
+            return self["value"]
+        elif self.setting:
+            return self.entity1.radius
+        else:
+            return self.entity1.radius *2
+
     value: FloatProperty(
         name="Size",
         subtype="DISTANCE",
         unit="LENGTH",
+        get=__get_value,
+        set=__set_value,
         update=GenericConstraint.update_system_cb,
+        # is_readonly=is_reference,
     )
     setting: BoolProperty(
         name="Use Radius", get=use_radius_getter, set=use_radius_setter
@@ -108,6 +123,10 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)
+        # self.bl_rna.properties.get('value').is_readonly = True
+        #   Traceback (most recent call last):
+        #     File "<string>", line 1, in <module>
+        #   AttributeError: bpy_struct: attribute "is_readonly" from "FloatProperty" is read-only
 
         sub.prop(self, "value")
 

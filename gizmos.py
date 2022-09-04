@@ -10,7 +10,7 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
 
 from . import functions, global_data, icon_manager
-from .model.types import SlvsDistance, SlvsAngle, SlvsDiameter
+from .model.types import SlvsDistance, SlvsAngle, SlvsDiameter, GenericConstraint
 from .declarations import GizmoGroups, Gizmos, Operators
 from .draw_handler import ensure_selection_texture
 from .utilities.constants import HALF_TURN, QUARTER_TURN
@@ -94,7 +94,7 @@ def get_color(color_type: Color, highlit: bool):
     }
     return theme_match[(color_type, highlit)]
 
-def get_constraint_color_type(constraint: class_defines.GenericConstraint):
+def get_constraint_color_type(constraint: GenericConstraint):
     if constraint.failed:
         return Color.Failed
     if constraint.is_reference:
@@ -110,7 +110,7 @@ class ConstraintGizmo:
             self.type, self.index
         )
 
-    def get_constraint_color(self, constraint: class_defines.GenericConstraint):
+    def get_constraint_color(self, constraint: GenericConstraint):
         theme = functions.get_prefs().theme_settings
         is_highlight = (
             constraint == global_data.highlight_constraint or self.is_highlight
@@ -118,7 +118,7 @@ class ConstraintGizmo:
         col = get_constraint_color_type(constraint)
         return get_color(col, is_highlight)
 
-    def _set_colors(self, context, constraint: class_defines.GenericConstraint):
+    def _set_colors(self, context, constraint: GenericConstraint):
         """Overwrite default color when gizmo is highlighted"""
 
         color_setting = self.get_constraint_color(constraint)
