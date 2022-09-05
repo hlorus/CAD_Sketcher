@@ -101,8 +101,10 @@ class GenericEntityOp(StatefulOperator):
             for a in annotations.keys():
                 if hasattr(cls, a):
                     raise NameError(
-                        f"Class {cls} already has attribute of name {a}, "
-                        + "cannot register implicit pointer properties"
+                        (
+                            f"Class {cls} already has attribute of name {a},"
+                            f"cannot register implicit pointer properties"
+                        )
                     )
             setattr(cls, "__annotations__", annotations)
 

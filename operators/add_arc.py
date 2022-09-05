@@ -1,4 +1,5 @@
-import logging, math
+import logging
+import math
 
 from bpy.types import Operator, Context, Event
 from mathutils import Vector

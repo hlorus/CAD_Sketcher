@@ -11,4 +11,4 @@ jobs:
       - name: "Run PEP8"
         uses: quentinguidee/pep8-action@v1
         with:
-          arguments: "--max-line-length=150 --ignore=E203,W605"
+          arguments: "--max-line-length=150 --ignore=E203,E302,W291,W605"

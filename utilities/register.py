@@ -4,6 +4,7 @@ import importlib
 from typing import List
 from traceback import print_exc
 
+
 # From: https://github.com/iyadahmed/bpy_helper/blob/main/bpy_helper/register.py
 def cleanse_modules(parent_module_name):
     """search for your plugin modules in blender python sys.modules and remove them"""

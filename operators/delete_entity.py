@@ -55,10 +55,8 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         elif is_entity_dependency(entity, context):
             if operator.do_report:
                 deps = list(get_entity_deps(entity, context))
-                message = (
-                    f"Unable to delete {entity.name}, other entities depend on it:\n"
-                    + "\n".join([f" - {d}" for d in deps])
-                )
+                msg_deps = "\n".join([f" - {d}" for d in deps])
+                message = f"Unable to delete {entity.name}, other entities depend on it:\n{msg_deps}"
                 show_ui_message_popup(message=message, icon="ERROR")
 
                 operator.report(

@@ -182,11 +182,9 @@ class StatefulOperatorLogic:
 
     def check_event(self, event):
         state = self.state
+        is_confirm_button = event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER")
 
-        if (
-            event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER")
-            and event.value == "PRESS"
-        ):
+        if is_confirm_button and event.value == "PRESS":
             return True
         if self.state_index == 0 and not self.wait_for_input:
             # Trigger the first state
