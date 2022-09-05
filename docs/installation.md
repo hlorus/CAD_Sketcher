@@ -28,14 +28,11 @@
 ## Dependency installation
 CAD Sketcher heavily depends on the [solvespace python module](https://pypi.org/project/py-slvs/) and won't be functional without it.
 
-Inside the addon's preferences check the "Solver Module" tab to see if the module is already available, otherwise follow one of the guides below.
+Once the 3D View CAD Sketcher plugin is installed check its preferences for the "Solver Module" tab to see if the module is already available, otherwise follow one of the guides below.
 
-> :warning: **Supported Blender Installation:** Blender can be installed through package managers, installing external python packages with such installations might not be possible.
->
-> It's recommended to use the addon with Blender installed from the official website.
 
-=== "Install from PyPi"
-    - Press "Install from PyPi"
+=== "Install from PIP"
+    - Press "Install from PIP"
     - Wait for the process to finish
 
 === "Install from local file"
@@ -49,6 +46,7 @@ There are multiple reasons why the installation might fail. Try the following:
 - If you're on windows start blender as administrator when installing the dependency
 - If you've installed blender through a package manager try again with a version from [blender.org](https://www.blender.org/download/)
 - Check the application's output in the system console for any warnings or hints to find out why it's failing
+- Blender can be installed through package managers, installing external python packages with such installations might not be possible. Try to use the addon with Blender installed from the official website.
 - Ask for help
 
 ## Updating
