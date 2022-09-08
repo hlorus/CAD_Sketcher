@@ -42,24 +42,12 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     def label(self):
         return "Radius" if self.setting else "Diameter"
 
-    def __set_value(self, val: float):
-        self["value"] = val
-        self.dirty= True
-
-    def __get_value(self):
-        if self.dirty:
-            return self["value"]
-        elif self.setting:
-            return self.entity1.radius
-        else:
-            return self.entity1.radius *2
-
     value: FloatProperty(
         name="Size",
         subtype="DISTANCE",
         unit="LENGTH",
-        get=__get_value,
-        set=__set_value,
+        get=DimensionalConstraint._get_value,
+        set=DimensionalConstraint._set_value,
         update=DimensionalConstraint.update_system_cb,
     )
     setting: BoolProperty(
@@ -92,17 +80,11 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         return solvesys.addDiameter(self.diameter, self.entity1.py_data, group=group)
 
     def init_props(self, **kwargs):
-        # Get operators setting value
-        setting = kwargs.get("setting")
 
         value = self.entity1.radius
-        if setting is None and self.entity1.bl_rna.name == "SlvsArc":
-            self["setting"] = True
-
-        if not setting:
+        if not self.setting:
             value = value * 2
-
-        return value, None
+        return value, self.setting
 
     def matrix_basis(self):
         if self.sketch_i == -1:

@@ -3,7 +3,7 @@ from typing import List
 
 from bpy.props import StringProperty, BoolProperty
 import bpy.types
-from bpy.types import UILayout
+from bpy.types import UILayout, Property, Context
 
 from .. import functions
 from ..solver import solve_system, Solver
@@ -28,7 +28,6 @@ class GenericConstraint:
     visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
     signature = ()
     props = ()
-    dirty: BoolProperty(name="Needs updating", default=False)
 
     def needs_wp(args):
         return WpReq.OPTIONAL
@@ -184,14 +183,35 @@ class GenericConstraint:
 
 class DimensionalConstraint(GenericConstraint):
 
-    def make_readonly(self, context: bpy.types.Context):
-        print("here we are")
-        return None
+    value: Property
+    setting: BoolProperty
+
+    def _set_value(self, val: float):
+        self["value"] = val
+
+    def _get_value(self):
+        if self.is_reference:
+            val, _ = self.init_props()
+            return self.to_displayed_value(val)
+        if not self.get("value"):
+            self.assign_init_props()
+        return self["value"]
+
+    def assign_init_props(self, context: Context=None):
+        # self.value, self.setting = self.init_props()
+        self.value, _ = self.init_props()
 
     is_reference: BoolProperty(
         name="Only measure",
         default=False,
+        update=assign_init_props,
     )
+
+    def init_props(self):
+        raise NotImplementedError()
+
+    def to_displayed_value(self, value):
+        return value
 
     def py_data(self, solvesys: Solver, **kwargs):
         if self.is_reference:
@@ -201,7 +221,16 @@ class DimensionalConstraint(GenericConstraint):
     def draw_props(self, layout: UILayout):
         sub = GenericConstraint.draw_props(self, layout)
         sub.prop(self, "is_reference")
-        return sub.column()
+        if hasattr(self, "value"):
+            col = sub.column()
+            # Could not find a way to have the property "readonly",
+            # so we disable user input instead
+            col.prop(self, "value")
+            col.enabled=not self.is_reference
+        if hasattr(self, "setting"):
+            row = sub.row()
+            row.prop(self, "setting")
+        return sub
     
     def is_active(self, *args, **kwargs):
         return GenericConstraint.is_active(self, *args, **kwargs)
