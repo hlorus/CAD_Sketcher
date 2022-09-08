@@ -332,12 +332,12 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         sub.prop(self, "value")
 
         row = sub.row()
-        row.active = self.use_flipping()
+        row.enabled = self.use_flipping()
         row.prop(self, "flip")
 
         sub.label(text="Alignment:")
         row = sub.row()
-        row.active = self.use_align()
+        row.enabled = self.use_align()
         row.prop(self, "align", text="")
 
         if preferences.is_experimental():

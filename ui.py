@@ -416,10 +416,10 @@ def draw_object_context_menu(self, context: Context):
     props = row.operator(Operators.SetActiveSketch, text="Edit Sketch")
 
     if ob and ob.sketch_index != -1:
-        row.active = True
+        row.enabled = True
         props.index = ob.sketch_index
     else:
-        row.active = False
+        row.enabled = False
     layout.separator()
 
 

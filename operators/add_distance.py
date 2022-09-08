@@ -42,7 +42,7 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
         layout = self.layout
 
         row = layout.row()
-        row.active = self.target.use_align()
+        row.enabled = self.target.use_align()
         row.prop(self, "align")
 
 
