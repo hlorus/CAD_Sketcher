@@ -75,11 +75,13 @@ def context_mode_check(context, widget_group):
 
 GIZMO_OFFSET = Vector((10.0, 10.0))
 GIZMO_GENERIC_SIZE = 5
+FONT_ID = 0
 
 class Color(Enum):
     Default = auto()
     Failed = auto()
     Reference = auto()
+    Text = auto()
 
 def get_color(color_type: Color, highlit: bool):
     c_theme = functions.get_prefs().theme_settings.constraint
@@ -91,6 +93,8 @@ def get_color(color_type: Color, highlit: bool):
         (Color.Failed, True): c_theme.failed_highlight,
         (Color.Reference, False): c_theme.reference,
         (Color.Reference, True): c_theme.reference_highlight,
+        (Color.Text, False): c_theme.text,
+        (Color.Text, True): c_theme.text_highlight,
     }
     return theme_match[(color_type, highlit)]
 
@@ -104,7 +108,6 @@ def get_constraint_color_type(constraint: GenericConstraint):
         return Color.Default
 
 
-
 class ConstraintGizmo:
     def _get_constraint(self, context):
         return context.scene.sketcher.constraints.get_from_type_index(
@@ -112,7 +115,6 @@ class ConstraintGizmo:
         )
 
     def get_constraint_color(self, constraint: GenericConstraint):
-        theme = functions.get_prefs().theme_settings
         is_highlight = (
             constraint == global_data.highlight_constraint or self.is_highlight
         )
@@ -227,21 +229,14 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         if not constr.visible or not hasattr(constr, "value_placement"):
             return
 
-        prefs = functions.get_prefs()
-        theme = prefs.theme_settings
-        color = (
-            theme.constraint.text_highlight
-            if self.is_highlight
-            else theme.constraint.text
-        )
+        color = get_color(Color.Text, self.is_highlight)
         text = _get_formatted_value(context, constr)
-        font_id = 0
         dpi = context.preferences.system.dpi
-        text_size = prefs.text_size
+        text_size = functions.get_prefs().text_size
 
-        blf.color(font_id, *color)
-        blf.size(font_id, text_size, dpi)
-        self.width, self.height = blf.dimensions(font_id, text)
+        blf.color(FONT_ID, *color)
+        blf.size(FONT_ID, text_size, dpi)
+        self.width, self.height = blf.dimensions(FONT_ID, text)
 
         margin = text_size / 4
 
@@ -252,8 +247,8 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
             pos.to_3d()
         )  # Update Matrix for selection
 
-        blf.position(font_id, pos[0] - self.width / 2, pos[1] + margin, 0)
-        blf.draw(font_id, text)
+        blf.position(FONT_ID, pos[0] - self.width / 2, pos[1] + margin, 0)
+        blf.draw(FONT_ID, text)
 
     def setup(self):
         self.width = 0

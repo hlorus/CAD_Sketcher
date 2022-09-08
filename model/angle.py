@@ -40,7 +40,7 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         dist = max(
             (line1.midpoint() - origin).length, (line2.midpoint() - origin).length, 0.5
         )
-        self.draw_offset = dist if not setting else -dist
+        self.draw_offset = dist if not self.setting else -dist
 
     label = "Angle"
     value: FloatProperty(
