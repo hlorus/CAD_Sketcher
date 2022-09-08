@@ -13,7 +13,7 @@ from .arc import SlvsArc
 from .circle import SlvsCircle
 from .group_entities import SlvsEntities
 
-from .base_constraint import GenericConstraint
+from .base_constraint import GenericConstraint, DimensionalConstraint
 from .distance import SlvsDistance
 from .angle import SlvsAngle
 from .diameter import SlvsDiameter

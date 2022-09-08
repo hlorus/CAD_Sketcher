@@ -10,7 +10,7 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
 
 from . import functions, global_data, icon_manager
-from .model.types import SlvsDistance, SlvsAngle, SlvsDiameter, GenericConstraint
+from .model.types import SlvsDistance, SlvsAngle, SlvsDiameter, GenericConstraint, DimensionalConstraint
 from .declarations import GizmoGroups, Gizmos, Operators
 from .draw_handler import ensure_selection_texture
 from .utilities.constants import HALF_TURN, QUARTER_TURN
@@ -97,7 +97,8 @@ def get_color(color_type: Color, highlit: bool):
 def get_constraint_color_type(constraint: GenericConstraint):
     if constraint.failed:
         return Color.Failed
-    if constraint.is_reference:
+    elif isinstance(constraint, DimensionalConstraint) and \
+            constraint.is_reference:
         return Color.Reference
     else:
         return Color.Default

@@ -329,8 +329,6 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     def draw_props(self, layout):
         sub = super().draw_props(layout)
 
-        sub.prop(self, "value")
-
         row = sub.row()
         row.enabled = self.use_flipping()
         row.prop(self, "flip")

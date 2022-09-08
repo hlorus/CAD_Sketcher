@@ -335,7 +335,7 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
 
         sketch = context.scene.sketcher.active_sketch
         for c in context.scene.sketcher.constraints.dimensional:
-            if not c.is_active(sketch):
+            if not c.is_active(sketch) or c.is_reference:
                 continue
             draw_constraint_listitem(context, col, c)
 

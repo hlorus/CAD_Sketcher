@@ -144,12 +144,6 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
         self.draw_outset = math.atan(pos.y / pos.x)
 
-    def draw_props(self, layout):
-        sub = super().draw_props(layout)
-        sub.prop(self, "value")
-        sub.prop(self, "setting")
-        return sub
-
     def value_placement(self, context):
         """location to display the constraint value"""
         region = context.region

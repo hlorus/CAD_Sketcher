@@ -2,6 +2,7 @@ import logging
 from typing import List
 
 from bpy.props import StringProperty, BoolProperty
+import bpy.types
 from bpy.types import UILayout
 
 from .. import functions
@@ -25,7 +26,6 @@ class GenericConstraint:
     name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
     failed: BoolProperty(name="Failed")
     visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
-    is_reference: BoolProperty(name="Construction")
     signature = ()
     props = ()
     dirty: BoolProperty(name="Needs updating", default=False)
@@ -152,7 +152,6 @@ class GenericConstraint:
         # General props
         layout.separator()
         layout.prop(self, "visible")
-        layout.prop(self, "is_reference")
 
         # Specific props
         layout.separator()
@@ -176,8 +175,33 @@ class GenericConstraint:
     def placements(self):
         """Return the entities where the constraint should be displayed"""
         return []
-    
+
+    def create_slvs_data(self, solvesys: Solver, **kwargs):
+        raise NotImplementedError()
+
+    def py_data(self, solvesys: Solver, **kwargs):
+        return self.create_slvs_data(solvesys, **kwargs)
+
+class DimensionalConstraint(GenericConstraint):
+
+    def make_readonly(self, context: bpy.types.Context):
+        print("here we are")
+        return None
+
+    is_reference: BoolProperty(
+        name="Only measure",
+        default=False,
+    )
+
     def py_data(self, solvesys: Solver, **kwargs):
         if self.is_reference:
             return []
         return self.create_slvs_data(solvesys, **kwargs)
+
+    def draw_props(self, layout: UILayout):
+        sub = GenericConstraint.draw_props(self, layout)
+        sub.prop(self, "is_reference")
+        return sub.column()
+    
+    def is_active(self, *args, **kwargs):
+        return GenericConstraint.is_active(self, *args, **kwargs)

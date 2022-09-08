@@ -10,7 +10,7 @@ from .. import functions
 from ..solver import Solver
 from ..global_data import WpReq
 from ..functions import location_3d_to_region_2d
-from .base_constraint import GenericConstraint
+from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import CURVE
 
@@ -18,7 +18,7 @@ from .categories import CURVE
 logger = logging.getLogger(__name__)
 
 
-class SlvsDiameter(GenericConstraint, PropertyGroup):
+class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     """Sets the diameter of an arc or a circle."""
 
     def use_radius_getter(self):
@@ -60,8 +60,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         unit="LENGTH",
         get=__get_value,
         set=__set_value,
-        update=GenericConstraint.update_system_cb,
-        # is_readonly=is_reference,
+        update=DimensionalConstraint.update_system_cb,
     )
     setting: BoolProperty(
         name="Use Radius", get=use_radius_getter, set=use_radius_setter
@@ -121,18 +120,6 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         self.draw_offset = pos.length
         self.leader_angle = math.atan2(pos.y, pos.x)
 
-    def draw_props(self, layout):
-        sub = super().draw_props(layout)
-        # self.bl_rna.properties.get('value').is_readonly = True
-        #   Traceback (most recent call last):
-        #     File "<string>", line 1, in <module>
-        #   AttributeError: bpy_struct: attribute "is_readonly" from "FloatProperty" is read-only
-
-        sub.prop(self, "value")
-
-        row = sub.row()
-        row.prop(self, "setting")
-        return sub
 
     def value_placement(self, context):
         """location to display the constraint value"""
