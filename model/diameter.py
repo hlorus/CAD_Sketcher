@@ -12,7 +12,7 @@ from ..global_data import WpReq
 from ..functions import location_3d_to_region_2d
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
-from .categories import curve
+from .categories import CURVE
 
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     leader_angle: FloatProperty(name="Leader Angle", default=45, subtype="ANGLE")
     draw_offset: FloatProperty(name="Draw Offset", default=0)
     type = "DIAMETER"
-    signature = (curve,)
+    signature = (CURVE,)
     props = ("value",)
 
     @property

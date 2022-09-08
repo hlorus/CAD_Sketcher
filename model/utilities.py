@@ -109,7 +109,7 @@ def create_bezier_curve(
 # NOTE: When tweaking, it's necessary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
 def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
-    from .categories import line, curve, point
+    from .categories import LINE, CURVE, POINT
     from .workplane import SlvsWorkplane
 
     func = None
@@ -121,14 +121,14 @@ def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
         entity_type = type(e2)
         handle = e2.py_data
 
-    if entity_type in line:
+    if entity_type in LINE:
         func = solvesys.addPointOnLine
         set_wp = True
-    elif entity_type in curve:
+    elif entity_type in CURVE:
         func = solvesys.addPointOnCircle
     elif entity_type == SlvsWorkplane:
         func = solvesys.addPointInPlane
-    elif entity_type in point:
+    elif entity_type in POINT:
         func = solvesys.addPointsCoincident
         set_wp = True
 

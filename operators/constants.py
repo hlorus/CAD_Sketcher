@@ -1,11 +1,11 @@
-from ..model.categories import point_3d, point_2d
+from ..model.categories import POINT3D, POINT2D
 
 types_point_3d = (
-    *point_3d,
+    *POINT3D,
     *((bpy.types.MeshVertex,) if False else ()),
 )
 
 types_point_2d = (
-    *point_2d,
+    *POINT2D,
     *((bpy.types.MeshVertex,) if False else ()),
 )

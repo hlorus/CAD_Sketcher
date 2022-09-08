@@ -8,7 +8,7 @@ from ..solver import Solver
 from ..global_data import WpReq
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
-from .categories import line
+from .categories import LINE
 from .line_2d import SlvsLine2D
 
 logger = logging.getLogger(__name__)
@@ -31,8 +31,8 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
     )
 
     signature = (
-        line,
-        line,
+        LINE,
+        LINE,
     )
 
     def needs_wp(self):

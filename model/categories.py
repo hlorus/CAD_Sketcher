@@ -6,10 +6,10 @@ from .line_2d import SlvsLine2D
 from .arc import SlvsArc
 from .circle import SlvsCircle
 
-point_3d = (SlvsPoint3D,)
-point_2d = (SlvsPoint2D,)
-normal_3d = (SlvsNormal3D,)
-point = (*point_3d, *point_2d)
-line = (SlvsLine3D, SlvsLine2D)
-curve = (SlvsCircle, SlvsArc)
-segment = (*line, *curve)
+POINT3D = (SlvsPoint3D,)
+POINT2D = (SlvsPoint2D,)
+NORMAL3D = (SlvsNormal3D,)
+POINT = (*POINT3D, *POINT2D)
+LINE = (SlvsLine3D, SlvsLine2D)
+CURVE = (SlvsCircle, SlvsArc)
+SEGMENT = (*LINE, *CURVE)

@@ -7,7 +7,7 @@ from ..solver import Solver
 from ..global_data import WpReq
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
-from .categories import point, line
+from .categories import POINT, LINE
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ class SlvsMidpoint(GenericConstraint, PropertyGroup):
 
     type = "MIDPOINT"
     label = "Midpoint"
-    signature = (point, line)
+    signature = (POINT, LINE)
 
     def needs_wp(self):
         return WpReq.NOT_FREE

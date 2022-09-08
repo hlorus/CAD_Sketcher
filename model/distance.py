@@ -14,7 +14,7 @@ from ..global_data import WpReq
 from ..functions import location_3d_to_region_2d
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
-from .categories import point, line, point_2d, curve
+from .categories import POINT, LINE, POINT2D, CURVE
 
 from .workplane import SlvsWorkplane
 from .point_3d import SlvsPoint3D
@@ -70,7 +70,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     draw_outset: FloatProperty(name="Draw Outset", default=0.0)
     type = "DISTANCE"
-    signature = ((*point, *line, SlvsCircle, SlvsArc), (*point, *line, SlvsWorkplane))
+    signature = ((*POINT, *LINE, SlvsCircle, SlvsArc), (*POINT, *LINE, SlvsWorkplane))
     props = ("value",)
 
     @classmethod
@@ -83,7 +83,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
                 return None
             if e.is_3d():
                 return ((SlvsPoint3D,), (SlvsPoint3D, SlvsLine3D, SlvsWorkplane))[index]
-            return (point_2d, (*point_2d, SlvsLine2D))[index]
+            return (POINT2D, (*POINT2D, SlvsLine2D))[index]
         return cls.signature[index]
 
     def needs_wp(self):
@@ -95,10 +95,10 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         # Only use flipping for constraint between point and line/workplane
         if self.entity1.is_curve():
             return False
-        return type(self.entity2) in (*line, SlvsWorkplane)
+        return type(self.entity2) in (*LINE, SlvsWorkplane)
 
     def use_align(self):
-        if type(self.entity2) in (*line, SlvsWorkplane):
+        if type(self.entity2) in (*LINE, SlvsWorkplane):
             return False
         if self.entity1.is_curve():
             return False
@@ -129,9 +129,9 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         value = self.get_value()
 
         # circle/arc -> line/point
-        if type(e1) in curve:
+        if type(e1) in CURVE:
             # TODO: make Horizontal and Vertical alignment work
-            if type(e2) in line:
+            if type(e2) in LINE:
                 return solvesys.addPointLineDistance(
                     value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
                 )
@@ -141,12 +141,12 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
                     value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
                 )
 
-        elif type(e2) in line:
+        elif type(e2) in LINE:
             func = solvesys.addPointLineDistance
             set_wp = True
         elif isinstance(e2, SlvsWorkplane):
             func = solvesys.addPointPlaneDistance
-        elif type(e2) in point:
+        elif type(e2) in POINT:
             if align and all([e.is_2d() for e in (e1, e2)]):
                 # Get Point in between
                 p1, p2 = e1.co, e2.co
@@ -229,7 +229,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             assert isinstance(e1, SlvsPoint2D)
             p1 = e1.co
 
-        if type(e2) in point_2d:
+        if type(e2) in POINT2D:
             # this includes "Line Length" (now point->point)
             # and curve -> point
             p2 = e2.co
@@ -281,7 +281,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         e1, e2 = self.entity1, self.entity2
         if e1.is_line():
             value = e1.length
-        elif type(e1) in curve:
+        elif type(e1) in CURVE:
             centerpoint = e1.ct.co
             if isinstance(e2, SlvsLine2D):
                 endpoint, _ = intersect_point_line(centerpoint, e2.p1.co, e2.p2.co)
@@ -292,7 +292,7 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
         elif isinstance(e2, SlvsWorkplane):
             # Returns the signed distance to the plane
             value = distance_point_to_plane(e1.location, e2.p1.location, e2.normal)
-        elif type(e2) in line:
+        elif type(e2) in LINE:
             orig = e2.p1.location
             end = e2.p2.location - orig
             p1 = e1.location - orig

@@ -6,7 +6,7 @@ from bpy.utils import register_classes_factory
 from ..solver import Solver
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
-from .categories import line, curve
+from .categories import LINE, CURVE
 from .line_2d import SlvsLine2D
 from .arc import SlvsArc
 from .circle import SlvsCircle
@@ -14,7 +14,7 @@ from .circle import SlvsCircle
 logger = logging.getLogger(__name__)
 
 
-line_arc_circle = (*line, *curve)
+line_arc_circle = (*LINE, *CURVE)
 
 
 class SlvsEqual(GenericConstraint, PropertyGroup):
@@ -37,7 +37,7 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
             if type(e) in (SlvsLine2D, SlvsArc):
                 return (SlvsLine2D, SlvsArc)
             elif type(e) == SlvsCircle:
-                return curve
+                return CURVE
             return (type(e),)
         return cls.signature[index]
 
@@ -48,10 +48,10 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
         func = None
         set_wp = False
 
-        if all([type(e) in line for e in (e1, e2)]):
+        if all([type(e) in LINE for e in (e1, e2)]):
             func = solvesys.addEqualLength
             set_wp = True
-        elif all([type(e) in curve for e in (e1, e2)]):
+        elif all([type(e) in CURVE for e in (e1, e2)]):
             func = solvesys.addEqualRadius
         else:
             # TODO: Do a proper check to see if there's really one Arc and one Line

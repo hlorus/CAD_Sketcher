@@ -7,7 +7,7 @@ from ..solver import Solver
 from ..global_data import WpReq
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer, make_coincident
-from .categories import point, line
+from .categories import POINT, LINE
 from .workplane import SlvsWorkplane
 from .arc import SlvsArc
 from .circle import SlvsCircle
@@ -29,7 +29,7 @@ class SlvsCoincident(GenericConstraint, PropertyGroup):
 
     type = "COINCIDENT"
     label = "Coincident"
-    signature = (point, (*point, *line, SlvsWorkplane, SlvsCircle, SlvsArc))
+    signature = (POINT, (*POINT, *LINE, SlvsWorkplane, SlvsCircle, SlvsArc))
     # NOTE: Coincident between 3dPoint and Workplane currently doesn't seem to work
 
     def needs_wp(self):

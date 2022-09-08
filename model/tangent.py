@@ -7,7 +7,7 @@ from ..solver import Solver
 from ..global_data import WpReq
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer, make_coincident, get_connection_point
-from .categories import curve
+from .categories import CURVE
 from .line_2d import SlvsLine2D
 from .arc import SlvsArc
 from .circle import SlvsCircle
@@ -20,7 +20,7 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
 
     type = "TANGENT"
     label = "Tangent"
-    signature = (curve, (SlvsLine2D, *curve))
+    signature = (CURVE, (SlvsLine2D, *CURVE))
 
     def needs_wp(self):
         return WpReq.NOT_FREE
@@ -62,7 +62,7 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
                 solvesys.addPerpendicular(e2.py_data, line, wrkpln=wp, group=group),
             )
 
-        elif type(e2) in curve:
+        elif e2.is_curve():
             coords = (e1.ct.co + e2.ct.co) / 2
             params = [solvesys.addParamV(v, group) for v in coords]
             p = solvesys.addPoint2d(wp, *params, group=group)

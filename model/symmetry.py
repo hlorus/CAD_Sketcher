@@ -9,7 +9,7 @@ from ..solver import Solver
 from ..global_data import WpReq
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
-from .categories import point
+from .categories import POINT
 from .workplane import SlvsWorkplane
 from .line_2d import SlvsLine2D
 
@@ -30,8 +30,8 @@ class SlvsSymmetric(GenericConstraint, PropertyGroup):
 
     # TODO: not all combinations are possible!
     signature = (
-        point,
-        point,
+        POINT,
+        POINT,
         (SlvsLine2D, SlvsWorkplane),
     )
 

@@ -5,7 +5,7 @@ from bpy.types import Operator, Context
 
 from .. import global_data, functions
 from ..model.types import SlvsNormal3D
-from ..model.categories import normal_3d
+from ..model.categories import NORMAL3D
 
 from ..utilities.geometry import get_face_orientation
 from ..declarations import Operators
@@ -42,7 +42,7 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
             description=wp_state2_doc[1],
             state_func="get_orientation",
             pointer="nm",
-            types=normal_3d,
+            types=NORMAL3D,
             interactive=True,
             create_element="create_normal3d",
         ),

@@ -7,7 +7,6 @@ from bpy.utils import register_classes_factory
 
 from .base_entity import SlvsGenericEntity
 from .sketch import SlvsSketch
-from .categories import point
 
 from .base_constraint import GenericConstraint
 from .distance import SlvsDistance
@@ -168,7 +167,7 @@ class SlvsConstraints(PropertyGroup):
             SlvsCoincident: The created constraint.
         """
 
-        if all([type(e) in point for e in (entity1, entity2)]):
+        if all([e.is_point() for e in (entity1, entity2)]):
             # TODO: Implicitly merge points
             return
 
