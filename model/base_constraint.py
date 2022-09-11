@@ -201,10 +201,15 @@ class DimensionalConstraint(GenericConstraint):
         # self.value, self.setting = self.init_props()
         self.value, _ = self.init_props()
 
+    def refresh_constraint(self, context: Context=None):
+        self.assign_init_props()
+        # Refresh the gizmos as we are changing the colors.
+        functions.refresh(context)
+
     is_reference: BoolProperty(
         name="Only measure",
         default=False,
-        update=assign_init_props,
+        update=refresh_constraint,
     )
 
     def init_props(self):
