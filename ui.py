@@ -6,18 +6,20 @@ from .declarations import Menus, Operators, Panels, ConstraintOperators
 from .stateful_operator.constants import Operators as StatefulOperators
 from .model.types import GenericConstraint, DimensionalConstraint
 
+
 class VIEW3D_UL_sketches(UIList):
     """Creates UI list of available Sketches"""
+
     def draw_item(
-        self, 
-        context: Context, 
+        self,
+        context: Context,
         layout: UILayout,
         data: PropertyGroup,
         item: PropertyGroup,
         icon: int,
         active_data: PropertyGroup,
         active_propname: str,
-        index: int=0
+        index: int = 0,
     ):
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             if item:
@@ -80,6 +82,7 @@ class VIEW3D_PT_sketcher_base(Panel):
 
 class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
     """Menu for selecting the sketch you want to enter into"""
+
     bl_label = "Sketcher"
     bl_idname = Panels.Sketcher
 
@@ -147,6 +150,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
 
 class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
     """Debug Menu"""
+
     bl_label = "Debug Settings"
     bl_idname = Panels.SketcherDebugPanel
 
@@ -173,7 +177,11 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
 
 
 class VIEW3D_PT_sketcher_add_constraints(VIEW3D_PT_sketcher_base):
-    """Add Constraint Menu: List of buttons with the constraint you want to create."""
+    """
+    Add Constraint Menu: List of buttons with the constraint you want
+    to create.
+    """
+
     bl_label = "Add Constraints"
     bl_idname = Panels.SketcherAddContraint
     bl_options = {"DEFAULT_CLOSED"}
@@ -191,6 +199,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
     Entities Menu: List of entities in the sketch.
     Interactive
     """
+
     bl_label = "Entities"
     bl_idname = Panels.SketcherEntities
     bl_options = {"DEFAULT_CLOSED"}
@@ -274,11 +283,12 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
 
 
 def draw_constraint_listitem(
-    context: Context, 
-    layout: UILayout, 
-    constraint: GenericConstraint
+    context: Context, layout: UILayout, constraint: GenericConstraint
 ):
-    """Creates a single row inside the ``layout`` describing the ``constraint``."""
+    """
+    Creates a single row inside the ``layout`` describing
+    the ``constraint``.
+    """
     index = context.scene.sketcher.constraints.get_index(constraint)
     row = layout.row()
 
@@ -307,13 +317,14 @@ def draw_constraint_listitem(
     center_sub = row.row()
     center_sub.alignment = "LEFT"
 
-
     # Dimensional Constraint Values
     for constraint_prop in constraint.props:
         center_sub.prop(constraint, constraint_prop, text="")
 
     # Disable interaction with element if it is "readonly"
-    center_sub.enabled = isinstance(constraint, DimensionalConstraint) and constraint.is_reference
+    center_sub.enabled = (
+        isinstance(constraint, DimensionalConstraint) and constraint.is_reference
+    )
 
     # Right part
     right_sub = row.row()
@@ -347,6 +358,7 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
     Constraints Menu: List of entities in the sketch.
     Interactive
     """
+
     bl_label = "Constraints"
     bl_idname = Panels.SketcherContraints
     bl_options = {"DEFAULT_CLOSED"}

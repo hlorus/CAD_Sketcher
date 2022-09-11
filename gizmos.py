@@ -10,7 +10,13 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
 
 from . import functions, global_data, icon_manager
-from .model.types import SlvsDistance, SlvsAngle, SlvsDiameter, GenericConstraint, DimensionalConstraint
+from .model.types import (
+    SlvsDistance,
+    SlvsAngle,
+    SlvsDiameter,
+    GenericConstraint,
+    DimensionalConstraint,
+)
 from .declarations import GizmoGroups, Gizmos, Operators
 from .draw_handler import ensure_selection_texture
 from .utilities.constants import HALF_TURN, QUARTER_TURN
@@ -77,11 +83,13 @@ GIZMO_OFFSET = Vector((10.0, 10.0))
 GIZMO_GENERIC_SIZE = 5
 FONT_ID = 0
 
+
 class Color(Enum):
     Default = auto()
     Failed = auto()
     Reference = auto()
     Text = auto()
+
 
 def get_color(color_type: Color, highlit: bool):
     c_theme = functions.get_prefs().theme_settings.constraint
@@ -98,11 +106,11 @@ def get_color(color_type: Color, highlit: bool):
     }
     return theme_match[(color_type, highlit)]
 
+
 def get_constraint_color_type(constraint: GenericConstraint):
     if constraint.failed:
         return Color.Failed
-    elif isinstance(constraint, DimensionalConstraint) and \
-            constraint.is_reference:
+    elif isinstance(constraint, DimensionalConstraint) and constraint.is_reference:
         return Color.Reference
     else:
         return Color.Default
@@ -720,7 +728,7 @@ def set_gizmo_colors(gz, constraint):
     color_type = get_constraint_color_type(constraint)
     color = get_color(color_type, highlit=False)
     color_highlight = get_color(color_type, highlit=True)
-    
+
     gz.color = color[0:-1]
     gz.alpha = color[-1]
     gz.color_highlight = color_highlight[0:-1]

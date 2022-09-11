@@ -181,6 +181,7 @@ class GenericConstraint:
     def py_data(self, solvesys: Solver, **kwargs):
         return self.create_slvs_data(solvesys, **kwargs)
 
+
 class DimensionalConstraint(GenericConstraint):
 
     value: Property
@@ -197,11 +198,11 @@ class DimensionalConstraint(GenericConstraint):
             self.assign_init_props()
         return self["value"]
 
-    def assign_init_props(self, context: Context=None):
+    def assign_init_props(self, context: Context = None):
         # self.value, self.setting = self.init_props()
         self.value, _ = self.init_props()
 
-    def refresh_constraint(self, context: Context=None):
+    def refresh_constraint(self, context: Context = None):
         self.assign_init_props()
         # Refresh the gizmos as we are changing the colors.
         functions.refresh(context)
@@ -231,11 +232,11 @@ class DimensionalConstraint(GenericConstraint):
             # Could not find a way to have the property "readonly",
             # so we disable user input instead
             col.prop(self, "value")
-            col.enabled=not self.is_reference
+            col.enabled = not self.is_reference
         if hasattr(self, "setting"):
             row = sub.row()
             row.prop(self, "setting")
         return sub
-    
+
     def is_active(self, *args, **kwargs):
         return GenericConstraint.is_active(self, *args, **kwargs)

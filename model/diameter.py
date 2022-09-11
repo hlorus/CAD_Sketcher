@@ -102,7 +102,6 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         self.draw_offset = pos.length
         self.leader_angle = math.atan2(pos.y, pos.x)
 
-
     def value_placement(self, context):
         """location to display the constraint value"""
         region = context.region

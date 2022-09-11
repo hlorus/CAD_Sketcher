@@ -27,9 +27,11 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     """
 
     def _set_value(self, value):
-        DimensionalConstraint._set_value(self, HALF_TURN - value if self.setting else value)
+        DimensionalConstraint._set_value(
+            self, HALF_TURN - value if self.setting else value
+        )
 
-    def assign_init_props(self, context: Context=None):
+    def assign_init_props(self, context: Context = None):
         # Updating self.setting will create recursion loop
         self.value, _ = self.init_props()
         line1, line2 = self.entity1, self.entity2
@@ -137,7 +139,6 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         angle = self._get_angle(vec1, vec2)
 
         return math.radians(angle), self.setting
-
 
     def text_inside(self):
         return abs(self.draw_outset) < (self.value / 2)
