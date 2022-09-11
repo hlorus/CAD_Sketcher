@@ -37,7 +37,6 @@ def get_side_of_line(line_start: Vector, line_end: Vector, point: Vector):
     return (point - line_start).cross(line_end - line_start)
 
 
-
 align_items = [
     ("NONE", "None", "", 0),
     ("HORIZONTAL", "Horizontal", "", 1),
