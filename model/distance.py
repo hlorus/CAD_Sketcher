@@ -27,13 +27,14 @@ from .circle import SlvsCircle
 logger = logging.getLogger(__name__)
 
 
-def get_side_of_line(line_start, line_end, point):
-    line_end = line_end - line_start
-    point = point - line_start
-    return -(
-        (line_end.x - line_start.x) * (point.y - line_start.y)
-        - (line_end.y - line_start.y) * (point.x - line_start.x)
-    )
+def get_side_of_line(line_start: Vector, line_end: Vector, point: Vector):
+    """
+    Returns the 2D cross product between the line as
+    a vector (start_line, end_line) and the vector (start_line, point).
+
+    Helps to determine the position of the point relative to the line.
+    """
+    return (point - line_start).cross(line_end - line_start)
 
 
 align_items = [
