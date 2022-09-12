@@ -237,6 +237,3 @@ class DimensionalConstraint(GenericConstraint):
             row = sub.row()
             row.prop(self, "setting")
         return sub
-
-    def is_active(self, *args, **kwargs):
-        return GenericConstraint.is_active(self, *args, **kwargs)
