@@ -188,6 +188,13 @@ class DimensionalConstraint(GenericConstraint):
     setting: BoolProperty
 
     def _set_value(self, val: float):
+        # NOTE: function signature _set_value(self, val: float, force=False)
+        #       will fail when bpy tries to register the value property.
+        #       See `_set_value_force()`
+        if not self.is_reference:
+            self._set_value_force(val)
+    
+    def _set_value_force(self, val: float):
         self["value"] = val
 
     def _get_value(self):
@@ -200,9 +207,10 @@ class DimensionalConstraint(GenericConstraint):
 
     def assign_init_props(self, context: Context = None):
         # self.value, self.setting = self.init_props()
-        self.value, _ = self.init_props()
+        _value, _ = self.init_props()
+        self._set_value_force(_value)
 
-    def refresh_constraint(self, context: Context = None):
+    def on_reference_checked(self, context: Context = None):
         self.assign_init_props()
         # Refresh the gizmos as we are changing the colors.
         functions.refresh(context)
@@ -210,7 +218,7 @@ class DimensionalConstraint(GenericConstraint):
     is_reference: BoolProperty(
         name="Only measure",
         default=False,
-        update=refresh_constraint,
+        update=on_reference_checked,
     )
 
     def init_props(self):

@@ -26,14 +26,15 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     The constraint's setting can be used to to constrain the supplementary angle.
     """
 
-    def _set_value(self, value):
-        DimensionalConstraint._set_value(
+    def _set_value_force(self, value):
+        DimensionalConstraint._set_value_force(
             self, HALF_TURN - value if self.setting else value
         )
 
     def assign_init_props(self, context: Context = None):
         # Updating self.setting will create recursion loop
-        self.value, _ = self.init_props()
+        _value, _ = self.init_props()
+        self._set_value_force(_value)
         line1, line2 = self.entity1, self.entity2
         origin = functions.get_line_intersection(
             *functions.line_abc_form(line1.p1.co, line1.p2.co),
@@ -51,7 +52,7 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         unit="ROTATION",
         update=DimensionalConstraint.update_system_cb,
         get=DimensionalConstraint._get_value,
-        set=_set_value,
+        set=DimensionalConstraint._set_value,
     )
     setting: BoolProperty(
         name="Measure supplementary angle",

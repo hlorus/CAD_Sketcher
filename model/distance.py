@@ -46,8 +46,8 @@ align_items = [
 class SlvsDistance(DimensionalConstraint, PropertyGroup):
     """Sets the distance between a point and some other entity (point/line/Workplane)."""
 
-    def _set_value(self, value):
-        DimensionalConstraint._set_value(self, abs(value))
+    def _set_value_force(self, value):
+        DimensionalConstraint._set_value_force(self, abs(value))
 
     label = "Distance"
     value: FloatProperty(
@@ -56,7 +56,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         unit="LENGTH",
         update=DimensionalConstraint.update_system_cb,
         get=DimensionalConstraint._get_value,
-        set=_set_value,
+        set=DimensionalConstraint._set_value,
     )
     flip: BoolProperty(name="Flip", update=DimensionalConstraint.update_system_cb)
     align: EnumProperty(

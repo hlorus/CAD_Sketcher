@@ -321,10 +321,10 @@ def draw_constraint_listitem(
     for constraint_prop in constraint.props:
         center_sub.prop(constraint, constraint_prop, text="")
 
-    # Disable interaction with element if it is "readonly"
-    center_sub.enabled = not (
-        isinstance(constraint, DimensionalConstraint) and constraint.is_reference
-    )
+    # # Disable interaction with element if it is "readonly"
+    # center_sub.enabled = not (
+    #     isinstance(constraint, DimensionalConstraint) and constraint.is_reference
+    # )
 
     # Right part
     right_sub = row.row()
