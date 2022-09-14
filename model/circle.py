@@ -12,6 +12,7 @@ from bpy.utils import register_classes_factory
 
 from .. import functions
 from ..solver import Solver
+from ..utilities.math import range_2pi, pol2cart
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, tag_update
@@ -101,7 +102,7 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         self.radius = solvesys.getParam(self.param).val
 
     def point_on_curve(self, angle):
-        return functions.pol2cart(self.radius, angle) + self.ct.co
+        return pol2cart(self.radius, angle) + self.ct.co
 
     def placement(self):
         return self.wp.matrix_basis @ self.point_on_curve(45).to_3d()
@@ -210,7 +211,7 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
     def distance_along_segment(self, p1, p2):
         ct = self.ct.co
         start, end = p1 - ct, p2 - ct
-        angle = functions.range_2pi(math.atan2(*end.yx) - math.atan2(*start.yx))
+        angle = range_2pi(math.atan2(*end.yx) - math.atan2(*start.yx))
         retval = self.radius * angle
         return retval
 

@@ -98,28 +98,28 @@ def add_new_empty(context, location: Vector, name="") -> Object:
     return empty
 
 
-def draw_circle_2d(cx: float, cy: float, r: float, num_segments: int):
-    """NOTE: Not used?"""
-    # circle outline
-    # NOTE: also see gpu_extras.presets.draw_circle_2d
-    theta = FULL_TURN / num_segments
+# def draw_circle_2d(cx: float, cy: float, r: float, num_segments: int):
+#     """NOTE: Not used?"""
+#     # circle outline
+#     # NOTE: also see gpu_extras.presets.draw_circle_2d
+#     theta = FULL_TURN / num_segments
 
-    # precalculate the sine and cosine
-    c = math.cos(theta)
-    s = math.sin(theta)
+#     # precalculate the sine and cosine
+#     c = math.cos(theta)
+#     s = math.sin(theta)
 
-    # start at angle = 0
-    x = r
-    y = 0
-    coords = []
-    for _ in range(num_segments):
-        coords.append((x + cx, y + cy))
-        # apply the rotation matrix
-        t = x
-        x = c * x - s * y
-        y = s * t + c * y
-    coords.append(coords[0])
-    return coords
+#     # start at angle = 0
+#     x = r
+#     y = 0
+#     coords = []
+#     for _ in range(num_segments):
+#         coords.append((x + cx, y + cy))
+#         # apply the rotation matrix
+#         t = x
+#         x = c * x - s * y
+#         y = s * t + c * y
+#     coords.append(coords[0])
+#     return coords
 
 
 def draw_rect_2d(cx: float, cy: float, width: float, height: float):
@@ -216,17 +216,6 @@ def coords_arc_2d(
         else:
             coords.append((co_x, co_y))
     return coords
-
-
-def range_2pi(angle: float) -> float:
-    """Map angle range -Pi/+Pi to 0/2*Pi"""
-    return (angle + FULL_TURN) % FULL_TURN
-
-
-def pol2cart(radius: float, angle: float) -> Vector:
-    x = radius * cos(angle)
-    y = radius * sin(angle)
-    return Vector((x, y))
 
 
 def index_to_rgb(i: int):

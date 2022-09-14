@@ -17,7 +17,7 @@ from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, tag_update
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN, QUARTER_TURN
-from ..functions import range_2pi
+from ..utilities.math import range_2pi, pol2cart
 from .utilities import (
     get_connection_point,
     get_bezier_curve_midpoint_positions,
@@ -132,9 +132,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         return math.atan2((start - center)[1], (start - center)[0])
 
     def placement(self):
-        coords = self.ct.co + functions.pol2cart(
-            self.radius, self.start_angle + self.angle / 2
-        )
+        coords = self.ct.co + pol2cart(self.radius, self.start_angle + self.angle / 2)
 
         return self.wp.matrix_basis @ coords.to_3d()
 

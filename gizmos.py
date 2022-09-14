@@ -3,17 +3,18 @@ import bgl
 import gpu
 import blf
 
-import math
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
+
+import math
 
 from . import functions, global_data, icon_manager
 from .model.types import SlvsDistance, SlvsAngle, SlvsDiameter
 from .declarations import GizmoGroups, Gizmos, Operators
 from .draw_handler import ensure_selection_texture
 from .utilities.constants import HALF_TURN, QUARTER_TURN
-
+from .utilities.math import pol2cart
 
 # NOTE: idealy gizmo would expose active element as a property and
 # operators would access hovered element from there
@@ -471,9 +472,9 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
         overshoot_2 = get_overshoot(scale_2, radius)
         return (
             (0.0, 0.0),
-            functions.pol2cart(radius - overshoot_1, angle / 2),
+            pol2cart(radius - overshoot_1, angle / 2),
             (0.0, 0.0),
-            functions.pol2cart(radius - overshoot_2, -angle / 2),
+            pol2cart(radius - overshoot_2, -angle / 2),
         )
 
     def _create_shape(self, context, constr, select=False):
@@ -497,8 +498,8 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
         radius = self.target_get_value("offset")
         angle = abs(constr.value)
         half_angle = angle / 2
-        p1 = functions.pol2cart(radius, -half_angle)
-        p2 = functions.pol2cart(radius, half_angle)
+        p1 = pol2cart(radius, -half_angle)
+        p2 = pol2cart(radius, half_angle)
 
         scales = []
         lengths, widths = [], []  # Length is limited to no more than 1/3 the span
@@ -575,8 +576,8 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
 
         rv3d = context.region_data
 
-        p1 = functions.pol2cart(-dist, angle)
-        p2 = functions.pol2cart(dist, angle)
+        p1 = pol2cart(-dist, angle)
+        p2 = pol2cart(dist, angle)
 
         p1_global, p2_global = [self.matrix_world @ p.to_3d() for p in (p1, p2)]
         scale_1, scale_2 = [
@@ -592,7 +593,7 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
             if constr.text_inside():
                 coords = (
                     *draw_arrow_shape(
-                        p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+                        p2, pol2cart(dist - arrow_2[0], angle), arrow_2[1]
                     ),
                     p2,
                     (0, 0),
@@ -600,10 +601,10 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
             else:
                 coords = (
                     *draw_arrow_shape(
-                        p2, functions.pol2cart(arrow_2[0] + dist, angle), arrow_2[1]
+                        p2, pol2cart(arrow_2[0] + dist, angle), arrow_2[1]
                     ),
                     p2,
-                    functions.pol2cart(offset, angle),
+                    pol2cart(offset, angle),
                 )
 
         else:
@@ -613,28 +614,28 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
             if constr.text_inside():
                 coords = (
                     *draw_arrow_shape(
-                        p1, functions.pol2cart(arrow_2[0] - dist, angle), arrow_2[1]
+                        p1, pol2cart(arrow_2[0] - dist, angle), arrow_2[1]
                     ),
                     p1,
                     p2,
                     *draw_arrow_shape(
-                        p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+                        p2, pol2cart(dist - arrow_2[0], angle), arrow_2[1]
                     ),
                 )
             else:
                 coords = (
                     *draw_arrow_shape(
-                        p2, functions.pol2cart(arrow_1[0] + dist, angle), arrow_1[1]
+                        p2, pol2cart(arrow_1[0] + dist, angle), arrow_1[1]
                     ),
                     p2,
-                    functions.pol2cart(offset, angle),
-                    functions.pol2cart(
+                    pol2cart(offset, angle),
+                    pol2cart(
                         dist + (3 * arrow_2[0]), angle + HALF_TURN
                     ),  # limit length to 3 arrowheads
                     p1,
                     *draw_arrow_shape(
                         p1,
-                        functions.pol2cart(dist + arrow_2[0], angle + HALF_TURN),
+                        pol2cart(dist + arrow_2[0], angle + HALF_TURN),
                         arrow_2[1],
                     ),
                 )

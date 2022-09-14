@@ -6,10 +6,10 @@ from bpy.props import BoolProperty, FloatProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 
-from .. import functions
 from ..solver import Solver
 from ..global_data import WpReq
 from ..functions import location_3d_to_region_2d
+from ..utilities.math import range_2pi, pol2cart
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
 from .categories import CURVE
@@ -95,7 +95,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
             return Matrix()
         sketch = self.sketch
         origin = self.entity1.ct.co
-        rotation = functions.range_2pi(math.radians(self.leader_angle))
+        rotation = range_2pi(math.radians(self.leader_angle))
         mat_local = Matrix.Translation(origin.to_3d())
         return sketch.wp.matrix_basis @ mat_local
 
@@ -120,7 +120,7 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         region = context.region
         rv3d = context.space_data.region_3d
         offset = self.draw_offset
-        coords = functions.pol2cart(offset, self.leader_angle)
+        coords = pol2cart(offset, self.leader_angle)
         coords2 = self.matrix_basis() @ Vector((coords[0], coords[1], 0.0))
         return location_3d_to_region_2d(region, rv3d, coords2)
 

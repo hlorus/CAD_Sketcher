@@ -7,8 +7,9 @@ from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 
 from .. import functions
-from ..functions import pol2cart
+from ..utilities.math import pol2cart
 from ..utilities.constants import HALF_TURN, QUARTER_TURN
+from ..utilities.math import range_2pi
 from ..solver import Solver
 from ..global_data import WpReq
 from ..functions import location_3d_to_region_2d
@@ -85,9 +86,7 @@ class SlvsAngle(GenericConstraint, PropertyGroup):
             *functions.line_abc_form(line2.p1.co, line2.p2.co),
         )
 
-        rotation = functions.range_2pi(
-            (self.orientation(line2) + self.orientation(line1)) / 2
-        )
+        rotation = range_2pi((self.orientation(line2) + self.orientation(line1)) / 2)
 
         if self.setting:
             rotation = rotation - QUARTER_TURN
