@@ -35,33 +35,53 @@ class WpReq(Enum):
 
 
 solver_state_items = [
-    ("OKAY", "Okay", "Successfully solved sketch", "CHECKMARK", 0),
+    (
+        "OKAY",
+        "Okay",
+        "Successfully solved sketch",
+        "CHECKMARK",
+        0,  # SLVS_RESULT_OKAY
+    ),
     (
         "INCONSISTENT",
         "Inconsistent",
         "Cannot solve sketch because of inconsistent constraints",
         "ERROR",
-        1,
+        1,  # SLVS_RESULT_INCONSISTENT
     ),
     (
         "DIDNT_CONVERGE",
         "Didnt Converge",
         "Cannot solve sketch, system didn't converge",
         "ERROR",
-        2,
+        2,  # SLVS_RESULT_DIDNT_CONVERGE
     ),
     (
         "TOO_MANY_UNKNOWNS",
         "Too Many Unknowns",
         "Cannot solve sketch because of too many unknowns",
         "ERROR",
-        3,
+        3,  # SLVS_RESULT_TOO_MANY_UNKNOWNS
+    ),
+    (
+        "INIT_ERROR",
+        "Initialize Error",
+        "Initializing solver failed",
+        "ERROR",
+        4,  # SLVS_RESULT_INIT_ERROR
+    ),
+    (
+        "REDUNDANT_OK",
+        "Redundant Ok",
+        "Constraints seem redundand",
+        "CHECKMARK",
+        5,  # SLVS_RESULT_REDUNDANT_OK
     ),
     (
         "UNKNOWN_FAILURE",
         "Unknown Failure",
         "Cannot solve sketch because of unknown failure",
         "ERROR",
-        4,
+        6,
     ),
 ]
