@@ -1,4 +1,4 @@
-from bpy.types import Vector
+from mathutils import Vector
 
 from math import sin, cos
 
