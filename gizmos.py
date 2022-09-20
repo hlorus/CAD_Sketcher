@@ -5,11 +5,18 @@ import blf
 
 import math
 from bpy.types import Gizmo, GizmoGroup
+from enum import Enum, auto
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
 
 from . import functions, global_data, icon_manager
-from .model.types import SlvsDistance, SlvsAngle, SlvsDiameter
+from .model.types import (
+    SlvsDistance,
+    SlvsAngle,
+    SlvsDiameter,
+    GenericConstraint,
+    DimensionalConstraint,
+)
 from .declarations import GizmoGroups, Gizmos, Operators
 from .draw_handler import ensure_selection_texture
 from .utilities.constants import HALF_TURN, QUARTER_TURN
@@ -74,6 +81,39 @@ def context_mode_check(context, widget_group):
 
 GIZMO_OFFSET = Vector((10.0, 10.0))
 GIZMO_GENERIC_SIZE = 5
+FONT_ID = 0
+
+
+class Color(Enum):
+    Default = auto()
+    Failed = auto()
+    Reference = auto()
+    Text = auto()
+
+
+def get_color(color_type: Color, highlit: bool):
+    c_theme = functions.get_prefs().theme_settings.constraint
+    theme_match = {
+        # (type, highlit): color
+        (Color.Default, False): c_theme.default,
+        (Color.Default, True): c_theme.highlight,
+        (Color.Failed, False): c_theme.failed,
+        (Color.Failed, True): c_theme.failed_highlight,
+        (Color.Reference, False): c_theme.reference,
+        (Color.Reference, True): c_theme.reference_highlight,
+        (Color.Text, False): c_theme.text,
+        (Color.Text, True): c_theme.text_highlight,
+    }
+    return theme_match[(color_type, highlit)]
+
+
+def get_constraint_color_type(constraint: GenericConstraint):
+    if constraint.failed:
+        return Color.Failed
+    elif isinstance(constraint, DimensionalConstraint) and constraint.is_reference:
+        return Color.Reference
+    else:
+        return Color.Default
 
 
 class ConstraintGizmo:
@@ -82,26 +122,19 @@ class ConstraintGizmo:
             self.type, self.index
         )
 
-    def _set_colors(self, context, constraint):
-        """Overwrite default color when gizmo is highlighted"""
-
-        theme = functions.get_prefs().theme_settings
+    def get_constraint_color(self, constraint: GenericConstraint):
         is_highlight = (
             constraint == global_data.highlight_constraint or self.is_highlight
         )
-        failed = constraint.failed
+        col = get_constraint_color_type(constraint)
+        return get_color(col, is_highlight)
 
-        if is_highlight:
-            col = (
-                theme.constraint.failed_highlight
-                if failed
-                else theme.constraint.highlight
-            )
-        else:
-            col = theme.constraint.failed if failed else theme.constraint.default
+    def _set_colors(self, context, constraint: GenericConstraint):
+        """Overwrite default color when gizmo is highlighted"""
 
-        self.color = col[:3]
-        return col
+        color_setting = self.get_constraint_color(constraint)
+        self.color = color_setting[:3]
+        return color_setting
 
 
 class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
@@ -204,21 +237,14 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         if not constr.visible or not hasattr(constr, "value_placement"):
             return
 
-        prefs = functions.get_prefs()
-        theme = prefs.theme_settings
-        color = (
-            theme.constraint.text_highlight
-            if self.is_highlight
-            else theme.constraint.text
-        )
+        color = get_color(Color.Text, self.is_highlight)
         text = _get_formatted_value(context, constr)
-        font_id = 0
         dpi = context.preferences.system.dpi
-        text_size = prefs.text_size
+        text_size = functions.get_prefs().text_size
 
-        blf.color(font_id, *color)
-        blf.size(font_id, text_size, dpi)
-        self.width, self.height = blf.dimensions(font_id, text)
+        blf.color(FONT_ID, *color)
+        blf.size(FONT_ID, text_size, dpi)
+        self.width, self.height = blf.dimensions(FONT_ID, text)
 
         margin = text_size / 4
 
@@ -229,8 +255,8 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
             pos.to_3d()
         )  # Update Matrix for selection
 
-        blf.position(font_id, pos[0] - self.width / 2, pos[1] + margin, 0)
-        blf.draw(font_id, text)
+        blf.position(FONT_ID, pos[0] - self.width / 2, pos[1] + margin, 0)
+        blf.draw(FONT_ID, text)
 
     def setup(self):
         self.width = 0
@@ -697,12 +723,11 @@ def constraints_mapping(context):
     return entities, constraints
 
 
-def set_gizmo_colors(gz, failed):
+def set_gizmo_colors(gz, constraint):
     theme = functions.get_prefs().theme_settings
-    color = theme.constraint.failed if failed else theme.constraint.default
-    color_highlight = (
-        theme.constraint.failed_highlight if failed else theme.constraint.highlight
-    )
+    color_type = get_constraint_color_type(constraint)
+    color = get_color(color_type, highlit=False)
+    color_highlight = get_color(color_type, highlit=True)
 
     gz.color = color[0:-1]
     gz.alpha = color[-1]
@@ -725,7 +750,7 @@ class ConstraintGenericGGT:
             gz = self.gizmos.new(self.gizmo_type)
             gz.index = context.scene.sketcher.constraints.get_index(c)
 
-            set_gizmo_colors(gz, c.failed)
+            set_gizmo_colors(gz, c)
 
             gz.use_draw_modal = True
             gz.target_set_prop("offset", c, "draw_offset")
@@ -831,7 +856,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 gz.offset = offset
                 gz.scale_basis = scale
 
-                set_gizmo_colors(gz, c.failed)
+                set_gizmo_colors(gz, c)
 
                 gz.use_draw_modal = True
 

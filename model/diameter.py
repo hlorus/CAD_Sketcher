@@ -10,7 +10,7 @@ from .. import functions
 from ..solver import Solver
 from ..global_data import WpReq
 from ..functions import location_3d_to_region_2d
-from .base_constraint import GenericConstraint
+from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import CURVE
 
@@ -18,7 +18,7 @@ from .categories import CURVE
 logger = logging.getLogger(__name__)
 
 
-class SlvsDiameter(GenericConstraint, PropertyGroup):
+class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     """Sets the diameter of an arc or a circle."""
 
     def use_radius_getter(self):
@@ -46,7 +46,9 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         name="Size",
         subtype="DISTANCE",
         unit="LENGTH",
-        update=GenericConstraint.update_system_cb,
+        get=DimensionalConstraint._get_value,
+        set=DimensionalConstraint._set_value,
+        update=DimensionalConstraint.update_system_cb,
     )
     setting: BoolProperty(
         name="Use Radius", get=use_radius_getter, set=use_radius_setter
@@ -78,17 +80,11 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
         return solvesys.addDiameter(self.diameter, self.entity1.py_data, group=group)
 
     def init_props(self, **kwargs):
-        # Get operators setting value
-        setting = kwargs.get("setting")
 
         value = self.entity1.radius
-        if setting is None and self.entity1.bl_rna.name == "SlvsArc":
-            self["setting"] = True
-
-        if not setting:
+        if not self.setting:
             value = value * 2
-
-        return value, None
+        return value, self.setting
 
     def matrix_basis(self):
         if self.sketch_i == -1:
@@ -105,15 +101,6 @@ class SlvsDiameter(GenericConstraint, PropertyGroup):
     def update_draw_offset(self, pos, ui_scale):
         self.draw_offset = pos.length
         self.leader_angle = math.atan2(pos.y, pos.x)
-
-    def draw_props(self, layout):
-        sub = super().draw_props(layout)
-
-        sub.prop(self, "value")
-
-        row = sub.row()
-        row.prop(self, "setting")
-        return sub
 
     def value_placement(self, context):
         """location to display the constraint value"""

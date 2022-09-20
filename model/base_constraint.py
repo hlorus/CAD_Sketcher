@@ -2,10 +2,11 @@ import logging
 from typing import List
 
 from bpy.props import StringProperty, BoolProperty
-from bpy.types import UILayout
+import bpy.types
+from bpy.types import UILayout, Property, Context
 
 from .. import functions
-from ..solver import solve_system
+from ..solver import solve_system, Solver
 from ..global_data import WpReq
 from ..utilities import preferences
 from ..declarations import Operators
@@ -173,3 +174,74 @@ class GenericConstraint:
     def placements(self):
         """Return the entities where the constraint should be displayed"""
         return []
+
+    def create_slvs_data(self, solvesys: Solver, **kwargs):
+        raise NotImplementedError()
+
+    def py_data(self, solvesys: Solver, **kwargs):
+        return self.create_slvs_data(solvesys, **kwargs)
+
+
+class DimensionalConstraint(GenericConstraint):
+
+    value: Property
+    setting: BoolProperty
+
+    def _set_value(self, val: float):
+        # NOTE: function signature _set_value(self, val: float, force=False)
+        #       will fail when bpy tries to register the value property.
+        #       See `_set_value_force()`
+        if not self.is_reference:
+            self._set_value_force(val)
+    
+    def _set_value_force(self, val: float):
+        self["value"] = val
+
+    def _get_value(self):
+        if self.is_reference:
+            val, _ = self.init_props()
+            return self.to_displayed_value(val)
+        if not self.get("value"):
+            self.assign_init_props()
+        return self["value"]
+
+    def assign_init_props(self, context: Context = None):
+        # self.value, self.setting = self.init_props()
+        _value, _ = self.init_props()
+        self._set_value_force(_value)
+
+    def on_reference_checked(self, context: Context = None):
+        self.assign_init_props()
+        # Refresh the gizmos as we are changing the colors.
+        functions.refresh(context)
+
+    is_reference: BoolProperty(
+        name="Only measure",
+        default=False,
+        update=on_reference_checked,
+    )
+
+    def init_props(self):
+        raise NotImplementedError()
+
+    def to_displayed_value(self, value):
+        return value
+
+    def py_data(self, solvesys: Solver, **kwargs):
+        if self.is_reference:
+            return []
+        return self.create_slvs_data(solvesys, **kwargs)
+
+    def draw_props(self, layout: UILayout):
+        sub = GenericConstraint.draw_props(self, layout)
+        sub.prop(self, "is_reference")
+        if hasattr(self, "value"):
+            col = sub.column()
+            # Could not find a way to have the property "readonly",
+            # so we disable user input instead
+            col.prop(self, "value")
+            col.enabled = not self.is_reference
+        if hasattr(self, "setting"):
+            row = sub.row()
+            row.prop(self, "setting")
+        return sub

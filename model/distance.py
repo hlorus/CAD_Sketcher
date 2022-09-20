@@ -12,7 +12,7 @@ from ..solver import Solver
 from ..utilities import preferences
 from ..global_data import WpReq
 from ..functions import location_3d_to_region_2d
-from .base_constraint import GenericConstraint
+from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import POINT, LINE, POINT2D, CURVE
 
@@ -43,29 +43,26 @@ align_items = [
 ]
 
 
-class SlvsDistance(GenericConstraint, PropertyGroup):
+class SlvsDistance(DimensionalConstraint, PropertyGroup):
     """Sets the distance between a point and some other entity (point/line/Workplane)."""
 
-    def get_distance_value(self):
-        return self.get("value", self.rna_type.properties["value"].default)
-
-    def set_distance_value(self, value):
-        self["value"] = abs(value)
+    def _set_value_force(self, value):
+        DimensionalConstraint._set_value_force(self, abs(value))
 
     label = "Distance"
     value: FloatProperty(
         name=label,
         subtype="DISTANCE",
         unit="LENGTH",
-        update=GenericConstraint.update_system_cb,
-        get=get_distance_value,
-        set=set_distance_value,
+        update=DimensionalConstraint.update_system_cb,
+        get=DimensionalConstraint._get_value,
+        set=DimensionalConstraint._set_value,
     )
-    flip: BoolProperty(name="Flip", update=GenericConstraint.update_system_cb)
+    flip: BoolProperty(name="Flip", update=DimensionalConstraint.update_system_cb)
     align: EnumProperty(
         name="Align",
         items=align_items,
-        update=GenericConstraint.update_system_cb,
+        update=DimensionalConstraint.update_system_cb,
     )
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     draw_outset: FloatProperty(name="Draw Outset", default=0.0)
@@ -316,7 +313,6 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
             value = abs(value)
             self.flip = not self.flip
 
-        self.value = value
         return value, None
 
     def text_inside(self, ui_scale):
@@ -328,8 +324,6 @@ class SlvsDistance(GenericConstraint, PropertyGroup):
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)
-
-        sub.prop(self, "value")
 
         row = sub.row()
         row.enabled = self.use_flipping()

@@ -1,14 +1,25 @@
 import bpy
-from bpy.types import Panel, Menu, UIList, Context, UILayout
+from bpy.types import Panel, Menu, UIList, Context, UILayout, PropertyGroup
 
 from . import functions
 from .declarations import Menus, Operators, Panels, ConstraintOperators
 from .stateful_operator.constants import Operators as StatefulOperators
+from .model.types import GenericConstraint, DimensionalConstraint
 
 
 class VIEW3D_UL_sketches(UIList):
+    """Creates UI list of available Sketches"""
+
     def draw_item(
-        self, context, layout, data, item, icon, active_data, active_propname, index=0
+        self,
+        context: Context,
+        layout: UILayout,
+        data: PropertyGroup,
+        item: PropertyGroup,
+        icon: int,
+        active_data: PropertyGroup,
+        active_propname: str,
+        index: int = 0,
     ):
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             if item:
@@ -70,6 +81,8 @@ class VIEW3D_PT_sketcher_base(Panel):
 
 
 class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
+    """Menu for selecting the sketch you want to enter into"""
+
     bl_label = "Sketcher"
     bl_idname = Panels.Sketcher
 
@@ -82,6 +95,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
         layout.use_property_decorate = False
 
         if sketch:
+            # Sketch is selected, show info about the sketch itself
             row = layout.row()
             row.alignment = "CENTER"
             row.scale_y = 1.2
@@ -123,6 +137,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             ).index = sketch.slvs_index
 
         else:
+            # No active Sketch , show list of available sketches
             layout.template_list(
                 "VIEW3D_UL_sketches",
                 "",
@@ -134,6 +149,8 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
 
 
 class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
+    """Debug Menu"""
+
     bl_label = "Debug Settings"
     bl_idname = Panels.SketcherDebugPanel
 
@@ -160,6 +177,11 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
 
 
 class VIEW3D_PT_sketcher_add_constraints(VIEW3D_PT_sketcher_base):
+    """
+    Add Constraint Menu: List of buttons with the constraint you want
+    to create.
+    """
+
     bl_label = "Add Constraints"
     bl_idname = Panels.SketcherAddContraint
     bl_options = {"DEFAULT_CLOSED"}
@@ -173,6 +195,11 @@ class VIEW3D_PT_sketcher_add_constraints(VIEW3D_PT_sketcher_base):
 
 
 class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
+    """
+    Entities Menu: List of entities in the sketch.
+    Interactive
+    """
+
     bl_label = "Entities"
     bl_idname = Panels.SketcherEntities
     bl_options = {"DEFAULT_CLOSED"}
@@ -255,15 +282,22 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
                 col.separator()
 
 
-def draw_constraint_listitem(context, layout, constraint):
+def draw_constraint_listitem(
+    context: Context, layout: UILayout, constraint: GenericConstraint
+):
+    """
+    Creates a single row inside the ``layout`` describing
+    the ``constraint``.
+    """
     index = context.scene.sketcher.constraints.get_index(constraint)
     row = layout.row()
 
-    # Left part
-    sub = row.row(align=True)
-    sub.alignment = "LEFT"
+    left_sub = row.row(align=True)
 
-    sub.prop(
+    # Left part
+    left_sub.alignment = "LEFT"
+
+    left_sub.prop(
         constraint,
         "visible",
         icon_only=True,
@@ -272,28 +306,32 @@ def draw_constraint_listitem(context, layout, constraint):
     )
 
     # Failed hint
-    sub.label(
+    left_sub.label(
         text="",
         icon=("ERROR" if constraint.failed else "CHECKMARK"),
     )
+    # Label
+    left_sub.prop(constraint, "name", text="")
 
     # Middle Part
-    sub = row.row()
-    sub.alignment = "LEFT"
-
-    # Label
-    sub.prop(constraint, "name", text="")
+    center_sub = row.row()
+    center_sub.alignment = "LEFT"
 
     # Dimensional Constraint Values
     for constraint_prop in constraint.props:
-        sub.prop(constraint, constraint_prop, text="")
+        center_sub.prop(constraint, constraint_prop, text="")
+
+    # # Disable interaction with element if it is "readonly"
+    # center_sub.enabled = not (
+    #     isinstance(constraint, DimensionalConstraint) and constraint.is_reference
+    # )
 
     # Right part
-    sub = row.row()
-    sub.alignment = "RIGHT"
+    right_sub = row.row()
+    right_sub.alignment = "RIGHT"
 
     # Context menu, shows constraint name
-    props = sub.operator(
+    props = right_sub.operator(
         Operators.ContextMenu, text="", icon="OUTLINER_DATA_GP_LAYER", emboss=False
     )
     props.type = constraint.type
@@ -303,7 +341,7 @@ def draw_constraint_listitem(context, layout, constraint):
     props.highlight_members = True
 
     # Delete operator
-    props = sub.operator(
+    props = right_sub.operator(
         Operators.DeleteConstraint,
         text="",
         icon="X",
@@ -316,6 +354,11 @@ def draw_constraint_listitem(context, layout, constraint):
 
 
 class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
+    """
+    Constraints Menu: List of entities in the sketch.
+    Interactive
+    """
+
     bl_label = "Constraints"
     bl_idname = Panels.SketcherContraints
     bl_options = {"DEFAULT_CLOSED"}
