@@ -8,7 +8,7 @@ from mathutils import Vector, Matrix
 
 from ..solver import Solver
 from ..global_data import WpReq
-from ..functions import location_3d_to_region_2d
+from ..utilities.view import location_3d_to_region_2d
 from ..utilities.math import range_2pi, pol2cart
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
