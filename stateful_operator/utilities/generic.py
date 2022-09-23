@@ -1,3 +1,9 @@
+import bpy
+import bmesh
+from bpy.types import Object
+from mathutils.bvhtree import BVHTree
+
+
 def to_list(val):
     if val is None:
         return []
@@ -34,3 +40,18 @@ def get_subclasses():
         return cls_list + ret
 
     return _get_classes(StatefulOperatorLogic.__subclasses__())
+
+
+def bvhtree_from_object(object: Object) -> BVHTree:
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    object_eval = object.evaluated_get(depsgraph)
+    mesh = object_eval.to_mesh()
+
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bm.transform(object.matrix_world)
+
+    bvhtree = BVHTree.FromBMesh(bm)
+    object_eval.to_mesh_clear()
+    bm.free()
+    return bvhtree

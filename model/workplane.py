@@ -9,7 +9,8 @@ from bpy.types import PropertyGroup
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
-from .. import functions, global_data
+from .. import global_data
+from ..utilities.draw import draw_rect_2d
 from ..shaders import Shaders
 from ..utilities import preferences
 from ..solver import Solver
@@ -45,7 +46,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
         p1, nm = self.p1, self.nm
 
-        coords = functions.draw_rect_2d(0, 0, self.size, self.size)
+        coords = draw_rect_2d(0, 0, self.size, self.size)
         coords = [(Vector(co))[:] for co in coords]
 
         indices = ((0, 1), (1, 2), (2, 3), (3, 0))
@@ -77,7 +78,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
             shader.uniform_float("color", col_surface)
 
-            coords = functions.draw_rect_2d(0, 0, self.size, self.size)
+            coords = draw_rect_2d(0, 0, self.size, self.size)
             coords = [Vector(co)[:] for co in coords]
             indices = ((0, 1, 2), (0, 2, 3))
             batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)

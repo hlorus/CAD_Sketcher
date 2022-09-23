@@ -2,12 +2,12 @@ import logging
 from bpy.types import Context
 from bpy.props import BoolProperty
 
-from .. import functions
 from ..model.types import SlvsConstraints
 from ..solver import solve_system
 from ..stateful_operator.state import state_from_args
 from .base_stateful import GenericEntityOp
 from .utilities import deselect_all
+from ..utilities.view import refresh
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ class GenericConstraintOp(GenericEntityOp):
 
         deselect_all(context)
         solve_system(context, sketch=self.sketch)
-        functions.refresh(context)
+        refresh(context)
         return True
 
     def fini(self, context: Context, succeede: bool):

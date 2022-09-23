@@ -1,16 +1,15 @@
 import logging
+import math
 from typing import List
 
 import bpy
 from bpy.types import PropertyGroup
 from bpy.props import FloatProperty
 from gpu_extras.batch import batch_for_shader
-import math
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
-from .. import functions
 from ..solver import Solver
 from ..utilities.math import range_2pi, pol2cart
 from .base_entity import SlvsGenericEntity
@@ -18,7 +17,7 @@ from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, tag_update
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN
-
+from ..utilities.draw import coords_arc_2d
 from .utilities import (
     get_bezier_curve_midpoint_positions,
     create_bezier_curve,
@@ -69,7 +68,7 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         if bpy.app.background:
             return
 
-        coords = functions.coords_arc_2d(0, 0, self.radius, CURVE_RESOLUTION)
+        coords = coords_arc_2d(0, 0, self.radius, CURVE_RESOLUTION)
 
         u, v = self.ct.co
 

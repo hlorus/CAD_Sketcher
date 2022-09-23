@@ -1,14 +1,13 @@
 # Code from MeasureIt_ARCH, see:
 # https://github.com/kevancress/MeasureIt_ARCH/blob/development/measureit_arch_units.py
 
+import math
 import typing
 
 import bpy
-import math
 from bpy.props import EnumProperty
 
-from . import functions
-
+from .utilities.preferences import get_prefs
 
 imperial_precision_prop = EnumProperty(
     items=(
@@ -118,7 +117,7 @@ def format_distance(distance: float, hide_units=False, use_unit_scale=True) -> s
     :returns: formatted string
     :return type: string
     """
-    prefs = functions.get_prefs()
+    prefs = get_prefs()
     scene = bpy.context.scene
     unit_system = bpy.context.scene.unit_settings.system
     unit_length = scene.unit_settings.length_unit
@@ -167,7 +166,7 @@ def format_angle(angle: float, hide_units=False) -> str:
     :returns: formatted string
     :return type: string
     """
-    prefs = functions.get_prefs()
+    prefs = get_prefs()
     scene = bpy.context.scene
     precision = prefs.angle_precision
     system_rotation = scene.unit_settings.system_rotation

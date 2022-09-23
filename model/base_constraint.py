@@ -4,13 +4,13 @@ from typing import List
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import UILayout
 
-from .. import functions
 from ..solver import solve_system
 from ..global_data import WpReq
 from ..utilities import preferences
 from ..declarations import Operators
 from .constants import ENTITY_PROP_NAMES
 from .base_entity import SlvsGenericEntity
+from ..utilities.view import update_cb
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class GenericConstraint:
 
     name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
     failed: BoolProperty(name="Failed")
-    visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
+    visible: BoolProperty(name="Visible", default=True, update=update_cb)
     signature = ()
     props = ()
 

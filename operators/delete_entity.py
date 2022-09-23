@@ -5,8 +5,9 @@ from bpy.props import IntProperty, BoolProperty
 from bpy.types import Operator, Context
 
 from ..model.types import SlvsSketch
-from ..functions import show_ui_message_popup, refresh
+from ..utilities.view import refresh
 from ..declarations import Operators
+from ..utilities.ui import show_ui_message_popup
 from ..utilities.data_handling import (
     get_constraint_local_indices,
     get_entity_deps,

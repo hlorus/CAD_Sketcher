@@ -8,7 +8,7 @@ from gpu_extras.batch import batch_for_shader
 from mathutils import Matrix, Vector
 from bpy.utils import register_classes_factory
 
-from .. import functions
+from ..utilities.draw import draw_rect_2d
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
@@ -32,7 +32,7 @@ class Point2D(SlvsGenericEntity, Entity2D):
 
         mat = self.wp.matrix_basis @ mat_local
         size = 0.1
-        coords = functions.draw_rect_2d(0, 0, size, size)
+        coords = draw_rect_2d(0, 0, size, size)
         coords = [(mat @ Vector(co))[:] for co in coords]
         indices = ((0, 1, 2), (0, 2, 3))
         pos = self.location

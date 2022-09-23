@@ -2,14 +2,13 @@ import logging
 
 from bpy.types import Operator, Context
 
-from .. import functions
 from ..model.categories import SEGMENT
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from ..utilities.trimming import TrimSegment
 from .base_2d import Operator2d
-
+from ..utilities.view import refresh
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +85,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
             return
 
         trim.replace(context)
-        functions.refresh(context)
+        refresh(context)
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_trim,))

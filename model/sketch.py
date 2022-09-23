@@ -6,11 +6,11 @@ from bpy.types import PropertyGroup
 from bpy.props import EnumProperty, BoolProperty, IntProperty, PointerProperty
 from bpy.utils import register_classes_factory
 
-from .. import functions, global_data
+from .. import global_data
 from ..solver import Solver, solve_system
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
-from ..functions import unique_attribute_setter
+from ..utilities.bpy import unique_attribute_setter, bpyEnum
 
 logger = logging.getLogger(__name__)
 
@@ -98,9 +98,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         return self.visible
 
     def get_solver_state(self):
-        return functions.bpyEnum(
-            global_data.solver_state_items, identifier=self.solver_state
-        )
+        return bpyEnum(global_data.solver_state_items, identifier=self.solver_state)
 
     def solve(self, context):
         return solve_system(context, sketch=self)

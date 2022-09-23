@@ -3,7 +3,7 @@ import logging
 import bpy
 from bpy.types import Operator, Context
 
-from .. import global_data, functions
+from .. import global_data
 from ..model.types import SlvsNormal3D
 from ..model.categories import NORMAL3D
 
@@ -16,6 +16,7 @@ from ..solver import solve_system
 from .base_3d import Operator3d
 from .constants import types_point_3d
 from .utilities import ignore_hover
+from ..utilities.view import get_placement_pos
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ class View3D_OT_slvs_add_workplane(Operator, Operator3d):
         ob, type, index = get_mesh_element(context, coords, edge=False, face=True)
 
         p1 = self.get_point(context, 0)
-        mousepos = functions.get_placement_pos(context, coords)
+        mousepos = get_placement_pos(context, coords)
         vec = mousepos - p1.location
         return global_data.Z_AXIS.rotation_difference(vec).to_euler()
 

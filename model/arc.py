@@ -18,6 +18,7 @@ from .utilities import slvs_entity_pointer, tag_update
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN, QUARTER_TURN
 from ..utilities.math import range_2pi, pol2cart
+from ..utilities.draw import coords_arc_2d
 from .utilities import (
     get_connection_point,
     get_bezier_curve_midpoint_positions,
@@ -91,9 +92,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
             # TODO: resolution should depend on segment length?!
             segments = round(CURVE_RESOLUTION * (angle / FULL_TURN))
 
-            coords = functions.coords_arc_2d(
-                0, 0, radius, segments, angle=angle, offset=offset
-            )
+            coords = coords_arc_2d(0, 0, radius, segments, angle=angle, offset=offset)
 
             mat_local = Matrix.Translation(self.ct.co.to_3d())
             mat = self.wp.matrix_basis @ mat_local
