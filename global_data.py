@@ -78,7 +78,7 @@ solver_state_items = [
         "Redundant Constraints",
         (
             f"Some constraints seem to be redundant, this might cause an error once the constraints are no longer consistent. "
-            f"Check through the marked constraints and only keep what's neccessary."
+            f"Check through the marked constraints and only keep what's necessary."
         ),
         "INFO",
         5,  # SLVS_RESULT_REDUNDANT_OK

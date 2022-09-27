@@ -122,7 +122,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         point = self.p1
         radius = self.radius
 
-        # Get connected entites from point
+        # Get connected entities from point
         connected = []
         for e in (*sse.lines2D, *sse.arcs):
             # TODO: Priorize non_construction entities
