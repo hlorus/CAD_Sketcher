@@ -22,7 +22,7 @@ system terminal. Follow the guide below to access blender's system console.
 ## Console Output VScode dependency
 
 CAD sketcher for debugging purposes depends on the library [debugpy](https://pypi.org/project/debugpy/) when debugging is done
-throught VSCode. Installing this library with ```$pip install```  will further mean that the window in VSCode will need to be reloaded using  ```command Palette > Reload window``` .
+through VSCode. Installing this library with ```$pip install```  will further mean that the window in VSCode will need to be reloaded using  ```command Palette > Reload window``` .
 
 ## Access Logs
 Logs are helpful for debugging. Note that there are logs from the addon as well as from blender itself.

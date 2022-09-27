@@ -69,7 +69,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
                 # print("intersect", co)
                 trim.add(e, co)
 
-        # Find points that are connected to the segment through a conincident constraint
+        # Find points that are connected to the segment through a coincident constraint
         for c in (
             *context.scene.sketcher.constraints.coincident,
             *context.scene.sketcher.constraints.midpoint,

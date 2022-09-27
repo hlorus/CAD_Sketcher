@@ -20,7 +20,7 @@ class View3D_OT_slvs_set_all_constraints_visibility(Operator, HighlightElement):
     ]
 
     visibility: EnumProperty(
-        name="Visibility", description="Visiblity", items=_visibility_items
+        name="Visibility", description="Visibility", items=_visibility_items
     )
 
     @classmethod

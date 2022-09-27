@@ -56,7 +56,7 @@ The project accepts donations through Open Collective.
 </a>
 </p>
  
-Alternativley individual developers can link their donation links here:
+Alternatively individual developers can link their donation links here:
 
 <a href="https://www.paypal.com/donate/?business=4A9SCSHAU3ZP6&no_recurring=0&currency_code=CHF">
 hlorus - Lead Dev

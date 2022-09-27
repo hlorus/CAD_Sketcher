@@ -46,7 +46,7 @@ entity itself can then be looked up by:
 entity = bpy.context.scene.sketcher.entities.get(index)
 ```
 
-For convenience theres the slvs_entity_pointer function which registers the IntProperty
+For convenience there's the slvs_entity_pointer function which registers the IntProperty
 with a "_i" prefix and adds getter/setter methods to directly get the entity without
 having to deal with the index itself.
 
@@ -125,7 +125,7 @@ import inspect
 inspect.signature(sys.addEqual)
 ```
 
-The solver data isn't persistent, so whenever the solver is triggerd it will create a
+The solver data isn't persistent, so whenever the solver is triggered it will create a
 new "py_slvs.slvs.System" object.Then the solver will go through the relevant entities and
 call their create_slvs_data method and pass the system object to it. Same applies
 to the constraints.
