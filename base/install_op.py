@@ -1,9 +1,10 @@
 import bpy
 from bpy.types import Operator
 
-from .. import functions, global_data
+from .. import global_data
 from ..declarations import Operators
 from ..utilities.install import check_module
+from ..utilities.install import install_package, ensure_pip, show_package_info
 
 
 class View3D_OT_slvs_install_package(Operator):
@@ -19,7 +20,7 @@ class View3D_OT_slvs_install_package(Operator):
         return not global_data.registered
 
     def execute(self, context):
-        if not functions.ensure_pip():
+        if not ensure_pip():
             self.report(
                 {"WARNING"},
                 "PIP is not available and cannot be installed, please install PIP manually",
@@ -30,7 +31,7 @@ class View3D_OT_slvs_install_package(Operator):
             self.report({"WARNING"}, "Specify package to be installed")
             return {"CANCELLED"}
 
-        if functions.install_package(self.package):
+        if install_package(self.package):
             try:
                 check_module("py_slvs")
                 from ..registration import register_full
@@ -45,7 +46,7 @@ class View3D_OT_slvs_install_package(Operator):
                     {"WARNING"},
                     msg,
                 )
-            functions.show_package_info("py_slvs")
+            show_package_info("py_slvs")
         else:
             self.report({"WARNING"}, "Cannot install package: {}".format(self.package))
             return {"CANCELLED"}

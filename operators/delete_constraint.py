@@ -4,7 +4,7 @@ from bpy.utils import register_classes_factory
 from bpy.props import IntProperty, StringProperty
 from bpy.types import Operator, Context
 
-from ..functions import refresh
+from ..utilities.view import refresh
 from ..solver import solve_system
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement

@@ -1,15 +1,15 @@
+import math
+from enum import Enum, auto
+
 import bpy
 import bgl
 import gpu
 import blf
-
-import math
 from bpy.types import Gizmo, GizmoGroup
-from enum import Enum, auto
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_point_line
 
-from . import functions, global_data, icon_manager
+from . import global_data, icon_manager
 from .model.types import (
     SlvsDistance,
     SlvsAngle,
@@ -20,7 +20,11 @@ from .model.types import (
 from .declarations import GizmoGroups, Gizmos, Operators
 from .draw_handler import ensure_selection_texture
 from .utilities.constants import HALF_TURN, QUARTER_TURN
-
+from .utilities.math import pol2cart
+from .utilities.preferences import get_prefs
+from .utilities.draw import coords_arc_2d
+from .utilities.view import get_2d_coords, get_scale_from_pos
+from .utilities.index import rgb_to_index
 
 # NOTE: idealy gizmo would expose active element as a property and
 # operators would access hovered element from there
@@ -57,7 +61,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             bgl.glPixelStorei(bgl.GL_UNPACK_ALIGNMENT, 1)
             bgl.glReadPixels(mouse_x, mouse_y, 1, 1, bgl.GL_RGBA, bgl.GL_FLOAT, buffer)
         if buffer.to_list()[3] > 0:
-            index = functions.rgb_to_index(*buffer.to_list()[:-1])
+            index = rgb_to_index(*buffer.to_list()[:-1])
             if index != global_data.hover:
                 global_data.hover = index
                 context.area.tag_redraw()
@@ -92,7 +96,7 @@ class Color(Enum):
 
 
 def get_color(color_type: Color, highlit: bool):
-    c_theme = functions.get_prefs().theme_settings.constraint
+    c_theme = get_prefs().theme_settings.constraint
     theme_match = {
         # (type, highlit): color
         (Color.Default, False): c_theme.default,
@@ -155,7 +159,7 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
             if not entity or not hasattr(entity, "placement"):
                 return
 
-            pos = functions.get_2d_coords(context, entity.placement())
+            pos = get_2d_coords(context, entity.placement())
             if not pos:
                 return
 
@@ -240,7 +244,7 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         color = get_color(Color.Text, self.is_highlight)
         text = _get_formatted_value(context, constr)
         dpi = context.preferences.system.dpi
-        text_size = functions.get_prefs().text_size
+        text_size = get_prefs().text_size
 
         blf.color(FONT_ID, *color)
         blf.size(FONT_ID, text_size, dpi)
@@ -316,12 +320,12 @@ def get_overshoot(scale, dir):
     if dir == 0:
         return 0
     # use factor of 0.005 for one-half arrowhead
-    overshoot = scale * 0.005 * functions.get_prefs().arrow_scale
+    overshoot = scale * 0.005 * get_prefs().arrow_scale
     return -math.copysign(overshoot, dir)
 
 
 def get_arrow_size(dist, scale):
-    size = scale * 0.01 * functions.get_prefs().arrow_scale
+    size = scale * 0.01 * get_prefs().arrow_scale
     size = min(size, abs(dist * 0.67))
     size = math.copysign(size, dist)
     return size, size / 2
@@ -431,9 +435,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
             p1, p2 = p2, p1
         p1_global, p2_global = [self.matrix_world @ p for p in (p1, p2)]
 
-        scale_1, scale_2 = [
-            functions.get_scale_from_pos(p, rv3d) for p in (p1_global, p2_global)
-        ]
+        scale_1, scale_2 = [get_scale_from_pos(p, rv3d) for p in (p1_global, p2_global)]
 
         arrow_1 = get_arrow_size(half_dist, scale_1)
         arrow_2 = get_arrow_size(half_dist, scale_2)
@@ -497,9 +499,9 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
         overshoot_2 = get_overshoot(scale_2, radius)
         return (
             (0.0, 0.0),
-            functions.pol2cart(radius - overshoot_1, angle / 2),
+            pol2cart(radius - overshoot_1, angle / 2),
             (0.0, 0.0),
-            functions.pol2cart(radius - overshoot_2, -angle / 2),
+            pol2cart(radius - overshoot_2, -angle / 2),
         )
 
     def _create_shape(self, context, constr, select=False):
@@ -523,13 +525,13 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
         radius = self.target_get_value("offset")
         angle = abs(constr.value)
         half_angle = angle / 2
-        p1 = functions.pol2cart(radius, -half_angle)
-        p2 = functions.pol2cart(radius, half_angle)
+        p1 = pol2cart(radius, -half_angle)
+        p2 = pol2cart(radius, half_angle)
 
         scales = []
         lengths, widths = [], []  # Length is limited to no more than 1/3 the span
         for p in (p1, p2):
-            scale = functions.get_scale_from_pos(self.matrix_world @ p.to_3d(), rv3d)
+            scale = get_scale_from_pos(self.matrix_world @ p.to_3d(), rv3d)
             scales.append(scale)
 
             length = min(
@@ -552,7 +554,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
         if constr.text_inside():
             coords = (
                 *draw_arrow_shape(p1, p1 + p1_s, widths[0]),
-                *functions.coords_arc_2d(
+                *coords_arc_2d(
                     0, 0, radius, 32, angle=angle, offset=-half_angle, type="LINES"
                 ),
                 *draw_arrow_shape(p2, p2 + p2_s, widths[1]),
@@ -566,7 +568,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
             leader_length = leader_end - leader_start
             coords = (
                 *draw_arrow_shape(p1, p1 - p1_s, widths[0]),
-                *functions.coords_arc_2d(
+                *coords_arc_2d(
                     0,
                     0,
                     radius,
@@ -601,13 +603,11 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
 
         rv3d = context.region_data
 
-        p1 = functions.pol2cart(-dist, angle)
-        p2 = functions.pol2cart(dist, angle)
+        p1 = pol2cart(-dist, angle)
+        p2 = pol2cart(dist, angle)
 
         p1_global, p2_global = [self.matrix_world @ p.to_3d() for p in (p1, p2)]
-        scale_1, scale_2 = [
-            functions.get_scale_from_pos(p, rv3d) for p in (p1_global, p2_global)
-        ]
+        scale_1, scale_2 = [get_scale_from_pos(p, rv3d) for p in (p1_global, p2_global)]
 
         arrow_1 = get_arrow_size(dist, scale_1)
         arrow_2 = get_arrow_size(dist, scale_2)
@@ -618,7 +618,7 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
             if constr.text_inside():
                 coords = (
                     *draw_arrow_shape(
-                        p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+                        p2, pol2cart(dist - arrow_2[0], angle), arrow_2[1]
                     ),
                     p2,
                     (0, 0),
@@ -626,10 +626,10 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
             else:
                 coords = (
                     *draw_arrow_shape(
-                        p2, functions.pol2cart(arrow_2[0] + dist, angle), arrow_2[1]
+                        p2, pol2cart(arrow_2[0] + dist, angle), arrow_2[1]
                     ),
                     p2,
-                    functions.pol2cart(offset, angle),
+                    pol2cart(offset, angle),
                 )
 
         else:
@@ -639,28 +639,28 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
             if constr.text_inside():
                 coords = (
                     *draw_arrow_shape(
-                        p1, functions.pol2cart(arrow_2[0] - dist, angle), arrow_2[1]
+                        p1, pol2cart(arrow_2[0] - dist, angle), arrow_2[1]
                     ),
                     p1,
                     p2,
                     *draw_arrow_shape(
-                        p2, functions.pol2cart(dist - arrow_2[0], angle), arrow_2[1]
+                        p2, pol2cart(dist - arrow_2[0], angle), arrow_2[1]
                     ),
                 )
             else:
                 coords = (
                     *draw_arrow_shape(
-                        p2, functions.pol2cart(arrow_1[0] + dist, angle), arrow_1[1]
+                        p2, pol2cart(arrow_1[0] + dist, angle), arrow_1[1]
                     ),
                     p2,
-                    functions.pol2cart(offset, angle),
-                    functions.pol2cart(
+                    pol2cart(offset, angle),
+                    pol2cart(
                         dist + (3 * arrow_2[0]), angle + HALF_TURN
                     ),  # limit length to 3 arrowheads
                     p1,
                     *draw_arrow_shape(
                         p1,
-                        functions.pol2cart(dist + arrow_2[0], angle + HALF_TURN),
+                        pol2cart(dist + arrow_2[0], angle + HALF_TURN),
                         arrow_2[1],
                     ),
                 )
@@ -724,7 +724,7 @@ def constraints_mapping(context):
 
 
 def set_gizmo_colors(gz, constraint):
-    theme = functions.get_prefs().theme_settings
+    theme = get_prefs().theme_settings
     color_type = get_constraint_color_type(constraint)
     color = get_color(color_type, highlit=False)
     color_highlight = get_color(color_type, highlit=True)
@@ -815,7 +815,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         return True
 
     def setup(self, context):
-        theme = functions.get_prefs().theme_settings
+        theme = get_prefs().theme_settings
 
         mapping = {}
         for c in context.scene.sketcher.constraints.all:
@@ -844,12 +844,12 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 gz.type = c.type
                 gz.index = context.scene.sketcher.constraints.get_index(c)
 
-                pos = functions.get_2d_coords(context, e.placement())
+                pos = get_2d_coords(context, e.placement())
 
                 gz.entity_index = e.slvs_index
 
                 ui_scale = context.preferences.system.ui_scale
-                scale = functions.get_prefs().gizmo_scale * ui_scale
+                scale = get_prefs().gizmo_scale * ui_scale
                 offset_base = Vector((scale * 1.0, 0.0))
                 offset = offset_base * i * ui_scale
 

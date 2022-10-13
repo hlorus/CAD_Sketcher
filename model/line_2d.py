@@ -1,19 +1,19 @@
 import logging
+import math
 from typing import List
 
 import bpy
 from bpy.types import PropertyGroup
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
-import math
 from mathutils import Matrix
 from mathutils.geometry import intersect_line_line_2d
 
-from .. import functions
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, get_connection_point, round_v
+from ..utilities.geometry import nearest_point_line_line
 
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
         # NOTE: for 2d entities it could be enough precise to simply take the intersection point with the workplane
         p1 = self.p1.location
         d1 = self.p2.location - p1  # normalize?
-        return functions.nearest_point_line_line(p1, d1, origin, view_vector)
+        return nearest_point_line_line(p1, d1, origin, view_vector)
 
     def project_point(self, coords):
         """Projects a point onto the line"""

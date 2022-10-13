@@ -7,11 +7,11 @@ from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 from mathutils.geometry import distance_point_to_plane, intersect_point_line
 
-from .. import functions
 from ..solver import Solver
 from ..utilities import preferences
 from ..global_data import WpReq
-from ..functions import location_3d_to_region_2d
+from ..utilities.view import location_3d_to_region_2d
+from ..utilities.math import range_2pi
 from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import POINT, LINE, POINT2D, CURVE
@@ -265,7 +265,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
                 orig = e2.p1.co
                 end = e2.p2.co
                 vec = end - orig
-                angle = (math.tau / 4) + functions.range_2pi(math.atan2(vec[1], vec[0]))
+                angle = (math.tau / 4) + range_2pi(math.atan2(vec[1], vec[0]))
                 mat_rot = Matrix.Rotation(angle, 2, "Z")
                 p1 = p1 - orig
                 v_translation = orig + (p1 + p1.project(vec)) / 2

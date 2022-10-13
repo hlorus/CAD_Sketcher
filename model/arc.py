@@ -10,20 +10,21 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
-from .. import functions
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, tag_update
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN, QUARTER_TURN
-from ..functions import range_2pi
+from ..utilities.math import range_2pi, pol2cart
+from ..utilities.draw import coords_arc_2d
 from .utilities import (
     get_connection_point,
     get_bezier_curve_midpoint_positions,
     create_bezier_curve,
     round_v,
 )
+from ..utilities.math import range_2pi, pol2cart
 
 logger = logging.getLogger(__name__)
 
@@ -86,14 +87,12 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         coords = []
         if radius and p2.length:
             offset = p1.angle_signed(Vector((1, 0)))
-            angle = functions.range_2pi(p2.angle_signed(p1))
+            angle = range_2pi(p2.angle_signed(p1))
 
             # TODO: resolution should depend on segment length?!
             segments = round(CURVE_RESOLUTION * (angle / FULL_TURN))
 
-            coords = functions.coords_arc_2d(
-                0, 0, radius, segments, angle=angle, offset=offset
-            )
+            coords = coords_arc_2d(0, 0, radius, segments, angle=angle, offset=offset)
 
             mat_local = Matrix.Translation(self.ct.co.to_3d())
             mat = self.wp.matrix_basis @ mat_local
@@ -122,9 +121,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         """Returns an angle in radians from zero to 2*PI"""
         ct = self.ct.co
         start, end = self.start.co - ct, self.end.co - ct
-        return functions.range_2pi(
-            math.atan2(end[1], end[0]) - math.atan2(start[1], start[0])
-        )
+        return range_2pi(math.atan2(end[1], end[0]) - math.atan2(start[1], start[0]))
 
     @property
     def start_angle(self):
@@ -132,9 +129,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         return math.atan2((start - center)[1], (start - center)[0])
 
     def placement(self):
-        coords = self.ct.co + functions.pol2cart(
-            self.radius, self.start_angle + self.angle / 2
-        )
+        coords = self.ct.co + pol2cart(self.radius, self.start_angle + self.angle / 2)
 
         return self.wp.matrix_basis @ coords.to_3d()
 
@@ -157,7 +152,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
 
     def point_on_curve(self, angle, relative=True):
         start_angle = self.start_angle if relative else 0
-        return functions.pol2cart(self.radius, start_angle + angle) + self.ct.co
+        return pol2cart(self.radius, start_angle + angle) + self.ct.co
 
     def project_point(self, coords):
         """Projects a point onto the arc"""
@@ -267,8 +262,8 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         x_axis = Vector((1, 0))
 
         # angle_signed interprets clockwise as positive, so invert..
-        a1 = functions.range_2pi(p.angle_signed(p1))
-        a2 = functions.range_2pi(p2.angle_signed(p))
+        a1 = range_2pi(p.angle_signed(p1))
+        a2 = range_2pi(p2.angle_signed(p))
 
         angle = self.angle
 
@@ -332,8 +327,8 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         start, end = self.start.co - ct, self.end.co - ct
         points = (p1, p2) if self.invert_direction else (p2, p1)
 
-        len_1 = functions.range_2pi(end.angle_signed(points[1] - ct))
-        len_2 = functions.range_2pi((points[0] - ct).angle_signed(start))
+        len_1 = range_2pi(end.angle_signed(points[1] - ct))
+        len_2 = range_2pi((points[0] - ct).angle_signed(start))
 
         threshold = 0.000001
         retval = (len_1 + len_2) % (self.angle + threshold)

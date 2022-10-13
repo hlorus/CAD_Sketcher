@@ -4,11 +4,11 @@ import math
 from bpy.types import Operator, Context, Event
 from mathutils import Vector
 
-from .. import functions
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from ..solver import solve_system
+from ..utilities.math import pol2cart
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
@@ -64,7 +64,7 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
         # Get radius from distance ct - p1
         p1 = self.get_point(context, 1).co
         radius = (p1 - ct).length
-        pos = functions.pol2cart(radius, angle) + ct
+        pos = pol2cart(radius, angle) + ct
         return pos
 
     def solve_state(self, context: Context, _event: Event):

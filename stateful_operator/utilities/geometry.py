@@ -2,7 +2,7 @@ from bpy.types import Context, Object
 from bpy_extras import view3d_utils
 
 # TODO: Move into StateOps
-from ... import functions
+from ..utilities.generic import bvhtree_from_object
 
 from typing import Optional
 
@@ -34,7 +34,7 @@ def get_mesh_element(
 
     if object:
         # Alternatively do a object raycast if we know the object already
-        tree = functions.bvhtree_from_object(ob)
+        tree = bvhtree_from_object(ob)
         loc, _normal, face_index, _distance = tree.ray_cast(ray_origin, view_vector)
         result = loc is not None
         ob = object

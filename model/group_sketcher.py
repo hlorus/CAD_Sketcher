@@ -6,12 +6,13 @@ from bpy.types import PropertyGroup, Context
 from bpy.utils import register_class, unregister_class
 from bpy.props import IntProperty, BoolProperty, PointerProperty, IntVectorProperty
 
-from .. import functions, global_data
+from .. import global_data
 from ..solver import solve_system
 from .utilities import slvs_entity_pointer
 from .base_entity import SlvsGenericEntity
 from .group_entities import SlvsEntities
 from .group_constraints import SlvsConstraints
+from ..utilities.view import update_cb
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class SketcherProps(PropertyGroup):
         name="Constraints Selectability",
         default=True,
         options={"SKIP_SAVE"},
-        update=functions.update_cb,
+        update=update_cb,
     )
 
     version: IntVectorProperty(
@@ -56,7 +57,7 @@ class SketcherProps(PropertyGroup):
             e.dirty = True
 
 
-slvs_entity_pointer(SketcherProps, "active_sketch", update=functions.update_cb)
+slvs_entity_pointer(SketcherProps, "active_sketch", update=update_cb)
 
 
 # register, unregister = register_classes_factory((SketcherProps,))
