@@ -27,6 +27,8 @@ Z_AXIS = Vector((0, 0, 1))
 
 draw_handle = None
 
+COPY_BUFFER = {}
+
 
 class WpReq(Enum):
     """Workplane requirement options"""

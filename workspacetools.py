@@ -89,6 +89,16 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
             {"type": "DEL", "value": "PRESS"},
             None,
         ),
+        (
+            Operators.Copy,
+            {"type": "C", "value": "PRESS", "ctrl": True},
+            None,
+        ),
+        (
+            Operators.Paste,
+            {"type": "V", "value": "PRESS", "ctrl": True},
+            None,
+        ),
         *tool_access,
     )
 

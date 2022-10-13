@@ -9,6 +9,7 @@ modules = [
     "update",
     "tweak",
     "save_offscreen",
+    "copy_paste",
     "add_point_3d",
     "add_line_3d",
     "add_workplane",
