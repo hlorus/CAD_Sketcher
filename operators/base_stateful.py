@@ -14,9 +14,6 @@ class GenericEntityOp(StatefulOperator):
     """Extend StatefulOperator with addon specific types"""
 
     def check_event(self, event):
-        # Hardcode shift event to toggle constraint selectability
-        if event.type == "LEFT_SHIFT":
-            bpy.context.scene.sketcher.selectable_constraints = event.value == "RELEASE"
         return super().check_event(event)
 
     def pick_element(self, context, coords):
