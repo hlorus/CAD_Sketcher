@@ -75,6 +75,16 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
             {"type": "LEFTMOUSE", "value": "CLICK", "any": True},
             None,
         ),
+        (
+            Operators.Select,
+            {"type": "LEFTMOUSE", "value": "CLICK", "shift": True},
+            {"properties": [("mode", "EXTEND")]},
+        ),
+        (
+            Operators.Select,
+            {"type": "LEFTMOUSE", "value": "CLICK", "ctrl": True},
+            {"properties": [("mode", "SUBTRACT")]},
+        ),
         (Operators.SelectInvert, {"type": "I", "value": "PRESS", "ctrl": True}, None),
         (Operators.SelectExtend, {"type": "E", "value": "PRESS", "ctrl": True}, None),
         (
@@ -85,11 +95,6 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
         (
             Operators.Tweak,
             {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
-            None,
-        ),
-        (
-            Operators.Tweak,
-            {"type": "LEFTMOUSE", "value": "PRESS", "ctrl": True},
             None,
         ),
         (
