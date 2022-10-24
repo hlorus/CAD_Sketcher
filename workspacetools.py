@@ -322,7 +322,7 @@ tools = (
     (View3D_T_slvs_add_circle2d, {"separator": False, "group": False}),
     (View3D_T_slvs_add_arc2d, {"separator": False, "group": False}),
     (View3D_T_slvs_add_rectangle, {"separator": False, "group": False}),
-    (View3D_T_slvs_trim, {"separator": False, "group": False}),
+    (View3D_T_slvs_trim, {"separator": True, "group": False}),
     (View3D_T_slvs_bevel, {"separator": False, "group": False}),
     (View3D_T_slvs_add_workplane_face, {"separator": True, "group": True}),
     (

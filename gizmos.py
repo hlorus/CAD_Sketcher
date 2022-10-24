@@ -83,7 +83,7 @@ def context_mode_check(context, widget_group):
     return True
 
 
-GIZMO_OFFSET = Vector((10.0, 10.0))
+GIZMO_OFFSET = Vector((1.0, 1.0))
 GIZMO_GENERIC_SIZE = 5
 FONT_ID = 0
 
@@ -163,7 +163,7 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
             if not pos:
                 return
 
-            pos += GIZMO_OFFSET + self.offset
+            pos += GIZMO_OFFSET * self.scale_basis + self.offset
 
         if pos:
             mat = Matrix.Translation(Vector((pos[0], pos[1], 0.0)))

@@ -2,7 +2,6 @@ import logging
 from typing import List
 
 import gpu
-import bgl
 from bpy.props import IntProperty, StringProperty, BoolProperty
 from bpy.types import Context
 
@@ -193,9 +192,9 @@ class SlvsGenericEntity:
 
     @staticmethod
     def restore_opengl_defaults():
-        bgl.glLineWidth(1)
-        bgl.glPointSize(1)  # ?
-        bgl.glDisable(bgl.GL_BLEND)
+        gpu.state.line_width_set(1)
+        gpu.state.point_size_set(1)
+        gpu.state.blend_set("NONE")
 
     def is_visible(self, context: Context) -> bool:
         if self.origin:
@@ -219,8 +218,8 @@ class SlvsGenericEntity:
         shader = self._shader
         shader.bind()
 
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glPointSize(self.point_size)
+        gpu.state.blend_set("ALPHA")
+        gpu.state.point_size_set(self.point_size)
 
         col = self.color(context)
         shader.uniform_float("color", col)
@@ -249,7 +248,7 @@ class SlvsGenericEntity:
         shader = self._id_shader
         shader.bind()
 
-        bgl.glPointSize(self.point_size_select)
+        gpu.state.point_size_set(self.point_size_select)
 
         shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
         if not self.is_point():

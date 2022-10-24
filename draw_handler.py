@@ -2,7 +2,6 @@ import logging
 
 import bpy
 import gpu
-import bgl
 from bpy.types import Context, Operator
 from bpy.utils import register_class, unregister_class
 
@@ -22,8 +21,9 @@ def draw_selection_buffer(context: Context):
     offscreen = global_data.offscreen = gpu.types.GPUOffScreen(width, height)
 
     with offscreen.bind():
-        bgl.glClearColor(0.0, 0.0, 0.0, 0.0)
-        bgl.glClear(bgl.GL_COLOR_BUFFER_BIT)
+
+        fb = gpu.state.active_framebuffer_get()
+        fb.clear(color=(0.0, 0.0, 0.0, 0.0))
 
         entities = list(context.scene.sketcher.entities.all)
         for e in reversed(entities):

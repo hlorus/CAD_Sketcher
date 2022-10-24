@@ -2,7 +2,6 @@ import logging
 from typing import List
 
 import bpy
-import bgl
 import gpu
 from mathutils import Vector, Matrix
 from bpy.types import PropertyGroup
@@ -74,7 +73,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
             shader = Shaders.uniform_color_3d()
             shader.bind()
-            bgl.glEnable(bgl.GL_BLEND)
+            gpu.state.blend_set("ALPHA")
 
             shader.uniform_float("color", col_surface)
 
