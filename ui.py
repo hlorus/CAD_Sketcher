@@ -231,6 +231,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
                 emboss=False,
                 icon=("RADIOBUT_ON" if e.selected else "RADIOBUT_OFF"),
             )
+            props.mode = "TOGGLE"
             props.index = e.slvs_index
             props.highlight_hover = True
 
