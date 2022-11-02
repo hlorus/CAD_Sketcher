@@ -2,7 +2,6 @@ import math
 from enum import Enum, auto
 
 import bpy
-import bgl
 import gpu
 import blf
 from bpy.types import Gizmo, GizmoGroup
@@ -53,15 +52,16 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         # sample selection texture and mark hovered entity
         mouse_x, mouse_y = location
 
-        buffer = bgl.Buffer(bgl.GL_FLOAT, 4)
         offscreen = global_data.offscreen
         if not offscreen:
             return -1
         with offscreen.bind():
-            bgl.glPixelStorei(bgl.GL_UNPACK_ALIGNMENT, 1)
-            bgl.glReadPixels(mouse_x, mouse_y, 1, 1, bgl.GL_RGBA, bgl.GL_FLOAT, buffer)
-        if buffer.to_list()[3] > 0:
-            index = rgb_to_index(*buffer.to_list()[:-1])
+            fb = gpu.state.active_framebuffer_get()
+            buffer = fb.read_color(mouse_x, mouse_y, 1, 1, 4, 0, "FLOAT")
+        r, g, b, alpha = buffer[0][0]
+
+        if alpha > 0:
+            index = rgb_to_index(r, g, b)
             if index != global_data.hover:
                 global_data.hover = index
                 context.area.tag_redraw()
