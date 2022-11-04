@@ -47,6 +47,7 @@ class Operators(str, Enum):
     AddVertical = "view3d.slvs_add_vertical"
     AddWorkPlane = "view3d.slvs_add_workplane"
     AddWorkPlaneFace = "view3d.slvs_add_workplane_face"
+    AlignWorkplaneCursor = "view3d.slvs_align_workplane_cursor"
     ContextMenu = "view3d.slvs_context_menu"
     DeleteConstraint = "view3d.slvs_delete_constraint"
     DeleteEntity = "view3d.slvs_delete_entity"

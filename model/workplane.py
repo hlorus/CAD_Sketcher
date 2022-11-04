@@ -8,6 +8,7 @@ from bpy.types import PropertyGroup
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
+from ..declarations import Operators
 from .. import global_data
 from ..utilities.draw import draw_rect_2d
 from ..shaders import Shaders
@@ -111,6 +112,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
     def draw_props(self, layout):
         # Display the normals props as they're not drawn in the viewport
         sub = self.nm.draw_props(layout)
+        sub.operator(Operators.AlignWorkplaneCursor).index = self.slvs_index
         return sub
 
 
