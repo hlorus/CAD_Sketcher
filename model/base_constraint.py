@@ -211,6 +211,7 @@ class DimensionalConstraint(GenericConstraint):
         self._set_value_force(_value)
 
     def on_reference_checked(self, context: Context = None):
+        self.update_system_cb(context)
         self.assign_init_props()
         # Refresh the gizmos as we are changing the colors.
         refresh(context)
