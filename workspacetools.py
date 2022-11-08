@@ -107,6 +107,11 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
             {"type": "DEL", "value": "PRESS"},
             None,
         ),
+        (
+            Operators.Move,
+            {"type": "G", "value": "PRESS"},
+            None,
+        ),
         *tool_access,
     )
 

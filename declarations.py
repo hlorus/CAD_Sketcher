@@ -52,6 +52,7 @@ class Operators(str, Enum):
     DeleteConstraint = "view3d.slvs_delete_constraint"
     DeleteEntity = "view3d.slvs_delete_entity"
     InstallPackage = "view3d.slvs_install_package"
+    Move = "view3d.slvs_move"
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
     Select = "view3d.slvs_select"
     SelectAll = "view3d.slvs_select_all"
