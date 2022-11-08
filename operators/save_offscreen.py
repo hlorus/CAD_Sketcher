@@ -14,6 +14,7 @@ def write_selection_buffer_image(image_name: str):
     with offscreen.bind():
         fb = gpu.state.active_framebuffer_get()
         buffer = fb.read_color(0, 0, width, height, 4, 0, "FLOAT")
+        buffer.dimensions = width * height * 4
 
     if image_name not in bpy.data.images:
         bpy.data.images.new(image_name, width, height)
