@@ -1,11 +1,12 @@
 from bpy.types import Operator, Context
-from bpy.props import IntProperty, BoolProperty, EnumProperty
+from bpy.props import IntProperty, BoolProperty
 from bpy.utils import register_classes_factory
 
 from .utilities import select_all, deselect_all, select_extend, select_invert
 from .. import global_data
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement
+from ..utilities.select import mode_property
 
 
 class View3D_OT_slvs_select(Operator, HighlightElement):
@@ -21,21 +22,7 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
     bl_label = "Select Sketch Entities"
 
     index: IntProperty(name="Index", default=-1)
-    mode: EnumProperty(
-        name="Mode",
-        items=[
-            ("SET", "Set", "Set new selection", "SELECT_SET", 1),
-            ("EXTEND", "Extend", "Add to existing selection", "SELECT_EXTEND", 2),
-            (
-                "SUBTRACT",
-                "Subtract",
-                "Subtract from existing selection",
-                "SELECT_SUBTRACT",
-                3,
-            ),
-            ("TOGGLE", "Toggle", "Toggle selection", "RADIOBUT_OFF", 4),
-        ],
-    )
+    mode: mode_property
 
     def execute(self, context: Context):
         index = (
@@ -46,7 +33,7 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
         hit = index != -1
         mode = self.mode
 
-        if self.mode == "SET" or not hit:
+        if mode == "SET" or not hit:
             deselect_all(context)
 
         if hit:

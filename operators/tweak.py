@@ -19,7 +19,7 @@ class View3D_OT_slvs_tweak(Operator):
         index = global_data.hover
         # TODO: hover should be -1 if nothing is hovered, not None!
         if index is None or index == -1:
-            return {"CANCELLED"}
+            return {"PASS_THROUGH"}
 
         entity = context.scene.sketcher.entities.get(index)
         self.entity = entity

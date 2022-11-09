@@ -93,6 +93,26 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
             None,
         ),
         (
+            Operators.SelectBox,
+            {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
+            None,
+        ),
+        (
+            Operators.SelectBox,
+            {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "ctrl": True},
+            {"properties": [("mode", "SUBTRACT")]},
+        ),
+        (
+            Operators.SelectBox,
+            {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "shift": True},
+            {"properties": [("mode", "EXTEND")]},
+        ),
+        # (
+        #     Operators.SelectBox,
+        #     {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "alt": True},
+        #     {"properties": [("mode", "TOGGLE")]},
+        # ),
+        (
             Operators.Tweak,
             {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
             None,

@@ -56,6 +56,7 @@ class Operators(str, Enum):
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
     Select = "view3d.slvs_select"
     SelectAll = "view3d.slvs_select_all"
+    SelectBox = "view3d.slvs_select_box"
     SelectInvert = "view3d.slvs_select_invert"
     SelectExtendAll = "view3d.slvs_select_extend_all"
     SelectExtend = "view3d.slvs_select_extend"
