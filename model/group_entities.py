@@ -347,11 +347,12 @@ class SlvsEntities(PropertyGroup):
     @property
     def selected_entities(self):
         """Return all selected visible entities"""
+        context = bpy.context
         items = []
         for index in global_data.selected:
             entity = self.get(index)
             items.append(entity)
-        return items
+        return [e for e in items if e.is_active(context.scene.sketcher.active_sketch)]
 
     def ensure_origin_elements(self, context):
         def set_origin_props(e):
