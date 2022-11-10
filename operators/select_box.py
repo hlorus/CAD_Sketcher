@@ -46,6 +46,7 @@ class View3D_OT_slvs_select_box(Operator):
     bl_options = {"UNDO"}
 
     mode: mode_property
+    _handle = None
 
     def invoke(self, context: Context, event):
         self.start_coords = Vector((event.mouse_region_x, event.mouse_region_y))
@@ -70,6 +71,9 @@ class View3D_OT_slvs_select_box(Operator):
         with offscreen.bind():
             fb = gpu.state.active_framebuffer_get()
             buffer = fb.read_color(start_x, start_y, width, height, 4, 0, "FLOAT")
+
+        if not width or not height:
+            return False
 
         buffer.dimensions = (width * height, 4)
 
@@ -104,24 +108,30 @@ class View3D_OT_slvs_select_box(Operator):
             e.selected = value
 
         refresh(context)
-        bpy.types.SpaceView3D.draw_handler_remove(self._handle, "WINDOW")
-
         return True
 
     def modal(self, context: Context, event: Event):
         if event.type in ("RIGHTMOUSE", "ESC"):
-            return {"CANCELLED"}
+            return self.end(context, False)
 
         if event.type == "MOUSEMOVE":
             context.area.tag_redraw()
             self.mouse_pos = Vector((event.mouse_region_x, event.mouse_region_y))
 
         if event.type == "LEFTMOUSE":
-            context.window.cursor_modal_restore()
             self.end_coords = Vector((event.mouse_region_x, event.mouse_region_y))
-            retval = {"FINISHED"} if self.main(context) else {"CANCELLED"}
-            return retval
+            return self.end(context, self.main(context))
         return {"RUNNING_MODAL"}
+
+    def end(self, context, succeede):
+        context.window.cursor_modal_restore()
+
+        if self._handle is not None:
+            bpy.types.SpaceView3D.draw_handler_remove(self._handle, "WINDOW")
+
+        retval = {"FINISHED"} if succeede else {"CANCELLED"}
+        context.area.tag_redraw()
+        return retval
 
 
 register, unregister = register_classes_factory((View3D_OT_slvs_select_box,))
