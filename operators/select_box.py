@@ -7,9 +7,8 @@ from gpu_extras.batch import batch_for_shader
 from .. import global_data
 from ..declarations import Operators
 from ..utilities.index import rgb_to_index
-from .utilities import deselect_all
 from ..utilities.view import refresh
-from ..utilities.select import mode_property
+from ..utilities.select import mode_property, deselect_all
 
 
 def get_start_dist(value1, value2, invert: bool = False):

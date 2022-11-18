@@ -104,3 +104,10 @@ def get_constraint_local_indices(
                 indices.append(constraints.get_index(c))
         ret_list.append((data_coll, indices))
     return ret_list
+
+
+def entities_3d(context: Context) -> Generator[SlvsGenericEntity, None, None]:
+    for entity in context.scene.sketcher.entities.all:
+        if hasattr(entity, "sketch"):
+            continue
+        yield entity

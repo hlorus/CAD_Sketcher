@@ -6,7 +6,7 @@ from ..model.types import SlvsConstraints
 from ..solver import solve_system
 from ..stateful_operator.state import state_from_args
 from .base_stateful import GenericEntityOp
-from .utilities import deselect_all
+from ..utilities.select import deselect_all
 from ..utilities.view import refresh
 
 logger = logging.getLogger(__name__)
