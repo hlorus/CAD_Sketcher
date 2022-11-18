@@ -17,6 +17,10 @@ class View3D_OT_slvs_copy(Operator):
     bl_options = {"UNDO"}
 
     def execute(self, context: Context):
+        if context.scene.sketcher.active_sketch_i == -1:
+            self.report({"INFO"}, "Copying is not supported in 3d space")
+            return {"CANCELLED"}
+
         buffer = {"entities": {}, "constraints": {}}
         entities_dict = context.scene.sketcher["entities"].to_dict()
 
@@ -46,6 +50,10 @@ class View3D_OT_slvs_paste(Operator):
     bl_options = {"UNDO"}
 
     def execute(self, context: Context):
+        if context.scene.sketcher.active_sketch_i == -1:
+            self.report({"INFO"}, "Pasting is not supported in 3d space")
+            return {"CANCELLED"}
+
         buffer = global_data.COPY_BUFFER
         print("paste", buffer)
         paste(context, buffer.copy())
