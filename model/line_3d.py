@@ -6,10 +6,10 @@ from bpy.types import PropertyGroup
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
-from .. import functions
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
+from ..utilities.geometry import nearest_point_line_line
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         """Returns the point on this entity which is closest to the picking ray"""
         p1 = self.p1.location
         d1 = self.p2.location - p1  # normalize?
-        return functions.nearest_point_line_line(p1, d1, origin, view_vector)
+        return nearest_point_line_line(p1, d1, origin, view_vector)
 
     def placement(self):
         return (self.p1.location + self.p2.location) / 2

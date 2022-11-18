@@ -1,5 +1,5 @@
 import bpy
-import bgl
+import gpu
 from bpy.types import Operator, Context
 from bpy.utils import register_classes_factory
 
@@ -10,9 +10,11 @@ from ..declarations import Operators
 def write_selection_buffer_image(image_name: str):
     offscreen = global_data.offscreen
     width, height = offscreen.width, offscreen.height
-    buffer = bgl.Buffer(bgl.GL_FLOAT, width * height * 4)
+
     with offscreen.bind():
-        bgl.glReadPixels(0, 0, width, height, bgl.GL_RGBA, bgl.GL_FLOAT, buffer)
+        fb = gpu.state.active_framebuffer_get()
+        buffer = fb.read_color(0, 0, width, height, 4, 0, "FLOAT")
+        buffer.dimensions = width * height * 4
 
     if image_name not in bpy.data.images:
         bpy.data.images.new(image_name, width, height)

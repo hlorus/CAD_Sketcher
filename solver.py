@@ -1,5 +1,5 @@
 import logging
-from .functions import bpyEnum
+from .utilities.bpy import bpyEnum
 from .global_data import solver_state_items
 
 # TODO: Move to utilities.data_handling

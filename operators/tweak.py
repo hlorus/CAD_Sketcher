@@ -4,8 +4,8 @@ from mathutils.geometry import intersect_line_plane
 
 from .. import global_data
 from ..declarations import Operators
-from .. import functions
 from ..solver import Solver
+from ..utilities.view import get_picking_origin_dir
 
 
 class View3D_OT_slvs_tweak(Operator):
@@ -19,13 +19,13 @@ class View3D_OT_slvs_tweak(Operator):
         index = global_data.hover
         # TODO: hover should be -1 if nothing is hovered, not None!
         if index is None or index == -1:
-            return {"CANCELLED"}
+            return {"PASS_THROUGH"}
 
         entity = context.scene.sketcher.entities.get(index)
         self.entity = entity
 
         coords = (event.mouse_region_x, event.mouse_region_y)
-        origin, view_vector = functions.get_picking_origin_dir(context, coords)
+        origin, view_vector = get_picking_origin_dir(context, coords)
 
         if not hasattr(entity, "closest_picking_point"):
             if not hasattr(entity, "sketch"):
@@ -38,7 +38,7 @@ class View3D_OT_slvs_tweak(Operator):
             # intersection with workplane
             wp = entity.sketch.wp
             coords = (event.mouse_region_x, event.mouse_region_y)
-            origin, dir = functions.get_picking_origin_dir(context, coords)
+            origin, dir = get_picking_origin_dir(context, coords)
             end_point = dir * context.space_data.clip_end + origin
             pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
         else:
@@ -62,7 +62,7 @@ class View3D_OT_slvs_tweak(Operator):
             coords = (event.mouse_region_x, event.mouse_region_y)
 
             # Get tweaking position
-            origin, dir = functions.get_picking_origin_dir(context, coords)
+            origin, dir = get_picking_origin_dir(context, coords)
 
             if hasattr(entity, "sketch"):
                 wp = entity.wp

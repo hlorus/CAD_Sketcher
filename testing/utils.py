@@ -7,7 +7,7 @@ class BgsTestCase(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from CAD_Sketcher.functions import get_prefs
+        from CAD_Sketcher.utilities.preferences import get_prefs
 
         prefs = get_prefs()
         prefs.logging_level = cls.log_level

@@ -1,7 +1,7 @@
 import bpy
 from bpy.types import Panel, Menu, UIList, Context, UILayout, PropertyGroup
 
-from . import functions
+from .utilities.preferences import get_prefs
 from .declarations import Menus, Operators, Panels, ConstraintOperators
 from .stateful_operator.constants import Operators as StatefulOperators
 from .model.types import GenericConstraint, DimensionalConstraint
@@ -157,7 +157,7 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
     def draw(self, context: Context):
         layout = self.layout
 
-        prefs = functions.get_prefs()
+        prefs = get_prefs()
         layout.operator(Operators.WriteSelectionTexture)
         layout.operator(Operators.Solve)
         layout.operator(Operators.Solve, text="Solve All").all = True
@@ -172,7 +172,7 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
 
     @classmethod
     def poll(cls, context: Context):
-        prefs = functions.get_prefs()
+        prefs = get_prefs()
         return prefs.show_debug_settings
 
 
@@ -231,6 +231,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
                 emboss=False,
                 icon=("RADIOBUT_ON" if e.selected else "RADIOBUT_OFF"),
             )
+            props.mode = "TOGGLE"
             props.index = e.slvs_index
             props.highlight_hover = True
 

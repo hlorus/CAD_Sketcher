@@ -14,9 +14,12 @@ def get_addon_icon_path(icon_name):
 
 
 generic_keymap = (
+    # Disabling gizmos when pressing ctrl + shift
+    # Add two etries so it doesn't matter which key is pressed first
+    # NOTE: This cannot be done as a normal modifier key to selection since it has to toggle a global property
     (
         "wm.context_set_boolean",
-        {"type": "LEFT_SHIFT", "value": "PRESS"},
+        {"type": "LEFT_SHIFT", "value": "PRESS", "ctrl": True},
         {
             "properties": [
                 ("data_path", "scene.sketcher.selectable_constraints"),
@@ -26,7 +29,17 @@ generic_keymap = (
     ),
     (
         "wm.context_set_boolean",
-        {"type": "LEFT_SHIFT", "value": "RELEASE"},
+        {"type": "LEFT_CTRL", "value": "PRESS", "shift": True},
+        {
+            "properties": [
+                ("data_path", "scene.sketcher.selectable_constraints"),
+                ("value", False),
+            ]
+        },
+    ),
+    (
+        "wm.context_set_boolean",
+        {"type": "LEFT_SHIFT", "value": "RELEASE", "any": True},
         {
             "properties": [
                 ("data_path", "scene.sketcher.selectable_constraints"),
@@ -59,8 +72,18 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
         ),
         (
             Operators.Select,
-            {"type": "LEFTMOUSE", "value": "CLICK"},
+            {"type": "LEFTMOUSE", "value": "CLICK", "any": True},
             None,
+        ),
+        (
+            Operators.Select,
+            {"type": "LEFTMOUSE", "value": "CLICK", "shift": True},
+            {"properties": [("mode", "EXTEND")]},
+        ),
+        (
+            Operators.Select,
+            {"type": "LEFTMOUSE", "value": "CLICK", "ctrl": True},
+            {"properties": [("mode", "SUBTRACT")]},
         ),
         (Operators.SelectInvert, {"type": "I", "value": "PRESS", "ctrl": True}, None),
         (Operators.SelectExtend, {"type": "E", "value": "PRESS", "ctrl": True}, None),
@@ -70,13 +93,28 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
             None,
         ),
         (
-            Operators.Tweak,
+            Operators.SelectBox,
             {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
             None,
         ),
         (
+            Operators.SelectBox,
+            {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "ctrl": True},
+            {"properties": [("mode", "SUBTRACT")]},
+        ),
+        (
+            Operators.SelectBox,
+            {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "shift": True},
+            {"properties": [("mode", "EXTEND")]},
+        ),
+        # (
+        #     Operators.SelectBox,
+        #     {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "alt": True},
+        #     {"properties": [("mode", "TOGGLE")]},
+        # ),
+        (
             Operators.Tweak,
-            {"type": "LEFTMOUSE", "value": "PRESS", "ctrl": True},
+            {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
             None,
         ),
         (
@@ -99,11 +137,17 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
             {"type": "V", "value": "PRESS", "ctrl": True},
             None,
         ),
+        (
+            Operators.Move,
+            {"type": "G", "value": "PRESS"},
+            None,
+        ),
         *tool_access,
     )
 
     def draw_settings(context, layout, tool):
         props = tool.operator_properties(Operators.Select)
+        layout.prop(props, "mode", text="", expand=True, icon_only=True)
 
 
 tool_keymap = (
@@ -313,7 +357,7 @@ tools = (
     (View3D_T_slvs_add_circle2d, {"separator": False, "group": False}),
     (View3D_T_slvs_add_arc2d, {"separator": False, "group": False}),
     (View3D_T_slvs_add_rectangle, {"separator": False, "group": False}),
-    (View3D_T_slvs_trim, {"separator": False, "group": False}),
+    (View3D_T_slvs_trim, {"separator": True, "group": False}),
     (View3D_T_slvs_bevel, {"separator": False, "group": False}),
     (View3D_T_slvs_add_workplane_face, {"separator": True, "group": True}),
     (

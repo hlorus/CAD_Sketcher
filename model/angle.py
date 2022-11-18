@@ -6,15 +6,16 @@ from bpy.props import BoolProperty, FloatProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 
-from .. import functions
-from ..functions import pol2cart
+from ..utilities.math import pol2cart
 from ..utilities.constants import HALF_TURN, QUARTER_TURN
+from ..utilities.math import range_2pi
 from ..solver import Solver
 from ..global_data import WpReq
-from ..functions import location_3d_to_region_2d
+from ..utilities.view import location_3d_to_region_2d
 from .base_constraint import DimensionalConstraint
 from .line_2d import SlvsLine2D
 from .utilities import slvs_entity_pointer
+from ..utilities.geometry import line_abc_form, get_line_intersection
 
 
 logger = logging.getLogger(__name__)
@@ -36,9 +37,9 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         _value, _ = self.init_props()
         self._set_value_force(_value)
         line1, line2 = self.entity1, self.entity2
-        origin = functions.get_line_intersection(
-            *functions.line_abc_form(line1.p1.co, line1.p2.co),
-            *functions.line_abc_form(line2.p1.co, line2.p2.co),
+        origin = get_line_intersection(
+            *line_abc_form(line1.p1.co, line1.p2.co),
+            *line_abc_form(line2.p1.co, line2.p2.co),
         )
         dist = max(
             (line1.midpoint() - origin).length, (line2.midpoint() - origin).length, 0.5
@@ -96,14 +97,12 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         line1 = self.entity1
         line2 = self.entity2
 
-        origin = functions.get_line_intersection(
-            *functions.line_abc_form(line1.p1.co, line1.p2.co),
-            *functions.line_abc_form(line2.p1.co, line2.p2.co),
+        origin = get_line_intersection(
+            *line_abc_form(line1.p1.co, line1.p2.co),
+            *line_abc_form(line2.p1.co, line2.p2.co),
         )
 
-        rotation = functions.range_2pi(
-            (self.orientation(line2) + self.orientation(line1)) / 2
-        )
+        rotation = range_2pi((self.orientation(line2) + self.orientation(line1)) / 2)
 
         if self.setting:
             rotation = rotation - QUARTER_TURN

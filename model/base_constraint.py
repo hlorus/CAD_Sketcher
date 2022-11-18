@@ -4,13 +4,13 @@ from typing import List
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import UILayout, Property, Context
 
-from .. import functions
-from ..solver import solve_system, Solver
+from ..solver import solve_system
 from ..global_data import WpReq
 from ..utilities import preferences
 from ..declarations import Operators
 from .constants import ENTITY_PROP_NAMES
 from .base_entity import SlvsGenericEntity
+from ..utilities.view import update_cb, refresh
 
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ class GenericConstraint:
 
     name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
     failed: BoolProperty(name="Failed")
-    visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
+    visible: BoolProperty(name="Visible", default=True, update=update_cb)
     signature = ()
     props = ()
 
@@ -175,10 +175,10 @@ class GenericConstraint:
         """Return the entities where the constraint should be displayed"""
         return []
 
-    def create_slvs_data(self, solvesys: Solver, **kwargs):
+    def create_slvs_data(self, solvesys, **kwargs):
         raise NotImplementedError()
 
-    def py_data(self, solvesys: Solver, **kwargs):
+    def py_data(self, solvesys, **kwargs):
         return self.create_slvs_data(solvesys, **kwargs)
 
 
@@ -193,7 +193,7 @@ class DimensionalConstraint(GenericConstraint):
         #       See `_set_value_force()`
         if not self.is_reference:
             self._set_value_force(val)
-    
+
     def _set_value_force(self, val: float):
         self["value"] = val
 
@@ -211,9 +211,10 @@ class DimensionalConstraint(GenericConstraint):
         self._set_value_force(_value)
 
     def on_reference_checked(self, context: Context = None):
+        self.update_system_cb(context)
         self.assign_init_props()
         # Refresh the gizmos as we are changing the colors.
-        functions.refresh(context)
+        refresh(context)
 
     is_reference: BoolProperty(
         name="Only measure",
@@ -227,7 +228,7 @@ class DimensionalConstraint(GenericConstraint):
     def to_displayed_value(self, value):
         return value
 
-    def py_data(self, solvesys: Solver, **kwargs):
+    def py_data(self, solvesys, **kwargs):
         if self.is_reference:
             return []
         return self.create_slvs_data(solvesys, **kwargs)

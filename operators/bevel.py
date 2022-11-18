@@ -11,7 +11,7 @@ from mathutils.geometry import (
 )
 
 from ..model.types import SlvsPoint2D
-from ..functions import refresh
+from ..utilities.view import refresh
 from ..solver import solve_system
 from ..utilities.data_handling import to_list, is_entity_referenced
 from ..declarations import Operators

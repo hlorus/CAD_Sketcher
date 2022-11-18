@@ -12,6 +12,11 @@ from .base_constraint import GenericConstraintOp
 logger = logging.getLogger(__name__)
 
 
+def merge_points(context, duplicate, target):
+    update_pointers(context.scene, duplicate.slvs_index, target.slvs_index)
+    context.scene.sketcher.entities.remove(duplicate.slvs_index)
+
+
 class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
     """Add a coincident constraint"""
 
@@ -21,14 +26,27 @@ class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
 
     type = "COINCIDENT"
 
-    def main(self, context: Context):
-        p1, p2 = self.entity1, self.entity2
-        if all([e.is_point() for e in (p1, p2)]):
-            # Implicitly merge points
-            update_pointers(context.scene, p1.slvs_index, p2.slvs_index)
-            context.scene.sketcher.entities.remove(p1.slvs_index)
+    def handle_merge(self, context):
+        points = self.entity1, self.entity2
+
+        if not all([e.is_point() for e in points]):
+            return False
+
+        for p1, p2 in (points, reversed(points)):
+            if p1.origin:
+                continue
+            if p1.fixed:
+                continue
+
+            merge_points(context, p1, p2)
             solve_system(context, context.scene.sketcher.active_sketch)
+        return True
+
+    def main(self, context: Context):
+        # Implicitly merge points
+        if self.handle_merge(context):
             return True
+
         return super().main(context)
 
 

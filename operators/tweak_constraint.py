@@ -5,8 +5,8 @@ from bpy.types import Operator, Context, Event
 from mathutils import Vector
 from mathutils.geometry import intersect_line_plane
 
-from .. import functions
 from ..declarations import Operators
+from ..utilities.view import get_picking_origin_end
 
 
 class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
@@ -44,7 +44,7 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
         constraints = context.scene.sketcher.constraints
         constr = constraints.get_from_type_index(self.type, self.index)
 
-        origin, end_point = functions.get_picking_origin_end(context, coords)
+        origin, end_point = get_picking_origin_end(context, coords)
         pos = intersect_line_plane(origin, end_point, *constr.draw_plane())
 
         mat = constr.matrix_basis()

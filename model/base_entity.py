@@ -2,14 +2,17 @@ import logging
 from typing import List
 
 import gpu
-import bgl
 from bpy.props import IntProperty, StringProperty, BoolProperty
 from bpy.types import Context
 
-from .. import functions, global_data
+from .. import global_data
 from ..utilities import preferences
 from ..shaders import Shaders
 from ..declarations import Operators
+from ..utilities.preferences import get_prefs
+from ..utilities.index import index_to_rgb, breakdown_index
+from ..utilities.view import update_cb
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +32,7 @@ class SlvsGenericEntity:
         options={"SKIP_SAVE"},
     )
     fixed: BoolProperty(name="Fixed")
-    visible: BoolProperty(name="Visible", default=True, update=functions.update_cb)
+    visible: BoolProperty(name="Visible", default=True, update=update_cb)
     origin: BoolProperty(name="Origin")
     construction: BoolProperty(name="Construction")
     props = ()
@@ -90,7 +93,7 @@ class SlvsGenericEntity:
         return 20 * preferences.get_scale()
 
     def __str__(self):
-        _, local_index = functions.breakdown_index(self.slvs_index)
+        _, local_index = breakdown_index(self.slvs_index)
         return "{}({})".format(self.__class__.__name__, str(local_index))
 
     @property
@@ -166,7 +169,7 @@ class SlvsGenericEntity:
         return self.hover or self in global_data.highlight_entities
 
     def color(self, context: Context):
-        prefs = functions.get_prefs()
+        prefs = get_prefs()
         ts = prefs.theme_settings
         active = self.is_active(context.scene.sketcher.active_sketch)
         highlight = self.is_highlight()
@@ -189,9 +192,9 @@ class SlvsGenericEntity:
 
     @staticmethod
     def restore_opengl_defaults():
-        bgl.glLineWidth(1)
-        bgl.glPointSize(1)  # ?
-        bgl.glDisable(bgl.GL_BLEND)
+        gpu.state.line_width_set(1)
+        gpu.state.point_size_set(1)
+        gpu.state.blend_set("NONE")
 
     def is_visible(self, context: Context) -> bool:
         if self.origin:
@@ -215,8 +218,8 @@ class SlvsGenericEntity:
         shader = self._shader
         shader.bind()
 
-        bgl.glEnable(bgl.GL_BLEND)
-        bgl.glPointSize(self.point_size)
+        gpu.state.blend_set("ALPHA")
+        gpu.state.point_size_set(self.point_size)
 
         col = self.color(context)
         shader.uniform_float("color", col)
@@ -245,9 +248,9 @@ class SlvsGenericEntity:
         shader = self._id_shader
         shader.bind()
 
-        bgl.glPointSize(self.point_size_select)
+        gpu.state.point_size_set(self.point_size_select)
 
-        shader.uniform_float("color", (*functions.index_to_rgb(self.slvs_index), 1.0))
+        shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
         if not self.is_point():
             viewport = [context.area.width, context.area.height]
             shader.uniform_float("Viewport", viewport)

@@ -8,8 +8,10 @@ from bpy.props import CollectionProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Euler
 
-from .. import functions, global_data
+from .. import global_data
 from ..utilities.constants import QUARTER_TURN
+from ..utilities.index import breakdown_index
+
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer, update_pointers
 from .point_3d import SlvsPoint3D
@@ -88,7 +90,7 @@ class SlvsEntities(PropertyGroup):
 
     @staticmethod
     def _breakdown_index(index: int):
-        return functions.breakdown_index(index)
+        return breakdown_index(index)
 
     @classmethod
     def recalc_type_index(cls, entity):
@@ -356,11 +358,12 @@ class SlvsEntities(PropertyGroup):
     @property
     def selected_entities(self):
         """Return all selected visible entities"""
+        context = bpy.context
         items = []
         for index in global_data.selected:
             entity = self.get(index)
             items.append(entity)
-        return items
+        return [e for e in items if e.is_active(context.scene.sketcher.active_sketch)]
 
     def ensure_origin_elements(self, context):
         def set_origin_props(e):

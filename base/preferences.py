@@ -15,9 +15,11 @@ from bpy.props import (
 )
 
 from . import theme
-from .. import functions, global_data, units
+from .. import global_data, units
 from ..declarations import Operators
 from ..utilities.register import get_path, get_name
+from ..utilities.view import update_cb
+
 
 log_levels = [
     ("CRITICAL", "Critical", "", 0),
@@ -123,10 +125,10 @@ class Preferences(AddonPreferences):
         default=2,
     )
     hide_inactive_constraints: BoolProperty(
-        name="Hide inactive Constraints", default=True, update=functions.update_cb
+        name="Hide inactive Constraints", default=True, update=update_cb
     )
     all_entities_selectable: BoolProperty(
-        name="Make all Entities Selectable", update=functions.update_cb
+        name="Make all Entities Selectable", update=update_cb
     )
     force_redraw: BoolProperty(name="Force Entity Redraw", default=True)
 

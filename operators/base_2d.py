@@ -5,7 +5,7 @@ from bpy.types import Context, Event
 from mathutils import Vector
 from mathutils.geometry import intersect_line_plane
 
-from .. import functions
+from ..utilities.view import get_picking_origin_end
 from ..model.types import SlvsLine2D, SlvsCircle, SlvsArc
 from ..model.utilities import slvs_entity_pointer
 from .base_stateful import GenericEntityOp
@@ -22,7 +22,7 @@ class Operator2d(GenericEntityOp):
 
     def state_func(self, context: Context, coords):
         wp = self.sketch.wp
-        origin, end_point = functions.get_picking_origin_end(context, coords)
+        origin, end_point = get_picking_origin_end(context, coords)
         pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
         if pos is None:
             return None
