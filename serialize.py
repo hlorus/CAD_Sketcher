@@ -4,7 +4,7 @@ from pathlib import Path
 
 from bpy.types import Scene
 
-from .functions import breakdown_index
+from .utilities.index import breakdown_index, assemble_index
 
 
 def dict_extend(original_dict, other):
@@ -54,7 +54,6 @@ def fix_pointers(elements):
 
     import bpy
 
-    sse = bpy.context.scene.sketcher.entities
     offsets = bpy.context.scene.sketcher.entities.collection_offsets()
     indices = _get_indices(elements)
     print("offsets", offsets)
@@ -69,9 +68,9 @@ def fix_pointers(elements):
             if old_index in index_mapping.keys():
                 continue
 
-            index_mapping[
-                sse._assemble_index(type_index, old_index)
-            ] = sse._assemble_index(type_index, offset + i)
+            index_mapping[assemble_index(type_index, old_index)] = assemble_index(
+                type_index, offset + i
+            )
 
     print("mapping", index_mapping)
     _replace_indices(elements, index_mapping)

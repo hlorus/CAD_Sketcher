@@ -10,7 +10,7 @@ from mathutils import Vector, Euler
 
 from .. import global_data
 from ..utilities.constants import QUARTER_TURN
-from ..utilities.index import breakdown_index
+from ..utilities.index import breakdown_index, assemble_index
 
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer, update_pointers
@@ -82,11 +82,7 @@ class SlvsEntities(PropertyGroup):
         local_index = len(sub_list) - 1
         # TODO: handle this case better
         assert local_index < math.pow(2, 20)
-        entity.slvs_index = self._assemble_index(type_index, local_index)
-
-    @staticmethod
-    def _assemble_index(type_index: int, local_index: int):
-        return type_index << 20 | local_index
+        entity.slvs_index = assemble_index(type_index, local_index)
 
     @staticmethod
     def _breakdown_index(index: int):
