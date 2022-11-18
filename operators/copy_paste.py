@@ -1,10 +1,12 @@
+import bpy
 from bpy.utils import register_classes_factory
 from bpy.types import Operator, Context
-
 
 from .. import global_data
 from ..declarations import Operators
 from ..serialize import paste
+from ..utilities.select import deselect_all
+from ..serialize import iter_elements_dict
 
 
 class View3D_OT_slvs_copy(Operator):
@@ -15,14 +17,21 @@ class View3D_OT_slvs_copy(Operator):
     bl_options = {"UNDO"}
 
     def execute(self, context: Context):
-        sse = context.scene.sketcher.entities
-        entities = sse.selected_entities
         buffer = {"entities": {}, "constraints": {}}
+        entities_dict = context.scene.sketcher["entities"].to_dict()
 
-        for e in entities:
-            collection_name = sse.collection_name_from_index(e.slvs_index)
-            entity_list = buffer["entities"].setdefault(collection_name, [])
-            entity_list.append(dict(e))
+        # Only copy etities that are selected
+        for entity_collection_name, entities in entities_dict.items():
+            if not isinstance(entities, list):
+                continue
+            for entity in entities:
+                if not "slvs_index" in entity.keys():
+                    continue
+                if not entity["slvs_index"] in global_data.selected:
+                    continue
+
+                entity_list = buffer["entities"].setdefault(entity_collection_name, [])
+                entity_list.append(entity)
 
         global_data.COPY_BUFFER = buffer
         print("copy", global_data.COPY_BUFFER)
@@ -37,8 +46,26 @@ class View3D_OT_slvs_paste(Operator):
     bl_options = {"UNDO"}
 
     def execute(self, context: Context):
-        print("paste", global_data.COPY_BUFFER)
-        paste(context, global_data.COPY_BUFFER)
+        buffer = global_data.COPY_BUFFER
+        print("paste", buffer)
+        paste(context, buffer.copy())
+
+        deselect_all(context)
+
+        # Select all pasted entities
+        for element in iter_elements_dict(buffer):
+            if not "slvs_index" in element.keys():
+                continue
+
+            index = element["slvs_index"]
+            entity = context.scene.sketcher.entities.get(index)
+            if not entity:
+                continue
+            entity.selected = True
+
+        context.area.tag_redraw()
+
+        bpy.ops.view3d.slvs_move("INVOKE_DEFAULT")
         return {"FINISHED"}
 
 
