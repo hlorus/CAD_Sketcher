@@ -56,7 +56,6 @@ def fix_pointers(elements):
 
     offsets = bpy.context.scene.sketcher.entities.collection_offsets()
     indices = _get_indices(elements)
-    print("offsets", offsets)
 
     # Create pointer map {old_ptr: new_ptr,}
     index_mapping = {}
@@ -72,14 +71,7 @@ def fix_pointers(elements):
                 type_index, offset + i
             )
 
-    print("mapping", index_mapping)
     _replace_indices(elements, index_mapping)
-
-    # pointers = _get_pointers(elements)
-
-    # Fix slvs indices and later update old pointers
-
-    # First fix pointers of dict to add
 
 
 def iter_elements_dict(element_dict):
@@ -104,7 +96,6 @@ def _replace_indices(elements, mapping: dict):
             if value not in mapping.keys():
                 continue
 
-            print("replace pointer", value, mapping[value])
             elem[prop] = mapping[value]
 
 
@@ -124,7 +115,6 @@ def _get_indices(elements):
             indices[type_index].append(local_index)
 
     [l.sort() for l in indices.values()]
-    print("indices", indices)
     return indices
 
 
