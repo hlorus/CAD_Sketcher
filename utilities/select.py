@@ -1,4 +1,38 @@
+import logging
+
 from bpy.props import EnumProperty
+from bpy.types import Context
+
+from .. import global_data
+from ..utilities.data_handling import entities_3d
+
+logger = logging.getLogger(__name__)
+
+
+def select_all(context: Context):
+    sketch = context.scene.sketcher.active_sketch
+    if sketch:
+        logger.debug(
+            f"Selecting all sketcher entities in sketch : {sketch.name} (slvs_index: {sketch.slvs_index})"
+        )
+        generator = sketch.sketch_entities(context)
+    else:
+        logger.debug(f"Selecting all sketcher entities")
+        generator = entities_3d(context)
+
+    for e in generator:
+        if e.selected:
+            continue
+        if not e.is_visible(context):
+            continue
+        if not e.is_active(context.scene.sketcher.active_sketch):
+            continue
+        e.selected = True
+
+
+def deselect_all(context: Context):
+    logger.debug("Deselecting all sketcher entities")
+    global_data.selected.clear()
 
 
 mode_property = EnumProperty(

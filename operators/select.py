@@ -2,7 +2,8 @@ from bpy.types import Operator, Context
 from bpy.props import IntProperty, BoolProperty
 from bpy.utils import register_classes_factory
 
-from .utilities import select_all, deselect_all, select_extend, select_invert
+from .utilities import select_extend, select_invert
+from ..utilities.select import select_all, deselect_all
 from .. import global_data
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement

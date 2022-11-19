@@ -128,6 +128,16 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
             None,
         ),
         (
+            Operators.Copy,
+            {"type": "C", "value": "PRESS", "ctrl": True},
+            None,
+        ),
+        (
+            Operators.Paste,
+            {"type": "V", "value": "PRESS", "ctrl": True},
+            None,
+        ),
+        (
             Operators.Move,
             {"type": "G", "value": "PRESS"},
             None,

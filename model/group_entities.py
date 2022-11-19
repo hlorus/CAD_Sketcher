@@ -10,7 +10,7 @@ from mathutils import Vector, Euler
 
 from .. import global_data
 from ..utilities.constants import QUARTER_TURN
-from ..utilities.index import breakdown_index
+from ..utilities.index import breakdown_index, assemble_index
 
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer, update_pointers
@@ -82,7 +82,7 @@ class SlvsEntities(PropertyGroup):
         local_index = len(sub_list) - 1
         # TODO: handle this case better
         assert local_index < math.pow(2, 20)
-        entity.slvs_index = type_index << 20 | local_index
+        entity.slvs_index = assemble_index(type_index, local_index)
 
     @staticmethod
     def _breakdown_index(index: int):
@@ -103,6 +103,13 @@ class SlvsEntities(PropertyGroup):
         if type_index >= len(self.entities):
             return None
         return self.entities[type_index]
+
+    def collection_name_from_index(self, index: int):
+        if index < 0:
+            return
+
+        type_index, _ = self._breakdown_index(index)
+        return self._entity_collections[type_index]
 
     def _get_list_and_index(self, index: int):
         type_index, local_index = self._breakdown_index(index)
@@ -389,6 +396,12 @@ class SlvsEntities(PropertyGroup):
             wp = sse.add_workplane(self.origin, getattr(self, nm_name))
             set_origin_props(wp)
             setattr(self, wp_name, wp)
+
+    def collection_offsets(self):
+        offsets = {}
+        for i, key in enumerate(self._entity_collections):
+            offsets[i] = len(getattr(self, key))
+        return offsets
 
 
 if not hasattr(SlvsEntities, "__annotations__"):

@@ -1,5 +1,5 @@
 from collections import deque
-from typing import Generator, Deque
+from typing import Generator, Deque, List, Sequence
 
 from bpy.types import Scene, Context
 
@@ -17,7 +17,7 @@ def to_list(value):
     ]
 
 
-def get_flat_deps(entity):
+def get_flat_deps(entity: SlvsGenericEntity):
     """Return flattened list of entities given entity depends on"""
     list = []
 
@@ -35,6 +35,19 @@ def get_flat_deps(entity):
 
     walker(entity, is_root=True)
     return list
+
+
+def get_collective_dependencies(
+    entities: Sequence[SlvsGenericEntity],
+) -> List[SlvsGenericEntity]:
+    """Returns a list of entities along with their dependencies"""
+    deps = entities
+    for entity in entities:
+        for dep in get_flat_deps(entity):
+            if dep in deps:
+                continue
+            deps.append(dep)
+    return deps
 
 
 def get_scene_constraints(scene: Scene):
@@ -104,3 +117,10 @@ def get_constraint_local_indices(
                 indices.append(constraints.get_index(c))
         ret_list.append((data_coll, indices))
     return ret_list
+
+
+def entities_3d(context: Context) -> Generator[SlvsGenericEntity, None, None]:
+    for entity in context.scene.sketcher.entities.all:
+        if hasattr(entity, "sketch"):
+            continue
+        yield entity

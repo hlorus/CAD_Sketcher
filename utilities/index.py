@@ -15,3 +15,7 @@ def breakdown_index(index: int):
     type_index = index >> 20
     local_index = index & 0xFFFFF
     return type_index, local_index
+
+
+def assemble_index(type_index: int, local_index: int):
+    return type_index << 20 | local_index
