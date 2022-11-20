@@ -46,7 +46,6 @@ class View3D_OT_slvs_copy(Operator):
 
                 entity_list = buffer["entities"].setdefault(entity_collection_name, [])
                 entity_list.append(entity)
-
         global_data.COPY_BUFFER = buffer
         return {"FINISHED"}
 
@@ -86,7 +85,6 @@ class View3D_OT_slvs_paste(Operator):
             entity.selected = True
 
         context.area.tag_redraw()
-
         bpy.ops.view3d.slvs_move("INVOKE_DEFAULT")
         return {"FINISHED"}
 

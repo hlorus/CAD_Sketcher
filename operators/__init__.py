@@ -34,6 +34,7 @@ modules = [
     "add_geometric_constraints",
     "align_workplane",
     "move",
+    "duplicate",
 ]
 
 

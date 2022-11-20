@@ -3,7 +3,7 @@ import os
 import bpy
 from bpy.types import WorkSpaceTool
 
-from .declarations import GizmoGroups, Operators, WorkSpaceTools
+from .declarations import GizmoGroups, Operators, WorkSpaceTools, Macros
 from .keymaps import tool_access
 from .stateful_operator.utilities.keymap import operator_access
 from .stateful_operator.tool import GenericStateTool
@@ -135,6 +135,11 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
         (
             Operators.Paste,
             {"type": "V", "value": "PRESS", "ctrl": True},
+            None,
+        ),
+        (
+            Macros.DuplicateMove,
+            {"type": "D", "value": "PRESS", "shift": True},
             None,
         ),
         (

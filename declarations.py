@@ -75,6 +75,10 @@ class Operators(str, Enum):
     WriteSelectionTexture = "view3d.slvs_write_selection_texture"
 
 
+class Macros(str, Enum):
+    DuplicateMove = "view3d.slvs_duplicate_move"
+
+
 class Panels(str, Enum):
     Sketcher = "VIEW3D_PT_sketcher"
     SketcherDebugPanel = "VIEW3D_PT_sketcher_debug_panel"
