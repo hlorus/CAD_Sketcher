@@ -6,7 +6,7 @@ from mathutils import Matrix
 
 from .. import global_data
 from ..declarations import GizmoGroups, WorkSpaceTools
-from ..convertors import update_convertor_geometry
+from ..converters import update_convertor_geometry
 from ..utilities.preferences import use_experimental, get_prefs
 from ..utilities.data_handling import entities_3d
 
