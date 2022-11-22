@@ -1,4 +1,9 @@
 import logging
+from typing import List
+
+from bpy.types import Scene
+
+from ..model.types import SlvsGenericEntity
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +42,17 @@ def shares_point(seg_1, seg_2):
 
 
 class EntityWalker:
-    """Utility class to find connected entities"""
+    """
+    Utility class to find connected entities
+
+    Exposes:
+        self.paths  List of Lists of connected segment entities that are connected by sharing an endpoint
+    """
 
     def __init__(self, scene, sketch):
-        self.sketch_entities = []
-        self.paths = []
-        self.ok = True
-        self.scene = scene
+        self.sketch_entities: List[SlvsGenericEntity] = []
+        self.paths: List[List[SlvsGenericEntity]] = []
+        self.scene: Scene = scene
         self.sketch = sketch
         self.points, self.entities = point_entity_mapping(scene)
 
@@ -57,6 +66,8 @@ class EntityWalker:
             if e.construction:
                 continue
             self.sketch_entities.append(e)
+
+        self._run()
 
     @staticmethod
     def is_cyclic_path(path):
@@ -147,10 +158,8 @@ class EntityWalker:
             # Invert walker when there's a second connection point
             invert = not invert
 
-    def run(self):
+    def _run(self):
         while len(self.sketch_entities):
             start_entity = self.sketch_entities[0]
             logger.info("Start path walker at {}".format(start_entity))
             self.walker(start_entity, self._branch_path())
-
-        # TODO: check path, set self.ok

@@ -139,7 +139,7 @@ def update_convertor_geometry(scene: Scene, sketch=None):
 
         # Convert geometry to curve data
         conv = BezierConverter(scene, sketch)
-        conv.run()
+
         # TODO: Avoid re-converting sketches where nothing has changed!
         logger.info("Convert sketch {} to {}: ".format(sketch, mode.lower()))
         curve_data = sketch.target_curve_object.data
