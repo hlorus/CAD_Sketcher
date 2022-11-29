@@ -3,7 +3,7 @@ from typing import Generator, Deque, List, Sequence
 
 from bpy.types import Scene, Context
 
-from ..model.types import SlvsGenericEntity, SlvsSketch
+from ..model.types import SlvsGenericEntity, SlvsSketch, GenericConstraint
 
 
 def to_list(value):
@@ -117,6 +117,19 @@ def get_constraint_local_indices(
                 indices.append(constraints.get_index(c))
         ret_list.append((data_coll, indices))
     return ret_list
+
+
+def get_scoped_constraints(
+    context: Context, entities: List[SlvsGenericEntity]
+) -> List[GenericConstraint]:
+    """Return a list of constraints that are in the scope of a set of entities"""
+
+    constraints = []
+    for constraint in context.scene.sketcher.constraints.all:
+        if not all([e in entities for e in constraint.entities()]):
+            continue
+        constraints.append(constraint)
+    return constraints
 
 
 def entities_3d(context: Context) -> Generator[SlvsGenericEntity, None, None]:

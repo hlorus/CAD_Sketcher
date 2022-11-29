@@ -1,4 +1,5 @@
 from copy import deepcopy
+from typing import Any, List, Sequence, Tuple
 
 import bpy
 from bpy.utils import register_classes_factory
@@ -8,8 +9,38 @@ from .. import global_data
 from ..declarations import Operators
 from ..serialize import paste
 from ..utilities.select import deselect_all
-from ..utilities.data_handling import get_collective_dependencies
+from ..utilities.data_handling import (
+    get_collective_dependencies,
+    get_scoped_constraints,
+)
 from ..serialize import iter_elements_dict
+
+
+def _filter_elements_dict(
+    data, dict_elements: Sequence[tuple[str, list]], whitelist: Sequence[Any]
+) -> List[tuple[str, list]]:
+    """
+    Returns filtered list of elements based on whitelist
+
+    dict_elements must be the dictionary representation of whats stored in data without any modifications
+    """
+
+    filtered_elements_dict = {}
+    for collection_name, elements in dict_elements.items():
+        if not isinstance(elements, list):
+            continue
+
+        # Get the actual element corresponding to the dict representation
+        for i, element_dict in enumerate(elements):
+            element_collection = getattr(data, collection_name)
+            element = element_collection[i]
+
+            if element not in whitelist:
+                continue
+
+            filtered_elements_dict.setdefault(collection_name, []).append(element_dict)
+
+    return filtered_elements_dict
 
 
 class View3D_OT_slvs_copy(Operator):
@@ -26,26 +57,28 @@ class View3D_OT_slvs_copy(Operator):
 
         sse = context.scene.sketcher.entities
         buffer = {"entities": {}, "constraints": {}}
-        entities_dict = context.scene.sketcher["entities"].to_dict()
 
-        # Copy selected entities along with their dependencies
-        entities = filter(
-            lambda x: x.is_2d(), get_collective_dependencies(sse.selected_entities)
+        # Get the whole scene dictionary representation
+        scene_dict = context.scene["sketcher"].to_dict()
+
+        # Get dependencies of selected entities
+        dependencies = list(
+            filter(
+                lambda x: x.is_2d(), get_collective_dependencies(sse.selected_entities)
+            )
         )
-        whitelist = [e.slvs_index for e in entities]
 
-        # Only copy etities that are selected
-        for entity_collection_name, entities in entities_dict.items():
-            if not isinstance(entities, list):
-                continue
-            for entity in entities:
-                if not "slvs_index" in entity.keys():
-                    continue
-                if not entity["slvs_index"] in whitelist:
-                    continue
+        # Get filtered entities dictionary based on selected entities and their dependencies
+        buffer["entities"] = _filter_elements_dict(
+            context.scene.sketcher.entities, scene_dict["entities"], dependencies
+        )
 
-                entity_list = buffer["entities"].setdefault(entity_collection_name, [])
-                entity_list.append(entity)
+        # Get filtered constraints dictionary based on selected entities and their dependencies
+        constraints = get_scoped_constraints(context, dependencies)
+        buffer["constraints"] = _filter_elements_dict(
+            context.scene.sketcher.constraints, scene_dict["constraints"], constraints
+        )
+
         global_data.COPY_BUFFER = buffer
         return {"FINISHED"}
 

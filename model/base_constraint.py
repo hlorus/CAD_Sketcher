@@ -57,7 +57,10 @@ class GenericConstraint:
         for prop_name in dir(self):
             if prop_name.endswith("_i") or not prop_name.startswith("entity"):
                 continue
-            props.append(getattr(self, prop_name))
+            entity = getattr(self, prop_name)
+            if not entity:
+                continue
+            props.append(entity)
         return props
 
     def dependencies(self) -> List[SlvsGenericEntity]:
