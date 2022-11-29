@@ -8,7 +8,7 @@ from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from ..utilities.trimming import TrimSegment
 from .base_2d import Operator2d
-from ..utilities.view import refresh
+from ..utilities.view import refresh, get_pos_2d
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
     # NOTE: That does not work if run with select -> action
     def pick_element_coords(self, context, coords):
         data = self.state_data
-        data["mouse_pos"] = self.state_func(context, coords)
+        data["mouse_pos"] = get_pos_2d(context, self.sketch.wp, coords)
         return super().pick_element(context, coords)
 
     def main(self, context: Context):

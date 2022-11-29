@@ -8,6 +8,7 @@ from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.data_handling import get_flat_deps
 from ..solver import solve_system
+from ..utilities.view import get_pos_2d
 
 
 def get_points(context: Context):
@@ -68,12 +69,12 @@ class View3D_OT_slvs_move(Operator, Operator2d):
     def invoke(self, context: Context, event: Event):
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
         retval = super().invoke(context, event)
-        self.origin_coords = self.state_func(context, coords)
+        self.origin_coords = get_pos_2d(context, self.sketch.wp, coords)
         return retval
 
     def get_offset(self, context: Context, coords):
         wp = self.sketch.wp
-        pos = self.state_func(context, coords)
+        pos = get_pos_2d(context, wp, coords)
         if pos is None:
             return None
 

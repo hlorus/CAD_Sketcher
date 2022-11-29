@@ -1,10 +1,10 @@
 import bpy
 from bpy.types import Context, Event
 
-from ..model.types import SlvsLine3D, SlvsWorkplane
+from ..model.types import SlvsPoint3D, SlvsLine3D, SlvsWorkplane
+from ..utilities.view import get_placement_pos
 from .base_stateful import GenericEntityOp
 from .utilities import ignore_hover
-from ..utilities.view import get_placement_pos
 
 
 class Operator3d(GenericEntityOp):
@@ -15,8 +15,15 @@ class Operator3d(GenericEntityOp):
     def init(self, context: Context, event: Event):
         pass
 
-    def state_func(self, context, coords):
-        return get_placement_pos(context, coords)
+    def state_func(self, context: Context, coords):
+        state = self.state
+        pos = get_placement_pos(context, coords)
+
+        # Handle implicit properties based on state.types
+        if SlvsPoint3D in state.types:
+            return pos
+
+        return super().state_func(context, coords)
 
     def create_element(self, context, values, state, state_data):
         sse = context.scene.sketcher.entities

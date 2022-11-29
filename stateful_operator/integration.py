@@ -7,10 +7,12 @@ Add integration with native blender types, following are supported:
 - bpy.types.MeshPolygon
 """
 
+import math
+
 from .logic import StatefulOperatorLogic
 from .constants import mesh_element_types
 from .utilities.generic import get_pointer_get_set, to_list
-from .utilities.geometry import get_evaluated_obj, get_mesh_element
+from .utilities.geometry import get_evaluated_obj, get_mesh_element, get_placement_pos
 
 import bpy
 from bpy.types import Context
@@ -156,6 +158,24 @@ class StatefulOperator(StatefulOperatorLogic):
 
             data["mesh_index"] = get_value(1) if implicit else get_value(1).index
             return True
+
+    def state_func(self, context: Context, coords):
+        pos = get_placement_pos(context, coords)
+
+        prop_name = self.state.property
+        prop = self.rna_type.properties.get(prop_name)
+        if not prop:
+            return super().state_func(context, coords)
+
+        if prop.array_length > 1:
+            return pos
+
+        if prop.type in ("FLOAT", "INT"):
+            type_cast = float if prop.type == "FLOAT" else int
+            old_pos = get_placement_pos(context, self.state_init_coords)
+            dist = type_cast((pos - old_pos).length)
+            return math.copysign(dist, coords.x - self.state_init_coords.x)
+        return super().state_func(context, coords)
 
     def pick_element(self, context: Context, coords):
         # return a list of implicit prop values if pointer need implicit props

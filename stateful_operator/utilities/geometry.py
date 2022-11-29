@@ -1,10 +1,19 @@
 from bpy.types import Context, Object
 from bpy_extras import view3d_utils
+from mathutils import Vector
+from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_vector_3d
 
 # TODO: Move into StateOps
 from ..utilities.generic import bvhtree_from_object
 
 from typing import Optional
+
+
+def get_placement_pos(context: Context, coords: Vector) -> Vector:
+    region = context.region
+    rv3d = context.region_data
+    view_vector = region_2d_to_vector_3d(region, rv3d, coords)
+    return region_2d_to_location_3d(region, rv3d, coords, view_vector)
 
 
 def get_evaluated_obj(context: Context, object: Object):

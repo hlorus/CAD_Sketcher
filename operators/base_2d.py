@@ -1,15 +1,16 @@
+import math
 from typing import Any, List
 
 import bpy
 from bpy.types import Context, Event
 from mathutils import Vector
-from mathutils.geometry import intersect_line_plane
 
-from ..utilities.view import get_picking_origin_end
+from ..model.types import SlvsPoint2D
 from ..model.types import SlvsLine2D, SlvsCircle, SlvsArc
 from ..model.utilities import slvs_entity_pointer
 from .base_stateful import GenericEntityOp
 from .utilities import ignore_hover
+from ..utilities.view import get_pos_2d
 
 
 class Operator2d(GenericEntityOp):
@@ -21,14 +22,35 @@ class Operator2d(GenericEntityOp):
         self.sketch = context.scene.sketcher.active_sketch
 
     def state_func(self, context: Context, coords):
+        state = self.state
         wp = self.sketch.wp
-        origin, end_point = get_picking_origin_end(context, coords)
-        pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
-        if pos is None:
-            return None
+        pos = get_pos_2d(context, wp, coords)
 
-        pos = wp.matrix_basis.inverted() @ pos
-        return Vector(pos[:-1])
+        # Handle implicit properties based on state.types
+        if SlvsPoint2D in state.types:
+            return pos
+
+        # Handle state property based on property type
+        prop_name = self.state.property
+
+        prop = self.rna_type.properties.get(prop_name)
+        if not prop:
+            return super().state_func(context, coords)
+
+        # Handle vector type
+        if prop.array_length > 1:
+            return pos
+
+        if prop.type in ("FLOAT", "INT"):
+            # Take the delta between the state start position and current position in 2d space
+            # Define the sign by the screen space x axis
+
+            type_cast = float if prop.type == "FLOAT" else int
+            old_pos = get_pos_2d(context, wp, self.state_init_coords)
+            dist = type_cast(Vector(pos - old_pos).length)
+            return math.copysign(dist, coords.x - self.state_init_coords.x)
+
+        return super().state_func(context, coords)
 
     # create element depending on mode
     def create_element(self, context: Context, values: List[Any], state, state_data):

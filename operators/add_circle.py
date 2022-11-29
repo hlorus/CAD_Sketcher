@@ -8,6 +8,7 @@ from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from ..solver import solve_system
+from ..utilities.view import get_pos_2d
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
@@ -52,10 +53,7 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
 
     def get_radius(self, context: Context, coords):
         wp = self.sketch.wp
-        pos = self.state_func(context, coords)
-        if pos is None:
-            return None
-
+        pos = get_pos_2d(context, wp, coords)
         delta = Vector(pos) - self.ct.co
         radius = delta.length
         return radius

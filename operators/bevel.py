@@ -102,18 +102,9 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             "Radius",
             description="Radius of the bevel",
             property="radius",
-            state_func="get_radius",
             interactive=True,
         ),
     )
-
-    def get_radius(self, context, coords):
-        wp = self.sketch.wp
-        pos = self.state_func(context, coords)
-
-        delta = Vector(pos) - self.p1.co
-        radius = delta.length
-        return radius
 
     def main(self, context):
         sketch = self.sketch

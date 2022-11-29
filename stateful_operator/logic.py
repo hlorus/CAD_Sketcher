@@ -27,6 +27,8 @@ class StatefulOperatorLogic:
     continuous_draw: BoolProperty(name="Continuous Draw", default=False)
 
     executed = False
+    # Stores the returned value of state_func the first time it runs per state
+    state_init_coords = None
     _state_data = {}
     _last_coords = Vector((0, 0))
     _numeric_input = {}
@@ -84,6 +86,7 @@ class StatefulOperatorLogic:
 
     def next_state(self, context: Context):
         self._undo = False
+        self.state_init_coords = None
         i = self.state_index
         if (i + 1) >= len(self.get_states()):
             return False
@@ -269,6 +272,9 @@ class StatefulOperatorLogic:
         if hasattr(self, name):
             return getattr(self, name)
         return None
+
+    def state_func(self, context, coords):
+        return NotImplementedError
 
     def invoke(self, context: Context, event: Event):
         self._state_data.clear()
@@ -477,8 +483,6 @@ class StatefulOperatorLogic:
         if not position_cb:
             return None
         pos_val = position_cb(context, coords)
-        if pos_val is None:
-            return None
         return pos_val
 
     def evaluate_state(self, context: Context, event, triggered):
@@ -486,6 +490,9 @@ class StatefulOperatorLogic:
         data = self.state_data
         is_numeric = self.state_data.get("is_numeric_edit", False)
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
+
+        if self.state_init_coords is None:
+            self.state_init_coords = coords
 
         # Pick hovered element
         hovered = None

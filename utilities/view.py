@@ -2,6 +2,7 @@ from typing import Tuple
 
 from bpy.types import Context, RegionView3D
 from mathutils import Vector
+from mathutils.geometry import intersect_line_plane
 from bpy_extras.view3d_utils import (
     location_3d_to_region_2d,
     region_2d_to_location_3d,
@@ -42,6 +43,16 @@ def get_placement_pos(context: Context, coords: Vector) -> Vector:
     rv3d = context.region_data
     view_vector = region_2d_to_vector_3d(region, rv3d, coords)
     return region_2d_to_location_3d(region, rv3d, coords, view_vector)
+
+
+def get_pos_2d(context: Context, wp, coords: Vector) -> Vector:
+    """Returns the coordinates on the workplane the mouse points at"""
+    origin, end_point = get_picking_origin_end(context, coords)
+    pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
+    if pos is None:
+        return None
+    pos = wp.matrix_basis.inverted() @ pos
+    return Vector(pos[:-1])
 
 
 def get_2d_coords(context, pos: Vector) -> Vector:

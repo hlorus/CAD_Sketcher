@@ -12,6 +12,7 @@ from ..utilities.math import pol2cart
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
+from ..utilities.view import get_pos_2d
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
     )
 
     def get_endpoint_pos(self, context: Context, coords):
-        mouse_pos = self.state_func(context, coords)
+        mouse_pos = get_pos_2d(context, self.sketch.wp, coords)
         if mouse_pos is None:
             return None
 
