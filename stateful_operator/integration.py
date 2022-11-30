@@ -7,12 +7,16 @@ Add integration with native blender types, following are supported:
 - bpy.types.MeshPolygon
 """
 
-import math
 
 from .logic import StatefulOperatorLogic
 from .constants import mesh_element_types
 from .utilities.generic import get_pointer_get_set, to_list
-from .utilities.geometry import get_evaluated_obj, get_mesh_element, get_placement_pos
+from .utilities.geometry import (
+    get_evaluated_obj,
+    get_mesh_element,
+    get_placement_pos,
+    get_scale_from_pos,
+)
 
 import bpy
 from bpy.types import Context
@@ -171,10 +175,14 @@ class StatefulOperator(StatefulOperatorLogic):
             return pos
 
         if prop.type in ("FLOAT", "INT"):
+            # Take the delta between the state start position and current position in screenspace X-Axis
+            # and scale the value by the zoom level at the state start position
+
             type_cast = float if prop.type == "FLOAT" else int
             old_pos = get_placement_pos(context, self.state_init_coords)
-            dist = type_cast((pos - old_pos).length)
-            return math.copysign(dist, coords.x - self.state_init_coords.x)
+            scale = get_scale_from_pos(old_pos, context.region_data) / 500
+            return type_cast((coords.x - self.state_init_coords.x) * scale)
+
         return super().state_func(context, coords)
 
     def pick_element(self, context: Context, coords):

@@ -10,7 +10,7 @@ from ..model.types import SlvsLine2D, SlvsCircle, SlvsArc
 from ..model.utilities import slvs_entity_pointer
 from .base_stateful import GenericEntityOp
 from .utilities import ignore_hover
-from ..utilities.view import get_pos_2d
+from ..utilities.view import get_pos_2d, get_scale_from_pos
 
 
 class Operator2d(GenericEntityOp):
@@ -42,13 +42,13 @@ class Operator2d(GenericEntityOp):
             return pos
 
         if prop.type in ("FLOAT", "INT"):
-            # Take the delta between the state start position and current position in 2d space
-            # Define the sign by the screen space x axis
+            # Take the delta between the state start position and current position in screenspace X-Axis
+            # and scale the value by the zoom level at the state start position
 
             type_cast = float if prop.type == "FLOAT" else int
             old_pos = get_pos_2d(context, wp, self.state_init_coords)
-            dist = type_cast(Vector(pos - old_pos).length)
-            return math.copysign(dist, coords.x - self.state_init_coords.x)
+            scale = get_scale_from_pos(old_pos, context.region_data) / 500
+            return type_cast((coords.x - self.state_init_coords.x) * scale)
 
         return super().state_func(context, coords)
 

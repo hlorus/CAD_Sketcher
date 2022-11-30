@@ -1,4 +1,4 @@
-from bpy.types import Context, Object
+from bpy.types import Context, Object, RegionView3D
 from bpy_extras import view3d_utils
 from mathutils import Vector
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_vector_3d
@@ -14,6 +14,14 @@ def get_placement_pos(context: Context, coords: Vector) -> Vector:
     rv3d = context.region_data
     view_vector = region_2d_to_vector_3d(region, rv3d, coords)
     return region_2d_to_location_3d(region, rv3d, coords, view_vector)
+
+
+def get_scale_from_pos(co: Vector, rv3d: RegionView3D) -> Vector:
+    if rv3d.view_perspective == "ORTHO":
+        scale = rv3d.view_distance
+    else:
+        scale = (rv3d.perspective_matrix @ co.to_4d())[3]
+    return scale
 
 
 def get_evaluated_obj(context: Context, object: Object):
