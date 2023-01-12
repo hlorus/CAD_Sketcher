@@ -40,6 +40,7 @@ class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
 
             merge_points(context, p1, p2)
             solve_system(context, context.scene.sketcher.active_sketch)
+            break
         return True
 
     def main(self, context: Context):
