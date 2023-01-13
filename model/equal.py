@@ -43,30 +43,7 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
         return cls.signature[index]
 
     def create_slvs_data(self, solvesys):
-        from solvespace import Constraint
-        # TODO: Don't allow to add Equal between Line and Circle
-        e1, e2 = self.entity1, self.entity2
-
-        func = None
-        set_wp = False
-
-        if all([type(e) in LINE for e in (e1, e2)]):
-            func = partial(solvesys.add_constraint,
-                           Constraint.EQUAL_LENGTH_LINES)
-            set_wp = True
-        elif all([type(e) in CURVE for e in (e1, e2)]):
-            func = partial(solvesys.add_constraint, Constraint.EQUAL_RADIUS)
-        else:
-            # TODO: Do a proper check to see if there's really one Arc and one Line
-            func = partial(solvesys.add_constraint,
-                           Constraint.EQUAL_LINE_ARC_LEN)
-            set_wp = True
-
-        kwargs = {}
-        if set_wp:
-            kwargs["wp"] = self.get_workplane()
-
-        return func(e1.py_data, e2.py_data, **kwargs)
+        return solvesys.equal(self.entity1.py_data, self.entity2.py_data, self.get_workplane())
 
     def placements(self):
         return (self.entity1, self.entity2)

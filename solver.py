@@ -87,9 +87,9 @@ class Solver:
                     e.create_slvs_data(self.solvesys)
 
                     self.tweak_constraint = make_coincident(
-                        self.solvesys, p, e, wp.py_data, group
+                        self.solvesys, p, e, wp
                     )
-                    self.solvesys.dragged(p, wp.py_data)
+                    self.solvesys.dragged(p, wp)
                     #p, wrkpln=wp, group=group)
                 continue
 

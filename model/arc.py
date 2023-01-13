@@ -104,7 +104,7 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
 
     def create_slvs_data(self, solvesys):
         handle = solvesys.add_arc(
-            self.wp.py_data,
+            self.nm.py_data,
             self.ct.py_data,
             self.start.py_data,
             self.end.py_data,
