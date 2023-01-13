@@ -12,7 +12,7 @@ from ..utilities.draw import draw_rect_2d
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
-from .utilities import slvs_entity_pointer, make_coincident
+from .utilities import slvs_entity_pointer
 from .line_2d import SlvsLine2D
 
 logger = logging.getLogger(__name__)
@@ -109,8 +109,7 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         endpoint = solvesys.add_point_2d(p2.x, p2.y, wp=wp.py_data)
 
         edge = solvesys.add_line_2d(startpoint, endpoint, self.wp.py_data)
-        make_coincident(solvesys, self.py_data, edge,
-                        wp.py_data, entity_type=SlvsLine2D)
+        solvesys.coincident(self.py_data, edge, wp.py_data)
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)

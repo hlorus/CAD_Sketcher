@@ -42,13 +42,11 @@ class SlvsSymmetric(GenericConstraint, PropertyGroup):
 
     def create_slvs_data(self, solvesys):
         e1, e2, e3 = self.entity1, self.entity2, self.entity3
-
-        kw = {"wp": self.get_workplane()} if isinstance(e3, SlvsLine2D) else {}
         return solvesys.symmetric(
             e1.py_data,
             e2.py_data,
             e3.py_data,
-            **kw,
+            self.get_workplane()
         )
 
     def placements(self):

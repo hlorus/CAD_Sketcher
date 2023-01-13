@@ -1,7 +1,6 @@
 import logging
 from .utilities.bpy import bpyEnum
 from .global_data import solver_state_items
-from solvespace import SolverSystem, Entity
 
 # TODO: Move to utilities.data_handling
 from .model.utilities import make_coincident
@@ -33,6 +32,7 @@ class Solver:
             "--- Start solving ---\nAll:{}, Sketch:{}, g:{}".format(all, sketch, group)
         )
 
+        from solvespace import SolverSystem, Entity
         self.solvesys = SolverSystem()
 
         self.FREE_IN_3D = Entity.FREE_IN_3D
@@ -90,7 +90,6 @@ class Solver:
                         self.solvesys, p, e, wp
                     )
                     self.solvesys.dragged(p, wp)
-                    #p, wrkpln=wp, group=group)
                 continue
 
             e.create_slvs_data(self.solvesys)

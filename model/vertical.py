@@ -36,11 +36,7 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
 
     def create_slvs_data(self, solvesys):
         wp = self.get_workplane()
-        if self.entity1.is_point():
-            return solvesys.vertical(
-                self.entity1.py_data, self.entity2.py_data, wp=wp
-            )
-        return solvesys.vertical(self.entity1.py_data, wp=wp)
+        return solvesys.vertical(self.entity1.py_data, wp)
 
     def placements(self):
         return (self.entity1,)

@@ -73,8 +73,7 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
 
     def create_slvs_data(self, solvesys):
         wp = self.get_workplane()
-        kwargs = {"wp": wp} if wp else {}
-        return solvesys.angle(self.entity1.py_data, self.entity2.py_data, math.degrees(self.value), inverse=self.setting, **kwargs)
+        return solvesys.angle(self.entity1.py_data, self.entity2.py_data, math.degrees(self.value), wp, self.setting)
 
     def matrix_basis(self):
         if self.sketch_i == -1:
