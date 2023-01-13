@@ -37,9 +37,9 @@ class SlvsCoincident(GenericConstraint, PropertyGroup):
             return WpReq.FREE
         return WpReq.OPTIONAL
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys):
         return make_coincident(
-            solvesys, self.entity1.py_data, self.entity2, self.get_workplane(), group
+            solvesys, self.entity1.py_data, self.entity2, self.get_workplane()
         )
 
     def placements(self):

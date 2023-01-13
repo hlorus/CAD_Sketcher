@@ -35,13 +35,13 @@ class SlvsHorizontal(GenericConstraint, PropertyGroup):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys):
         wp = self.get_workplane()
         if self.entity1.is_point():
-            return solvesys.addPointsHorizontal(
-                self.entity1.py_data, self.entity2.py_data, wp, group=group
+            return solvesys.horizontal(
+                self.entity1.py_data, self.entity2.py_data, wp=wp
             )
-        return solvesys.addLineHorizontal(self.entity1.py_data, wrkpln=wp, group=group)
+        return solvesys.horizontal(self.entity1.py_data, wp=wp)
 
     def placements(self):
         return (self.entity1,)

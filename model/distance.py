@@ -107,77 +107,102 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             return value * -1
         return value
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    # def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    #     if self.entity1 == self.entity2:
+    #         raise AttributeError("Cannot create constraint between one entity itself")
+    #     # TODO: don't allow Distance if Point -> Line if (Point in Line)
+
+    #     e1, e2 = self.entity1, self.entity2
+    #     if e1.is_line():
+    #         e1, e2 = e1.p1, e1.p2
+
+    #     func = None
+    #     set_wp = False
+    #     wp = self.get_workplane()
+    #     alignment = self.align
+    #     align = self.use_align() and alignment != "NONE"
+    #     handles = []
+
+    #     value = self.get_value()
+
+    #     # circle/arc -> line/point
+    #     if type(e1) in CURVE:
+    #         # TODO: make Horizontal and Vertical alignment work
+    #         if type(e2) in LINE:
+    #             return solvesys.addPointLineDistance(
+    #                 value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
+    #             )
+    #         else:
+    #             assert isinstance(e2, SlvsPoint2D)
+    #             return solvesys.addPointsDistance(
+    #                 value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
+    #             )
+
+    #     elif type(e2) in LINE:
+    #         func = solvesys.addPointLineDistance
+    #         set_wp = True
+    #     elif isinstance(e2, SlvsWorkplane):
+    #         func = solvesys.addPointPlaneDistance
+    #     elif type(e2) in POINT:
+    #         if align and all([e.is_2d() for e in (e1, e2)]):
+    #             # Get Point in between
+    #             p1, p2 = e1.co, e2.co
+    #             coords = (p2.x, p1.y)
+
+    #             params = [solvesys.addParamV(v, group) for v in coords]
+    #             p = solvesys.addPoint2d(wp, *params, group=group)
+
+    #             handles.append(
+    #                 solvesys.addPointsHorizontal(p, e2.py_data, wp, group=group)
+    #             )
+    #             handles.append(
+    #                 solvesys.addPointsVertical(p, e1.py_data, wp, group=group)
+    #             )
+
+    #             base_point = e1 if alignment == "VERTICAL" else e2
+    #             handles.append(
+    #                 solvesys.addPointsDistance(
+    #                     value, p, base_point.py_data, wrkpln=wp, group=group
+    #                 )
+    #             )
+    #             return handles
+    #         else:
+    #             func = solvesys.addPointsDistance
+    #         set_wp = True
+
+    #     kwargs = {
+    #         "group": group,
+    #     }
+
+    #     if set_wp:
+    #         kwargs["wrkpln"] = self.get_workplane()
+
+    #     return func(value, e1.py_data, e2.py_data, **kwargs)
+
+    def create_slvs_data(self, solvesys):
         if self.entity1 == self.entity2:
-            raise AttributeError("Cannot create constraint between one entity itself")
-        # TODO: don't allow Distance if Point -> Line if (Point in Line)
+            raise AttributeError(
+                "Cannot create constraint between one entity itself")
 
         e1, e2 = self.entity1, self.entity2
         if e1.is_line():
             e1, e2 = e1.p1, e1.p2
 
-        func = None
-        set_wp = False
         wp = self.get_workplane()
-        alignment = self.align
-        align = self.use_align() and alignment != "NONE"
-        handles = []
-
         value = self.get_value()
 
-        # circle/arc -> line/point
-        if type(e1) in CURVE:
-            # TODO: make Horizontal and Vertical alignment work
-            if type(e2) in LINE:
-                return solvesys.addPointLineDistance(
-                    value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
+        if e1.is_curve():
+            if e2.is_line() or isinstance(e2, SlvsPoint2D):
+                return solvesys.distance(
+                    e1.ct.py_data, e2.py_data, value + e1.radius, wp
                 )
             else:
-                assert isinstance(e2, SlvsPoint2D)
-                return solvesys.addPointsDistance(
-                    value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
-                )
+                raise NotImplementedError()
 
-        elif type(e2) in LINE:
-            func = solvesys.addPointLineDistance
-            set_wp = True
-        elif isinstance(e2, SlvsWorkplane):
-            func = solvesys.addPointPlaneDistance
-        elif type(e2) in POINT:
-            if align and all([e.is_2d() for e in (e1, e2)]):
-                # Get Point in between
-                p1, p2 = e1.co, e2.co
-                coords = (p2.x, p1.y)
+        kwargs = {} if isinstance(e2, SlvsWorkplane) else {
+            "wp": self.get_workplane()}
 
-                params = [solvesys.addParamV(v, group) for v in coords]
-                p = solvesys.addPoint2d(wp, *params, group=group)
-
-                handles.append(
-                    solvesys.addPointsHorizontal(p, e2.py_data, wp, group=group)
-                )
-                handles.append(
-                    solvesys.addPointsVertical(p, e1.py_data, wp, group=group)
-                )
-
-                base_point = e1 if alignment == "VERTICAL" else e2
-                handles.append(
-                    solvesys.addPointsDistance(
-                        value, p, base_point.py_data, wrkpln=wp, group=group
-                    )
-                )
-                return handles
-            else:
-                func = solvesys.addPointsDistance
-            set_wp = True
-
-        kwargs = {
-            "group": group,
-        }
-
-        if set_wp:
-            kwargs["wrkpln"] = self.get_workplane()
-
-        return func(value, e1.py_data, e2.py_data, **kwargs)
+        return solvesys.distance(e1.py_data, e2.py_data, value, **kwargs)
 
     def matrix_basis(self):
         if self.sketch_i == -1 or not self.entity1.is_2d():

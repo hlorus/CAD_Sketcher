@@ -22,9 +22,9 @@ class Normal3D(SlvsGenericEntity):
     def draw_id(self, context: Context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys):
         quat = self.orientation
-        handle = solvesys.addNormal3dV(quat.w, quat.x, quat.y, quat.z, group=group)
+        handle = solvesys.add_normal_3d(quat.w, quat.x, quat.y, quat.z)
         self.py_data = handle
 
 

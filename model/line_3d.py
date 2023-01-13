@@ -52,8 +52,8 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
 
         self.is_dirty = False
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)
+    def create_slvs_data(self, solvesys):
+        handle = solvesys.add_line_3d(self.p1.py_data, self.p2.py_data)
         self.py_data = handle
 
     def closest_picking_point(self, origin, view_vector):

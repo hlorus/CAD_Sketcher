@@ -10,6 +10,7 @@ from .categories import LINE, CURVE
 from .line_2d import SlvsLine2D
 from .arc import SlvsArc
 from .circle import SlvsCircle
+from functools import partial
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,8 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
             return (type(e),)
         return cls.signature[index]
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys):
+        from solvespace import Constraint
         # TODO: Don't allow to add Equal between Line and Circle
         e1, e2 = self.entity1, self.entity2
 
@@ -49,21 +51,20 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
         set_wp = False
 
         if all([type(e) in LINE for e in (e1, e2)]):
-            func = solvesys.addEqualLength
+            func = partial(solvesys.add_constraint,
+                           Constraint.EQUAL_LENGTH_LINES)
             set_wp = True
         elif all([type(e) in CURVE for e in (e1, e2)]):
-            func = solvesys.addEqualRadius
+            func = partial(solvesys.add_constraint, Constraint.EQUAL_RADIUS)
         else:
             # TODO: Do a proper check to see if there's really one Arc and one Line
-            func = solvesys.addEqualLineArcLength
+            func = partial(solvesys.add_constraint,
+                           Constraint.EQUAL_LINE_ARC_LEN)
             set_wp = True
 
-        kwargs = {
-            "group": group,
-        }
-
+        kwargs = {}
         if set_wp:
-            kwargs["wrkpln"] = self.get_workplane()
+            kwargs["wp"] = self.get_workplane()
 
         return func(e1.py_data, e2.py_data, **kwargs)
 

@@ -33,7 +33,7 @@ class View3D_OT_slvs_install_package(Operator):
 
         if install_package(self.package):
             try:
-                check_module("py_slvs")
+                check_module("solvespace")
                 from ..registration import register_full
 
                 register_full()
@@ -46,7 +46,7 @@ class View3D_OT_slvs_install_package(Operator):
                     {"WARNING"},
                     msg,
                 )
-            show_package_info("py_slvs")
+            show_package_info("solvespace")
         else:
             self.report({"WARNING"}, "Cannot install package: {}".format(self.package))
             return {"CANCELLED"}

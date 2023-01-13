@@ -33,17 +33,15 @@ class Point3D(SlvsGenericEntity):
     def placement(self):
         return self.location
 
-    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, coords=None):
         if not coords:
             coords = self.location
 
-        self.params = [solvesys.addParamV(v, group) for v in coords]
-
-        handle = solvesys.addPoint3d(*self.params, group=group)
+        handle = solvesys.add_point_3d(*coords)
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        coords = [solvesys.getParam(i).val for i in self.params]
+        coords = solvesys.params(self.py_data.params)
         self.location = coords
 
     def closest_picking_point(self, origin, view_vector):

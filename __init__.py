@@ -42,7 +42,7 @@ def register():
 
     # Check Module and register all modules
     try:
-        check_module("py_slvs")
+        check_module("solvespace")
         register_full()
 
         global_data.registered = True

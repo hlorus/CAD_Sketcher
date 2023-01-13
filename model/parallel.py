@@ -22,12 +22,11 @@ class SlvsParallel(GenericConstraint, PropertyGroup):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        return solvesys.addParallel(
+    def create_slvs_data(self, solvesys):
+        return solvesys.parallel(
             self.entity1.py_data,
             self.entity2.py_data,
-            wrkpln=self.get_workplane(),
-            group=group,
+            wp=self.get_workplane(),
         )
 
     def placements(self):

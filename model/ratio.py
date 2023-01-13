@@ -40,15 +40,14 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
             return WpReq.NOT_FREE
         return WpReq.FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys):
         e1, e2 = self.entity1, self.entity2
 
-        return solvesys.addLengthRatio(
-            self.value,
+        return solvesys.ratio(
             e1.py_data,
             e2.py_data,
+            self.value,
             self.get_workplane(),
-            group=group,
         )
 
     def init_props(self, **kwargs):

@@ -71,22 +71,10 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     def to_displayed_value(self, value):
         return HALF_TURN - value if self.setting else value
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        kwargs = {
-            "group": group,
-        }
-
+    def create_slvs_data(self, solvesys):
         wp = self.get_workplane()
-        if wp:
-            kwargs["wrkpln"] = wp
-
-        return solvesys.addAngle(
-            math.degrees(self.value),
-            self.setting,
-            self.entity1.py_data,
-            self.entity2.py_data,
-            **kwargs,
-        )
+        kwargs = {"wp": wp} if wp else {}
+        return solvesys.angle(self.entity1.py_data, self.entity2.py_data, math.degrees(self.value), inverse=self.setting, **kwargs)
 
     def matrix_basis(self):
         if self.sketch_i == -1:

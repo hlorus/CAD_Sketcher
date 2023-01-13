@@ -80,25 +80,18 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
         self.is_dirty = False
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        self.param = solvesys.addParamV(self.radius, group)
-
-        nm = None
-        if self.nm != -1:
-            nm = self.nm
-        else:
-            nm = self.wp.nm
-
-        handle = solvesys.addCircle(
-            self.ct.py_data,
+    def create_slvs_data(self, solvesys):
+        self._radius = solvesys.add_distance(self.radius, self.wp.py_data)
+        handle = solvesys.add_circle(
             self.nm.py_data,
-            solvesys.addDistance(self.param),
-            group=group,
+            self.ct.py_data,
+            self._radius,
+            self.wp.py_data
         )
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        self.radius = solvesys.getParam(self.param).val
+        self.radius = solvesys.params(self._radius.params)[0]
 
     def point_on_curve(self, angle):
         return pol2cart(self.radius, angle) + self.ct.co
