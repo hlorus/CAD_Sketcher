@@ -195,7 +195,6 @@ class Solver:
             ]
 
         for sketch in sketches:
-            # g = self._get_group(sketch)
             retval = self.solvesys.solve()
 
             if retval > 5:
@@ -216,6 +215,7 @@ class Solver:
             logger.info(self.result.description)
 
             fails = self.solvesys.failures()
+            print("fails: {}".format(fails))
             if report and fails:
 
                 for i in fails:
