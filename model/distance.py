@@ -191,13 +191,13 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         wp = self.get_workplane()
         value = self.get_value()
 
-        # if e1.is_curve():
-        #     if e2.is_line() or isinstance(e2, SlvsPoint2D):
-        #         return solvesys.distance(
-        #             e1.ct.py_data, e2.py_data, value + e1.radius, wp
-        #         )
-        #     else:
-        #         raise NotImplementedError()
+        if e1.is_curve():
+            if e2.is_line() or (e2.is_point() and e2.is_2d()):
+                return solvesys.distance(
+                    e1.ct.py_data, e2.py_data, value + e1.radius, wp
+                )
+            else:
+                raise NotImplementedError()
 
         kwargs = {} if isinstance(e2, SlvsWorkplane) else {
             "wp": self.get_workplane()}
