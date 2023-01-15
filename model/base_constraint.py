@@ -48,9 +48,8 @@ class GenericConstraint:
         elif needs_wp == WpReq.NOT_FREE:
             return None
         else:
-            from py_slvs import slvs
-
-            return slvs.SLVS_FREE_IN_3D
+            from solvespace import Entity
+            return Entity.FREE_IN_3D
 
     def entities(self):
         props = []

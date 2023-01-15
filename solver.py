@@ -31,11 +31,11 @@ class Solver:
         logger.info(
             "--- Start solving ---\nAll:{}, Sketch:{}, g:{}".format(all, sketch, group)
         )
-        from py_slvs import slvs
 
-        self.solvesys = slvs.System()
+        from solvespace import SolverSystem, Entity
+        self.solvesys = SolverSystem()
 
-        self.FREE_IN_3D = slvs.SLVS_FREE_IN_3D
+        self.FREE_IN_3D = Entity.FREE_IN_3D
         self.sketch = sketch
 
         self.ok = True
@@ -71,35 +71,28 @@ class Solver:
                 group = self._get_group(e.sketch)
             else:
                 group = self.group_3d
-
+            self.solvesys.set_group(group)
             if self.tweak_entity and e == self.tweak_entity:
                 wp = self.get_workplane()
                 if hasattr(e, "tweak"):
                     e.tweak(self.solvesys, self.tweak_pos, group)
                 else:
                     if not self.sketch:
-                        params = [
-                            self.solvesys.addParamV(val, group)
-                            for val in self.tweak_pos
-                        ]
-                        p = self.solvesys.addPoint3d(*params, group=group)
+                        p = self.solvesys.add_point_3d(*self.tweak_pos)
                     else:
                         wrkpln = self.sketch.wp
                         u, v, _ = wrkpln.matrix_basis.inverted() @ self.tweak_pos
-                        params = [self.solvesys.addParamV(val, group) for val in (u, v)]
-                        p = self.solvesys.addPoint2d(
-                            wrkpln.py_data, *params, group=group
-                        )
+                        p = self.solvesys.add_point_2d(u, v, wrkpln.py_data)
 
-                    e.create_slvs_data(self.solvesys, group=group)
+                    e.create_slvs_data(self.solvesys)
 
                     self.tweak_constraint = make_coincident(
-                        self.solvesys, p, e, wp, group
+                        self.solvesys, p, e, wp
                     )
-                    self.solvesys.addWhereDragged(p, wrkpln=wp, group=group)
+                    self.solvesys.dragged(p, wp)
                 continue
 
-            e.create_slvs_data(self.solvesys, group=group)
+            e.create_slvs_data(self.solvesys)
 
         def _get_msg_entities():
             msg = "Initialize entities:"
@@ -122,7 +115,7 @@ class Solver:
             # Store a index-constraint mapping
             from collections.abc import Iterable
 
-            indices = c.py_data(self.solvesys, group=group)
+            indices = c.create_slvs_data(self.solvesys)
             self._store_constraint_indices(
                 c, indices if isinstance(indices, Iterable) else (indices,)
             )
@@ -193,7 +186,6 @@ class Solver:
     def solve(self, report=True):
         self.report = report
         self._init_slvs_data()
-
         if self.all:
             sse = self.context.scene.sketcher.entities
             sketches = [None, *sse.sketches]
@@ -203,12 +195,7 @@ class Solver:
             ]
 
         for sketch in sketches:
-            g = self._get_group(sketch)
-            retval = self.solvesys.solve(
-                group=g,
-                reportFailed=report,
-                findFreeParams=False,
-            )
+            retval = self.solvesys.solve()
 
             if retval > 5:
                 logger.debug("Solver returned undocumented value: {}".format(retval))
@@ -217,7 +204,7 @@ class Solver:
 
             if report and sketch:
                 sketch.solver_state = self.result.index
-                sketch.dof = self.solvesys.Dof
+                sketch.dof = self.solvesys.dof()
 
             if retval != 0 and retval != 5:
                 self.ok = False
@@ -227,7 +214,8 @@ class Solver:
 
             logger.info(self.result.description)
 
-            fails = self.solvesys.Failed
+            fails = self.solvesys.failures()
+            print("fails: {}".format(fails))
             if report and fails:
 
                 for i in fails:

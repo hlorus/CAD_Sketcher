@@ -34,13 +34,11 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys):
         wp = self.get_workplane()
-        if self.entity1.is_point():
-            return solvesys.addPointsVertical(
-                self.entity1.py_data, self.entity2.py_data, wp, group=group
-            )
-        return solvesys.addLineVertical(self.entity1.py_data, wrkpln=wp, group=group)
+        if self.entity2:
+            return solvesys.vertical(self.entity1.py_data, wp, self.entity2.py_data)
+        return solvesys.vertical(self.entity1.py_data, wp)
 
     def placements(self):
         return (self.entity1,)

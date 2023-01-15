@@ -93,8 +93,8 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             gpu.matrix.scale(Vector((scale, scale, scale)))
             super().draw_id(context)
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addWorkplane(self.p1.py_data, self.nm.py_data, group=group)
+    def create_slvs_data(self, solvesys):
+        handle = solvesys.add_work_plane(self.p1.py_data, self.nm.py_data)
         self.py_data = handle
 
     @property

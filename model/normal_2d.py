@@ -31,8 +31,8 @@ class SlvsNormal2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     def draw_id(self, context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addNormal2d(self.wp.py_data, group=group)
+    def create_slvs_data(self, solvesys):
+        handle = solvesys.add_normal_2d(self.wp.py_data)
         self.py_data = handle
 
 

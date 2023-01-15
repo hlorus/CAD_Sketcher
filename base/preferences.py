@@ -178,7 +178,7 @@ class Preferences(AddonPreferences):
         box.label(text="Solver Module")
         if global_data.registered:
             box.label(text="Registered", icon="CHECKMARK")
-            module = sys.modules["py_slvs"]
+            module = sys.modules["solvespace"]
             box.label(text="Path: " + module.__path__[0])
         else:
             row = box.row()

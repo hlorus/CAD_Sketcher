@@ -102,13 +102,13 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
         self.is_dirty = False
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addArcOfCircle(
-            self.wp.py_data,
+    def create_slvs_data(self, solvesys):
+        handle = solvesys.add_arc(
+            self.nm.py_data,
             self.ct.py_data,
             self.start.py_data,
             self.end.py_data,
-            group=group,
+            self.wp.py_data,
         )
         self.py_data = handle
 

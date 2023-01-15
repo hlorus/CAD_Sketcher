@@ -83,7 +83,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     def draw_id(self, context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys):
         pass
 
     def remove_objects(self):

@@ -40,27 +40,14 @@ class SlvsSymmetric(GenericConstraint, PropertyGroup):
             return WpReq.NOT_FREE
         return WpReq.FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys):
         e1, e2, e3 = self.entity1, self.entity2, self.entity3
-
-        # NOTE: this doesn't seem to work correctly, acts like addSymmetricVertical
-        if isinstance(e3, SlvsLine2D):
-            return solvesys.addSymmetricLine(
-                e1.py_data,
-                e2.py_data,
-                e3.py_data,
-                self.get_workplane(),
-                group=group,
-            )
-
-        elif isinstance(e3, SlvsWorkplane):
-            return solvesys.addSymmetric(
-                e1.py_data,
-                e2.py_data,
-                e3.py_data,
-                wrkpln=self.get_workplane(),
-                group=group,
-            )
+        return solvesys.symmetric(
+            e1.py_data,
+            e2.py_data,
+            e3.py_data,
+            self.get_workplane()
+        )
 
     def placements(self):
         return (self.entity1, self.entity2, self.entity3)

@@ -108,12 +108,9 @@ def create_bezier_curve(
 
 # NOTE: When tweaking, it's necessary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
-def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
-    from .categories import LINE, CURVE, POINT
+def make_coincident(solvesys, point_handle, e2, wp, entity_type=None):
     from .workplane import SlvsWorkplane
-
-    func = None
-    set_wp = False
+    from .categories import LINE, CURVE, POINT
 
     if entity_type:
         handle = e2
@@ -121,26 +118,19 @@ def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
         entity_type = type(e2)
         handle = e2.py_data
 
-    if entity_type in LINE:
-        func = solvesys.addPointOnLine
-        set_wp = True
-    elif entity_type in CURVE:
-        func = solvesys.addPointOnCircle
-    elif entity_type == SlvsWorkplane:
-        func = solvesys.addPointInPlane
-    elif entity_type in POINT:
-        func = solvesys.addPointsCoincident
-        set_wp = True
+    if entity_type in CURVE:
+        # Has to use the C Enum Flag for the constraint, as it hasn't been fixed.
+        # See https://github.com/KmolYuan/solvespace/blob/python/cython/python_solvespace/slvs.pyx#L729
+        # Doc solvesystem: https://github.com/solvespace/solvespace/blob/master/exposed/DOC.txt#L376
+        from solvespace import Constraint, Entity
+        _E_NONE = Entity() # empty entities
+        return solvesys.add_constraint(Constraint.PT_ON_CIRCLE, wp, 0., point_handle, _E_NONE, handle, _E_NONE)
 
-    kwargs = {
-        "group": group,
-    }
+    kwargs = []
+    if entity_type != SlvsWorkplane:
+        kwargs = {"wp": wp}
 
-    if set_wp:
-        kwargs["wrkpln"] = wp
-
-    return func(point_handle, handle, **kwargs)
-
+    return solvesys.coincident(point_handle, handle, **kwargs)
 
 def update_pointers(scene, index_old, index_new):
     """Replaces all references to an entity index with its new index"""
