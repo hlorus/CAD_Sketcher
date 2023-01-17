@@ -27,11 +27,6 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     The constraint's setting can be used to to constrain the supplementary angle.
     """
 
-    def _set_value_force(self, value):
-        DimensionalConstraint._set_value_force(
-            self, HALF_TURN - value if self.setting else value
-        )
-
     def assign_init_props(self, context: Context = None):
         # Updating self.setting will create recursion loop
         _value, _ = self.init_props()
@@ -69,6 +64,9 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         return WpReq.NOT_FREE
 
     def to_displayed_value(self, value):
+        return HALF_TURN - value if self.setting else value
+
+    def from_displayed_value(self, value):
         return HALF_TURN - value if self.setting else value
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
@@ -125,7 +123,6 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
 
         x = A.dot(B) / divisor
         x = max(-1, min(x, 1))
-
         return math.degrees(math.acos(x))
 
     def init_props(self, **kwargs):
