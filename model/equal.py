@@ -24,8 +24,6 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
     forced equal to the length (not the radius) of the arc.
     """
 
-    # TODO: Also supports equal angle
-
     type = "EQUAL"
     label = "Equal"
     signature = (line_arc_circle, line_arc_circle)
@@ -42,7 +40,6 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
         return cls.signature[index]
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        # TODO: Don't allow to add Equal between Line and Circle
         e1, e2 = self.entity1, self.entity2
 
         func = None
@@ -54,9 +51,11 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
         elif all([type(e) in CURVE for e in (e1, e2)]):
             func = solvesys.addEqualRadius
         else:
-            # TODO: Do a proper check to see if there's really one Arc and one Line
             func = solvesys.addEqualLineArcLength
             set_wp = True
+
+            if e1.is_curve():
+                e1, e2 = e2, e1
 
         kwargs = {
             "group": group,
