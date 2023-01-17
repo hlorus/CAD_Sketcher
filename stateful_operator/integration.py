@@ -167,6 +167,8 @@ class StatefulOperator(StatefulOperatorLogic):
         pos = get_placement_pos(context, coords)
 
         prop_name = self.state.property
+        if not prop_name:
+            return super().state_func(context, coords)
         prop = self.rna_type.properties.get(prop_name)
         if not prop:
             return super().state_func(context, coords)

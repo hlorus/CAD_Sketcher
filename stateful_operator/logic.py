@@ -508,7 +508,8 @@ class StatefulOperatorLogic:
         # Set state property
         ok = False
         values = []
-        use_create = state.use_create
+        use_create = state.use_create and bool(state.create_element)
+        print("use_create", use_create)
         if use_create and not is_picked:
             if is_numeric:
                 # numeric edit is supported for one property only

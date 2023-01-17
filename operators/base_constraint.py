@@ -53,6 +53,7 @@ class GenericConstraintOp(GenericEntityOp):
                     pointer="entity" + str(name_index),
                     property=None,
                     types=types,
+                    use_create=False,
                 )
             )
         return states
