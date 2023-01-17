@@ -273,6 +273,9 @@ class StatefulOperatorLogic:
             return getattr(self, name)
         return None
 
+    def has_func(self, state, name):
+        return self.get_func(state, name) is not None
+
     def state_func(self, context, coords):
         return NotImplementedError
 
@@ -508,8 +511,7 @@ class StatefulOperatorLogic:
         # Set state property
         ok = False
         values = []
-        use_create = state.use_create and bool(state.create_element)
-        print("use_create", use_create)
+        use_create = state.use_create and self.has_func(state, "create_element")
         if use_create and not is_picked:
             if is_numeric:
                 # numeric edit is supported for one property only
