@@ -47,8 +47,26 @@ class View3D_OT_slvs_tweak(Operator):
         # find the depth
         self.depth = (pos - origin).length
 
+        self.is_first = True
+
         context.window_manager.modal_handler_add(self)
         return {"RUNNING_MODAL"}
+
+    def get_tweak_pos(self, context: Context, event: Event):
+        entity = self.entity
+        coords = (event.mouse_region_x, event.mouse_region_y)
+
+        # Get tweaking position
+        origin, dir = get_picking_origin_dir(context, coords)
+
+        if hasattr(entity, "sketch"):
+            wp = entity.wp
+            end_point = dir * context.space_data.clip_end + origin
+            pos = intersect_line_plane(
+                origin, end_point, wp.p1.location, wp.normal)
+        else:
+            pos = dir * self.depth + origin
+        return pos
 
     def modal(self, context: Context, event: Event):
         if event.type == "LEFTMOUSE" and event.value == "RELEASE":
@@ -67,13 +85,15 @@ class View3D_OT_slvs_tweak(Operator):
             if hasattr(entity, "sketch"):
                 wp = entity.wp
                 end_point = dir * context.space_data.clip_end + origin
-                pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
+                pos = intersect_line_plane(
+                    origin, end_point, wp.p1.location, wp.normal)
             else:
                 pos = dir * self.depth + origin
-
             sketch = context.scene.sketcher.active_sketch
             solver = Solver(context, sketch)
-            solver.tweak(entity, pos)
+            solver.tweak(entity, pos, self.is_first)
+            if self.is_first:
+                self.is_first = False
             retval = solver.solve(report=False)
 
             # NOTE: There's no blocking cursor

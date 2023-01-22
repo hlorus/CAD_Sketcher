@@ -29,21 +29,7 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
     def create_slvs_data(self, solvesys):
         e1, e2 = self.entity1, self.entity2
         wp = self.get_workplane()
-
-        point = get_connection_point(e1, e2)
-        if point and not isinstance(e2, SlvsCircle):
-            if isinstance(e2, (SlvsLine2D, SlvsArc)):
-                return solvesys.tangent(e1.py_data, e2.py_data, wp)
-        elif isinstance(e2, SlvsLine2D):
-            orig = e2.p1.co
-            coords = (e1.ct.co - orig).project(e2.p2.co - orig) + orig
-            p = solvesys.add_point_2d(*tuple(coords), wp)
-            l = solvesys.add_line_2d(e1.ct.py_data, p, wp=wp)
-            return (
-                make_coincident(solvesys, p, e1, wp),
-                make_coincident(solvesys, p, e2, wp),
-                solvesys.perpendicular(e2.py_data, l, wp=wp),
-            )
+        return solvesys.tangent(e1.py_data, e2.py_data, wp)
 
     def placements(self):
         point = get_connection_point(self.entity1, self.entity2)

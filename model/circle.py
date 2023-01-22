@@ -91,7 +91,7 @@ class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        self.radius = solvesys.params(self._radius.params)[0]
+        self.radius = solvesys.params(self._radius.params())[0]
 
     def point_on_curve(self, angle):
         return pol2cart(self.radius, angle) + self.ct.co

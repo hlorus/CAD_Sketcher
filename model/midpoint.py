@@ -24,11 +24,10 @@ class SlvsMidpoint(GenericConstraint, PropertyGroup):
 
     def create_slvs_data(self, solvesys):
         wp = self.get_workplane()
-        kwargs = {"wp": wp} if wp else {}
         return solvesys.midpoint(
             self.entity1.py_data,
             self.entity2.py_data,
-            **kwargs,
+            wp,
         )
 
     def placements(self):

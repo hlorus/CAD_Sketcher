@@ -7,7 +7,6 @@ logger = logging.getLogger(__name__)
 
 
 def run(interactive, log_level=None):
-    from CAD_Sketcher.testing import test_solver
     from CAD_Sketcher.testing.utils import BgsTestCase
 
     BgsTestCase.interactive = True
@@ -22,7 +21,6 @@ def run(interactive, log_level=None):
 
     if not interactive:
         import bpy
-
         bpy.ops.wm.quit_blender()
 
 

@@ -41,7 +41,7 @@ class Point3D(SlvsGenericEntity):
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        coords = solvesys.params(self.py_data.params)
+        coords = solvesys.params(self.py_data.params())
         self.location = coords
 
     def closest_picking_point(self, origin, view_vector):

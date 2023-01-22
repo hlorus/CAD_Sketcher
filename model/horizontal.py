@@ -39,7 +39,8 @@ class SlvsHorizontal(GenericConstraint, PropertyGroup):
         wp = self.get_workplane()
         if self.entity2:
             return solvesys.horizontal(self.entity1.py_data, wp, self.entity2.py_data)
-        return solvesys.horizontal(self.entity1.py_data, wp)
+        from solvespace import Entity
+        return solvesys.horizontal(self.entity1.py_data, wp, Entity())
 
     def placements(self):
         return (self.entity1,)

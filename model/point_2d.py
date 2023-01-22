@@ -57,7 +57,7 @@ class Point2D(SlvsGenericEntity, Entity2D):
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        self.co = solvesys.params(self.py_data.params)
+        self.co = solvesys.params(self.py_data.params())
 
     def closest_picking_point(self, origin, view_vector):
         """Returns the point on this entity which is closest to the picking ray"""
@@ -103,10 +103,10 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         tweak_vec = tweak_pos - orig_pos
         perpendicular_vec = Vector((tweak_vec[1], -tweak_vec[0]))
 
-        startpoint = solvesys.add_point_2d(u, v, wp=wp.py_data)
+        startpoint = solvesys.add_point_2d(u, v, wp.py_data)
 
         p2 = tweak_pos + perpendicular_vec
-        endpoint = solvesys.add_point_2d(p2.x, p2.y, wp=wp.py_data)
+        endpoint = solvesys.add_point_2d(p2.x, p2.y, wp.py_data)
 
         edge = solvesys.add_line_2d(startpoint, endpoint, self.wp.py_data)
         solvesys.coincident(self.py_data, edge, wp.py_data)

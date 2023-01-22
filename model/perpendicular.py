@@ -29,7 +29,8 @@ class SlvsPerpendicular(GenericConstraint, PropertyGroup):
         return solvesys.perpendicular(
             self.entity1.py_data,
             self.entity2.py_data,
-            wp=self.get_workplane(),
+            self.get_workplane(),
+            False
         )
 
     def placements(self):
