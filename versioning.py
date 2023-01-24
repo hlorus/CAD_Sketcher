@@ -94,4 +94,18 @@ def do_versioning(self):
             entities.origin_plane_YZ = None
             entities.ensure_origin_elements(context)
 
+        if version < (0, 26, 0):
+            for c in context.scene.sketcher.constraints.angle:
+                if not c.setting:
+                    continue
+                if c.is_reference:
+                    continue
+
+                msg += (
+                    "\n Make supplementary angle constraint reference only: {}".format(
+                        repr(c)
+                    )
+                )
+                c.is_reference = True
+
     logger.debug(msg)
