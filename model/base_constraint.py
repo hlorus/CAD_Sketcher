@@ -190,23 +190,23 @@ class DimensionalConstraint(GenericConstraint):
     value: Property
     setting: BoolProperty
 
-    def _set_value(self, val: float):
+    def _set_value(self, displayed_value: float):
         # NOTE: function signature _set_value(self, val: float, force=False)
         #       will fail when bpy tries to register the value property.
         #       See `_set_value_force()`
         if not self.is_reference:
-            self._set_value_force(val)
+            self._set_value_force(self.from_displayed_value(displayed_value))
 
-    def _set_value_force(self, val: float):
-        self["value"] = val
+    def _set_value_force(self, value: float):
+        self["value"] = value
 
     def _get_value(self):
         if self.is_reference:
             val, _ = self.init_props()
             return self.to_displayed_value(val)
-        if not self.get("value"):
+        if self.get("value") is None:
             self.assign_init_props()
-        return self["value"]
+        return self.to_displayed_value(self["value"])
 
     def assign_init_props(self, context: Context = None):
         # self.value, self.setting = self.init_props()
@@ -229,7 +229,21 @@ class DimensionalConstraint(GenericConstraint):
         raise NotImplementedError()
 
     def to_displayed_value(self, value):
+        """
+        Overwrite this function to convert the property value into 
+        something to display on the user interface.
+        NOTE: If the value is writeable, do not forget to change 
+              ``from_displayed_value()`` to apply the reverse operation.
+        """
         return value
+
+    def from_displayed_value(self, displayed_value):
+        """
+        Convert the displayed value of the property into 
+        a variable to store.
+        NOTE: See ``to_displayed_value()``
+        """
+        return displayed_value
 
     def py_data(self, solvesys, **kwargs):
         if self.is_reference:
