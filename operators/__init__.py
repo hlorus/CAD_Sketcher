@@ -22,6 +22,7 @@ modules = [
     "add_rectangle",
     "trim",
     "bevel",
+    "offset",
     "set_sketch",
     "delete_entity",
     "delete_constraint",

@@ -1,85 +1,19 @@
 import logging
-from enum import Enum
 
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
-from mathutils import Vector
-from mathutils.geometry import (
-    intersect_line_line_2d,
-    intersect_line_sphere_2d,
-    intersect_sphere_sphere_2d,
-)
 
 from ..model.types import SlvsPoint2D
 from ..utilities.view import refresh
 from ..solver import solve_system
-from ..utilities.data_handling import to_list, is_entity_referenced
+from ..utilities.data_handling import is_entity_referenced
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from .base_2d import Operator2d
-
+from ..utilities.intersect import get_offset_elements, get_intersections
 
 logger = logging.getLogger(__name__)
-
-
-class ElementTypes(str, Enum):
-    Line = "LINE"
-    Sphere = "Sphere"
-
-
-def _get_intersection_func(type_a, type_b):
-    if all([t == ElementTypes.Line for t in (type_a, type_b)]):
-        return intersect_line_line_2d
-    if all([t == ElementTypes.Sphere for t in (type_a, type_b)]):
-        return intersect_sphere_sphere_2d
-    return intersect_line_sphere_2d
-
-
-def _order_intersection_args(arg1, arg2):
-    if arg1[0] == ElementTypes.Sphere and arg1[0] == ElementTypes.Line:
-        return arg2, arg1
-    return arg1, arg2
-
-
-def _get_offset_line(line, offset):
-    normal = line.normal()
-    offset_vec = normal * offset
-    return (line.p1.co + offset_vec, line.p2.co + offset_vec)
-
-
-def _get_offset_sphere(arc, offset):
-    """Return sphere_co and sphere_radius of offset sphere"""
-    return arc.ct.co, arc.radius + offset
-
-
-def _get_offset_elements(entity, offset):
-    t = ElementTypes.Line if entity.type == "SlvsLine2D" else ElementTypes.Sphere
-    func = _get_offset_sphere if t == ElementTypes.Sphere else _get_offset_line
-    return (
-        (t, func(entity, offset)),
-        (t, func(entity, -offset)),
-    )
-
-
-def _get_intersections(*element_list):
-    """Find all intersections between all combinations of elements, (type, element)"""
-    intersections = []
-    lenght = len(element_list)
-
-    for i, elem_a in enumerate(element_list):
-        if i + 1 == lenght:
-            break
-        for elem_b in element_list[i + 1 :]:
-            a, b = _order_intersection_args(elem_a, elem_b)
-            func = _get_intersection_func(a[0], b[0])
-            retval = to_list(func(*a[1], *b[1]))
-
-            for intr in retval:
-                if not intr:
-                    continue
-                intersections.append(intr)
-    return intersections
 
 
 class View3D_OT_slvs_bevel(Operator, Operator2d):
@@ -131,9 +65,11 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         # the closest ones to the selected point.
         #   (Can happen with intersecting arcs)
         intersections = sorted(
-            _get_intersections(
-                *_get_offset_elements(l1, radius),
-                *_get_offset_elements(l2, radius),
+            get_intersections(
+                get_offset_elements(l1, radius),
+                get_offset_elements(l1, -radius),
+                get_offset_elements(l2, radius),
+                get_offset_elements(l2, -radius),
             ),
             key=lambda i: (i - self.p1.co).length,
         )

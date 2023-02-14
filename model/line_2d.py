@@ -1,13 +1,13 @@
 import logging
 import math
-from typing import List
+from typing import List, Tuple
 
 import bpy
-from bpy.types import PropertyGroup
+from bpy.types import PropertyGroup, Context
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
-from mathutils import Matrix
-from mathutils.geometry import intersect_line_line_2d
+from mathutils import Matrix, Vector
+from mathutils.geometry import intersect_line_line, intersect_line_line_2d
 
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
@@ -71,7 +71,6 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
 
     def project_point(self, coords):
         """Projects a point onto the line"""
-        nm = self.normal
         dir_vec = self.direction_vec()
         p1 = self.p1.co
 
@@ -81,8 +80,11 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     def placement(self):
         return (self.p1.location + self.p2.location) / 2
 
-    def connection_points(self):
-        return [self.p1, self.p2]
+    def connection_points(self, direction: bool = False):
+        points = [self.p1, self.p2]
+        if direction:
+            return list(reversed(points))
+        return points
 
     def direction(self, point, is_endpoint=False):
         """Returns the direction of the line, true if inverted"""
@@ -145,8 +147,8 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
     def direction_vec(self):
         return (self.p2.co - self.p1.co).normalized()
 
-    def normal(self):
-        mat_rot = Matrix.Rotation(math.pi / 2, 2, "Z")
+    def normal(self, position=None):
+        mat_rot = Matrix.Rotation(-math.pi / 2, 2, "Z")
         nm = self.direction_vec()
         nm.rotate(mat_rot)
         return nm
@@ -167,7 +169,9 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
             return True
         return False
 
-    def intersect(self, other):
+    def intersect(
+        self, other: SlvsGenericEntity, extended: bool = False
+    ) -> Tuple[Vector]:
         # NOTE: There can be multiple intersections when intersecting with one or more curves
         def parse_retval(value):
             if not value:
@@ -177,11 +181,19 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
             return (value,)
 
         if other.is_line():
+            if extended:
+                wp = self.sketch.wp
+                pos = intersect_line_line(
+                    self.p1.location,
+                    self.p2.location,
+                    other.p1.location,
+                    other.p2.location,
+                )
+                return parse_retval((wp.matrix_basis @ pos[0])[:-1])
             return parse_retval(
                 intersect_line_line_2d(self.p1.co, self.p2.co, other.p1.co, other.p2.co)
             )
-        else:
-            return other.intersect(self)
+        return other.intersect(self)
 
     def replace(self, context, p1, p2, use_self=False):
         # Replace entity by a similar entity with the connection points p1, and p2
@@ -217,6 +229,33 @@ class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
                 continue
             setattr(self, ptr, new)
             break
+
+    def get_offset_props(self, offset: float, direction: bool = False):
+        normal = self.normal()
+
+        if direction:
+            normal *= -1
+
+        offset_vec = normal * offset
+        return (self.p1.co + offset_vec, self.p2.co + offset_vec)
+
+    def from_props(
+        self,
+        context: Context,
+        start: SlvsGenericEntity = None,
+        end: SlvsGenericEntity = None,
+        sketch: SlvsGenericEntity = None,
+        invert: bool = False,  # unused
+    ):
+        if not start:
+            start = self.start
+        if not end:
+            end = self.end
+        if not sketch:
+            sketch = self.sketch
+
+        sse = context.scene.sketcher.entities
+        return sse.add_line_2d(start, end, sketch)
 
 
 slvs_entity_pointer(SlvsLine2D, "p1")

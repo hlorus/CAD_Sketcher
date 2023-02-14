@@ -46,15 +46,16 @@ class EntityWalker:
     Utility class to find connected entities
 
     Exposes:
-        self.paths  List of Lists of connected segment entities that are connected by sharing an endpoint
+        self.paths -> List of Tuples which hold a set of connected segment entities and their direction
     """
 
-    def __init__(self, scene, sketch):
+    def __init__(self, scene, sketch, entity=None):
         self.sketch_entities: List[SlvsGenericEntity] = []
-        self.paths: List[List[SlvsGenericEntity]] = []
+        self.paths: List[tuple[List[SlvsGenericEntity, bool]]] = []
         self.scene: Scene = scene
         self.sketch = sketch
         self.points, self.entities = point_entity_mapping(scene)
+        self.entity = entity
 
         # TODO: use sketch.entities?
         sketch_index = self.sketch.slvs_index
@@ -84,6 +85,16 @@ class EntityWalker:
         elif shares_point(first, last):
             return True
         return False
+
+    @staticmethod
+    def get_limitpoints(path):
+        """Returns the start- and endpoint of a non-cyclic path or non if path is cyclic"""
+        entities, directions = path
+
+        return (
+            entities[0].connection_points(direction=directions[0])[0],
+            entities[-1].connection_points(direction=directions[-1])[1],
+        )
 
     def _get_connected_entities(self, point):
         return self.entities[self.points.index(point)]
@@ -159,7 +170,26 @@ class EntityWalker:
             invert = not invert
 
     def _run(self):
+        if self.entity is not None:
+            self.walker(self.entity, self._branch_path())
+            return
+
         while len(self.sketch_entities):
             start_entity = self.sketch_entities[0]
             logger.info("Start path walker at {}".format(start_entity))
             self.walker(start_entity, self._branch_path())
+
+    def main_path(self):
+        """Return the longest path, priorize closed paths"""
+
+        paths = []
+        for closed in (True, False):
+            for path in self.paths:
+                if self.is_cyclic_path(path[0]) == closed:
+                    continue
+            paths.append(path)
+
+            paths.sort(key=lambda x: len(x[0]), reverse=True)
+            if len(paths):
+                return paths[0]
+        return None

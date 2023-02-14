@@ -147,6 +147,11 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
             {"type": "G", "value": "PRESS"},
             None,
         ),
+        (
+            Operators.Offset,
+            {"type": "I", "value": "PRESS"},  # "O" is already used for diameter
+            None,
+        ),
         *tool_access,
     )
 

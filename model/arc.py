@@ -2,7 +2,7 @@ import logging
 from typing import List
 
 import bpy
-from bpy.types import PropertyGroup
+from bpy.types import PropertyGroup, Context
 from bpy.props import BoolProperty
 from gpu_extras.batch import batch_for_shader
 import math
@@ -128,20 +128,28 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         center, start = self.ct.co, self.start.co
         return math.atan2((start - center)[1], (start - center)[0])
 
+    def normal(self, position: Vector = None):
+        """Return the normal vector at a given position"""
+
+        normal = position - self.ct.co
+        return normal.normalized()
+
     def placement(self):
         coords = self.ct.co + pol2cart(self.radius, self.start_angle + self.angle / 2)
 
         return self.wp.matrix_basis @ coords.to_3d()
 
-    def connection_points(self):
-        return [self.start, self.end]
+    def connection_points(self, direction: bool = False):
+        points = [self.start, self.end]
+        if direction:
+            return list(reversed(points))
+        return points
 
     def direction(self, point, is_endpoint=False):
-        """Returns the direction of the line, true if inverted"""
+        """Returns the direction of the arc, true if inverted"""
         if is_endpoint:
             return point == self.start
-        else:
-            return point == self.end
+        return point == self.end
 
     def bezier_segment_count(self):
         max_angle = QUARTER_TURN
@@ -355,6 +363,39 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
                 continue
             setattr(self, ptr, new)
             break
+
+    # def get_offset_props(self, offset):
+    #     """Return ar_co and sphere_radius of offset sphere"""
+    #     return self.ct.co, self.radius + offset
+    # return (start.co, end.co)
+
+    def from_props(
+        self,
+        context: Context,
+        nm: SlvsGenericEntity = None,
+        ct: SlvsGenericEntity = None,
+        start: SlvsGenericEntity = None,
+        end: SlvsGenericEntity = None,
+        sketch: SlvsGenericEntity = None,
+        invert: bool = None,
+    ) -> SlvsGenericEntity:
+        if not start:
+            start = self.p1
+        if not end:
+            end = self.p2
+        if not sketch:
+            sketch = self.sketch
+        if not nm:
+            nm = self.nm
+        if not ct:
+            ct = self.ct
+        if invert is None:
+            invert = self.invert_direction
+
+        sse = context.scene.sketcher.entities
+        arc = sse.add_arc(nm, ct, start, end, sketch)
+        arc.invert_direction = invert
+        return arc
 
 
 slvs_entity_pointer(SlvsArc, "nm")

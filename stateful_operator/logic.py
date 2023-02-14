@@ -551,6 +551,7 @@ class StatefulOperatorLogic:
             self.redo_states(context)
             self._undo = False
 
+        succeede = False
         if self.check_props():
             succeede = self.run_op(context)
             self._undo = True
