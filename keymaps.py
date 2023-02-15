@@ -178,6 +178,55 @@ tool_access = (
     *constraint_access,
 )
 
+disable_gizmos = (
+    # Disabling gizmos when pressing ctrl + shift
+    # Add two etries so it doesn't matter which key is pressed first
+    # NOTE: This cannot be done as a normal modifier key to selection since it has to toggle a global property
+    (
+        "wm.context_set_boolean",
+        {"type": "LEFT_SHIFT", "value": "PRESS", "ctrl": True},
+        {
+            "properties": [
+                ("data_path", "scene.sketcher.selectable_constraints"),
+                ("value", False),
+            ]
+        },
+    ),
+    (
+        "wm.context_set_boolean",
+        {"type": "LEFT_CTRL", "value": "PRESS", "shift": True},
+        {
+            "properties": [
+                ("data_path", "scene.sketcher.selectable_constraints"),
+                ("value", False),
+            ]
+        },
+    ),
+    (
+        "wm.context_set_boolean",
+        {"type": "LEFT_SHIFT", "value": "RELEASE", "any": True},
+        {
+            "properties": [
+                ("data_path", "scene.sketcher.selectable_constraints"),
+                ("value", True),
+            ]
+        },
+    ),
+)
+
+tool_select = (
+    (
+        "wm.tool_set_by_id",
+        {"type": "ESC", "value": "PRESS"},
+        {"properties": [("name", WorkSpaceTools.Select)]},
+    ),
+    (
+        "wm.tool_set_by_id",
+        {"type": "RIGHTMOUSE", "value": "PRESS"},
+        {"properties": [("name", WorkSpaceTools.Select)]},
+    ),
+)
+
 addon_keymaps = []
 
 
