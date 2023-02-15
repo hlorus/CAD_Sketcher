@@ -1,7 +1,10 @@
 import bpy
 from bpy.types import Context
 
-from CAD_Sketcher.declarations import Operators
+from .. import declarations
+from ..model import types
+from ..stateful_operator import constants
+from ..utilities import preferences
 from .panels.add_constraint import VIEW3D_PT_sketcher_add_constraints
 from .panels.constraints_list import VIEW3D_PT_sketcher_constraints
 from .panels.debug import VIEW3D_PT_sketcher_debug
@@ -16,7 +19,10 @@ def draw_object_context_menu(self, context: Context):
     ob = context.active_object
     row = layout.row()
 
-    props = row.operator(Operators.SetActiveSketch, text="Edit Sketch")
+    props = row.operator(
+        declarations.Operators.SetActiveSketch,
+        text="Edit Sketch"
+    )
 
     if ob and ob.sketch_index != -1:
         row.enabled = True

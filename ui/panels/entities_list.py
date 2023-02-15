@@ -1,6 +1,6 @@
 from bpy.types import Context
 
-from CAD_Sketcher.declarations import Operators, Panels
+from .. import declarations
 from . import VIEW3D_PT_sketcher_base
 
 
@@ -11,7 +11,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
     """
 
     bl_label = "Entities"
-    bl_idname = Panels.SketcherEntities
+    bl_idname = declarations.Panels.SketcherEntities
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context: Context):
@@ -36,7 +36,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
 
             # Select operator
             props = sub.operator(
-                Operators.Select,
+                declarations.Operators.Select,
                 text="",
                 emboss=False,
                 icon=("RADIOBUT_ON" if e.selected else "RADIOBUT_OFF"),
@@ -65,7 +65,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
 
             # Context menu
             props = sub.operator(
-                Operators.ContextMenu,
+                declarations.Operators.ContextMenu,
                 text="",
                 icon="OUTLINER_DATA_GP_LAYER",
                 emboss=False,
@@ -76,7 +76,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
 
             # Delete operator
             props = sub.operator(
-                Operators.DeleteEntity,
+                declarations.Operators.DeleteEntity,
                 text="",
                 icon="X",
                 emboss=False,
