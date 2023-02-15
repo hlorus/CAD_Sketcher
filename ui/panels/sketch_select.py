@@ -1,6 +1,6 @@
 from bpy.types import Context, UILayout
 
-from CAD_Sketcher.declarations import Operators, Panels
+from .. import declarations
 from ..sketches_menu import VIEW3D_MT_sketches
 from . import VIEW3D_PT_sketcher_base
 
@@ -22,7 +22,7 @@ def sketch_selector(
         name = sketch.name
 
         row.operator(
-            Operators.SetActiveSketch,
+            declarations.Operators.SetActiveSketch,
             text="Leave: " + name,
             icon="BACK",
             depress=True,
@@ -35,19 +35,22 @@ def sketch_selector(
 
         row.scale_y = scale_y
         # TODO: Don't show text when is_header
-        row.operator(Operators.AddSketch, icon="ADD").wait_for_input = True
+        row.operator(
+            declarations.Operators.AddSketch,
+            icon="ADD",
+        ).wait_for_input = True
 
         if show_selector:
             row.menu(VIEW3D_MT_sketches.bl_idname, text=name)
 
-    row.operator(Operators.Update, icon="FILE_REFRESH", text="")
+    row.operator(declarations.Operators.Update, icon="FILE_REFRESH", text="")
 
 
 class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
     """Menu for selecting the sketch you want to enter into"""
 
     bl_label = "Sketcher"
-    bl_idname = Panels.Sketcher
+    bl_idname = declarations.Panels.Sketcher
 
     def draw(self, context: Context):
         layout = self.layout
@@ -66,7 +69,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             if sketch.solver_state != "OKAY":
                 state = sketch.get_solver_state()
                 row.operator(
-                    Operators.ShowSolverState,
+                    declarations.Operators.ShowSolverState,
                     text=state.name,
                     icon=state.icon,
                     emboss=False,
@@ -94,7 +97,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 layout.prop(sketch, "fill_shape")
 
             layout.operator(
-                Operators.DeleteEntity,
+                declarations.Operators.DeleteEntity,
                 text="Delete Sketch",
                 icon="X",
             ).index = sketch.slvs_index

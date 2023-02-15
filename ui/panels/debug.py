@@ -1,10 +1,8 @@
 from bpy.types import Context
 
-from CAD_Sketcher.utilities.preferences import get_prefs
-from CAD_Sketcher.declarations import Operators, Panels
-from CAD_Sketcher.stateful_operator.constants import (
-    Operators as StatefulOperators,
-)
+from .. import constants
+from .. import declarations
+from .. import preferences
 from . import VIEW3D_PT_sketcher_base
 
 
@@ -12,17 +10,20 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
     """Debug Menu"""
 
     bl_label = "Debug Settings"
-    bl_idname = Panels.SketcherDebugPanel
+    bl_idname = declarations.Panels.SketcherDebugPanel
 
     def draw(self, context: Context):
         layout = self.layout
 
-        prefs = get_prefs()
-        layout.operator(Operators.WriteSelectionTexture)
-        layout.operator(Operators.Solve)
-        layout.operator(Operators.Solve, text="Solve All").all = True
+        prefs = preferences.get_prefs()
+        layout.operator(declarations.Operators.WriteSelectionTexture)
+        layout.operator(declarations.Operators.Solve)
+        layout.operator(
+            declarations.Operators.Solve,
+            text="Solve All",
+        ).all = True
 
-        layout.operator(StatefulOperators.Test)
+        layout.operator(constants.Operators.Test)
         layout.prop(context.scene.sketcher, "show_origin")
         layout.prop(prefs, "hide_inactive_constraints")
         layout.prop(prefs, "all_entities_selectable")
@@ -32,5 +33,5 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
 
     @classmethod
     def poll(cls, context: Context):
-        prefs = get_prefs()
+        prefs = preferences.get_prefs()
         return prefs.show_debug_settings

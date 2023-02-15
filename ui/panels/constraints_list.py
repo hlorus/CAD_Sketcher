@@ -1,12 +1,12 @@
 from bpy.types import Context, UILayout
 
-from CAD_Sketcher.declarations import Operators, Panels
-from CAD_Sketcher.model.types import GenericConstraint
+from .. import declarations
+from .. import types
 from . import VIEW3D_PT_sketcher_base
 
 
 def draw_constraint_listitem(
-    context: Context, layout: UILayout, constraint: GenericConstraint
+    context: Context, layout: UILayout, constraint: types.GenericConstraint
 ):
     """
     Creates a single row inside the ``layout`` describing
@@ -56,7 +56,7 @@ def draw_constraint_listitem(
 
     # Context menu, shows constraint name
     props = right_sub.operator(
-        Operators.ContextMenu,
+        declarations.Operators.ContextMenu,
         text="",
         icon="OUTLINER_DATA_GP_LAYER",
         emboss=False,
@@ -69,7 +69,7 @@ def draw_constraint_listitem(
 
     # Delete operator
     props = right_sub.operator(
-        Operators.DeleteConstraint,
+        declarations.Operators.DeleteConstraint,
         text="",
         icon="X",
         emboss=False,
@@ -87,7 +87,7 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
     """
 
     bl_label = "Constraints"
-    bl_idname = Panels.SketcherContraints
+    bl_idname = declarations.Panels.SketcherContraints
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context: Context):
@@ -95,7 +95,10 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
 
         # Visibility Operators
         col = layout.column(align=True)
-        col.operator_enum(Operators.SetAllConstraintsVisibility, "visibility")
+        col.operator_enum(
+            declarations.Operators.SetAllConstraintsVisibility,
+            "visibility",
+        )
 
         # Dimensional Constraints
         layout.label(text="Dimensional:")
