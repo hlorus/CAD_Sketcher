@@ -1,47 +1,31 @@
 from bpy.types import Context, UILayout
 
 from .. import declarations
-from ..sketches_menu import VIEW3D_MT_sketches
 from . import VIEW3D_PT_sketcher_base
 
 
 def sketch_selector(
     context: Context,
     layout: UILayout,
-    is_header: bool = False,
-    show_selector: bool = True,
 ):
     row = layout.row(align=True)
-    index = context.scene.sketcher.active_sketch_i
-    name = "Sketches"
+    row.scale_y = 1.8
+    active_sketch = context.scene.sketcher.active_sketch
 
-    scale_y = 1 if is_header else 1.8
+    if not active_sketch:
+        row.operator(
+            declarations.Operators.AddSketch,
+            icon="ADD"
+        ).wait_for_input = True
 
-    if index != -1:
-        sketch = context.scene.sketcher.active_sketch
-        name = sketch.name
-
+    else:
         row.operator(
             declarations.Operators.SetActiveSketch,
-            text="Leave: " + name,
+            text="Leave: " + active_sketch.name,
             icon="BACK",
             depress=True,
         ).index = -1
-
         row.active = True
-        row.scale_y = scale_y
-
-    else:
-
-        row.scale_y = scale_y
-        # TODO: Don't show text when is_header
-        row.operator(
-            declarations.Operators.AddSketch,
-            icon="ADD",
-        ).wait_for_input = True
-
-        if show_selector:
-            row.menu(VIEW3D_MT_sketches.bl_idname, text=name)
 
     row.operator(declarations.Operators.Update, icon="FILE_REFRESH", text="")
 
@@ -55,7 +39,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
     def draw(self, context: Context):
         layout = self.layout
 
-        sketch_selector(context, layout, show_selector=False)
+        sketch_selector(context, layout)
         sketch = context.scene.sketcher.active_sketch
         layout.use_property_split = True
         layout.use_property_decorate = False
@@ -111,4 +95,5 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 "sketches",
                 context.scene.sketcher,
                 "ui_active_sketch",
+                item_dyntip_propname="name",
             )

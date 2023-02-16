@@ -19,10 +19,6 @@ class GizmoGroups(str, Enum):
     Preselection = "VIEW3D_GGT_slvs_preselection"
 
 
-class Menus(str, Enum):
-    Sketches = "VIEW3D_MT_sketches"
-
-
 class Operators(str, Enum):
     AddAngle = "view3d.slvs_add_angle"
     AddArc2D = "view3d.slvs_add_arc2d"

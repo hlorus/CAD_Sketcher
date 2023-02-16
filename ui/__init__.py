@@ -11,7 +11,6 @@ from .panels.debug import VIEW3D_PT_sketcher_debug
 from .panels.entities_list import VIEW3D_PT_sketcher_entities
 from .panels.sketch_select import VIEW3D_PT_sketcher
 from .sketches_list import VIEW3D_UL_sketches
-from .sketches_menu import VIEW3D_MT_sketches
 
 
 def draw_object_context_menu(self, context: Context):
@@ -40,7 +39,6 @@ def draw_add_sketch_in_add_menu(self, context: Context):
 
 classes = [
     VIEW3D_UL_sketches,
-    VIEW3D_MT_sketches,
     VIEW3D_PT_sketcher,
     VIEW3D_PT_sketcher_add_constraints,
     VIEW3D_PT_sketcher_entities,
