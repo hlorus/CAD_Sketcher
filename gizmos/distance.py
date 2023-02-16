@@ -10,10 +10,8 @@ from ..utilities.view import get_scale_from_pos
 from .base import (
     ConstraintGenericGGT,
     ConstraintGizmoGeneric,
-    draw_arrow_shape,
-    get_arrow_size,
-    get_overshoot,
 )
+from .utilities import draw_arrow_shape, get_arrow_size, get_overshoot
 
 
 class VIEW3D_GGT_slvs_distance(GizmoGroup, ConstraintGenericGGT):

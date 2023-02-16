@@ -1,3 +1,5 @@
+import math
+
 import blf
 import gpu
 from bpy.types import Gizmo, GizmoGroup
@@ -158,7 +160,6 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         location = Vector(location).to_3d()
         location -= self.matrix_basis.translation
         location *= 1.0 / self.scale_basis
-        import math
 
         if math.pow(location.length, 2) < 1.0:
             return 0
