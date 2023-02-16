@@ -5,10 +5,7 @@ from ..model.types import SlvsDiameter
 from ..utilities.constants import HALF_TURN
 from ..utilities.math import pol2cart
 from ..utilities.view import get_scale_from_pos
-from .base import (
-    ConstraintGenericGGT,
-    ConstraintGizmoGeneric,
-)
+from .base import ConstraintGenericGGT, ConstraintGizmoGeneric
 from .utilities import draw_arrow_shape, get_arrow_size
 
 

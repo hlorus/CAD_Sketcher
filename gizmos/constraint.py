@@ -9,23 +9,11 @@ from .. import icon_manager, units
 from ..declarations import Gizmos, GizmoGroups, Operators
 from ..utilities.preferences import get_prefs
 from ..utilities.view import get_2d_coords
-from .base import (
-    Color,
-    ConstraintGizmo,
-    get_color,
-    set_gizmo_colors,
-)
+from .base import ConstraintGizmo
+from .utilities import Color, get_color, set_gizmo_colors
 
 GIZMO_OFFSET = Vector((1.0, 1.0))
 FONT_ID = 0
-
-
-def iter_dimenional_constraints(context):
-    ssc = context.scene.sketcher.constraints
-    collections = [ssc.distance, ssc.diameter, ssc.angle]
-    for coll in collections:
-        for c in coll:
-            yield c
 
 
 def _get_formatted_value(context, constr):
@@ -106,7 +94,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 props.highlight_members = True
 
         # Add value gizmos for dimensional constraints
-        for c in iter_dimenional_constraints(context):
+        for c in context.scene.sketcher.constraints.dimensional:
             if not c.is_active(context.scene.sketcher.active_sketch):
                 continue
 

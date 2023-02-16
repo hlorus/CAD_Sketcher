@@ -7,10 +7,7 @@ from mathutils.geometry import intersect_point_line
 from ..declarations import GizmoGroups, Gizmos
 from ..model.types import SlvsDistance
 from ..utilities.view import get_scale_from_pos
-from .base import (
-    ConstraintGenericGGT,
-    ConstraintGizmoGeneric,
-)
+from .base import ConstraintGenericGGT, ConstraintGizmoGeneric
 from .utilities import draw_arrow_shape, get_arrow_size, get_overshoot
 
 

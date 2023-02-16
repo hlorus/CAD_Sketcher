@@ -5,18 +5,7 @@ from .. import global_data
 from ..declarations import Gizmos, GizmoGroups
 from ..draw_handler import ensure_selection_texture
 from ..utilities.index import rgb_to_index
-
-
-def context_mode_check(context, widget_group):
-    tools = context.workspace.tools
-    mode = context.mode
-    for tool in tools:
-        if (tool.widget == widget_group) and (tool.mode == mode):
-            break
-    else:
-        context.window_manager.gizmo_group_type_unlink_delayed(widget_group)
-        return False
-    return True
+from .utilities import context_mode_check
 
 
 class VIEW3D_GGT_slvs_preselection(GizmoGroup):
