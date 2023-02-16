@@ -7,8 +7,13 @@ from mathutils.geometry import intersect_point_line
 from ..declarations import GizmoGroups, Gizmos
 from ..model.types import SlvsDistance
 from ..utilities.view import get_scale_from_pos
-from .arrow import draw_arrow_shape, get_arrow_size, get_overshoot
-from .constraint_gizmo import ConstraintGenericGGT, ConstraintGizmoGeneric
+from .base import (
+    ConstraintGenericGGT,
+    ConstraintGizmoGeneric,
+    draw_arrow_shape,
+    get_arrow_size,
+    get_overshoot,
+)
 
 
 class VIEW3D_GGT_slvs_distance(GizmoGroup, ConstraintGenericGGT):

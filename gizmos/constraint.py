@@ -7,7 +7,7 @@ from .. import icon_manager, units
 from ..declarations import Gizmos, GizmoGroups, Operators
 from ..utilities.preferences import get_prefs
 from ..utilities.view import get_2d_coords
-from .constraint_gizmo import (
+from .base import (
     Color,
     ConstraintGizmo,
     get_color,

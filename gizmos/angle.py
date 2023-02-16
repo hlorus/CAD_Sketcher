@@ -9,8 +9,13 @@ from ..utilities.constants import QUARTER_TURN
 from ..utilities.draw import coords_arc_2d
 from ..utilities.math import pol2cart
 from ..utilities.view import get_scale_from_pos
-from .arrow import draw_arrow_shape, get_arrow_size, get_overshoot
-from .constraint_gizmo import ConstraintGenericGGT, ConstraintGizmoGeneric
+from .base import (
+    ConstraintGenericGGT,
+    ConstraintGizmoGeneric,
+    draw_arrow_shape,
+    get_arrow_size,
+    get_overshoot,
+)
 
 
 class VIEW3D_GGT_slvs_angle(GizmoGroup, ConstraintGenericGGT):

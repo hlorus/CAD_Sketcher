@@ -5,8 +5,12 @@ from ..model.types import SlvsDiameter
 from ..utilities.constants import HALF_TURN
 from ..utilities.math import pol2cart
 from ..utilities.view import get_scale_from_pos
-from .arrow import draw_arrow_shape, get_arrow_size
-from .constraint_gizmo import ConstraintGenericGGT, ConstraintGizmoGeneric
+from .base import (
+    ConstraintGenericGGT,
+    ConstraintGizmoGeneric,
+    draw_arrow_shape,
+    get_arrow_size,
+)
 
 
 class VIEW3D_GGT_slvs_diameter(GizmoGroup, ConstraintGenericGGT):
