@@ -26,6 +26,7 @@ class GenericConstraint:
     name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
     failed: BoolProperty(name="Failed")
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
+    is_reference = False  # Only DimensionalConstraint can be reference
     signature = ()
     props = ()
 
