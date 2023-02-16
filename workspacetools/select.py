@@ -1,7 +1,7 @@
 from bpy.types import WorkSpaceTool
 
-from ..declarations import GizmoGroups, Operators, WorkSpaceTools, Macros
-from ..keymaps import disable_gizmos, tool_access
+from ..declarations import GizmoGroups, Operators, WorkSpaceTools
+from ..keymaps import tool_select
 
 
 class VIEW3D_T_slvs_select(WorkSpaceTool):
@@ -12,105 +12,7 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
     bl_description = "Select Solvespace Entities"
     bl_icon = "ops.generic.select"
     bl_widget = GizmoGroups.Preselection
-    bl_keymap = (
-        *disable_gizmos,
-        (
-            Operators.SelectAll,
-            {"type": "ESC", "value": "PRESS"},
-            {"properties": [("deselect", True)]},
-        ),
-        (
-            Operators.SelectAll,
-            {"type": "A", "value": "PRESS", "ctrl": True},
-            {"properties": [("deselect", False)]},
-        ),
-        (
-            Operators.Select,
-            {"type": "LEFTMOUSE", "value": "CLICK", "any": True},
-            None,
-        ),
-        (
-            Operators.Select,
-            {"type": "LEFTMOUSE", "value": "CLICK", "shift": True},
-            {"properties": [("mode", "EXTEND")]},
-        ),
-        (
-            Operators.Select,
-            {"type": "LEFTMOUSE", "value": "CLICK", "ctrl": True},
-            {"properties": [("mode", "SUBTRACT")]},
-        ),
-        (
-            Operators.SelectInvert,
-            {"type": "I", "value": "PRESS", "ctrl": True},
-            None,
-        ),
-        (
-            Operators.SelectExtend,
-            {"type": "E", "value": "PRESS", "ctrl": True},
-            None,
-        ),
-        (
-            Operators.SelectExtendAll,
-            {"type": "E", "value": "PRESS", "ctrl": True, "shift": True},
-            None,
-        ),
-        (
-            Operators.SelectBox,
-            {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
-            None,
-        ),
-        (
-            Operators.SelectBox,
-            {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "ctrl": True},
-            {"properties": [("mode", "SUBTRACT")]},
-        ),
-        (
-            Operators.SelectBox,
-            {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "shift": True},
-            {"properties": [("mode", "EXTEND")]},
-        ),
-        # (
-        #     Operators.SelectBox,
-        #     {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "alt": True},
-        #     {"properties": [("mode", "TOGGLE")]},
-        # ),
-        (
-            Operators.Tweak,
-            {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
-            None,
-        ),
-        (
-            Operators.ContextMenu,
-            {"type": "RIGHTMOUSE", "value": "PRESS"},
-            {"properties": [("delayed", True)]},
-        ),
-        (
-            Operators.DeleteEntity,
-            {"type": "DEL", "value": "PRESS"},
-            None,
-        ),
-        (
-            Operators.Copy,
-            {"type": "C", "value": "PRESS", "ctrl": True},
-            None,
-        ),
-        (
-            Operators.Paste,
-            {"type": "V", "value": "PRESS", "ctrl": True},
-            None,
-        ),
-        (
-            Macros.DuplicateMove,
-            {"type": "D", "value": "PRESS", "shift": True},
-            None,
-        ),
-        (
-            Operators.Move,
-            {"type": "G", "value": "PRESS"},
-            None,
-        ),
-        *tool_access,
-    )
+    bl_keymap = tool_select
 
     def draw_settings(context, layout, tool):
         props = tool.operator_properties(Operators.Select)

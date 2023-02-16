@@ -1,6 +1,6 @@
 import bpy
 
-from .declarations import Operators, WorkSpaceTools
+from .declarations import Macros, Operators, WorkSpaceTools
 from .stateful_operator.utilities.keymap import tool_invoke_kmi
 
 constraint_access = (
@@ -214,7 +214,7 @@ disable_gizmos = (
     ),
 )
 
-tool_select = (
+tool_use_select = (
     (
         "wm.tool_set_by_id",
         {"type": "ESC", "value": "PRESS"},
@@ -225,6 +225,107 @@ tool_select = (
         {"type": "RIGHTMOUSE", "value": "PRESS"},
         {"properties": [("name", WorkSpaceTools.Select)]},
     ),
+)
+
+tool_generic = (
+    *disable_gizmos,
+    *tool_use_select,
+    *tool_access,
+)
+
+tool_select = (
+    *disable_gizmos,
+    (
+        Operators.SelectAll,
+        {"type": "ESC", "value": "PRESS"},
+        {"properties": [("deselect", True)]},
+    ),
+    (
+        Operators.SelectAll,
+        {"type": "A", "value": "PRESS", "ctrl": True},
+        {"properties": [("deselect", False)]},
+    ),
+    (
+        Operators.Select,
+        {"type": "LEFTMOUSE", "value": "CLICK", "any": True},
+        None,
+    ),
+    (
+        Operators.Select,
+        {"type": "LEFTMOUSE", "value": "CLICK", "shift": True},
+        {"properties": [("mode", "EXTEND")]},
+    ),
+    (
+        Operators.Select,
+        {"type": "LEFTMOUSE", "value": "CLICK", "ctrl": True},
+        {"properties": [("mode", "SUBTRACT")]},
+    ),
+    (
+        Operators.SelectInvert,
+        {"type": "I", "value": "PRESS", "ctrl": True},
+        None,
+    ),
+    (
+        Operators.SelectExtend,
+        {"type": "E", "value": "PRESS", "ctrl": True},
+        None,
+    ),
+    (
+        Operators.SelectExtendAll,
+        {"type": "E", "value": "PRESS", "ctrl": True, "shift": True},
+        None,
+    ),
+    (
+        Operators.SelectBox,
+        {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
+        None,
+    ),
+    (
+        Operators.SelectBox,
+        {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "ctrl": True},
+        {"properties": [("mode", "SUBTRACT")]},
+    ),
+    (
+        Operators.SelectBox,
+        {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "shift": True},
+        {"properties": [("mode", "EXTEND")]},
+    ),
+    (
+        Operators.Tweak,
+        {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
+        None,
+    ),
+    (
+        Operators.ContextMenu,
+        {"type": "RIGHTMOUSE", "value": "PRESS"},
+        {"properties": [("delayed", True)]},
+    ),
+    (
+        Operators.DeleteEntity,
+        {"type": "DEL", "value": "PRESS"},
+        None,
+    ),
+    (
+        Operators.Copy,
+        {"type": "C", "value": "PRESS", "ctrl": True},
+        None,
+    ),
+    (
+        Operators.Paste,
+        {"type": "V", "value": "PRESS", "ctrl": True},
+        None,
+    ),
+    (
+        Macros.DuplicateMove,
+        {"type": "D", "value": "PRESS", "shift": True},
+        None,
+    ),
+    (
+        Operators.Move,
+        {"type": "G", "value": "PRESS"},
+        None,
+    ),
+    *tool_access,
 )
 
 addon_keymaps = []

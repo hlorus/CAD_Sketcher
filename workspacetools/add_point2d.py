@@ -1,7 +1,7 @@
 from bpy.types import WorkSpaceTool
 
 from ..declarations import GizmoGroups, Operators, WorkSpaceTools
-from ..keymaps import disable_gizmos, tool_access, tool_select
+from ..keymaps import tool_generic
 from ..stateful_operator.tool import GenericStateTool
 from ..stateful_operator.utilities.keymap import operator_access
 from .icon import get_addon_icon_path
@@ -16,8 +16,6 @@ class VIEW3D_T_slvs_add_point2d(GenericStateTool, WorkSpaceTool):
     bl_icon = get_addon_icon_path("ops.bgs.add_point")
     bl_widget = GizmoGroups.Preselection
     bl_keymap = (
-        *disable_gizmos,
-        *tool_select,
-        *tool_access,
+        *tool_generic,
         *operator_access(Operators.AddPoint2D),
     )
