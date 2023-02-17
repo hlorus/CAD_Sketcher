@@ -39,13 +39,9 @@ def get_icon(name: str):
 
 
 def load_icon(type, icon):
-    image_bytes = icon.image_size[0] * icon.image_size[1] * 4
-    buffer = gpu.types.Buffer(
-        'FLOAT',
-        (1, image_bytes),
-        [icon.image_pixels_float],
-    )
-    texture = gpu.types.GPUTexture(size=icon.image_size, data=buffer)
+    size, pixels = icon.icon_size, icon.icon_pixels_float
+    buffer = gpu.types.Buffer('FLOAT', (1, len(pixels)), [pixels])
+    texture = gpu.types.GPUTexture(size=size, data=buffer)
     icons[type] = texture
 
 
