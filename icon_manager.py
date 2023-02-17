@@ -6,11 +6,8 @@ import bpy.utils.previews
 from gpu_extras.batch import batch_for_shader
 from bpy.app import background
 
+from .declarations import Operators
 from .shaders import Shaders
-from .operators.add_angle import VIEW3D_OT_slvs_add_angle
-from .operators.add_diameter import VIEW3D_OT_slvs_add_diameter
-from .operators.add_distance import VIEW3D_OT_slvs_add_distance
-from .operators.add_geometric_constraints import constraint_operators
 
 icons = {}
 _icon_shader = Shaders.uniform_color_image_2d()
@@ -20,13 +17,18 @@ _icon_batch = batch_for_shader(_icon_shader, "TRI_FAN", {
 })
 preview_icons = None
 _operator_types = {
-    operator.bl_idname: operator.type
-    for operator in (
-        VIEW3D_OT_slvs_add_angle,
-        VIEW3D_OT_slvs_add_diameter,
-        VIEW3D_OT_slvs_add_distance,
-        *constraint_operators,
-    )
+    Operators.AddDistance: "DISTANCE",
+    Operators.AddDiameter: "DIAMETER",
+    Operators.AddAngle: "ANGLE",
+    Operators.AddCoincident: "COINCIDENT",
+    Operators.AddEqual: "EQUAL",
+    Operators.AddVertical: "VERTICAL",
+    Operators.AddHorizontal: "HORIZONTAL",
+    Operators.AddParallel: "PARALLEL",
+    Operators.AddPerpendicular: "PERPENDICULAR",
+    Operators.AddTangent: "TANGENT",
+    Operators.AddMidPoint: "MIDPOINT",
+    Operators.AddRatio: "RATIO",
 }
 
 
@@ -100,8 +102,8 @@ def get_constraint_icon(operator: str):
     return icon.icon_id
 
 
-def draw(id, color):
-    texture = icons.get(id)
+def draw(type, color):
+    texture = icons.get(type)
 
     if not texture:
         return
