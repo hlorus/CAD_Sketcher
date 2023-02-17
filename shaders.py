@@ -56,11 +56,6 @@ class Shaders:
 
     @staticmethod
     @cache
-    def uniform_color_2d():
-        return gpu.shader.from_builtin("2D_UNIFORM_COLOR")
-
-    @staticmethod
-    @cache
     def uniform_color_3d():
         return gpu.shader.from_builtin("3D_UNIFORM_COLOR")
 
@@ -90,7 +85,9 @@ class Shaders:
 
             void main()
             {
-                fragColor = texture(image, v_texCoord) * color;
+                fragColor = blender_srgb_to_framebuffer_space(
+                    texture(image, v_texCoord) * color
+                );
             }
         """
         return GPUShader(
