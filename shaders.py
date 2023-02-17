@@ -18,10 +18,8 @@ class Shaders:
 
         in vec3 pos;
 
-        vec4 project = ModelViewProjectionMatrix * vec4(pos, 1.0);
         void main() {
-           gl_Position = project;
-
+           gl_Position = ModelViewProjectionMatrix * vec4(pos.xyz, 1.0f);
         }
     """
     base_fragment_shader_3d = """
@@ -65,6 +63,40 @@ class Shaders:
     @cache
     def uniform_color_3d():
         return gpu.shader.from_builtin("3D_UNIFORM_COLOR")
+
+    @classmethod
+    @cache
+    def uniform_color_image_2d(cls):
+        vertex_shader = """
+            uniform mat4 ModelViewProjectionMatrix;
+
+            in vec2 pos;
+            in vec2 texCoord;
+            out vec2 v_texCoord;
+
+            void main()
+            {
+                gl_Position = (
+                    ModelViewProjectionMatrix * vec4(pos.xy, 0.0f, 1.0f)
+                );
+                v_texCoord = texCoord;
+            }
+        """
+        fragment_shader = """
+            uniform vec4 color;
+            uniform sampler2D image;
+            in vec2 v_texCoord;
+            out vec4 fragColor;
+
+            void main()
+            {
+                fragColor = texture(image, v_texCoord) * color;
+            }
+        """
+        return GPUShader(
+            vertex_shader,
+            fragment_shader,
+        )
 
     @classmethod
     @cache
