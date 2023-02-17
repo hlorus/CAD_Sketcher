@@ -1,12 +1,35 @@
 from pathlib import Path
 
 import gpu
+import bpy.utils.previews
 from gpu_extras.batch import batch_for_shader
 from bpy.app import background
 
 from .shaders import Shaders
+from .operators.add_angle import VIEW3D_OT_slvs_add_angle
+from .operators.add_diameter import VIEW3D_OT_slvs_add_diameter
+from .operators.add_distance import VIEW3D_OT_slvs_add_distance
+from .operators.add_geometric_constraints import constraint_operators
 
 icons = {}
+constraint_icons = None
+_operator_types = {
+    operator.bl_idname: operator.type
+    for operator in (
+        VIEW3D_OT_slvs_add_angle,
+        VIEW3D_OT_slvs_add_diameter,
+        VIEW3D_OT_slvs_add_distance,
+        *constraint_operators,
+    )
+}
+
+
+def get_folder_path():
+    return Path(__file__).parent / "ressources" / "icons"
+
+
+def get_icon(name: str):
+    return str(get_folder_path() / name)
 
 
 def coords_from_icon(data, range_x=255, range_y=255):
@@ -19,7 +42,6 @@ def coords_from_icon(data, range_x=255, range_y=255):
     coords = []
     indices = []
     for i, tri in enumerate(tris):
-        v1 = tri[0:2]
         # split the 6 Byte chunk into 2 Byte chunks
         # Each 2 Byte chunk represent the xy coordinates
         # of triangles to render for the icon
@@ -46,7 +68,6 @@ def coords_from_icon(data, range_x=255, range_y=255):
 
 def read_icon(fp):
     data = []
-    name = fp.stem
 
     with open(fp, "rb") as icon:
         identifier = icon.read(3)
@@ -58,9 +79,14 @@ def read_icon(fp):
                 break
             data.append(val)
 
+    return data, size_x, size_y
+
+
+def load_icon(path):
+    data, size_x, size_y = read_icon(path)
     coords, indices = coords_from_icon(data, range_x=size_x, range_y=size_y)
     batch = batch_from_coords(coords, indices)
-    icons[name] = batch
+    icons[path.stem] = batch
 
 
 def batch_from_coords(coords, indices):
@@ -72,10 +98,50 @@ def load():
     if background:
         return
     # Read icons from filepath and store as python data(batch?) for easy access
-    filepath = Path(Path(__file__).parent, "ressources/icons")
+    filepath = get_folder_path()
 
-    for icon in filepath.iterdir():
-        read_icon(icon)
+    for icon in filepath.glob("*.dat"):
+        load_icon(icon)
+
+
+def load_constraint_icons():
+    global constraint_icons
+
+    if constraint_icons:
+        return
+
+    constraint_icons = bpy.utils.previews.new()
+
+    for operator, type in _operator_types.items():
+        icon_path = get_folder_path() / f"{type}.png"
+
+        if not icon_path.exists():
+            continue
+
+        constraint_icons.load(operator, str(icon_path), 'IMAGE')
+
+
+def unload_constraint_icons():
+    global constraint_icons
+
+    if not constraint_icons:
+        return
+
+    constraint_icons.clear()
+    bpy.utils.previews.remove(constraint_icons)
+    constraint_icons = None
+
+
+def get_constraint_icon(operator: str):
+    if not constraint_icons:
+        return -1
+
+    icon = constraint_icons.get(operator)
+
+    if not icon:
+        return -1
+
+    return icon.icon_id
 
 
 def draw(id, color):

@@ -1,6 +1,7 @@
 from bpy.types import Context
 
 from .. import declarations
+from .. import icon_manager
 from . import VIEW3D_PT_sketcher_base
 
 
@@ -18,5 +19,6 @@ class VIEW3D_PT_sketcher_add_constraints(VIEW3D_PT_sketcher_base):
         layout = self.layout
         layout.label(text="Constraints:")
         col = layout.column(align=True)
+
         for op in declarations.ConstraintOperators:
-            col.operator(op)
+            col.operator(op, icon_value=icon_manager.get_constraint_icon(op))
