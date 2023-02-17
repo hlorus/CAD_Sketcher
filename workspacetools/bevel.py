@@ -1,10 +1,10 @@
 from bpy.types import WorkSpaceTool
 
 from ..declarations import GizmoGroups, Operators, WorkSpaceTools
+from ..icon_manager import get_icon
 from ..keymaps import tool_generic
 from ..stateful_operator.tool import GenericStateTool
 from ..stateful_operator.utilities.keymap import operator_access
-from .icon import get_addon_icon_path
 
 
 class VIEW3D_T_slvs_bevel(GenericStateTool, WorkSpaceTool):
@@ -13,7 +13,7 @@ class VIEW3D_T_slvs_bevel(GenericStateTool, WorkSpaceTool):
     bl_idname = WorkSpaceTools.Bevel
     bl_label = "Bevel"
     bl_operator = Operators.Bevel
-    bl_icon = get_addon_icon_path("ops.bgs.bevel")
+    bl_icon = get_icon("ops.bgs.bevel")
     bl_widget = GizmoGroups.Preselection
     bl_keymap = (
         *tool_generic,

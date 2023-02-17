@@ -2,6 +2,7 @@ import bpy
 from bpy.types import Context
 
 from .. import declarations
+from .. import icon_manager
 from ..model import types
 from ..stateful_operator import constants
 from ..utilities import preferences
@@ -48,6 +49,8 @@ classes = [
 
 
 def register():
+    icon_manager.load_preview_icons()
+
     for cls in classes:
         bpy.utils.register_class(cls)
 
@@ -56,10 +59,10 @@ def register():
 
 
 def unregister():
-    bpy.types.VIEW3D_MT_object_context_menu.remove(draw_object_context_menu)
-
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
     bpy.types.VIEW3D_MT_object_context_menu.remove(draw_object_context_menu)
     bpy.types.VIEW3D_MT_add.remove(draw_add_sketch_in_add_menu)
+
+    icon_manager.unload_preview_icons()

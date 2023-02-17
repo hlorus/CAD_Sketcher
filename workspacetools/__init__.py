@@ -1,4 +1,5 @@
 import bpy
+from bpy.utils import register_tool, unregister_tool
 
 from .add_arc2d import VIEW3D_T_slvs_add_arc2d
 from .add_circle2d import VIEW3D_T_slvs_add_circle2d
@@ -47,8 +48,6 @@ def register():
     if bpy.app.background:
         return
 
-    from bpy.utils import register_tool
-
     for tool in tools:
         register_tool(tool[0], **tool[1])
 
@@ -56,8 +55,6 @@ def register():
 def unregister():
     if bpy.app.background:
         return
-
-    from bpy.utils import unregister_tool
 
     for tool in reversed(tools):
         unregister_tool(tool[0])
