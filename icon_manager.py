@@ -62,6 +62,12 @@ def load():
         load_icon(_operator_types[operator], icon)
 
 
+def unload():
+    global icons
+    unload_preview_icons()
+    icons = {}
+
+
 def load_preview_icons():
     global preview_icons
 

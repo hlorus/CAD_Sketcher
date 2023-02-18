@@ -49,8 +49,6 @@ classes = [
 
 
 def register():
-    icon_manager.load_preview_icons()
-
     for cls in classes:
         bpy.utils.register_class(cls)
 
@@ -64,5 +62,3 @@ def unregister():
 
     bpy.types.VIEW3D_MT_object_context_menu.remove(draw_object_context_menu)
     bpy.types.VIEW3D_MT_add.remove(draw_add_sketch_in_add_menu)
-
-    icon_manager.unload_preview_icons()
