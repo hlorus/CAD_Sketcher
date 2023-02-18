@@ -6,30 +6,19 @@ import bpy.utils.previews
 from gpu_extras.batch import batch_for_shader
 from bpy.app import background
 
-from .declarations import Operators
 from .shaders import Shaders
 
 icons = {}
 _icon_shader = Shaders.uniform_color_image_2d()
-_icon_batch = batch_for_shader(_icon_shader, "TRI_FAN", {
-    "pos": ((-.5, -.5), (.5, -.5), (.5, .5), (-.5, .5)),
-    "texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
-})
+_icon_batch = batch_for_shader(
+    _icon_shader,
+    "TRI_FAN",
+    {
+        "pos": ((-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)),
+        "texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
+    },
+)
 preview_icons = None
-_operator_types = {
-    Operators.AddDistance: "DISTANCE",
-    Operators.AddDiameter: "DIAMETER",
-    Operators.AddAngle: "ANGLE",
-    Operators.AddCoincident: "COINCIDENT",
-    Operators.AddEqual: "EQUAL",
-    Operators.AddVertical: "VERTICAL",
-    Operators.AddHorizontal: "HORIZONTAL",
-    Operators.AddParallel: "PARALLEL",
-    Operators.AddPerpendicular: "PERPENDICULAR",
-    Operators.AddTangent: "TANGENT",
-    Operators.AddMidPoint: "MIDPOINT",
-    Operators.AddRatio: "RATIO",
-}
 
 
 def get_folder_path():
@@ -40,9 +29,16 @@ def get_icon(name: str):
     return str(get_folder_path() / name)
 
 
+def get_icon_value(name: str) -> int:
+    icon = preview_icons.get(name)
+    if not icon:
+        return -1
+    return icon.icon_id
+
+
 def load_icon(type, icon):
     size, pixels = icon.icon_size, icon.icon_pixels_float
-    buffer = gpu.types.Buffer('FLOAT', (1, len(pixels)), [pixels])
+    buffer = gpu.types.Buffer("FLOAT", (1, len(pixels)), [pixels])
     texture = gpu.types.GPUTexture(size=size, data=buffer)
     icons[type] = texture
 
@@ -58,8 +54,8 @@ def load():
 
     load_preview_icons()
 
-    for operator, icon in preview_icons.items():
-        load_icon(_operator_types[operator], icon)
+    for name, icon in preview_icons.items():
+        load_icon(name, icon)
 
 
 def unload():
@@ -76,13 +72,11 @@ def load_preview_icons():
 
     preview_icons = bpy.utils.previews.new()
 
-    for operator, type in _operator_types.items():
-        icon_path = get_folder_path() / f"{type}.png"
-
+    for icon_path in get_folder_path().glob("*.png"):
         if not icon_path.exists():
             continue
 
-        preview_icons.load(operator, str(icon_path), 'IMAGE')
+        preview_icons.load(icon_path.stem, str(icon_path), "IMAGE")
 
 
 def unload_preview_icons():
