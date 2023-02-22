@@ -13,7 +13,7 @@ from ..utilities.view import get_pos_2d
 
 def get_points(context: Context):
     """Return a list of points that are either selected or a dependency of a selected entity"""
-    entities = context.scene.sketcher.entities.selected_entities
+    entities = context.scene.sketcher.entities.selected_active
     points = []
 
     def add(p):

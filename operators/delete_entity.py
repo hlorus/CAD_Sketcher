@@ -92,7 +92,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
 
     def execute(self, context: Context):
         index = self.index
-        selected = context.scene.sketcher.entities.selected_entities
+        selected = context.scene.sketcher.entities.selected_active
 
         if index != -1:
             # Entity is specified via property
