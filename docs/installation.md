@@ -1,6 +1,6 @@
 ## Addon installation
 === "ZIP File"
-    - Download the [ZIP archive](https://github.com/hlorus/CAD_Sketcher/archive/refs/heads/main.zip) from github (do not unpack it after downloading)
+    - Download the [ZIP archive](https://github.com/hlorus/CAD_Sketcher/archive/refs/heads/main.zip) from github (ensure it's a ZIP Archive, on Mac you might have to repack as it gets unzipped automatically)
     - Open Blender and go to: Edit > Preferences > Add-ons > Press "Install..." button
     - Browse to the location of the ZIP and select it, then press "Install Add-on"
     - Enable the addon by pressing the checkbox
