@@ -16,6 +16,7 @@ from ..utilities.data_handling import (
 )
 from ..utilities.highlighting import HighlightElement
 from .utilities import activate_sketch
+from ..solver import solve_system
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
                     continue
                 self.delete(e, context)
 
+        solve_system(context, context.scene.sketcher.active_sketch)
         refresh(context)
         return {"FINISHED"}
 
