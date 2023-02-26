@@ -20,7 +20,7 @@ def ensure_addon_presets(force_write=False):
         is_existing = False
 
     if force_write or not is_existing:
-        bundled_presets = path.join(get_path(), "ressources", "presets")
+        bundled_presets = path.join(get_path(), "resources", "presets")
 
         kwargs = {}
         if sys.version_info >= (3, 8):

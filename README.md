@@ -1,5 +1,5 @@
-[![CAD Sketcher](/ressources/logos/wide_dark.png)](https://hlorus.github.io/CAD_Sketcher/#gh-light-mode-only)
-[![CAD Sketcher](/ressources/logos/wide_light.png)](https://hlorus.github.io/CAD_Sketcher/#gh-dark-mode-only)
+[![CAD Sketcher](/resources/logos/wide_dark.png)](https://hlorus.github.io/CAD_Sketcher/#gh-light-mode-only)
+[![CAD Sketcher](/resources/logos/wide_light.png)](https://hlorus.github.io/CAD_Sketcher/#gh-dark-mode-only)
 
 #
 <a href="https://discord.gg/GzpJsShgxa"><img alt="Discord" src="https://img.shields.io/discord/882152824249667594"></a>
@@ -19,9 +19,9 @@ Minimum version: Blender 2.92
  - [Preferred Download Method](https://gumroad.com/a/891069555) (This way we can update you about big updates and ask your opinion on big changes)
  - [Easy To Read Roadmap](https://www.cadsketcher.com/cad-sketcher-roadmap)
  - [Github Roadmap](https://github.com/users/hlorus/projects/1)
- - [Documentation](https://hlorus.github.io/CAD_Sketcher/)  
- - [Installation](https://hlorus.github.io/CAD_Sketcher/installation)  
- - [Discord](https://discord.gg/EyRjypztmf)  
+ - [Documentation](https://hlorus.github.io/CAD_Sketcher/)
+ - [Installation](https://hlorus.github.io/CAD_Sketcher/installation)
+ - [Discord](https://discord.gg/EyRjypztmf)
  - [Report A Bug](https://github.com/hlorus/CAD_Sketcher/discussions/107)
  - [Feature Request](https://github.com/hlorus/CAD_Sketcher/discussions/106)
  - [Contribute](https://hlorus.github.io/CAD_Sketcher/advanced/#contribute)
@@ -55,7 +55,7 @@ The project accepts donations through Open Collective.
 <img src="https://user-images.githubusercontent.com/64740362/182779318-b17ce498-f872-4a60-94c5-50391ec1e119.svg" width="300">
 </a>
 </p>
- 
+
 Alternatively individual developers can link their donation links here:
 
 <a href="https://www.paypal.com/donate/?business=4A9SCSHAU3ZP6&no_recurring=0&currency_code=CHF">
