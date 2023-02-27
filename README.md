@@ -31,6 +31,7 @@ Minimum version: Blender 2.92
 
 - [Gumroad](https://gumroad.com/a/891069555) Download (This way we can update you about big updates and ask your opinion on big changes)
 - Download the [ZIP archive](https://github.com/hlorus/CAD-Sketcher/archive/refs/heads/main.zip) (do not unpack it after downloading)
+ <br><b>!(Mac users be careful your OS can auto-unpack addon's which will make them break)!</b>
 - Open Blender and go to: Edit > Preferences > Add-ons > Press "Install..." button
 - Browse to the location of the ZIP and select it, then press "Install Add-on"
 - Enable the addon by pressing the checkbox
