@@ -123,8 +123,6 @@ class Shaders:
             float minLength =  length(pxVec);
             vec2 get_line_width(vec2 normal, float width){
                 vec2 offsetvec = vec2(normal * width);
-                offsetvec.x /= Viewport.x;
-                offsetvec.y /= Viewport.y;
                 if (length(offsetvec) < minLength){
                     offsetvec = normalize(offsetvec);
                     offsetvec *= minLength;
@@ -133,8 +131,6 @@ class Shaders:
             }
             float get_line_alpha(vec2 normal, float width){
                 vec2 offsetvec = vec2(normal * width);
-                offsetvec.x /= Viewport.x;
-                offsetvec.y /= Viewport.y;
                 float alpha = 1.0;
                 if (length(offsetvec) < minLength){
                     alpha *= (length(offsetvec)/minLength);
@@ -148,12 +144,12 @@ class Shaders:
                 vec2 ssp1 = vec2(p1.xy / p1.w);
                 vec2 ssp2 = vec2(p2.xy / p2.w);
                 float width = thickness;
-                vec2 dir = normalize(ssp2 - ssp1);
+                vec2 dir = normalize((ssp2 - ssp1) * Viewport.xy);
                 vec2 normal = vec2(-dir[1], dir[0]);
                 normal = normalize(normal);
 
                 // get offset factor from normal and user input thickness
-                vec2 offset = get_line_width(normal,width);
+                vec2 offset = get_line_width(normal,width) / Viewport.xy;
                 float lineAlpha = get_line_alpha(normal,width);
                 vec4 coords[4];
                 vec2 texCoords[4];
