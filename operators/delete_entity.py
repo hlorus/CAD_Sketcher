@@ -25,7 +25,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
     """Delete Entity by index or based on the selection if index isn't provided"""
 
     bl_idname = Operators.DeleteEntity
-    bl_label = "Delete Solvespace Entity"
+    bl_label = "Delete Entity"
     bl_description = (
         "Delete Entity by index or based on the selection if index isn't provided"
     )

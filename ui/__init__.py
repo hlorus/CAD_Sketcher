@@ -12,6 +12,7 @@ from .panels.debug import VIEW3D_PT_sketcher_debug
 from .panels.entities_list import VIEW3D_PT_sketcher_entities
 from .panels.sketch_select import VIEW3D_PT_sketcher
 from .sketches_list import VIEW3D_UL_sketches
+from .selected_menu import VIEW3D_MT_selected_menu
 
 
 def draw_object_context_menu(self, context: Context):
@@ -19,10 +20,7 @@ def draw_object_context_menu(self, context: Context):
     ob = context.active_object
     row = layout.row()
 
-    props = row.operator(
-        declarations.Operators.SetActiveSketch,
-        text="Edit Sketch"
-    )
+    props = row.operator(declarations.Operators.SetActiveSketch, text="Edit Sketch")
 
     if ob and ob.sketch_index != -1:
         row.enabled = True
@@ -45,6 +43,7 @@ classes = [
     VIEW3D_PT_sketcher_entities,
     VIEW3D_PT_sketcher_constraints,
     VIEW3D_PT_sketcher_debug,
+    VIEW3D_MT_selected_menu,
 ]
 
 
