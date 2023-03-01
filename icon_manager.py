@@ -33,7 +33,7 @@ _operator_types = {
 
 
 def get_folder_path():
-    return Path(__file__).parent / "ressources" / "icons"
+    return Path(__file__).parent / "resources" / "icons"
 
 
 def get_icon(name: str):
