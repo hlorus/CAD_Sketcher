@@ -11,6 +11,8 @@ jobs:
           fetch-depth: 0
       - name: "create-main-branch"
         run: "git branch --track main origin/main"
+      - name: "get-merge-base"
+        run: "base_commit=$(git merge-base main HEAD)"
       - uses: actions/setup-python@v4
       - uses: akaihola/darker@1.7.0
         with:
@@ -18,4 +20,4 @@ jobs:
           src: "."
           version: "~=1.7.0"
           lint: "flake8,pylint==2.13.1"
-          revision: "main...HEAD"
+          revision: "$base_commit...HEAD"
