@@ -95,6 +95,8 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         return type(self.entity2) in (*LINE, SlvsWorkplane)
 
     def use_align(self):
+        if self.align == "NONE":
+            return False
         if type(self.entity2) in (*LINE, SlvsWorkplane):
             return False
         if self.entity1.is_curve():
@@ -120,7 +122,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         set_wp = False
         wp = self.get_workplane()
         alignment = self.align
-        align = self.use_align() and alignment != "NONE"
+        align = self.use_align()
         handles = []
 
         value = self.get_value()
@@ -187,7 +189,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         sketch = self.sketch
         x_axis = Vector((1, 0))
         alignment = self.align
-        align = self.use_align() and alignment != "NONE"
+        align = self.use_align()
 
         e1, e2 = self.entity1, self.entity2
         #   e1       e2
@@ -276,8 +278,20 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     def init_props(self, **kwargs):
         # Set initial distance value to the current spacing
         e1, e2 = self.entity1, self.entity2
+        alignment = self.align
+
+        if e1.is_3d():
+            return (e1.location - e2.location).length, None
+
+        def _get_aligned_distance(p_1, p_2):
+            if alignment == "HORIZONTAL":
+                return abs(p_2.co.x - p_1.co.x)
+            if alignment == "VERTICAL":
+                return abs(p_2.co.y - p_1.co.y)
+            return (p_2.co - p_1.co).length
+
         if e1.is_line():
-            value = e1.length
+            value = _get_aligned_distance(e1.p1, e1.p2)
         elif type(e1) in CURVE:
             centerpoint = e1.ct.co
             if isinstance(e2, SlvsLine2D):
@@ -288,11 +302,11 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             value = (centerpoint - endpoint).length - e1.radius
         elif isinstance(e2, SlvsWorkplane):
             # Returns the signed distance to the plane
-            value = distance_point_to_plane(e1.location, e2.p1.location, e2.normal)
+            value = distance_point_to_plane(e1.co, e2.p1.co, e2.normal)
         elif type(e2) in LINE:
-            orig = e2.p1.location
-            end = e2.p2.location - orig
-            p1 = e1.location - orig
+            orig = e2.p1.co
+            end = e2.p2.co - orig
+            p1 = e1.co - orig
             value = (p1 - (p1).project(end)).length
 
             # NOTE: Comment from solvespace documentation:
@@ -304,7 +318,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             # to flip to the other side, enter a negative value.
             value = math.copysign(
                 value,
-                get_side_of_line(e2.p1.location, e2.p2.location, e1.location),
+                get_side_of_line(e2.p1.co, e2.p2.co, e1.co),
             )
         else:
             value = (e1.location - e2.location).length

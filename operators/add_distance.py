@@ -29,10 +29,14 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
     align: EnumProperty(name="Alignment", items=align_items)
     type = "DISTANCE"
 
+    def initialize_constraint(self):
+        if hasattr(self, "target"):
+            self.target.align = self.align
+        return super().initialize_constraint()
+
     def fini(self, context: Context, succeede: bool):
         super().fini(context, succeede)
         if hasattr(self, "target"):
-            self.target.align = self.align
             self.target.draw_offset = 0.05 * context.region_data.view_distance
 
     def draw_settings(self, context: Context):
