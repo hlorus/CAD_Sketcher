@@ -173,6 +173,8 @@ class SlvsGenericEntity:
         ts = prefs.theme_settings
         active = self.is_active(context.scene.sketcher.active_sketch)
         highlight = self.is_highlight()
+        fixed = self.fixed
+        origin = self.origin
 
         if not active:
             if highlight:
@@ -188,6 +190,8 @@ class SlvsGenericEntity:
         elif highlight:
             return ts.entity.highlight
 
+        if fixed and not origin:
+            return ts.entity.fixed
         return ts.entity.default
 
     @staticmethod
