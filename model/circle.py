@@ -26,7 +26,7 @@ from .utilities import (
 logger = logging.getLogger(__name__)
 
 
-class SlvsCircle(SlvsGenericEntity, PropertyGroup, Entity2D):
+class SlvsCircle(Entity2D, PropertyGroup):
     """Representation of a circle in 2D space. The circle is centered at ct with
     its size defined by the radius and is resoulution independent.
 

@@ -334,11 +334,13 @@ class SlvsGenericEntity:
         if not self.is_dirty:
             self.is_dirty = True
 
-    def is_3d(self):
-        return not hasattr(self, "sketch")
+    @classmethod
+    def is_3d(cls):
+        return True
 
-    def is_2d(self):
-        return hasattr(self, "sketch")
+    @classmethod
+    def is_2d(cls):
+        return False
 
     @classmethod
     def is_point(cls):
@@ -369,7 +371,15 @@ class SlvsGenericEntity:
         return False
 
 
-class Entity2D:
+class Entity2D(SlvsGenericEntity):
     @property
     def wp(self):
         return self.sketch.wp
+
+    @classmethod
+    def is_3d(cls):
+        return False
+
+    @classmethod
+    def is_2d(cls):
+        return True

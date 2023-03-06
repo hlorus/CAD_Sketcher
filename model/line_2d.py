@@ -19,7 +19,7 @@ from ..utilities.geometry import nearest_point_line_line
 logger = logging.getLogger(__name__)
 
 
-class SlvsLine2D(SlvsGenericEntity, PropertyGroup, Entity2D):
+class SlvsLine2D(Entity2D, PropertyGroup):
     """Representation of a line in 2D space. Connects p1 and p2 and lies on the
     sketche's workplane.
 
