@@ -16,6 +16,7 @@ from .base_constraint import DimensionalConstraint
 from .line_2d import SlvsLine2D
 from .utilities import slvs_entity_pointer
 from ..utilities.geometry import line_abc_form, get_line_intersection
+from ..utilities.solver import update_system_cb
 
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         name=label,
         subtype="ANGLE",
         unit="ROTATION",
-        update=DimensionalConstraint.update_system_cb,
+        update=update_system_cb,
         get=DimensionalConstraint._get_value,
         set=DimensionalConstraint._set_value,
     )

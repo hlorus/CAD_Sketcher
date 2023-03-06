@@ -12,7 +12,7 @@ from ..declarations import Operators
 from ..utilities.preferences import get_prefs
 from ..utilities.index import index_to_rgb, breakdown_index
 from ..utilities.view import update_cb
-
+from ..utilities.solver import update_system_cb
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class SlvsGenericEntity:
         set=entity_name_setter,
         options={"SKIP_SAVE"},
     )
-    fixed: BoolProperty(name="Fixed")
+    fixed: BoolProperty(name="Fixed", update=update_system_cb)
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     origin: BoolProperty(name="Origin")
     construction: BoolProperty(name="Construction")

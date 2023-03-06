@@ -15,6 +15,8 @@ from ..utilities.math import range_2pi
 from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import POINT, LINE, POINT2D, CURVE
+from ..utilities.solver import update_system_cb
+
 
 from .workplane import SlvsWorkplane
 from .point_3d import SlvsPoint3D
@@ -54,15 +56,15 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         name=label,
         subtype="DISTANCE",
         unit="LENGTH",
-        update=DimensionalConstraint.update_system_cb,
+        update=update_system_cb,
         get=DimensionalConstraint._get_value,
         set=DimensionalConstraint._set_value,
     )
-    flip: BoolProperty(name="Flip", update=DimensionalConstraint.update_system_cb)
+    flip: BoolProperty(name="Flip", update=update_system_cb)
     align: EnumProperty(
         name="Align",
         items=align_items,
-        update=DimensionalConstraint.update_system_cb,
+        update=update_system_cb,
     )
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     draw_outset: FloatProperty(name="Draw Outset", default=0.0)

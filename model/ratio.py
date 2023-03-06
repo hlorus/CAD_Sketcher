@@ -10,6 +10,7 @@ from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
 from .categories import LINE
 from .line_2d import SlvsLine2D
+from ..utilities.solver import update_system_cb
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
     value: FloatProperty(
         name=label,
         subtype="UNSIGNED",
-        update=GenericConstraint.update_system_cb,
+        update=update_system_cb,
         min=0.0,
     )
 
