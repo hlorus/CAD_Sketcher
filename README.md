@@ -10,7 +10,7 @@ Constraint-based sketcher addon for [Blender](https://www.blender.org/) that all
 
 > :warning: **Experimental addon:** This is still work in progress, don't use it on production files without a backup.
 
-Minimum version: Blender 2.92
+Minimum version: Blender 3.0
 
 ## More than just an addon learn more: [CADsketcher.com](http://cadsketcher.com/)
 
