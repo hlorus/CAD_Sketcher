@@ -180,7 +180,7 @@ tool_access = (
 
 disable_gizmos = (
     # Disabling gizmos when pressing ctrl + shift
-    # Add two etries so it doesn't matter which key is pressed first
+    # Add two entries so it doesn't matter which key is pressed first
     # NOTE: This cannot be done as a normal modifier key to selection since it has to toggle a global property
     (
         "wm.context_set_boolean",
