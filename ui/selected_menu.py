@@ -23,15 +23,30 @@ class VIEW3D_MT_selected_menu(Menu):
 
         path_sse = "scene.sketcher.entities"
 
-        for data_path, sequence, prop, name, default in (
-            (path_sse, "selected_all", "visible", "Visible", True),
-            (path_sse, "selected", "construction", "Construction", False),
-            (path_sse, "selected", "fixed", "Fixed", False),
+        for data_path, sequence, prop, name, default, fallback_path, fallback in (
+            (path_sse, "selected_all", "visible", "Visible", True, None, ""),
+            (
+                path_sse,
+                "selected",
+                "construction",
+                "Construction",
+                False,
+                context.scene.sketcher,
+                "use_construction",
+            ),
+            (path_sse, "selected", "fixed", "Fixed", False, None, ""),
         ):
             selected = getattr(context.path_resolve(data_path), sequence)
-            active = bool(len(selected))
+            use_selection = bool(len(selected))
+            use_fallback = bool(fallback) and bool(fallback_path) and not use_selection
+            active = use_selection or use_fallback
+
             row = layout.row()
             row.active = active
+
+            if use_fallback:
+                row.prop(fallback_path, fallback)
+                continue
 
             value, icon = _get_value_icon(selected, prop, default)
             props = row.operator(Operators.BatchSet, text=name, icon=icon)
