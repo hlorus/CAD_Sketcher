@@ -91,6 +91,8 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
 
         ignore_hover(arc)
         self.target = arc
+        if context.scene.sketcher.use_construction:
+            self.target.construction = True
         return True
 
     def fini(self, context: Context, succeede: bool):

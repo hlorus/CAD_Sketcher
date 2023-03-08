@@ -37,6 +37,8 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
         self.target = context.scene.sketcher.entities.add_point_2d(
             self.coordinates, sketch
         )
+        if context.scene.sketcher.use_construction:
+            self.target.construction = True
 
         # Store hovered entity to use for auto-coincident since it doesn't get
         # stored for non-interactive tools

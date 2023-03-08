@@ -50,6 +50,8 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
         p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
 
         self.target = context.scene.sketcher.entities.add_line_2d(p1, p2, self.sketch)
+        if context.scene.sketcher.use_construction:
+            self.target.construction = True
 
         # auto vertical/horizontal constraint
         constraints = context.scene.sketcher.constraints
