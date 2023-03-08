@@ -29,7 +29,7 @@ from ..utilities.math import range_2pi, pol2cart
 logger = logging.getLogger(__name__)
 
 
-class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
+class SlvsArc(Entity2D, PropertyGroup):
     """Representation of an arc in 2D space around the centerpoint ct. Connects
     p2 to p3 or (vice-versa if the option invert_direction is true) with a
     circle segment that is resolution independent. The arc lies on the sketche's workplane.

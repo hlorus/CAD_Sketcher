@@ -180,7 +180,7 @@ tool_access = (
 
 disable_gizmos = (
     # Disabling gizmos when pressing ctrl + shift
-    # Add two etries so it doesn't matter which key is pressed first
+    # Add two entries so it doesn't matter which key is pressed first
     # NOTE: This cannot be done as a normal modifier key to selection since it has to toggle a global property
     (
         "wm.context_set_boolean",
@@ -214,6 +214,18 @@ disable_gizmos = (
     ),
 )
 
+use_construction = (
+    (
+        "wm.context_toggle",
+        {"type": "C", "value": "PRESS", "alt": True, "shift": True},
+        {
+            "properties": [
+                ("data_path", "scene.sketcher.use_construction"),
+            ]
+        },
+    )
+)
+
 tool_use_select = (
     (
         "wm.tool_set_by_id",
@@ -229,6 +241,7 @@ tool_use_select = (
 
 tool_generic = (
     *disable_gizmos,
+    use_construction,
     *tool_use_select,
     *tool_access,
 )

@@ -87,7 +87,7 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
     """
 
     bl_label = "Constraints"
-    bl_idname = declarations.Panels.SketcherContraints
+    bl_idname = declarations.Panels.SketcherConstraints
     bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context: Context):

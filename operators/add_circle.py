@@ -64,6 +64,8 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
         self.target = context.scene.sketcher.entities.add_circle(
             wp.nm, ct, self.radius, self.sketch
         )
+        if context.scene.sketcher.use_construction:
+            self.target.construction = True
         ignore_hover(self.target)
         return True
 

@@ -12,7 +12,7 @@ from .base_entity import Entity2D
 logger = logging.getLogger(__name__)
 
 
-class SlvsNormal2D(SlvsGenericEntity, PropertyGroup, Entity2D):
+class SlvsNormal2D(Entity2D, PropertyGroup):
     """Representation of a normal in 2D Space.
 
     This entity isn't currently exposed to the user and gets created

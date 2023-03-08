@@ -6,7 +6,7 @@ from .. import icon_manager
 from ..model import types
 from ..stateful_operator import constants
 from ..utilities import preferences
-from .panels.add_constraint import VIEW3D_PT_sketcher_add_constraints
+from .panels.tools import VIEW3D_PT_sketcher_tools
 from .panels.constraints_list import VIEW3D_PT_sketcher_constraints
 from .panels.debug import VIEW3D_PT_sketcher_debug
 from .panels.entities_list import VIEW3D_PT_sketcher_entities
@@ -39,7 +39,7 @@ def draw_add_sketch_in_add_menu(self, context: Context):
 classes = [
     VIEW3D_UL_sketches,
     VIEW3D_PT_sketcher,
-    VIEW3D_PT_sketcher_add_constraints,
+    VIEW3D_PT_sketcher_tools,
     VIEW3D_PT_sketcher_entities,
     VIEW3D_PT_sketcher_constraints,
     VIEW3D_PT_sketcher_debug,

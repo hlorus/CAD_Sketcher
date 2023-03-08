@@ -11,6 +11,7 @@ from ..declarations import Operators
 from .constants import ENTITY_PROP_NAMES
 from .base_entity import SlvsGenericEntity
 from ..utilities.view import update_cb, refresh
+from ..utilities.solver import update_system_cb
 
 
 logger = logging.getLogger(__name__)
@@ -71,12 +72,6 @@ class GenericConstraint:
             if s:
                 deps.append(s)
         return deps
-
-    def update_system_cb(self, context):
-        """Update scene and re-run the solver.
-        NOTE: Should be a staticmethod if it wasn't a callback."""
-        sketch = context.scene.sketcher.active_sketch
-        solve_system(context, sketch=sketch)
 
     # TODO: avoid duplicating code
     def update_pointers(self, index_old, index_new):
@@ -215,7 +210,7 @@ class DimensionalConstraint(GenericConstraint):
         self._set_value_force(_value)
 
     def on_reference_checked(self, context: Context = None):
-        self.update_system_cb(context)
+        update_system_cb(context)
         self.assign_init_props()
         # Refresh the gizmos as we are changing the colors.
         refresh(context)
@@ -231,16 +226,16 @@ class DimensionalConstraint(GenericConstraint):
 
     def to_displayed_value(self, value):
         """
-        Overwrite this function to convert the property value into 
+        Overwrite this function to convert the property value into
         something to display on the user interface.
-        NOTE: If the value is writeable, do not forget to change 
+        NOTE: If the value is writeable, do not forget to change
               ``from_displayed_value()`` to apply the reverse operation.
         """
         return value
 
     def from_displayed_value(self, displayed_value):
         """
-        Convert the displayed value of the property into 
+        Convert the displayed value of the property into
         a variable to store.
         NOTE: See ``to_displayed_value()``
         """

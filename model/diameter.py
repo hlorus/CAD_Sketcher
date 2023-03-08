@@ -13,6 +13,7 @@ from ..utilities.math import range_2pi, pol2cart
 from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import CURVE
+from ..utilities.solver import update_system_cb
 
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         unit="LENGTH",
         get=DimensionalConstraint._get_value,
         set=DimensionalConstraint._set_value,
-        update=DimensionalConstraint.update_system_cb,
+        update=update_system_cb,
     )
     setting: BoolProperty(
         name="Use Radius", get=use_radius_getter, set=use_radius_setter

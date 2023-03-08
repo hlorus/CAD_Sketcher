@@ -83,8 +83,8 @@ class Menus(str, Enum):
 class Panels(str, Enum):
     Sketcher = "VIEW3D_PT_sketcher"
     SketcherDebugPanel = "VIEW3D_PT_sketcher_debug_panel"
-    SketcherAddContraint = "VIEW3D_PT_sketcher_add_contraint"
-    SketcherContraints = "VIEW3D_PT_sketcher_constraints"
+    SketcherTools = "VIEW3D_PT_sketcher_tools"
+    SketcherConstraints = "VIEW3D_PT_sketcher_constraints"
     SketcherEntities = "VIEW3D_PT_sketcher_entities"
 
 
