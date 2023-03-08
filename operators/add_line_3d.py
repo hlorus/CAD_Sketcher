@@ -46,6 +46,8 @@ class View3D_OT_slvs_add_line3d(Operator, Operator3d):
         p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
 
         self.target = context.scene.sketcher.entities.add_line_3d(p1, p2)
+        if context.scene.sketcher.use_construction:
+            self.target.construction = True
         ignore_hover(self.target)
         return True
 

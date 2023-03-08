@@ -51,12 +51,20 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         p_rb = sse.add_point_2d((p_rt.co.x, p_lb.co.y), sketch)
         p_lt = sse.add_point_2d((p_lb.co.x, p_rt.co.y), sketch)
 
+        if context.scene.sketcher.use_construction:
+            p_lb.construction = True
+            p_rb.construction = True
+            p_rt.construction = True
+            p_lt.construction = True
+
         lines = []
         points = (p_lb, p_rb, p_rt, p_lt)
         for i, start in enumerate(points):
             end = points[i + 1 if i < len(points) - 1 else 0]
 
             line = sse.add_line_2d(start, end, sketch)
+            if context.scene.sketcher.use_construction:
+                line.construction = True
             lines.append(line)
 
         self.lines = lines
@@ -109,6 +117,8 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         sse = context.scene.sketcher.entities
         point = sse.add_point_2d(value, self.sketch)
         ignore_hover(point)
+        if context.scene.sketcher.use_construction:
+            point.construction = True
 
         self.add_coincident(context, point, state, state_data)
         state_data["type"] = SlvsPoint2D

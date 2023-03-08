@@ -214,6 +214,18 @@ disable_gizmos = (
     ),
 )
 
+use_construction = (
+    (
+        "wm.context_toggle",
+        {"type": "C", "value": "PRESS", "alt": True, "shift": True},
+        {
+            "properties": [
+                ("data_path", "scene.sketcher.use_construction"),
+            ]
+        },
+    )
+)
+
 tool_use_select = (
     (
         "wm.tool_set_by_id",
@@ -229,6 +241,7 @@ tool_use_select = (
 
 tool_generic = (
     *disable_gizmos,
+    use_construction,
     *tool_use_select,
     *tool_access,
 )

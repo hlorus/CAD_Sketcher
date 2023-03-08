@@ -23,3 +23,9 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
 
         for op in declarations.ConstraintOperators:
             col.operator(op, icon_value=icon_manager.get_constraint_icon(op))
+
+        layout.separator()
+
+        # Drawing
+        layout.label(text="Drawing:")
+        layout.prop(context.scene.sketcher, "use_construction")
