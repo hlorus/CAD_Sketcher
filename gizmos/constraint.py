@@ -13,7 +13,7 @@ from .base import ConstraintGizmo
 from .utilities import Color, get_color, set_gizmo_colors
 from ..utilities.view import get_scale_from_pos
 
-GIZMO_OFFSET = Vector((10.0, 10.0))
+GIZMO_OFFSET = Vector((1.0, 1.0))
 FONT_ID = 0
 
 
@@ -136,8 +136,7 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
             if not pos:
                 return
 
-            scale_3d = get_scale_from_pos(pos, context.region_data)
-
+            scale_3d = max(1, get_scale_from_pos(pos, context.region_data) / 500)
             pos += GIZMO_OFFSET * self.scale_basis / scale_3d + self.offset
 
         if pos:
