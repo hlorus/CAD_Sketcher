@@ -21,6 +21,7 @@ modules = [
     "add_arc",
     "add_rectangle",
     "trim",
+    "batch_set",
     "bevel",
     "set_sketch",
     "delete_entity",

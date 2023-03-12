@@ -44,6 +44,7 @@ class Operators(str, Enum):
     AddWorkPlane = "view3d.slvs_add_workplane"
     AddWorkPlaneFace = "view3d.slvs_add_workplane_face"
     AlignWorkplaneCursor = "view3d.slvs_align_workplane_cursor"
+    BatchSet = "view3d.slvs_batch_set"
     ContextMenu = "view3d.slvs_context_menu"
     Copy = "view3d.slvs_copy"
     DeleteConstraint = "view3d.slvs_delete_constraint"
@@ -73,6 +74,10 @@ class Operators(str, Enum):
 
 class Macros(str, Enum):
     DuplicateMove = "view3d.slvs_duplicate_move"
+
+
+class Menus(str, Enum):
+    SelectedMenu = "VIEW3D_MT_selected_menu"
 
 
 class Panels(str, Enum):
