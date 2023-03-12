@@ -244,10 +244,36 @@ tool_generic = (
     use_construction,
     *tool_use_select,
     *tool_access,
+    (
+        Operators.DeleteEntity,
+        {"type": "DEL", "value": "PRESS"},
+        None,
+    ),
+    (
+        Operators.Copy,
+        {"type": "C", "value": "PRESS", "ctrl": True},
+        None,
+    ),
+    (
+        Operators.Paste,
+        {"type": "V", "value": "PRESS", "ctrl": True},
+        None,
+    ),
+    (
+        Macros.DuplicateMove,
+        {"type": "D", "value": "PRESS", "shift": True},
+        None,
+    ),
+    (
+        Operators.Move,
+        {"type": "G", "value": "PRESS"},
+        None,
+    ),
 )
 
 tool_select = (
     *disable_gizmos,
+    *tool_access,
     (
         Operators.SelectAll,
         {"type": "ESC", "value": "PRESS"},
@@ -313,32 +339,6 @@ tool_select = (
         {"type": "RIGHTMOUSE", "value": "PRESS"},
         {"properties": [("delayed", True)]},
     ),
-    (
-        Operators.DeleteEntity,
-        {"type": "DEL", "value": "PRESS"},
-        None,
-    ),
-    (
-        Operators.Copy,
-        {"type": "C", "value": "PRESS", "ctrl": True},
-        None,
-    ),
-    (
-        Operators.Paste,
-        {"type": "V", "value": "PRESS", "ctrl": True},
-        None,
-    ),
-    (
-        Macros.DuplicateMove,
-        {"type": "D", "value": "PRESS", "shift": True},
-        None,
-    ),
-    (
-        Operators.Move,
-        {"type": "G", "value": "PRESS"},
-        None,
-    ),
-    *tool_access,
 )
 
 addon_keymaps = []
