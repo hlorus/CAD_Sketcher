@@ -1,22 +1,33 @@
 import logging
+from typing import List
 from bpy.types import Context
 from bpy.props import BoolProperty
 
+from ..utilities.bpy import setprop
 from ..model.types import SlvsConstraints
 from ..solver import solve_system
 from ..stateful_operator.state import state_from_args
-from .base_stateful import GenericEntityOp
 from ..utilities.select import deselect_all
 from ..utilities.view import refresh
+from .base_2d import Operator2d
+from ..utilities.select import deselect_all
+from ..utilities.view import refresh
+from ..solver import solve_system
+
 
 logger = logging.getLogger(__name__)
 
 state_docstr = "Pick entity to constrain."
 
 
-class GenericConstraintOp(GenericEntityOp):
-    initialized: BoolProperty(options={"SKIP_SAVE", "HIDDEN"})
+class GenericConstraintOp(Operator2d):
+    initialized: BoolProperty(default=False, options={"SKIP_SAVE", "HIDDEN"})
     _entity_prop_names = ("entity1", "entity2", "entity3", "entity4")
+    property_keys = ()
+
+    @classmethod
+    def poll(cls, context):
+        return True
 
     def _available_entities(self):
         # Gets entities that are already set
@@ -57,50 +68,47 @@ class GenericConstraintOp(GenericEntityOp):
             )
         return states
 
-    def initialize_constraint(self):
-        c = self.target
-        if not self.initialized and hasattr(c, "init_props"):
-            kwargs = {}
-            if hasattr(self, "value") and self.properties.is_property_set("value"):
-                kwargs["value"] = self.value
-            if hasattr(self, "setting") and self.properties.is_property_set("setting"):
-                kwargs["setting"] = self.setting
+    def get_settings(self) -> dict:
+        """Return a dictionary with settings that are already set"""
 
-            value, setting = c.init_props(**kwargs)
-            if value is not None:
-                self.value = value
-            if setting is not None:
-                self.setting = setting
-        self.initialized = True
+        settings = {}
+        for name in self.property_keys:
+            if not self.properties.is_property_set(name):
+                continue
+            settings[name] = getattr(self, name)
+        return settings
 
-    def fill_entities(self):
-        c = self.target
-        args = []
-        # fill in entities!
-        for prop in self._entity_prop_names:
-            if hasattr(c, prop):
-                value = getattr(self, prop)
-                setattr(c, prop, value)
-                args.append(value)
-        return args
+    def sync_settings(self):
+        """Sync operator properties that are not set with constraint's properties"""
+
+        if self.initialized:
+            return
+
+        if not hasattr(self, "target"):
+            return
+        target = self.target
+        if not target:
+            return
+
+        for key in self.property_keys:
+            if self.properties.is_property_set(key):
+                continue
+            value = getattr(target, key)
+            setprop(self.properties, key, value)
+
+        # Note: setprop(self.properties, ...), setattr(self, ...) will both mark the operator
+        # properties as set. Therefor is_property_set will always return True after the first
+        # time a operator property has been synced. Ideally it would be possible to change property
+        # values without marking them as set.
 
     def main(self, context: Context):
-        c = self.target = context.scene.sketcher.constraints.new_from_type(self.type)
-        self.sketch = context.scene.sketcher.active_sketch
-        entities = self.fill_entities()
-        c.sketch = self.sketch
-
-        self.initialize_constraint()
-
-        if hasattr(c, "value"):
-            c["value"] = self.value
-        if hasattr(c, "setting"):
-            c["setting"] = self.setting
+        self.sync_settings()
 
         deselect_all(context)
         solve_system(context, sketch=self.sketch)
         refresh(context)
-        return True
+        self.initialized = True
+        return hasattr(self, "target") and bool(self.target)
 
     def fini(self, context: Context, succeede: bool):
         if hasattr(self, "target"):
@@ -113,10 +121,5 @@ class GenericConstraintOp(GenericEntityOp):
         if not c:
             return
 
-        if hasattr(c, "value"):
-            layout.prop(self, "value")
-        if hasattr(c, "setting"):
-            layout.prop(self, "setting")
-
-        if hasattr(self, "draw_settings"):
-            self.draw_settings(context)
+        for key in self.property_keys:
+            layout.prop(self, key)

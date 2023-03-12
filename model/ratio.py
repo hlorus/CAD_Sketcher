@@ -56,7 +56,7 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
         line1, line2 = self.entity1, self.entity2
 
         value = line1.length / line2.length
-        return value, None
+        return {"value": value}
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)

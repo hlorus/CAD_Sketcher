@@ -80,12 +80,16 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         return solvesys.addDiameter(self.diameter, self.entity1.py_data, group=group)
 
-    def init_props(self, **kwargs):
-
+    def _get_init_value(self, setting):
         value = self.entity1.radius
-        if not self.setting:
-            value = value * 2
-        return value, self.setting
+        if not setting:
+            return value * 2
+        return value
+
+    def init_props(self, **kwargs):
+        setting = kwargs.get("setting", self.setting)
+        value = kwargs.get("value", self._get_init_value(setting))
+        return {"value": value, "setting": setting}
 
     def matrix_basis(self):
         if self.sketch_i == -1:

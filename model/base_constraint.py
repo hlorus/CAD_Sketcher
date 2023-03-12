@@ -4,7 +4,6 @@ from typing import List
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import UILayout, Property, Context
 
-from ..solver import solve_system
 from ..global_data import WpReq
 from ..utilities import preferences
 from ..declarations import Operators
@@ -12,7 +11,7 @@ from .constants import ENTITY_PROP_NAMES
 from .base_entity import SlvsGenericEntity
 from ..utilities.view import update_cb, refresh
 from ..utilities.solver import update_system_cb
-
+from ..utilities.bpy import setprop
 
 logger = logging.getLogger(__name__)
 
@@ -198,19 +197,24 @@ class DimensionalConstraint(GenericConstraint):
 
     def _get_value(self):
         if self.is_reference:
-            val, _ = self.init_props()
+            val = self.init_props()["value"]
             return self.to_displayed_value(val)
         if self.get("value") is None:
             self.assign_init_props()
         return self.to_displayed_value(self["value"])
 
-    def assign_init_props(self, context: Context = None):
-        # self.value, self.setting = self.init_props()
-        _value, _ = self.init_props()
-        self._set_value_force(_value)
+    def assign_settings(self, **settings):
+        for key, value in settings.items():
+            if value is None:
+                continue
+
+            setprop(self, key, value)
+
+    def assign_init_props(self, context: Context = None, **kwargs):
+        self.assign_settings(**self.init_props(**kwargs))
 
     def on_reference_checked(self, context: Context = None):
-        update_system_cb(context)
+        update_system_cb(self, context)
         self.assign_init_props()
         # Refresh the gizmos as we are changing the colors.
         refresh(context)
@@ -221,7 +225,7 @@ class DimensionalConstraint(GenericConstraint):
         update=on_reference_checked,
     )
 
-    def init_props(self):
+    def init_props(self, **kwargs):
         raise NotImplementedError()
 
     def to_displayed_value(self, value):

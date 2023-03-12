@@ -1,6 +1,6 @@
 import logging
-
 import math
+
 from bpy.types import PropertyGroup
 from bpy.props import BoolProperty, FloatProperty, EnumProperty
 from bpy.utils import register_classes_factory
@@ -16,7 +16,7 @@ from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import POINT, LINE, POINT2D, CURVE
 from ..utilities.solver import update_system_cb
-
+from ..utilities.bpy import setprop, bpyEnum
 
 from .workplane import SlvsWorkplane
 from .point_3d import SlvsPoint3D
@@ -38,6 +38,14 @@ def get_side_of_line(line_start, line_end, point):
     )
 
 
+def _get_aligned_distance(p_1, p_2, alignment):
+    if alignment == "HORIZONTAL":
+        return abs(p_2.co.x - p_1.co.x)
+    if alignment == "VERTICAL":
+        return abs(p_2.co.y - p_1.co.y)
+    return (p_2.co - p_1.co).length
+
+
 align_items = [
     ("NONE", "None", "", 0),
     ("HORIZONTAL", "Horizontal", "", 1),
@@ -50,6 +58,15 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
     def _set_value_force(self, value):
         DimensionalConstraint._set_value_force(self, abs(value))
+
+    def _set_align(self, value: int):
+        alignment = bpyEnum(align_items, value).identifier
+        distance = _get_aligned_distance(self.entity1, self.entity2, alignment)
+        setprop(self, "align", value)
+        setprop(self, "value", distance)
+
+    def _get_align(self) -> int:
+        return self.get("align", 0)
 
     label = "Distance"
     value: FloatProperty(
@@ -65,6 +82,8 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         name="Align",
         items=align_items,
         update=update_system_cb,
+        get=_get_align,
+        set=_set_align,
     )
     draw_offset: FloatProperty(name="Draw Offset", default=0.3)
     draw_outset: FloatProperty(name="Draw Outset", default=0.0)
@@ -97,13 +116,16 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         return type(self.entity2) in (*LINE, SlvsWorkplane)
 
     def use_align(self):
-        if self.align == "NONE":
-            return False
+        """Returns True if constraint's entities allow distance to be aligned"""
         if type(self.entity2) in (*LINE, SlvsWorkplane):
             return False
         if self.entity1.is_curve():
             return False
         return True
+
+    def is_align(self):
+        """Returns True if constraint is aligned"""
+        return self.use_align() and self.align != "NONE"
 
     def get_value(self):
         value = self.value
@@ -124,7 +146,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         set_wp = False
         wp = self.get_workplane()
         alignment = self.align
-        align = self.use_align()
+        align = self.is_align()
         handles = []
 
         value = self.get_value()
@@ -191,7 +213,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         sketch = self.sketch
         x_axis = Vector((1, 0))
         alignment = self.align
-        align = self.use_align()
+        align = self.is_align()
 
         e1, e2 = self.entity1, self.entity2
         #   e1       e2
@@ -277,39 +299,29 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         mat_local = Matrix.Translation(v_translation.to_3d()) @ mat_rot.to_4x4()
         return sketch.wp.matrix_basis @ mat_local
 
-    def init_props(self, **kwargs):
-        # Set initial distance value to the current spacing
+    def _get_init_value(self, alignment):
         e1, e2 = self.entity1, self.entity2
-        alignment = self.align
 
         if e1.is_3d():
-            return (e1.location - e2.location).length, None
-
-        def _get_aligned_distance(p_1, p_2):
-            if alignment == "HORIZONTAL":
-                return abs(p_2.co.x - p_1.co.x)
-            if alignment == "VERTICAL":
-                return abs(p_2.co.y - p_1.co.y)
-            return (p_2.co - p_1.co).length
+            return (e1.location - e2.location).length
 
         if e1.is_line():
-            value = _get_aligned_distance(e1.p1, e1.p2)
-        elif type(e1) in CURVE:
+            return _get_aligned_distance(e1.p1, e1.p2, alignment)
+        if type(e1) in CURVE:
             centerpoint = e1.ct.co
             if isinstance(e2, SlvsLine2D):
                 endpoint, _ = intersect_point_line(centerpoint, e2.p1.co, e2.p2.co)
             else:
                 assert isinstance(e2, SlvsPoint2D)
                 endpoint = e2.co
-            value = (centerpoint - endpoint).length - e1.radius
-        elif isinstance(e2, SlvsWorkplane):
+            return (centerpoint - endpoint).length - e1.radius
+        if isinstance(e2, SlvsWorkplane):
             # Returns the signed distance to the plane
-            value = distance_point_to_plane(e1.co, e2.p1.co, e2.normal)
-        elif type(e2) in LINE:
+            return distance_point_to_plane(e1.co, e2.p1.co, e2.normal)
+        if type(e2) in LINE:
             orig = e2.p1.co
             end = e2.p2.co - orig
             p1 = e1.co - orig
-            value = (p1 - (p1).project(end)).length
 
             # NOTE: Comment from solvespace documentation:
             # When constraining the distance between a point and a plane,
@@ -318,18 +330,28 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             # depending on whether the point is above or below the plane.
             # The distance is always shown positive on the sketch;
             # to flip to the other side, enter a negative value.
-            value = math.copysign(
-                value,
+            return math.copysign(
+                (p1 - (p1).project(end)).length,
                 get_side_of_line(e2.p1.co, e2.p2.co, e1.co),
             )
-        else:
-            value = (e1.location - e2.location).length
+
+        return _get_aligned_distance(e1, e2, alignment)
+
+    def init_props(self, **kwargs):
+
+        # NOTE: Flip is currently ignored when passed in kwargs
+        alignment = kwargs.get("align")
+        retval = {}
+
+        value = kwargs.get("value", self._get_init_value(alignment))
 
         if self.use_flipping() and value < 0:
             value = abs(value)
-            self.flip = not self.flip
+            retval["flip"] = not self.flip
 
-        return value, None
+        retval["value"] = value
+        retval["align"] = alignment
+        return retval
 
     def text_inside(self, ui_scale):
         return (ui_scale * abs(self.draw_outset)) < self.value / 2

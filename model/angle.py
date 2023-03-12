@@ -28,10 +28,11 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     The constraint's setting can be used to to constrain the supplementary angle.
     """
 
-    def assign_init_props(self, context: Context = None):
+    def assign_init_props(self, context: Context = None, **kwargs):
         # Updating self.setting will create recursion loop
-        _value, _ = self.init_props()
-        self._set_value_force(_value)
+
+        super().assign_init_props(context)
+
         line1, line2 = self.entity1, self.entity2
         origin = get_line_intersection(
             *line_abc_form(line1.p1.co, line1.p2.co),
@@ -53,7 +54,7 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     )
     setting: BoolProperty(
         name="Measure supplementary angle",
-        update=assign_init_props,
+        update=DimensionalConstraint.assign_init_props,
     )
     draw_offset: FloatProperty(name="Draw Offset", default=1)
     draw_outset: FloatProperty(name="Draw Outset", default=0)
@@ -126,6 +127,10 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         x = max(-1, min(x, 1))
         return math.degrees(math.acos(x))
 
+    def _get_init_value(self, setting):
+        vec1, vec2 = self.entity1.direction_vec(), self.entity2.direction_vec()
+        return self._get_angle(vec1, vec2)
+
     def init_props(self, **kwargs):
         """
         initializes value (angle, in radians),
@@ -133,10 +138,13 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
             and distance to dimension text (draw_offset)
         """
 
-        vec1, vec2 = self.entity1.direction_vec(), self.entity2.direction_vec()
-        angle = self._get_angle(vec1, vec2)
+        setting = kwargs.get("setting", self.setting)
+        angle = kwargs.get("value", self._get_init_value(setting))
 
-        return math.radians(angle), self.setting
+        return {
+            "value": math.radians(angle),
+            "setting": setting,
+        }
 
     def text_inside(self):
         return abs(self.draw_outset) < (self.value / 2)

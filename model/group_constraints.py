@@ -207,6 +207,7 @@ class SlvsConstraints(PropertyGroup):
         entity2: SlvsGenericEntity,
         sketch: Union[SlvsSketch, None] = None,
         init: bool = False,
+        **settings,
     ) -> SlvsDistance:
         """Add a distance constraint.
 
@@ -225,7 +226,9 @@ class SlvsConstraints(PropertyGroup):
         if sketch is not None:
             c.sketch = sketch
         if init:
-            c.init_props()
+            c.assign_init_props(**settings)
+        else:
+            c.assign_settings(**settings)
         return c
 
     def add_angle(
@@ -234,6 +237,7 @@ class SlvsConstraints(PropertyGroup):
         entity2: SlvsGenericEntity,
         sketch: SlvsSketch = None,
         init: bool = False,
+        **settings,
     ) -> SlvsAngle:
         """Add an angle constraint.
 
@@ -252,11 +256,17 @@ class SlvsConstraints(PropertyGroup):
         if sketch is not None:
             c.sketch = sketch
         if init:
-            c.init_props()
+            c.assign_init_props(**settings)
+        else:
+            c.assign_settings(**settings)
         return c
 
     def add_diameter(
-        self, entity1: SlvsGenericEntity, sketch: SlvsSketch = None, init: bool = False
+        self,
+        entity1: SlvsGenericEntity,
+        sketch: SlvsSketch = None,
+        init: bool = False,
+        **settings,
     ) -> SlvsDiameter:
         """Add a diameter constraint.
 
@@ -273,7 +283,9 @@ class SlvsConstraints(PropertyGroup):
         if sketch:
             c.sketch = sketch
         if init:
-            c.init_props()
+            c.assign_init_props(**settings)
+        else:
+            c.assign_settings(**settings)
         return c
 
     def add_parallel(
@@ -410,6 +422,7 @@ class SlvsConstraints(PropertyGroup):
         entity2: SlvsGenericEntity,
         sketch: Union[SlvsSketch, None] = None,
         init: bool = False,
+        **settings,
     ) -> SlvsRatio:
         """Add a ratio constraint.
 
@@ -428,18 +441,10 @@ class SlvsConstraints(PropertyGroup):
         if sketch is not None:
             c.sketch = sketch
         if init:
-            c.init_props()
+            c.assign_init_props(**settings)
+        else:
+            c.assign_settings(**settings)
         return c
-
-
-# for cls in SlvsConstraints._constraints:
-#     name = cls.type.lower()
-#     func_name = "add_" + name
-
-#     # Create constraint collections
-#     annotations = {}
-#     if hasattr(SlvsConstraints, "__annotations__"):
-#         annotations = SlvsConstraints.__annotations__.copy()
 
 
 register, unregister = register_classes_factory((SlvsConstraints,))
