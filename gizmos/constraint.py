@@ -11,6 +11,7 @@ from ..utilities.preferences import get_prefs
 from ..utilities.view import get_2d_coords
 from .base import ConstraintGizmo
 from .utilities import Color, get_color, set_gizmo_colors
+from ..utilities.view import get_scale_from_pos
 
 GIZMO_OFFSET = Vector((1.0, 1.0))
 FONT_ID = 0
@@ -135,7 +136,8 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
             if not pos:
                 return
 
-            pos += GIZMO_OFFSET * self.scale_basis + self.offset
+            scale_3d = max(1, get_scale_from_pos(pos, context.region_data) / 500)
+            pos += GIZMO_OFFSET * self.scale_basis / scale_3d + self.offset
 
         if pos:
             mat = Matrix.Translation(Vector((pos[0], pos[1], 0.0)))
@@ -162,8 +164,7 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
 
         with gpu.matrix.push_pop():
             gpu.matrix.load_matrix(self.matrix_basis)
-            ui_scale = context.preferences.system.ui_scale
-            scale = self.scale_basis * ui_scale
+            scale = self.scale_basis
             gpu.matrix.scale(Vector((scale, scale)))
             icon_manager.draw(self.type, col)
 
@@ -185,10 +186,7 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         coords = Vector(location) - self.matrix_basis.translation.to_2d()
 
         width, height = self.width, self.height
-        if (
-            -width / 2 < coords.x < width / 2
-            and -height / 2 < coords.y < height / 2
-        ):
+        if -width / 2 < coords.x < width / 2 and -height / 2 < coords.y < height / 2:
             return 0
         return -1
 
