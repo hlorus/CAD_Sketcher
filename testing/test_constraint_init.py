@@ -4,6 +4,53 @@ from unittest import skip
 from CAD_Sketcher.testing.utils import Sketch2dTestCase
 
 
+class TestConstraintAdd(Sketch2dTestCase):
+    def test_horizontal(self):
+        context = self.context
+        entities = self.entities
+        constraints = self.constraints
+        sketch = self.sketch
+
+        p0 = entities.add_point_2d((0, 0), sketch)
+        p0.fixed = True
+
+        # Test constraint between two points
+        p1 = entities.add_point_2d((3, 1), sketch)
+        c1 = constraints.add_horizontal(p0, entity2=p1, sketch=sketch)
+        self.assertTrue(sketch.solve(context))
+        self.assertAlmostEqual(p1.co.y, 0.0)
+
+        # Test constraint with one line
+        p2 = entities.add_point_2d((-3, -1), sketch)
+        line = entities.add_line_2d(p0, p2, sketch)
+        c2 = constraints.add_horizontal(line, sketch=sketch)
+        self.assertTrue(sketch.solve(context))
+        self.assertAlmostEqual(p2.co.y, 0.0)
+
+    @skip
+    def test_vertical(self):
+        context = self.context
+        entities = self.entities
+        constraints = self.constraints
+        sketch = self.sketch
+
+        p0 = entities.add_point_2d((0, 0), sketch)
+        p0.fixed = True
+
+        # Test constraint between two points
+        p1 = entities.add_point_2d((3, 1), sketch)
+        c1 = constraints.add_vertical(p0, entity2=p1, sketch=sketch)
+        self.assertTrue(sketch.solve(context))
+        self.assertAlmostEqual(p1.co.x, 0.0)
+
+        # Test constraint with one line
+        p2 = entities.add_point_2d((-3, -1), sketch)
+        line = entities.add_line_2d(p0, p2, sketch)
+        c2 = constraints.add_vertical(line, sketch=sketch)
+        self.assertTrue(sketch.solve(context))
+        self.assertAlmostEqual(p2.co.x, 0.0)
+
+
 class TestConstraintInit(Sketch2dTestCase):
     def test_distance(self):
         context = self.context

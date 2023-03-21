@@ -312,7 +312,10 @@ class SlvsConstraints(PropertyGroup):
         return c
 
     def add_horizontal(
-        self, entity1: SlvsGenericEntity, sketch: Union[SlvsSketch, None] = None
+        self,
+        entity1: SlvsGenericEntity,
+        entity2: SlvsGenericEntity = None,
+        sketch: Union[SlvsSketch, None] = None,
     ) -> SlvsHorizontal:
         """Add a horizontal constraint.
 
@@ -325,12 +328,17 @@ class SlvsConstraints(PropertyGroup):
         """
         c = self.horizontal.add()
         c.entity1 = entity1
+        if entity2 is not None:
+            c.entity2 = entity2
         if sketch is not None:
             c.sketch = sketch
         return c
 
     def add_vertical(
-        self, entity1: SlvsGenericEntity, sketch: Union[SlvsSketch, None] = None
+        self,
+        entity1: SlvsGenericEntity,
+        entity2: SlvsGenericEntity = None,
+        sketch: Union[SlvsSketch, None] = None,
     ) -> SlvsVertical:
         """Add a vertical constraint.
 
@@ -343,6 +351,8 @@ class SlvsConstraints(PropertyGroup):
         """
         c = self.vertical.add()
         c.entity1 = entity1
+        if entity2 is not None:
+            c.entity2 = entity2
         if sketch is not None:
             c.sketch = sketch
         return c

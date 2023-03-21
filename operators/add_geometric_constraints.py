@@ -91,6 +91,7 @@ class VIEW3D_OT_slvs_add_vertical(Operator, GenericConstraintOp):
     def main(self, context):
         self.target = context.scene.sketcher.constraints.add_vertical(
             self.entity1,
+            entity2=self.entity2,
             sketch=self.sketch,
         )
 
@@ -109,6 +110,7 @@ class VIEW3D_OT_slvs_add_horizontal(Operator, GenericConstraintOp):
     def main(self, context):
         self.target = context.scene.sketcher.constraints.add_horizontal(
             self.entity1,
+            entity2=self.entity2,
             sketch=self.sketch,
         )
 

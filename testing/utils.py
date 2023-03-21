@@ -59,8 +59,6 @@ class Sketch2dTestCase(BgsTestCase):
         if cls.interactive:
             return
 
-        cls.ops.view3d.slvs_delete_entity(index=cls.sketch.slvs_index)
-
     def setUp(self) -> None:
         self.sketch = self.new_sketch()
         self.sketch.name = self._testMethodName
