@@ -215,15 +215,13 @@ disable_gizmos = (
 )
 
 use_construction = (
-    (
-        "wm.context_toggle",
-        {"type": "C", "value": "PRESS", "alt": True, "shift": True},
-        {
-            "properties": [
-                ("data_path", "scene.sketcher.use_construction"),
-            ]
-        },
-    )
+    "wm.context_toggle",
+    {"type": "C", "value": "PRESS", "alt": True, "shift": True},
+    {
+        "properties": [
+            ("data_path", "scene.sketcher.use_construction"),
+        ]
+    },
 )
 
 tool_use_select = (
@@ -238,15 +236,15 @@ tool_use_select = (
         {"properties": [("name", WorkSpaceTools.Select)]},
     ),
 )
-
-tool_generic = (
-    *disable_gizmos,
-    use_construction,
-    *tool_use_select,
-    *tool_access,
+tool_base_keymap = (
     (
         Operators.DeleteEntity,
         {"type": "DEL", "value": "PRESS"},
+        None,
+    ),
+    (
+        Operators.DeleteEntity,
+        {"type": "X", "value": "PRESS"},
         None,
     ),
     (
@@ -271,7 +269,16 @@ tool_generic = (
     ),
 )
 
+tool_generic = (
+    *tool_base_keymap,
+    *disable_gizmos,
+    use_construction,
+    *tool_use_select,
+    *tool_access,
+)
+
 tool_select = (
+    *tool_base_keymap,
     *disable_gizmos,
     *tool_access,
     (
