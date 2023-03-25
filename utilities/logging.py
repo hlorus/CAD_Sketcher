@@ -1,4 +1,4 @@
-import os
+import getpass
 import logging
 from tempfile import gettempdir
 from pathlib import Path
@@ -20,7 +20,7 @@ def setup_logger(logger):
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-    filepath = Path(gettempdir()) / (get_name() + f"-{os.getlogin()}" + ".log")
+    filepath = Path(gettempdir()) / (get_name() + f"-{getpass.getuser()}" + ".log")
 
     logger.info("Logging into: " + str(filepath))
 
