@@ -64,6 +64,7 @@ def draw_constraint_listitem(
     props.highlight_hover = True
     props.highlight_members = True
 
+
 class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
     """
     Constraints Menu: List of entities in the sketch.
