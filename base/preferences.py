@@ -149,8 +149,8 @@ class Preferences(AddonPreferences):
     )
 
     auto_hide_objects: BoolProperty(
-        name="Auto Hide Objects",
-        description="Hide curves/meshes while in sketch mode",
+        name="Auto Fade Objects",
+        description="Fade curves/meshes while in sketch mode",
         default=True,
     )
     entity_scale: FloatProperty(

@@ -132,9 +132,6 @@ def activate_sketch(context: Context, index: int, operator: Operator):
         if not sk:
             operator.report({"ERROR"}, "Invalid index: {}".format(index))
             return {"CANCELLED"}
-        auto_hide_objects = not get_prefs().auto_hide_objects
-        space_data.show_object_viewport_curve = auto_hide_objects
-        space_data.show_object_viewport_mesh = auto_hide_objects
 
         # Align view to normal of wp
         if do_align_view:
@@ -168,8 +165,11 @@ def activate_sketch(context: Context, index: int, operator: Operator):
             )
             align_view(rv3d, matrix_start, matrix_default)
             rv3d.view_perspective = "PERSP"
-        space_data.show_object_viewport_curve = True
-        space_data.show_object_viewport_mesh = True
+
+    # Hide objects
+    fade_objects = get_prefs().auto_hide_objects
+    if fade_objects:
+        space_data.shading.show_xray = sketch_mode
 
     last_sketch = context.scene.sketcher.active_sketch
     logger.debug("Activate: {}".format(sk))
