@@ -15,12 +15,8 @@ def draw_constraint_listitem(
     index = context.scene.sketcher.constraints.get_index(constraint)
     row = layout.row()
 
-    left_sub = row.row(align=True)
-
-    # Left part
-    left_sub.alignment = "LEFT"
-
-    left_sub.prop(
+    # Visible/Hidden property
+    row.prop(
         constraint,
         "visible",
         icon_only=True,
@@ -29,33 +25,22 @@ def draw_constraint_listitem(
     )
 
     # Failed hint
-    left_sub.label(
+    row.label(
         text="",
         icon=("ERROR" if constraint.failed else "CHECKMARK"),
     )
+
     # Label
-    left_sub.prop(constraint, "name", text="")
+    row.prop(constraint, "name", text="")
 
-    # Middle Part
-    center_sub = row.row()
-    center_sub.alignment = "LEFT"
+    # Constraint Values
+    middle_sub = row.row()
 
-    # Dimensional Constraint Values
     for constraint_prop in constraint.props:
-        center_sub.prop(constraint, constraint_prop, text="")
-
-    # # Disable interaction with element if it is "readonly"
-    # center_sub.enabled = not (
-    #     isinstance(constraint, DimensionalConstraint)
-    #     and constraint.is_reference
-    # )
-
-    # Right part
-    right_sub = row.row()
-    right_sub.alignment = "RIGHT"
+        middle_sub.prop(constraint, constraint_prop, text="")
 
     # Context menu, shows constraint name
-    props = right_sub.operator(
+    props = row.operator(
         declarations.Operators.ContextMenu,
         text="",
         icon="OUTLINER_DATA_GP_LAYER",
@@ -68,7 +53,7 @@ def draw_constraint_listitem(
     props.highlight_members = True
 
     # Delete operator
-    props = right_sub.operator(
+    props = row.operator(
         declarations.Operators.DeleteConstraint,
         text="",
         icon="X",
@@ -78,7 +63,6 @@ def draw_constraint_listitem(
     props.index = index
     props.highlight_hover = True
     props.highlight_members = True
-
 
 class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
     """

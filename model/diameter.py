@@ -18,7 +18,6 @@ from ..utilities.solver import update_system_cb
 
 logger = logging.getLogger(__name__)
 
-
 class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     """Sets the diameter of an arc or a circle."""
 
