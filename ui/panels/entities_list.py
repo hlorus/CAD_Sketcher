@@ -30,12 +30,8 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             row = col.row()
             row.alert = e.selected
 
-            # Left part
-            sub = row.row(align=True)
-            sub.alignment = "LEFT"
-
             # Select operator
-            props = sub.operator(
+            props = row.operator(
                 declarations.Operators.Select,
                 text="",
                 emboss=False,
@@ -46,7 +42,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             props.highlight_hover = True
 
             # Visibility toggle
-            sub.prop(
+            row.prop(
                 e,
                 "visible",
                 icon_only=True,
@@ -54,17 +50,10 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
                 emboss=False,
             )
 
-            # Middle Part
-            sub = row.row()
-            sub.alignment = "LEFT"
-            sub.prop(e, "name", text="")
-
-            # Right part
-            sub = row.row()
-            sub.alignment = "RIGHT"
+            row.prop(e, "name", text="")
 
             # Context menu
-            props = sub.operator(
+            props = row.operator(
                 declarations.Operators.ContextMenu,
                 text="",
                 icon="OUTLINER_DATA_GP_LAYER",
@@ -75,7 +64,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             props.index = e.slvs_index
 
             # Delete operator
-            props = sub.operator(
+            props = row.operator(
                 declarations.Operators.DeleteEntity,
                 text="",
                 icon="X",
