@@ -1,5 +1,6 @@
 import gpu
-from gpu.types import GPUShader
+from gpu.types import GPUShader, GPUShaderCreateInfo, GPUStageInterfaceInfo
+from gpu.shader import create_from_info
 
 import sys
 
@@ -62,13 +63,21 @@ class Shaders:
     @classmethod
     @cache
     def uniform_color_image_2d(cls):
-        vertex_shader = """
-            uniform mat4 ModelViewProjectionMatrix;
+        vert_out = GPUStageInterfaceInfo("uniform_color_image_2d_interface")
+        vert_out.smooth("VEC2", "v_texCoord")
 
-            in vec2 pos;
-            in vec2 texCoord;
-            out vec2 v_texCoord;
+        shader_info = GPUShaderCreateInfo()
+        shader_info.define("blender_srgb_to_framebuffer_space(a)", "a")
+        shader_info.push_constant("MAT4", "ModelViewProjectionMatrix")
+        shader_info.push_constant("VEC4", "color")
+        shader_info.vertex_in(0, "VEC2", "pos")
+        shader_info.vertex_in(1, "VEC2", "texCoord")
+        shader_info.sampler(0, "FLOAT_2D", "image")
+        shader_info.vertex_out(vert_out)
+        shader_info.fragment_out(0, "VEC4", "fragColor")
 
+        shader_info.vertex_source(
+            """
             void main()
             {
                 gl_Position = (
@@ -77,12 +86,9 @@ class Shaders:
                 v_texCoord = texCoord;
             }
         """
-        fragment_shader = """
-            uniform vec4 color;
-            uniform sampler2D image;
-            in vec2 v_texCoord;
-            out vec4 fragColor;
-
+        )
+        shader_info.fragment_source(
+            """
             void main()
             {
                 fragColor = blender_srgb_to_framebuffer_space(
@@ -90,10 +96,12 @@ class Shaders:
                 );
             }
         """
-        return GPUShader(
-            vertex_shader,
-            fragment_shader,
         )
+
+        shader = create_from_info(shader_info)
+        del vert_out
+        del shader_info
+        return shader
 
     @classmethod
     @cache
