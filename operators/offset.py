@@ -62,6 +62,7 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         # Get intersections and create points
         points = []
         entities, directions = path
+        self.entities = entities
 
         intersection_count = len(entities) if is_cyclic else len(entities) - 1
         point_coords = []
@@ -114,6 +115,8 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             points.insert(0, sse.add_point_2d(start_co, sketch))
             points.append(sse.add_point_2d(end_co, sketch))
 
+        self.new_path = []
+
         # Create segments
         for i, entity in enumerate(entities):
             direction = directions[i]
@@ -127,7 +130,21 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             if context.scene.sketcher.use_construction:
                 new_entity.construction = True
 
+            self.new_path.append(new_entity)
+
         return True
+
+    def fini(self, context: Context, succeede: bool):
+        if not succeede:
+            return False
+
+        constraints = context.scene.sketcher.constraints
+
+        # Add parallel constraint
+        for entity, new_entity in zip(self.entities, self.new_path):
+            if not entity.is_line():
+                continue
+            constraints.add_parallel(entity, new_entity, sketch=self.sketch)
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_offset,))
