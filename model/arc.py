@@ -29,6 +29,10 @@ from ..utilities.math import range_2pi, pol2cart
 logger = logging.getLogger(__name__)
 
 
+def _get_angle(start, end):
+    return range_2pi(math.atan2(end[1], end[0]) - math.atan2(start[1], start[0]))
+
+
 class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
     """Representation of an arc in 2D space around the centerpoint ct. Connects
     p2 to p3 or (vice-versa if the option invert_direction is true) with a
@@ -119,9 +123,9 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
     @property
     def angle(self):
         """Returns an angle in radians from zero to 2*PI"""
-        ct = self.ct.co
-        start, end = self.start.co - ct, self.end.co - ct
-        return range_2pi(math.atan2(end[1], end[0]) - math.atan2(start[1], start[0]))
+        center = self.ct.co
+        start, end = self.start.co - center, self.end.co - center
+        return _get_angle(start, end)
 
     @property
     def start_angle(self):
@@ -150,6 +154,10 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
         if is_endpoint:
             return point == self.start
         return point == self.end
+
+    @staticmethod
+    def _direction(start, end, center):
+        pass
 
     def bezier_segment_count(self):
         max_angle = QUARTER_TURN
@@ -363,11 +371,6 @@ class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
                 continue
             setattr(self, ptr, new)
             break
-
-    # def get_offset_props(self, offset):
-    #     """Return ar_co and sphere_radius of offset sphere"""
-    #     return self.ct.co, self.radius + offset
-    # return (start.co, end.co)
 
     def from_props(
         self,

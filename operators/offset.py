@@ -50,10 +50,8 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         sketch = self.sketch
         entity = self.entity
         distance = self.distance
-        print("distance", distance)
         sse = context.scene.sketcher.entities
 
-        # print(entity)
         walker = EntityWalker(context.scene, sketch, entity=entity)
         path = walker.main_path()
         is_cyclic = walker.is_cyclic_path(path[0])
@@ -66,16 +64,14 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         entities, directions = path
 
         intersection_count = len(entities) if is_cyclic else len(entities) - 1
+        point_coords = []
         for i in range(intersection_count):
-            print("intr index", i)
             entity = entities[i]
             entity_dir = directions[i]
-            neighbour_i = 0 if i == len(entities) - 1 else i + 1
+            neighbour_i = (i + 1) % len(entities)
             neighbour = entities[neighbour_i]
             neighbour_dir = directions[neighbour_i]
-
             point = get_connection_point(entity, neighbour)
-            print("intr segments", entity, neighbour)
 
             def _bool_to_signed_int(invert):
                 return -1 if invert else 1
@@ -92,20 +88,15 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
                 key=lambda i: (i - point.co).length,
             )
 
-            print("intersections", intersections)
             if not intersections:
-                continue
+                return False
 
             intr = intersections[0]
-            p = sse.add_point_2d(intr, sketch)
-            points.append(p)
-            # print(p, intr)
+            point_coords.append(intersections[0])
 
-        if not len(points):
-            return False
+        points = [sse.add_point_2d(co, sketch) for co in point_coords]
 
         # Add start/endpoint if not cyclic
-        print("is cyclic", is_cyclic)
         if not is_cyclic:
 
             start, end = walker.get_limitpoints(path)
@@ -123,15 +114,14 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             points.insert(0, sse.add_point_2d(start_co, sketch))
             points.append(sse.add_point_2d(end_co, sketch))
 
-        print("points", points)
-        print("entities", entities)
-
         # Create segments
-        for i in range(len(entities)):
-            entity = entities[i]
+        for i, entity in enumerate(entities):
             direction = directions[i]
-            p1 = points[i]
-            p2 = points[i + 1] if i + 1 < len(points) else points[0]
+
+            i_start = (i - 1 if is_cyclic else i) % len(entities)
+            i_end = (i_start + 1) % len(points)
+            p1 = points[i_start]
+            p2 = points[i_end]
 
             entity.from_props(context, start=p1, end=p2, invert=direction)
 
