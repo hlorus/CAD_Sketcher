@@ -123,7 +123,9 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             p1 = points[i_start]
             p2 = points[i_end]
 
-            entity.from_props(context, start=p1, end=p2, invert=direction)
+            new_entity = entity.from_props(context, start=p1, end=p2, invert=direction)
+            if context.scene.sketcher.use_construction:
+                new_entity.construction = True
 
         return True
 
