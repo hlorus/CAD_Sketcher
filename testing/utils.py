@@ -42,13 +42,16 @@ class BgsTestCase(TestCase):
 
 
 class Sketch2dTestCase(BgsTestCase):
+    def new_sketch(self):
+        self.entities.ensure_origin_elements(self.context)
+        wp = self.entities.origin_plane_XY
+        return self.entities.add_sketch(wp)
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
         cls.entities.ensure_origin_elements(cls.context)
-        wp = cls.entities.origin_plane_XY
-        cls.sketch = cls.entities.add_sketch(wp)
 
     @classmethod
     def tearDownClass(cls):
@@ -56,4 +59,12 @@ class Sketch2dTestCase(BgsTestCase):
         if cls.interactive:
             return
 
-        cls.ops.view3d.slvs_delete_entity(index=cls.sketch.slvs_index)
+    def setUp(self) -> None:
+        self.sketch = self.new_sketch()
+        self.sketch.name = self._testMethodName
+        self.context.scene.sketcher.active_sketch = self.sketch
+        return super().setUp()
+
+    def tearDown(self) -> None:
+        self.context.scene.sketcher.active_sketch = None
+        return super().tearDown()

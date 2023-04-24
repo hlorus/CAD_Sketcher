@@ -11,7 +11,7 @@ from .utilities.logging import setup_logger, update_logger
 bl_info = {
     "name": "CAD Sketcher",
     "author": "hlorus",
-    "version": (0, 26, 0),
+    "version": (0, 27, 1),
     "blender": (2, 80, 0),
     "location": "View3D > Toolbar",
     "description": "Parametric, constraint-based geometry sketcher",
@@ -55,6 +55,8 @@ def register():
 
 
 def unregister():
+    icon_manager.unload()
+
     if global_data.registered:
         unregister_full()
 

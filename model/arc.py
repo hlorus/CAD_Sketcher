@@ -33,7 +33,8 @@ def _get_angle(start, end):
     return range_2pi(math.atan2(end[1], end[0]) - math.atan2(start[1], start[0]))
 
 
-class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
+# class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
+class SlvsArc(Entity2D, PropertyGroup):
     """Representation of an arc in 2D space around the centerpoint ct. Connects
     p2 to p3 or (vice-versa if the option invert_direction is true) with a
     circle segment that is resolution independent. The arc lies on the sketche's workplane.

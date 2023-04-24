@@ -18,10 +18,8 @@ class Shaders:
 
         in vec3 pos;
 
-        vec4 project = ModelViewProjectionMatrix * vec4(pos, 1.0);
         void main() {
-           gl_Position = project;
-
+           gl_Position = ModelViewProjectionMatrix * vec4(pos.xyz, 1.0f);
         }
     """
     base_fragment_shader_3d = """
@@ -58,13 +56,44 @@ class Shaders:
 
     @staticmethod
     @cache
-    def uniform_color_2d():
-        return gpu.shader.from_builtin("2D_UNIFORM_COLOR")
-
-    @staticmethod
-    @cache
     def uniform_color_3d():
         return gpu.shader.from_builtin("3D_UNIFORM_COLOR")
+
+    @classmethod
+    @cache
+    def uniform_color_image_2d(cls):
+        vertex_shader = """
+            uniform mat4 ModelViewProjectionMatrix;
+
+            in vec2 pos;
+            in vec2 texCoord;
+            out vec2 v_texCoord;
+
+            void main()
+            {
+                gl_Position = (
+                    ModelViewProjectionMatrix * vec4(pos.xy, 0.0f, 1.0f)
+                );
+                v_texCoord = texCoord;
+            }
+        """
+        fragment_shader = """
+            uniform vec4 color;
+            uniform sampler2D image;
+            in vec2 v_texCoord;
+            out vec4 fragColor;
+
+            void main()
+            {
+                fragColor = blender_srgb_to_framebuffer_space(
+                    texture(image, v_texCoord) * color
+                );
+            }
+        """
+        return GPUShader(
+            vertex_shader,
+            fragment_shader,
+        )
 
     @classmethod
     @cache
@@ -94,8 +123,6 @@ class Shaders:
             float minLength =  length(pxVec);
             vec2 get_line_width(vec2 normal, float width){
                 vec2 offsetvec = vec2(normal * width);
-                offsetvec.x /= Viewport.x;
-                offsetvec.y /= Viewport.y;
                 if (length(offsetvec) < minLength){
                     offsetvec = normalize(offsetvec);
                     offsetvec *= minLength;
@@ -104,8 +131,6 @@ class Shaders:
             }
             float get_line_alpha(vec2 normal, float width){
                 vec2 offsetvec = vec2(normal * width);
-                offsetvec.x /= Viewport.x;
-                offsetvec.y /= Viewport.y;
                 float alpha = 1.0;
                 if (length(offsetvec) < minLength){
                     alpha *= (length(offsetvec)/minLength);
@@ -119,12 +144,12 @@ class Shaders:
                 vec2 ssp1 = vec2(p1.xy / p1.w);
                 vec2 ssp2 = vec2(p2.xy / p2.w);
                 float width = thickness;
-                vec2 dir = normalize(ssp2 - ssp1);
+                vec2 dir = normalize((ssp2 - ssp1) * Viewport.xy);
                 vec2 normal = vec2(-dir[1], dir[0]);
                 normal = normalize(normal);
 
                 // get offset factor from normal and user input thickness
-                vec2 offset = get_line_width(normal,width);
+                vec2 offset = get_line_width(normal,width) / Viewport.xy;
                 float lineAlpha = get_line_alpha(normal,width);
                 vec4 coords[4];
                 vec2 texCoords[4];

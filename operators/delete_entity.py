@@ -16,6 +16,7 @@ from ..utilities.data_handling import (
 )
 from ..utilities.highlighting import HighlightElement
 from .utilities import activate_sketch
+from ..solver import solve_system
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
     """Delete Entity by index or based on the selection if index isn't provided"""
 
     bl_idname = Operators.DeleteEntity
-    bl_label = "Delete Solvespace Entity"
+    bl_label = "Delete Entity"
     bl_description = (
         "Delete Entity by index or based on the selection if index isn't provided"
     )
@@ -92,7 +93,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
 
     def execute(self, context: Context):
         index = self.index
-        selected = context.scene.sketcher.entities.selected_entities
+        selected = context.scene.sketcher.entities.selected_active
 
         if index != -1:
             # Entity is specified via property
@@ -115,6 +116,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
                     continue
                 self.delete(e, context)
 
+        solve_system(context, context.scene.sketcher.active_sketch)
         refresh(context)
         return {"FINISHED"}
 

@@ -23,6 +23,13 @@ class SketcherProps(PropertyGroup):
     entities: PointerProperty(type=SlvsEntities)
     constraints: PointerProperty(type=SlvsConstraints)
     show_origin: BoolProperty(name="Show Origin Entities")
+    use_construction: BoolProperty(
+        name="Construction Mode",
+        description="Draw all subsequent entities in construction mode",
+        default=False,
+        options={"SKIP_SAVE"},
+        update=update_cb,
+    )
     selectable_constraints: BoolProperty(
         name="Constraints Selectability",
         default=True,

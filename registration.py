@@ -13,6 +13,8 @@ core_modules = [
     "workspacetools",
     "ui",
     "draw_handler",
+    # Register this as last module
+    "registration_delayed",
 ]
 
 register_base, unregister_base = module_register_factory(__package__, base_modules)

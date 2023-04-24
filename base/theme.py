@@ -67,6 +67,15 @@ class ThemeSettingsEntity(PropertyGroup):
         max=1.0,
         update=update,
     )
+    fixed: FloatVectorProperty(
+        name="Fixed",
+        subtype="COLOR",
+        default=(0.0, 0.55, 0.0, 0.7),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
 
 
 class ThemeSettingsConstraint(PropertyGroup):
@@ -103,7 +112,7 @@ class ThemeSettingsConstraint(PropertyGroup):
     failed_highlight: FloatVectorProperty(
         name="Failed Highlight",
         subtype="COLOR",
-        default=(1.0, 0.0, 0.0, 0.95),
+        default=(0.0, 0.55, 0.0, 0.7),
         size=4,
         min=0.0,
         max=1.0,

@@ -4,14 +4,14 @@ from typing import List
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import UILayout, Property, Context
 
-from ..solver import solve_system
 from ..global_data import WpReq
 from ..utilities import preferences
 from ..declarations import Operators
 from .constants import ENTITY_PROP_NAMES
 from .base_entity import SlvsGenericEntity
 from ..utilities.view import update_cb, refresh
-
+from ..utilities.solver import update_system_cb
+from ..utilities.bpy import setprop
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ class GenericConstraint:
     name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
     failed: BoolProperty(name="Failed")
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
+    is_reference = False  # Only DimensionalConstraint can be reference
     signature = ()
     props = ()
 
@@ -70,12 +71,6 @@ class GenericConstraint:
             if s:
                 deps.append(s)
         return deps
-
-    def update_system_cb(self, context):
-        """Update scene and re-run the solver.
-        NOTE: Should be a staticmethod if it wasn't a callback."""
-        sketch = context.scene.sketcher.active_sketch
-        solve_system(context, sketch=sketch)
 
     # TODO: avoid duplicating code
     def update_pointers(self, index_old, index_new):
@@ -202,19 +197,24 @@ class DimensionalConstraint(GenericConstraint):
 
     def _get_value(self):
         if self.is_reference:
-            val, _ = self.init_props()
+            val = self.init_props()["value"]
             return self.to_displayed_value(val)
         if self.get("value") is None:
             self.assign_init_props()
         return self.to_displayed_value(self["value"])
 
-    def assign_init_props(self, context: Context = None):
-        # self.value, self.setting = self.init_props()
-        _value, _ = self.init_props()
-        self._set_value_force(_value)
+    def assign_settings(self, **settings):
+        for key, value in settings.items():
+            if value is None:
+                continue
+
+            setprop(self, key, value)
+
+    def assign_init_props(self, context: Context = None, **kwargs):
+        self.assign_settings(**self.init_props(**kwargs))
 
     def on_reference_checked(self, context: Context = None):
-        self.update_system_cb(context)
+        update_system_cb(self, context)
         self.assign_init_props()
         # Refresh the gizmos as we are changing the colors.
         refresh(context)
@@ -225,21 +225,21 @@ class DimensionalConstraint(GenericConstraint):
         update=on_reference_checked,
     )
 
-    def init_props(self):
+    def init_props(self, **kwargs):
         raise NotImplementedError()
 
     def to_displayed_value(self, value):
         """
-        Overwrite this function to convert the property value into 
+        Overwrite this function to convert the property value into
         something to display on the user interface.
-        NOTE: If the value is writeable, do not forget to change 
+        NOTE: If the value is writeable, do not forget to change
               ``from_displayed_value()`` to apply the reverse operation.
         """
         return value
 
     def from_displayed_value(self, displayed_value):
         """
-        Convert the displayed value of the property into 
+        Convert the displayed value of the property into
         a variable to store.
         NOTE: See ``to_displayed_value()``
         """

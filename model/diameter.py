@@ -13,6 +13,7 @@ from ..utilities.math import range_2pi, pol2cart
 from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import CURVE
+from ..utilities.solver import update_system_cb
 
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         unit="LENGTH",
         get=DimensionalConstraint._get_value,
         set=DimensionalConstraint._set_value,
-        update=DimensionalConstraint.update_system_cb,
+        update=update_system_cb,
     )
     setting: BoolProperty(
         name="Use Radius", get=use_radius_getter, set=use_radius_setter
@@ -79,12 +80,16 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         return solvesys.addDiameter(self.diameter, self.entity1.py_data, group=group)
 
-    def init_props(self, **kwargs):
-
+    def _get_init_value(self, setting):
         value = self.entity1.radius
-        if not self.setting:
-            value = value * 2
-        return value, self.setting
+        if not setting:
+            return value * 2
+        return value
+
+    def init_props(self, **kwargs):
+        setting = kwargs.get("setting", self.setting)
+        value = kwargs.get("value", self._get_init_value(setting))
+        return {"value": value, "setting": setting}
 
     def matrix_basis(self):
         if self.sketch_i == -1:

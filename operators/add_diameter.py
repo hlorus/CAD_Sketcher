@@ -27,6 +27,17 @@ class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
     )
     setting: BoolProperty(name="Use Radius")
     type = "DIAMETER"
+    property_keys = ("value", "setting")
+
+    def main(self, context):
+        self.target = context.scene.sketcher.constraints.add_diameter(
+            self.entity1,
+            sketch=self.sketch,
+            init=not self.initialized,
+            **self.get_settings(),
+        )
+
+        return super().main(context)
 
 
 register, unregister = register_stateops_factory((VIEW3D_OT_slvs_add_diameter,))

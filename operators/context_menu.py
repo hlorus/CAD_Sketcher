@@ -1,3 +1,4 @@
+import bpy
 from bpy.utils import register_classes_factory
 from bpy.props import StringProperty, BoolProperty, IntProperty
 from bpy.types import Operator, Context, Event, PropertyGroup
@@ -61,12 +62,11 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column()
-
-            if not element:
-                col.label(text="Nothing hovered")
-                return
-
             element.draw_props(col)
+
+        if not element:
+            bpy.ops.wm.call_menu(name="VIEW3D_MT_selected_menu")
+            return {"FINISHED"}
 
         context.window_manager.popup_menu(draw_context_menu)
         return {"FINISHED"}

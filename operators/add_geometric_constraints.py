@@ -8,6 +8,10 @@ from ..solver import solve_system
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
+from ..utilities.select import deselect_all
+from ..utilities.view import refresh
+from ..solver import solve_system
+
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +52,11 @@ class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
         if self.handle_merge(context):
             return True
 
+        self.target = context.scene.sketcher.constraints.add_coincident(
+            self.entity1,
+            self.entity2,
+            sketch=self.sketch,
+        )
         return super().main(context)
 
 
@@ -60,6 +69,15 @@ class VIEW3D_OT_slvs_add_equal(Operator, GenericConstraintOp):
 
     type = "EQUAL"
 
+    def main(self, context):
+        self.target = context.scene.sketcher.constraints.add_equal(
+            self.entity1,
+            self.entity2,
+            sketch=self.sketch,
+        )
+
+        return super().main(context)
+
 
 class VIEW3D_OT_slvs_add_vertical(Operator, GenericConstraintOp):
     """Add a vertical constraint"""
@@ -69,6 +87,15 @@ class VIEW3D_OT_slvs_add_vertical(Operator, GenericConstraintOp):
     bl_options = {"UNDO", "REGISTER"}
 
     type = "VERTICAL"
+
+    def main(self, context):
+        self.target = context.scene.sketcher.constraints.add_vertical(
+            self.entity1,
+            entity2=self.entity2,
+            sketch=self.sketch,
+        )
+
+        return super().main(context)
 
 
 class VIEW3D_OT_slvs_add_horizontal(Operator, GenericConstraintOp):
@@ -80,6 +107,15 @@ class VIEW3D_OT_slvs_add_horizontal(Operator, GenericConstraintOp):
 
     type = "HORIZONTAL"
 
+    def main(self, context):
+        self.target = context.scene.sketcher.constraints.add_horizontal(
+            self.entity1,
+            entity2=self.entity2,
+            sketch=self.sketch,
+        )
+
+        return super().main(context)
+
 
 class VIEW3D_OT_slvs_add_parallel(Operator, GenericConstraintOp):
     """Add a parallel constraint"""
@@ -89,6 +125,15 @@ class VIEW3D_OT_slvs_add_parallel(Operator, GenericConstraintOp):
     bl_options = {"UNDO", "REGISTER"}
 
     type = "PARALLEL"
+
+    def main(self, context):
+        self.target = context.scene.sketcher.constraints.add_parallel(
+            self.entity1,
+            self.entity2,
+            sketch=self.sketch,
+        )
+
+        return super().main(context)
 
 
 class VIEW3D_OT_slvs_add_perpendicular(Operator, GenericConstraintOp):
@@ -100,6 +145,15 @@ class VIEW3D_OT_slvs_add_perpendicular(Operator, GenericConstraintOp):
 
     type = "PERPENDICULAR"
 
+    def main(self, context):
+        self.target = context.scene.sketcher.constraints.add_perpendicular(
+            self.entity1,
+            self.entity2,
+            sketch=self.sketch,
+        )
+
+        return super().main(context)
+
 
 class VIEW3D_OT_slvs_add_tangent(Operator, GenericConstraintOp):
     """Add a tagent constraint"""
@@ -110,6 +164,15 @@ class VIEW3D_OT_slvs_add_tangent(Operator, GenericConstraintOp):
 
     type = "TANGENT"
 
+    def main(self, context):
+        self.target = context.scene.sketcher.constraints.add_tangent(
+            self.entity1,
+            self.entity2,
+            sketch=self.sketch,
+        )
+
+        return super().main(context)
+
 
 class VIEW3D_OT_slvs_add_midpoint(Operator, GenericConstraintOp):
     """Add a midpoint constraint"""
@@ -119,6 +182,15 @@ class VIEW3D_OT_slvs_add_midpoint(Operator, GenericConstraintOp):
     bl_options = {"UNDO", "REGISTER"}
 
     type = "MIDPOINT"
+
+    def main(self, context):
+        self.target = context.scene.sketcher.constraints.add_midpoint(
+            self.entity1,
+            self.entity2,
+            sketch=self.sketch,
+        )
+
+        return super().main(context)
 
 
 class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp):
@@ -136,6 +208,18 @@ class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp):
         precision=5,
     )
     type = "RATIO"
+    property_keys = ("value",)
+
+    def main(self, context):
+        self.target = context.scene.sketcher.constraints.add_ratio(
+            self.entity1,
+            self.entity2,
+            sketch=self.sketch,
+            init=not self.initialized,
+            **self.get_settings(),
+        )
+
+        return super().main(context)
 
 
 constraint_operators = (

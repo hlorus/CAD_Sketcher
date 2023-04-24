@@ -64,7 +64,7 @@ class View3D_OT_slvs_copy(Operator):
         # Get dependencies of selected entities
         dependencies = list(
             filter(
-                lambda x: x.is_2d(), get_collective_dependencies(sse.selected_entities)
+                lambda x: x.is_2d(), get_collective_dependencies(sse.selected_active)
             )
         )
 

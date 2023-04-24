@@ -1,3 +1,4 @@
+import getpass
 import logging
 from tempfile import gettempdir
 from pathlib import Path
@@ -19,12 +20,17 @@ def setup_logger(logger):
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-    filepath = Path(gettempdir()) / (get_name() + ".log")
+    filepath = Path(gettempdir()) / (get_name() + f"-{getpass.getuser()}" + ".log")
 
     logger.info("Logging into: " + str(filepath))
-    file_handler = logging.FileHandler(filepath, mode="w")
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+
+    # Add file handler
+    try:
+        file_handler = logging.FileHandler(filepath, mode="w")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    except:
+        logger.warning(f"Cannot use logger file at: {filepath}")
 
 
 def update_logger(logger):

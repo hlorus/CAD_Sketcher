@@ -19,10 +19,6 @@ class GizmoGroups(str, Enum):
     Preselection = "VIEW3D_GGT_slvs_preselection"
 
 
-class Menus(str, Enum):
-    Sketches = "VIEW3D_MT_sketches"
-
-
 class Operators(str, Enum):
     AddAngle = "view3d.slvs_add_angle"
     AddArc2D = "view3d.slvs_add_arc2d"
@@ -48,6 +44,7 @@ class Operators(str, Enum):
     AddWorkPlane = "view3d.slvs_add_workplane"
     AddWorkPlaneFace = "view3d.slvs_add_workplane_face"
     AlignWorkplaneCursor = "view3d.slvs_align_workplane_cursor"
+    BatchSet = "view3d.slvs_batch_set"
     ContextMenu = "view3d.slvs_context_menu"
     Copy = "view3d.slvs_copy"
     DeleteConstraint = "view3d.slvs_delete_constraint"
@@ -80,11 +77,15 @@ class Macros(str, Enum):
     DuplicateMove = "view3d.slvs_duplicate_move"
 
 
+class Menus(str, Enum):
+    SelectedMenu = "VIEW3D_MT_selected_menu"
+
+
 class Panels(str, Enum):
     Sketcher = "VIEW3D_PT_sketcher"
     SketcherDebugPanel = "VIEW3D_PT_sketcher_debug_panel"
-    SketcherAddContraint = "VIEW3D_PT_sketcher_add_contraint"
-    SketcherContraints = "VIEW3D_PT_sketcher_constraints"
+    SketcherTools = "VIEW3D_PT_sketcher_tools"
+    SketcherConstraints = "VIEW3D_PT_sketcher_constraints"
     SketcherEntities = "VIEW3D_PT_sketcher_entities"
 
 

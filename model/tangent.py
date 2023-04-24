@@ -76,6 +76,8 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
 
     def placements(self):
         point = get_connection_point(self.entity1, self.entity2)
+        if point is None:
+            return (self.entity1, self.entity2)
         return (point,)
 
 

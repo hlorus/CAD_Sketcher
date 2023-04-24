@@ -19,7 +19,7 @@ def get_path():
 
 
 def get_name():
-    return os.path.basename(get_path())
+    return __package__.partition('.')[0]
 
 
 # Similar to bpy.utils.register_submodule_factory

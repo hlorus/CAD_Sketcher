@@ -42,6 +42,18 @@ class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
         set=invert_angle_setter,
     )
     type = "ANGLE"
+    property_keys = ("value", "setting")
+
+    def main(self, context):
+        self.target = context.scene.sketcher.constraints.add_angle(
+            self.entity1,
+            self.entity2,
+            sketch=self.sketch,
+            init=not self.initialized,
+            **self.get_settings()
+        )
+
+        return super().main(context)
 
     def fini(self, context: Context, succeede: bool):
         super().fini(context, succeede)

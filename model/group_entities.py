@@ -1,8 +1,8 @@
 import logging
+import math
 from typing import Type, Union, Tuple
 
 import bpy
-import math
 from bpy.types import PropertyGroup
 from bpy.props import CollectionProperty
 from bpy.utils import register_classes_factory
@@ -352,14 +352,31 @@ class SlvsEntities(PropertyGroup):
                 yield entity
 
     @property
-    def selected_entities(self):
-        """Return all selected visible entities"""
+    def selected(self):
+        """Return all selected entities, might include inactive entities"""
         context = bpy.context
         items = []
         for index in global_data.selected:
             entity = self.get(index)
             items.append(entity)
-        return [e for e in items if e.is_active(context.scene.sketcher.active_sketch)]
+        return [e for e in items if e.is_selectable(context)]
+
+    @property
+    def selected_all(self):
+        """Return all selected entities, might include invisible entities"""
+        context = bpy.context
+        items = []
+        for index in global_data.selected:
+            entity = self.get(index)
+            items.append(entity)
+        return [e for e in items if e.selected]
+
+    @property
+    def selected_active(self):
+        """Returns all selected and active entities"""
+        context = bpy.context
+        active_sketch = context.scene.sketcher.active_sketch
+        return [e for e in self.selected if e.is_active(active_sketch)]
 
     def ensure_origin_elements(self, context):
         def set_origin_props(e):

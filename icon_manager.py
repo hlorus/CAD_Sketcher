@@ -1,97 +1,125 @@
 from pathlib import Path
 
 import gpu
+import bpy
+import bpy.utils.previews
 from gpu_extras.batch import batch_for_shader
 from bpy.app import background
 
+from .declarations import Operators
 from .shaders import Shaders
 
 icons = {}
+_icon_shader = Shaders.uniform_color_image_2d()
+_icon_batch = batch_for_shader(_icon_shader, "TRI_FAN", {
+    "pos": ((-.5, -.5), (.5, -.5), (.5, .5), (-.5, .5)),
+    "texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
+})
+preview_icons = None
+_operator_types = {
+    Operators.AddDistance: "DISTANCE",
+    Operators.AddDiameter: "DIAMETER",
+    Operators.AddAngle: "ANGLE",
+    Operators.AddCoincident: "COINCIDENT",
+    Operators.AddEqual: "EQUAL",
+    Operators.AddVertical: "VERTICAL",
+    Operators.AddHorizontal: "HORIZONTAL",
+    Operators.AddParallel: "PARALLEL",
+    Operators.AddPerpendicular: "PERPENDICULAR",
+    Operators.AddTangent: "TANGENT",
+    Operators.AddMidPoint: "MIDPOINT",
+    Operators.AddRatio: "RATIO",
+}
 
 
-def coords_from_icon(data, range_x=255, range_y=255):
-    length = len(data)
-    # Take the 1st third of the data
-    geometry_data = data[: length // 3]
-    # Cut geometry_data into chunks of 6 bytes
-    tris = [geometry_data[i * 6 : (i + 1) * 6] for i in range(len(geometry_data) // 6)]
-
-    coords = []
-    indices = []
-    for i, tri in enumerate(tris):
-        v1 = tri[0:2]
-        # split the 6 Byte chunk into 2 Byte chunks
-        # Each 2 Byte chunk represent the xy coordinates
-        # of triangles to render for the icon
-        verts = [tri[i * 2 : (i + 1) * 2] for i in range(3)]
-
-        indices.append([])
-
-        for v in verts:
-
-            x = (int.from_bytes(v[0], "little") / range_x) - 0.5
-            y = (int.from_bytes(v[1], "little") / range_y) - 0.5
-            co = (x, y)
-
-            if co not in coords:
-                coords.append(co)
-                index = len(coords) - 1
-            else:
-                index = coords.index(co)
-
-            indices[i].append(index)
-
-    return coords, indices
+def get_folder_path():
+    return Path(__file__).parent / "resources" / "icons"
 
 
-def read_icon(fp):
-    data = []
-    name = fp.stem
-
-    with open(fp, "rb") as icon:
-        identifier = icon.read(3)
-        _version, size_x, size_y, _start_x, _start_y = icon.read(5)
-
-        while True:
-            val = icon.read(1)
-            if not val:
-                break
-            data.append(val)
-
-    coords, indices = coords_from_icon(data, range_x=size_x, range_y=size_y)
-    batch = batch_from_coords(coords, indices)
-    icons[name] = batch
+def get_icon(name: str):
+    return str(get_folder_path() / name)
 
 
-def batch_from_coords(coords, indices):
-    shader = Shaders.uniform_color_2d()
-    return batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
+def load_icon(type, icon):
+    size, pixels = icon.icon_size, icon.icon_pixels_float
+    buffer = gpu.types.Buffer('FLOAT', (1, len(pixels)), [pixels])
+    texture = gpu.types.GPUTexture(size=size, data=buffer)
+    icons[type] = texture
 
 
 def load():
+    global preview_icons
+
+    if preview_icons:
+        return
+
     if background:
         return
-    # Read icons from filepath and store as python data(batch?) for easy access
-    filepath = Path(Path(__file__).parent, "ressources/icons")
 
-    for icon in filepath.iterdir():
-        read_icon(icon)
+    load_preview_icons()
+
+    for operator, icon in preview_icons.items():
+        load_icon(_operator_types[operator], icon)
 
 
-def draw(id, color):
-    batch = icons.get(id)
+def unload():
+    global icons
+    unload_preview_icons()
+    icons = {}
 
-    if not batch:
-        batch = icons.get("none")
-    if not batch:
-        print('Icon with name: "{}" not found!'.format(id))
+
+def load_preview_icons():
+    global preview_icons
+
+    if preview_icons:
+        return
+
+    preview_icons = bpy.utils.previews.new()
+
+    for operator, type in _operator_types.items():
+        icon_path = get_folder_path() / f"{type}.png"
+
+        if not icon_path.exists():
+            continue
+
+        preview_icons.load(operator, str(icon_path), 'IMAGE')
+
+
+def unload_preview_icons():
+    global preview_icons
+
+    if not preview_icons:
+        return
+
+    preview_icons.clear()
+    bpy.utils.previews.remove(preview_icons)
+    preview_icons = None
+
+
+def get_constraint_icon(operator: str):
+    if not preview_icons:
+        return -1
+
+    icon = preview_icons.get(operator)
+
+    if not icon:
+        return -1
+
+    return icon.icon_id
+
+
+def draw(type, color):
+    texture = icons.get(type)
+
+    if not texture:
         return
 
     gpu.state.blend_set("ALPHA")
 
-    shader = Shaders.uniform_color_2d()
+    shader, batch = _icon_shader, _icon_batch
     shader.bind()
     shader.uniform_float("color", color)
+    shader.uniform_sampler("image", texture)
     batch.draw(shader)
 
     gpu.state.blend_set("NONE")

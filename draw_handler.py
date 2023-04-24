@@ -105,22 +105,11 @@ class View3D_OT_slvs_unregister_draw_cb(Operator):
         return {"FINISHED"}
 
 
-def startup_cb(*args):
-    bpy.ops.view3d.slvs_register_draw_cb()
-    return None
-
-
 def register():
     register_class(View3D_OT_slvs_register_draw_cb)
     register_class(View3D_OT_slvs_unregister_draw_cb)
 
-    bpy.app.timers.register(startup_cb, first_interval=1, persistent=True)
-
 
 def unregister():
-    handle = global_data.draw_handle
-    if handle:
-        bpy.types.SpaceView3D.draw_handler_remove(handle, "WINDOW")
-
     unregister_class(View3D_OT_slvs_unregister_draw_cb)
     unregister_class(View3D_OT_slvs_register_draw_cb)

@@ -18,7 +18,7 @@ from .line_2d import SlvsLine2D
 logger = logging.getLogger(__name__)
 
 
-class Point2D(SlvsGenericEntity, Entity2D):
+class Point2D(Entity2D):
     @classmethod
     def is_point(cls):
         return True

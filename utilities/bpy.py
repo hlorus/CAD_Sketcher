@@ -116,3 +116,14 @@ def add_new_empty(context: Context, location: Vector, name="") -> Object:
     empty.location = location
     context.collection.objects.link(empty)
     return empty
+
+
+def setprop(data, key, value):
+    """Set an id prop without triggering it's update mehtod"""
+    prop = data.rna_type.properties[key]
+
+    # Handle Enums which have to be set by the item's id rather than identifier
+    if prop.type == "ENUM":
+        value = prop.enum_items[value].value
+
+    data[key] = value

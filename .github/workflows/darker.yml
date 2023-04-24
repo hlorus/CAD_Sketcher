@@ -1,0 +1,23 @@
+name: Lint
+
+on: [pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: "create-main-branch"
+        run: "git branch --track main origin/main"
+      - name: "get-merge-base"
+        run: "base_commit=$(git merge-base main HEAD)"
+      - uses: actions/setup-python@v4
+      - uses: akaihola/darker@1.7.0
+        with:
+          options: "--check --diff --isort --color"
+          src: "."
+          version: "~=1.7.0"
+          lint: "flake8,pylint==2.13.1"
+          revision: "$base_commit...HEAD"

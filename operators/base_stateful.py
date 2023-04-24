@@ -181,5 +181,5 @@ class GenericEntityOp(StatefulOperator):
         states = self.get_states()
         types = [s.types for s in states]
 
-        selected.extend(list(context.scene.sketcher.entities.selected_entities))
+        selected.extend(list(context.scene.sketcher.entities.selected))
         return selected
