@@ -6,7 +6,7 @@ from bpy.utils import register_classes_factory
 
 from ..solver import Solver
 from ..global_data import WpReq
-from .base_constraint import GenericConstraint
+from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import LINE
 from .line_2d import SlvsLine2D
