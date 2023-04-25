@@ -58,11 +58,6 @@ class SlvsRatio(DimensionalConstraint, PropertyGroup):
         value = line1.length / line2.length
         return {"value": value}
 
-    def draw_props(self, layout):
-        sub = super().draw_props(layout)
-        sub.prop(self, "value")
-        return sub
-
     def placements(self):
         return (self.entity1, self.entity2)
 
