@@ -15,7 +15,7 @@ from ..utilities.solver import update_system_cb
 logger = logging.getLogger(__name__)
 
 
-class SlvsRatio(GenericConstraint, PropertyGroup):
+class SlvsRatio(DimensionalConstraint, PropertyGroup):
     """Defines the ratio between the lengths of two line segments.
 
     The order matters; the ratio is defined as length of entity1 : length of entity2.
