@@ -8,10 +8,12 @@ from ..model.categories import SEGMENT
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
-from .base_2d import Operator2d
+from ..utilities.view import refresh
 from ..utilities.walker import EntityWalker
 from ..utilities.intersect import get_offset_elements, get_intersections
 from ..model.utilities import get_connection_point
+from .base_2d import Operator2d
+from .utilities import ignore_hover
 
 
 logger = logging.getLogger(__name__)
@@ -115,9 +117,11 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             points.insert(0, sse.add_point_2d(start_co, sketch))
             points.append(sse.add_point_2d(end_co, sketch))
 
-        self.new_path = []
+        # Exclude created points from selection
+        [ignore_hover(p) for p in points]
 
         # Create segments
+        self.new_path = []
         for i, entity in enumerate(entities):
             direction = directions[i]
 
@@ -127,11 +131,14 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             p2 = points[i_end]
 
             new_entity = entity.from_props(context, start=p1, end=p2, invert=direction)
+            ignore_hover(new_entity)
+
             if context.scene.sketcher.use_construction:
                 new_entity.construction = True
 
             self.new_path.append(new_entity)
 
+        refresh(context)
         return True
 
     def fini(self, context: Context, succeede: bool):
