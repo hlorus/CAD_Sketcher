@@ -29,3 +29,5 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         # Drawing
         layout.label(text="Drawing:")
         layout.prop(context.scene.sketcher, "use_construction")
+
+        layout.operator(declarations.Operators.Offset).wait_for_input = True
