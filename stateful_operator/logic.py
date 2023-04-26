@@ -202,17 +202,35 @@ class StatefulOperatorLogic:
             input = self.numeric_input
             if len(input):
                 self.numeric_input = input[:-1]
-        elif type in ("MINUS", "NUMPAD_MINUS"):
+            return
+
+        if type in ("MINUS", "NUMPAD_MINUS"):
             input = self.numeric_input
             if input.startswith("-"):
                 input = input[1:]
             else:
                 input = "-" + input
             self.numeric_input = input
-        elif is_unit_input(event):
+            return
+
+        if is_unit_input(event):
             self.numeric_input += get_unit_value(event)
-        else:
-            self.numeric_input += get_value_from_event(event)
+            return
+
+        value = get_value_from_event(event)
+        self.numeric_input += self.validate_numeric_input(value)
+
+    def validate_numeric_input(self, value):
+        """Check if existing input is valid after appending value"""
+        num_input = self.numeric_input
+
+        separators = (".", ",")
+        if value in separators:
+            if any([char in num_input for char in separators]):
+                return ""
+            if not len(num_input) or not num_input[-1].isdigit():
+                return "0."
+        return value
 
     def is_in_previous_states(self, entity):
         i = self.state_index - 1
