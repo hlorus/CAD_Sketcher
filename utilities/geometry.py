@@ -66,7 +66,7 @@ def intersect_line_sphere_2d(
     line_p2: Vector,
     circle_p1: Vector,
     circle_radius: float,
-    tangent_tol=1e-9,
+    tangent_tol=1e-4,
 ):
     """Find the points at which a circle intersects a line-segment.  This can happen at 0, 1, or 2 points.
 
@@ -87,22 +87,24 @@ def intersect_line_sphere_2d(
     big_d = x1 * y2 - x2 * y1
     discriminant = circle_radius**2 * dr**2 - big_d**2
 
-    if discriminant < 0:  # No intersection between circle and line
+    # No intersection between circle and line
+    if discriminant < -tangent_tol:
         return []
-    else:  # There may be 0, 1, or 2 intersections with the segment
-        intersections = [
-            (
-                cx
-                + (big_d * dy + sign * (-1 if dy < 0 else 1) * dx * discriminant**0.5)
-                / dr**2,
-                cy + (-big_d * dx + sign * abs(dy) * discriminant**0.5) / dr**2,
-            )
-            for sign in ((1, -1) if dy < 0 else (-1, 1))
-        ]  # This makes sure the order along the segment is correct
-        intersections = [Vector(p) for p in intersections]
-        if (
-            len(intersections) == 2 and abs(discriminant) <= tangent_tol
-        ):  # If line is tangent to circle, return just one point (as both intersections have same location)
-            return [intersections[0]]
-        else:
-            return intersections
+
+    # There may be 0, 1, or 2 intersections with the segment
+    discriminant = max(0, discriminant)
+    intersections = [
+        (
+            cx
+            + (big_d * dy + sign * (-1 if dy < 0 else 1) * dx * discriminant**0.5)
+            / dr**2,
+            cy + (-big_d * dx + sign * abs(dy) * discriminant**0.5) / dr**2,
+        )
+        for sign in ((1, -1) if dy < 0 else (-1, 1))
+    ]  # This makes sure the order along the segment is correct
+    intersections = [Vector(p) for p in intersections]
+
+    # If line is tangent to circle, return just one point (as both intersections have same location)
+    if len(intersections) == 2 and abs(discriminant) <= tangent_tol:
+        return [intersections[0]]
+    return intersections
