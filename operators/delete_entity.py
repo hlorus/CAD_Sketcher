@@ -78,13 +78,11 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         # Delete constraints that depend on entity
         constraints = context.scene.sketcher.constraints
 
-        for data_coll, indices in reversed(
-            get_constraint_local_indices(entity, context)
-        ):
+        for data_coll, indices in get_constraint_local_indices(entity, context):
             if not indices:
                 continue
-            for i in indices:
-                logger.debug("Delete: {}".format(data_coll[i]))
+            for i in reversed(indices):
+                logger.debug("Delete: {}, {}".format(data_coll, i))
                 data_coll.remove(i)
 
         logger.debug("Delete: {}".format(entity))

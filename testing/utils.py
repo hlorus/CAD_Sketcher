@@ -68,3 +68,6 @@ class Sketch2dTestCase(BgsTestCase):
     def tearDown(self) -> None:
         self.context.scene.sketcher.active_sketch = None
         return super().tearDown()
+
+    def solve(self):
+        self.assertTrue(self.sketch.solve(self.context))

@@ -6,7 +6,7 @@ from bpy.utils import register_classes_factory
 
 from ..solver import Solver
 from ..global_data import WpReq
-from .base_constraint import GenericConstraint
+from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import LINE
 from .line_2d import SlvsLine2D
@@ -15,7 +15,7 @@ from ..utilities.solver import update_system_cb
 logger = logging.getLogger(__name__)
 
 
-class SlvsRatio(GenericConstraint, PropertyGroup):
+class SlvsRatio(DimensionalConstraint, PropertyGroup):
     """Defines the ratio between the lengths of two line segments.
 
     The order matters; the ratio is defined as length of entity1 : length of entity2.
@@ -57,11 +57,6 @@ class SlvsRatio(GenericConstraint, PropertyGroup):
 
         value = line1.length / line2.length
         return {"value": value}
-
-    def draw_props(self, layout):
-        sub = super().draw_props(layout)
-        sub.prop(self, "value")
-        return sub
 
     def placements(self):
         return (self.entity1, self.entity2)
