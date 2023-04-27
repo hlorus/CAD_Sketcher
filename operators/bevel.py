@@ -70,6 +70,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
                 get_offset_elements(l1, -radius),
                 get_offset_elements(l2, radius),
                 get_offset_elements(l2, -radius),
+                segment=True,
             ),
             key=lambda i: (i - self.p1.co).length,
         )

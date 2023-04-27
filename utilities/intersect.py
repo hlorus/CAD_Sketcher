@@ -1,9 +1,9 @@
 from enum import Enum
-from typing import Callable
+from typing import Callable, Tuple
 
 from mathutils.geometry import (
-    # intersect_line_line_2d,
-    # intersect_line_sphere_2d,
+    intersect_line_line_2d as intersect_segment_segment_2d,
+    intersect_line_sphere_2d as intersect_segment_sphere_2d,
     intersect_sphere_sphere_2d,
 )
 
@@ -17,12 +17,12 @@ class ElementTypes(str, Enum):
     Sphere = "Sphere"
 
 
-def _get_intersection_func(type_a, type_b):
+def _get_intersection_func(type_a, type_b, segment=False):
     if all([t == ElementTypes.Line for t in (type_a, type_b)]):
-        return intersect_line_line_2d
+        return intersect_line_line_2d if not segment else intersect_segment_segment_2d
     if all([t == ElementTypes.Sphere for t in (type_a, type_b)]):
         return intersect_sphere_sphere_2d
-    return intersect_line_sphere_2d
+    return intersect_line_sphere_2d if not segment else intersect_segment_sphere_2d
 
 
 def _order_intersection_args(arg1, arg2):
@@ -51,13 +51,13 @@ def _get_offset_sphere(arc, offset):
 
 def get_offset_elements(
     entity: SlvsGenericEntity, offset: float
-) -> tuple[ElementTypes, Callable]:
+) -> Tuple[ElementTypes, Callable]:
     t = ElementTypes.Line if entity.type == "SlvsLine2D" else ElementTypes.Sphere
     func = _get_offset_sphere if t == ElementTypes.Sphere else _get_offset_line
     return (t, func(entity, offset))
 
 
-def get_intersections(*element_list):
+def get_intersections(*element_list, segment=False):
     """Find all intersections between all combinations of elements, (type, element)"""
     intersections = []
     lenght = len(element_list)
@@ -67,7 +67,7 @@ def get_intersections(*element_list):
             break
         for elem_b in element_list[i + 1 :]:
             a, b = _order_intersection_args(elem_a, elem_b)
-            func = _get_intersection_func(a[0], b[0])
+            func = _get_intersection_func(a[0], b[0], segment=segment)
 
             retval = to_list(func(*a[1], *b[1]))
 
