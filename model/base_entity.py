@@ -338,6 +338,10 @@ class SlvsGenericEntity:
         if not self.is_dirty:
             self.is_dirty = True
 
+    def new(self, context: Context, **kwargs):
+        """Create new entity based on this instance"""
+        raise NotImplementedError
+
     @classmethod
     def is_3d(cls):
         return True

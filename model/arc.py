@@ -33,7 +33,6 @@ def _get_angle(start, end):
     return range_2pi(math.atan2(end[1], end[0]) - math.atan2(start[1], start[0]))
 
 
-# class SlvsArc(SlvsGenericEntity, PropertyGroup, Entity2D):
 class SlvsArc(Entity2D, PropertyGroup):
     """Representation of an arc in 2D space around the centerpoint ct. Connects
     p2 to p3 or (vice-versa if the option invert_direction is true) with a
@@ -373,33 +372,15 @@ class SlvsArc(Entity2D, PropertyGroup):
             setattr(self, ptr, new)
             break
 
-    def from_props(
-        self,
-        context: Context,
-        nm: SlvsGenericEntity = None,
-        ct: SlvsGenericEntity = None,
-        start: SlvsGenericEntity = None,
-        end: SlvsGenericEntity = None,
-        sketch: SlvsGenericEntity = None,
-        invert: bool = None,
-    ) -> SlvsGenericEntity:
-        if not start:
-            start = self.p1
-        if not end:
-            end = self.p2
-        if not sketch:
-            sketch = self.sketch
-        if not nm:
-            nm = self.nm
-        if not ct:
-            ct = self.ct
-        if invert is None:
-            invert = self.invert_direction
-
-        sse = context.scene.sketcher.entities
-        arc = sse.add_arc(nm, ct, start, end, sketch)
-        arc.invert_direction = invert
-        return arc
+    def new(self, context: Context, **kwargs) -> SlvsGenericEntity:
+        kwargs.setdefault("p1", self.p1)
+        kwargs.setdefault("p2", self.p2)
+        kwargs.setdefault("sketch", self.sketch)
+        kwargs.setdefault("nm", self.nm)
+        kwargs.setdefault("ct", self.ct)
+        kwargs.setdefault("invert", self.invert_direction)
+        kwargs.setdefault("construction", self.construction)
+        return context.scene.sketcher.entities.add_arc(**kwargs)
 
 
 slvs_entity_pointer(SlvsArc, "nm")

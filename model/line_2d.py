@@ -239,23 +239,12 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         offset_vec = normal * offset
         return (self.p1.co + offset_vec, self.p2.co + offset_vec)
 
-    def from_props(
-        self,
-        context: Context,
-        start: SlvsGenericEntity = None,
-        end: SlvsGenericEntity = None,
-        sketch: SlvsGenericEntity = None,
-        invert: bool = False,  # unused
-    ):
-        if not start:
-            start = self.start
-        if not end:
-            end = self.end
-        if not sketch:
-            sketch = self.sketch
-
-        sse = context.scene.sketcher.entities
-        return sse.add_line_2d(start, end, sketch)
+    def new(self, context: Context, **kwargs) -> SlvsGenericEntity:
+        kwargs.setdefault("p1", self.p1)
+        kwargs.setdefault("p2", self.p2)
+        kwargs.setdefault("sketch", self.sketch)
+        kwargs.setdefault("construction", self.construction)
+        return context.scene.sketcher.entities.add_line_2d(**kwargs)
 
 
 slvs_entity_pointer(SlvsLine2D, "p1")
