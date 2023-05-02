@@ -61,7 +61,7 @@ def type_from_index(index: int) -> Type[SlvsGenericEntity]:
     if index < 0:
         return None
 
-    type_index, _ = _breakdown_index(index)
+    type_index, _ = breakdown_index(index)
 
     if type_index >= len(_entity_types):
         return None
