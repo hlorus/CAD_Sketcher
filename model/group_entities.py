@@ -28,44 +28,52 @@ from .circle import SlvsCircle
 logger = logging.getLogger(__name__)
 
 
+# NOTE: currently limited to 16 items!
+# See _set_index to see how their index is handled
+_entity_types = (
+    SlvsPoint3D,
+    SlvsLine3D,
+    SlvsNormal3D,
+    SlvsWorkplane,
+    SlvsSketch,
+    SlvsPoint2D,
+    SlvsLine2D,
+    SlvsNormal2D,
+    SlvsArc,
+    SlvsCircle,
+)
+
+_entity_collections = (
+    "points3D",
+    "lines3D",
+    "normals3D",
+    "workplanes",
+    "sketches",
+    "points2D",
+    "lines2D",
+    "normals2D",
+    "arcs",
+    "circles",
+)
+
+
+def type_from_index(index: int) -> Type[SlvsGenericEntity]:
+    if index < 0:
+        return None
+
+    type_index, _ = _breakdown_index(index)
+
+    if type_index >= len(_entity_types):
+        return None
+    return _entity_types[type_index]
+
+
 class SlvsEntities(PropertyGroup):
     """Holds all Solvespace Entities"""
 
-    # NOTE: currently limited to 16 items!
-    # See _set_index to see how their index is handled
-    entities = (
-        SlvsPoint3D,
-        SlvsLine3D,
-        SlvsNormal3D,
-        SlvsWorkplane,
-        SlvsSketch,
-        SlvsPoint2D,
-        SlvsLine2D,
-        SlvsNormal2D,
-        SlvsArc,
-        SlvsCircle,
-    )
-
-    _entity_collections = (
-        "points3D",
-        "lines3D",
-        "normals3D",
-        "workplanes",
-        "sketches",
-        "points2D",
-        "lines2D",
-        "normals2D",
-        "arcs",
-        "circles",
-    )
-
-    # __annotations__ = {
-    #   list_name : CollectionProperty(type=entity_cls) for entity_cls, list_name in zip(entities, _entity_collections)
-    # }
-
     @classmethod
     def _type_index(cls, entity: SlvsGenericEntity) -> int:
-        return cls.entities.index(type(entity))
+        return _entity_types.index(type(entity))
 
     def _set_index(self, entity: SlvsGenericEntity):
         """Create an index for the entity and assign it.
@@ -77,7 +85,7 @@ class SlvsEntities(PropertyGroup):
         |            total: 3 Bytes                 |
         """
         type_index = self._type_index(entity)
-        sub_list = getattr(self, self._entity_collections[type_index])
+        sub_list = getattr(self, _entity_collections[type_index])
 
         local_index = len(sub_list) - 1
         # TODO: handle this case better
@@ -95,27 +103,20 @@ class SlvsEntities(PropertyGroup):
         entity.slvs_index = type_index << 20 | local_index
 
     def type_from_index(self, index: int) -> Type[SlvsGenericEntity]:
-        if index < 0:
-            return None
-
-        type_index, _ = self._breakdown_index(index)
-
-        if type_index >= len(self.entities):
-            return None
-        return self.entities[type_index]
+        return type_from_index(index)
 
     def collection_name_from_index(self, index: int):
         if index < 0:
             return
 
         type_index, _ = self._breakdown_index(index)
-        return self._entity_collections[type_index]
+        return _entity_collections[type_index]
 
     def _get_list_and_index(self, index: int):
         type_index, local_index = self._breakdown_index(index)
-        if type_index < 0 or type_index >= len(self._entity_collections):
+        if type_index < 0 or type_index >= len(_entity_collections):
             return None, local_index
-        return getattr(self, self._entity_collections[type_index]), local_index
+        return getattr(self, _entity_collections[type_index]), local_index
 
     def get(self, index: int) -> SlvsGenericEntity:
         """Get entity by index
@@ -346,7 +347,7 @@ class SlvsEntities(PropertyGroup):
 
     @property
     def all(self):
-        for coll_name in self._entity_collections:
+        for coll_name in _entity_collections:
             entity_coll = getattr(self, coll_name)
             for entity in entity_coll:
                 yield entity
@@ -416,16 +417,14 @@ class SlvsEntities(PropertyGroup):
 
     def collection_offsets(self):
         offsets = {}
-        for i, key in enumerate(self._entity_collections):
+        for i, key in enumerate(_entity_collections):
             offsets[i] = len(getattr(self, key))
         return offsets
 
 
 if not hasattr(SlvsEntities, "__annotations__"):
     SlvsEntities.__annotations__ = {}
-for entity_cls, list_name in zip(
-    SlvsEntities.entities, SlvsEntities._entity_collections
-):
+for entity_cls, list_name in zip(_entity_types, _entity_collections):
     SlvsEntities.__annotations__[list_name] = CollectionProperty(type=entity_cls)
 
 
