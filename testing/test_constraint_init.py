@@ -27,28 +27,26 @@ class TestConstraintAdd(Sketch2dTestCase):
         self.solve()
         self.assertAlmostEqual(p2.co.y, 0.0)
 
-    @skip
     def test_vertical(self):
         context = self.context
         entities = self.entities
         constraints = self.constraints
         sketch = self.sketch
 
-        p0 = entities.add_point_2d((0, 0), sketch)
-        p0.fixed = True
+        p0 = entities.add_point_2d((0, 0), sketch, fixed=True, index_reference=True)
 
         # Test constraint between two points
-        p1 = entities.add_point_2d((3, 1), sketch)
+        p1 = entities.add_point_2d((3, 1), sketch, index_reference=True)
         c1 = constraints.add_vertical(p0, entity2=p1, sketch=sketch)
         self.solve()
-        self.assertAlmostEqual(p1.co.x, 0.0)
+        self.assertAlmostEqual(c1.entity2.co.x, 0.0)
 
         # Test constraint with one line
-        p2 = entities.add_point_2d((-3, -1), sketch)
-        line = entities.add_line_2d(p0, p2, sketch)
+        p2 = entities.add_point_2d((-3, -1), sketch, index_reference=True)
+        line = entities.add_line_2d(p0, p2, sketch, index_reference=True)
         c2 = constraints.add_vertical(line, sketch=sketch)
         self.solve()
-        self.assertAlmostEqual(p2.co.x, 0.0)
+        self.assertAlmostEqual(c2.entity1.p2.co.x, 0.0)
 
 
 class TestConstraintInit(Sketch2dTestCase):

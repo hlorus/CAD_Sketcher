@@ -25,7 +25,6 @@ class TestSolver(BgsTestCase):
 
 
 class TestSolver2d(Sketch2dTestCase):
-    @skip("Currently fails because of an unknown bug")
     def test_example_2d(self):
         context = self.context
         entities = self.entities
@@ -37,21 +36,25 @@ class TestSolver2d(Sketch2dTestCase):
         sketch2 = self.sketch
 
         # Line
-        p1 = entities.add_point_2d((10, 20), sketch2)
-        p2 = entities.add_point_2d((20, 10), sketch2)
-        line = entities.add_line_2d(p1, p2, sketch2)
+        origin = entities.add_point_2d((0, 0), sketch2, index_reference=True)
+
+        p1 = entities.add_point_2d((10, 20), sketch2, index_reference=True)
+        p2 = entities.add_point_2d((20, 10), sketch2, index_reference=True)
+        line = entities.add_line_2d(p1, p2, sketch2, index_reference=True)
         constraints.add_distance(p1, p2, sketch2).value = 30
-        constraints.add_distance(entities.origin, line).value = 10
+        constraints.add_distance(origin, line).value = 10
 
         # TODO: remove normal argument for add_arc and add_circle
-        nm = sketch2.wp.nm
+        nm = entities.add_normal_2d(sketch2)
+
 
         # Arc
-        p3 = entities.add_point_2d((100, 120), sketch2)
-        p4 = entities.add_point_2d((120, 110), sketch2)
-        p5 = entities.add_point_2d((150, 150), sketch2)
+        p3 = entities.add_point_2d((100, 120), sketch2, index_reference=True)
+        p4 = entities.add_point_2d((120, 110), sketch2, index_reference=True)
+        p5 = entities.add_point_2d((150, 150), sketch2, index_reference=True)
 
-        arc = entities.add_arc(nm, p3, p4, p5, sketch2)
+
+        arc = entities.add_arc(nm, p3, p4, p5, sketch2, index_reference=True)
 
         # Circle
         # p6 = entities.add_point_2d((200, 200), sketch2)
