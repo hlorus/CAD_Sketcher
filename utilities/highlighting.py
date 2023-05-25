@@ -54,7 +54,7 @@ class HighlightElement:
 
         else:
             # Set hover so this could be used as selection
-            global_data.hover = properties.index
+            global_data.hover = [properties.index]
             if members:
                 e = context.scene.sketcher.entities.get(index)
                 global_data.highlight_entities.extend(e.dependencies())

@@ -50,14 +50,16 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
             is_entity = False
         else:
             # Entities
-            entity_index = (
-                self.index
+            entity_indices = (
+                [self.index]
                 if self.properties.is_property_set("index")
                 else global_data.hover
             )
 
-            if entity_index != -1:
-                element = context.scene.sketcher.entities.get(entity_index)
+            if entity_indices:
+                element = context.scene.sketcher.entities.get(
+                    entity_indices[0]
+                )
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column()

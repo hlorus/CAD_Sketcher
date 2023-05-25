@@ -6,6 +6,7 @@ from bpy.types import Context, Operator
 from bpy.utils import register_class, unregister_class
 
 from . import global_data
+from .utilities.index import update_selection_map
 from .utilities.preferences import use_experimental
 from .declarations import Operators
 
@@ -17,23 +18,27 @@ def draw_selection_buffer(context: Context):
     region = context.region
 
     # create offscreen
-    width, height = region.width, region.height
-    offscreen = global_data.offscreen = gpu.types.GPUOffScreen(width, height)
+    offscreen = global_data.offscreen = gpu.types.GPUOffScreen(
+        region.width,
+        region.height,
+        format='RGBA32F',
+    )
+
+    selectable_list = [
+        entity
+        for entity in reversed(list(context.scene.sketcher.entities.all))
+        if entity.slvs_index not in global_data.ignore_list
+        and hasattr(entity, "draw_id")
+        and entity.is_selectable(context)
+    ]
+    update_selection_map(selectable_list)
 
     with offscreen.bind():
-
         fb = gpu.state.active_framebuffer_get()
         fb.clear(color=(0.0, 0.0, 0.0, 0.0))
 
-        entities = list(context.scene.sketcher.entities.all)
-        for e in reversed(entities):
-            if e.slvs_index in global_data.ignore_list:
-                continue
-            if not hasattr(e, "draw_id"):
-                continue
-            if not e.is_selectable(context):
-                continue
-            e.draw_id(context)
+        for entity in selectable_list:
+            entity.draw_id(context)
 
 
 def ensure_selection_texture(context: Context):

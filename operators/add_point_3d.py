@@ -36,9 +36,10 @@ class View3D_OT_slvs_add_point3d(Operator, Operator3d):
 
         # Store hovered entity to use for auto-coincident since it doesn't get
         # stored for non-interactive tools
-        hovered = global_data.hover
-        if self._check_constrain(context, hovered):
-            self.state_data["hovered"] = hovered
+        for hovered in global_data.hover:
+            if self._check_constrain(context, hovered):
+                self.state_data["hovered"] = hovered
+                break
 
         self.add_coincident(context, self.target, self.state, self.state_data)
         return True

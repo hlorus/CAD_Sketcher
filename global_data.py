@@ -13,7 +13,7 @@ batches = {}
 offscreen = None
 redraw_selection_buffer = False
 
-hover = -1
+hover = []
 ignore_list = []
 selected = []
 

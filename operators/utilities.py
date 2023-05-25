@@ -69,10 +69,7 @@ def ignore_hover(entity):
 
 # TODO: could probably check entity type only through index, instead of getting the entity first...
 def get_hovered(context: Context, *types):
-    hovered = global_data.hover
-    entity = None
-
-    if hovered != -1:
+    for hovered in global_data.hover:
         entity = context.scene.sketcher.entities.get(hovered)
         if type(entity) in types:
             return entity

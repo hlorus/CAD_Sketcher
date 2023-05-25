@@ -16,9 +16,10 @@ class View3D_OT_slvs_tweak(Operator):
     bl_options = {"UNDO"}
 
     def invoke(self, context: Context, event):
-        index = global_data.hover
-        # TODO: hover should be -1 if nothing is hovered, not None!
-        if index is None or index == -1:
+        hover = global_data.hover
+        index = hover[0] if hover else None
+
+        if index is None:
             return {"PASS_THROUGH"}
 
         entity = context.scene.sketcher.entities.get(index)

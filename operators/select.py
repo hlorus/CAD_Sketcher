@@ -26,27 +26,51 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
     mode: mode_property
 
     def execute(self, context: Context):
-        index = (
-            self.index
+        indices = (
+            [self.index]
             if self.properties.is_property_set("index")
             else global_data.hover
         )
-        hit = index != -1
         mode = self.mode
+        selected = global_data.selected
 
-        if mode == "SET" or not hit:
+        if mode == "SET" and not indices:
             deselect_all(context)
 
-        if hit:
-            entity = context.scene.sketcher.entities.get(index)
+        else:
+            if mode == "SET":
+                for index in indices:
+                    if index in selected:
+                        index = indices[
+                            (indices.index(index) + 1) % len(indices)
+                        ]
+                        break
 
-            value = True
-            if mode == "SUBTRACT":
-                value = False
-            if mode == "TOGGLE":
-                value = not entity.selected
+                else:
+                    index = indices[0]
 
-            entity.selected = value
+                deselect_all(context)
+                entity = context.scene.sketcher.entities.get(index)
+                entity.selected = True
+
+            elif mode == "ADD":
+                for index in indices:
+                    if index not in selected:
+                        entity = context.scene.sketcher.entities.get(index)
+                        entity.selected = True
+                        break
+
+            elif mode == "SUBTRACT":
+                for index in indices:
+                    if index in selected:
+                        entity = context.scene.sketcher.entities.get(index)
+                        entity.selected = False
+                        break
+
+            elif mode == "TOGGLE":
+                for index in indices:
+                    entity = context.scene.sketcher.entities.get(index)
+                    entity.selected = not entity.selected
 
         context.area.tag_redraw()
         return {"FINISHED"}

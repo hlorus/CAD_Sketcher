@@ -78,27 +78,22 @@ class SlvsEntities(PropertyGroup):
         """
         type_index = self._type_index(entity)
         sub_list = getattr(self, self._entity_collections[type_index])
-
         local_index = len(sub_list) - 1
         # TODO: handle this case better
         assert local_index < math.pow(2, 20)
         entity.slvs_index = assemble_index(type_index, local_index)
 
-    @staticmethod
-    def _breakdown_index(index: int):
-        return breakdown_index(index)
-
     @classmethod
     def recalc_type_index(cls, entity):
-        _, local_index = cls._breakdown_index(entity.slvs_index)
+        _, local_index = breakdown_index(entity.slvs_index)
         type_index = cls._type_index(entity)
-        entity.slvs_index = type_index << 20 | local_index
+        entity.slvs_index = assemble_index(type_index, local_index)
 
     def type_from_index(self, index: int) -> Type[SlvsGenericEntity]:
         if index < 0:
             return None
 
-        type_index, _ = self._breakdown_index(index)
+        type_index, _ = breakdown_index(index)
 
         if type_index >= len(self.entities):
             return None
@@ -108,11 +103,11 @@ class SlvsEntities(PropertyGroup):
         if index < 0:
             return
 
-        type_index, _ = self._breakdown_index(index)
+        type_index, _ = breakdown_index(index)
         return self._entity_collections[type_index]
 
     def _get_list_and_index(self, index: int):
-        type_index, local_index = self._breakdown_index(index)
+        type_index, local_index = breakdown_index(index)
         if type_index < 0 or type_index >= len(self._entity_collections):
             return None, local_index
         return getattr(self, self._entity_collections[type_index]), local_index
@@ -239,7 +234,7 @@ class SlvsEntities(PropertyGroup):
         sketch = self.sketches.add()
         sketch.wp = wp
         self._set_index(sketch)
-        _, i = self._breakdown_index(sketch.slvs_index)
+        _, i = breakdown_index(sketch.slvs_index)
         sketch.name = "Sketch"
         return sketch
 
