@@ -1,4 +1,5 @@
 from pathlib import Path
+from functools import cache
 
 import gpu
 import bpy
@@ -10,11 +11,6 @@ from .declarations import Operators
 from .shaders import Shaders
 
 icons = {}
-_icon_shader = Shaders.uniform_color_image_2d()
-_icon_batch = batch_for_shader(_icon_shader, "TRI_FAN", {
-    "pos": ((-.5, -.5), (.5, -.5), (.5, .5), (-.5, .5)),
-    "texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
-})
 preview_icons = None
 _operator_types = {
     Operators.AddDistance: "DISTANCE",
@@ -31,6 +27,16 @@ _operator_types = {
     Operators.AddRatio: "RATIO",
 }
 
+@cache
+def _get_shader():
+    return Shaders.uniform_color_image_2d()
+
+@cache
+def _get_batch():
+    return batch_for_shader(_get_shader(), "TRI_FAN", {
+    "pos": ((-.5, -.5), (.5, -.5), (.5, .5), (-.5, .5)),
+    "texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
+})
 
 def get_folder_path():
     return Path(__file__).parent / "resources" / "icons"
@@ -116,7 +122,7 @@ def draw(type, color):
 
     gpu.state.blend_set("ALPHA")
 
-    shader, batch = _icon_shader, _icon_batch
+    shader, batch = _get_shader(), _get_batch()
     shader.bind()
     shader.uniform_float("color", color)
     shader.uniform_sampler("image", texture)
