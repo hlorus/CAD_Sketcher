@@ -388,11 +388,13 @@ class SlvsEntities(PropertyGroup):
         if not self.origin:
             p = sse.add_point_3d((0.0, 0.0, 0.0))
             set_origin_props(p)
+            p.name = "OriginPoint3D"
             self.origin = p
 
         # axis
         pi_2 = QUARTER_TURN
-        for name, angles in zip(
+        for label, name, angles in zip(
+            ("OriginAxisX", "OriginAxisY", "OriginAxisZ"),
             ("origin_axis_X", "origin_axis_Y", "origin_axis_Z"),
             (Euler((pi_2, 0.0, pi_2)), Euler((pi_2, 0.0, 0.0)), Euler()),
         ):
@@ -401,18 +403,20 @@ class SlvsEntities(PropertyGroup):
             nm = sse.add_normal_3d(Euler(angles).to_quaternion())
             set_origin_props(nm)
             setattr(self, name, nm)
+            nm.name = label
 
         # workplanes
-        for nm_name, wp_name in (
-            ("origin_axis_X", "origin_plane_YZ"),
-            ("origin_axis_Y", "origin_plane_XZ"),
-            ("origin_axis_Z", "origin_plane_XY"),
+        for label, nm_name, wp_name in (
+            ("OriginWorkplaneYZ", "origin_axis_X", "origin_plane_YZ"),
+            ("OriginWorkplaneXZ", "origin_axis_Y", "origin_plane_XZ"),
+            ("OriginWorkplaneXY", "origin_axis_Z", "origin_plane_XY"),
         ):
             if getattr(self, wp_name):
                 continue
             wp = sse.add_workplane(self.origin, getattr(self, nm_name))
             set_origin_props(wp)
             setattr(self, wp_name, wp)
+            wp.name = label
 
     def collection_offsets(self):
         offsets = {}
