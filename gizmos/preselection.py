@@ -4,7 +4,7 @@ from bpy.types import Gizmo, GizmoGroup
 from .. import global_data
 from ..declarations import Gizmos, GizmoGroups
 from ..draw_handler import ensure_selection_texture
-from ..utilities.index import rgb_to_index
+from ..utilities.index import rgba_to_indices
 from .utilities import context_mode_check
 
 
@@ -58,15 +58,15 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             return -1
         with offscreen.bind():
             fb = gpu.state.active_framebuffer_get()
-            buffer = fb.read_color(mouse_x, mouse_y, 1, 1, 4, 0, "FLOAT")
-        r, g, b, alpha = buffer[0][0]
+            # FIXME: Given RGBA32F in draw_handler offscreen buffer,
+            # we can probably switch UBYTE for something bigger,
+            # and adjust BIT_DEPTH in utilities.index... to be tested
+            buffer = fb.read_color(mouse_x, mouse_y, 1, 1, 4, 0, "UBYTE")
 
-        if alpha > 0:
-            index = rgb_to_index(r, g, b)
-            if index != global_data.hover:
-                global_data.hover = index
-                context.area.tag_redraw()
-        elif global_data.hover != -1:
-            context.area.tag_redraw()
-            global_data.hover = -1
+        r, g, b, alpha = buffer[0][0]
+        indices = rgba_to_indices(r, g, b, alpha)
+
+        global_data.hover = indices
+        context.area.tag_redraw()
+
         return -1

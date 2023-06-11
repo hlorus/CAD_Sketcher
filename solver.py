@@ -1,5 +1,6 @@
 import logging
 from .utilities.bpy import bpyEnum
+from .utilities.index import breakdown_index
 from .global_data import solver_state_items
 
 # TODO: Move to utilities.data_handling
@@ -53,9 +54,7 @@ class Solver:
     def _get_group(self, sketch):
         if not sketch:
             return self.group_3d
-        type, index = self.context.scene.sketcher.entities._breakdown_index(
-            sketch.slvs_index
-        )
+        _, index = breakdown_index(sketch.slvs_index)
         return self.start_sketch_groups + index
 
     def _init_slvs_data(self):

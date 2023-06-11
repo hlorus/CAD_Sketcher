@@ -211,7 +211,14 @@ class Shaders:
 
             void main()
             {
-              fragColor = color;
+                int r = int(int(floor(fragColor.r * 255.0f)) | int(floor(color.r * 255.0f)));
+                int g = int(int(floor(fragColor.g * 255.0f)) | int(floor(color.g * 255.0f)));
+                int b = int(int(floor(fragColor.b * 255.0f)) | int(floor(color.b * 255.0f)));
+                int a = int(int(floor(fragColor.a * 255.0f)) | int(floor(color.a * 255.0f)));
+                fragColor.r = float(r) / 255.0f;
+                fragColor.g = float(g) / 255.0f;
+                fragColor.b = float(b) / 255.0f;
+                fragColor.a = float(a) / 255.0f;
             }
         """
         return GPUShader(vertex_shader, fragment_shader)

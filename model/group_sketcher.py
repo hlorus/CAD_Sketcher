@@ -57,7 +57,7 @@ class SketcherProps(PropertyGroup):
         return solve_system(context)
 
     def purge_stale_data(self):
-        global_data.hover = -1
+        global_data.hover.clear()
         global_data.selected.clear()
         global_data.batches.clear()
         for e in self.entities.all:

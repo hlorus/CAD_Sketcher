@@ -31,9 +31,10 @@ class GenericEntityOp(StatefulOperator):
         # Set the hovered entity for constraining if not directly used
         hovered_index = -1
         if not hovered and hasattr(self, "_check_constrain"):
-            hover = global_data.hover
-            if hover and self._check_constrain(context, hover):
-                hovered_index = hover
+            for hover in global_data.hover:
+                if self._check_constrain(context, hover):
+                    hovered_index = hover
+                    break
 
         data["hovered"] = hovered_index
         data["type"] = type(hovered) if hovered else None

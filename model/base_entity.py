@@ -10,7 +10,7 @@ from ..utilities import preferences
 from ..shaders import Shaders
 from ..declarations import Operators
 from ..utilities.preferences import get_prefs
-from ..utilities.index import index_to_rgb, breakdown_index
+from ..utilities.index import index_to_rgba, breakdown_index
 from ..utilities.view import update_cb
 from ..utilities.solver import update_system_cb
 
@@ -122,14 +122,14 @@ class SlvsGenericEntity:
 
     @property
     def hover(self):
-        return global_data.hover == self.slvs_index
+        return self.slvs_index in global_data.hover
 
     @hover.setter
     def hover(self, value):
-        if value:
-            global_data.hover = self.slvs_index
-        else:
-            global_data.hover = -1
+        if value and not self.hover:
+            global_data.hover.append(self.slvs_index)
+        elif not value and self.hover:
+            global_data.hover.remove(self.slvs_index)
 
     @property
     def selected(self):
@@ -254,7 +254,8 @@ class SlvsGenericEntity:
 
         gpu.state.point_size_set(self.point_size_select)
 
-        shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
+        index_color = index_to_rgba(self.slvs_index)
+        shader.uniform_float("color", index_color)
         if not self.is_point():
             viewport = [context.area.width, context.area.height]
             shader.uniform_float("Viewport", viewport)
@@ -264,6 +265,15 @@ class SlvsGenericEntity:
         batch.draw(shader)
         gpu.shader.unbind()
         self.restore_opengl_defaults()
+        type_index, local_index = breakdown_index(self.slvs_index)
+        logger.debug(
+            'SlvsGenericEntity: draw_id done with id %d (type_index %d, '
+            'local_index %d) and color %r',
+            self.slvs_index,
+            type_index,
+            local_index,
+            index_color,
+        )
 
     def create_slvs_data(self, solvesys):
         """Create a solvespace entity from parameters"""
