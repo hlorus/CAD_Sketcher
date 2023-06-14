@@ -45,6 +45,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         self.prepare_origin_elements(context)
         bpy.ops.ed.undo_push(message="Ensure Origin Elements")
         context.scene.sketcher.show_origin = True
+        return True
 
     def main(self, context: Context):
         sse = context.scene.sketcher.entities

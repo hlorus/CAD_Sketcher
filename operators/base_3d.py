@@ -12,9 +12,6 @@ class Operator3d(GenericEntityOp):
     def poll(cls, context: Context):
         return context.scene.sketcher.active_sketch_i == -1
 
-    def init(self, context: Context, event: Event):
-        pass
-
     def state_func(self, context: Context, coords):
         state = self.state
         pos = get_placement_pos(context, coords)

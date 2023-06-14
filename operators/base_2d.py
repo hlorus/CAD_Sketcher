@@ -20,6 +20,7 @@ class Operator2d(GenericEntityOp):
 
     def init(self, context: Context, event: Event):
         self.sketch = context.scene.sketcher.active_sketch
+        return True
 
     def state_func(self, context: Context, coords):
         state = self.state
