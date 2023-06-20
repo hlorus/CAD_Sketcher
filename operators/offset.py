@@ -154,15 +154,15 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
 
     def fini(self, context: Context, succeede: bool):
         if not succeede:
-            return False
+            return
 
         constraints = context.scene.sketcher.constraints
 
         # Add parallel constraint
-        for entity, new_entity in zip(self.entities, self.new_path):
-            if not is_line(entity):
-                continue
-            constraints.add_parallel(entity, new_entity, sketch=self.sketch)
+        # for entity, new_entity in zip(self.entities, self.new_path):
+        #     if not is_line(entity):
+        #         continue
+        #     constraints.add_parallel(entity, new_entity, sketch=self.sketch)
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_offset,))
