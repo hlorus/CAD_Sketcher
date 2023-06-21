@@ -30,6 +30,6 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         layout.label(text="Drawing:")
         layout.prop(context.scene.sketcher, "use_construction")
 
-        layout.operator(declarations.Operators.Offset).wait_for_input = True
         # Node modifier operators
+        layout.label(text="Node Tools:")
         layout.operator(declarations.Operators.NodeExtrude)
