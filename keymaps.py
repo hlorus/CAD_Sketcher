@@ -269,7 +269,7 @@ tool_base_keymap = (
     ),
     (
         Operators.Offset,
-        {"type": "I", "value": "PRESS"},  # "O" is already used for diameter
+        {"type": "O", "value": "PRESS"},
         None,
     ),
 )
