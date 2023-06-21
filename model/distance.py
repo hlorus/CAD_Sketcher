@@ -73,6 +73,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         name=label,
         subtype="DISTANCE",
         unit="LENGTH",
+        precision=6,
         update=update_system_cb,
         get=DimensionalConstraint._get_value,
         set=DimensionalConstraint._set_value,

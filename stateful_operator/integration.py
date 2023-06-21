@@ -232,7 +232,9 @@ class StatefulOperator(StatefulOperatorLogic):
         # Return list filled with all selected verts/edges/faces/objects
         selected = []
         states = self.get_states()
-        types = [s.types for s in states]
+        types = []
+        [types.extend(s.types) for s in states]
+
         # Note: Where to take mesh elements from? Editmode data is only written
         # when left probably making it impossible to use selected elements in realtime.
         if any([t == bpy.types.Object for t in types]):

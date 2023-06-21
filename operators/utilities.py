@@ -198,5 +198,6 @@ def select_target_ob(context, sketch):
     if not target_ob:
         return
 
-    target_ob.select_set(True)
-    context.view_layer.objects.active = target_ob
+    if target_ob.name in context.view_layer.objects:
+        target_ob.select_set(True)
+        context.view_layer.objects.active = target_ob

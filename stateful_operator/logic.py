@@ -300,7 +300,8 @@ class StatefulOperatorLogic:
     def invoke(self, context: Context, event: Event):
         self._state_data.clear()
         if hasattr(self, "init"):
-            self.init(context, event)
+            if not self.init(context, event):
+                return self._end(context, False)
 
         retval = {"RUNNING_MODAL"}
 

@@ -53,6 +53,7 @@ class Operators(str, Enum):
     Paste = "view3d.slvs_paste"
     Move = "view3d.slvs_move"
     Offset = "view3d.slvs_offset"
+    NodeExtrude = "view3d.slvs_node_extrude"
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
     Select = "view3d.slvs_select"
     SelectAll = "view3d.slvs_select_all"

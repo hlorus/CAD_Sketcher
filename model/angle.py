@@ -48,6 +48,7 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         name=label,
         subtype="ANGLE",
         unit="ROTATION",
+        precision=6,
         update=update_system_cb,
         get=DimensionalConstraint._get_value,
         set=DimensionalConstraint._set_value,
