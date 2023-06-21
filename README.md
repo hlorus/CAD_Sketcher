@@ -9,6 +9,7 @@
 Constraint-based sketcher addon for [Blender](https://www.blender.org/) that allows to create precise 2d shapes by defining a set of geometric constraints like tangent, distance, angle, equal and more. Sketches stay editable and support a fully non-destructive workflow.
 
 > :warning: **Experimental addon:** This is still work in progress, don't use it on production files without a backup.
+> :warning: **Mac OS:** Due to an ongoing Blender bug apple Metal users need to change their GPU Backend to **OpenGL** under: edit->preferences->system->GPU Backend
 
 Minimum version: Blender 3.0
 
