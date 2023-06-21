@@ -461,6 +461,8 @@ class SlvsEntities(PropertyGroup):
         context = bpy.context
         items = []
         for index in global_data.selected:
+            if index is None:
+                continue
             entity = self.get(index)
             items.append(entity)
         return [e for e in items if e.is_selectable(context)]
@@ -471,6 +473,8 @@ class SlvsEntities(PropertyGroup):
         context = bpy.context
         items = []
         for index in global_data.selected:
+            if index is None:
+                continue
             entity = self.get(index)
             items.append(entity)
         return [e for e in items if e.selected]
