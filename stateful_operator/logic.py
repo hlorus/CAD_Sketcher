@@ -138,7 +138,10 @@ class StatefulOperatorLogic:
         if not prop_name:
             return False
 
-        prop = self.properties.rna_type.properties[prop_name]
+        prop = self.properties.rna_type.properties.get(prop_name)
+        if not prop:
+            return False
+
         if prop.type not in ("INT", "FLOAT"):
             return False
         return True
@@ -157,15 +160,25 @@ class StatefulOperatorLogic:
         return ok
 
     def init_substate(self):
+        
+        # Reset
+        self._substate_count = None
+        self._stateprop = None
+        
         props = self.get_property()
-        if props and props[0]:
-            prop_name = props[0]
-            prop = self.properties.rna_type.properties[prop_name]
-            self._substate_count = prop.array_length
-            self._stateprop = prop
-        else:
-            self._substate_count = None
-            self._stateprop = None
+        if not props:
+            return
+        if not props[0]:
+            return
+
+        prop_name = props[0]
+        prop = self.properties.rna_type.properties.get(prop_name)
+        if not prop:
+            return
+
+        self._substate_count = prop.array_length
+        self._stateprop = prop
+        
 
     def iterate_substate(self):
         i = self._substate_index
