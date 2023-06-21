@@ -166,6 +166,11 @@ tool_access = (
         WorkSpaceTools.Bevel,
         Operators.Bevel,
     ),
+    tool_invoke_kmi(
+        "O",
+        WorkSpaceTools.Offset,
+        Operators.Offset
+    ),
     (
         Operators.AddSketch,
         {"type": "S", "value": "PRESS"},
@@ -265,11 +270,6 @@ tool_base_keymap = (
     (
         Operators.Move,
         {"type": "G", "value": "PRESS"},
-        None,
-    ),
-    (
-        Operators.Offset,
-        {"type": "O", "value": "PRESS"},
         None,
     ),
 )
