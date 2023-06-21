@@ -39,6 +39,7 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             "Entity",
             description="Base entity to get path from",
             pointer="entity",
+            use_create=False,
             types=SEGMENT,
         ),
         state_from_args(
