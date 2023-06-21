@@ -105,6 +105,7 @@ class WorkSpaceTools(str, Enum):
     AddRectangle = "sketcher.slvs_add_rectangle"
     AddWorkplane = "sketcher.slvs_add_workplane"
     AddWorkplaneFace = "sketcher.slvs_add_workplane_face"
+    Offset = "sketcher.slvs_offset"
     Select = "sketcher.slvs_select"
     Trim = "sketcher.slvs_trim"
     Bevel = "sketcher.slvs_bevel"
