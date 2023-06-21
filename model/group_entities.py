@@ -349,6 +349,7 @@ class SlvsEntities(PropertyGroup):
         line.fixed = fixed
         line.construction = construction
         index = self._set_index(line)
+        print("new line", p1, p2, sketch, fixed, construction, index_reference)
         if index_reference:
             return index
         return line
@@ -411,6 +412,18 @@ class SlvsEntities(PropertyGroup):
         arc.construction = construction
         arc.invert_direction = invert
         index = self._set_index(arc)
+        print(
+            "new arc",
+            nm,
+            ct,
+            p1,
+            p2,
+            sketch,
+            invert,
+            fixed,
+            construction,
+            index_reference,
+        )
         if index_reference:
             return index
         return arc
