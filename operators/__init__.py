@@ -23,6 +23,7 @@ modules = [
     "trim",
     "batch_set",
     "bevel",
+    "offset",
     "set_sketch",
     "delete_entity",
     "delete_constraint",

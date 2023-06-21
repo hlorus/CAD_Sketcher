@@ -64,7 +64,8 @@ def select_extend(context: Context):
 # Also note that a running modal operator might prevent redraws, avoid returning running_modal
 def ignore_hover(entity):
     ignore_list = global_data.ignore_list
-    ignore_list.append(entity.slvs_index)
+    index = entity if isinstance(entity, int) else entity.slvs_index
+    ignore_list.append(index)
 
 
 # TODO: could probably check entity type only through index, instead of getting the entity first...

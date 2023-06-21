@@ -1,4 +1,5 @@
 from unittest import TestCase
+from CAD_Sketcher.solver import solve_system
 
 
 class BgsTestCase(TestCase):
@@ -39,6 +40,9 @@ class BgsTestCase(TestCase):
     def force_entity_update(scene):
         for entity in scene.sketcher.entities.all:
             entity.update()
+
+    def solve(self):
+        self.assertTrue(solve_system(self.context))
 
 
 class Sketch2dTestCase(BgsTestCase):

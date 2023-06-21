@@ -267,6 +267,11 @@ tool_base_keymap = (
         {"type": "G", "value": "PRESS"},
         None,
     ),
+    (
+        Operators.Offset,
+        {"type": "I", "value": "PRESS"},  # "O" is already used for diameter
+        None,
+    ),
 )
 
 tool_generic = (
