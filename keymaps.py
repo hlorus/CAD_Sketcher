@@ -373,6 +373,13 @@ def register():
         kmi.properties.wait_for_input = True
         addon_keymaps.append((km, kmi))
 
+        # Leave Sketch
+        kmi = km.keymap_items.new(
+            Operators.SetActiveSketch, "X", "PRESS", ctrl=True, shift=True
+        )
+        kmi.properties.index = -1
+        addon_keymaps.append((km, kmi))
+
 
 def unregister():
     wm = bpy.context.window_manager
