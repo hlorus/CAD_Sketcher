@@ -37,7 +37,20 @@ def load_asset(library, asset_type, asset):
     return False
 
 
-class View3D_OT_node_extrude(Operator, Operator3d):
+class NodeOperator(Operator3d):
+    """Base class for all node-based operators"""
+
+    @classmethod
+    def poll(cls, context):
+        if not context.active_object:
+            return False
+        if context.scene.sketcher.active_sketch_i != -1:
+            return False
+
+        return True
+
+
+class View3D_OT_node_extrude(Operator, NodeOperator):
     """Add an extrude modifier node group"""
 
     bl_idname = Operators.NodeExtrude
@@ -77,7 +90,9 @@ class View3D_OT_node_extrude(Operator, Operator3d):
     # Somhow doesn't seem to work, might be an undo problem
     def init(self, context, event):
         if not load_asset("resources", "node_groups", "Extrude"):
-            self.report({"ERROR"}, f"Cannot load asset \"{self.NODEGROUP_NAME}\" from library")
+            self.report(
+                {"ERROR"}, f'Cannot load asset "{self.NODEGROUP_NAME}" from library'
+            )
             return False
 
         bpy.ops.ed.undo_push(message=f"Load Asset \"{self.NODEGROUP_NAME}\"")
@@ -86,7 +101,7 @@ class View3D_OT_node_extrude(Operator, Operator3d):
     def main(self, context):
         ob = self.object.original
         offset = self.offset
-        
+
         # Add a modifier to object
         modifier = ob.modifiers.new("CAD_Sketcher Extrude", "NODES")
 
