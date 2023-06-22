@@ -5,7 +5,6 @@ from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 
 from ..model.categories import SEGMENT
-from ..model.identifiers import is_line
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
@@ -99,9 +98,7 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             intr = intersections[0]
             point_coords.append(intersections[0])
 
-        points = [
-            sse.add_point_2d(co, sketch, index_reference=True) for co in point_coords
-        ]
+        points = [sse.add_point_2d(co, sketch) for co in point_coords]
 
         # Add start/endpoint if not cyclic
         if not is_cyclic:
@@ -118,8 +115,8 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
                 _inverted_dist(directions[-1]),
             )
 
-            points.insert(0, sse.add_point_2d(start_co, sketch, index_reference=True))
-            points.append(sse.add_point_2d(end_co, sketch, index_reference=True))
+            points.insert(0, sse.add_point_2d(start_co, sketch))
+            points.append(sse.add_point_2d(end_co, sketch))
 
         # Exclude created points from selection
         [ignore_hover(p) for p in points]
@@ -134,19 +131,11 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             p1 = points[i_start]
             p2 = points[i_end]
 
-            use_construction = context.scene.sketcher.use_construction
-            new_entity = entity.new(
-                context,
-                p1=p1,
-                p2=p2,
-                sketch=sketch,
-                **(
-                    {"invert": direction} if hasattr(entity, "invert_direction") else {}
-                ),
-                construction=use_construction,
-                index_reference=True,
-            )
+            new_entity = entity.from_props(context, start=p1, end=p2, invert=direction)
             ignore_hover(new_entity)
+
+            if context.scene.sketcher.use_construction:
+                new_entity.construction = True
 
             self.new_path.append(new_entity)
 
