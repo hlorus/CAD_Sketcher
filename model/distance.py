@@ -52,6 +52,14 @@ align_items = [
     ("VERTICAL", "Vertical", "", 2),
 ]
 
+def _get_value(self):
+    if self.is_reference:
+        val = self.init_props(align=self.align)["value"]
+        return self.to_displayed_value(val)
+    if self.get("value") is None:
+        self.assign_init_props()
+    return self.to_displayed_value(self["value"])
+
 
 class SlvsDistance(DimensionalConstraint, PropertyGroup):
     """Sets the distance between a point and some other entity (point/line/Workplane)."""
@@ -75,7 +83,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         unit="LENGTH",
         precision=6,
         update=update_system_cb,
-        get=DimensionalConstraint._get_value,
+        get=_get_value,
         set=DimensionalConstraint._set_value,
     )
     flip: BoolProperty(name="Flip", update=update_system_cb)
