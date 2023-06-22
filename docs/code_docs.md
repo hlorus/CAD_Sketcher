@@ -151,22 +151,3 @@ After that we cam simply loop through these connected entities and call their to
 ### What happens when a button is pressed?
 In blender every user interaction happens through an operator. You can enable python
 tooltips to find the corresponding operator from a button. Check [blenders API Docs](https://docs.blender.org/api/current/info_quickstart.html) for more information.
-
-
-## Gotcha's
-### Entity pointers loose their assigned values
-> AttributeError: 'NoneType' object has no attribute "slvs_index"
-
-As described [here](https://docs.blender.org/api/current/info_gotcha.html#stale-data) data might not directly update after edit. This usually isn't a problem for interactive operators however it can be the case with operators, scripts or tests which add multiple entities/constraints at once.
-This can be solved by calling context.view_layer.update() before adding an element that depends on an element that was just created. Just be aware that this might have a negative performance impact.
-A better approach is to use the "index_reference" mode of the entity "add_" methods. If set to True the method will return the index of the entity rather than the object itself. All "add_" methods will allow passing entities by index, additionally they also accept passing parameters.
-
-```
-entities = context.scene.sketcher.entities
-
-p1 = entities.add_point_3d((0, 0, 0), index_reference=True)
-p2 = entities.add_point_3d((1, 1, 0), index_reference=True)
-line = entities.add_line_3d(p1, p2, construction=True, index_reference=True)
-
-assert type(p1) == int
-```

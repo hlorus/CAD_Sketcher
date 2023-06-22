@@ -90,9 +90,7 @@ class SlvsEntities(PropertyGroup):
         local_index = len(sub_list) - 1
         # TODO: handle this case better
         assert local_index < math.pow(2, 20)
-        index = assemble_index(type_index, local_index)
-        entity.slvs_index = index
-        return index
+        entity.slvs_index = assemble_index(type_index, local_index)
 
     @staticmethod
     def _breakdown_index(index: int):
@@ -166,12 +164,8 @@ class SlvsEntities(PropertyGroup):
         new_item.slvs_index = index
 
     def add_point_3d(
-        self,
-        co: Union[Tuple[float, float, float], Vector],
-        fixed: bool = False,
-        construction: bool = False,
-        index_reference: bool = False,
-    ) -> Union[SlvsPoint3D, int]:
+        self, co: Union[Tuple[float, float, float], Vector]
+    ) -> SlvsPoint3D:
         """Add a point in 3d space.
 
         Arguments:
@@ -185,21 +179,10 @@ class SlvsEntities(PropertyGroup):
 
         p = self.points3D.add()
         p.location = co
-        p.fixed = fixed
-        p.construction = construction
-        index = self._set_index(p)
-        if index_reference:
-            return index
+        self._set_index(p)
         return p
 
-    def add_line_3d(
-        self,
-        p1: Union[SlvsPoint3D, int],
-        p2: Union[SlvsPoint3D, int],
-        fixed: bool = False,
-        construction: bool = False,
-        index_reference: bool = False,
-    ) -> SlvsLine3D:
+    def add_line_3d(self, p1: SlvsPoint3D, p2: SlvsPoint3D) -> SlvsLine3D:
         """Add a line in 3d space.
 
         Arguments:
@@ -210,22 +193,12 @@ class SlvsEntities(PropertyGroup):
             SlvsLine3D: The created line.
         """
         line = self.lines3D.add()
-        line.p1_i = p1 if isinstance(p1, int) else p1.slvs_index
-        line.p2_i = p2 if isinstance(p2, int) else p2.slvs_index
-        line.fixed = fixed
-        line.construction = construction
-        index = self._set_index(line)
-        if index_reference:
-            return index
+        line.p1 = p1
+        line.p2 = p2
+        self._set_index(line)
         return line
 
-    def add_normal_3d(
-        self,
-        quat: Tuple[float, float, float, float],
-        fixed: bool = False,
-        construction: bool = False,
-        index_reference: bool = False,
-    ) -> SlvsNormal3D:
+    def add_normal_3d(self, quat: Tuple[float, float, float, float]) -> SlvsNormal3D:
         """Add a normal in 3d space.
 
         Arguments:
@@ -236,21 +209,10 @@ class SlvsEntities(PropertyGroup):
         """
         nm = self.normals3D.add()
         nm.orientation = quat
-        nm.fixed = fixed
-        nm.construction = construction
-        index = self._set_index(nm)
-        if index_reference:
-            return index
+        self._set_index(nm)
         return nm
 
-    def add_workplane(
-        self,
-        p1: SlvsPoint3D,
-        nm: SlvsGenericEntity,
-        fixed: bool = False,
-        construction: bool = False,
-        index_reference: bool = False,
-    ) -> SlvsWorkplane:
+    def add_workplane(self, p1: SlvsPoint3D, nm: SlvsGenericEntity) -> SlvsWorkplane:
         """Add a workplane.
 
         Arguments:
@@ -261,22 +223,12 @@ class SlvsEntities(PropertyGroup):
             SlvsWorkplane: The created workplane.
         """
         wp = self.workplanes.add()
-        wp.p1_i = p1 if isinstance(p1, int) else p1.slvs_index
-        wp.nm_i = nm if isinstance(nm, int) else nm.slvs_index
-        wp.fixed = fixed
-        wp.construction = construction
-        index = self._set_index(wp)
-        if index_reference:
-            return index
+        wp.p1 = p1
+        wp.nm = nm
+        self._set_index(wp)
         return wp
 
-    def add_sketch(
-        self,
-        wp: SlvsWorkplane,
-        fixed: bool = False,
-        construction: bool = False,
-        index_reference: bool = False,
-    ) -> SlvsSketch:
+    def add_sketch(self, wp: SlvsWorkplane) -> SlvsSketch:
         """Add a Sketch.
 
         Arguments:
@@ -286,24 +238,13 @@ class SlvsEntities(PropertyGroup):
             SlvsSketch: The created sketch.
         """
         sketch = self.sketches.add()
-        sketch.wp_i = wp if isinstance(wp, int) else wp.slvs_index
-        sketch.fixed = fixed
-        sketch.construction = construction
-        index = self._set_index(sketch)
+        sketch.wp = wp
+        self._set_index(sketch)
         _, i = self._breakdown_index(sketch.slvs_index)
         sketch.name = "Sketch"
-        if index_reference:
-            return index
         return sketch
 
-    def add_point_2d(
-        self,
-        co: Tuple[float, float],
-        sketch: SlvsSketch,
-        fixed: bool = False,
-        construction: bool = False,
-        index_reference: bool = False,
-    ) -> SlvsPoint2D:
+    def add_point_2d(self, co: Tuple[float, float], sketch: SlvsSketch) -> SlvsPoint2D:
         """Add a point in 2d space.
 
         Arguments:
@@ -315,22 +256,12 @@ class SlvsEntities(PropertyGroup):
         """
         p = self.points2D.add()
         p.co = co
-        p.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        p.fixed = fixed
-        p.construction = construction
-        index = self._set_index(p)
-        if index_reference:
-            return index
+        p.sketch = sketch
+        self._set_index(p)
         return p
 
     def add_line_2d(
-        self,
-        p1: SlvsPoint2D,
-        p2: SlvsPoint2D,
-        sketch: SlvsSketch,
-        fixed: bool = False,
-        construction: bool = False,
-        index_reference: bool = False,
+        self, p1: SlvsPoint2D, p2: SlvsPoint2D, sketch: SlvsSketch
     ) -> SlvsLine2D:
         """Add a line in 2d space.
 
@@ -343,23 +274,13 @@ class SlvsEntities(PropertyGroup):
             SlvsLine2D: The created line.
         """
         line = self.lines2D.add()
-        line.p1_i = p1 if isinstance(p1, int) else p1.slvs_index
-        line.p2_i = p2 if isinstance(p2, int) else p2.slvs_index
-        line.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        line.fixed = fixed
-        line.construction = construction
-        index = self._set_index(line)
-        if index_reference:
-            return index
+        line.p1 = p1
+        line.p2 = p2
+        line.sketch = sketch
+        self._set_index(line)
         return line
 
-    def add_normal_2d(
-        self,
-        sketch: SlvsSketch,
-        fixed: bool = False,
-        construction: bool = False,
-        index_reference: bool = False,
-    ) -> SlvsNormal2D:
+    def add_normal_2d(self, sketch: SlvsSketch) -> SlvsNormal2D:
         """Add a normal in 2d space.
 
         Arguments:
@@ -369,12 +290,8 @@ class SlvsEntities(PropertyGroup):
             SlvsNormal2D: The created normal.
         """
         nm = self.normals2D.add()
-        nm.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        nm.fixed = fixed
-        nm.construction = construction
-        index = self._set_index(nm)
-        if index_reference:
-            return index
+        nm.sketch = sketch
+        self._set_index(nm)
         return nm
 
     def add_arc(
@@ -384,10 +301,6 @@ class SlvsEntities(PropertyGroup):
         p1: SlvsPoint2D,
         p2: SlvsPoint2D,
         sketch: SlvsSketch,
-        invert: bool = False,
-        fixed: bool = False,
-        construction: bool = False,
-        index_reference: bool = False,
     ) -> SlvsArc:
         """Add an arc in 2d space.
 
@@ -402,28 +315,16 @@ class SlvsEntities(PropertyGroup):
             SlvsArc: The created arc.
         """
         arc = self.arcs.add()
-        arc.nm_i = nm if isinstance(nm, int) else nm.slvs_index
-        arc.ct_i = ct if isinstance(ct, int) else ct.slvs_index
-        arc.p1_i = p1 if isinstance(p1, int) else p1.slvs_index
-        arc.p2_i = p2 if isinstance(p2, int) else p2.slvs_index
-        arc.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        arc.fixed = fixed
-        arc.construction = construction
-        arc.invert_direction = invert
-        index = self._set_index(arc)
-        if index_reference:
-            return index
+        arc.nm = nm
+        arc.ct = ct
+        arc.p1 = p1
+        arc.p2 = p2
+        arc.sketch = sketch
+        self._set_index(arc)
         return arc
 
     def add_circle(
-        self,
-        nm: SlvsNormal2D,
-        ct: SlvsPoint2D,
-        radius: float,
-        sketch: SlvsSketch,
-        fixed: bool = False,
-        construction: bool = False,
-        index_reference: bool = False,
+        self, nm: SlvsNormal2D, ct: SlvsPoint2D, radius: float, sketch: SlvsSketch
     ) -> SlvsCircle:
         """Add a circle in 2d space.
 
@@ -437,15 +338,11 @@ class SlvsEntities(PropertyGroup):
             SlvsCircle: The created circle.
         """
         c = self.circles.add()
-        c.nm_i = nm if isinstance(nm, int) else nm.slvs_index
-        c.ct_i = ct if isinstance(ct, int) else ct.slvs_index
+        c.nm = nm
+        c.ct = ct
         c.radius = radius
-        c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        c.fixed = fixed
-        c.construction = construction
-        index = self._set_index(c)
-        if index_reference:
-            return index
+        c.sketch = sketch
+        self._set_index(c)
         return c
 
     @property
