@@ -172,10 +172,10 @@ class SlvsConstraints(PropertyGroup):
             return
 
         c = self.coincident.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         return c
 
     def add_equal(
@@ -195,10 +195,10 @@ class SlvsConstraints(PropertyGroup):
             SlvsEqual: The created constraint.
         """
         c = self.equal.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         return c
 
     def add_distance(
@@ -221,12 +221,12 @@ class SlvsConstraints(PropertyGroup):
             SlvsDistance: The created constraint.
         """
         c = self.distance.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
 
         if entity2 is not None:
-            c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
+            c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         if init:
             c.assign_init_props(**settings)
         else:
@@ -253,10 +253,10 @@ class SlvsConstraints(PropertyGroup):
             SlvsAngle: The created constraint.
         """
         c = self.angle.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         if init:
             c.assign_init_props(**settings)
         else:
@@ -281,9 +281,9 @@ class SlvsConstraints(PropertyGroup):
             SlvsDiameter: The created constraint.
         """
         c = self.diameter.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
         if sketch:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         if init:
             c.assign_init_props(**settings)
         else:
@@ -307,10 +307,10 @@ class SlvsConstraints(PropertyGroup):
             SlvsParallel: The created constraint.
         """
         c = self.parallel.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         return c
 
     def add_horizontal(
@@ -329,11 +329,11 @@ class SlvsConstraints(PropertyGroup):
             SlvsHorizontal: The created constraint.
         """
         c = self.horizontal.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
         if entity2 is not None:
-            c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
+            c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         return c
 
     def add_vertical(
@@ -352,11 +352,11 @@ class SlvsConstraints(PropertyGroup):
             SlvsVertical: The created constraint.
         """
         c = self.vertical.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
         if entity2 is not None:
-            c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
+            c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         return c
 
     def add_tangent(
@@ -376,10 +376,10 @@ class SlvsConstraints(PropertyGroup):
             SlvsTangent: The created constraint.
         """
         c = self.tangent.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         return c
 
     def add_midpoint(
@@ -399,10 +399,10 @@ class SlvsConstraints(PropertyGroup):
             SlvsMidpoint: The created constraint.
         """
         c = self.midpoint.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         return c
 
     def add_perpendicular(
@@ -422,10 +422,10 @@ class SlvsConstraints(PropertyGroup):
             SlvsPerpendicular: The created constraint.
         """
         c = self.perpendicular.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         return c
 
     def add_ratio(
@@ -448,10 +448,10 @@ class SlvsConstraints(PropertyGroup):
             SlvsRatio: The created constraint.
         """
         c = self.ratio.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         if init:
             c.assign_init_props(**settings)
         else:

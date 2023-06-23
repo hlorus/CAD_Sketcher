@@ -170,3 +170,12 @@ line = entities.add_line_3d(p1, p2, construction=True, index_reference=True)
 
 assert type(p1) == int
 ```
+
+### Propertie's update callbacks
+
+Some properties of entities or constraints have an update callback assigned which will be triggered whenever the property is changed, it's mainly used to trigger the solver or update the view. Example of this are the point entity's location property or the value property of dimensional constraints which will both trigger the solver when the property is changed.
+This behaiviour is not always welcome. When writing a tool it's almost always better to avoid triggering these callbacks and manually solving the system, updating the view etc.
+
+To avoid it, either set all properties in the "add_*" methods or change the value of properties like so:
+
+> entity["some_prop"] = value
