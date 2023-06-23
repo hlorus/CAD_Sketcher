@@ -54,6 +54,8 @@ class SlvsRatio(DimensionalConstraint, PropertyGroup):
 
     def init_props(self, **kwargs):
         line1, line2 = self.entity1, self.entity2
+        if line2.length == 0.0:
+            return {"value": 0.0}
 
         value = line1.length / line2.length
         return {"value": value}
