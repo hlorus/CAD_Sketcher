@@ -47,6 +47,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         name="Size",
         subtype="DISTANCE",
         unit="LENGTH",
+        precision=6,
         get=DimensionalConstraint._get_value,
         set=DimensionalConstraint._set_value,
         update=update_system_cb,

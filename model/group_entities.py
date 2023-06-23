@@ -6,7 +6,7 @@ import bpy
 from bpy.types import PropertyGroup
 from bpy.props import CollectionProperty
 from bpy.utils import register_classes_factory
-from mathutils import Vector, Euler
+from mathutils import Vector, Euler, Quaternion
 
 from .. import global_data
 from ..utilities.constants import QUARTER_TURN
@@ -165,6 +165,19 @@ class SlvsEntities(PropertyGroup):
         update_pointers(bpy.context.scene, new_item.slvs_index, index)
         new_item.slvs_index = index
 
+    def _init_entity(self, entity, fixed, construction, index_reference, visible=True):
+        """Initializes all shared entity properties"""
+
+        entity["fixed"] = fixed
+        entity["construction"] = construction
+        entity["visible"] = visible
+
+        index = self._set_index(entity)
+
+        if index_reference:
+            return index
+        return entity
+
     def add_point_3d(
         self,
         co: Union[Tuple[float, float, float], Vector],
@@ -184,13 +197,8 @@ class SlvsEntities(PropertyGroup):
             raise TypeError("Argument co must be of length 3")
 
         p = self.points3D.add()
-        p.location = co
-        p.fixed = fixed
-        p.construction = construction
-        index = self._set_index(p)
-        if index_reference:
-            return index
-        return p
+        p["location"] = Vector(co)
+        return self._init_entity(p, fixed, construction, index_reference)
 
     def add_line_3d(
         self,
@@ -210,14 +218,10 @@ class SlvsEntities(PropertyGroup):
             SlvsLine3D: The created line.
         """
         line = self.lines3D.add()
-        line.p1_i = p1 if isinstance(p1, int) else p1.slvs_index
-        line.p2_i = p2 if isinstance(p2, int) else p2.slvs_index
-        line.fixed = fixed
-        line.construction = construction
-        index = self._set_index(line)
-        if index_reference:
-            return index
-        return line
+        line["p1_i"] = p1 if isinstance(p1, int) else p1.slvs_index
+        line["p2_i"] = p2 if isinstance(p2, int) else p2.slvs_index
+
+        return self._init_entity(line, fixed, construction, index_reference)
 
     def add_normal_3d(
         self,
@@ -235,13 +239,9 @@ class SlvsEntities(PropertyGroup):
             SlvsNormal3D: The created normal.
         """
         nm = self.normals3D.add()
-        nm.orientation = quat
-        nm.fixed = fixed
-        nm.construction = construction
-        index = self._set_index(nm)
-        if index_reference:
-            return index
-        return nm
+        nm["orientation"] = Quaternion(quat)
+
+        return self._init_entity(nm, fixed, construction, index_reference)
 
     def add_workplane(
         self,
@@ -261,14 +261,10 @@ class SlvsEntities(PropertyGroup):
             SlvsWorkplane: The created workplane.
         """
         wp = self.workplanes.add()
-        wp.p1_i = p1 if isinstance(p1, int) else p1.slvs_index
-        wp.nm_i = nm if isinstance(nm, int) else nm.slvs_index
-        wp.fixed = fixed
-        wp.construction = construction
-        index = self._set_index(wp)
-        if index_reference:
-            return index
-        return wp
+        wp["p1_i"] = p1 if isinstance(p1, int) else p1.slvs_index
+        wp["nm_i"] = nm if isinstance(nm, int) else nm.slvs_index
+
+        return self._init_entity(wp, fixed, construction, index_reference)
 
     def add_sketch(
         self,
@@ -286,15 +282,13 @@ class SlvsEntities(PropertyGroup):
             SlvsSketch: The created sketch.
         """
         sketch = self.sketches.add()
-        sketch.wp_i = wp if isinstance(wp, int) else wp.slvs_index
-        sketch.fixed = fixed
-        sketch.construction = construction
-        index = self._set_index(sketch)
-        _, i = self._breakdown_index(sketch.slvs_index)
+        sketch["wp_i"] = wp if isinstance(wp, int) else wp.slvs_index
+
+        retval = self._init_entity(sketch, fixed, construction, index_reference)
+        index = retval if index_reference else retval.slvs_index
+        _, i = self._breakdown_index(index)
         sketch.name = "Sketch"
-        if index_reference:
-            return index
-        return sketch
+        return retval
 
     def add_point_2d(
         self,
@@ -314,14 +308,10 @@ class SlvsEntities(PropertyGroup):
             SlvsPoint2D: The created point.
         """
         p = self.points2D.add()
-        p.co = co
-        p.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        p.fixed = fixed
-        p.construction = construction
-        index = self._set_index(p)
-        if index_reference:
-            return index
-        return p
+        p["co"] = Vector(co)
+        p["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
+
+        return self._init_entity(p, fixed, construction, index_reference)
 
     def add_line_2d(
         self,
@@ -343,16 +333,11 @@ class SlvsEntities(PropertyGroup):
             SlvsLine2D: The created line.
         """
         line = self.lines2D.add()
-        line.p1_i = p1 if isinstance(p1, int) else p1.slvs_index
-        line.p2_i = p2 if isinstance(p2, int) else p2.slvs_index
-        line.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        line.fixed = fixed
-        line.construction = construction
-        index = self._set_index(line)
-        print("new line", p1, p2, sketch, fixed, construction, index_reference)
-        if index_reference:
-            return index
-        return line
+        line["p1_i"] = p1 if isinstance(p1, int) else p1.slvs_index
+        line["p2_i"] = p2 if isinstance(p2, int) else p2.slvs_index
+        line["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
+
+        return self._init_entity(line, fixed, construction, index_reference)
 
     def add_normal_2d(
         self,
@@ -370,13 +355,9 @@ class SlvsEntities(PropertyGroup):
             SlvsNormal2D: The created normal.
         """
         nm = self.normals2D.add()
-        nm.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        nm.fixed = fixed
-        nm.construction = construction
-        index = self._set_index(nm)
-        if index_reference:
-            return index
-        return nm
+        nm["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
+
+        return self._init_entity(nm, fixed, construction, index_reference)
 
     def add_arc(
         self,
@@ -403,30 +384,13 @@ class SlvsEntities(PropertyGroup):
             SlvsArc: The created arc.
         """
         arc = self.arcs.add()
-        arc.nm_i = nm if isinstance(nm, int) else nm.slvs_index
-        arc.ct_i = ct if isinstance(ct, int) else ct.slvs_index
-        arc.p1_i = p1 if isinstance(p1, int) else p1.slvs_index
-        arc.p2_i = p2 if isinstance(p2, int) else p2.slvs_index
-        arc.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        arc.fixed = fixed
-        arc.construction = construction
-        arc.invert_direction = invert
-        index = self._set_index(arc)
-        print(
-            "new arc",
-            nm,
-            ct,
-            p1,
-            p2,
-            sketch,
-            invert,
-            fixed,
-            construction,
-            index_reference,
-        )
-        if index_reference:
-            return index
-        return arc
+        arc["nm_i"] = nm if isinstance(nm, int) else nm.slvs_index
+        arc["ct_i"] = ct if isinstance(ct, int) else ct.slvs_index
+        arc["p1_i"] = p1 if isinstance(p1, int) else p1.slvs_index
+        arc["p2_i"] = p2 if isinstance(p2, int) else p2.slvs_index
+        arc["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
+
+        return self._init_entity(arc, fixed, construction, index_reference)
 
     def add_circle(
         self,
@@ -450,16 +414,12 @@ class SlvsEntities(PropertyGroup):
             SlvsCircle: The created circle.
         """
         c = self.circles.add()
-        c.nm_i = nm if isinstance(nm, int) else nm.slvs_index
-        c.ct_i = ct if isinstance(ct, int) else ct.slvs_index
-        c.radius = radius
-        c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        c.fixed = fixed
-        c.construction = construction
-        index = self._set_index(c)
-        if index_reference:
-            return index
-        return c
+        c["nm_i"] = nm if isinstance(nm, int) else nm.slvs_index
+        c["ct_i"] = ct if isinstance(ct, int) else ct.slvs_index
+        c["radius"] = float(radius)
+        c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
+
+        return self._init_entity(c, fixed, construction, index_reference)
 
     @property
     def all(self):
@@ -474,6 +434,8 @@ class SlvsEntities(PropertyGroup):
         context = bpy.context
         items = []
         for index in global_data.selected:
+            if index is None:
+                continue
             entity = self.get(index)
             items.append(entity)
         return [e for e in items if e.is_selectable(context)]
@@ -484,6 +446,8 @@ class SlvsEntities(PropertyGroup):
         context = bpy.context
         items = []
         for index in global_data.selected:
+            if index is None:
+                continue
             entity = self.get(index)
             items.append(entity)
         return [e for e in items if e.selected]
@@ -505,11 +469,13 @@ class SlvsEntities(PropertyGroup):
         if not self.origin:
             p = sse.add_point_3d((0.0, 0.0, 0.0))
             set_origin_props(p)
+            p.name = "OriginPoint3D"
             self.origin = p
 
         # axis
         pi_2 = QUARTER_TURN
-        for name, angles in zip(
+        for label, name, angles in zip(
+            ("OriginAxisX", "OriginAxisY", "OriginAxisZ"),
             ("origin_axis_X", "origin_axis_Y", "origin_axis_Z"),
             (Euler((pi_2, 0.0, pi_2)), Euler((pi_2, 0.0, 0.0)), Euler()),
         ):
@@ -518,18 +484,20 @@ class SlvsEntities(PropertyGroup):
             nm = sse.add_normal_3d(Euler(angles).to_quaternion())
             set_origin_props(nm)
             setattr(self, name, nm)
+            nm.name = label
 
         # workplanes
-        for nm_name, wp_name in (
-            ("origin_axis_X", "origin_plane_YZ"),
-            ("origin_axis_Y", "origin_plane_XZ"),
-            ("origin_axis_Z", "origin_plane_XY"),
+        for label, nm_name, wp_name in (
+            ("OriginWorkplaneYZ", "origin_axis_X", "origin_plane_YZ"),
+            ("OriginWorkplaneXZ", "origin_axis_Y", "origin_plane_XZ"),
+            ("OriginWorkplaneXY", "origin_axis_Z", "origin_plane_XY"),
         ):
             if getattr(self, wp_name):
                 continue
             wp = sse.add_workplane(self.origin, getattr(self, nm_name))
             set_origin_props(wp)
             setattr(self, wp_name, wp)
+            wp.name = label
 
     def collection_offsets(self):
         offsets = {}

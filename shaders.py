@@ -1,7 +1,9 @@
 import gpu
 from gpu.types import GPUShader
+from bpy import app
 
 import sys
+
 
 if sys.version_info >= (3, 9):
     from functools import cache
@@ -57,7 +59,9 @@ class Shaders:
     @staticmethod
     @cache
     def uniform_color_3d():
-        return gpu.shader.from_builtin("3D_UNIFORM_COLOR")
+        if app.version < (3, 5):
+            return gpu.shader.from_builtin("3D_UNIFORM_COLOR")
+        return gpu.shader.from_builtin("UNIFORM_COLOR")
 
     @classmethod
     @cache

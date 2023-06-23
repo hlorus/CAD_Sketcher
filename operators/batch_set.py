@@ -3,6 +3,7 @@ from bpy.props import BoolProperty, StringProperty
 from bpy.utils import register_class, unregister_class
 
 from ..declarations import Operators
+from ..utilities.view import refresh
 
 
 class View3D_OT_slvs_batch_set(Operator):
@@ -24,6 +25,7 @@ class View3D_OT_slvs_batch_set(Operator):
         data_path = context.path_resolve(self.data_path)
         for entity in getattr(data_path, self.sequence):
             setattr(entity, self.property, self.value)
+        refresh(context)
         return {"FINISHED"}
 
 
