@@ -46,3 +46,6 @@ def is_closed(entity: EntityRef) -> bool:
 
 def is_sketch(entity: EntityRef) -> bool:
     return _get_type(entity) == SlvsSketch
+
+def is_circle(entity: EntityRef) -> bool:
+    return _get_type(entity) == SlvsCircle

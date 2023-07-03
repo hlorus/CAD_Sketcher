@@ -5,7 +5,7 @@ from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 
 from ..model.categories import SEGMENT
-from ..model.identifiers import is_line
+from ..model.identifiers import is_line, is_circle
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
@@ -55,6 +55,14 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         entity = self.entity
         distance = self.distance
         sse = context.scene.sketcher.entities
+
+        if is_circle(entity):
+            c_new = entity.new(context, radius=entity.radius + distance)
+            ignore_hover(c_new)
+
+            refresh(context)
+            return True
+
 
         walker = EntityWalker(context.scene, sketch, entity=entity)
         path = walker.main_path()
