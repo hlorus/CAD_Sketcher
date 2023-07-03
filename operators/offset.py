@@ -32,6 +32,15 @@ def _get_offset_co(point, normal, distance):
     return point + normal * distance
 
 
+def _bool_to_signed_int(invert):
+    return -1 if invert else 1
+
+
+def _inverted_dist(distance, invert):
+    sign = _bool_to_signed_int(invert) * _bool_to_signed_int(distance < 0)
+    return math.copysign(distance, sign)
+
+
 class View3D_OT_slvs_add_offset(Operator, Operator2d):
     """Copy and offset selected entities along with their constraints by the distance value"""
 
@@ -130,21 +139,14 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
 
             point = self.connection_points[i]
 
-            def _bool_to_signed_int(invert):
-                return -1 if invert else 1
-
-            def _inverted_dist(invert):
-                sign = _bool_to_signed_int(invert) * _bool_to_signed_int(distance < 0)
-                return math.copysign(distance, sign)
-
             elems1 = get_offset_elements_args(
                 ElementTypes.Line if is_line(entity) else ElementTypes.Sphere,
-                _inverted_dist(entity_dir),
+                _inverted_dist(distance, entity_dir),
                 self.offset_args[i],
             )
             elems2 = get_offset_elements_args(
                 ElementTypes.Line if is_line(neighbour) else ElementTypes.Sphere,
-                _inverted_dist(neighbour_dir),
+                _inverted_dist(distance, neighbour_dir),
                 self.offset_args[neighbour_i],
             )
 
@@ -178,12 +180,12 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             start_co = _get_offset_co(
                 self.co_start,
                 self.nm_start,
-                _inverted_dist(directions[0]),
+                _inverted_dist(distance, directions[0]),
             )
             end_co = _get_offset_co(
                 self.co_end,
                 self.nm_end,
-                _inverted_dist(directions[-1]),
+                _inverted_dist(distance, directions[-1]),
             )
 
             points.insert(0, sse.add_point_2d(start_co, sketch, index_reference=True))
