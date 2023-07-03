@@ -389,6 +389,7 @@ class SlvsEntities(PropertyGroup):
         arc["p1_i"] = p1 if isinstance(p1, int) else p1.slvs_index
         arc["p2_i"] = p2 if isinstance(p2, int) else p2.slvs_index
         arc["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
+        arc["invert_direction"] = invert
 
         return self._init_entity(arc, fixed, construction, index_reference)
 
