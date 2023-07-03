@@ -56,6 +56,8 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         distance = self.distance
         sse = context.scene.sketcher.entities
 
+        ignore_hover(entity)
+
         if is_circle(entity):
             c_new = entity.new(context, radius=entity.radius + distance)
             ignore_hover(c_new)
