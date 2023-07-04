@@ -91,6 +91,25 @@ class NodeOperator(Operator3d):
         pass
 
 
+class View3D_OT_node_fill(Operator, NodeOperator):
+    """Add a fill modifier node group to the object"""
+
+    bl_idname = Operators.NodeFill
+    bl_label = "Fill Profile"
+
+    resources = (
+        ("node_groups", "Fill Mesh"),
+        ("node_groups", "Fill Curve"),
+    )
+
+    states = BASE_STATES
+
+    @property
+    def NODEGROUP_NAME(self):
+        if self.object.type == "MESH":
+            return "Fill Mesh"
+        return "Fill Curve"
+
 
 class View3D_OT_node_extrude(Operator, NodeOperator):
     """Add an extrude modifier node group"""
@@ -130,4 +149,6 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
         return True
 
 
-register, unregister = register_stateops_factory((View3D_OT_node_extrude,))
+register, unregister = register_stateops_factory(
+    (View3D_OT_node_extrude, View3D_OT_node_fill)
+)

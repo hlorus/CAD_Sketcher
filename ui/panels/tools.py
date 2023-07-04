@@ -32,4 +32,5 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
 
         # Node modifier operators
         layout.label(text="Node Tools:")
+        layout.operator(declarations.Operators.NodeFill)
         layout.operator(declarations.Operators.NodeExtrude)
