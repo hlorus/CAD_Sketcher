@@ -30,15 +30,30 @@ def load_asset(library, asset_type, asset):
                 continue
             getattr(data_to, asset_type).append(asset)
 
-        group = bpy.data.node_groups.get("Extrude")
+        group = getattr(bpy.data, "node_groups").get(asset)
         group.use_fake_user = True
 
         return True
     return False
 
 
+BASE_STATES = (
+    state_from_args(
+        "Object",
+        description="Base object to add the nodegroup",
+        pointer="object",
+        types=(Object,),
+        use_create=False,
+    ),
+)
+
+
 class NodeOperator(Operator3d):
     """Base class for all node-based operators"""
+
+    bl_options = {"UNDO", "REGISTER"}
+
+    resources = ()
 
     @classmethod
     def poll(cls, context):
@@ -46,8 +61,35 @@ class NodeOperator(Operator3d):
             return False
         if context.scene.sketcher.active_sketch_i != -1:
             return False
-
         return True
+
+    def init(self, context, event):
+        for rType, rName in self.resources:
+            if not load_asset("resources", rType, rName):
+                self.report({"ERROR"}, f'Cannot load asset "{rName}" from library')
+                return False
+
+        bpy.ops.ed.undo_push(message=f'Load Asset "{rName}"')
+        return True
+
+    def main(self, context):
+        ob = self.object.original
+
+        # Add a modifier to object
+        self.modifier = ob.modifiers.new("CAD_Sketcher Extrude", "NODES")
+
+        # Add nodegroup to modifier
+        nodegroup = bpy.data.node_groups.get(self.NODEGROUP_NAME)
+        if not nodegroup:
+            self.report({"Error"}, f"Unable to load node group {self.NODEGROUP_NAME}")
+        self.modifier.node_group = nodegroup
+
+        ob.update_tag()
+        return self.set_props()
+
+    def set_props(self):
+        pass
+
 
 
 class View3D_OT_node_extrude(Operator, NodeOperator):
@@ -55,18 +97,14 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
 
     bl_idname = Operators.NodeExtrude
     bl_label = "Extrude"
-    bl_options = {"UNDO", "REGISTER"}
+
+    resources = (("node_groups", "Extrude"),)
+    NODEGROUP_NAME = "Extrude"
 
     offset: FloatProperty(name="Offset", subtype="DISTANCE", options={"SKIP_SAVE"})
 
     states = (
-        state_from_args(
-            "Profile",
-            description="Profile to extrude",
-            pointer="object",
-            types=(Object,),
-            use_create=False,
-        ),
+        *BASE_STATES,
         state_from_args(
             "Offset",
             description="Offset vector to apply to the selection of entities",
@@ -75,8 +113,6 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
             interactive=True,
         ),
     )
-
-    NODEGROUP_NAME = "Extrude"
 
     def get_offset(self, context: Context, coords):
         pos = get_placement_pos(context, coords)
@@ -87,31 +123,9 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
         delta = (mat @ Vector(pos)).z
         return delta
 
-    # Somhow doesn't seem to work, might be an undo problem
-    def init(self, context, event):
-        if not load_asset("resources", "node_groups", "Extrude"):
-            self.report(
-                {"ERROR"}, f'Cannot load asset "{self.NODEGROUP_NAME}" from library'
-            )
-            return False
-
-        bpy.ops.ed.undo_push(message=f"Load Asset \"{self.NODEGROUP_NAME}\"")
-        return True
-
-    def main(self, context):
-        ob = self.object.original
-        offset = self.offset
-
-        # Add a modifier to object
-        modifier = ob.modifiers.new("CAD_Sketcher Extrude", "NODES")
-
-        # Add nodegroup to modifier
-        nodegroup = bpy.data.node_groups.get(self.NODEGROUP_NAME)
-        modifier.node_group = nodegroup
-
+    def set_props(self):
         # Set offset
-        modifier["Input_2"] = offset
-        ob.update_tag()
+        self.modifier["Input_2"] = self.offset
 
         return True
 
