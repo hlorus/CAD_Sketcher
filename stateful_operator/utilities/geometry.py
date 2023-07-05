@@ -45,13 +45,14 @@ def get_mesh_element(
     ray_origin = view3d_utils.region_2d_to_origin_3d(region, rv3d, coords)
     depsgraph = context.view_layer.depsgraph
     scene = context.scene
-    result, loc, _normal, face_index, ob, _matrix = scene.ray_cast(
-        depsgraph, ray_origin, view_vector
-    )
 
-    if object:
+    if not object:
+        result, loc, _normal, face_index, ob, _matrix = scene.ray_cast(
+            depsgraph, ray_origin, view_vector
+        )
+    else:
         # Alternatively do a object raycast if we know the object already
-        tree = bvhtree_from_object(ob)
+        tree = bvhtree_from_object(object)
         loc, _normal, face_index, _distance = tree.ray_cast(ray_origin, view_vector)
         result = loc is not None
         ob = object
