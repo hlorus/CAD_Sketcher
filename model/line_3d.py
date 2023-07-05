@@ -65,6 +65,9 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
     def placement(self):
         return (self.p1.location + self.p2.location) / 2
 
+    def orientation(self):
+        return (self.p2.location - self.p1.location).normalized()
+
     @property
     def length(self):
         return (self.p2.location - self.p1.location).length

@@ -55,6 +55,7 @@ class Operators(str, Enum):
     Offset = "view3d.slvs_offset"
     NodeFill = "view3d.slvs_node_fill"
     NodeExtrude = "view3d.slvs_node_extrude"
+    NodeArrayLinear = "view3d.slvs_node_array_linear"
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
     Select = "view3d.slvs_select"
     SelectAll = "view3d.slvs_select_all"
