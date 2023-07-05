@@ -76,7 +76,7 @@ class NodeOperator(Operator3d):
         ob = self.object.original
 
         # Add a modifier to object
-        self.modifier = ob.modifiers.new("CAD_Sketcher Extrude", "NODES")
+        self.modifier = ob.modifiers.new(f"CAD_Sketcher {self.NODEGROUP_NAME}", "NODES")
 
         # Add nodegroup to modifier
         nodegroup = bpy.data.node_groups.get(self.NODEGROUP_NAME)
@@ -84,8 +84,9 @@ class NodeOperator(Operator3d):
             self.report({"Error"}, f"Unable to load node group {self.NODEGROUP_NAME}")
         self.modifier.node_group = nodegroup
 
+        retval = self.set_props()
         ob.update_tag()
-        return self.set_props()
+        return retval
 
     def set_props(self):
         pass
