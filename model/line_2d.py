@@ -144,10 +144,15 @@ class SlvsLine2D(Entity2D, PropertyGroup):
     def midpoint(self):
         return (self.p1.co + self.p2.co) / 2
 
+    def orientation(self):
+        """Return the orientation of the line in 3d space"""
+        return (self.p2.location - self.p1.location).normalized()
+
     def direction_vec(self):
         return (self.p2.co - self.p1.co).normalized()
 
     def normal(self, position=None):
+        """Returns vector perpendicular to line, position is ignored"""
         mat_rot = Matrix.Rotation(-math.pi / 2, 2, "Z")
         nm = self.direction_vec()
         nm.rotate(mat_rot)

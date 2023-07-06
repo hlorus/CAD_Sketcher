@@ -215,6 +215,15 @@ class SlvsCircle(Entity2D, PropertyGroup):
         return retval
 
 
+    def new(self, context, **kwargs) -> SlvsGenericEntity:
+        kwargs.setdefault("ct", self.ct)
+        kwargs.setdefault("nm", self.nm)
+        kwargs.setdefault("radius", self.radius)
+        kwargs.setdefault("sketch", self.sketch)
+        kwargs.setdefault("construction", self.construction)
+        return context.scene.sketcher.entities.add_circle(**kwargs)
+
+
 slvs_entity_pointer(SlvsCircle, "nm")
 slvs_entity_pointer(SlvsCircle, "ct")
 slvs_entity_pointer(SlvsCircle, "sketch")

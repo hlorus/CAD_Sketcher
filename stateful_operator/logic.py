@@ -160,11 +160,11 @@ class StatefulOperatorLogic:
         return ok
 
     def init_substate(self):
-        
+
         # Reset
         self._substate_count = None
         self._stateprop = None
-        
+
         props = self.get_property()
         if not props:
             return
@@ -178,7 +178,6 @@ class StatefulOperatorLogic:
 
         self._substate_count = prop.array_length
         self._stateprop = prop
-        
 
     def iterate_substate(self):
         i = self._substate_index
@@ -669,6 +668,10 @@ class StatefulOperatorLogic:
 
     def check_props(self):
         for i, state in enumerate(self.get_states()):
+
+            if state.optional:
+                continue
+
             props = self.get_property(index=i)
             if state.pointer:
                 if not bool(self.get_state_pointer(index=i)):
