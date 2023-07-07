@@ -216,35 +216,17 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
 
             use_construction = context.scene.sketcher.use_construction
 
-            is_arc = not is_line(entity)
-            add_func = sse.add_line_2d if not is_arc else sse.add_arc
-            ct = self.centerpoints[i]
-            args = (
-                *((sketch.wp.nm.slvs_index, ct) if is_arc else ()),
-                p1,
-                p2,
+            new_entity = entity.new(
+                context,
+                p1=p1,
+                p2=p2,
+                sketch=sketch,
+                **(
+                    {"invert": direction} if hasattr(entity, "invert_direction") else {}
+                ),
+                construction=use_construction,
+                index_reference=True,
             )
-            kwargs = {
-                "sketch": sketch,
-                "construction": use_construction,
-                "index_reference": True,
-            }
-            if is_arc:
-                kwargs["invert"] = direction
-
-            new_entity = add_func(*args, **kwargs)
-
-            # new_entity = entity.new(
-            #     context,
-            #     p1=p1,
-            #     p2=p2,
-            #     sketch=sketch,
-            #     **(
-            #         {"invert": direction} if hasattr(entity, "invert_direction") else {}
-            #     ),
-            #     construction=use_construction,
-            #     index_reference=True,
-            # )
             ignore_hover(new_entity)
 
             self.new_path.append(new_entity)
