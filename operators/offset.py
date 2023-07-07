@@ -66,17 +66,31 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         ),
     )
 
+    def _handle_circle(self, context):
+        if self.is_circle:
+            c_new = self.entity.new(context, radius=self.entity.radius + self.distance)
+            ignore_hover(c_new)
+
+            refresh(context)
+            return True
+        return False
+
     def init_main(self, context: Context):
+        ignore_hover(self.entity)
+
+        self.is_circle = False
+        if is_circle(self.entity):
+            self.is_circle = True
+            return True
+
+        # Get connected segments
         walker = EntityWalker(context.scene, self.sketch, entity=self.entity)
         path = walker.main_path()
         self.is_cyclic = walker.is_cyclic_path(path[0])
 
-        entities, directions = path
-        # self.entities = entities
-        self.entity_indices = [e.slvs_index for e in entities]
-        self.entities = [e.slvs_index for e in entities]
+        self.entities, self.directions = path
+        self.entity_indices = [e.slvs_index for e in self.entities]
 
-        self.directions = directions
         self.entity_count = len(self.entities)
         self.intersection_count = (
             self.entity_count if self.is_cyclic else self.entity_count - 1
@@ -90,23 +104,22 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         self.limitpoints = start, end
         self.co_start = start.co
         self.co_end = end.co
-        self.nm_start = entities[0].normal(position=start.co)
-        self.nm_end = entities[-1].normal(position=end.co)
+        self.nm_start = self.entities[0].normal(position=start.co)
+        self.nm_end = self.entities[-1].normal(position=end.co)
 
         # Get connection points
         self.connection_points = []
         for i in range(self.intersection_count):
             neighbour_i = (i + 1) % self.entity_count
             self.connection_points.append(
-                get_connection_point(entities[i], entities[neighbour_i])
+                get_connection_point(self.entities[i], self.entities[neighbour_i])
             )
 
-        self.offset_callbacks = [get_offset_cb(e) for e in entities]
-        self.offset_args = [get_offset_args(e) for e in entities]
+        self.offset_callbacks = [get_offset_cb(e) for e in self.entities]
+        self.offset_args = [get_offset_args(e) for e in self.entities]
         self.centerpoints = [
-            e.ct.slvs_index if not is_line(e) else None for e in entities
+            e.ct.slvs_index if not is_line(e) else None for e in self.entities
         ]
-        print(self.entities)
 
         return True
 
@@ -115,22 +128,8 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         distance = self.distance
         sse = context.scene.sketcher.entities
 
-        ignore_hover(entity)
-
-        if is_circle(entity):
-            c_new = entity.new(context, radius=entity.radius + distance)
-            ignore_hover(c_new)
-
-            refresh(context)
+        if self._handle_circle(context):
             return True
-
-
-        walker = EntityWalker(context.scene, sketch, entity=entity)
-        path = walker.main_path()
-        is_cyclic = walker.is_cyclic_path(path[0])
-
-        if path is None:
-            return False
 
         # Get intersections and create points
         points = []
@@ -149,30 +148,24 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             neighbour = entities[neighbour_i]
             neighbour_dir = directions[neighbour_i]
 
-            print(i, "intersect", entity, neighbour)
+            point = self.connection_points[i]
 
             # offset_cb_active = self.offset_callbacks[i]
             # offset_cb_neighbour = self.offset_callbacks[neighbour_i]
-
-            point = self.connection_points[i]
-
-            elems1 = get_offset_elements_args(
-                ElementTypes.Line if is_line(entity) else ElementTypes.Sphere,
-                _inverted_dist(distance, entity_dir),
-                self.offset_args[i],
-            )
-            elems2 = get_offset_elements_args(
-                ElementTypes.Line if is_line(neighbour) else ElementTypes.Sphere,
-                _inverted_dist(distance, neighbour_dir),
-                self.offset_args[neighbour_i],
-            )
+            # intersections = sorted(
+            #     get_intersections(
+            #         offset_cb_active(distance),
+            #         offset_cb_neighbour(distance),
+            #     ),
+            #     key=lambda i: (i - point.co).length,
+            # )
 
             intersections = sorted(
                 get_intersections(
-                    elems1,
-                    elems2,
-                    # get_offset_elements(entity, _inverted_dist(entity_dir)),
-                    # get_offset_elements(neighbour, _inverted_dist(neighbour_dir)),
+                    get_offset_elements(entity, _inverted_dist(distance, entity_dir)),
+                    get_offset_elements(
+                        neighbour, _inverted_dist(distance, neighbour_dir)
+                    ),
                 ),
                 key=lambda i: (i - point.co).length,
             )
@@ -210,8 +203,6 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
 
         # Exclude created points from selection
         [ignore_hover(p) for p in points]
-
-        print(entities)
 
         # Create segments
         self.new_path = []

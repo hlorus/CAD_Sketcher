@@ -96,14 +96,14 @@ def _get_offset_line_cb(entity):
         p2=entity.p2.co.copy(),
     ):
         offset_vec = normal * offset
-        return ElementTypes.Line, (p1 + offset_vec, p2 + offset_vec)
+        return (ElementTypes.Line, (p1 + offset_vec, p2 + offset_vec))
 
     return func
 
 
 def _get_offset_sphere_cb(entity):
     def func(offset, ct=entity.ct.co.copy(), radius=entity.radius):
-        return ElementTypes.Sphere, (ct, radius + offset)
+        return (ElementTypes.Sphere, (ct, radius + offset))
 
     return func
 
