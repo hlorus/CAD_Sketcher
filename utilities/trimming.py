@@ -190,7 +190,8 @@ class TrimSegment:
                 msg += "\n - {}".format(intr)
             return msg
 
-        logger.debug(_get_msg_obsolete())
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(_get_msg_obsolete())
 
         # Remove unused endpoints
         delete_constraints = []

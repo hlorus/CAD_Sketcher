@@ -107,7 +107,8 @@ class Solver:
                 msg += "\n  - {}".format(e)
             return msg
 
-        logger.debug(_get_msg_entities())
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(_get_msg_entities())
 
         # Initialize Constraints
         for c in context.scene.sketcher.constraints.all:
@@ -133,7 +134,8 @@ class Solver:
                 msg += "\n  - {}".format(c)
             return msg
 
-        logger.debug(_get_msg_constraints())
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(_get_msg_constraints())
 
     def tweak(self, entity, pos):
         logger.debug("tweak: {} to: {}".format(entity, pos))
@@ -243,7 +245,8 @@ class Solver:
                         msg += "\n  - {}".format(constr)
                     return msg
 
-                logger.debug(_get_msg_failed())
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(_get_msg_failed())
 
         # Update entities from solver
         for e in self.entities:
@@ -260,7 +263,8 @@ class Solver:
                 msg += "\n - " + str(e)
             return msg
 
-        logger.debug(_get_msg_update())
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(_get_msg_update())
 
         return self.ok
 

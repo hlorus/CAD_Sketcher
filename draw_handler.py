@@ -65,7 +65,8 @@ def update_elements(context: Context, force: bool = False):
             msg += "\n - " + str(e)
         return msg
 
-    logger.debug(_get_msg())
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(_get_msg())
 
 
 def draw_elements(context: Context):
