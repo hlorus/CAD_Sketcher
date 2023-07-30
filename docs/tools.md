@@ -15,7 +15,7 @@ that either of those use the same [interaction system](interaction_system.md).
 
 Workspacetools are used to interactively create entities. You can access them from
 the viewport's "T"-panel. Check the [tools section](tools.md) to get familiar with
-the behavior of BGS tools.
+the behavior of CAD Sketcher tools.
 
 > **INFO:** Interaction with addon geometry is only possible when one of the
 addon tools is active.
