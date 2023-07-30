@@ -134,26 +134,33 @@ class Shaders:
     @staticmethod
     @cache
     def id_shader_3d():
-        vertex_shader = """
-            uniform mat4 ModelViewProjectionMatrix;
-            in vec3 pos;
+        shader_info = GPUShaderCreateInfo()
+        shader_info.push_constant("MAT4", "ModelViewProjectionMatrix")
+        shader_info.push_constant("VEC4", "color")
+        shader_info.vertex_in(0, "VEC3", "pos")
+        shader_info.fragment_out(0, "VEC4", "fragColor")
 
+        shader_info.vertex_source(
+        """
             void main()
             {
               gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0);
             }
         """
+        )
 
-        fragment_shader = """
-            uniform vec4 color;
-            out vec4 fragColor;
-
+        shader_info.fragment_source(
+        """
             void main()
             {
               fragColor = color;
             }
         """
-        return GPUShader(vertex_shader, fragment_shader)
+        )
+        
+        shader = create_from_info(shader_info)
+        del shader_info
+        return shader
 
     @staticmethod
     @cache
