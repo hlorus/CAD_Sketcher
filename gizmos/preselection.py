@@ -56,17 +56,45 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         offscreen = global_data.offscreen
         if not offscreen:
             return -1
-        with offscreen.bind():
-            fb = gpu.state.active_framebuffer_get()
-            buffer = fb.read_color(mouse_x, mouse_y, 1, 1, 4, 0, "FLOAT")
-        r, g, b, alpha = buffer[0][0]
+        # TODO: Read buffer only once
+        PICK_SIZE = 10
+        for x, y in get_spiral_coords(mouse_x, mouse_y, context.area.width, context.area.height, PICK_SIZE):
+            with offscreen.bind():
+                fb = gpu.state.active_framebuffer_get()
+                buffer = fb.read_color(x, y, 1, 1, 4, 0, "FLOAT")
+            r, g, b, alpha = buffer[0][0]
 
-        if alpha > 0:
-            index = rgb_to_index(r, g, b)
-            if index != global_data.hover:
-                global_data.hover = index
-                context.area.tag_redraw()
-        elif global_data.hover != -1:
+            if alpha > 0:
+                index = rgb_to_index(r, g, b)
+                if index != global_data.hover:
+                    global_data.hover = index
+                    context.area.tag_redraw()
+                return -1
+
+        if global_data.hover != -1:
             context.area.tag_redraw()
             global_data.hover = -1
         return -1
+
+
+def _spiral(N, M):
+    x,y = 0,0   
+    dx, dy = 0, -1
+
+    for dumb in range(N*M):
+        if abs(x) == abs(y) and [dx,dy] != [1,0] or x>0 and y == 1-x:  
+            dx, dy = -dy, dx            # corner, change direction
+
+        if abs(x)>N/2 or abs(y)>M/2:    # non-square
+            dx, dy = -dy, dx            # change direction
+            x, y = -y+dx, x+dy          # jump
+
+        yield x, y
+        x, y = x+dx, y+dy
+
+def get_spiral_coords(X: int, Y: int, width: int, height: int, radius: int = 0):
+    """Returns a list of coordinates to check starting from given position spiraling out"""
+
+    for x, y in _spiral(radius+1,radius+1):
+        if 0 <= (X+x) <= width and 0 <= (Y+y) <= height:
+            yield (X+x, Y+y)
