@@ -223,6 +223,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         x_axis = Vector((1, 0))
         alignment = self.align
         align = self.is_align()
+        angle = 0
 
         e1, e2 = self.entity1, self.entity2
         #   e1       e2
@@ -273,7 +274,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
                     if alignment == "HORIZONTAL"
                     else Vector((0.0, 1.0))
                 )
-            angle = v_rotation.angle_signed(x_axis)
+
+            if v_rotation.length != 0:
+                angle = v_rotation.angle_signed(x_axis)
+                
             mat_rot = Matrix.Rotation(angle, 2, "Z")
             v_translation = (p2 + p1) / 2
 
@@ -291,8 +295,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
                     )
                 if v_rotation.length != 0:
                     angle = v_rotation.angle_signed(x_axis)
-                else:
-                    angle = 0
+                
                 mat_rot = Matrix.Rotation(angle, 2, "Z")
                 v_translation = (p2 + p1) / 2
             else:
