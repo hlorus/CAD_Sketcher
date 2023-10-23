@@ -40,6 +40,9 @@ Once the 3D View CAD Sketcher plugin is installed check its preferences for the 
     - Choose the file in the filepath selector
     - Press "Install from local File"
 
+### Extra step on Mac OS:
+Due to an ongoing Blender bug, Mac OS users with Metal need to change their GPU Backend to OpenGL: Edit > Preferences > System > GPU Backend > Select "OpenGL". Remember to restart Blender after this.
+
 ### Installation fails
 There are multiple reasons why the installation might fail. Try the following:
 
