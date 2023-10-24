@@ -198,11 +198,10 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
 
         color = get_color(Color.Text, self.is_highlight)
         text = _get_formatted_value(context, constr)
-        dpi = context.preferences.system.dpi
         text_size = get_prefs().text_size
 
         blf.color(FONT_ID, *color)
-        blf.size(FONT_ID, text_size, dpi)
+        blf.size(FONT_ID, text_size)
         self.width, self.height = blf.dimensions(FONT_ID, text)
 
         margin = text_size / 4
