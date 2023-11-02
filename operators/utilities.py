@@ -111,7 +111,7 @@ def switch_sketch_mode(self, context: Context, to_sketch_mode: bool):
             bpy.ops.wm.tool_set_by_id(name=WorkSpaceTools.Select)
         return True
 
-    bpy.ops.wm.tool_set_by_index(index=0)
+    bpy.ops.wm.tool_set_by_index(index=0, expand=False)
     return True
 
 
