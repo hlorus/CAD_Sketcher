@@ -27,6 +27,7 @@ OperatorState = namedtuple(
         # TODO: Implement!
         "use_interactive_placemenet",  # Create new state element based on mouse coordinates
         "check_pointer",
+        "optional",  # Operator can be run before this state's pointer/property is submitted
     ),
 )
 del namedtuple
@@ -52,6 +53,7 @@ def state_from_args(name: str, **kwargs):
         "create_element": None,
         "use_interactive_placemenet": True,
         "check_pointer": None,
+        "optional": False,
     }
     kw.update(kwargs)
     return OperatorState(**kw)

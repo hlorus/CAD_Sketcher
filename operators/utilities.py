@@ -64,7 +64,8 @@ def select_extend(context: Context):
 # Also note that a running modal operator might prevent redraws, avoid returning running_modal
 def ignore_hover(entity):
     ignore_list = global_data.ignore_list
-    ignore_list.append(entity.slvs_index)
+    index = entity if isinstance(entity, int) else entity.slvs_index
+    ignore_list.append(index)
 
 
 # TODO: could probably check entity type only through index, instead of getting the entity first...
@@ -110,7 +111,7 @@ def switch_sketch_mode(self, context: Context, to_sketch_mode: bool):
             bpy.ops.wm.tool_set_by_id(name=WorkSpaceTools.Select)
         return True
 
-    bpy.ops.wm.tool_set_by_index(index=0)
+    bpy.ops.wm.tool_set_by_index(index=0, expand=False)
     return True
 
 
@@ -197,5 +198,6 @@ def select_target_ob(context, sketch):
     if not target_ob:
         return
 
-    target_ob.select_set(True)
-    context.view_layer.objects.active = target_ob
+    if target_ob.name in context.view_layer.objects:
+        target_ob.select_set(True)
+        context.view_layer.objects.active = target_ob

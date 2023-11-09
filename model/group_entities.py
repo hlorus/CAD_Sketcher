@@ -6,7 +6,7 @@ import bpy
 from bpy.types import PropertyGroup
 from bpy.props import CollectionProperty
 from bpy.utils import register_classes_factory
-from mathutils import Vector, Euler
+from mathutils import Vector, Euler, Quaternion
 
 from .. import global_data
 from ..utilities.constants import QUARTER_TURN
@@ -28,44 +28,52 @@ from .circle import SlvsCircle
 logger = logging.getLogger(__name__)
 
 
+# NOTE: currently limited to 16 items!
+# See _set_index to see how their index is handled
+_entity_types = (
+    SlvsPoint3D,
+    SlvsLine3D,
+    SlvsNormal3D,
+    SlvsWorkplane,
+    SlvsSketch,
+    SlvsPoint2D,
+    SlvsLine2D,
+    SlvsNormal2D,
+    SlvsArc,
+    SlvsCircle,
+)
+
+_entity_collections = (
+    "points3D",
+    "lines3D",
+    "normals3D",
+    "workplanes",
+    "sketches",
+    "points2D",
+    "lines2D",
+    "normals2D",
+    "arcs",
+    "circles",
+)
+
+
+def type_from_index(index: int) -> Type[SlvsGenericEntity]:
+    if index < 0:
+        return None
+
+    type_index, _ = breakdown_index(index)
+
+    if type_index >= len(_entity_types):
+        return None
+    return _entity_types[type_index]
+
+
 class SlvsEntities(PropertyGroup):
     """Holds all Solvespace Entities"""
 
-    # NOTE: currently limited to 16 items!
-    # See _set_index to see how their index is handled
-    entities = (
-        SlvsPoint3D,
-        SlvsLine3D,
-        SlvsNormal3D,
-        SlvsWorkplane,
-        SlvsSketch,
-        SlvsPoint2D,
-        SlvsLine2D,
-        SlvsNormal2D,
-        SlvsArc,
-        SlvsCircle,
-    )
-
-    _entity_collections = (
-        "points3D",
-        "lines3D",
-        "normals3D",
-        "workplanes",
-        "sketches",
-        "points2D",
-        "lines2D",
-        "normals2D",
-        "arcs",
-        "circles",
-    )
-
-    # __annotations__ = {
-    #   list_name : CollectionProperty(type=entity_cls) for entity_cls, list_name in zip(entities, _entity_collections)
-    # }
-
     @classmethod
     def _type_index(cls, entity: SlvsGenericEntity) -> int:
-        return cls.entities.index(type(entity))
+        return _entity_types.index(type(entity))
 
     def _set_index(self, entity: SlvsGenericEntity):
         """Create an index for the entity and assign it.
@@ -77,12 +85,14 @@ class SlvsEntities(PropertyGroup):
         |            total: 3 Bytes                 |
         """
         type_index = self._type_index(entity)
-        sub_list = getattr(self, self._entity_collections[type_index])
+        sub_list = getattr(self, _entity_collections[type_index])
 
         local_index = len(sub_list) - 1
         # TODO: handle this case better
         assert local_index < math.pow(2, 20)
-        entity.slvs_index = assemble_index(type_index, local_index)
+        index = assemble_index(type_index, local_index)
+        entity.slvs_index = index
+        return index
 
     @staticmethod
     def _breakdown_index(index: int):
@@ -95,27 +105,20 @@ class SlvsEntities(PropertyGroup):
         entity.slvs_index = type_index << 20 | local_index
 
     def type_from_index(self, index: int) -> Type[SlvsGenericEntity]:
-        if index < 0:
-            return None
-
-        type_index, _ = self._breakdown_index(index)
-
-        if type_index >= len(self.entities):
-            return None
-        return self.entities[type_index]
+        return type_from_index(index)
 
     def collection_name_from_index(self, index: int):
         if index < 0:
             return
 
         type_index, _ = self._breakdown_index(index)
-        return self._entity_collections[type_index]
+        return _entity_collections[type_index]
 
     def _get_list_and_index(self, index: int):
         type_index, local_index = self._breakdown_index(index)
-        if type_index < 0 or type_index >= len(self._entity_collections):
+        if type_index < 0 or type_index >= len(_entity_collections):
             return None, local_index
-        return getattr(self, self._entity_collections[type_index]), local_index
+        return getattr(self, _entity_collections[type_index]), local_index
 
     def get(self, index: int) -> SlvsGenericEntity:
         """Get entity by index
@@ -162,9 +165,26 @@ class SlvsEntities(PropertyGroup):
         update_pointers(bpy.context.scene, new_item.slvs_index, index)
         new_item.slvs_index = index
 
+    def _init_entity(self, entity, fixed, construction, index_reference, visible=True):
+        """Initializes all shared entity properties"""
+
+        entity["fixed"] = fixed
+        entity["construction"] = construction
+        entity["visible"] = visible
+
+        index = self._set_index(entity)
+
+        if index_reference:
+            return index
+        return entity
+
     def add_point_3d(
-        self, co: Union[Tuple[float, float, float], Vector]
-    ) -> SlvsPoint3D:
+        self,
+        co: Union[Tuple[float, float, float], Vector],
+        fixed: bool = False,
+        construction: bool = False,
+        index_reference: bool = False,
+    ) -> Union[SlvsPoint3D, int]:
         """Add a point in 3d space.
 
         Arguments:
@@ -177,11 +197,17 @@ class SlvsEntities(PropertyGroup):
             raise TypeError("Argument co must be of length 3")
 
         p = self.points3D.add()
-        p.location = co
-        self._set_index(p)
-        return p
+        p["location"] = Vector(co)
+        return self._init_entity(p, fixed, construction, index_reference)
 
-    def add_line_3d(self, p1: SlvsPoint3D, p2: SlvsPoint3D) -> SlvsLine3D:
+    def add_line_3d(
+        self,
+        p1: Union[SlvsPoint3D, int],
+        p2: Union[SlvsPoint3D, int],
+        fixed: bool = False,
+        construction: bool = False,
+        index_reference: bool = False,
+    ) -> SlvsLine3D:
         """Add a line in 3d space.
 
         Arguments:
@@ -192,12 +218,18 @@ class SlvsEntities(PropertyGroup):
             SlvsLine3D: The created line.
         """
         line = self.lines3D.add()
-        line.p1 = p1
-        line.p2 = p2
-        self._set_index(line)
-        return line
+        line["p1_i"] = p1 if isinstance(p1, int) else p1.slvs_index
+        line["p2_i"] = p2 if isinstance(p2, int) else p2.slvs_index
 
-    def add_normal_3d(self, quat: Tuple[float, float, float, float]) -> SlvsNormal3D:
+        return self._init_entity(line, fixed, construction, index_reference)
+
+    def add_normal_3d(
+        self,
+        quat: Tuple[float, float, float, float],
+        fixed: bool = False,
+        construction: bool = False,
+        index_reference: bool = False,
+    ) -> SlvsNormal3D:
         """Add a normal in 3d space.
 
         Arguments:
@@ -207,11 +239,18 @@ class SlvsEntities(PropertyGroup):
             SlvsNormal3D: The created normal.
         """
         nm = self.normals3D.add()
-        nm.orientation = quat
-        self._set_index(nm)
-        return nm
+        nm["orientation"] = Quaternion(quat)
 
-    def add_workplane(self, p1: SlvsPoint3D, nm: SlvsGenericEntity) -> SlvsWorkplane:
+        return self._init_entity(nm, fixed, construction, index_reference)
+
+    def add_workplane(
+        self,
+        p1: SlvsPoint3D,
+        nm: SlvsGenericEntity,
+        fixed: bool = False,
+        construction: bool = False,
+        index_reference: bool = False,
+    ) -> SlvsWorkplane:
         """Add a workplane.
 
         Arguments:
@@ -222,12 +261,18 @@ class SlvsEntities(PropertyGroup):
             SlvsWorkplane: The created workplane.
         """
         wp = self.workplanes.add()
-        wp.p1 = p1
-        wp.nm = nm
-        self._set_index(wp)
-        return wp
+        wp["p1_i"] = p1 if isinstance(p1, int) else p1.slvs_index
+        wp["nm_i"] = nm if isinstance(nm, int) else nm.slvs_index
 
-    def add_sketch(self, wp: SlvsWorkplane) -> SlvsSketch:
+        return self._init_entity(wp, fixed, construction, index_reference)
+
+    def add_sketch(
+        self,
+        wp: SlvsWorkplane,
+        fixed: bool = False,
+        construction: bool = False,
+        index_reference: bool = False,
+    ) -> SlvsSketch:
         """Add a Sketch.
 
         Arguments:
@@ -237,13 +282,22 @@ class SlvsEntities(PropertyGroup):
             SlvsSketch: The created sketch.
         """
         sketch = self.sketches.add()
-        sketch.wp = wp
-        self._set_index(sketch)
-        _, i = self._breakdown_index(sketch.slvs_index)
-        sketch.name = "Sketch"
-        return sketch
+        sketch["wp_i"] = wp if isinstance(wp, int) else wp.slvs_index
 
-    def add_point_2d(self, co: Tuple[float, float], sketch: SlvsSketch) -> SlvsPoint2D:
+        retval = self._init_entity(sketch, fixed, construction, index_reference)
+        index = retval if index_reference else retval.slvs_index
+        _, i = self._breakdown_index(index)
+        sketch.name = "Sketch"
+        return retval
+
+    def add_point_2d(
+        self,
+        co: Tuple[float, float],
+        sketch: SlvsSketch,
+        fixed: bool = False,
+        construction: bool = False,
+        index_reference: bool = False,
+    ) -> SlvsPoint2D:
         """Add a point in 2d space.
 
         Arguments:
@@ -254,13 +308,19 @@ class SlvsEntities(PropertyGroup):
             SlvsPoint2D: The created point.
         """
         p = self.points2D.add()
-        p.co = co
-        p.sketch = sketch
-        self._set_index(p)
-        return p
+        p["co"] = Vector(co)
+        p["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
+
+        return self._init_entity(p, fixed, construction, index_reference)
 
     def add_line_2d(
-        self, p1: SlvsPoint2D, p2: SlvsPoint2D, sketch: SlvsSketch
+        self,
+        p1: SlvsPoint2D,
+        p2: SlvsPoint2D,
+        sketch: SlvsSketch,
+        fixed: bool = False,
+        construction: bool = False,
+        index_reference: bool = False,
     ) -> SlvsLine2D:
         """Add a line in 2d space.
 
@@ -273,13 +333,19 @@ class SlvsEntities(PropertyGroup):
             SlvsLine2D: The created line.
         """
         line = self.lines2D.add()
-        line.p1 = p1
-        line.p2 = p2
-        line.sketch = sketch
-        self._set_index(line)
-        return line
+        line["p1_i"] = p1 if isinstance(p1, int) else p1.slvs_index
+        line["p2_i"] = p2 if isinstance(p2, int) else p2.slvs_index
+        line["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
 
-    def add_normal_2d(self, sketch: SlvsSketch) -> SlvsNormal2D:
+        return self._init_entity(line, fixed, construction, index_reference)
+
+    def add_normal_2d(
+        self,
+        sketch: SlvsSketch,
+        fixed: bool = False,
+        construction: bool = False,
+        index_reference: bool = False,
+    ) -> SlvsNormal2D:
         """Add a normal in 2d space.
 
         Arguments:
@@ -289,9 +355,9 @@ class SlvsEntities(PropertyGroup):
             SlvsNormal2D: The created normal.
         """
         nm = self.normals2D.add()
-        nm.sketch = sketch
-        self._set_index(nm)
-        return nm
+        nm["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
+
+        return self._init_entity(nm, fixed, construction, index_reference)
 
     def add_arc(
         self,
@@ -300,6 +366,10 @@ class SlvsEntities(PropertyGroup):
         p1: SlvsPoint2D,
         p2: SlvsPoint2D,
         sketch: SlvsSketch,
+        invert: bool = False,
+        fixed: bool = False,
+        construction: bool = False,
+        index_reference: bool = False,
     ) -> SlvsArc:
         """Add an arc in 2d space.
 
@@ -314,16 +384,24 @@ class SlvsEntities(PropertyGroup):
             SlvsArc: The created arc.
         """
         arc = self.arcs.add()
-        arc.nm = nm
-        arc.ct = ct
-        arc.p1 = p1
-        arc.p2 = p2
-        arc.sketch = sketch
-        self._set_index(arc)
-        return arc
+        arc["nm_i"] = nm if isinstance(nm, int) else nm.slvs_index
+        arc["ct_i"] = ct if isinstance(ct, int) else ct.slvs_index
+        arc["p1_i"] = p1 if isinstance(p1, int) else p1.slvs_index
+        arc["p2_i"] = p2 if isinstance(p2, int) else p2.slvs_index
+        arc["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
+        arc["invert_direction"] = invert
+
+        return self._init_entity(arc, fixed, construction, index_reference)
 
     def add_circle(
-        self, nm: SlvsNormal2D, ct: SlvsPoint2D, radius: float, sketch: SlvsSketch
+        self,
+        nm: SlvsNormal2D,
+        ct: SlvsPoint2D,
+        radius: float,
+        sketch: SlvsSketch,
+        fixed: bool = False,
+        construction: bool = False,
+        index_reference: bool = False,
     ) -> SlvsCircle:
         """Add a circle in 2d space.
 
@@ -337,16 +415,16 @@ class SlvsEntities(PropertyGroup):
             SlvsCircle: The created circle.
         """
         c = self.circles.add()
-        c.nm = nm
-        c.ct = ct
-        c.radius = radius
-        c.sketch = sketch
-        self._set_index(c)
-        return c
+        c["nm_i"] = nm if isinstance(nm, int) else nm.slvs_index
+        c["ct_i"] = ct if isinstance(ct, int) else ct.slvs_index
+        c["radius"] = float(radius)
+        c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
+
+        return self._init_entity(c, fixed, construction, index_reference)
 
     @property
     def all(self):
-        for coll_name in self._entity_collections:
+        for coll_name in _entity_collections:
             entity_coll = getattr(self, coll_name)
             for entity in entity_coll:
                 yield entity
@@ -357,6 +435,8 @@ class SlvsEntities(PropertyGroup):
         context = bpy.context
         items = []
         for index in global_data.selected:
+            if index is None:
+                continue
             entity = self.get(index)
             items.append(entity)
         return [e for e in items if e.is_selectable(context)]
@@ -367,6 +447,8 @@ class SlvsEntities(PropertyGroup):
         context = bpy.context
         items = []
         for index in global_data.selected:
+            if index is None:
+                continue
             entity = self.get(index)
             items.append(entity)
         return [e for e in items if e.selected]
@@ -388,11 +470,13 @@ class SlvsEntities(PropertyGroup):
         if not self.origin:
             p = sse.add_point_3d((0.0, 0.0, 0.0))
             set_origin_props(p)
+            p.name = "OriginPoint3D"
             self.origin = p
 
         # axis
         pi_2 = QUARTER_TURN
-        for name, angles in zip(
+        for label, name, angles in zip(
+            ("OriginAxisX", "OriginAxisY", "OriginAxisZ"),
             ("origin_axis_X", "origin_axis_Y", "origin_axis_Z"),
             (Euler((pi_2, 0.0, pi_2)), Euler((pi_2, 0.0, 0.0)), Euler()),
         ):
@@ -401,31 +485,31 @@ class SlvsEntities(PropertyGroup):
             nm = sse.add_normal_3d(Euler(angles).to_quaternion())
             set_origin_props(nm)
             setattr(self, name, nm)
+            nm.name = label
 
         # workplanes
-        for nm_name, wp_name in (
-            ("origin_axis_X", "origin_plane_YZ"),
-            ("origin_axis_Y", "origin_plane_XZ"),
-            ("origin_axis_Z", "origin_plane_XY"),
+        for label, nm_name, wp_name in (
+            ("OriginWorkplaneYZ", "origin_axis_X", "origin_plane_YZ"),
+            ("OriginWorkplaneXZ", "origin_axis_Y", "origin_plane_XZ"),
+            ("OriginWorkplaneXY", "origin_axis_Z", "origin_plane_XY"),
         ):
             if getattr(self, wp_name):
                 continue
             wp = sse.add_workplane(self.origin, getattr(self, nm_name))
             set_origin_props(wp)
             setattr(self, wp_name, wp)
+            wp.name = label
 
     def collection_offsets(self):
         offsets = {}
-        for i, key in enumerate(self._entity_collections):
+        for i, key in enumerate(_entity_collections):
             offsets[i] = len(getattr(self, key))
         return offsets
 
 
 if not hasattr(SlvsEntities, "__annotations__"):
     SlvsEntities.__annotations__ = {}
-for entity_cls, list_name in zip(
-    SlvsEntities.entities, SlvsEntities._entity_collections
-):
+for entity_cls, list_name in zip(_entity_types, _entity_collections):
     SlvsEntities.__annotations__[list_name] = CollectionProperty(type=entity_cls)
 
 

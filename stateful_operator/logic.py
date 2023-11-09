@@ -138,7 +138,10 @@ class StatefulOperatorLogic:
         if not prop_name:
             return False
 
-        prop = self.properties.rna_type.properties[prop_name]
+        prop = self.properties.rna_type.properties.get(prop_name)
+        if not prop:
+            return False
+
         if prop.type not in ("INT", "FLOAT"):
             return False
         return True
@@ -157,15 +160,24 @@ class StatefulOperatorLogic:
         return ok
 
     def init_substate(self):
+
+        # Reset
+        self._substate_count = None
+        self._stateprop = None
+
         props = self.get_property()
-        if props and props[0]:
-            prop_name = props[0]
-            prop = self.properties.rna_type.properties[prop_name]
-            self._substate_count = prop.array_length
-            self._stateprop = prop
-        else:
-            self._substate_count = None
-            self._stateprop = None
+        if not props:
+            return
+        if not props[0]:
+            return
+
+        prop_name = props[0]
+        prop = self.properties.rna_type.properties.get(prop_name)
+        if not prop:
+            return
+
+        self._substate_count = prop.array_length
+        self._stateprop = prop
 
     def iterate_substate(self):
         i = self._substate_index
@@ -202,17 +214,35 @@ class StatefulOperatorLogic:
             input = self.numeric_input
             if len(input):
                 self.numeric_input = input[:-1]
-        elif type in ("MINUS", "NUMPAD_MINUS"):
+            return
+
+        if type in ("MINUS", "NUMPAD_MINUS"):
             input = self.numeric_input
             if input.startswith("-"):
                 input = input[1:]
             else:
                 input = "-" + input
             self.numeric_input = input
-        elif is_unit_input(event):
+            return
+
+        if is_unit_input(event):
             self.numeric_input += get_unit_value(event)
-        else:
-            self.numeric_input += get_value_from_event(event)
+            return
+
+        value = get_value_from_event(event)
+        self.numeric_input += self.validate_numeric_input(value)
+
+    def validate_numeric_input(self, value):
+        """Check if existing input is valid after appending value"""
+        num_input = self.numeric_input
+
+        separators = (".", ",")
+        if value in separators:
+            if any([char in num_input for char in separators]):
+                return ""
+            if not len(num_input) or not num_input[-1].isdigit():
+                return "0."
+        return value
 
     def is_in_previous_states(self, entity):
         i = self.state_index - 1
@@ -282,7 +312,8 @@ class StatefulOperatorLogic:
     def invoke(self, context: Context, event: Event):
         self._state_data.clear()
         if hasattr(self, "init"):
-            self.init(context, event)
+            if not self.init(context, event):
+                return self._end(context, False)
 
         retval = {"RUNNING_MODAL"}
 
@@ -551,6 +582,7 @@ class StatefulOperatorLogic:
             self.redo_states(context)
             self._undo = False
 
+        succeede = False
         if self.check_props():
             succeede = self.run_op(context)
             self._undo = True
@@ -636,6 +668,10 @@ class StatefulOperatorLogic:
 
     def check_props(self):
         for i, state in enumerate(self.get_states()):
+
+            if state.optional:
+                continue
+
             props = self.get_property(index=i)
             if state.pointer:
                 if not bool(self.get_state_pointer(index=i)):

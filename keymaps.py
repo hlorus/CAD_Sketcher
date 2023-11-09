@@ -166,6 +166,11 @@ tool_access = (
         WorkSpaceTools.Bevel,
         Operators.Bevel,
     ),
+    tool_invoke_kmi(
+        "O",
+        WorkSpaceTools.Offset,
+        Operators.Offset
+    ),
     (
         Operators.AddSketch,
         {"type": "S", "value": "PRESS"},
@@ -366,6 +371,13 @@ def register():
             Operators.AddSketch, "A", "PRESS", ctrl=True, shift=True
         )
         kmi.properties.wait_for_input = True
+        addon_keymaps.append((km, kmi))
+
+        # Leave Sketch
+        kmi = km.keymap_items.new(
+            Operators.SetActiveSketch, "X", "PRESS", ctrl=True, shift=True
+        )
+        kmi.properties.index = -1
         addon_keymaps.append((km, kmi))
 
 

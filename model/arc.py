@@ -2,7 +2,7 @@ import logging
 from typing import List
 
 import bpy
-from bpy.types import PropertyGroup
+from bpy.types import PropertyGroup, Context
 from bpy.props import BoolProperty
 from gpu_extras.batch import batch_for_shader
 import math
@@ -27,6 +27,10 @@ from .utilities import (
 from ..utilities.math import range_2pi, pol2cart
 
 logger = logging.getLogger(__name__)
+
+
+def _get_angle(start, end):
+    return range_2pi(math.atan2(end[1], end[0]) - math.atan2(start[1], start[0]))
 
 
 class SlvsArc(Entity2D, PropertyGroup):
@@ -119,29 +123,41 @@ class SlvsArc(Entity2D, PropertyGroup):
     @property
     def angle(self):
         """Returns an angle in radians from zero to 2*PI"""
-        ct = self.ct.co
-        start, end = self.start.co - ct, self.end.co - ct
-        return range_2pi(math.atan2(end[1], end[0]) - math.atan2(start[1], start[0]))
+        center = self.ct.co
+        start, end = self.start.co - center, self.end.co - center
+        return _get_angle(start, end)
 
     @property
     def start_angle(self):
         center, start = self.ct.co, self.start.co
         return math.atan2((start - center)[1], (start - center)[0])
 
+    def normal(self, position: Vector = None):
+        """Return the normal vector at a given position"""
+
+        normal = position - self.ct.co
+        return normal.normalized()
+
     def placement(self):
         coords = self.ct.co + pol2cart(self.radius, self.start_angle + self.angle / 2)
 
         return self.wp.matrix_basis @ coords.to_3d()
 
-    def connection_points(self):
-        return [self.start, self.end]
+    def connection_points(self, direction: bool = False):
+        points = [self.start, self.end]
+        if direction:
+            return list(reversed(points))
+        return points
 
     def direction(self, point, is_endpoint=False):
-        """Returns the direction of the line, true if inverted"""
+        """Returns the direction of the arc, true if inverted"""
         if is_endpoint:
             return point == self.start
-        else:
-            return point == self.end
+        return point == self.end
+
+    @staticmethod
+    def _direction(start, end, center):
+        pass
 
     def bezier_segment_count(self):
         max_angle = QUARTER_TURN
@@ -355,6 +371,16 @@ class SlvsArc(Entity2D, PropertyGroup):
                 continue
             setattr(self, ptr, new)
             break
+
+    def new(self, context: Context, **kwargs) -> SlvsGenericEntity:
+        kwargs.setdefault("p1", self.p1)
+        kwargs.setdefault("p2", self.p2)
+        kwargs.setdefault("sketch", self.sketch)
+        kwargs.setdefault("nm", self.nm)
+        kwargs.setdefault("ct", self.ct)
+        kwargs.setdefault("invert", self.invert_direction)
+        kwargs.setdefault("construction", self.construction)
+        return context.scene.sketcher.entities.add_arc(**kwargs)
 
 
 slvs_entity_pointer(SlvsArc, "nm")

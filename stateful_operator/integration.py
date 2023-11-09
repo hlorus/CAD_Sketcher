@@ -181,6 +181,9 @@ class StatefulOperator(StatefulOperatorLogic):
             type_cast = float if prop.type == "FLOAT" else int
             old_pos = get_placement_pos(context, self.state_init_coords)
             scale = get_scale_from_pos(old_pos, context.region_data) / 500
+
+            # NOTE: self.state_init_coords is not set for non-interactive states
+            print((coords.x - self.state_init_coords.x) * scale)
             return type_cast((coords.x - self.state_init_coords.x) * scale)
 
         return super().state_func(context, coords)
@@ -232,7 +235,9 @@ class StatefulOperator(StatefulOperatorLogic):
         # Return list filled with all selected verts/edges/faces/objects
         selected = []
         states = self.get_states()
-        types = [s.types for s in states]
+        types = []
+        [types.extend(s.types) for s in states]
+
         # Note: Where to take mesh elements from? Editmode data is only written
         # when left probably making it impossible to use selected elements in realtime.
         if any([t == bpy.types.Object for t in types]):

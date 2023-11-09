@@ -23,6 +23,7 @@ modules = [
     "trim",
     "batch_set",
     "bevel",
+    "offset",
     "set_sketch",
     "delete_entity",
     "delete_constraint",
@@ -34,6 +35,7 @@ modules = [
     "add_angle",
     "add_geometric_constraints",
     "align_workplane",
+    "modifiers",
     "move",
     "duplicate",
 ]

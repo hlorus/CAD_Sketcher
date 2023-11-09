@@ -52,6 +52,14 @@ align_items = [
     ("VERTICAL", "Vertical", "", 2),
 ]
 
+def _get_value(self):
+    if self.is_reference:
+        val = self.init_props(align=self.align)["value"]
+        return self.to_displayed_value(val)
+    if self.get("value") is None:
+        self.assign_init_props()
+    return self.to_displayed_value(self["value"])
+
 
 class SlvsDistance(DimensionalConstraint, PropertyGroup):
     """Sets the distance between a point and some other entity (point/line/Workplane)."""
@@ -73,8 +81,9 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         name=label,
         subtype="DISTANCE",
         unit="LENGTH",
+        precision=6,
         update=update_system_cb,
-        get=DimensionalConstraint._get_value,
+        get=_get_value,
         set=DimensionalConstraint._set_value,
     )
     flip: BoolProperty(name="Flip", update=update_system_cb)
@@ -214,6 +223,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         x_axis = Vector((1, 0))
         alignment = self.align
         align = self.is_align()
+        angle = 0
 
         e1, e2 = self.entity1, self.entity2
         #   e1       e2
@@ -264,7 +274,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
                     if alignment == "HORIZONTAL"
                     else Vector((0.0, 1.0))
                 )
-            angle = v_rotation.angle_signed(x_axis)
+
+            if v_rotation.length != 0:
+                angle = v_rotation.angle_signed(x_axis)
+                
             mat_rot = Matrix.Rotation(angle, 2, "Z")
             v_translation = (p2 + p1) / 2
 
@@ -282,8 +295,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
                     )
                 if v_rotation.length != 0:
                     angle = v_rotation.angle_signed(x_axis)
-                else:
-                    angle = 0
+                
                 mat_rot = Matrix.Rotation(angle, 2, "Z")
                 v_translation = (p2 + p1) / 2
             else:

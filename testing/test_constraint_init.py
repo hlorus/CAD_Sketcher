@@ -17,38 +17,36 @@ class TestConstraintAdd(Sketch2dTestCase):
         # Test constraint between two points
         p1 = entities.add_point_2d((3, 1), sketch)
         c1 = constraints.add_horizontal(p0, entity2=p1, sketch=sketch)
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertAlmostEqual(p1.co.y, 0.0)
 
         # Test constraint with one line
         p2 = entities.add_point_2d((-3, -1), sketch)
         line = entities.add_line_2d(p0, p2, sketch)
         c2 = constraints.add_horizontal(line, sketch=sketch)
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertAlmostEqual(p2.co.y, 0.0)
 
-    @skip
     def test_vertical(self):
         context = self.context
         entities = self.entities
         constraints = self.constraints
         sketch = self.sketch
 
-        p0 = entities.add_point_2d((0, 0), sketch)
-        p0.fixed = True
+        p0 = entities.add_point_2d((0, 0), sketch, fixed=True, index_reference=True)
 
         # Test constraint between two points
-        p1 = entities.add_point_2d((3, 1), sketch)
+        p1 = entities.add_point_2d((3, 1), sketch, index_reference=True)
         c1 = constraints.add_vertical(p0, entity2=p1, sketch=sketch)
-        self.assertTrue(sketch.solve(context))
-        self.assertAlmostEqual(p1.co.x, 0.0)
+        self.solve()
+        self.assertAlmostEqual(c1.entity2.co.x, 0.0)
 
         # Test constraint with one line
-        p2 = entities.add_point_2d((-3, -1), sketch)
-        line = entities.add_line_2d(p0, p2, sketch)
+        p2 = entities.add_point_2d((-3, -1), sketch, index_reference=True)
+        line = entities.add_line_2d(p0, p2, sketch, index_reference=True)
         c2 = constraints.add_vertical(line, sketch=sketch)
-        self.assertTrue(sketch.solve(context))
-        self.assertAlmostEqual(p2.co.x, 0.0)
+        self.solve()
+        self.assertAlmostEqual(c2.entity1.p2.co.x, 0.0)
 
 
 class TestConstraintInit(Sketch2dTestCase):
@@ -66,20 +64,20 @@ class TestConstraintInit(Sketch2dTestCase):
         line = entities.add_line_2d(p0, p1, sketch)
         c1 = constraints.add_distance(line, None, sketch=sketch, init=True)
 
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertAlmostEqual(line.length, 2.0)
         self.assertAlmostEqual(c1.value, 2.0)
 
         # Constrain 2 points
         p2 = entities.add_point_2d((0.0, 2.0), sketch)
         c2 = constraints.add_distance(p0, p2, sketch=sketch, init=True)
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertAlmostEqual(p2.co.y, 2.0)
         self.assertAlmostEqual(c2.value, 2.0)
 
         # Constrain line-point
         # c3 = constraints.add_distance(p2, line, sketch=sketch, init=True)
-        # self.assertTrue(sketch.solve(context))
+        # self.solve()
         # self.assertAlmostEqual(c3.value, 2.0)
 
     def test_distance_flip(self):
@@ -98,7 +96,7 @@ class TestConstraintInit(Sketch2dTestCase):
         line = entities.add_line_2d(p1, p2, sketch)
         c1 = constraints.add_distance(p0, line, sketch=sketch, init=True)
 
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertTrue(c1.flip)
         self.assertAlmostEqual(p2.co.x, 1.0)
 
@@ -114,7 +112,7 @@ class TestConstraintInit(Sketch2dTestCase):
         line2 = entities.add_line_2d(p3, p4, sketch)
         c2 = constraints.add_distance(p0, line2, sketch=sketch, init=True)
 
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertFalse(c2.flip)
         self.assertAlmostEqual(p4.co.x, -1.0)
 
@@ -139,7 +137,7 @@ class TestConstraintInit(Sketch2dTestCase):
             p0, p1, sketch=sketch, init=True, align="HORIZONTAL"
         )
 
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertAlmostEqual(c1.value, 2.0)
         self.assertAlmostEqual(c2.value, 1.0)
 
@@ -163,7 +161,7 @@ class TestConstraintInit(Sketch2dTestCase):
         circle1 = entities.add_circle(nm, p0, 3.0, sketch)
         c1 = constraints.add_diameter(circle1, sketch=sketch, init=True, value=4.0)
 
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertAlmostEqual(circle1.radius, 2.0)
         self.assertAlmostEqual(c1.value, 4.0)
 
@@ -171,7 +169,7 @@ class TestConstraintInit(Sketch2dTestCase):
         circle2 = entities.add_circle(nm, p0, 3.0, sketch)
         c2 = constraints.add_diameter(circle2, sketch=sketch, init=True, setting=True)
 
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertAlmostEqual(circle2.radius, 3.0)
         self.assertAlmostEqual(c2.value, 3.0)
 
@@ -181,7 +179,7 @@ class TestConstraintInit(Sketch2dTestCase):
             circle3, sketch=sketch, init=True, value=0.8, setting=True
         )
 
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertAlmostEqual(circle3.radius, 0.8)
         self.assertAlmostEqual(c3.value, 0.8)
 
@@ -211,7 +209,7 @@ class TestConstraintInit(Sketch2dTestCase):
         arc1 = entities.add_arc(nm, p0, p1, p2, sketch)
         c1 = constraints.add_diameter(arc1, sketch=sketch, init=True)
 
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertAlmostEqual(arc1.radius, 3.0)
         self.assertAlmostEqual(c1.value, 6.0)
 
@@ -239,14 +237,14 @@ class TestConstraintInit(Sketch2dTestCase):
 
         c = constraints.add_angle(line1, line2, sketch=sketch, init=True)
 
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertAlmostEqual(p2.co.x, 0.0)
         self.assertGreater(p2.co.y, 0.0)
         self.assertAlmostEqual(c.value, math.radians(45))
         # NOTE: Which value (45 / (180-45)) is constrained depends on the directions of the lines
 
         c.setting = not c.setting
-        self.assertTrue(sketch.solve(context))
+        self.solve()
         self.assertAlmostEqual(p2.co.x, 0.0)
         self.assertGreater(p2.co.y, 0.0)
         self.assertAlmostEqual(c.value, math.radians(180 - 45))
@@ -283,3 +281,22 @@ class TestConstraintInit(Sketch2dTestCase):
         circle.radius = 2.5
 
         self.assertAlmostEqual(c1.value, 5.0)
+
+    def test_ratio(self):
+        p0 = self.entities.add_point_2d((0, 0), self.sketch)
+        p0.fixed = True
+
+        p1 = self.entities.add_point_2d((3, 0), self.sketch)
+        line1 = self.entities.add_line_2d(p0, p1, self.sketch)
+
+        p2 = self.entities.add_point_2d((0, 1), self.sketch)
+        line2 = self.entities.add_line_2d(p0, p2, self.sketch)
+
+        c = self.constraints.add_ratio(line1, line2, self.sketch, init=True)
+        self.solve()
+        self.assertAlmostEqual(c.value, 3.0)
+
+        p2.fixed = True
+        c.value = 4.0
+        self.solve()
+        self.assertAlmostEqual(line1.length, 4.0)

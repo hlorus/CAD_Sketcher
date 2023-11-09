@@ -11,9 +11,9 @@ CAD Sketcher integrates the solver of Solvespace and closely follows its design.
 Therefore the [Solvespace Documentation](https://solvespace.readthedocs.io/en/latest/) is generally also relevant.
 
 In order to have a parametric representation of a geometric system where curves
-are independent of resolution, BGS introduces a set of [Entities](entities.md).
+are independent of resolution, CAD Sketcher introduces a set of [Entities](entities.md).
 
-Those Entities can be both in 2d and 3d. BGS isn't strictly limited to but mainly
+Those Entities can be both in 2d and 3d. CAD Sketcher isn't strictly limited to but mainly
 focuses on 2d entities. In order to group a set of 2d entities we use [Sketches](entities.md#SlvsSketch).
 
 The final position and dimensions of a drawn shape is defined by [Constraints](constraints.md).
@@ -21,7 +21,7 @@ The final position and dimensions of a drawn shape is defined by [Constraints](c
 In order to have entities follow the defined constraints,
 a [Solver](solver.md) is needed.
 
-To further process the resulting geometry BGS uses [Converters](integration.md)
+To further process the resulting geometry CAD Sketcher uses [Converters](integration.md)
 to get native Blender geometry types which then allow further modifications with native tools.
 
 <!-- Check the [Workflow](solver.md#Workflow) section to see how it's intended to be used. -->

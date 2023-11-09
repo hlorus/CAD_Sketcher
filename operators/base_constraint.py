@@ -64,6 +64,7 @@ class GenericConstraintOp(Operator2d):
                     pointer="entity" + str(name_index),
                     property=None,
                     types=types,
+                    use_create=False,
                 )
             )
         return states
