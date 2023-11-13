@@ -28,7 +28,7 @@ jobs:
           cache: "pip"
 
       - name: Install Dependencies
-        run: pip install "markdown<=3.3.7" "mkdocs>=1.3.1" mkdocs-material mkdocstrings mkdocs-autorefs lightgallery mkdocstrings-python
+        run: pip install -r docs/requirements.txt
 
       - name: Set Pythonpath
         run: echo "PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/blender-git/blender/release/scripts/modules:$GITHUB_WORKSPACE" >> $GITHUB_ENV
