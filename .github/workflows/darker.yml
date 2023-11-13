@@ -18,4 +18,4 @@ jobs:
           src: "."
           version: "~=1.7.0"
           lint: "flake8,pylint==2.13.1"
-          revision: "(git merge-base main HEAD)..."
+          revision: "origin/main..."
