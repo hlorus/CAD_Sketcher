@@ -24,15 +24,15 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
           cache: "pip"
 
       - name: Install Dependencies
-        run: pip install markdown mkdocs mkdocs-material mkdocstrings mkdocs-autorefs lightgallery mkdocstrings-python
+        run: pip install -r ./CAD_Sketcher/docs/requirements.txt
 
       - name: Set Pythonpath
         run: echo "PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/blender-git/blender/release/scripts/modules:$GITHUB_WORKSPACE" >> $GITHUB_ENV
 
       - name: Deploy
-        run: python3.10 -m mkdocs gh-deploy -f ./mkdocs.yml --force
+        run: python3.11 -m mkdocs gh-deploy -f ./docs/mkdocs.yml --force
         working-directory: ./CAD_Sketcher

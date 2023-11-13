@@ -1,0 +1,7 @@
+mkdocs
+markdown <= 3.3.7
+mkdocs-material
+mkdocstrings
+mkdocs-autorefs
+lightgallery
+mkdocstrings-python
