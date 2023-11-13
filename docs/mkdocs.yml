@@ -1,5 +1,5 @@
 site_name: CAD Sketcher
-docs_dir: .
+docs_dir: content
 
 theme:
   name: material
