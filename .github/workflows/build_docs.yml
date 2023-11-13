@@ -34,5 +34,5 @@ jobs:
         run: echo "PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE/blender-git/blender/release/scripts/modules:$GITHUB_WORKSPACE" >> $GITHUB_ENV
 
       - name: Deploy
-        run: python3.10 -m mkdocs gh-deploy -f ./mkdocs.yml --force
+        run: python3.11 -m mkdocs gh-deploy -f ./mkdocs.yml --force
         working-directory: ./CAD_Sketcher
