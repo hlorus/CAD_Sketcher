@@ -12,7 +12,7 @@ you have trouble installing the addon.
 ## Create a Sketch
 ![!Add Sketch](images/add_sketch.png){style="width:100%; height:200px; object-fit:cover;"}
 
-In the 3d Viewport open the sidebar and change to the "Sketcher" tab. Press the
+In the 3d Viewport open the sidebar (you can show it from the menu view->sidebar or by pressing the 'N' key) and change to the "Sketcher" tab. Press the
 button  "Add Sketch" and pick one of the origin planes that appears. The newly
 created sketch will then be activated and any geometry that is drawn will belong
 to it. The sketch can be exited and re-activated at any time by simply pressing
