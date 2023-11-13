@@ -20,7 +20,7 @@ def slvs_entity_pointer(cls, name, **kwargs):
     @property
     def func(self):
         index = getattr(self, index_prop)
-        return none if index == -1 else bpy.context.scene.sketcher.entities.get(index)
+        return None if index == -1 else bpy.context.scene.sketcher.entities.get(index)
     setattr(cls, name, func)
 
     @func.setter
