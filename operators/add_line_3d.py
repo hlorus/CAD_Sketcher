@@ -66,7 +66,7 @@ class View3D_OT_slvs_add_line3d(Operator, Operator3d):
             logger.debug("Add: {}".format(self.target))
 
         if succeede:
-            if self.has_coincident:
+            if self.has_coincident():
                 solve_system(context)
 
 
