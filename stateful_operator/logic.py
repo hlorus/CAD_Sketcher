@@ -359,10 +359,10 @@ class StatefulOperatorLogic:
         return self._end(context, succeede)
 
     def run_op(self, context: Context):
-        if not hasattr(self, "main"):
-            raise NotImplementedError(
-                "StatefulOperators need to have a main method defined!"
-            )
+        if not self.executed:
+            if not self.init_main(context):
+                return False
+
         retval = self.main(context)
         self.executed = True
         return retval
@@ -702,3 +702,11 @@ class StatefulOperatorLogic:
     # Dummy methods
     def gather_selection(self, context: Context):
         raise NotImplementedError
+
+    def init_main(self, context: Context) -> bool:
+        return True
+
+    def main(self, context: Context) -> bool:
+        return NotImplementedError(
+            "StatefulOperators need to have a main method defined!"
+        )

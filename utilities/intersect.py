@@ -7,6 +7,7 @@ from mathutils.geometry import (
     intersect_sphere_sphere_2d,
 )
 
+from ..model.identifiers import is_line
 from .geometry import intersect_line_line_2d, intersect_line_sphere_2d
 from ..model.base_entity import SlvsGenericEntity
 from .data_handling import to_list
@@ -46,6 +47,36 @@ def _get_offset_sphere(arc, offset):
     return arc.ct.co, arc.radius + offset
 
 
+# create versions which directly accept the entity's props
+def _get_offset_line_props(offset, args):
+    normal, p1, p2 = args
+    offset_vec = normal * offset
+    return (p1 + offset_vec, p2 + offset_vec)
+
+
+def _get_offset_sphere_props(offset, args):
+    """Return sphere_co and sphere_radius of offset sphere"""
+    ct, radius = args
+    return ct, radius + offset
+
+
+def get_offset_args(entity):
+    """Returns the entity's arguments that are used to create an offset element"""
+    if is_line(entity):
+        return entity.normal().copy(), entity.p1.co.copy(), entity.p2.co.copy()
+    return entity.ct.co.copy(), entity.radius
+
+
+def get_offset_elements_args(
+    t: ElementTypes, offset: float, args: tuple
+) -> Tuple[ElementTypes, Callable]:
+    """Returns the elements of a new offsetted element"""
+    func = (
+        _get_offset_sphere_props if t == ElementTypes.Sphere else _get_offset_line_props
+    )
+    return (t, func(offset, args))
+
+
 # Note: for arcs the radius might increse or decrease depending of the curvature
 
 
@@ -55,6 +86,35 @@ def get_offset_elements(
     t = ElementTypes.Line if entity.type == "SlvsLine2D" else ElementTypes.Sphere
     func = _get_offset_sphere if t == ElementTypes.Sphere else _get_offset_line
     return (t, func(entity, offset))
+
+
+def _get_offset_line_cb(entity):
+    def func(
+        offset,
+        normal=entity.normal().copy(),
+        p1=entity.p1.co.copy(),
+        p2=entity.p2.co.copy(),
+    ):
+        offset_vec = normal * offset
+        return (ElementTypes.Line, (p1 + offset_vec, p2 + offset_vec))
+
+    return func
+
+
+def _get_offset_sphere_cb(entity):
+    def func(offset, ct=entity.ct.co.copy(), radius=entity.radius):
+        return (ElementTypes.Sphere, (ct, radius + offset))
+
+    return func
+
+
+def get_offset_cb(entity: SlvsGenericEntity):
+    """Create a callback to generate an offset element from a given offset"""
+
+    t = ElementTypes.Line if entity.type == "SlvsLine2D" else ElementTypes.Sphere
+    func = _get_offset_sphere_cb if t == ElementTypes.Sphere else _get_offset_line_cb
+
+    return func(entity)
 
 
 def get_intersections(*element_list, segment=False):

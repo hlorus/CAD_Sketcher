@@ -43,6 +43,7 @@ def get_line_intersection(a1, b1, c1, a2, b2, c2) -> Vector:
     det = a1 * b2 - a2 * b1
     if det == 0:
         # Parallel lines
+        print("lines are parallel")
         return Vector((math.inf, math.inf))
     else:
         x = (b2 * c1 - b1 * c2) / det
