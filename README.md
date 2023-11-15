@@ -10,9 +10,7 @@ Constraint-based sketcher addon for [Blender](https://www.blender.org/) that all
 
 > :warning: **Experimental addon:** This is still work in progress, don't use it on production files without a backup.
 
-> :warning: **Mac OS:** Due to an ongoing Blender bug apple Metal users need to change their GPU Backend to **OpenGL** under: edit->preferences->system->GPU Backend
-
-Minimum version: Blender 3.0
+Minimum version: Blender 3.3
 
 ## More than just an addon learn more: [CADsketcher.com](http://cadsketcher.com/)
 
