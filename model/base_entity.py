@@ -90,7 +90,7 @@ class SlvsGenericEntity:
 
     @property
     def line_width_select(self):
-        return 20 * preferences.get_scale()
+        return 4 * preferences.get_scale()
 
     def __str__(self):
         _, local_index = breakdown_index(self.slvs_index)
@@ -230,11 +230,9 @@ class SlvsGenericEntity:
 
         if not self.is_point():
             shader.uniform_bool("dashed", (self.is_dashed(),))
-
-        if not self.is_point():
-            viewport = [context.area.width, context.area.height]
-            shader.uniform_float("Viewport", viewport)
-            shader.uniform_float("thickness", self.line_width)
+            shader.uniform_float("dash_width", 0.05)
+            shader.uniform_float("dash_factor", 0.3)
+            gpu.state.line_width_set(self.line_width)
 
         batch.draw(shader)
         gpu.shader.unbind()
@@ -256,10 +254,10 @@ class SlvsGenericEntity:
 
         shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
         if not self.is_point():
-            viewport = [context.area.width, context.area.height]
-            shader.uniform_float("Viewport", viewport)
-            shader.uniform_float("thickness", self.line_width_select)
+            # viewport = [context.area.width, context.area.height]
+            # shader.uniform_float("Viewport", viewport)
             shader.uniform_bool("dashed", (False,))
+            gpu.state.line_width_set(self.line_width_select)
 
         batch.draw(shader)
         gpu.shader.unbind()
