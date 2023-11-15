@@ -11,8 +11,8 @@ from .utilities.logging import setup_logger, update_logger
 bl_info = {
     "name": "CAD Sketcher",
     "author": "hlorus",
-    "version": (0, 27, 2),
-    "blender": (3, 00, 0),
+    "version": (0, 27, 3),
+    "blender": (3, 3, 0),
     "location": "View3D > Toolbar",
     "description": "Parametric, constraint-based geometry sketcher",
     "warning": "Experimental",
