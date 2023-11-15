@@ -6,6 +6,7 @@ from bpy.props import FloatProperty, IntProperty, FloatVectorProperty
 from mathutils import Vector
 
 from .base_3d import Operator3d
+from ..global_data import LIB_NAME
 from ..declarations import Operators
 from ..utilities.view import get_placement_pos
 from ..stateful_operator.utilities.register import register_stateops_factory
@@ -66,7 +67,7 @@ class NodeOperator(Operator3d):
 
     def init(self, context, event):
         for rType, rName in self.resources:
-            if not load_asset("resources", rType, rName):
+            if not load_asset(LIB_NAME, rType, rName):
                 self.report({"ERROR"}, f'Cannot load asset "{rName}" from library')
                 return False
 

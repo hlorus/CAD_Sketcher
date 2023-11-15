@@ -93,3 +93,6 @@ solver_state_items = [
         6,
     ),
 ]
+
+# Name of the asset library used for CAD Sketcher assets
+LIB_NAME = "CAD Sketcher Assets"
