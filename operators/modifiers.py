@@ -100,17 +100,14 @@ class View3D_OT_node_fill(Operator, NodeOperator):
     bl_label = "Fill Profile"
 
     resources = (
-        ("node_groups", "Fill Mesh"),
-        ("node_groups", "Fill Curve"),
+        ("node_groups", "Fill Mesh and Curve"),
     )
 
     states = BASE_STATES
 
     @property
     def NODEGROUP_NAME(self):
-        if self.object.type == "MESH":
-            return "Fill Mesh"
-        return "Fill Curve"
+        return "Fill Mesh and Curve"
 
 
 class View3D_OT_node_extrude(Operator, NodeOperator):
