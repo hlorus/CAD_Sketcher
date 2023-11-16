@@ -19,7 +19,7 @@ def get_start_dist(value1, value2, invert: bool = False):
 
 
 def draw_callback_px(self, context):
-    shader = gpu.shader.from_builtin("2D_UNIFORM_COLOR")
+    shader = gpu.shader.from_builtin("UNIFORM_COLOR")
     gpu.state.blend_set("ALPHA")
     gpu.state.line_width_set(2.0)
 
