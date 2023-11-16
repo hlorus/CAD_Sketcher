@@ -25,6 +25,14 @@ def _get_offset_co(point, normal, distance):
     return point.co + normal * distance
 
 
+def _bool_to_signed_int(invert):
+    return -1 if invert else 1
+
+def _inverted_dist(invert, distance):
+    sign = _bool_to_signed_int(invert) * _bool_to_signed_int(distance < 0)
+    return math.copysign(distance, sign)
+
+
 class View3D_OT_slvs_add_offset(Operator, Operator2d):
     """Copy and offset selected entities along with their constraints by the distance value"""
 
@@ -88,17 +96,10 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             neighbour_dir = directions[neighbour_i]
             point = get_connection_point(entity, neighbour)
 
-            def _bool_to_signed_int(invert):
-                return -1 if invert else 1
-
-            def _inverted_dist(invert):
-                sign = _bool_to_signed_int(invert) * _bool_to_signed_int(distance < 0)
-                return math.copysign(distance, sign)
-
             intersections = sorted(
                 get_intersections(
-                    get_offset_elements(entity, _inverted_dist(entity_dir)),
-                    get_offset_elements(neighbour, _inverted_dist(neighbour_dir)),
+                    get_offset_elements(entity, _inverted_dist(entity_dir, distance)),
+                    get_offset_elements(neighbour, _inverted_dist(neighbour_dir, distance)),
                 ),
                 key=lambda i: (i - point.co).length,
             )
@@ -120,12 +121,12 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             start_co = _get_offset_co(
                 start,
                 entities[0].normal(position=start.co),
-                _inverted_dist(directions[0]),
+                _inverted_dist(directions[0], distance),
             )
             end_co = _get_offset_co(
                 end,
                 entities[-1].normal(position=end.co),
-                _inverted_dist(directions[-1]),
+                _inverted_dist(directions[-1], distance),
             )
 
             points.insert(0, sse.add_point_2d(start_co, sketch, index_reference=True))
