@@ -12,7 +12,7 @@ from ..stateful_operator.state import state_from_args
 from ..solver import solve_system
 from .base_2d import Operator2d
 from .constants import types_point_2d
-from .utilities import ignore_hover
+from .utilities import ignore_hover, safe_constraints
 
 logger = logging.getLogger(__name__)
 
@@ -54,16 +54,16 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
             self.target.construction = True
 
         # auto vertical/horizontal constraint
-        constraints = context.scene.sketcher.constraints
         vec_dir = self.target.direction_vec()
         if vec_dir.length:
             angle = vec_dir.angle(Vector((1, 0)))
-
             threshold = 0.1
-            if angle < threshold or angle > HALF_TURN - threshold:
-                constraints.add_horizontal(self.target, sketch=self.sketch)
-            elif (QUARTER_TURN - threshold) < angle < (QUARTER_TURN + threshold):
-                constraints.add_vertical(self.target, sketch=self.sketch)
+
+            with safe_constraints(context, sketch=self.sketch) as constraints:
+                if angle < threshold or angle > HALF_TURN - threshold:
+                    constraints.add_horizontal(self.target, sketch=self.sketch)
+                elif (QUARTER_TURN - threshold) < angle < (QUARTER_TURN + threshold):
+                    constraints.add_vertical(self.target, sketch=self.sketch)
 
         ignore_hover(self.target)
         return True
