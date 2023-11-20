@@ -212,18 +212,21 @@ def safe_constraints(context: Context, sketch: SlvsSketch = None, constraints: S
     sketch = sketch or context.scene.sketcher.active_sketch
     constraints = constraints or context.scene.sketcher.constraints
 
-    solve = solve_system(context, sketch)
-    count = len(list(constraints.all))
+    solvable = sketch.solver_state == "OKAY"
+    old = set(constraints.all)
 
     try:
         yield constraints
 
     finally:
-        # Don't bother if the sketch can't be solved.
-        if not solve:
+        if not solvable:
             return
 
-        # Remove the newest constraint until the sketch solves.
-        new = list(constraints.all)[count:]
-        while not solve_system(context, sketch):
-            constraints.remove(new.pop())
+        # TODO: Remove only conflicting constraints.
+        if not sketch.solve(context):
+            new = set(constraints.all) - old
+
+            for constraint in new:
+                constraints.remove(constraint)
+
+            sketch.solve(context)
