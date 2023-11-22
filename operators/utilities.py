@@ -8,9 +8,9 @@ from mathutils import Matrix
 from .. import global_data
 from ..declarations import GizmoGroups, WorkSpaceTools
 from ..converters import update_convertor_geometry
+from ..model.base_constraint import GenericConstraint
 from ..model.group_constraints import SlvsConstraints
 from ..model.sketch import SlvsSketch
-from ..solver import solve_system
 from ..utilities.preferences import use_experimental, get_prefs
 from ..utilities.data_handling import entities_3d
 
@@ -213,7 +213,7 @@ def safe_constraints(context: Context, sketch: SlvsSketch = None, constraints: S
     constraints = constraints or context.scene.sketcher.constraints
 
     solvable = sketch.solver_state == "OKAY"
-    old = set(constraints.all)
+    old: set[GenericConstraint] = set(constraints.all)
 
     try:
         yield constraints
@@ -222,11 +222,11 @@ def safe_constraints(context: Context, sketch: SlvsSketch = None, constraints: S
         if not solvable:
             return
 
-        # TODO: Remove only conflicting constraints.
-        if not sketch.solve(context):
-            new = set(constraints.all) - old
+        if not sketch.solve(context, update_entities=False):
+            new: set[GenericConstraint] = set(constraints.all) - old
 
             for constraint in new:
-                constraints.remove(constraint)
+                if constraint.failed:
+                    constraints.remove(constraint)
 
-            sketch.solve(context)
+            sketch.solve(context, update_entities=False)
