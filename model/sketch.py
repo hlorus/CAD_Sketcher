@@ -100,8 +100,8 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     def get_solver_state(self):
         return bpyEnum(global_data.solver_state_items, identifier=self.solver_state)
 
-    def solve(self, context):
-        return solve_system(context, sketch=self)
+    def solve(self, context, report=True, update_entities=True):
+        return solve_system(context, sketch=self, report=report, update_entities=update_entities)
 
     @classmethod
     def is_sketch(cls):
