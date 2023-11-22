@@ -208,7 +208,12 @@ def select_target_ob(context, sketch):
 
 
 @contextmanager
-def safe_constraints(context: Context, sketch: SlvsSketch = None, constraints: SlvsConstraints = None):
+def safe_constraints(
+    context: Context,
+    sketch: SlvsSketch = None,
+    constraints: SlvsConstraints = None,
+    remove_only_failed=False,
+):
     sketch = sketch or context.scene.sketcher.active_sketch
     constraints = constraints or context.scene.sketcher.constraints
 
@@ -226,7 +231,7 @@ def safe_constraints(context: Context, sketch: SlvsSketch = None, constraints: S
             new: set[GenericConstraint] = set(constraints.all) - old
 
             for constraint in new:
-                if constraint.failed:
+                if constraint.failed or not remove_only_failed:
                     constraints.remove(constraint)
 
             sketch.solve(context, update_entities=False)
