@@ -156,7 +156,7 @@ class VIEW3D_OT_slvs_add_perpendicular(Operator, GenericConstraintOp):
 
 
 class VIEW3D_OT_slvs_add_tangent(Operator, GenericConstraintOp):
-    """Add a tagent constraint"""
+    """Add a tangent constraint"""
 
     bl_idname = Operators.AddTangent
     bl_label = "Tangent"
