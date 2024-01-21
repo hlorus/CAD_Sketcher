@@ -1,3 +1,17 @@
+
+
+**This fork includes a number of enhancements related to the use of drivers in CAD_Sketcher.**
+The improvements to this fork share the same license as the original project. 
+I'd love to see these changes brought back into the official main branch someday. Enjoy!
+
+Please refer to [fork-ecosky.md]([url](https://github.com/ecosky/CAD_Sketcher/blob/main/fork-ecosky.md)) for more information. 
+
+
+
+Original readme below:
+==================================================================================================================================
+
+
 [![CAD Sketcher](/resources/logos/wide_dark.png)](https://hlorus.github.io/CAD_Sketcher/#gh-light-mode-only)
 [![CAD Sketcher](/resources/logos/wide_light.png)](https://hlorus.github.io/CAD_Sketcher/#gh-dark-mode-only)
 
