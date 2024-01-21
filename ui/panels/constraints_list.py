@@ -39,6 +39,18 @@ def draw_constraint_listitem(
     for constraint_prop in constraint.props:
         middle_sub.prop(constraint, constraint_prop, text="")
 
+        # Assign Driver, shows list of candidate driver sources
+        if(isinstance(constraint, types.DimensionalConstraint)):
+            
+            props = middle_sub.operator(
+                declarations.Operators.DriverMenu,
+                text="",
+                icon="DRIVER",
+                emboss=False,
+            )
+            props.type = constraint.type
+            props.index = index
+      
     # Context menu, shows constraint name
     props = row.operator(
         declarations.Operators.ContextMenu,
