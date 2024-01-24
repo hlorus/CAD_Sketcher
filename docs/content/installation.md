@@ -8,7 +8,7 @@
     You can get the latest state of the addon and easily update it with git
 
     - Get [Git](https://git-scm.com/)
-    - In blender, set the scripts-path under Preferences->File Paths->Data->Scripts (e.g. ~/blender_scripts)
+    - In Blender, add the scripts-path under Preferences->File Paths->Script Directories->Add (e.g. ~/blender_scripts)
     - Open your scripts_folder
 
         ``` sh linenums="1"
