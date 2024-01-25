@@ -10,7 +10,7 @@ from .panels.tools import VIEW3D_PT_sketcher_tools
 from .panels.constraints_list import VIEW3D_PT_sketcher_constraints
 from .panels.debug import VIEW3D_PT_sketcher_debug
 from .panels.driver_menu import VIEW3D_MT_driver_menu, DriverMenuOperator, SetDriverOperator
-from .panels.driver_sources import VIEW3D_PT_sketcher_drivers, AddLocalDriverSourceOperator, DeleteLocalDriverSourceOperator
+from .panels.driver_sources import VIEW3D_PT_sketcher_drivers, VIEW3D_PT_sketcher_local_drivers, AddDriverSourceOperator, AddLocalDriverSourceOperator, DeleteDriverSourceOperator, DeleteLocalDriverSourceOperator
 from .panels.entities_list import VIEW3D_PT_sketcher_entities
 from .panels.sketch_select import VIEW3D_PT_sketcher
 from .sketches_list import VIEW3D_UL_sketches
@@ -46,11 +46,14 @@ classes = [
     VIEW3D_PT_sketcher_constraints,
     VIEW3D_PT_sketcher_debug,
     VIEW3D_PT_sketcher_drivers,
+    VIEW3D_PT_sketcher_local_drivers,
     VIEW3D_MT_selected_menu,
     VIEW3D_MT_driver_menu,
     DriverMenuOperator,
     SetDriverOperator,
+    AddDriverSourceOperator,
     AddLocalDriverSourceOperator,
+    DeleteDriverSourceOperator,
     DeleteLocalDriverSourceOperator
 ]
 

@@ -76,7 +76,9 @@ class Operators(str, Enum):
     WriteSelectionTexture = "view3d.slvs_write_selection_texture"
     DriverMenu = "view3d.driver_menu"
     SetDriver = "view3d.set_driver"
+    AddDriverSource = "view3d.add_driver_source"
     AddLocalDriverSource = "view3d.add_local_driver_source"
+    DeleteDriverSource = "view3d.delete_driver_source"
     DeleteLocalDriverSource = "view3d.delete_local_driver_source"
 
 class Macros(str, Enum):
@@ -95,6 +97,7 @@ class Panels(str, Enum):
     SketcherConstraints = "VIEW3D_PT_sketcher_constraints"
     SketcherEntities = "VIEW3D_PT_sketcher_entities"
     SketcherDrivers = "VIEW3D_PT_sketcher_drivers"
+    SketcherLocalDrivers = "VIEW3D_PT_sketcher_local_drivers"
 
 
 class VisibilityTypes(str, Enum):

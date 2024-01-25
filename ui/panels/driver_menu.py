@@ -5,6 +5,7 @@ from bpy.props import StringProperty, IntProperty
 
 from ...declarations import Operators, Menus
 
+from .driver_util import GetDriverSources
 
 # Define the operator class
 class DriverMenuOperator(Operator):
@@ -33,8 +34,6 @@ class SetDriverOperator(Operator):
     # https://blender.stackexchange.com/questions/262012/how-to-set-up-driver-via-python-script-between-custom-properties-of-objects
     @staticmethod
     def add_driver(source, target, prop, dataPath):
-        
-
         # add the new driver
         d = source.driver_add( prop ).driver
         v = d.variables.new()
@@ -94,14 +93,7 @@ class VIEW3D_MT_driver_menu(Menu):
         if sketch is None:
             return 
         
-        sources = []
-        for group in sketch.driver_sources:
-            if not group is None:
-                source = group.source
-                if not source is None:
-                    sources.append(source)
-
-        sources.sort(key=lambda s: s.name)
+        sources = GetDriverSources(context, sketch)
 
         for source in sources:
             drewSource = False

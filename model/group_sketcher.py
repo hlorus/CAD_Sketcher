@@ -13,6 +13,7 @@ from .base_entity import SlvsGenericEntity
 from .group_entities import SlvsEntities
 from .group_constraints import SlvsConstraints
 from ..utilities.view import update_cb
+from ..model.sketch import SourceDriverGroup
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,8 @@ class SketcherProps(PropertyGroup):
 
     # This is needed for the sketches ui list
     ui_active_sketch: IntProperty()
+
+    driver_sources: bpy.props.CollectionProperty(name="driver_sources", type=SourceDriverGroup)
 
     @property
     def all(self) -> Generator[Union[SlvsGenericEntity, SlvsConstraints], None, None]:
