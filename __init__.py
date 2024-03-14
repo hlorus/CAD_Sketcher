@@ -1,7 +1,8 @@
-import logging, toml, pathlib
+import logging
 
 from . import icon_manager, global_data
 from .registration import register_base, unregister_base, register_full, unregister_full
+from .utilities import get_addon_version
 from .utilities.install import check_module
 from .utilities.register import cleanse_modules
 from .utilities.presets import ensure_addon_presets
@@ -24,16 +25,6 @@ bl_info = {
 
 # Globals
 logger = logging.getLogger(__name__)
-
-
-def get_version():
-    """Return addon version from manifest file"""
-
-    manifest = pathlib.Path(__file__).parent / "blender_manifest.toml"
-    try:
-        return toml.load(manifest)["version"]
-    except Exception:
-        return ""
     
 
 def register():
@@ -48,7 +39,7 @@ def register():
     update_logger(logger)
     icon_manager.load()
 
-    logger.info("Enabled CAD Sketcher base, version: {}".format(get_version()))
+    logger.info("Enabled CAD Sketcher base, version: {}".format(get_addon_version()))
 
     # Check Module and register all modules
     try:

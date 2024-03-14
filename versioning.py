@@ -1,13 +1,8 @@
 import bpy
 import logging
+from .utilities import get_addon_version
 
 logger = logging.getLogger(__name__)
-
-
-def get_addon_version():
-    from . import bl_info
-
-    return bl_info["version"]
 
 
 def write_addon_version(context):
@@ -43,7 +38,6 @@ def recalc_pointers(scene):
 
 
 def do_versioning(self):
-    from . import bl_info
 
     logger.debug("Check versioning")
 
@@ -52,7 +46,7 @@ def do_versioning(self):
     # blender version this file was saved with
     file_version = bpy.data.version
     # Current addon version
-    current_addon_version = bl_info["version"]
+    current_addon_version = get_addon_version()
     # "Blender Version: ", current_version,
     # "\nFile Blender Version: ", file_version,
     # "\nAddon Version: ", current_addon_version,
@@ -63,7 +57,6 @@ def do_versioning(self):
     msg = "\nUpdate existing file to version {}".format(current_addon_version)
     context = bpy.context
 
-    current_version = get_addon_version()
     for scene in bpy.data.scenes:
         props = scene.sketcher
 
@@ -73,7 +66,7 @@ def do_versioning(self):
         # Scene addon version
         version = props.version[:]
 
-        if version > current_version:
+        if version > current_addon_version:
             logger.warning(
                 "Scene {} was saved with a newer version of the addon".format(
                     scene.name
