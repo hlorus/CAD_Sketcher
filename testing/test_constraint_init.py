@@ -1,7 +1,7 @@
 import math
 from unittest import skip
 
-from CAD_Sketcher.testing.utils import Sketch2dTestCase
+from testing.utils import Sketch2dTestCase
 
 
 class TestConstraintAdd(Sketch2dTestCase):

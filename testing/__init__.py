@@ -1,9 +1,16 @@
+import sys
 import unittest
 from unittest import TestCase
 from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Add parent directory to sys.path to allow importing from testing
+module_path = Path(__file__).parent.parent.as_posix()
+if module_path not in sys.path:
+    sys.path.append(module_path)
+
 
 
 def run(interactive, log_level=None):

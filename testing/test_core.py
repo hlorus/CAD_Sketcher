@@ -1,5 +1,5 @@
 from unittest import skip
-from CAD_Sketcher.testing.utils import BgsTestCase
+from testing.utils import BgsTestCase
 from CAD_Sketcher.model.types import SlvsPoint3D
 from CAD_Sketcher.model.utilities import slvs_entity_pointer
 
