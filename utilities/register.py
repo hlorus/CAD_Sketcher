@@ -19,7 +19,9 @@ def get_path():
 
 
 def get_name():
-    return __package__.partition('.')[0]
+    """Return the name of the addon package"""
+
+    return __package__.rsplit(".", maxsplit=1)[0]
 
 
 # Similar to bpy.utils.register_submodule_factory

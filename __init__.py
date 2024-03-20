@@ -4,6 +4,7 @@ from bpy.app import background
 
 from . import global_data
 from .registration import register_base, unregister_base, register_full, unregister_full
+from .utilities import get_addon_version
 from .utilities.install import check_module
 from .utilities.register import cleanse_modules
 from .utilities.presets import ensure_addon_presets
@@ -26,7 +27,7 @@ bl_info = {
 
 # Globals
 logger = logging.getLogger(__name__)
-
+    
 
 def register():
 
@@ -43,11 +44,11 @@ def register():
         from . import icon_manager
         icon_manager.load()
 
-    logger.info("Enabled CAD Sketcher base, version: {}".format(bl_info["version"]))
+    logger.info("Enabled CAD Sketcher base, version: {}".format(get_addon_version()))
 
     # Check Module and register all modules
     try:
-        check_module("py_slvs")
+        check_module("py_slvs", raise_exception=True)
         register_full()
 
         global_data.registered = True

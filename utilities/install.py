@@ -3,11 +3,16 @@ import sys
 import importlib
 import subprocess
 from importlib import reload
+from types import ModuleType
+import logging
 
 from .. import global_data
 
 
-def check_module(package):
+logger = logging.getLogger(__name__)
+
+
+def check_module(package: str, raise_exception: bool = False) -> ModuleType:
     """
     Note: Blender might be installed in a directory that needs admin rights
     and thus defaulting to a user installation. That path however might not
@@ -18,10 +23,15 @@ def check_module(package):
     if p not in sys.path:
         sys.path.append(p)
     try:
-        importlib.import_module(package)
+        module = importlib.import_module(package)
+        return module
 
     except ModuleNotFoundError as e:
-        raise e
+        if raise_exception:
+            raise e
+        else:
+            logger.debug(f"Module not found: {package}. \n{e}")
+            return None
 
 
 def install_pip():

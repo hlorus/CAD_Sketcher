@@ -134,3 +134,5 @@ notes.md
 # Utilities
 utils/*
 
+# Blender specific
+.blender_ext/
