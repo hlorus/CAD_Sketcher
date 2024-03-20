@@ -1,6 +1,8 @@
 import logging
 
-from . import icon_manager, global_data
+from bpy.app import background
+
+from . import global_data
 from .registration import register_base, unregister_base, register_full, unregister_full
 from .utilities.install import check_module
 from .utilities.register import cleanse_modules
@@ -36,7 +38,10 @@ def register():
     register_base()
 
     update_logger(logger)
-    icon_manager.load()
+
+    if not background:
+        from . import icon_manager
+        icon_manager.load()
 
     logger.info("Enabled CAD Sketcher base, version: {}".format(bl_info["version"]))
 
