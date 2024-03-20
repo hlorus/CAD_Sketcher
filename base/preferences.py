@@ -19,6 +19,7 @@ from .. import global_data, units
 from ..declarations import Operators
 from ..utilities.register import get_path, get_name
 from ..utilities.view import update_cb
+from ..utilities.install import check_module
 
 
 log_levels = [
@@ -178,8 +179,10 @@ class Preferences(AddonPreferences):
         box.label(text="Solver Module")
         if global_data.registered:
             box.label(text="Registered", icon="CHECKMARK")
-            module = sys.modules["py_slvs"]
-            box.label(text="Path: " + module.__path__[0])
+            module = check_module("py_slvs")
+            if module:
+                module_path = module.__path__[0] if module else ""
+                box.label(text="Path: " + module_path)
         else:
             row = box.row()
             row.label(text="Module isn't Registered", icon="CANCEL")
