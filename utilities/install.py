@@ -23,7 +23,7 @@ def check_module(package: str, raise_exception: bool = False) -> ModuleType:
     try:
         module = load_wheel(package, [])
         return module[0]
-    except ImportError as e:
+    except Exception as e:
         logger.debug(f"Cannot load local wheel: {package}, fallback to user site packages. \n{e}")
         
     # Fallback to user site packages
