@@ -6,6 +6,8 @@ import contextlib
 import importlib
 from pathlib import Path
 import sys
+import sysconfig
+import platform
 import logging
 from types import ModuleType
 from typing import Iterator, Iterable, List
@@ -118,21 +120,41 @@ def _sys_path_mod_backup(wheel_file: Path) -> Iterator[None]:
         sys.modules.update(old_sysmod)
 
 
+def _is_musllinux() -> bool:
+    """Return true if the current platform is musllinux"""
+    return platform.system().lower() == "linux" and "musl" in platform.libc_ver()[0]
+
+
+def _get_compatibility_tags():
+    """Return tags that identify the correct wheel for the current platform.
+    https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/
+    {distribution}-{version}(-{build tag})?-{python tag}-{abitag}-{platform tag}.whl
+    """
+
+    def _underscore(s: str) -> str:
+        return s.replace(".", "_").replace("-", "_")
+
+    uname = platform.uname()
+    if uname.system == "Linux":
+        return [("musllinux" if _is_musllinux() else "manylinux"), _underscore(uname.machine)]
+
+    return [_underscore(sysconfig.get_platform()), ]
+
+
 def _wheel_filename(fname_prefix: str) -> Path:
     path_pattern = "%s*.whl" % fname_prefix
     wheels: List[Path] = list(_my_dir.glob(path_pattern))
     if not wheels:
         raise RuntimeError("Unable to find wheel at %r" % path_pattern)
 
-    # Filter wheels by platform tag
-    import sysconfig
-    platform_tag = sysconfig.get_platform().replace("-", "_").replace(".", "_")
-    wheels = [w for w in wheels if platform_tag in w.name]
+    # Filter wheels by compatibility tags
+    compatibility_tags = _get_compatibility_tags()
+    wheels = list(filter(lambda w: all([tag in w.name for tag in compatibility_tags]), wheels))
 
     if not wheels:
         raise RuntimeError(
-            "Unable to find wheel at %r with platform tag %r"
-            % (path_pattern, platform_tag)
+            "Unable to find wheel at %r with compatibility tags %r"
+            % (path_pattern, compatibility_tags)
         )
 
     # If there are multiple wheels that match, load the last-modified one.
@@ -149,18 +171,9 @@ def _fname_prefix_from_module_name(module_name: str) -> str:
 
 
 
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     wheel = _wheel_filename("py_slvs")
     print(f"Wheel: {wheel}")
     module = load_wheel("py_slvs", ["slvs",])
     print(f"module: {module}")
-
-
-    # https://packaging.python.org/en/latest/specifications/platform-compatibility-tags/
-    # {distribution}-{version}(-{build tag})?-{python tag}-{abitag}-{platform tag}.whl
-    # import sys, sys.platform
-    
-    import sysconfig
-    platform_tag = sysconfig.get_platform()
