@@ -1,4 +1,5 @@
 import logging
+from contextlib import contextmanager
 
 import bpy
 from bpy.types import Context, Operator
@@ -7,6 +8,9 @@ from mathutils import Matrix
 from .. import global_data
 from ..declarations import GizmoGroups, WorkSpaceTools
 from ..converters import update_convertor_geometry
+from ..model.base_constraint import GenericConstraint
+from ..model.group_constraints import SlvsConstraints
+from ..model.sketch import SlvsSketch
 from ..utilities.preferences import use_experimental, get_prefs
 from ..utilities.data_handling import entities_3d
 
@@ -201,3 +205,33 @@ def select_target_ob(context, sketch):
     if target_ob.name in context.view_layer.objects:
         target_ob.select_set(True)
         context.view_layer.objects.active = target_ob
+
+
+@contextmanager
+def safe_constraints(
+    context: Context,
+    sketch: SlvsSketch = None,
+    constraints: SlvsConstraints = None,
+    remove_only_failed=False,
+):
+    sketch = sketch or context.scene.sketcher.active_sketch
+    constraints = constraints or context.scene.sketcher.constraints
+
+    solvable = sketch.solver_state == "OKAY"
+    old: set[GenericConstraint] = set(constraints.all)
+
+    try:
+        yield constraints
+
+    finally:
+        if not solvable:
+            return
+
+        if not sketch.solve(context, update_entities=False):
+            new: set[GenericConstraint] = set(constraints.all) - old
+
+            for constraint in new:
+                if constraint.failed or not remove_only_failed:
+                    constraints.remove(constraint)
+
+            sketch.solve(context, update_entities=False)

@@ -192,7 +192,7 @@ class Solver:
         # TODO: skip entities that aren't in active group
         return True
 
-    def solve(self, report=True):
+    def solve(self, report=True, update_entities=True):
         self.report = report
         self._init_slvs_data()
 
@@ -249,11 +249,12 @@ class Solver:
                     logger.debug(_get_msg_failed())
 
         # Update entities from solver
-        for e in self.entities:
-            if not self.needs_update(e):
-                continue
+        if update_entities:
+            for e in self.entities:
+                if not self.needs_update(e):
+                    continue
 
-            e.update_from_slvs(self.solvesys)
+                e.update_from_slvs(self.solvesys)
 
         def _get_msg_update():
             msg = "Update entities from solver:"
@@ -269,6 +270,6 @@ class Solver:
         return self.ok
 
 
-def solve_system(context, sketch=None):
+def solve_system(context, sketch=None, report=True, update_entities=True):
     solver = Solver(context, sketch)
-    return solver.solve()
+    return solver.solve(report=report, update_entities=update_entities)
