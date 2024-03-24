@@ -6,7 +6,7 @@ from . import VIEW3D_PT_sketcher_base
 
 
 def draw_constraint_listitem(
-    context: Context, layout: UILayout, constraint: types.GenericConstraint
+    context: Context, layout: UILayout, constraint: types.GenericConstraint, drivers_available = False
 ):
     """
     Creates a single row inside the ``layout`` describing
@@ -39,6 +39,18 @@ def draw_constraint_listitem(
     for constraint_prop in constraint.props:
         middle_sub.prop(constraint, constraint_prop, text="")
 
+        # Assign Driver, shows list of candidate driver sources
+        if(drivers_available and isinstance(constraint, types.DimensionalConstraint)):
+
+            props = middle_sub.operator(
+                declarations.Operators.DriverMenu,
+                text="",
+                icon="DRIVER",
+                emboss=False,
+            )
+            props.type = constraint.type
+            props.index = index
+      
     # Context menu, shows constraint name
     props = row.operator(
         declarations.Operators.ContextMenu,
@@ -92,10 +104,15 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
         col.scale_y = 0.8
 
         sketch = context.scene.sketcher.active_sketch
+        drivers_available = (
+            (context.scene.sketcher.driver_sources and any(driver.source is not None for driver in context.scene.sketcher.driver_sources))
+            or 
+            (sketch.driver_sources is not None and any(driver.source is not None for driver in sketch.driver_sources))
+        )
         for c in context.scene.sketcher.constraints.dimensional:
             if not c.is_active(sketch):
                 continue
-            draw_constraint_listitem(context, col, c)
+            draw_constraint_listitem(context, col, c, drivers_available=drivers_available)
 
         # Geometric Constraints
         layout.label(text="Geometric:")

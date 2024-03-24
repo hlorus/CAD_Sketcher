@@ -74,7 +74,12 @@ class Operators(str, Enum):
     TweakConstraintValuePos = "view3d.slvs_tweak_constraint_value_pos"
     UnregisterDrawCB = "view3d.slvs_unregister_draw_cb"
     WriteSelectionTexture = "view3d.slvs_write_selection_texture"
-
+    DriverMenu = "view3d.driver_menu"
+    SetDriver = "view3d.set_driver"
+    AddDriverSource = "view3d.add_driver_source"
+    AddLocalDriverSource = "view3d.add_local_driver_source"
+    DeleteDriverSource = "view3d.delete_driver_source"
+    DeleteLocalDriverSource = "view3d.delete_local_driver_source"
 
 class Macros(str, Enum):
     DuplicateMove = "view3d.slvs_duplicate_move"
@@ -82,6 +87,7 @@ class Macros(str, Enum):
 
 class Menus(str, Enum):
     SelectedMenu = "VIEW3D_MT_selected_menu"
+    DriverMenu = "VIEW3D_MT_driver_menu"
 
 
 class Panels(str, Enum):
@@ -90,6 +96,8 @@ class Panels(str, Enum):
     SketcherTools = "VIEW3D_PT_sketcher_tools"
     SketcherConstraints = "VIEW3D_PT_sketcher_constraints"
     SketcherEntities = "VIEW3D_PT_sketcher_entities"
+    SketcherDrivers = "VIEW3D_PT_sketcher_drivers"
+    SketcherLocalDrivers = "VIEW3D_PT_sketcher_local_drivers"
 
 
 class VisibilityTypes(str, Enum):
