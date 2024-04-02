@@ -83,8 +83,7 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
             logger.debug("Add: {}".format(self.target))
 
         if succeede:
-            if self.has_coincident():
-                solve_system(context, sketch=self.sketch)
+            solve_system(context, sketch=self.sketch)
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_line2d,))
