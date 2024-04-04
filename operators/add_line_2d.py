@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 class View3D_OT_slvs_add_line2d(Operator, Operator2d):
     """Add a line to the active sketch"""
 
+    def __init__(self):
+        self.has_alignment = False
+    
     bl_idname = Operators.AddLine2D
     bl_label = "Add Solvespace 2D Line"
     bl_options = {"REGISTER", "UNDO"}
@@ -54,6 +57,7 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
             self.target.construction = True
 
         # auto vertical/horizontal constraint
+        self.has_alignment = False
         constraints = context.scene.sketcher.constraints
         vec_dir = self.target.direction_vec()
         if vec_dir.length:
@@ -62,8 +66,10 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
             threshold = 0.1
             if angle < threshold or angle > HALF_TURN - threshold:
                 constraints.add_horizontal(self.target, sketch=self.sketch)
+                self.has_alignment = True
             elif (QUARTER_TURN - threshold) < angle < (QUARTER_TURN + threshold):
                 constraints.add_vertical(self.target, sketch=self.sketch)
+                self.has_alignment = True
 
         ignore_hover(self.target)
         return True
@@ -83,7 +89,8 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
             logger.debug("Add: {}".format(self.target))
 
         if succeede:
-            solve_system(context, sketch=self.sketch)
+            if self.has_coincident() or self.has_alignment:
+                solve_system(context, sketch=self.sketch)
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_line2d,))
