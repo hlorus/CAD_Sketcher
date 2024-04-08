@@ -1,6 +1,7 @@
 import logging
 
-from bpy.app import background, version
+from bpy.app import background, version_string
+from .utilities import get_min_blender_version
 
 bl_info = {
     "name": "CAD Sketcher",
@@ -16,11 +17,11 @@ bl_info = {
 }
 
 # Check user's Blender version against minimum required Blender version for add-on.
-blender_v = bl_info["blender"]
-if version < blender_v:
+blender_v_min = get_min_blender_version()
+if version_string < blender_v_min:
     raise Exception(
         "This add-on is only compatible with Blender versions "
-        f"{blender_v[0]}.{blender_v[1]}.{blender_v[2]} or greater.\n"
+        f"{blender_v_min[0]}.{blender_v_min[1]}.{blender_v_min[2]} or greater.\n"
     )
 
 from . import global_data

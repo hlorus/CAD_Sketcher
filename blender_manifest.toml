@@ -13,7 +13,7 @@ website = "https://www.cadsketcher.com/"
 
 tags = ["3D View", "Modeling", "Mesh", "Object"]
 
-blender_version_min = "4.2.0"
+blender_version_min = "3.3.0"
 
 license = [
   "SPDX:GPL-3.0-or-later",
