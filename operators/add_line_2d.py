@@ -19,9 +19,6 @@ logger = logging.getLogger(__name__)
 
 class View3D_OT_slvs_add_line2d(Operator, Operator2d):
     """Add a line to the active sketch"""
-
-    def __init__(self):
-        self.has_alignment = False
     
     bl_idname = Operators.AddLine2D
     bl_label = "Add Solvespace 2D Line"
