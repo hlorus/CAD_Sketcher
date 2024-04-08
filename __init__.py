@@ -3,6 +3,7 @@ import logging
 from bpy.app import background, version_string
 from .utilities import get_min_blender_version
 
+global bl_info
 bl_info = {
     "name": "CAD Sketcher",
     "author": "hlorus",
