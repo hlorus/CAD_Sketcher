@@ -1,15 +1,6 @@
 import logging
 
-from bpy.app import background
-
-from . import global_data
-from .registration import register_base, unregister_base, register_full, unregister_full
-from .utilities import get_addon_version
-from .utilities.install import check_module
-from .utilities.register import cleanse_modules
-from .utilities.presets import ensure_addon_presets
-from .utilities.logging import setup_logger, update_logger
-
+from bpy.app import background, version
 
 bl_info = {
     "name": "CAD Sketcher",
@@ -24,10 +15,26 @@ bl_info = {
     "tracker_url": "https://github.com/hlorus/CAD_Sketcher/discussions/categories/announcements",
 }
 
+# Check user's Blender version against minimum required Blender version for add-on.
+blender_v = bl_info["blender"]
+if version < blender_v:
+    raise Exception(
+        "This add-on is only compatible with Blender versions "
+        f"{blender_v[0]}.{blender_v[1]}.{blender_v[2]} or greater.\n"
+    )
+
+from . import global_data
+from .registration import register_base, unregister_base, register_full, unregister_full
+from .utilities import get_addon_version
+from .utilities.install import check_module
+from .utilities.register import cleanse_modules
+from .utilities.presets import ensure_addon_presets
+from .utilities.logging import setup_logger, update_logger
+
 
 # Globals
 logger = logging.getLogger(__name__)
-    
+
 
 def register():
 
