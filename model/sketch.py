@@ -3,7 +3,7 @@ from typing import List
 
 import bpy
 from bpy.types import PropertyGroup
-from bpy.props import EnumProperty, BoolProperty, IntProperty, PointerProperty
+from bpy.props import EnumProperty, BoolProperty, IntProperty, PointerProperty, FloatProperty, StringProperty
 from bpy.utils import register_classes_factory
 
 from .. import global_data
@@ -18,6 +18,7 @@ convert_items = [
     ("NONE", "None", "", 1),
     ("BEZIER", "Bezier", "", 2),
     ("MESH", "Mesh", "", 3),
+    ("BOOLEAN", "Boolean", "", 4),
 ]
 
 
@@ -38,6 +39,33 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         if self.convert_type != "NONE":
             self.visible = False
 
+    boolean_base: StringProperty(
+        name="Base",
+        description="The base object you will be cutting",
+    )
+    boolean_type: EnumProperty(
+        name="Operation",
+        description="Boolean Operation to perform on the selected mesh",
+        items=(
+            ("INTERSECT", "Intersect", ""),
+            ("UNION", "Union", ""),
+            ("DIFFERENCE", "Difference", ""),
+        ),
+        default="DIFFERENCE"
+    )
+    extrude_depth: FloatProperty(
+        name="Depth",
+        description="Distance to extrude the mesh",
+        default=0,
+        min=0,
+    )
+    extrude_offset: FloatProperty(
+        name="Offset",
+        description="Direction to extrude the mesh (Positive, Negative, Both)",
+        min=-1,
+        max=1,
+        default=1,
+    )
     convert_type: EnumProperty(
         name="Convert Type",
         items=convert_items,

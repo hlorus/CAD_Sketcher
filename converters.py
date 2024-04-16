@@ -96,7 +96,7 @@ def mesh_from_temporary(mesh: Mesh, name: str, existing_mesh: Union[bool, None] 
 
 
 def _cleanup_data(sketch, mode: str):
-    if sketch.target_object and mode != "MESH":
+    if sketch.target_object and mode not in ["MESH", "BOOLEAN"]:
         sketch.target_object.sketch_index = -1
         bpy.data.objects.remove(sketch.target_object, do_unlink=True)
         sketch.target_object = None
@@ -149,7 +149,7 @@ def update_convertor_geometry(scene: Scene, sketch=None):
         # Link / unlink curve object
         _link_unlink_object(scene, sketch.target_curve_object, mode == "BEZIER")
 
-        if mode == "MESH":
+        if mode in ["MESH", "BOOLEAN"]:
             # Set curve resolution
             for spline in sketch.target_curve_object.data.splines:
                 spline.resolution_u = sketch.curve_resolution
@@ -173,10 +173,35 @@ def update_convertor_geometry(scene: Scene, sketch=None):
             else:
                 sketch.target_object.data = mesh
 
+            # Extrude Sketch in 3D by given depth
+            object = sketch.target_object
+            try:
+                object.modifiers["Extrude Sketch"].thickness = sketch.extrude_depth
+                object.modifiers["Extrude Sketch"].offset = sketch.extrude_offset
+            except KeyError:
+                name = "Extrude Sketch"
+                object.modifiers.new(type="SOLIDIFY", name=name).offset = sketch.extrude_offset
+                object.modifiers["Extrude Sketch"].thickness = sketch.extrude_depth
+
+            if mode == "BOOLEAN":
+                object = sketch.target_object
+                object.display_type = "BOUNDS"
+                target = bpy.data.objects[sketch.boolean_base]
+                mod_name = f"{object.name}_Boolean"
+                try:
+                    mod = target.modifiers[mod_name]
+                    mod.object = object
+                    mod.operation = sketch.boolean_type
+                except KeyError:
+                    target.modifiers.new(type="BOOLEAN", name=mod_name).use_self = True
+                    mod = target.modifiers[mod_name]
+                    mod.object = object
+                    mod.operation = sketch.boolean_type
+
         _cleanup_data(sketch, mode)
 
         target_ob = (
-            sketch.target_object if mode == "MESH" else sketch.target_curve_object
+            sketch.target_object if mode in ["MESH", "BOOLEAN"] else sketch.target_curve_object
         )
         target_ob.matrix_world = sketch.wp.matrix_basis
 
