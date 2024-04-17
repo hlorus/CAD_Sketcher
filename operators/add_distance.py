@@ -8,6 +8,9 @@ from ..model.distance import align_items
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 
+from ..model.distance import SlvsDistance
+from ..model.line_2d import SlvsLine2D
+from ..model.point_2d import SlvsPoint2D
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +36,25 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
     property_keys = ("value", "align", "flip")
 
     def main(self, context):
-        self.target = context.scene.sketcher.constraints.add_distance(
-            self.entity1,
-            self.entity2,
-            sketch=self.sketch,
-            init=not self.initialized,
-            **self.get_settings(),
-        )
+        if type(self.entity1) == SlvsLine2D and self.entity2 == None:
+            dependencies = self.entity1.dependencies()
+            if type(dependencies[0]) == SlvsPoint2D and type(dependencies[1]) == SlvsPoint2D:
+                # for loop changes the values of self.entity1 and self.entity2 from a line to its endpoints
+                for i in range(0,2):
+                    self.state_index = i # set index to access i state_data
+                    self.state_data["hovered"] = -1
+                    self.state_data["type"] = type(dependencies[i])
+                    self.state_data["is_existing_entity"] = True
+                    self.state_data["entity_index"] = dependencies[i].slvs_index      
+
+        if not self.exists(context, SlvsDistance):
+            self.target = context.scene.sketcher.constraints.add_distance(
+                self.entity1,
+                self.entity2,
+                sketch=self.sketch,
+                init=not self.initialized,
+                **self.get_settings(),
+            )
         return super().main(context)
 
     def fini(self, context: Context, succeede: bool):

@@ -12,6 +12,15 @@ from ..utilities.select import deselect_all
 from ..utilities.view import refresh
 from ..solver import solve_system
 
+from ..model.coincident import SlvsCoincident
+from ..model.equal import SlvsEqual
+from ..model.vertical import SlvsVertical
+from ..model.horizontal import SlvsHorizontal
+from ..model.parallel import SlvsParallel
+from ..model.perpendicular import SlvsPerpendicular
+from ..model.tangent import SlvsTangent
+from ..model.midpoint import SlvsMidpoint
+from ..model.ratio import SlvsRatio
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +61,12 @@ class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
         if self.handle_merge(context):
             return True
 
-        self.target = context.scene.sketcher.constraints.add_coincident(
-            self.entity1,
-            self.entity2,
-            sketch=self.sketch,
-        )
+        if not self.exists(context, SlvsCoincident):
+            self.target = context.scene.sketcher.constraints.add_coincident(
+                self.entity1,
+                self.entity2,
+                sketch=self.sketch,
+            )
         return super().main(context)
 
 
@@ -70,11 +80,12 @@ class VIEW3D_OT_slvs_add_equal(Operator, GenericConstraintOp):
     type = "EQUAL"
 
     def main(self, context):
-        self.target = context.scene.sketcher.constraints.add_equal(
-            self.entity1,
-            self.entity2,
-            sketch=self.sketch,
-        )
+        if not self.exists(context, SlvsEqual):
+            self.target = context.scene.sketcher.constraints.add_equal(
+                self.entity1,
+                self.entity2,
+                sketch=self.sketch,
+            )
 
         return super().main(context)
 
@@ -89,11 +100,12 @@ class VIEW3D_OT_slvs_add_vertical(Operator, GenericConstraintOp):
     type = "VERTICAL"
 
     def main(self, context):
-        self.target = context.scene.sketcher.constraints.add_vertical(
-            self.entity1,
-            entity2=self.entity2,
-            sketch=self.sketch,
-        )
+        if not self.exists(context, SlvsVertical):
+            self.target = context.scene.sketcher.constraints.add_vertical(
+                self.entity1,
+                entity2=self.entity2,
+                sketch=self.sketch,
+            )
 
         return super().main(context)
 
@@ -108,11 +120,12 @@ class VIEW3D_OT_slvs_add_horizontal(Operator, GenericConstraintOp):
     type = "HORIZONTAL"
 
     def main(self, context):
-        self.target = context.scene.sketcher.constraints.add_horizontal(
-            self.entity1,
-            entity2=self.entity2,
-            sketch=self.sketch,
-        )
+        if not self.exists(context, SlvsHorizontal):
+            self.target = context.scene.sketcher.constraints.add_horizontal(
+                self.entity1,
+                entity2=self.entity2,
+                sketch=self.sketch,
+            )
 
         return super().main(context)
 
@@ -127,11 +140,12 @@ class VIEW3D_OT_slvs_add_parallel(Operator, GenericConstraintOp):
     type = "PARALLEL"
 
     def main(self, context):
-        self.target = context.scene.sketcher.constraints.add_parallel(
-            self.entity1,
-            self.entity2,
-            sketch=self.sketch,
-        )
+        if not self.exists(context, SlvsParallel):
+            self.target = context.scene.sketcher.constraints.add_parallel(
+                self.entity1,
+                self.entity2,
+                sketch=self.sketch,
+            )
 
         return super().main(context)
 
@@ -146,11 +160,12 @@ class VIEW3D_OT_slvs_add_perpendicular(Operator, GenericConstraintOp):
     type = "PERPENDICULAR"
 
     def main(self, context):
-        self.target = context.scene.sketcher.constraints.add_perpendicular(
-            self.entity1,
-            self.entity2,
-            sketch=self.sketch,
-        )
+        if not self.exists(context, SlvsPerpendicular):
+            self.target = context.scene.sketcher.constraints.add_perpendicular(
+                self.entity1,
+                self.entity2,
+                sketch=self.sketch,
+            )
 
         return super().main(context)
 
@@ -165,11 +180,12 @@ class VIEW3D_OT_slvs_add_tangent(Operator, GenericConstraintOp):
     type = "TANGENT"
 
     def main(self, context):
-        self.target = context.scene.sketcher.constraints.add_tangent(
-            self.entity1,
-            self.entity2,
-            sketch=self.sketch,
-        )
+        if not self.exists(context, SlvsTangent):
+            self.target = context.scene.sketcher.constraints.add_tangent(
+                self.entity1,
+                self.entity2,
+                sketch=self.sketch,
+            )
 
         return super().main(context)
 
@@ -184,11 +200,12 @@ class VIEW3D_OT_slvs_add_midpoint(Operator, GenericConstraintOp):
     type = "MIDPOINT"
 
     def main(self, context):
-        self.target = context.scene.sketcher.constraints.add_midpoint(
-            self.entity1,
-            self.entity2,
-            sketch=self.sketch,
-        )
+        if not self.exists(context, SlvsMidpoint):
+            self.target = context.scene.sketcher.constraints.add_midpoint(
+                self.entity1,
+                self.entity2,
+                sketch=self.sketch,
+            )
 
         return super().main(context)
 
@@ -211,13 +228,14 @@ class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp):
     property_keys = ("value",)
 
     def main(self, context):
-        self.target = context.scene.sketcher.constraints.add_ratio(
-            self.entity1,
-            self.entity2,
-            sketch=self.sketch,
-            init=not self.initialized,
-            **self.get_settings(),
-        )
+        if not self.exists(context, SlvsRatio):
+            self.target = context.scene.sketcher.constraints.add_ratio(
+                self.entity1,
+                self.entity2,
+                sketch=self.sketch,
+                init=not self.initialized,
+                **self.get_settings(),
+            )
 
         return super().main(context)
 

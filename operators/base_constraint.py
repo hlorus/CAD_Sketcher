@@ -14,6 +14,12 @@ from ..utilities.select import deselect_all
 from ..utilities.view import refresh
 from ..solver import solve_system
 
+from ..model.distance import SlvsDistance
+from ..model.types import SlvsPoint2D
+from ..model.types import SlvsLine2D
+from ..model.types import SlvsPoint3D
+from ..model.types import SlvsLine3D
+
 
 logger = logging.getLogger(__name__)
 
@@ -124,3 +130,35 @@ class GenericConstraintOp(Operator2d):
 
         for key in self.property_keys:
             layout.prop(self, key)
+
+
+    def exists(self, context, constraint_type=None) -> bool:
+        if hasattr(self, "entity2"):
+            new_dependencies = [i for i in [self.entity1, self.entity2, self.sketch] if i is not None]
+
+            if ((SlvsPoint3D == type(self.entity1) or SlvsPoint3D == type(self.entity2)) or
+                (SlvsLine3D == type(self.entity1) or SlvsLine3D == type(self.entity2))):
+                max_distance_dof = 3            
+            elif ((type(self.entity1) == SlvsLine2D and self.entity2 == None) or 
+                type(self.entity1) == SlvsPoint2D and type(self.entity2) == SlvsPoint2D):
+                max_distance_dof = 2
+            else:
+                max_distance_dof = 1
+        else:
+            new_dependencies = [i for i in [self.entity1, self.sketch] if i is not None]
+            max_distance_dof = 1
+
+        
+        distance_dof = 0
+        for c in context.scene.sketcher.constraints.all:
+            if type(c) == constraint_type:
+                if set(c.dependencies()) == set(new_dependencies):
+                    if constraint_type == SlvsDistance:
+                            distance_dof +=1
+                    else:
+                        return True
+        
+        if distance_dof < max_distance_dof:
+            return False
+        else:
+            return True
