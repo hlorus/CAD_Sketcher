@@ -36,16 +36,18 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
     property_keys = ("value", "align", "flip")
 
     def main(self, context):
-        if type(self.entity1) == SlvsLine2D and self.entity2 == None:
+        if isinstance(self.entity1, SlvsLine2D) and self.entity2 is None:
             dependencies = self.entity1.dependencies()
-            if type(dependencies[0]) == SlvsPoint2D and type(dependencies[1]) == SlvsPoint2D:
-                # for loop changes the values of self.entity1 and self.entity2 from a line to its endpoints
-                for i in range(0,2):
-                    self.state_index = i # set index to access i state_data
+            if (isinstance(dependencies[0], SlvsPoint2D) and 
+                    isinstance(dependencies[1], SlvsPoint2D)):
+                # for loop changes the values of self.entity1 and self.entity2
+                # from a line entity to its endpoints
+                for i in range(0, 2):
+                    self.state_index = i  # set index to access i state_data
                     self.state_data["hovered"] = -1
                     self.state_data["type"] = type(dependencies[i])
                     self.state_data["is_existing_entity"] = True
-                    self.state_data["entity_index"] = dependencies[i].slvs_index      
+                    self.state_data["entity_index"] = dependencies[i].slvs_index
 
         if not self.exists(context, SlvsDistance):
             self.target = context.scene.sketcher.constraints.add_distance(

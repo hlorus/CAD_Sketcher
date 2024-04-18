@@ -131,16 +131,15 @@ class GenericConstraintOp(Operator2d):
         for key in self.property_keys:
             layout.prop(self, key)
 
-
     def exists(self, context, constraint_type=None) -> bool:
         if hasattr(self, "entity2"):
             new_dependencies = [i for i in [self.entity1, self.entity2, self.sketch] if i is not None]
 
-            if ((SlvsPoint3D == type(self.entity1) or SlvsPoint3D == type(self.entity2)) or
-                (SlvsLine3D == type(self.entity1) or SlvsLine3D == type(self.entity2))):
-                max_distance_dof = 3            
-            elif ((type(self.entity1) == SlvsLine2D and self.entity2 == None) or 
-                type(self.entity1) == SlvsPoint2D and type(self.entity2) == SlvsPoint2D):
+            if (isinstance(self.entity1, (SlvsPoint3D, SlvsLine3D)) or 
+                    isinstance(self.entity2, (SlvsPoint3D, SlvsLine3D))):
+                max_distance_dof = 3
+            elif ((isinstance(self.entity1, SlvsLine2D) and self.entity2 is None) or 
+                    isinstance(self.entity1, SlvsPoint2D) and isinstance(self.entity2, SlvsPoint2D)):
                 max_distance_dof = 2
             else:
                 max_distance_dof = 1
@@ -148,16 +147,15 @@ class GenericConstraintOp(Operator2d):
             new_dependencies = [i for i in [self.entity1, self.sketch] if i is not None]
             max_distance_dof = 1
 
-        
         distance_dof = 0
         for c in context.scene.sketcher.constraints.all:
-            if type(c) == constraint_type:
+            if isinstance(c, constraint_type):
                 if set(c.dependencies()) == set(new_dependencies):
                     if constraint_type == SlvsDistance:
-                            distance_dof +=1
+                        distance_dof += 1
                     else:
                         return True
-        
+
         if distance_dof < max_distance_dof:
             return False
         else:
