@@ -19,7 +19,7 @@ def get_addon_version_tuple() -> tuple:
         version_tuple = toml.load(manifest)["version"]
         return tuple(map(int, version_tuple.split(".")))
     except Exception:
-        return ""
+        return ()
     
 
 def get_addon_version() -> str:
