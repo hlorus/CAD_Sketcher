@@ -1,12 +1,12 @@
 import bpy
 import logging
-from .utilities import get_addon_version
+from .utilities import get_addon_version_tuple
 
 logger = logging.getLogger(__name__)
 
 
 def write_addon_version(context):
-    version = get_addon_version()
+    version = get_addon_version_tuple()
 
     logger.debug("Writing addon version: " + str(version))
 
@@ -46,7 +46,7 @@ def do_versioning(self):
     # blender version this file was saved with
     file_version = bpy.data.version
     # Current addon version
-    current_addon_version = get_addon_version()
+    current_addon_version = get_addon_version_tuple()
     # "Blender Version: ", current_version,
     # "\nFile Blender Version: ", file_version,
     # "\nAddon Version: ", current_addon_version,
