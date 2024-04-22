@@ -10,15 +10,6 @@ from ..stateful_operator.state import state_from_args
 from ..utilities.select import deselect_all
 from ..utilities.view import refresh
 from .base_2d import Operator2d
-from ..utilities.select import deselect_all
-from ..utilities.view import refresh
-from ..solver import solve_system
-
-from ..model.distance import SlvsDistance
-from ..model.types import SlvsPoint2D
-from ..model.types import SlvsLine2D
-from ..model.types import SlvsPoint3D
-from ..model.types import SlvsLine3D
 
 
 logger = logging.getLogger(__name__)
@@ -131,32 +122,18 @@ class GenericConstraintOp(Operator2d):
         for key in self.property_keys:
             layout.prop(self, key)
 
-    def exists(self, context, constraint_type=None) -> bool:
+    def exists(self, context, constraint_type=None, max_constraints=1) -> bool:
         if hasattr(self, "entity2"):
             new_dependencies = [i for i in [self.entity1, self.entity2, self.sketch] if i is not None]
-
-            if (isinstance(self.entity1, (SlvsPoint3D, SlvsLine3D)) or 
-                    isinstance(self.entity2, (SlvsPoint3D, SlvsLine3D))):
-                max_distance_dof = 3
-            elif ((isinstance(self.entity1, SlvsLine2D) and self.entity2 is None) or 
-                    isinstance(self.entity1, SlvsPoint2D) and isinstance(self.entity2, SlvsPoint2D)):
-                max_distance_dof = 2
-            else:
-                max_distance_dof = 1
         else:
             new_dependencies = [i for i in [self.entity1, self.sketch] if i is not None]
-            max_distance_dof = 1
 
-        distance_dof = 0
+        constraint_counter = 0
         for c in context.scene.sketcher.constraints.all:
             if isinstance(c, constraint_type):
                 if set(c.dependencies()) == set(new_dependencies):
-                    if constraint_type == SlvsDistance:
-                        distance_dof += 1
-                    else:
+                    constraint_counter += 1
+                    if constraint_counter >= max_constraints:
                         return True
 
-        if distance_dof < max_distance_dof:
-            return False
-        else:
-            return True
+        return False
