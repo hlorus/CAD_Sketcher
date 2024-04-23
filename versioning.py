@@ -100,6 +100,7 @@ def do_versioning(self):
                     )
                 )
                 c.is_reference = True
+
         if version < (0, 27, 4):
             # update distance constraints on only a line
             # to distance constraints on the endpoints of that line.
@@ -107,15 +108,21 @@ def do_versioning(self):
             from .model.distance import SlvsDistance
             from .model.point_2d import SlvsPoint2D
             from .model.sketch import SlvsSketch
+
             for c in context.scene.sketcher.constraints.dimensional:
-                if len(c.dependencies()) == 2:
-                    if (isinstance(c, SlvsDistance) and 
+                if len(c.dependencies()) != 2:
+                    continue
+                if not (isinstance(c, SlvsDistance) and 
                         isinstance(c.dependencies()[0], SlvsLine2D) and
-                            isinstance(c.dependencies()[1], SlvsSketch)):
-                        line_dependencies = c.dependencies()[0].dependencies()
-                        if (isinstance(line_dependencies[0], SlvsPoint2D) and
-                                isinstance(line_dependencies[1], SlvsPoint2D)):
-                            setattr(c, "entity1", line_dependencies[0])
-                            setattr(c, "entity2", line_dependencies[1])
+                        isinstance(c.dependencies()[1], SlvsSketch)):
+                    continue
+
+                line_dependencies = c.dependencies()[0].dependencies()
+                if len(line_dependencies) != 3:
+                    continue
+                if (isinstance(line_dependencies[0], SlvsPoint2D) and
+                        isinstance(line_dependencies[1], SlvsPoint2D)):
+                    setattr(c, "entity1", line_dependencies[0])
+                    setattr(c, "entity2", line_dependencies[1])
 
     logger.debug(msg)
