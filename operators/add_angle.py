@@ -9,6 +9,8 @@ from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
 
+from ..model.angle import SlvsAngle
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,13 +47,14 @@ class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
     property_keys = ("value", "setting")
 
     def main(self, context):
-        self.target = context.scene.sketcher.constraints.add_angle(
-            self.entity1,
-            self.entity2,
-            sketch=self.sketch,
-            init=not self.initialized,
-            **self.get_settings()
-        )
+        if not self.exists(context, SlvsAngle):
+            self.target = context.scene.sketcher.constraints.add_angle(
+                self.entity1,
+                self.entity2,
+                sketch=self.sketch,
+                init=not self.initialized,
+                **self.get_settings()
+            )
 
         return super().main(context)
 

@@ -10,9 +10,6 @@ from ..stateful_operator.state import state_from_args
 from ..utilities.select import deselect_all
 from ..utilities.view import refresh
 from .base_2d import Operator2d
-from ..utilities.select import deselect_all
-from ..utilities.view import refresh
-from ..solver import solve_system
 
 
 logger = logging.getLogger(__name__)
@@ -124,3 +121,19 @@ class GenericConstraintOp(Operator2d):
 
         for key in self.property_keys:
             layout.prop(self, key)
+
+    def exists(self, context, constraint_type=None, max_constraints=1) -> bool:
+        if hasattr(self, "entity2"):
+            new_dependencies = [i for i in [self.entity1, self.entity2, self.sketch] if i is not None]
+        else:
+            new_dependencies = [i for i in [self.entity1, self.sketch] if i is not None]
+
+        constraint_counter = 0
+        for c in context.scene.sketcher.constraints.all:
+            if isinstance(c, constraint_type):
+                if set(c.dependencies()) == set(new_dependencies):
+                    constraint_counter += 1
+                    if constraint_counter >= max_constraints:
+                        return True
+
+        return False
