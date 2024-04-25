@@ -7,7 +7,7 @@ global bl_info
 bl_info = {
     "name": "CAD Sketcher",
     "author": "hlorus",
-    "version": (0, 27, 3),
+    "version": (0, 27, 4),
     "blender": (3, 3, 0),
     "location": "View3D > Toolbar",
     "description": "Parametric, constraint-based geometry sketcher",

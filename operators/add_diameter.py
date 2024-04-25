@@ -7,6 +7,8 @@ from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
 
+from ..model.diameter import SlvsDiameter
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,12 +32,13 @@ class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
     property_keys = ("value", "setting")
 
     def main(self, context):
-        self.target = context.scene.sketcher.constraints.add_diameter(
-            self.entity1,
-            sketch=self.sketch,
-            init=not self.initialized,
-            **self.get_settings(),
-        )
+        if not self.exists(context, SlvsDiameter):
+            self.target = context.scene.sketcher.constraints.add_diameter(
+                self.entity1,
+                sketch=self.sketch,
+                init=not self.initialized,
+                **self.get_settings(),
+            )
 
         return super().main(context)
 
