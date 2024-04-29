@@ -4,6 +4,9 @@ from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 
 from ..model.types import SlvsPoint2D
+from ..model.types import SlvsLine2D
+from ..model.types import SlvsArc
+from ..utilities.constants import HALF_TURN
 from ..utilities.view import refresh
 from ..solver import solve_system
 from ..utilities.data_handling import is_entity_referenced
@@ -135,6 +138,19 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         # Remove original point if not referenced
         if not is_entity_referenced(point, context):
             context.scene.sketcher.entities.remove(point.slvs_index)
+        else:
+            # add reference construction lines and coincidents
+            sse = context.scene.sketcher.entities
+            for i in range(0, 2):
+                if isinstance(self.connected[i], SlvsLine2D):
+                    ssc.add_coincident(point, self.connected[i], sketch)
+                    target = sse.add_line_2d(point, self.points[i], sketch)
+                    target.construction = True
+                elif isinstance(self.connected[i], SlvsArc):
+                    target = sse.add_arc(sketch.wp.nm, self.connected[i].ct, self.points[i], point, sketch)
+                    target.construction = True
+                    if target.angle > HALF_TURN:
+                        target.invert_direction = True
 
         refresh(context)
         solve_system(context)
