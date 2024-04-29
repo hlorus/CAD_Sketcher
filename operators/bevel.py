@@ -139,13 +139,11 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         if not is_entity_referenced(point, context):
             context.scene.sketcher.entities.remove(point.slvs_index)
         else:
-            ssc.add_coincident(point, seg1, sketch)
-            ssc.add_coincident(point, seg2, sketch)
-
-            # add reference construction lines
+            # add reference construction lines and coincidents
             sse = context.scene.sketcher.entities
             for i in range(0, 2):
                 if isinstance(self.connected[i], SlvsLine2D):
+                    ssc.add_coincident(point, self.connected[i], sketch)
                     target = sse.add_line_2d(point, self.points[i], sketch)
                     target.construction = True
                 elif isinstance(self.connected[i], SlvsArc):
