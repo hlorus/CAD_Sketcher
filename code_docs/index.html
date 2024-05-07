@@ -1,0 +1,1021 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../advanced/">
+      
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.0, mkdocs-material-9.5.21">
+    
+    
+      
+        <title>Code Documentation - CAD Sketcher</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.66ac8b77.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#code-documentation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="CAD Sketcher" class="md-header__button md-logo" aria-label="CAD Sketcher" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            CAD Sketcher
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Code Documentation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var media,input,key,value,palette=__md_get("__palette");if(palette&&palette.color){"(prefers-color-scheme)"===palette.color.media&&(media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']"),palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent"));for([key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="CAD Sketcher" class="md-nav__button md-logo" aria-label="CAD Sketcher" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    CAD Sketcher
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Installation
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Getting started
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_interface/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    User interface
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Tools
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../entities/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Entities
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../constraints/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Constraints
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../solver/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Solver
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../integration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Integration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interaction_system/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Interaction system
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Advanced
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Code Documentation
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Code Documentation
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#core" class="md-nav__link">
+    <span class="md-ellipsis">
+      Core
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      Entities
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Entities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#index-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      Index system
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#drawing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Drawing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      Selection
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preselection" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preselection
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      Constraints
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Interaction
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solver" class="md-nav__link">
+    <span class="md-ellipsis">
+      Solver
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#converter" class="md-nav__link">
+    <span class="md-ellipsis">
+      Converter
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#faq" class="md-nav__link">
+    <span class="md-ellipsis">
+      FAQ
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FAQ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happens-when-a-button-is-pressed" class="md-nav__link">
+    <span class="md-ellipsis">
+      What happens when a button is pressed?
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gotchas" class="md-nav__link">
+    <span class="md-ellipsis">
+      Gotcha's
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Gotcha's">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entity-pointers-loose-their-assigned-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      Entity pointers loose their assigned values
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#properties-update-callbacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Propertie's update callbacks
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#core" class="md-nav__link">
+    <span class="md-ellipsis">
+      Core
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      Entities
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Entities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#index-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      Index system
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#drawing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Drawing
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      Selection
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preselection" class="md-nav__link">
+    <span class="md-ellipsis">
+      Preselection
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      Constraints
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      Interaction
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solver" class="md-nav__link">
+    <span class="md-ellipsis">
+      Solver
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#converter" class="md-nav__link">
+    <span class="md-ellipsis">
+      Converter
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#faq" class="md-nav__link">
+    <span class="md-ellipsis">
+      FAQ
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FAQ">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happens-when-a-button-is-pressed" class="md-nav__link">
+    <span class="md-ellipsis">
+      What happens when a button is pressed?
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gotchas" class="md-nav__link">
+    <span class="md-ellipsis">
+      Gotcha's
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Gotcha's">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entity-pointers-loose-their-assigned-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      Entity pointers loose their assigned values
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#properties-update-callbacks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Propertie's update callbacks
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+<h1 id="code-documentation">Code Documentation</h1>
+<h2 id="core">Core</h2>
+<p>At the base of the addon there's the properties structure. The <a href="https://github.com/hlorus/CAD_Sketcher/tree/main/model">model subpackage</a> defines
+a set of blender <a href="https://docs.blender.org/api/current/bpy.types.PropertyGroup.html">PropertyGroups</a>. This is needed so that values are stored to disk on file save. These PropertyGroups have to be registered
+and then be pointed to from somewhere by a PointerProperty.</p>
+<p>Additionally to pure properties PropertyGroups can also hold methods and attributes,
+the addon makes heavy use of that as it leads to a convenient way of working with the data.</p>
+<p>The root of the addon's data structure is SketcherProps which is registered on blender's
+Scene type and can therefore be accessed as follows:
+<div class="highlight"><pre><span></span><code>bpy.context.scene.sketcher
+</code></pre></div></p>
+<p>From there the structure looks as follows:</p>
+<p>sketcher
+  - entities
+    - points3D (CollectionProperty of 3D Points)
+    - lines3D (CollectionProperty of 3D Lines)
+    - sketches
+    - ...</p>
+<ul>
+<li>constraints<ul>
+<li>coincident (CollectionProperty of coincident constraints)</li>
+<li>equal</li>
+<li>...</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p><strong>Note:</strong> The nesting of PropertyGroups is done by defining PointerProperties inside
+of a PropertyGroup.</p>
+</blockquote>
+<h2 id="entities">Entities</h2>
+<p>Entities always inherit from the SlvsGenericEntity class which implements the basic
+properties (like properties to store if an entity is visible, construction, origin etc.)
+and logic (like the draw method which draws itself based on its geometry batch) entities have.</p>
+<h3 id="index-system">Index system</h3>
+<p>As an entity can depend on other entities there has to be a way to point to an entity.
+This is done by storing an unique index on each entity (entity.slvs_index) which is
+set when an entity is created through its "add_*" method on the SlvsEntities class.</p>
+<p>Pointing to an entity is done by storing the entity's index in a IntProperty, the
+entity itself can then be looked up by:
+<div class="highlight"><pre><span></span><code>entity = bpy.context.scene.sketcher.entities.get(index)
+</code></pre></div></p>
+<p>For convenience there's the slvs_entity_pointer function which registers the IntProperty
+with a "_i" prefix and adds getter/setter methods to directly get the entity without
+having to deal with the index itself.</p>
+<h3 id="drawing">Drawing</h3>
+<p>Entities are drawn in the viewport by utilizing blenders <a href="https://docs.blender.org/api/current/gpu.html">GPU Module</a>.
+Every entity type has an update function which is responsible for creating the geometry
+batch that is used for drawing. As this can be expensive to compute the batches are stored
+based on the entity's index in global_data.batches. There's an initial tagging system in place
+to tag entities as dirty however this is currently still disabled by default.</p>
+<blockquote>
+<p><strong>NOTE:</strong> In order to draw anything a draw handler has to be registered on the viewport type.
+This usually happens from an operator that the user invokes. As this is rather bad UX the
+addon registers the handler when the addon is registered. More precisely, as the
+the context at register time is limited, a <a href="https://docs.blender.org/api/current/bpy.app.timers.html">Application Timer</a> is used to register
+the draw handler shortly after the addon has been registered.</p>
+</blockquote>
+<h3 id="selection">Selection</h3>
+<p>Entity selection is done by simply drawing entities a second time in an <a href="https://docs.blender.org/api/current/gpu.html#generate-a-texture-using-offscreen-rendering">Offscreen Texture</a>. The color however is used
+to identify the entity. The two functions index_to_rgb() and rgb_to_index() inside functions.py
+are used to convert between the entity's "slvs_index" and the color value that is written to the texture.</p>
+<p>This concept is explained <a href="http://www.opengl-tutorial.org/miscellaneous/clicking-on-objects/picking-with-an-opengl-hack/">here</a>.</p>
+<blockquote>
+<p><strong>NOTE:</strong> There's the "Write Selection Texture" operator in the debug panel which
+can be used to write the current selection texture to an image data-block in order
+to inspect it.</p>
+</blockquote>
+<h3 id="preselection">Preselection</h3>
+<p>The addon makes great use of preselection highlighting. To achieve that the
+VIEW3D_GT_slvs_preselection gizmo is used which looks up the currently hovered pixel and writes
+the index to global_data.hover whenever the "test_select" method is called.</p>
+<blockquote>
+<p><strong>NOTE:</strong> The <a href="https://docs.blender.org/api/current/bpy.types.Gizmo.html#bpy.types.Gizmo.test_select">test_select</a> method of gizmos is used as it
+receives the cursor location and is called whenever the cursor moves.</p>
+</blockquote>
+<h2 id="constraints">Constraints</h2>
+<p>Constraints always inherit from the GenericConstraint class which implements the basic
+properties (like properties to store if a constraint is visible or has failed to solve etc.)
+and some basic logic that constraints have.</p>
+<p>Unlike entities the constraints are not implemented completely from scratch but rather
+make use of the <a href="https://docs.blender.org/api/current/bpy.types.Gizmo.html">Gizmo API</a> to display themselves and handle other interactions like selection.</p>
+<h2 id="interaction">Interaction</h2>
+<p>There's a set of operators defined in operators.py which are used to create the
+interaction between the user and the addon. Note that the addon also has to define
+operators for basic interactions like selection or calling the context menu due to
+the fact that entities are implemented from scratch.</p>
+<p>Most of the viewport operators inherit from the StatefulOperator class which is a
+framework to allow defining complex tools in a declarative fashion. Besides the
+base class itself which implements logic for native blender types there's also
+the GenericEntityOp which adds support for addon specific types. Have a look at
+the <a href="../interaction_system/">interaction chapter</a> in the docs.</p>
+<p>The addon also makes heavy use of workspacetools. Note that they depend on some
+functionality defined in the StatefulOperator class to display the correct description
+and get the tools shortcuts.</p>
+<blockquote>
+<p><strong>NOTE:</strong> Tools that need to be able to select entities have to use the preselection gizmo
+in order to get updated selection.</p>
+</blockquote>
+<h2 id="solver">Solver</h2>
+<p>The addon uses the <a href="https://pypi.org/project/py-slvs/">Python Binding</a> of <a href="https://solvespace.com/index.pl">Solvespace</a>. As the solver module isn't well documented it's best to inspect it through
+the an interactive python interpreter. This can be done inside blender's python console
+when the solver module has been installed, something like this:
+<div class="highlight"><pre><span></span><code>from py_slvs import slvs
+sys = slvs.System()
+</code></pre></div></p>
+<p>On the system object you'll find all the methods to add entities and constraints.
+You can use the inspect module to get more info like the signature of a function:
+<div class="highlight"><pre><span></span><code>import inspect
+inspect.signature(sys.addEqual)
+</code></pre></div></p>
+<p>The solver data isn't persistent, so whenever the solver is triggered it will create a
+new "py_slvs.slvs.System" object.Then the solver will go through the relevant entities and
+call their create_slvs_data method and pass the system object to it. Same applies
+to the constraints.</p>
+<p>The create_slvs_data has to return the solver handles of the elements it adds to
+the solver. This is later used to check which constraints have failed to solve.</p>
+<p>When the solver was successful it will again go through all the entities and call their
+update_from_slvs methods to update the blender data from the solver system.</p>
+<h2 id="converter">Converter</h2>
+<p>Currently there is only one native converter implemented, namely the BezierConverter
+defined in converters.py. When converting to mesh the target bezier object is simply
+converted again with blenders to_mesh function. This is a design choice to workaround
+the problem of finding the area to fill for a given shape.</p>
+<p>As a bezier spline is defined by a list of bezier control-points entities we have to
+create a list of connected entities. This is done by the BezierConverter.walker() method.
+After that we cam simply loop through these connected entities and call their to_bezier() method.</p>
+<h2 id="faq">FAQ</h2>
+<h3 id="what-happens-when-a-button-is-pressed">What happens when a button is pressed?</h3>
+<p>In blender every user interaction happens through an operator. You can enable python
+tooltips to find the corresponding operator from a button. Check <a href="https://docs.blender.org/api/current/info_quickstart.html">blenders API Docs</a> for more information.</p>
+<h2 id="gotchas">Gotcha's</h2>
+<h3 id="entity-pointers-loose-their-assigned-values">Entity pointers loose their assigned values</h3>
+<blockquote>
+<p>AttributeError: 'NoneType' object has no attribute "slvs_index"</p>
+</blockquote>
+<p>As described <a href="https://docs.blender.org/api/current/info_gotcha.html#stale-data">here</a> data might not directly update after edit. This usually isn't a problem for interactive operators however it can be the case with operators, scripts or tests which add multiple entities/constraints at once.
+This can be solved by calling context.view_layer.update() before adding an element that depends on an element that was just created. Just be aware that this might have a negative performance impact.
+A better approach is to use the "index_reference" mode of the entity "add_" methods. If set to True the method will return the index of the entity rather than the object itself. All "add_" methods will allow passing entities by index, additionally they also accept passing parameters.</p>
+<div class="highlight"><pre><span></span><code>entities = context.scene.sketcher.entities
+
+p1 = entities.add_point_3d((0, 0, 0), index_reference=True)
+p2 = entities.add_point_3d((1, 1, 0), index_reference=True)
+line = entities.add_line_3d(p1, p2, construction=True, index_reference=True)
+
+assert type(p1) == int
+</code></pre></div>
+<h3 id="properties-update-callbacks">Propertie's update callbacks</h3>
+<p>Some properties of entities or constraints have an update callback assigned which will be triggered whenever the property is changed, it's mainly used to trigger the solver or update the view. Example of this are the point entity's location property or the value property of dimensional constraints which will both trigger the solver when the property is changed.
+This behaiviour is not always welcome. When writing a tool it's almost always better to avoid triggering these callbacks and manually solving the system, updating the view etc.</p>
+<p>To avoid it, either set all properties in the "add_*" methods or change the value of properties like so:</p>
+<blockquote>
+<p>entity["some_prop"] = value</p>
+</blockquote>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a7c05c9e.min.js"></script>
+      
+    
+  </body>
+</html>
