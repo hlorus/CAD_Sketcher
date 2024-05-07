@@ -44,6 +44,8 @@ Help is always welcome. There are multiple ways to support the project.
 ### Testing
 Just grab the latest version, play around, provide feedback and redo!
 
+If you've made code changes to the addon and want to test those, zip the project folder and install it through ```Blender Preferences > Add-ons > Install```.
+
 ### Documentation
 Documentation is generated from the source repository with [MkDocs](https://www.mkdocs.org/).
 In order to contribute either post a pull request with your changes on
