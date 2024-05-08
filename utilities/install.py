@@ -7,7 +7,7 @@ from types import ModuleType
 import logging
 
 from .. import global_data
-from ..wheels import load_wheel
+
 
 logger = logging.getLogger(__name__)
 
@@ -19,14 +19,6 @@ def check_module(package: str, raise_exception: bool = False) -> ModuleType:
     be in sys.path
     """
 
-    # Try to load module from wheel
-    try:
-        module = load_wheel(package, [])
-        return module[0]
-    except Exception as e:
-        logger.debug(f"Cannot load local wheel: {package}, fallback to user site packages. \n{e}")
-        
-    # Fallback to user site packages
     p = site.USER_SITE
     if p not in sys.path:
         sys.path.append(p)
