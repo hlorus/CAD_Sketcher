@@ -1,4 +1,5 @@
 from bpy.types import Context, UILayout
+import bpy
 
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
@@ -75,10 +76,22 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             row.prop(sketch, "name")
             layout.prop(sketch, "convert_type")
 
-            if sketch.convert_type == "MESH":
+            if sketch.convert_type in ["MESH", "BOOLEAN"]:
                 layout.prop(sketch, "curve_resolution")
             if sketch.convert_type != "NONE":
                 layout.prop(sketch, "fill_shape")
+            if sketch.convert_type in ["MESH", "BOOLEAN"]:
+                box = layout.box()
+                column = box.column(align=True)
+                column.label(text="Extrude")
+                column.prop(sketch, "extrude_depth")
+                column.prop(sketch, "extrude_offset")
+            if sketch.convert_type == "BOOLEAN":
+                box = layout.box()
+                column = box.column(align=True)
+                column.label(text="Boolean")
+                column.prop_search(sketch, "boolean_base", bpy.data, "meshes")
+                column.prop(sketch, "boolean_type")
 
             layout.operator(
                 declarations.Operators.DeleteEntity,
