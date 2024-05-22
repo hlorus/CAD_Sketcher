@@ -20,6 +20,8 @@ convert_items = [
     ("MESH", "Mesh", "", 3),
 ]
 
+class SourceDriverGroup(bpy.types.PropertyGroup):
+    source : bpy.props.PointerProperty(name="source", type=bpy.types.Object)
 
 # TODO: draw sketches and allow selecting
 class SlvsSketch(SlvsGenericEntity, PropertyGroup):
@@ -60,6 +62,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     curve_resolution: IntProperty(
         name="Mesh Curve Resolution", default=12, min=1, soft_max=25
     )
+    driver_sources: bpy.props.CollectionProperty(name="driver_sources", type=SourceDriverGroup)
 
     def dependencies(self) -> List[SlvsGenericEntity]:
         return [
@@ -111,4 +114,4 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
 slvs_entity_pointer(SlvsSketch, "wp")
 SlvsSketch.__setattr__ = unique_attribute_setter
 
-register, unregister = register_classes_factory((SlvsSketch,))
+register, unregister = register_classes_factory((SourceDriverGroup, SlvsSketch))
