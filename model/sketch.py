@@ -10,7 +10,7 @@ from .. import global_data
 from ..solver import Solver, solve_system
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
-from ..utilities.bpy import unique_attribute_setter, bpyEnum
+from ..utilities.bpy import bpyEnum
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +31,6 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     Arguments:
         wp (SlvsWorkplane): The base workplane of the sketch
     """
-
-    unique_names = ["name"]
 
     def hide_sketch(self, context):
         if self.convert_type != "NONE":
@@ -109,6 +107,5 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
 
 
 slvs_entity_pointer(SlvsSketch, "wp")
-SlvsSketch.__setattr__ = unique_attribute_setter
 
 register, unregister = register_classes_factory((SlvsSketch,))
