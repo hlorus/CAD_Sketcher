@@ -218,7 +218,7 @@ class Solver:
             self.result = bpyEnum(solver_state_items, index=retval)
 
             if report and sketch:
-                sketch.solver_state = self.result.index
+                sketch.solver_state = self.result.identifier
                 sketch.dof = self.solvesys.Dof
 
             if retval != 0 and retval != 5:
