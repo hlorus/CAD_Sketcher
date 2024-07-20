@@ -49,6 +49,7 @@ class View3D_OT_slvs_select_box(Operator):
 
     def invoke(self, context: Context, event):
         self.start_coords = Vector((event.mouse_region_x, event.mouse_region_y))
+        self.mouse_pos = self.start_coords
 
         context.window.cursor_modal_set("CROSSHAIR")
         context.window_manager.modal_handler_add(self)
