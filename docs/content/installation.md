@@ -34,8 +34,8 @@ CAD Sketcher heavily depends on the [solvespace python module](https://pypi.org/
 
 Once the 3D View CAD Sketcher plugin is installed check its preferences for the "Solver Module" tab to see if the module is already available, otherwise follow one of the guides below.
 
-=== Blender >=4.2 Extensions
-    If you install CAD Skecther as a Blender Extension you can skip this step
+=== "Blender >=4.2 Extensions"
+    - If you install CAD Skecther as a Blender Extension you can skip this step
 
 === "Install from PIP"
     - Press "Install from PIP"
