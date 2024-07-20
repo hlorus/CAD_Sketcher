@@ -26,6 +26,10 @@ class GenericConstraintOp(Operator2d):
     def poll(cls, context):
         return True
 
+    def __init__(self):
+        self.target = None
+        super().__init__()
+
     def _available_entities(self):
         # Gets entities that are already set
         cls = SlvsConstraints.cls_from_type(self.type)
