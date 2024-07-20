@@ -108,7 +108,9 @@ def register():
 
 
 def unregister():
-    icon_manager.unload()
+    if not background:
+        from . import icon_manager
+        icon_manager.unload()
 
     if global_data.registered:
         unregister_full()
