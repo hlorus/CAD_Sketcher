@@ -1,9 +1,8 @@
 import logging
+import pathlib
 
-from bpy.app import background, version_string
-from .utilities import get_min_blender_version
+from bpy.app import background, version, version_string
 
-global bl_info
 bl_info = {
     "name": "CAD Sketcher",
     "author": "hlorus",
@@ -17,6 +16,46 @@ bl_info = {
     "tracker_url": "https://github.com/hlorus/CAD_Sketcher/discussions/categories/announcements",
 }
 
+def get_bl_info():
+    return bl_info
+
+
+def get_addon_version_tuple() -> tuple:
+    """Return addon version as a tuple e.g. (0, 27, 1)"""
+
+    if version < (4, 20):
+        return get_bl_info()["version"]
+
+    manifest = pathlib.Path(__file__).parent.parent / "blender_manifest.toml"
+    try:
+        import toml
+        version_tuple = toml.load(manifest)["version"]
+        return tuple(map(int, version_tuple.split(".")))
+    except Exception:
+        return ()
+
+
+def get_addon_version() -> str:
+    """Return addon version as string"""
+
+    version = get_addon_version_tuple()
+    return ".".join(map(str, version))
+
+
+def get_min_blender_version() -> str:
+    """Returns the minimal required blender version from manifest file"""
+
+    if version < (4, 20):
+        return str(get_bl_info()["version"])
+
+    manifest = pathlib.Path(__file__).parent.parent / "blender_manifest.toml"
+    try:
+        import toml
+        return toml.load(manifest)["blender_version_min"]
+    except Exception:
+        return ""
+
+
 # Check user's Blender version against minimum required Blender version for add-on.
 blender_v_min = get_min_blender_version()
 if version_string < blender_v_min:
@@ -27,7 +66,6 @@ if version_string < blender_v_min:
 
 from . import global_data
 from .registration import register_base, unregister_base, register_full, unregister_full
-from .utilities import get_addon_version
 from .utilities.install import check_module
 from .utilities.register import cleanse_modules
 from .utilities.presets import ensure_addon_presets

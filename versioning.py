@@ -1,6 +1,6 @@
 import bpy
 import logging
-from .utilities import get_addon_version_tuple
+from . import get_addon_version_tuple
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ def do_versioning(self):
             for c in context.scene.sketcher.constraints.dimensional:
                 if len(c.dependencies()) != 2:
                     continue
-                if not (isinstance(c, SlvsDistance) and 
+                if not (isinstance(c, SlvsDistance) and
                         isinstance(c.dependencies()[0], SlvsLine2D) and
                         isinstance(c.dependencies()[1], SlvsSketch)):
                     continue
