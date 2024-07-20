@@ -1,9 +1,9 @@
-The focus of the addon lies on different aspects than blender itself. Addon tools usually work on one specific entity or between a few entities where the order of
-selection matters. As the existing system of selection isn't ideal in this context the addon defines a generic interaction system which allows for a powerful and flexible workflow.
+The focus of the extension lies on different aspects than blender itself. Extension tools usually work on one specific entity or between a few entities where the order of
+selection matters. As the existing system of selection isn't ideal in this context the extension defines a generic interaction system which allows for a powerful and flexible workflow.
 
 ## Stateful Operations
 
-Most tools in the addon are implemented as stateful tools. In this context a state represents one target like a selection or a value. When running a tool you will iterate through these states until all states have valid input.
+Most tools in the extension are implemented as stateful tools. In this context a state represents one target like a selection or a value. When running a tool you will iterate through these states until all states have valid input.
 
 Let's take the "Add Circle" tool as an example. Since a circle is represented by its center and radius the tool will have two states. One to define the center element and one to set the radius.
 

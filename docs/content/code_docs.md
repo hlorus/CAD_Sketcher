@@ -1,13 +1,13 @@
 # Code Documentation
 ## Core
-At the base of the addon there's the properties structure. The [model subpackage](https://github.com/hlorus/CAD_Sketcher/tree/main/model) defines
+At the base of the extension there's the properties structure. The [model subpackage](https://github.com/hlorus/CAD_Sketcher/tree/main/model) defines
 a set of blender [PropertyGroups](https://docs.blender.org/api/current/bpy.types.PropertyGroup.html). This is needed so that values are stored to disk on file save. These PropertyGroups have to be registered
 and then be pointed to from somewhere by a PointerProperty.
 
 Additionally to pure properties PropertyGroups can also hold methods and attributes,
-the addon makes heavy use of that as it leads to a convenient way of working with the data.
+the extension makes heavy use of that as it leads to a convenient way of working with the data.
 
-The root of the addon's data structure is SketcherProps which is registered on blender's
+The root of the extension's data structure is SketcherProps which is registered on blender's
 Scene type and can therefore be accessed as follows:
 ```
 bpy.context.scene.sketcher
@@ -59,9 +59,9 @@ to tag entities as dirty however this is currently still disabled by default.
 
 > **NOTE:** In order to draw anything a draw handler has to be registered on the viewport type.
 This usually happens from an operator that the user invokes. As this is rather bad UX the
-addon registers the handler when the addon is registered. More precisely, as the
+extension registers the handler when the extension is registered. More precisely, as the
 the context at register time is limited, a [Application Timer](https://docs.blender.org/api/current/bpy.app.timers.html) is used to register
-the draw handler shortly after the addon has been registered.
+the draw handler shortly after the extension has been registered.
 
 ### Selection
 Entity selection is done by simply drawing entities a second time in an [Offscreen Texture](https://docs.blender.org/api/current/gpu.html#generate-a-texture-using-offscreen-rendering). The color however is used
@@ -75,7 +75,7 @@ can be used to write the current selection texture to an image data-block in ord
 to inspect it.
 
 ### Preselection
-The addon makes great use of preselection highlighting. To achieve that the
+The extension makes great use of preselection highlighting. To achieve that the
 VIEW3D_GT_slvs_preselection gizmo is used which looks up the currently hovered pixel and writes
 the index to global_data.hover whenever the "test_select" method is called.
 
@@ -92,17 +92,17 @@ make use of the [Gizmo API](https://docs.blender.org/api/current/bpy.types.Gizmo
 
 ## Interaction
 There's a set of operators defined in operators.py which are used to create the
-interaction between the user and the addon. Note that the addon also has to define
+interaction between the user and the extension. Note that the extension also has to define
 operators for basic interactions like selection or calling the context menu due to
 the fact that entities are implemented from scratch.
 
 Most of the viewport operators inherit from the StatefulOperator class which is a
 framework to allow defining complex tools in a declarative fashion. Besides the
 base class itself which implements logic for native blender types there's also
-the GenericEntityOp which adds support for addon specific types. Have a look at
+the GenericEntityOp which adds support for extension specific types. Have a look at
 the [interaction chapter](interaction_system.md) in the docs.
 
-The addon also makes heavy use of workspacetools. Note that they depend on some
+The extension also makes heavy use of workspacetools. Note that they depend on some
 functionality defined in the StatefulOperator class to display the correct description
 and get the tools shortcuts.
 
@@ -110,7 +110,7 @@ and get the tools shortcuts.
 in order to get updated selection.
 
 ## Solver
-The addon uses the [Python Binding](https://pypi.org/project/py-slvs/) of [Solvespace](https://solvespace.com/index.pl). As the solver module isn't well documented it's best to inspect it through
+The extension uses the [Python Binding](https://pypi.org/project/py-slvs/) of [Solvespace](https://solvespace.com/index.pl). As the solver module isn't well documented it's best to inspect it through
 the an interactive python interpreter. This can be done inside blender's python console
 when the solver module has been installed, something like this:
 ```

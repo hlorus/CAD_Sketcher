@@ -1,4 +1,4 @@
-Entities are the basic elements which are used to draw geometry in CAD Sketcher. They differ from regular blender mesh or curve elements which means native blender tools aren't able to interact with it as long as they aren't converted. See the chapter [integration](integration.md) for further details on how to process addon specific geometry.
+Entities are the basic elements which are used to draw geometry in CAD Sketcher. They differ from regular blender mesh or curve elements which means native blender tools aren't able to interact with it as long as they aren't converted. See the chapter [integration](integration.md) for further details on how to process extension specific geometry.
 
 Entities are defined by a set of parameters and pointers to other entities which are editable at any point in time. This allows non-destructive workflows and also ensures that geometry is resolution independent. A curve will always follow a given radius no matter how it's transformed. Entities can be created with the various [Workspacetools](user_interface.md#workspacetools).
 

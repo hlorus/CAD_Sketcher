@@ -1,5 +1,9 @@
-## Addon installation
-=== "ZIP File"
+## Installation
+=== "Extension ZIP File"
+    - Download the [ZIP archive](https://github.com/hlorus/CAD_Sketcher/archive/refs/heads/main.zip) from github (ensure it's a ZIP Archive, on Mac you might have to repack as it gets unzipped automatically)
+    - Open Blender and go to: Edit > Preferences > Get Extensions > Extension Settings (Arrow in the top right corner) > Press "Install from Disk..." button
+    - Browse to the location of the ZIP and select it, then press "Install from Disk"
+=== "Legacy addon"
     - Download the [ZIP archive](https://github.com/hlorus/CAD_Sketcher/archive/refs/heads/main.zip) from github (ensure it's a ZIP Archive, on Mac you might have to repack as it gets unzipped automatically)
     - Open Blender and go to: Edit > Preferences > Add-ons > Press "Install..." button
     - Browse to the location of the ZIP and select it, then press "Install Add-on"
@@ -30,6 +34,8 @@ CAD Sketcher heavily depends on the [solvespace python module](https://pypi.org/
 
 Once the 3D View CAD Sketcher plugin is installed check its preferences for the "Solver Module" tab to see if the module is already available, otherwise follow one of the guides below.
 
+=== Blender >=4.2 Extensions
+    If you install CAD Skecther as a Blender Extension you can skip this step
 
 === "Install from PIP"
     - Press "Install from PIP"
@@ -49,15 +55,15 @@ There are multiple reasons why the installation might fail. Try the following:
 - If you're on windows start blender as administrator when installing the dependency
 - If you've installed blender through a package manager try again with a version from [blender.org](https://www.blender.org/download/)
 - Check the application's output in the system console for any warnings or hints to find out why it's failing
-- Blender can be installed through package managers, installing external python packages with such installations might not be possible. Try to use the addon with Blender installed from the official website.
+- Blender can be installed through package managers, installing external python packages with such installations might not be possible. Try to use the extension with Blender installed from the official website.
 - Ask for help
 
 ## Updating
 
 === "Manual"
 
+    - Delete the old version from the addons/extensions list under Edit > Preferences > Add-ons/Get Extensions
     - Simply redo the installation steps with the latest addon version
-    - Delete the old version from the addons list under Edit > Preferences > Add-ons
 
 === "Git"
 

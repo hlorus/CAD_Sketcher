@@ -10,7 +10,7 @@ Constraint-based sketcher addon for [Blender](https://www.blender.org/) that all
 
 > :warning: **Experimental addon:** This is still work in progress, don't use it on production files without a backup.
 
-Minimum version: Blender 3.3
+Minimum version: Blender 4.2
 
 ## More than just an addon learn more: [CADsketcher.com](http://cadsketcher.com/)
 
@@ -32,18 +32,9 @@ Minimum version: Blender 3.3
 - [Gumroad](https://gumroad.com/a/891069555) Download (This way we can update you about big updates and ask your opinion on big changes)
 - Download the [ZIP archive](https://github.com/hlorus/CAD-Sketcher/archive/refs/heads/main.zip) (do not unpack it after downloading)
  <br><b>!(Mac users be careful your OS can auto-unpack addon's which will make them break)!</b>
-- Open Blender and go to: Edit > Preferences > Add-ons > Press "Install..." button
-- Browse to the location of the ZIP and select it, then press "Install Add-on"
-- Enable the addon by pressing the checkbox
+- Open Blender and go to: Edit > Preferences > Get Extensions > Extension Settings (Arrow in the top right corner) > Press "Install from Disk..." button
+- Browse to the location of the ZIP and select it, then press "Install from Disk"
 
-## Dependency installation
-
-CAD sketcher heavily depends on the [solvespace python module](https://pypi.org/project/py-slvs/) and won't be functional without it.
-
-- Inside the addon's preferences check the "Solver Module" tab to see if the module is already available
-- Press "Install from PIP"
-
-Check the [installation](https://hlorus.github.io/CAD_Sketcher/installation) chapter for in-depth instructions.
 
 ## Usage
 Follow the [getting started](https://hlorus.github.io/CAD_Sketcher/getting_started) guide to get familiar with the addon.
@@ -62,5 +53,3 @@ Alternatively individual developers can link their donation links here:
 <a href="https://www.paypal.com/donate/?business=4A9SCSHAU3ZP6&no_recurring=0&currency_code=CHF">
 hlorus - Lead Dev
 </a>
-
-

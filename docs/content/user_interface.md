@@ -1,7 +1,7 @@
 ## Sidebar
 ![!Sidebar](images/sidebar.png){style="width:200px; height:220px; object-fit:cover;" align=right}
 
-The addon adds a some panels to the "N"-sidebar under the category "Sketcher". From
+The extension adds a some panels to the "N"-sidebar under the category "Sketcher". From
 here you can set the active sketch, access its properties, add constraints and
 interact with elements via the browsers.
 {style="display:block; height:220px"}
@@ -50,7 +50,7 @@ gizmo that supports it or through the corresponding button in one of the element
 > **INFO:** Only the hovered entity is used, the context menu ignores the selection.
 
 ## Preferences
-Access the preferences by expanding the enabled addon under
+Access the preferences by expanding the enabled extension under
 Edit > Preferences > Add-ons > CAD Sketcher.
 
 ![!Preferences](images/preferences.png){align=left style="height:300px; width:calc(50% - 1em); object-fit:cover;"}
@@ -67,7 +67,7 @@ with caution.
 ### Theme
 ![!Preferences](images/theme_presets.png){align=right}
 
-Colors that are used in the addon are defined under the theme section. The addon also
+Colors that are used in the extension are defined under the theme section. The extension also
 supports theme presets. You can get the presets path by entering the following line into blenders python console:
 
 ``` py

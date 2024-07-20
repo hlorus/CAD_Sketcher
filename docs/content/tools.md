@@ -17,12 +17,12 @@ Workspacetools are used to interactively create entities. You can access them fr
 the viewport's "T"-panel. Check the [tools section](tools.md) to get familiar with
 the behavior of CAD Sketcher tools.
 
-> **INFO:** Interaction with addon geometry is only possible when one of the
-addon tools is active.
+> **INFO:** Interaction with extension geometry is only possible when one of the
+extension tools is active.
 
 
 ### Workspacetool Access Keymap
-Whenever one of the addon's tools is active the tool access keymap allows to quickly switch between the different tools.
+Whenever one of the extension's tools is active the tool access keymap allows to quickly switch between the different tools.
 
 |Key|Modifier|Action|
 |:---:|---|---|

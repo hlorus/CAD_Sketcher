@@ -1,13 +1,12 @@
-This guide takes you through the first steps in order to get familiar with the addon.
+This guide takes you through the first steps in order to get familiar with the extension.
 
 ## Installation
 ![!Preferences](images/preferences.png){style="width:100%; height:200px; object-fit:cover;"}
 
 Download the [Latest Release](https://github.com/hlorus/CAD_Sketcher/releases)
-of the addon and install it from the addons tab in blender's preferences. Get the
-solvespace module by pressing the install button in the addon's preferences.
-See [here](installation.md) if
-you have trouble installing the addon.
+of the extension and install it from the "Get Extensions" tab in blender's preferences.
+See the [installation guide](installation.md) if
+you have trouble installing the extension.
 
 ## Create a Sketch
 ![!Add Sketch](images/add_sketch.png){style="width:100%; height:200px; object-fit:cover;"}

@@ -1,4 +1,4 @@
-The geometry that is used in the addon isn't native blender geometry, that means
+The geometry that is used in the extension isn't native blender geometry, that means
 blender doesn't know anything about it and native tools cannot work with it.
 So in order to further process drawn shapes they have to be converted to a native type first.
 
@@ -26,7 +26,7 @@ won't have surfaces at all but rather just edges.
 
 ## Limitations
 ### 3D Geometry
-Conversion requires a sketch, the addon currently doesn't support creating 3D sketches
+Conversion requires a sketch, the extension currently doesn't support creating 3D sketches
 and is therefor limited to the conversion of 2D entities.
 
 ### Non-Persistent Geometry

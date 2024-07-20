@@ -3,7 +3,7 @@
 
 ## What is CAD Sketcher?
 
-CAD Sketcher is a constraint-based sketcher addon for [Blender](https://www.blender.org/download/) that allows to create precise 2d shapes by defining a set of geometric constraints like tangent, distance, angle, equal and more. Sketches stay editable and support a fully non-destructive workflow.
+CAD Sketcher is a constraint-based sketcher extension for [Blender](https://www.blender.org/download/) that allows to create precise 2d shapes by defining a set of geometric constraints like tangent, distance, angle, equal and more. Sketches stay editable and support a fully non-destructive workflow.
 
 ## Overview
 
@@ -27,7 +27,7 @@ to get native Blender geometry types which then allow further modifications with
 <!-- Check the [Workflow](solver.md#Workflow) section to see how it's intended to be used. -->
 
 ## Links
-- [Releases](https://github.com/hlorus/CAD_Sketcher/releases) - Get the addon
+- [Releases](https://github.com/hlorus/CAD_Sketcher/releases) - Get the extension
 - [Bug Report](https://github.com/hlorus/CAD_Sketcher/wiki/Advanced#Report-a-Bug) - Report a bug
 - [Github Issues](https://github.com/hlorus/CAD_Sketcher/issues) - Suggest features and follow the development
 - [Discord](https://discord.gg/GzpJsShgxa) - A place for discussions

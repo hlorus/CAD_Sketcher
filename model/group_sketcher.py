@@ -38,8 +38,8 @@ class SketcherProps(PropertyGroup):
     )
 
     version: IntVectorProperty(
-        name="Addon Version",
-        description="CAD Sketcher addon version this scene was saved with",
+        name="Extension Version",
+        description="CAD Sketcher extension version this scene was saved with",
     )
 
     # This is needed for the sketches ui list

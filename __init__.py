@@ -3,10 +3,11 @@ import pathlib
 
 from bpy.app import background, version, version_string
 
+
 bl_info = {
     "name": "CAD Sketcher",
     "author": "hlorus",
-    "version": (0, 27, 4),
+    "version": (0, 27, 5),
     "blender": (3, 3, 0),
     "location": "View3D > Toolbar",
     "description": "Parametric, constraint-based geometry sketcher",
@@ -16,15 +17,10 @@ bl_info = {
     "tracker_url": "https://github.com/hlorus/CAD_Sketcher/discussions/categories/announcements",
 }
 
-def get_bl_info():
-    return bl_info
 
 
 def get_addon_version_tuple() -> tuple:
     """Return addon version as a tuple e.g. (0, 27, 1)"""
-
-    if version < (4, 20):
-        return get_bl_info()["version"]
 
     manifest = pathlib.Path(__file__).parent.parent / "blender_manifest.toml"
     try:
@@ -44,9 +40,6 @@ def get_addon_version() -> str:
 
 def get_min_blender_version() -> str:
     """Returns the minimal required blender version from manifest file"""
-
-    if version < (4, 20):
-        return str(get_bl_info()["version"])
 
     manifest = pathlib.Path(__file__).parent.parent / "blender_manifest.toml"
     try:

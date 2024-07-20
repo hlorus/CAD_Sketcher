@@ -11,7 +11,7 @@ from .utilities import get_hovered
 
 
 class GenericEntityOp(StatefulOperator):
-    """Extend StatefulOperator with addon specific types"""
+    """Extend StatefulOperator with extension specific types"""
 
     def check_event(self, event):
         return super().check_event(event)
