@@ -272,6 +272,11 @@ tool_base_keymap = (
         {"type": "G", "value": "PRESS"},
         None,
     ),
+    (
+        Operators.AlignView,
+        {"type": "V", "value": "PRESS"},
+        {"properties": [("use_active", True)]},
+    ),
 )
 
 tool_generic = (

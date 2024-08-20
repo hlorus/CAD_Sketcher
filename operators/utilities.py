@@ -2,12 +2,11 @@ import logging
 
 import bpy
 from bpy.types import Context, Operator
-from mathutils import Matrix
 
 from .. import global_data
 from ..declarations import GizmoGroups, WorkSpaceTools
 from ..converters import update_convertor_geometry
-from ..utilities.preferences import use_experimental, get_prefs
+from ..utilities.preferences import get_prefs
 from ..utilities.data_handling import entities_3d
 
 logger = logging.getLogger(__name__)
@@ -117,55 +116,18 @@ def switch_sketch_mode(self, context: Context, to_sketch_mode: bool):
 
 def activate_sketch(context: Context, index: int, operator: Operator):
     space_data = context.space_data
-    rv3d = context.region_data
 
     props = context.scene.sketcher
     if index == props.active_sketch_i:
         return {"CANCELLED"}
 
     sketch_mode = index != -1
+    sk = context.scene.sketcher.entities.get(index)
     switch_sketch_mode(self=operator, context=context, to_sketch_mode=sketch_mode)
 
-    sk = None
-    do_align_view = use_experimental("use_align_view", False)
-    if sketch_mode:
-        sk = context.scene.sketcher.entities.get(index)
-        if not sk:
-            operator.report({"ERROR"}, "Invalid index: {}".format(index))
-            return {"CANCELLED"}
-
-        # Align view to normal of wp
-        if do_align_view:
-            matrix_target = sk.wp.matrix_basis.inverted()
-            matrix_start = rv3d.view_matrix
-            align_view(rv3d, matrix_start, matrix_target)
-            rv3d.view_perspective = "ORTHO"
-
-    else:
-        # Reset view
-        if do_align_view:
-            rv3d.view_distance = 18
-            matrix_start = rv3d.view_matrix
-            matrix_default = Matrix(
-                (
-                    (
-                        0.4100283980369568,
-                        0.9119764566421509,
-                        -0.013264661654829979,
-                        0.0,
-                    ),
-                    (-0.4017425775527954, 0.19364342093467712, 0.8950449228286743, 0.0),
-                    (
-                        0.8188283443450928,
-                        -0.36166495084762573,
-                        0.44577890634536743,
-                        -17.986562728881836,
-                    ),
-                    (0.0, 0.0, 0.0, 1.0),
-                )
-            )
-            align_view(rv3d, matrix_start, matrix_default)
-            rv3d.view_perspective = "PERSP"
+    # Align view
+    if get_prefs().use_align_view:
+        bpy.ops.view3d.slvs_align_view(sketch_index=index)
 
     # Hide objects
     fade_objects = get_prefs().auto_hide_objects
