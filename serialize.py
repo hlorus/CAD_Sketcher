@@ -1,6 +1,7 @@
 import pickle
 from typing import Union, Optional
 from pathlib import Path
+from typing import Dict
 
 from bpy.types import Scene
 
@@ -25,16 +26,29 @@ def dict_extend(original_dict, other):
 # }
 
 
-def scene_to_dict(scene):
+def apply_dict(parent, d: Dict):
+    """Applies values from a dictionary to members of a IDPropertyGroup"""
+    for key, value in d.items():
+        if not isinstance(value, dict):
+            parent[key] = value
+            continue
+
+        # Handle dictionaries recursivley
+        apply_dict(parent[key], value)
+
+
+def scene_to_dict(scene: Scene) -> Dict:
+    """Returns a dictionary which represents the relevant contents of the given scene"""
     original = scene["sketcher"].to_dict()
     elements = {key: original[key] for key in ("entities", "constraints")}
     return elements
 
 
-def scene_from_dict(scene, elements):
+def scene_from_dict(scene: Scene, elements: Dict):
+    """Constructs a scene from a dictionary"""
     original = scene["sketcher"].to_dict()
     original.update(elements)
-    scene["sketcher"].update(original)
+    apply_dict(scene["sketcher"], original)
 
 
 def _extend_element_dict(scene, elements):
@@ -49,7 +63,7 @@ def _extend_element_dict(scene, elements):
     return scene_dict
 
 
-def fix_pointers(elements):
+def fix_pointers(elements: Dict):
     """Go through all properties and offset entity pointers"""
 
     import bpy
