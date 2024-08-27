@@ -137,7 +137,7 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
 
         self.target = sse.add_workplane(origin, nm)
         ignore_hover(self.target)
-        [a.tag_redraw() for a in bpy.context.screen.areas] # Force re-draw of UI (Blender doesn't update after tool usage)
+        context.area.tag_redraw() # Force re-draw of UI (Blender doesn't update after tool usage)
         return True
 
 
