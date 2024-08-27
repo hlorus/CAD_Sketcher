@@ -3,7 +3,7 @@ from bpy.types import Operator
 from bpy.utils import register_classes_factory
 
 from ..solver import Solver
-from ..converters import update_convertor_geometry
+from ..converters import update_geometry
 
 
 class VIEW3D_OT_update(Operator):
@@ -13,7 +13,8 @@ class VIEW3D_OT_update(Operator):
     def execute(self, context):
         solver = Solver(context, None, all=True)
         solver.solve()
-        update_convertor_geometry(context.scene)
+
+        update_geometry(context.scene)
         return {"FINISHED"}
 
 

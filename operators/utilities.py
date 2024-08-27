@@ -5,7 +5,7 @@ from bpy.types import Context, Operator
 
 from .. import global_data
 from ..declarations import GizmoGroups, WorkSpaceTools
-from ..converters import update_convertor_geometry
+from ..converters import update_convertor_geometry, update_geometry
 from ..utilities.preferences import get_prefs
 from ..utilities.data_handling import entities_3d
 
@@ -145,7 +145,7 @@ def activate_sketch(context: Context, index: int, operator: Operator):
     if context.mode != "OBJECT":
         return {"FINISHED"}
 
-    update_convertor_geometry(context.scene, sketch=last_sketch)
+    update_geometry(context.scene, sketch=last_sketch)
 
     select_target_ob(context, last_sketch)
 
