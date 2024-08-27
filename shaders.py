@@ -21,12 +21,24 @@ class Shaders:
            gl_Position = ModelViewProjectionMatrix * vec4(pos.xyz, 1.0f);
 
            vec2 ssPos = vec2(gl_Position.xy / gl_Position.w);
-           stipple_start = stipple_pos = ssPos;
+           segment_start = stipple_pos = ssPos;
         }
     """
     base_fragment_shader_3d = """
         void main() {
 
+            vec2 delta = stipple_pos - segment_start;
+            vec2 stipple_start;
+            if (abs(delta.x) > abs(delta.y)) {
+                stipple_start.x = 0;
+                float t = -segment_start.x / delta.x;
+                stipple_start.y = segment_start.y + t * delta.y;
+            }
+            else {
+                stipple_start.y = 0;
+                float t = -segment_start.y / delta.y;
+                stipple_start.x = segment_start.x + t * delta.x;
+            }
             float distance_along_line = distance(stipple_pos, stipple_start);
             float normalized_distance = fract(distance_along_line / dash_width);
 
@@ -50,7 +62,7 @@ class Shaders:
 
         vert_out = GPUStageInterfaceInfo("stipple_pos_interface")
         vert_out.no_perspective("VEC2", "stipple_pos")
-        vert_out.flat("VEC2", "stipple_start")
+        vert_out.flat("VEC2", "segment_start")
 
         # NOTE: How to set default values?
 
