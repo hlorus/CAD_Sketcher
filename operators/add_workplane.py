@@ -152,31 +152,37 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         workplane_normal = quat @ Vector((0.0, 0.0, 1.0))
         
         sketch = sse.add_sketch(self.target)
-        p = sse.add_point_2d((0.0, 0.0), sketch)
-        p.fixed = True
+        p = sse.add_point_2d((0.0, 0.0), sketch, fixed = True)
 
         activate_sketch(context, sketch.slvs_index, self)
         self.target = sketch
 
+        limitDist = 0.005;
+        connectLines = True;
+
         for clicked_mesh in meshes:
-            vertices = clicked_mesh.data.vertices
+            vertices = clicked_mesh.data.vertices;
             for vertex in vertices:
                 # Make vertex relative to plane
-                vertex_world = obj_translation @ vertex.co
-                translated = vertex_world - workplane_origin
+                vertex_world = obj_translation @ vertex.co;
+                translated = vertex_world - workplane_origin;
                 
                 # Projection to plane
-                distance_to_plane = translated.dot(workplane_normal)
-                projection = translated - distance_to_plane * workplane_normal
+                distance_to_plane = translated.dot(workplane_normal);
+                projection = translated - distance_to_plane * workplane_normal;
+        
+                if abs(distance_to_plane) > limitDist:
+                    continue;
+                print(f"Vertex {vertex.index} distance to plane: {abs(distance_to_plane)}");
 
                 ## Used ChatGPT, quaternion rotations is too hard.
                 # To 2D projection relative to the workplane
                 # Use the workplane orientation (quat) to project into 2D
-                local_projection = projection.copy()
-                local_projection.rotate(quat.conjugated())
-                x, y, _ = local_projection
+                local_projection = projection.copy();
+                local_projection.rotate(quat.conjugated());
+                x, y, _ = local_projection;
 
-                p = sse.add_point_2d((x, y), sketch)
+                p = sse.add_point_2d((x, y), sketch, fixed = True);
 
 
                 
