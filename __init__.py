@@ -1,7 +1,7 @@
 import logging
 import pathlib
 
-from bpy.app import background, version, version_string
+from bpy.app import background, version_string
 
 
 bl_info = {
@@ -22,13 +22,14 @@ bl_info = {
 def get_addon_version_tuple() -> tuple:
     """Return addon version as a tuple e.g. (0, 27, 1)"""
 
-    manifest = pathlib.Path(__file__).parent.parent / "blender_manifest.toml"
+    manifest = pathlib.Path(__file__).parent / "blender_manifest.toml"
     try:
         import toml
         version_tuple = toml.load(manifest)["version"]
         return tuple(map(int, version_tuple.split(".")))
     except Exception:
-        return ()
+        print("Error: Unable to retrieve addon version")
+        return (0, 0, 0)
 
 
 def get_addon_version() -> str:
@@ -41,7 +42,7 @@ def get_addon_version() -> str:
 def get_min_blender_version() -> str:
     """Returns the minimal required blender version from manifest file"""
 
-    manifest = pathlib.Path(__file__).parent.parent / "blender_manifest.toml"
+    manifest = pathlib.Path(__file__).parent / "blender_manifest.toml"
     try:
         import toml
         return toml.load(manifest)["blender_version_min"]
