@@ -135,9 +135,9 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         quat.rotate(obj_translation)
         
         workplane_origin = obj_translation @ clicked_face.center
-        print("1: " + str(obj_translation))
-        print("2: " + str(clicked_face))
-        print("2.1: " + str(clicked_face.center))
+        # print("1: " + str(obj_translation))
+        # print("2: " + str(clicked_face))
+        # print("2.1: " + str(clicked_face.center))
         origin = sse.add_point_3d(workplane_origin)
         nm = sse.add_normal_3d(quat)
 
@@ -157,7 +157,12 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         activate_sketch(context, sketch.slvs_index, self)
         self.target = sketch
 
-        limitDist = 0.005;
+        # TODO: Only project selected mesh/face depending on checkbox
+        # TODO: Option to not project after creating workplane
+        # TODO: Option to choose if projected lines/points should be construction
+
+        # Make these changable when creating face
+        limitDist = 0.025;
         connectLines = True; # May cause performance issues. idk
 
         addedPoints = {}
@@ -183,24 +188,26 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
                 local_projection.rotate(quat.conjugated());
                 x, y, _ = local_projection;
 
-                point = sse.add_point_2d((x, y), sketch, fixed = True);
+                point = sse.add_point_2d((x, y), sketch, fixed = True, index_reference = True);
                 addedPoints[vertex.index] = point;
                 # print(point.location)
 
             if (connectLines != True):
                 continue;
-            
-            # print(addedPoints);
 
             compareSet = set(addedPoints.keys())
+            # print(compareSet);
             edges = clicked_mesh.data.edges;
             for edge in edges:
-                if (set(edge.vertices) & compareSet != True): continue
+                if (set(edge.vertices).issubset(compareSet) != True): continue;
 
-                
-                
+                p1, p2 = [addedPoints[x] for x in edge.vertices];
+                # print(p1.location);
+                # print(p2.location);
+                sse.add_line_2d(p1, p2, sketch, fixed = True, index_reference = True);
 
                 # print(f"Edge {edge.index} vertices: {[str(edge.vertices[x]) for x in range(2)]}");
+                # break;
 
 
                 
