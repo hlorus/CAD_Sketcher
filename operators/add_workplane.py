@@ -158,8 +158,9 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         self.target = sketch
 
         limitDist = 0.005;
-        connectLines = True;
+        connectLines = True; # May cause performance issues. idk
 
+        addedPoints = {}
         for clicked_mesh in meshes:
             vertices = clicked_mesh.data.vertices;
             for vertex in vertices:
@@ -173,7 +174,7 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         
                 if abs(distance_to_plane) > limitDist:
                     continue;
-                print(f"Vertex {vertex.index} distance to plane: {abs(distance_to_plane)}");
+                # print(f"Vertex {vertex.index} distance to plane: {abs(distance_to_plane)}");
 
                 ## Used ChatGPT, quaternion rotations is too hard.
                 # To 2D projection relative to the workplane
@@ -182,7 +183,24 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
                 local_projection.rotate(quat.conjugated());
                 x, y, _ = local_projection;
 
-                p = sse.add_point_2d((x, y), sketch, fixed = True);
+                point = sse.add_point_2d((x, y), sketch, fixed = True);
+                addedPoints[vertex.index] = point;
+                # print(point.location)
+
+            if (connectLines != True):
+                continue;
+            
+            # print(addedPoints);
+
+            compareSet = set(addedPoints.keys())
+            edges = clicked_mesh.data.edges;
+            for edge in edges:
+                if (set(edge.vertices) & compareSet != True): continue
+
+                
+                
+
+                # print(f"Edge {edge.index} vertices: {[str(edge.vertices[x]) for x in range(2)]}");
 
 
                 
