@@ -111,9 +111,9 @@ class View3D_OT_slvs_add_sketch_face(Operator, Operator3d):
         quat.rotate(obj_translation)
         
         workplane_origin = obj_translation @ clicked_face.center
-        print("1: " + str(obj_translation))
-        print("2: " + str(clicked_face))
-        print("2.1: " + str(clicked_face.center))
+        # print("1: " + str(obj_translation))
+        # print("2: " + str(clicked_face))
+        # print("2.1: " + str(clicked_face.center))
         origin = sse.add_point_3d(workplane_origin)
         nm = sse.add_normal_3d(quat)
 
@@ -138,7 +138,7 @@ class View3D_OT_slvs_add_sketch_face(Operator, Operator3d):
         # TODO: Option to choose if projected lines/points should be construction
 
         # Make these changable when creating face
-        limitDist = 0.025;
+        limitDist = 0.001;
         connectLines = True; # May cause performance issues. idk
 
         addedPoints = {}
