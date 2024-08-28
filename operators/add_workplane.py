@@ -2,6 +2,7 @@ import logging
 
 import bpy
 from bpy.types import Operator, Context
+from mathutils import Vector
 
 from .. import global_data
 from ..model.types import SlvsNormal3D
@@ -17,6 +18,7 @@ from .base_3d import Operator3d
 from .constants import types_point_3d
 from .utilities import ignore_hover
 from ..utilities.view import get_placement_pos
+from .utilities import activate_sketch, switch_sketch_mode
 
 logger = logging.getLogger(__name__)
 
@@ -123,21 +125,61 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
     def main(self, context: Context):
         sse = context.scene.sketcher.entities
 
-        ob_name, face_index = self.get_state_pointer(index=0, implicit=True)
-        ob = get_evaluated_obj(context, bpy.data.objects[ob_name])
-        mesh = ob.data
-        face = mesh.polygons[face_index]
-
-        mat_obj = ob.matrix_world
-        quat = get_face_orientation(mesh, face)
-        quat.rotate(mat_obj)
-        pos = mat_obj @ face.center
-        origin = sse.add_point_3d(pos)
+        obj_name, clicked_face_index = self.get_state_pointer(index=0, implicit=True)
+        clicked_obj = get_evaluated_obj(context, bpy.data.objects[obj_name])
+        clicked_mesh = clicked_obj.data
+        clicked_face = clicked_mesh.polygons[clicked_face_index]
+        
+        obj_translation = clicked_obj.matrix_world
+        quat = get_face_orientation(clicked_mesh, clicked_face) # Quternion
+        quat.rotate(obj_translation)
+        
+        workplane_origin = obj_translation @ clicked_face.center
+        print("1: " + str(obj_translation))
+        print("2: " + str(clicked_face))
+        print("2.1: " + str(clicked_face.center))
+        origin = sse.add_point_3d(workplane_origin)
         nm = sse.add_normal_3d(quat)
 
         self.target = sse.add_workplane(origin, nm)
-        ignore_hover(self.target)
+        
         context.area.tag_redraw() # Force re-draw of UI (Blender doesn't update after tool usage)
+
+        meshes = [o for o in context.scene.objects if o.type == 'MESH']
+        # print(meshes)
+
+        # Workplane normal in world coordinates
+        workplane_normal = quat @ Vector((0.0, 0.0, 1.0))
+        
+        sketch = sse.add_sketch(self.target)
+        p = sse.add_point_2d((0.0, 0.0), sketch)
+        p.fixed = True
+
+        activate_sketch(context, sketch.slvs_index, self)
+        self.target = sketch
+
+        for clicked_mesh in meshes:
+            vertices = clicked_mesh.data.vertices
+            for vertex in vertices:
+                # Make vertex relative to plane
+                vertex_world = obj_translation @ vertex.co
+                translated = vertex_world - workplane_origin
+                
+                # Projection to plane
+                distance_to_plane = translated.dot(workplane_normal)
+                projection = translated - distance_to_plane * workplane_normal
+
+                ## Used ChatGPT, quaternion rotations is too hard.
+                # To 2D projection relative to the workplane
+                # Use the workplane orientation (quat) to project into 2D
+                local_projection = projection.copy()
+                local_projection.rotate(quat.conjugated())
+                x, y, _ = local_projection
+
+                p = sse.add_point_2d((x, y), sketch)
+
+
+                
         return True
 
 
