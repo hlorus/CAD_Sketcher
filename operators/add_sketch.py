@@ -91,7 +91,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
             switch_sketch_mode(self, context, to_sketch_mode=False)
 
 
-
+# TODO: Auto align view with sketch after creation
 class View3D_OT_slvs_add_sketch_face(Operator, Operator3d):
     """Add a workplane and start sketch on mesh face"""
  
@@ -154,35 +154,21 @@ class View3D_OT_slvs_add_sketch_face(Operator, Operator3d):
         quat.rotate(obj_translation)
         
         workplane_origin: tuple[float, float, float] = obj_translation @ clicked_face.center
-        # print("1: " + str(obj_translation))
-        # print("2: " + str(clicked_face))
-        # print("2.1: " + str(clicked_face.center))
         origin = sse.add_point_3d(workplane_origin)
         nm = sse.add_normal_3d(quat)
 
         self.target = sse.add_workplane(origin, nm)
 
-
-        # print(meshes)
-
         # Workplane normal in world coordinates
         workplane_normal = quat @ Vector((0.0, 0.0, 1.0))
         
         sketch = sse.add_sketch(self.target)
-        p = sse.add_point_2d((0.0, 0.0), sketch, fixed = True)
+        sse.add_point_2d((0.0, 0.0), sketch, fixed = True) # Add face centrum point
 
-        # print(self.projectFrom)
-
-        # activate_sketch(context, sketch.slvs_index, self)
+        # activate_sketch(context, sketch.slvs_index, self) # This hides the pop-up with the options for the projection
         # self.target = sketch
 
-        # TODO: Only project selected mesh/face depending on checkbox
-        # TODO: Option to not project after creating workplane
-        # TODO: Option to choose if projected lines/points should be construction
-        # TODO: Auto align view with sketch
-
-        # Make these changable when creating face
-        limitDist = 0.001 + self.projectDist;
+        limitDist = 0.001 + self.projectDist; # Should just be the project dist, but couldn't get default in property to work
 
         projectionData = ProjectionData(sse, sketch, obj_translation, workplane_origin, workplane_normal, quat)
 
@@ -217,7 +203,6 @@ class View3D_OT_slvs_add_sketch_face(Operator, Operator3d):
         
                 if abs(distance_to_plane) > maxDist:
                     continue;
-                # print(f"Vertex {vertex.index} distance to plane: {abs(distance_to_plane)}");
 
                 ## Used ChatGPT, quaternion rotations is too hard.
                 # To 2D projection relative to the workplane
@@ -228,24 +213,17 @@ class View3D_OT_slvs_add_sketch_face(Operator, Operator3d):
 
                 point = sse.add_point_2d((x, y), projectionData.sketch, fixed = True, index_reference = True);
                 addedPoints[vertex.index] = point;
-                # print(point.location)
 
             if (connectLines != True):
                 continue;
 
             compareSet = set(addedPoints.keys())
-            # print(compareSet);
             edges = clicked_mesh.data.edges;
             for edge in edges:
                 if (set(edge.vertices).issubset(compareSet) != True): continue;
 
                 p1, p2 = [addedPoints[x] for x in edge.vertices];
-                # print(p1.location);
-                # print(p2.location);
                 sse.add_line_2d(p1, p2, projectionData.sketch, fixed = True, index_reference = True);
-
-                # print(f"Edge {edge.index} vertices: {[str(edge.vertices[x]) for x in range(2)]}");
-                # break;
         pass
         
 
