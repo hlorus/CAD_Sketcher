@@ -92,6 +92,8 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
 
 
 # TODO: Auto align view with sketch after creation
+# TODO: Make it auto enter sketch
+# TODO: Make the properties work!
 class View3D_OT_slvs_add_sketch_face(Operator, Operator3d):
     """Add a workplane and start sketch on mesh face"""
  
@@ -120,7 +122,7 @@ class View3D_OT_slvs_add_sketch_face(Operator, Operator3d):
             ('MESH', "Mesh", ""),
             ('ALL', "All meshes", ""),
         ),
-        default='ALL'
+        default='ALL' # Maybe should be 'MESH' instead for performance issues. Idk
     )
 
     states = (
