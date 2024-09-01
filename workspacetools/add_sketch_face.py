@@ -10,7 +10,7 @@ class VIEW3D_T_slvs_add_sketch_face(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddSketchFace
-    bl_label = "Add a workplane and start sketch on mesh face"
+    bl_label = "Project to sketch from face"
     bl_operator = Operators.AddSketchFace
     bl_icon = "ops.mesh.primitive_grid_add_gizmo"
     bl_widget = GizmoGroups.Preselection
