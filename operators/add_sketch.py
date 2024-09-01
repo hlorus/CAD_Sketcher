@@ -144,32 +144,36 @@ class View3D_OT_slvs_add_sketch_face(Operator, Operator3d):
     def main(self, context: Context):
         sse: SlvsEntities = context.scene.sketcher.entities
 
+        # Gets info about clicked object
         obj_name, clicked_face_index = self.get_state_pointer(index=0, implicit=True)
         clicked_obj = get_evaluated_obj(context, bpy.data.objects[obj_name])
         clicked_mesh = clicked_obj.data
         clicked_face: bpy.types.MeshPolygon = clicked_mesh.polygons[clicked_face_index]
         
+        # Gets face rotation
         obj_translation: bpy.types.TransformOrientation = clicked_obj.matrix_world
         quat = get_face_orientation(clicked_mesh, clicked_face) # Quternion
         quat.rotate(obj_translation)
         
+        # Creates the workplane
         workplane_origin: tuple[float, float, float] = obj_translation @ clicked_face.center
         origin = sse.add_point_3d(workplane_origin)
         nm = sse.add_normal_3d(quat)
-
-        self.target = sse.add_workplane(origin, nm)
+        workplane = sse.add_workplane(origin, nm)
 
         # Workplane normal in world coordinates
         workplane_normal = quat @ Vector((0.0, 0.0, 1.0))
         
-        sketch = sse.add_sketch(self.target)
+        # Creates the sketch
+        sketch = sse.add_sketch(workplane)
         sse.add_point_2d((0.0, 0.0), sketch, fixed = True) # Add face centrum point
 
-        # activate_sketch(context, sketch.slvs_index, self) # This hides the pop-up with the options for the projection
+        # activate_sketch(context, sketch.slvs_index, self) # This hides the pop-up with the options for the projection. Idk why, so it is just like this
         # self.target = sketch
 
         limitDist = 0.001 + self.projectDist; # Should just be the project dist, but couldn't get default in property to work
 
+        # Prepares the data needed for the projection
         projectionData = ProjectionData(sse, sketch, obj_translation, workplane_origin, workplane_normal, quat)
 
         if self.projectFrom == 'FACE':
@@ -200,7 +204,8 @@ class View3D_OT_slvs_add_sketch_face(Operator, Operator3d):
                 # Projection to plane
                 distance_to_plane = translated.dot(projectionData.workplaneNormal);
                 projection = translated - distance_to_plane * projectionData.workplaneNormal;
-        
+
+                # If vertex is too far from sketch, then don't create sketch point
                 if abs(distance_to_plane) > maxDist:
                     continue;
 
@@ -217,6 +222,7 @@ class View3D_OT_slvs_add_sketch_face(Operator, Operator3d):
             if (connectLines != True):
                 continue;
 
+            # Takes the edges of the object and checks if the earlier added sketch points are used in the edges. If yes, then create line from first point to second point
             compareSet = set(addedPoints.keys())
             edges = clicked_mesh.data.edges;
             for edge in edges:
