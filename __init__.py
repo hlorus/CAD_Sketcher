@@ -27,8 +27,8 @@ def get_addon_version_tuple() -> tuple:
         import toml
         version_tuple = toml.load(manifest)["version"]
         return tuple(map(int, version_tuple.split(".")))
-    except Exception:
-        print("Error: Unable to retrieve addon version")
+    except Exception as e:
+        print(f"Error: Unable to retrieve addon version - {e}")
         return (0, 0, 0)
 
 
