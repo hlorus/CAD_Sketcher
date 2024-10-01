@@ -659,7 +659,10 @@ class StatefulOperatorLogic:
 
         context.workspace.status_text_set(None)
 
-        if not succeede and not skip_undo:
+        # Push undo step and undo if failed
+        if succeede:
+            bpy.ops.ed.undo_push(message=self.bl_label)
+        elif not skip_undo:
             bpy.ops.ed.undo_push(message="Cancelled: " + self.bl_label)
             bpy.ops.ed.undo()
 
