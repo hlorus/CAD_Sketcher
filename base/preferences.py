@@ -168,7 +168,7 @@ class Preferences(AddonPreferences):
     use_align_view: BoolProperty(
         name="Align View",
         description="Automatically align view to workplane when activating a sketch.",
-        default=False,
+        default=True,
     )
 
     def draw(self, context):
@@ -203,8 +203,7 @@ class Preferences(AddonPreferences):
         box.label(text="General")
         col = box.column(align=True)
         col.prop(self, "auto_hide_objects")
-        if self.show_debug_settings:
-            col.prop(self, "use_align_view")
+        col.prop(self, "use_align_view")
 
         col.prop(self, "entity_scale")
         col.prop(self, "workplane_size")
