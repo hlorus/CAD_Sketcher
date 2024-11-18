@@ -16,7 +16,7 @@ class View3D_OT_update(Operator):
         solver = Solver(context, None, all=True)
         solver.solve()
 
-        update_geometry(context.scene)
+        update_geometry(context.scene, self)
         return {"FINISHED"}
 
 

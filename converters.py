@@ -4,7 +4,7 @@ from typing import Union
 
 import bpy
 import bmesh
-from bpy.types import Mesh, Scene, Object
+from bpy.types import Mesh, Scene, Object, Operator
 
 from .model.base_entity import SlvsGenericEntity
 from .model.line_2d import SlvsLine2D
@@ -13,6 +13,8 @@ from .model.circle import SlvsCircle
 
 from .utilities.bezier import set_handles
 from .utilities.walker import EntityWalker
+from .assets_manager import load_asset
+from . import global_data
 
 logger = logging.getLogger(__name__)
 
@@ -215,7 +217,7 @@ def _link_unlink_object(scene: Scene, ob: Object, keep: bool):
 
 
 
-def update_geometry(scene: Scene, sketch=None):
+def update_geometry(scene: Scene, operator: Operator, sketch=None):
     coll = (sketch,) if sketch else scene.sketcher.entities.sketches
     for sketch in coll:
         data = bpy.data
@@ -235,7 +237,18 @@ def update_geometry(scene: Scene, sketch=None):
         _link_unlink_object(scene, sketch.target_object, True)
 
         # Add GN modifier
-        sketch.target_object.modifiers.new("Convert", "NODES")
+        modifier = sketch.target_object.modifiers.new("Convert", "NODES")
+        if not modifier:
+            operator.report({"ERROR"}, "Cannot add modifier to object")
+            return {"CANCELLED"}
+
+        # Ensure the convertor nodegroup is loaded
+        if not load_asset(global_data.LIB_NAME, "node_groups", "CAD Sketcher Convert"):
+            operator.report({"ERROR"}, "Cannot load asset 'CAD Sketcher Convert' from library")
+            return {"CANCELLED"}
+        
+        # Set the nodegroup
+        modifier.node_group = data.node_groups["CAD Sketcher Convert"]
 
         # Convert geometry to curve data
         conv = BezierConverter(scene, sketch)
