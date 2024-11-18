@@ -137,8 +137,10 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         endpoint.position = locations[1]
 
         attributes = spline.id_data.attributes
+        attributes["handle_type_right"].data[startpoint.index].value = 0
         attributes["handle_right"].data[startpoint.index].vector = locations[0]
         # startpoint.handle_right = locations[0]
+        attributes["handle_type_left"].data[startpoint.index].value = 0
         attributes["handle_left"].data[endpoint.index].vector = locations[1]
         # endpoint.handle_left = locations[1]
 

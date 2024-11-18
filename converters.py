@@ -67,7 +67,8 @@ class BezierConverter(EntityWalker):
 
     def to_bezier(self, curve_data: bpy.types.Curve):
         # Add all curve slices
-        curve_data.add_curves([self._get_point_count(p[0]) for p in self.paths], type=2)
+        curve_data.add_curves([self._get_point_count(p[0]) for p in self.paths])
+        curve_data.set_types(type="BEZIER")
         self._enusre_attributes(curve_data)
 
         # Go through all curve slices
@@ -144,6 +145,7 @@ class BezierConverter(EntityWalker):
         _ensure_attrribute(attributes, "handle_left", "FLOAT_VECTOR", "POINT")
         _ensure_attrribute(attributes, "handle_right", "FLOAT_VECTOR", "POINT")
         _ensure_attrribute(attributes, "resolution", "INT", "CURVE")
+
 
 
     @classmethod
