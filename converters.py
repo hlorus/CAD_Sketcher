@@ -19,6 +19,11 @@ from . import global_data
 logger = logging.getLogger(__name__)
 
 
+class BezierHandleType:
+    FREE = 0
+    AUTO = 1
+    VECTOR = 2
+    ALIGN = 3
 
 def _ensure_attrribute(attributes, name, type, domain):
     attr = attributes.get(name)
@@ -120,10 +125,9 @@ class BezierConverter(EntityWalker):
                 if sub_segment_count > 1:
                     kwargs["midpoints"] = midpoints
 
-
                 # Set handle types
-                set_attribute(curve_data.attributes, "handle_type_right", previous_point.index, 3)
-                set_attribute(curve_data.attributes, "handle_type_left", end.index, 3)
+                set_attribute(curve_data.attributes, "handle_type_right", previous_point.index, BezierHandleType.FREE)
+                set_attribute(curve_data.attributes, "handle_type_left", end.index, BezierHandleType.FREE)
 
 
                 # conv_func = bezier_conversion_lookup.get(segment.__class__)
@@ -216,6 +220,12 @@ def _link_unlink_object(scene: Scene, ob: Object, keep: bool):
         objects.link(ob)
 
 
+def _ensure_convert_modifier(ob):
+    """Get or create the convert modifier"""
+    modifier = ob.modifiers.get("Convert")
+    if not modifier:
+        modifier = ob.modifiers.new("Convert", "NODES")
+    return modifier
 
 def update_geometry(scene: Scene, operator: Operator, sketch=None):
     coll = (sketch,) if sketch else scene.sketcher.entities.sketches
@@ -227,6 +237,8 @@ def update_geometry(scene: Scene, operator: Operator, sketch=None):
         if not sketch.target_object:
             curve = data.hair_curves.new(name)
             sketch.target_object = data.objects.new(name, curve)
+        else:
+            sketch.target_object.data.remove_curves()
 
         # Update object properties
         sketch.target_object.matrix_world = sketch.wp.matrix_basis
@@ -237,7 +249,7 @@ def update_geometry(scene: Scene, operator: Operator, sketch=None):
         _link_unlink_object(scene, sketch.target_object, True)
 
         # Add GN modifier
-        modifier = sketch.target_object.modifiers.new("Convert", "NODES")
+        modifier = _ensure_convert_modifier(sketch.target_object)
         if not modifier:
             operator.report({"ERROR"}, "Cannot add modifier to object")
             return {"CANCELLED"}
@@ -252,7 +264,7 @@ def update_geometry(scene: Scene, operator: Operator, sketch=None):
 
         # Convert geometry to curve data
         conv = BezierConverter(scene, sketch)
-        conv.to_bezier(curve)
+        conv.to_bezier(sketch.target_object.data)
 
 
 

@@ -149,6 +149,7 @@ class SlvsCircle(Entity2D, PropertyGroup):
         base_offset = Vector((radius, q * radius))
 
         create_bezier_curve(
+            spline,
             segment_count,
             bezier_points,
             locations,

@@ -247,13 +247,14 @@ class SlvsArc(Entity2D, PropertyGroup):
             locations.reverse()
 
         if set_startpoint:
-            startpoint.co = locations[0].to_3d()
+            startpoint.position = locations[0].to_3d()
 
         n = FULL_TURN / angle if angle != 0.0 else 0
         q = (4 / 3) * math.tan(HALF_TURN / (2 * n))
         base_offset = Vector((radius, q * radius))
 
         create_bezier_curve(
+            spline,
             segment_count,
             bezier_points,
             locations,

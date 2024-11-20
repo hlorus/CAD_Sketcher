@@ -69,6 +69,7 @@ def get_bezier_curve_midpoint_positions(
 
 
 def create_bezier_curve(
+    spline: bpy.types.CurveSlice,
     segment_count,
     bezier_points,
     locations,
@@ -97,9 +98,17 @@ def create_bezier_curve(
             offset.rotate(Matrix.Rotation(angle, 2))
             coords.append((center + offset).to_3d())
 
-        b1.handle_right = coords[0]
-        b2.handle_left = coords[1]
-        b2.co = loc2.to_3d()
+        attributes = spline.id_data.attributes
+        attributes["handle_right"].data[b1.index].vector = coords[0]
+        attributes["handle_left"].data[b2.index].vector = coords[1]
+        b2.position = loc2.to_3d()
+
+
+def create_bezier_curve_attributes(
+        spline,
+        segment_count,
+        point_indices):
+    pass
 
 
 # NOTE: When tweaking, it's necessary to constrain a point that is only temporary available
