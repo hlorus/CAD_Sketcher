@@ -3,7 +3,7 @@ from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from ..solver import Solver
-from ..converters import update_convertor_geometry, update_geometry
+from ..converters import update_geometry
 
 
 class View3D_OT_update(Operator):
