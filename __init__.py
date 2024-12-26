@@ -1,7 +1,8 @@
 import logging
-import pathlib
 
-from bpy.app import background, version_string
+import bpy
+import addon_utils
+from bpy.app import background
 
 
 bl_info = {
@@ -22,14 +23,10 @@ bl_info = {
 def get_addon_version_tuple() -> tuple:
     """Return addon version as a tuple e.g. (0, 27, 1)"""
 
-    manifest = pathlib.Path(__file__).parent / "blender_manifest.toml"
-    try:
-        import toml
-        version_tuple = toml.load(manifest)["version"]
-        return tuple(map(int, version_tuple.split(".")))
-    except Exception as e:
-        print(f"Error: Unable to retrieve addon version - {e}")
-        return (0, 0, 0)
+    for mod in addon_utils.modules():
+        if mod.__name__ == __package__:
+            return addon_utils.module_bl_info(mod).get("version", (0, 0, 0))
+    return (0, 0, 0)
 
 
 def get_addon_version() -> str:
@@ -39,23 +36,20 @@ def get_addon_version() -> str:
     return ".".join(map(str, version))
 
 
-def get_min_blender_version() -> str:
+def get_min_blender_version() -> tuple:
     """Returns the minimal required blender version from manifest file"""
 
-    manifest = pathlib.Path(__file__).parent / "blender_manifest.toml"
-    try:
-        import toml
-        return toml.load(manifest)["blender_version_min"]
-    except Exception:
-        return ""
+    for mod in addon_utils.modules():
+        if mod.__name__ == __package__:
+            return addon_utils.module_bl_info(mod).get("blender", (0, 0, 0))
+    return (0, 0, 0)
 
 
 # Check user's Blender version against minimum required Blender version for add-on.
-blender_v_min = get_min_blender_version()
-if version_string < blender_v_min:
+if bpy.app.version < get_min_blender_version():
     raise Exception(
         "This add-on is only compatible with Blender versions "
-        f"{blender_v_min[0]}.{blender_v_min[1]}.{blender_v_min[2]} or greater.\n"
+        f"{get_min_blender_version()} or greater.\n"
     )
 
 from . import global_data
