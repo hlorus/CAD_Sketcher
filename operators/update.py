@@ -1,4 +1,5 @@
 from bpy.types import Operator, Context
+from bpy.props import BoolProperty
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
@@ -12,9 +13,12 @@ class View3D_OT_update(Operator):
     bl_idname = Operators.Update
     bl_label = "Force Update"
 
+    solve: BoolProperty(name="Solve", default=True, description="Solve the sketches before converting the geometry")
+
     def execute(self, context: Context):
-        solver = Solver(context, None, all=True)
-        solver.solve()
+        if self.solve:
+            solver = Solver(context, None, all=True)
+            solver.solve()
 
         update_geometry(context.scene, self)
         return {"FINISHED"}
