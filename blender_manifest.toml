@@ -1,14 +1,16 @@
 schema_version = "1.0.0"
 
 id = "CAD_Sketcher"
-version = "0.27.5"
+version = "0.28.0"
 name = "CAD Sketcher"
 tagline = "Parametric, constraint-based geometry sketcher"
 maintainer = "hlorus <dave19924@gmail.com>"
 type = "add-on"
 website = "https://www.cadsketcher.com/"
 tags = ["3D View", "Modeling", "Mesh", "Object"]
-blender_version_min = "3.3.0"
+
+blender_version_min = "4.3.0"
+
 license = ["SPDX:GPL-3.0-or-later"]
 
 wheels = [

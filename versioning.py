@@ -125,4 +125,30 @@ def do_versioning(self):
                     setattr(c, "entity1", line_dependencies[0])
                     setattr(c, "entity2", line_dependencies[1])
 
-    logger.debug(msg)
+        if version < (0, 28, 0):
+            # Handle old 'MESH' and 'BEZIER' convertion types
+            msg += "\n Update sketch conversion type to 'CURVE' for sketches:"
+            for sketch in context.scene.sketcher.entities.sketches:
+                if sketch.convert_type == 'NONE':
+                    continue
+
+                # Delete previously converted objects
+                if sketch.target_object:
+                    sketch.target_object.sketch_index = -1
+                    bpy.data.objects.remove(sketch.target_object, do_unlink=True)
+                    sketch.target_object = None
+                if sketch.target_curve_object:
+                    sketch.target_curve_object.sketch_index = -1
+                    bpy.data.objects.remove(sketch.target_curve_object, do_unlink=True)
+                    sketch.target_curve_object = None
+
+                # Change the conversion type
+                sketch.convert_type = 'CURVE'
+
+                msg += " {}".format(str(sketch))
+
+            # Trigger the convertion with the new convert type
+            bpy.ops.view3d.slvs_update(solve=False)
+                
+
+    logger.warning(msg)
