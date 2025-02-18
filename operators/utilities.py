@@ -153,8 +153,7 @@ def activate_sketch(context: Context, index: int, operator: Operator):
 
 
 def select_target_ob(context, sketch):
-    mode = sketch.convert_type
-    target_ob = sketch.target_object if mode == "MESH" else sketch.target_curve_object
+    target_ob = sketch.target_object
 
     bpy.ops.object.select_all(action="DESELECT")
     if not target_ob:
