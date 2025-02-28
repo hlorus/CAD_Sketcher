@@ -79,7 +79,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         return WpReq.OPTIONAL
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        return solvesys.addDiameter(self.diameter, self.entity1.py_data, group=group)
+        return solvesys.diameter(group, self.entity1.py_data, self.diameter)
 
     def _get_init_value(self, setting):
         value = self.entity1.radius

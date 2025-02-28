@@ -48,6 +48,29 @@ class TestConstraintAdd(Sketch2dTestCase):
         self.solve()
         self.assertAlmostEqual(c2.entity1.p2.co.x, 0.0)
 
+    def test_tangent(self):
+        p0 = self.entities.add_point_2d((0, 0), self.sketch, fixed=True, index_reference=True)
+        
+        # Add line
+        p1 = self.entities.add_point_2d((3, -1), self.sketch)
+        p2 = self.entities.add_point_2d((3, 1), self.sketch)
+        line1 = self.entities.add_line_2d(p1, p2, self.sketch)
+        self.constraints.add_vertical(line1, sketch=self.sketch)
+
+        # Add circle
+        nm = self.sketch.wp.nm
+        circle1 = self.entities.add_circle(nm, p0, 3.0, self.sketch)
+        c1 = self.constraints.add_diameter(circle1, sketch=self.sketch, init=True, value=3.0)
+
+        # Add tangent
+        self.constraints.add_tangent(circle1, line1, sketch=self.sketch)
+
+        self.solve()
+        print(p1, p2, line1, circle1, c1)
+        self.assertAlmostEqual(p1.co.x, 1.5)
+
+
+
 
 class TestConstraintInit(Sketch2dTestCase):
     def test_distance(self):

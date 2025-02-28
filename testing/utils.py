@@ -1,5 +1,5 @@
 from unittest import TestCase
-from CAD_Sketcher.solver import solve_system
+from bl_ext.extensions.CAD_Sketcher.solver import solve_system
 
 
 class BgsTestCase(TestCase):
@@ -8,7 +8,7 @@ class BgsTestCase(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from CAD_Sketcher.utilities.preferences import get_prefs
+        from bl_ext.extensions.CAD_Sketcher.utilities.preferences import get_prefs
 
         prefs = get_prefs()
         prefs.logging_level = cls.log_level

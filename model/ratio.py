@@ -44,12 +44,17 @@ class SlvsRatio(DimensionalConstraint, PropertyGroup):
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         e1, e2 = self.entity1, self.entity2
 
-        return solvesys.addLengthRatio(
-            self.value,
+        wp = self.get_workplane()
+        kwargs = {}
+        if wp:
+            kwargs['workplane'] = wp
+        
+        return solvesys.ratio(
+            group,
             e1.py_data,
             e2.py_data,
-            self.get_workplane(),
-            group=group,
+            self.value,
+            **kwargs,
         )
 
     def init_props(self, **kwargs):

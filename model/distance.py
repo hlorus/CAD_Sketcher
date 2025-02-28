@@ -164,55 +164,52 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         if type(e1) in CURVE:
             # TODO: make Horizontal and Vertical alignment work
             if type(e2) in LINE:
-                return solvesys.addPointLineDistance(
-                    value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
+                return solvesys.distance(
+                    group, e1.ct.py_data, e2.py_data, value + e1.radius, wp
                 )
             else:
                 assert isinstance(e2, SlvsPoint2D)
-                return solvesys.addPointsDistance(
-                    value + e1.radius, e1.ct.py_data, e2.py_data, wp, group
+                return solvesys.distance(
+                    group, e1.ct.py_data, e2.py_data, value + e1.radius, wp
                 )
 
         elif type(e2) in LINE:
-            func = solvesys.addPointLineDistance
+            func = solvesys.distance
             set_wp = True
         elif isinstance(e2, SlvsWorkplane):
-            func = solvesys.addPointPlaneDistance
+            func = solvesys.distance
         elif type(e2) in POINT:
             if align and all([e.is_2d() for e in (e1, e2)]):
+
                 # Get Point in between
                 p1, p2 = e1.co, e2.co
                 coords = (p2.x, p1.y)
 
-                params = [solvesys.addParamV(v, group) for v in coords]
-                p = solvesys.addPoint2d(wp, *params, group=group)
+                p = solvesys.add_point_2d(group, *coords, wp)
 
                 handles.append(
-                    solvesys.addPointsHorizontal(p, e2.py_data, wp, group=group)
+                    solvesys.horizontal(group, p, wp, entityB=e2.py_data)
                 )
                 handles.append(
-                    solvesys.addPointsVertical(p, e1.py_data, wp, group=group)
+                    solvesys.vertical(group, p, wp, entityB=e1.py_data)
                 )
 
                 base_point = e1 if alignment == "VERTICAL" else e2
                 handles.append(
-                    solvesys.addPointsDistance(
-                        value, p, base_point.py_data, wrkpln=wp, group=group
+                    solvesys.distance(
+                        group, p, base_point.py_data, value, wp
                     )
                 )
                 return handles
             else:
-                func = solvesys.addPointsDistance
+                func = solvesys.distance
             set_wp = True
 
-        kwargs = {
-            "group": group,
-        }
-
+        args = []
         if set_wp:
-            kwargs["wrkpln"] = self.get_workplane()
+            args.append(self.get_workplane())
 
-        return func(value, e1.py_data, e2.py_data, **kwargs)
+        return func(group, e1.py_data, e2.py_data, value, *args)
 
     def matrix_basis(self):
         if self.sketch_i == -1 or not self.entity1.is_2d():

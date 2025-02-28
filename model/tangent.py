@@ -25,54 +25,35 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
+
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         e1, e2 = self.entity1, self.entity2
         wp = self.get_workplane()
 
-        # check if entities share a point
-        point = get_connection_point(e1, e2)
-        if point and not isinstance(e2, SlvsCircle):
-            if isinstance(e2, SlvsLine2D):
-                return solvesys.addArcLineTangent(
-                    e1.direction(point),
-                    e1.py_data,
-                    e2.py_data,
-                    group=group,
-                )
-            elif isinstance(e2, SlvsArc):
-                return solvesys.addCurvesTangent(
-                    e1.direction(point),
-                    e2.direction(point),
-                    e1.py_data,
-                    e2.py_data,
-                    wrkpln=wp,
-                    group=group,
-                )
-
-        elif isinstance(e2, SlvsLine2D):
+        CIRCLE_ARC = (SlvsCircle, SlvsArc)
+        if type(e1) in CIRCLE_ARC and e2.is_line():
             orig = e2.p1.co
             coords = (e1.ct.co - orig).project(e2.p2.co - orig) + orig
-            params = [solvesys.addParamV(v, group) for v in coords]
-            p = solvesys.addPoint2d(wp, *params, group=group)
-            line = solvesys.addLineSegment(e1.ct.py_data, p, group=group)
-
+            p = solvesys.add_point_2d(group, *coords, wp)
+            line = solvesys.add_line_2d(group, e1.ct.py_data, p, wp)
             return (
                 make_coincident(solvesys, p, e1, wp, group),
                 make_coincident(solvesys, p, e2, wp, group),
-                solvesys.addPerpendicular(e2.py_data, line, wrkpln=wp, group=group),
+                solvesys.perpendicular(group, e2.py_data, line, workplane=wp),
             )
-
-        elif e2.is_curve():
+        elif type(e1) in CIRCLE_ARC and type(e2) in CIRCLE_ARC:
             coords = (e1.ct.co + e2.ct.co) / 2
-            params = [solvesys.addParamV(v, group) for v in coords]
-            p = solvesys.addPoint2d(wp, *params, group=group)
-            line = solvesys.addLineSegment(e1.ct.py_data, e2.ct.py_data, group=group)
+            p = solvesys.add_point_2d(group, *coords, wp)
+            line = solvesys.add_line_2d(group, e1.ct.py_data, e2.ct.py_data, wp)
 
             return (
                 make_coincident(solvesys, p, e1, wp, group),
                 make_coincident(solvesys, p, e2, wp, group),
-                solvesys.addPointOnLine(p, line, group=group, wrkpln=wp),
+                solvesys.coincident(group, p, line, wp)
             )
+
+        return solvesys.tangent(group, e2.py_data, e1.py_data, wp)
+
 
     def placements(self):
         point = get_connection_point(self.entity1, self.entity2)

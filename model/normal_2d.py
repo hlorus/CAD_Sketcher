@@ -32,7 +32,7 @@ class SlvsNormal2D(Entity2D, PropertyGroup):
         pass
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addNormal2d(self.wp.py_data, group=group)
+        handle = solvesys.add_normal_2d(group, self.wp.py_data)
         self.py_data = handle
 
 
