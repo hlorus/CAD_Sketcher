@@ -12,7 +12,7 @@ class VIEW3D_T_slvs_trim(GenericStateTool, WorkSpaceTool):
     bl_idname = WorkSpaceTools.Trim
     bl_label = "Trim"
     bl_operator = Operators.Trim
-    bl_icon = "ops.gpencil.stroke_cutter"
+    bl_icon = "ops.gpencil.stroke_trim"
     bl_widget = GizmoGroups.Preselection
     bl_keymap = (
         *tool_generic,
