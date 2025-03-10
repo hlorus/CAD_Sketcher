@@ -204,18 +204,18 @@ class Solver:
         for sketch in sketches:
             g = self._get_group(sketch)
             retval = self.solvesys.solve_sketch(g, report)
-            # {'result': 0, 'dof': 0, 'rank': 0, 'bad': 0}
 
-            if retval['result'] > 5:
+            if retval['result'] > 4:
                 logger.debug("Solver returned undocumented value: {}".format(retval))
-
-            self.result = bpyEnum(solver_state_items, index=retval['result'])
+                self.result = bpyEnum(solver_state_items, index=5)
+            else:
+                self.result = bpyEnum(solver_state_items, index=retval['result'])
 
             if report and sketch:
                 sketch.solver_state = self.result.identifier
                 sketch.dof = retval['dof']
 
-            if retval['result'] != 0 and retval['result'] != 5:
+            if retval['result'] != 0 and retval['result'] != 4:
                 self.ok = False
 
                 # Store sketch failures
