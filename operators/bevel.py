@@ -147,7 +147,9 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
                     target = sse.add_line_2d(point, self.points[i], sketch)
                     target.construction = True
                 elif isinstance(self.connected[i], SlvsArc):
-                    target = sse.add_arc(sketch.wp.nm, self.connected[i].ct, self.points[i], point, sketch)
+                    # Only access ct attribute on Arc objects
+                    center_point = self.connected[i].ct
+                    target = sse.add_arc(sketch.wp.nm, center_point, self.points[i], point, sketch)
                     target.construction = True
                     if target.angle > HALF_TURN:
                         target.invert_direction = True
