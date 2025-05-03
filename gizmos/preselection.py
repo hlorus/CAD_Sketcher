@@ -1,4 +1,5 @@
 import gpu
+import logging
 from bpy.types import Gizmo, GizmoGroup
 
 from .. import global_data
@@ -6,6 +7,8 @@ from ..declarations import Gizmos, GizmoGroups
 from ..draw_handler import ensure_selection_texture
 from ..utilities.index import rgb_to_index
 from .utilities import context_mode_check
+
+logger = logging.getLogger(__name__)
 
 
 class VIEW3D_GGT_slvs_preselection(GizmoGroup):
@@ -55,21 +58,33 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
 
         offscreen = global_data.offscreen
         if not offscreen:
+            logger.debug("No offscreen buffer available for hover detection")
             return -1
+            
         # TODO: Read buffer only once
         PICK_SIZE = 10
-        for x, y in get_spiral_coords(mouse_x, mouse_y, context.area.width, context.area.height, PICK_SIZE):
-            with offscreen.bind():
-                fb = gpu.state.active_framebuffer_get()
-                buffer = fb.read_color(x, y, 1, 1, 4, 0, "FLOAT")
-            r, g, b, alpha = buffer[0][0]
+        try:
+            for x, y in get_spiral_coords(mouse_x, mouse_y, context.area.width, context.area.height, PICK_SIZE):
+                with offscreen.bind():
+                    fb = gpu.state.active_framebuffer_get()
+                    buffer = fb.read_color(x, y, 1, 1, 4, 0, "FLOAT")
+                
+                r, g, b, alpha = buffer[0][0]
 
-            if alpha > 0:
-                index = rgb_to_index(r, g, b)
-                if index != global_data.hover:
-                    global_data.hover = index
-                    context.area.tag_redraw()
-                return -1
+                if alpha > 0:
+                    index = rgb_to_index(r, g, b)
+                    # Verify that the entity exists before setting hover
+                    entity = context.scene.sketcher.entities.get(index)
+                    if entity is not None:
+                        if index != global_data.hover:
+                            global_data.hover = index
+                            logger.debug(f"Hover detected: {entity} (index: {index})")
+                            context.area.tag_redraw()
+                        return -1
+                    else:
+                        logger.debug(f"Entity with index {index} not found in hover detection")
+        except Exception as e:
+            logger.error(f"Error during hover detection: {e}")
 
         if global_data.hover != -1:
             context.area.tag_redraw()
