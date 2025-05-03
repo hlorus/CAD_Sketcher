@@ -81,9 +81,32 @@ def mesh_from_temporary(mesh: Mesh, name: str, existing_mesh: Union[bool, None] 
     bm = bmesh.new()
     bm.from_mesh(mesh)
 
+    # First pass: dissolve vertices that are nearly collinear (handles most cases)
     bmesh.ops.dissolve_limit(
         bm, angle_limit=math.radians(0.1), verts=bm.verts, edges=bm.edges
     )
+    
+    # Second pass: specifically target line segments with multiple unnecessary vertices
+    edges_to_dissolve = []
+    for edge in bm.edges:
+        if not edge.is_boundary:
+            continue
+        
+        # Check if vertex is connected to exactly 2 edges and is nearly collinear
+        for vert in (edge.verts[0], edge.verts[1]):
+            if len(vert.link_edges) == 2:
+                edges = list(vert.link_edges)
+                vec1 = edges[0].other_vert(vert).co - vert.co
+                vec2 = edges[1].other_vert(vert).co - vert.co
+                if vec1.length > 0 and vec2.length > 0:
+                    # Check if the two edges are nearly collinear
+                    angle = vec1.angle(vec2)
+                    if abs(angle - math.pi) < 0.01:  # Very close to 180 degrees
+                        edges_to_dissolve.append(vert)
+    
+    # Dissolve unnecessary vertices
+    if edges_to_dissolve:
+        bmesh.ops.dissolve_verts(bm, verts=edges_to_dissolve)
 
     if existing_mesh:
         existing_mesh.clear_geometry()
