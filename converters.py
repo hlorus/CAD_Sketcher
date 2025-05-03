@@ -47,7 +47,12 @@ class BezierConverter(EntityWalker):
             last_index = len(path_segments) - 1
             index = 0
             for i, segment in enumerate(path_segments):
-                invert_direction = spline_path[1][i]
+                # Fix for missing direction information
+                if len(spline_path) < 2 or len(spline_path[1]) <= i:
+                    invert_direction = False
+                    logger.warning(f"Missing direction information for segment {i}, assuming False")
+                else:
+                    invert_direction = spline_path[1][i]
 
                 # TODO: rename to seg_count and segment_counts
                 sub_segment_count = segment_count[i]
