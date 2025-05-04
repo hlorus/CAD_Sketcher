@@ -95,7 +95,19 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             scale = context.region_data.view_distance
             gpu.matrix.multiply_matrix(self.matrix_basis)
             gpu.matrix.scale(Vector((scale, scale, scale)))
+            
+            # Draw outline to selection buffer (original behavior)
             super().draw_id(context)
+            
+            # Also draw the face triangles to the selection buffer
+            coords_2d = draw_rect_2d(0, 0, self.size, self.size)
+            coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
+            indices = ((0, 1, 2), (0, 2, 3))
+            
+            # Create a new batch for the face and draw it to the selection buffer
+            shader = self._id_shader
+            batch = safe_batch_for_shader(shader, "TRIS", {"pos": coords_3d}, indices=indices)
+            batch.draw(shader)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addWorkplane(self.p1.py_data, self.nm.py_data, group=group)
