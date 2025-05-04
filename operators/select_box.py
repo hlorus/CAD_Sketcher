@@ -2,13 +2,13 @@ import bpy, gpu
 from bpy.types import Operator, Context, Event
 from bpy.utils import register_classes_factory
 from mathutils import Vector
-from gpu_extras.batch import batch_for_shader
 
 from .. import global_data
 from ..declarations import Operators
 from ..utilities.index import rgb_to_index
 from ..utilities.view import refresh
 from ..utilities.select import mode_property, deselect_all
+from ..utilities.draw import safe_batch_for_shader  # Import our safe function
 
 
 def get_start_dist(value1, value2, invert: bool = False):
@@ -27,7 +27,8 @@ def draw_callback_px(self, context):
     end = self.mouse_pos
 
     box_path = (start, (end.x, start.y), end, (start.x, end.y), start)
-    batch = batch_for_shader(shader, "LINE_STRIP", {"pos": box_path})
+    # Use our safe batch creation function instead
+    batch = safe_batch_for_shader(shader, "LINE_STRIP", {"pos": box_path})
     shader.bind()
     shader.uniform_float("color", (0.0, 0.0, 0.0, 0.5))
     batch.draw(shader)
