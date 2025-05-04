@@ -123,6 +123,9 @@ class EntityWalker:
         # Not great..
         if entity.is_closed():
             path[1].append(False)
+            has_direction = True
+        else:
+            has_direction = False
 
         # NOTE: check through connecting points of entity
         # should respect all points that lie on actual geometry,
@@ -153,6 +156,12 @@ class EntityWalker:
                 path[1].insert(0, invert_direction)
             else:
                 path[1].append(invert_direction)
+            has_direction = True
+        elif not has_direction:
+            # Ensure direction is set even when there are no connection points
+            # and it's not a closed entity
+            path[1].append(False)
+            logger.debug(f"No connection points for {entity}, assuming direction False")
 
         for point, ents in zip(points, entities):
             # check through connected entities
