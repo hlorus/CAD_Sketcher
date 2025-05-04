@@ -110,7 +110,6 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             coords_2d = draw_rect_2d(0, 0, self.size, self.size)
             coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
             indices = ((0, 1, 2), (0, 2, 3))
-            
             face_batch = safe_batch_for_shader(shader, "TRIS", {"pos": coords_3d}, indices=indices)
             face_batch.draw(shader)
         
@@ -126,8 +125,8 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
         shader.uniform_bool("dashed", (False,))
         
-        # Use thicker lines for better edge selection
-        gpu.state.line_width_set(7.0)
+        # Use thicker lines for better edge selection - increased significantly
+        gpu.state.line_width_set(2.0)
         
         # Disable depth testing completely to ensure edges are always drawn
         # regardless of what's in front of them
@@ -141,8 +140,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             scale = context.region_data.view_distance
             gpu.matrix.scale(Vector((scale, scale, scale)))
             
-            # Instead of using the standard batch, create a custom batch with
-            # thicker edges for better selection
+            # Create the square edges with precise line geometry
             coords_2d = draw_rect_2d(0, 0, self.size, self.size)
             coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
             

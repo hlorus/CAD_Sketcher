@@ -2,6 +2,7 @@ import gpu
 import logging
 from bpy.types import Gizmo, GizmoGroup
 import math
+from mathutils import Vector
 
 from .. import global_data
 from ..declarations import Gizmos, GizmoGroups
@@ -34,7 +35,7 @@ class VIEW3D_GGT_slvs_preselection(GizmoGroup):
         self.gizmo = self.gizmos.new(VIEW3D_GT_slvs_preselection.bl_idname)
 
 
-def is_point_on_edge(workplane, point_2d, tolerance=5):
+def is_point_on_edge(workplane, point_2d, tolerance=2):
     """Check if a 2D point is close to any edge of the workplane square
     
     Args:
@@ -157,9 +158,14 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         if not global_data.hover_stack:
             found_indices = set()  # Use a set to prevent duplicates
             found_workplanes = []  # List to store found workplanes for edge detection
+            entity_depths = {}  # Dictionary to store entity depths
             
-            # AGGRESSIVE search with large radius
-            PICK_SIZE = 20  # select more easily
+            # Get view info for depth calculations
+            region = context.region
+            rv3d = context.region_data
+            view_origin = rv3d.view_matrix.inverted().translation
+            
+            PICK_SIZE = 5  # select more easily
             for x, y in get_spiral_coords(mouse_x, mouse_y, context.area.width, context.area.height, PICK_SIZE):
                 with offscreen.bind():
                     fb = gpu.state.active_framebuffer_get()
@@ -174,8 +180,16 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
                         # Verify this is a valid entity
                         entity = context.scene.sketcher.entities.get(index)
                         if entity and entity.is_selectable(context):
+                            # Calculate depth for workplanes
+                            depth = float('inf')  # Default to far away
                             if isinstance(entity, SlvsWorkplane):
+                                # Calculate depth as distance from view origin to workplane center
+                                center_pos = entity.p1.location
+                                depth = (center_pos - view_origin).length
                                 found_workplanes.append(entity)
+                            
+                            # Store depth information
+                            entity_depths[index] = depth
                             global_data.hover_stack.append(index)
             
             # EVEN MORE AGGRESSIVE: Check ALL workplanes in scene for edges near cursor
@@ -195,28 +209,42 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
                         # Check if this 2D point is on an edge with large tolerance
                         if is_point_on_edge(entity, (pos_2d.x, pos_2d.y)):
                             edge_indices.append(entity.slvs_index)
+                            
+                            # Calculate depth for this workplane
+                            center_pos = entity.p1.location
+                            depth = (center_pos - view_origin).length
+                            entity_depths[entity.slvs_index] = depth
+                            
                             # Add to hover stack
                             if entity.slvs_index not in global_data.hover_stack:
                                 global_data.hover_stack.append(entity.slvs_index)
             
-            # Reorder hover stack to prioritize edges
-            if edge_indices:
-                # We found edges, enter edge selection mode
-                _edge_selection_active = True
-                _selected_edge_workplane = edge_indices[0]
+            # Sort entities by depth (except edges which stay at the front)
+            if global_data.hover_stack:
+                # First separate edges and other entities
+                edge_entities = [idx for idx in global_data.hover_stack if idx in edge_indices]
+                other_entities = [idx for idx in global_data.hover_stack if idx not in edge_indices]
                 
-                # Move workplane edges to the beginning of the hover stack
-                new_stack = []
-                for idx in edge_indices:
-                    if idx in global_data.hover_stack:
-                        new_stack.append(idx)
+                # Sort the non-edge entities by depth
+                other_entities.sort(key=lambda idx: entity_depths.get(idx, float('inf')))
                 
-                # Add the rest of the entities
-                for idx in global_data.hover_stack:
-                    if idx not in edge_indices:
-                        new_stack.append(idx)
+                # Put edges first, then depth-sorted entities
+                global_data.hover_stack = edge_entities + other_entities
+                
+                # Prioritize edges for edge selection mode
+                if edge_entities:
+                    # We found edges, enter edge selection mode
+                    _edge_selection_active = True
+                    _selected_edge_workplane = edge_entities[0]
+                    
+                    # Find the closest edge if we have multiple
+                    if len(edge_entities) > 1:
+                        closest_edge = min(edge_entities, key=lambda idx: entity_depths.get(idx, float('inf')))
+                        _selected_edge_workplane = closest_edge
                         
-                global_data.hover_stack = new_stack
+                        # Reorder edge entities by depth
+                        edge_entities.sort(key=lambda idx: entity_depths.get(idx, float('inf')))
+                        global_data.hover_stack = edge_entities + other_entities
             
             # If we found entities, select the first one
             if global_data.hover_stack:
