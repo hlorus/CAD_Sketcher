@@ -15,13 +15,26 @@ logger = logging.getLogger(__name__)
 def draw_selection_buffer(context: Context):
     """Draw elements offscreen"""
     region = context.region
+    
+    # Only create a new offscreen if it doesn't exist or dimensions have changed
+    if (global_data.offscreen is None or 
+            global_data.offscreen.width != region.width or 
+            global_data.offscreen.height != region.height):
+        # Properly free the old offscreen before creating a new one
+        if global_data.offscreen is not None:
+            global_data.offscreen.free()
+            
+        try:
+            # create offscreen
+            width, height = region.width, region.height
+            offscreen = global_data.offscreen = gpu.types.GPUOffScreen(width, height)
+            logger.debug(f"Created new offscreen buffer: {width}x{height}")
+        except Exception as e:
+            logger.error(f"Failed to create offscreen buffer: {e}")
+            global_data.offscreen = None
+            return
 
-    # create offscreen
-    width, height = region.width, region.height
-    offscreen = global_data.offscreen = gpu.types.GPUOffScreen(width, height)
-
-    with offscreen.bind():
-
+    with global_data.offscreen.bind():
         fb = gpu.state.active_framebuffer_get()
         fb.clear(color=(0.0, 0.0, 0.0, 0.0))
 

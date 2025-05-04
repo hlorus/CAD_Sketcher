@@ -92,6 +92,12 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
             
             # Normal selection behavior
             entity = context.scene.sketcher.entities.get(index)
+            
+            # Add null check to prevent NoneType error
+            if entity is None:
+                self.report({"WARNING"}, "No entity found at index {}".format(index))
+                return {"CANCELLED"}
+
             value = True
             if mode == "SUBTRACT":
                 value = False

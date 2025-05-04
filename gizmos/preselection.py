@@ -71,6 +71,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
 
         offscreen = global_data.offscreen
         if not offscreen:
+            logger.debug("No offscreen buffer available for hover detection")
             return -1
             
         # Only find all entities if hover stack is empty
@@ -83,6 +84,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
                 with offscreen.bind():
                     fb = gpu.state.active_framebuffer_get()
                     buffer = fb.read_color(x, y, 1, 1, 4, 0, "FLOAT")
+                
                 r, g, b, alpha = buffer[0][0]
 
                 if alpha > 0:
