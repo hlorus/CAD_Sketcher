@@ -1,4 +1,5 @@
 import bpy
+import logging
 from bpy.utils import register_tool, unregister_tool
 
 from .add_arc2d import VIEW3D_T_slvs_add_arc2d
@@ -15,6 +16,7 @@ from .offset import VIEW3D_T_slvs_offset
 from .select import VIEW3D_T_slvs_select
 from .trim import VIEW3D_T_slvs_trim
 
+logger = logging.getLogger(__name__)
 
 tools = (
     (VIEW3D_T_slvs_select, {"separator": True, "group": False}),
@@ -59,4 +61,11 @@ def unregister():
         return
 
     for tool in reversed(tools):
-        unregister_tool(tool[0])
+        try:
+            unregister_tool(tool[0])
+        except ValueError as e:
+            # Handle the case where the tool is already removed or not found
+            logger.warning(f"Failed to unregister tool {tool[0].bl_idname}: {str(e)}")
+        except Exception as e:
+            # Log other unexpected errors but continue unregistering
+            logger.error(f"Error unregistering tool {tool[0].bl_idname}: {str(e)}")
