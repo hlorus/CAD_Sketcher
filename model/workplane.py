@@ -13,6 +13,7 @@ from ..utilities.draw import draw_rect_2d, safe_batch_for_shader
 from ..shaders import Shaders
 from ..utilities import preferences
 from ..solver import Solver
+from ..utilities.index import index_to_rgb
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 
@@ -90,24 +91,76 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
         self.restore_opengl_defaults()
 
-    def draw_id(self, context):
+    def draw_id_face(self, context):
+        """Draw only the face of the workplane to the selection buffer"""
+        if not self.is_selectable(context):
+            return
+
+        shader = self._id_shader
+        shader.bind()
+        shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
+        shader.uniform_bool("dashed", (False,))
+
         with gpu.matrix.push_pop():
             scale = context.region_data.view_distance
             gpu.matrix.multiply_matrix(self.matrix_basis)
             gpu.matrix.scale(Vector((scale, scale, scale)))
             
-            # Draw outline to selection buffer (original behavior)
-            super().draw_id(context)
-            
-            # Also draw the face triangles to the selection buffer
+            # Draw the workplane face with depth testing
             coords_2d = draw_rect_2d(0, 0, self.size, self.size)
             coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
             indices = ((0, 1, 2), (0, 2, 3))
             
-            # Create a new batch for the face and draw it to the selection buffer
-            shader = self._id_shader
-            batch = safe_batch_for_shader(shader, "TRIS", {"pos": coords_3d}, indices=indices)
-            batch.draw(shader)
+            face_batch = safe_batch_for_shader(shader, "TRIS", {"pos": coords_3d}, indices=indices)
+            face_batch.draw(shader)
+        
+        gpu.shader.unbind()
+
+    def draw_id_edges(self, context):
+        """Draw only the edges of the workplane to the selection buffer"""
+        if not self.is_selectable(context):
+            return
+
+        shader = self._id_shader
+        shader.bind()
+        shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
+        shader.uniform_bool("dashed", (False,))
+        
+        # Use thicker lines for better edge selection
+        gpu.state.line_width_set(7.0)
+        
+        # Disable depth testing completely to ensure edges are always drawn
+        # regardless of what's in front of them
+        gpu.state.depth_test_set('ALWAYS')
+        
+        with gpu.matrix.push_pop():
+            # Apply workplane's transformation
+            gpu.matrix.multiply_matrix(self.matrix_basis)
+            
+            # Apply scale to make it visually the same size
+            scale = context.region_data.view_distance
+            gpu.matrix.scale(Vector((scale, scale, scale)))
+            
+            # Instead of using the standard batch, create a custom batch with
+            # thicker edges for better selection
+            coords_2d = draw_rect_2d(0, 0, self.size, self.size)
+            coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
+            
+            # Draw each edge separately as a thick line
+            indices = ((0, 1), (1, 2), (2, 3), (3, 0))
+            edge_batch = safe_batch_for_shader(shader, "LINES", {"pos": coords_3d}, indices=indices)
+            edge_batch.draw(shader)
+        
+        # Restore OpenGL state
+        gpu.state.line_width_set(1.0)
+        gpu.state.depth_test_set('NONE')
+        gpu.shader.unbind()
+
+    def draw_id(self, context):
+        """Legacy compatibility method - now we use separate face and edge drawing"""
+        # Draw both face and edges with the default approach
+        self.draw_id_face(context)
+        self.draw_id_edges(context)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addWorkplane(self.p1.py_data, self.nm.py_data, group=group)
