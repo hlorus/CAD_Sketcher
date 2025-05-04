@@ -5,7 +5,7 @@ import logging
 
 from mathutils import Vector, Matrix
 import gpu
-from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch
+from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch, GPUIndexBuf
 from gpu_extras.batch import batch_for_shader  # We'll wrap this function
 
 from .. import global_data
@@ -19,8 +19,8 @@ def safe_batch_for_shader(shader, type: str,
                          indices: Optional[Union[List, Tuple]] = None) -> GPUBatch:
     """Safely create a batch for a shader, handling single-element data correctly.
     
-    This function wraps batch_for_shader and ensures that coordinate data is 
-    properly formatted to avoid the "object of type 'float' has no len()" error.
+    This function avoids using batch_for_shader and creates the GPU batch directly
+    to prevent the "object of type 'float' has no len()" error.
     
     Args:
         shader: The shader to use for this batch
@@ -32,32 +32,111 @@ def safe_batch_for_shader(shader, type: str,
         A GPUBatch object
     """
     try:
-        # For safety, ensure all data is properly formatted as lists
-        safe_content = {}
-        for key, data in content.items():
-            if not data:
-                # Handle empty data
-                logger.warning(f"Empty data for attribute {key}, using empty list")
-                safe_content[key] = []
+        if not content:
+            logger.warning("Empty content provided to safe_batch_for_shader")
+            return None
+        
+        # Define vertex format
+        fmt = GPUVertFormat()
+        
+        # Get the shader attribute info directly from the shader if possible
+        attrs_info = []
+        if hasattr(shader, "attrs_info_get"):
+            try:
+                # New Blender API
+                attrs_info = shader.attrs_info_get()
+            except:
+                # Fallback: assume standard attributes expected by most shaders
+                attrs_info = [("pos", "VEC3")]
+        else:
+            # Fallback: assume standard attributes expected by most shaders
+            attrs_info = [("pos", "VEC3")]
+            
+        # Add attributes to format
+        attr_ids = {}
+        for name, attr_type in attrs_info:
+            # Only add attributes that are in our content dictionary
+            if name in content:
+                # Determine component type and length
+                comp_type = 'F32'  # Default to float for most attributes
+                attr_len = 3      # Default to vec3 for position
+                
+                # Override for specific attribute types if needed
+                if attr_type == 'VEC2':
+                    attr_len = 2
+                elif attr_type == 'VEC4':
+                    attr_len = 4
+                    
+                # Add attribute to format
+                attr_ids[name] = fmt.attr_add(
+                    id=name, 
+                    comp_type=comp_type, 
+                    len=attr_len, 
+                    fetch_mode='FLOAT'
+                )
+        
+        # Ensure all content keys are added to format
+        for name in content:
+            if name not in attr_ids:
+                # Add attribute with default settings
+                attr_ids[name] = fmt.attr_add(
+                    id=name, 
+                    comp_type='F32', 
+                    len=3,
+                    fetch_mode='FLOAT'
+                )
+                
+        # Find the length of the vertex buffer (number of vertices)
+        vbo_len = 0
+        for data in content.values():
+            # Process the data to determine number of vertices
+            if isinstance(data, (list, tuple)):
+                if not data:
+                    continue
+                    
+                # Check if data is a list of vectors/points or a single vector/point
+                if isinstance(data[0], (list, tuple, Vector)):
+                    # Data is a list of vectors/points
+                    vbo_len = len(data)
+                else:
+                    # Data is a single vector, make it a list with one element
+                    vbo_len = 1
+                    
+            if vbo_len > 0:
+                break
+                
+        if vbo_len == 0:
+            logger.warning("Could not determine vertex buffer length")
+            return None
+            
+        # Create the vertex buffer
+        vbo = GPUVertBuf(fmt, vbo_len)
+        
+        # Fill the vertex buffer with data
+        for name, data in content.items():
+            if name not in attr_ids:
                 continue
                 
-            # Ensure data is a list of vectors/lists rather than a single vector or tuple
-            if isinstance(data, (list, tuple)):
-                if len(data) == 0:
-                    safe_content[key] = []
-                elif isinstance(data[0], (float, int)):
-                    # Single vector/point case (e.g., [x, y, z])
-                    safe_content[key] = [data]
-                else:
-                    # Already a list of points
-                    safe_content[key] = data
-            else:
-                # Unexpected data type
-                logger.warning(f"Unexpected data type for attribute {key}: {type(data)}")
-                safe_content[key] = [data]
+            # Process data to ensure it's in the right format
+            processed_data = data
                 
-        # Now use the standard batch_for_shader with our safe data
-        return batch_for_shader(shader, type, safe_content, indices=indices)
+            # If this is a list with a single element that's a float/int,
+            # it's likely a position vector and needs to be in a list
+            if (isinstance(data, (list, tuple)) and len(data) > 0 and 
+                isinstance(data[0], (float, int))):
+                # It's a single vector, wrap it in a list
+                processed_data = [data]
+
+            # Fill the attribute with processed data    
+            vbo.attr_fill(id=name, data=processed_data)
+            
+        # Create the batch
+        if indices is not None:
+            ibo = GPUIndexBuf(type=type, seq=indices)
+            return GPUBatch(type=type, buf=vbo, elem=ibo)
+        else:
+            return GPUBatch(type=type, buf=vbo)
+            
     except Exception as e:
         logger.error(f"Error creating batch: {e}")
         # Create an empty batch in case of failure
