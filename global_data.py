@@ -23,6 +23,10 @@ highlight_constraint = None
 
 highlight_entities = []
 
+# Variables for overlapping entity selection
+hover_stack = []  # List of entity indices at current mouse position
+hover_stack_index = -1  # Current index in the hover stack
+
 Z_AXIS = Vector((0, 0, 1))
 
 draw_handle = None

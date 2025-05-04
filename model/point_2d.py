@@ -8,7 +8,7 @@ from gpu_extras.batch import batch_for_shader
 from mathutils import Matrix, Vector
 from bpy.utils import register_classes_factory
 
-from ..utilities.draw import draw_rect_2d
+from ..utilities.draw import draw_rect_2d, safe_batch_for_shader
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
@@ -27,16 +27,12 @@ class Point2D(Entity2D):
         if bpy.app.background:
             return
 
-        u, v = self.co
-        mat_local = Matrix.Translation(Vector((u, v, 0)))
-
-        mat = self.wp.matrix_basis @ mat_local
-        size = 0.1
-        coords = draw_rect_2d(0, 0, size, size)
-        coords = [(mat @ Vector(co))[:] for co in coords]
-        indices = ((0, 1, 2), (0, 2, 3))
         pos = self.location
-        self._batch = batch_for_shader(self._shader, "POINTS", {"pos": (pos[:],)})
+
+        # Use the safe batch creation function
+        self._batch = safe_batch_for_shader(
+            self._shader, "POINTS", {"pos": pos[:]}
+        )
         self.is_dirty = False
 
     @property
