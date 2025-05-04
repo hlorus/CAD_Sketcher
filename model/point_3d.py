@@ -6,7 +6,7 @@ from bpy.props import FloatVectorProperty
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
-from ..utilities.draw import draw_cube_3d
+from ..utilities.draw import draw_cube_3d, safe_batch_for_shader
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 
@@ -23,9 +23,9 @@ class Point3D(SlvsGenericEntity):
         if bpy.app.background:
             return
 
-        coords, indices = draw_cube_3d(*self.location, 0.05)
-        self._batch = batch_for_shader(
-            self._shader, "POINTS", {"pos": (self.location[:],)}
+        # Use the safe batch creation function
+        self._batch = safe_batch_for_shader(
+            self._shader, "POINTS", {"pos": self.location[:]}
         )
         self.is_dirty = False
 

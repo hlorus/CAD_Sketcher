@@ -5,12 +5,11 @@ import bpy
 import gpu
 from mathutils import Vector, Matrix
 from bpy.types import PropertyGroup
-from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from .. import global_data
-from ..utilities.draw import draw_rect_2d
+from ..utilities.draw import draw_rect_2d, safe_batch_for_shader
 from ..shaders import Shaders
 from ..utilities import preferences
 from ..solver import Solver
@@ -46,12 +45,15 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
         p1, nm = self.p1, self.nm
 
-        coords = draw_rect_2d(0, 0, self.size, self.size)
-        coords = [(Vector(co))[:] for co in coords]
+        coords_2d = draw_rect_2d(0, 0, self.size, self.size)
+        # Convert 2D coords to 3D Vectors (assuming Z=0 in local space)
+        coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
 
         indices = ((0, 1), (1, 2), (2, 3), (3, 0))
-        self._batch = batch_for_shader(
-            self._shader, "LINES", {"pos": coords}, indices=indices
+
+        # Use safe_batch_for_shader instead
+        self._batch = safe_batch_for_shader(
+            self._shader, "LINES", {"pos": coords_3d}, indices=indices
         )
         self.is_dirty = False
 
@@ -78,10 +80,12 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
             shader.uniform_float("color", col_surface)
 
-            coords = draw_rect_2d(0, 0, self.size, self.size)
-            coords = [Vector(co)[:] for co in coords]
+            coords_2d = draw_rect_2d(0, 0, self.size, self.size)
+            coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
             indices = ((0, 1, 2), (0, 2, 3))
-            batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
+
+            # Use safe_batch_for_shader instead
+            batch = safe_batch_for_shader(shader, "TRIS", {"pos": coords_3d}, indices=indices)
             batch.draw(shader)
 
         self.restore_opengl_defaults()

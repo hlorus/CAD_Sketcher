@@ -1,35 +1,72 @@
 from collections import deque
 from math import sin, cos
-from typing import List
+from typing import List, Dict, Any, Optional, Union, Tuple
+import logging
 
 from mathutils import Vector, Matrix
+import gpu
+from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch
+from gpu_extras.batch import batch_for_shader  # We'll wrap this function
 
 from .. import global_data
 from .constants import FULL_TURN
 
+logger = logging.getLogger(__name__)
 
-# def draw_circle_2d(cx: float, cy: float, r: float, num_segments: int):
-#     """NOTE: Not used?"""
-#     # circle outline
-#     # NOTE: also see gpu_extras.presets.draw_circle_2d
-#     theta = FULL_TURN / num_segments
 
-#     # precalculate the sine and cosine
-#     c = math.cos(theta)
-#     s = math.sin(theta)
-
-#     # start at angle = 0
-#     x = r
-#     y = 0
-#     coords = []
-#     for _ in range(num_segments):
-#         coords.append((x + cx, y + cy))
-#         # apply the rotation matrix
-#         t = x
-#         x = c * x - s * y
-#         y = s * t + c * y
-#     coords.append(coords[0])
-#     return coords
+def safe_batch_for_shader(shader, type: str, 
+                         content: Dict[str, Any], 
+                         indices: Optional[Union[List, Tuple]] = None) -> GPUBatch:
+    """Safely create a batch for a shader, handling single-element data correctly.
+    
+    This function wraps batch_for_shader and ensures that coordinate data is 
+    properly formatted to avoid the "object of type 'float' has no len()" error.
+    
+    Args:
+        shader: The shader to use for this batch
+        type: The type of primitive ('POINTS', 'LINES', etc.)
+        content: Dict mapping attribute names to their data
+        indices: Optional index data
+        
+    Returns:
+        A GPUBatch object
+    """
+    try:
+        # For safety, ensure all data is properly formatted as lists
+        safe_content = {}
+        for key, data in content.items():
+            if not data:
+                # Handle empty data
+                logger.warning(f"Empty data for attribute {key}, using empty list")
+                safe_content[key] = []
+                continue
+                
+            # Ensure data is a list of vectors/lists rather than a single vector or tuple
+            if isinstance(data, (list, tuple)):
+                if len(data) == 0:
+                    safe_content[key] = []
+                elif isinstance(data[0], (float, int)):
+                    # Single vector/point case (e.g., [x, y, z])
+                    safe_content[key] = [data]
+                else:
+                    # Already a list of points
+                    safe_content[key] = data
+            else:
+                # Unexpected data type
+                logger.warning(f"Unexpected data type for attribute {key}: {type(data)}")
+                safe_content[key] = [data]
+                
+        # Now use the standard batch_for_shader with our safe data
+        return batch_for_shader(shader, type, safe_content, indices=indices)
+    except Exception as e:
+        logger.error(f"Error creating batch: {e}")
+        # Create an empty batch in case of failure
+        fmt = GPUVertFormat()
+        for key in content.keys():
+            fmt.attr_add(id=key, comp_type='F32', len=3, fetch_mode='FLOAT')
+        vbo = GPUVertBuf(fmt, 0)  # Zero-length buffer
+        batch = GPUBatch(type=type, buf=vbo)
+        return batch
 
 
 def draw_rect_2d(cx: float, cy: float, width: float, height: float):

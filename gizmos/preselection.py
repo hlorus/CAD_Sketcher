@@ -10,6 +10,7 @@ from .utilities import context_mode_check
 
 logger = logging.getLogger(__name__)
 
+_last_mouse_pos = None
 
 class VIEW3D_GGT_slvs_preselection(GizmoGroup):
     bl_idname = GizmoGroups.Preselection
@@ -40,6 +41,8 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         pass
 
     def test_select(self, context, location):
+        global _last_mouse_pos
+        
         # reset gizmo highlight
         if global_data.highlight_constraint:
             global_data.highlight_constraint = None
@@ -58,12 +61,13 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         
         # Check if mouse has moved since last position
         current_pos = (mouse_x, mouse_y)
-        if hasattr(self, "last_pos") and self.last_pos != current_pos:
+        # Use the global variable _last_mouse_pos instead of self.last_pos
+        if _last_mouse_pos is not None and _last_mouse_pos != current_pos:
             # Mouse moved, clear stack
             global_data.hover_stack = []
             global_data.hover_stack_index = -1
         
-        self.last_pos = current_pos
+        _last_mouse_pos = current_pos
 
         offscreen = global_data.offscreen
         if not offscreen:
