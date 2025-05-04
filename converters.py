@@ -80,33 +80,89 @@ class BezierConverter(EntityWalker):
 def mesh_from_temporary(mesh: Mesh, name: str, existing_mesh: Union[bool, None] = None):
     bm = bmesh.new()
     bm.from_mesh(mesh)
-
-    # First pass: dissolve vertices that are nearly collinear (handles most cases)
-    bmesh.ops.dissolve_limit(
-        bm, angle_limit=math.radians(0.1), verts=bm.verts, edges=bm.edges
-    )
     
-    # Second pass: specifically target line segments with multiple unnecessary vertices
-    edges_to_dissolve = []
-    for edge in bm.edges:
-        if not edge.is_boundary:
-            continue
+    # Flag to identify if we're dealing with a circle/arc
+    # Identify circular shapes by checking if there are vertices with many connections
+    # Most circle/arc vertices will have exactly 2 connections
+    circular_shape = False
+    vertex_count = len(bm.verts)
+    edge_count = len(bm.edges)
+    
+    # Heuristic for circular shapes - circles tend to have a specific ratio of edges to vertices
+    if vertex_count > 8 and edge_count >= vertex_count:
+        # Check the curvature - if we have consistent curvature, likely a circle/arc
+        # For a circle, each vertex would have a similar angle with its neighbors
+        angles = []
+        for edge in bm.edges:
+            if not edge.is_boundary:
+                continue
+            
+            for vert in (edge.verts[0], edge.verts[1]):
+                if len(vert.link_edges) == 2:
+                    edges = list(vert.link_edges)
+                    vec1 = edges[0].other_vert(vert).co - vert.co
+                    vec2 = edges[1].other_vert(vert).co - vert.co
+                    if vec1.length > 0 and vec2.length > 0:
+                        angle = vec1.angle(vec2)
+                        angles.append(angle)
         
-        # Check if vertex is connected to exactly 2 edges and is nearly collinear
-        for vert in (edge.verts[0], edge.verts[1]):
-            if len(vert.link_edges) == 2:
-                edges = list(vert.link_edges)
-                vec1 = edges[0].other_vert(vert).co - vert.co
-                vec2 = edges[1].other_vert(vert).co - vert.co
-                if vec1.length > 0 and vec2.length > 0:
-                    # Check if the two edges are nearly collinear
-                    angle = vec1.angle(vec2)
-                    if abs(angle - math.pi) < 0.01:  # Very close to 180 degrees
-                        edges_to_dissolve.append(vert)
+        # Check if angles are consistent (circles have consistent internal angles)
+        if angles and len(angles) > 4:
+            avg_angle = sum(angles) / len(angles)
+            # Check if avg_angle is not close to 180 degrees (straight line)
+            if abs(avg_angle - math.pi) > 0.1:
+                circular_shape = True
     
-    # Dissolve unnecessary vertices
-    if edges_to_dissolve:
-        bmesh.ops.dissolve_verts(bm, verts=edges_to_dissolve)
+    # If it doesn't appear to be a circle/arc, apply the original removal process
+    if not circular_shape:
+        # First pass: dissolve vertices that are nearly collinear (handles most cases)
+        bmesh.ops.dissolve_limit(
+            bm, angle_limit=math.radians(0.1), verts=bm.verts, edges=bm.edges
+        )
+        
+        # Second pass: specifically target line segments with multiple unnecessary vertices
+        edges_to_dissolve = []
+        for edge in bm.edges:
+            if not edge.is_boundary:
+                continue
+            
+            # Check if vertex is connected to exactly 2 edges and is nearly collinear
+            for vert in (edge.verts[0], edge.verts[1]):
+                if len(vert.link_edges) == 2:
+                    edges = list(vert.link_edges)
+                    vec1 = edges[0].other_vert(vert).co - vert.co
+                    vec2 = edges[1].other_vert(vert).co - vert.co
+                    if vec1.length > 0 and vec2.length > 0:
+                        # Check if the two edges are nearly collinear
+                        angle = vec1.angle(vec2)
+                        if abs(angle - math.pi) < 0.01:  # Very close to 180 degrees
+                            edges_to_dissolve.append(vert)
+        
+        # Dissolve unnecessary vertices
+        if edges_to_dissolve:
+            bmesh.ops.dissolve_verts(bm, verts=edges_to_dissolve)
+    else:
+        # For circular shapes, use a more conservative approach
+        # Only remove truly collinear vertices with a much stricter threshold
+        edges_to_dissolve = []
+        for edge in bm.edges:
+            if not edge.is_boundary:
+                continue
+            
+            for vert in (edge.verts[0], edge.verts[1]):
+                if len(vert.link_edges) == 2:
+                    edges = list(vert.link_edges)
+                    vec1 = edges[0].other_vert(vert).co - vert.co
+                    vec2 = edges[1].other_vert(vert).co - vert.co
+                    if vec1.length > 0 and vec2.length > 0:
+                        # Only dissolve if practically a straight line (much stricter threshold)
+                        angle = vec1.angle(vec2)
+                        if abs(angle - math.pi) < 0.001:  # 0.057 degrees - extremely close to 180 degrees
+                            edges_to_dissolve.append(vert)
+        
+        # Dissolve only truly unnecessary vertices
+        if edges_to_dissolve:
+            bmesh.ops.dissolve_verts(bm, verts=edges_to_dissolve)
 
     if existing_mesh:
         existing_mesh.clear_geometry()
