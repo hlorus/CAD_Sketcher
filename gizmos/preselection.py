@@ -34,7 +34,7 @@ class VIEW3D_GGT_slvs_preselection(GizmoGroup):
         self.gizmo = self.gizmos.new(VIEW3D_GT_slvs_preselection.bl_idname)
 
 
-def is_point_on_edge(workplane, point_2d, tolerance=2.5):
+def is_point_on_edge(workplane, point_2d, tolerance=5):
     """Check if a 2D point is close to any edge of the workplane square
     
     Args:
@@ -159,7 +159,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             found_workplanes = []  # List to store found workplanes for edge detection
             
             # AGGRESSIVE search with large radius
-            PICK_SIZE = 10  # select more easily
+            PICK_SIZE = 20  # select more easily
             for x, y in get_spiral_coords(mouse_x, mouse_y, context.area.width, context.area.height, PICK_SIZE):
                 with offscreen.bind():
                     fb = gpu.state.active_framebuffer_get()
