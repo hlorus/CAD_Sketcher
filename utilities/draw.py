@@ -126,6 +126,31 @@ def safe_batch_for_shader(shader, type: str,
                 isinstance(data[0], (float, int))):
                 # It's a single vector, wrap it in a list
                 processed_data = [data]
+            
+            # Detect the actual dimension of the data (2D vs 3D)
+            # and adapt it based on the attribute name
+            data_len = None
+            attr_len = 3  # Default to 3D for position attributes
+            
+            # Use attribute naming convention to determine expected dimensions
+            if name == "texCoord":
+                attr_len = 2  # Texture coordinates are typically 2D
+            
+            # For "pos" attribute in screen space operations, also check the primitive type
+            if name == "pos" and type in ("LINE_STRIP_ADJACENCY", "LINE_STRIP", "LINES", "POINTS") and len(processed_data) > 0:
+                # Check first element to determine dimensionality
+                sample = processed_data[0]
+                if isinstance(sample, (list, tuple, Vector)):
+                    data_len = len(sample)
+                    
+                    # Adapt the data if dimensions don't match
+                    if data_len != attr_len:
+                        # 2D data for a 3D attribute: add Z=0
+                        if data_len == 2 and attr_len == 3:
+                            processed_data = [(*item, 0.0) for item in processed_data]
+                        # 3D data for a 2D attribute: truncate Z
+                        elif data_len == 3 and attr_len == 2:
+                            processed_data = [item[:2] for item in processed_data]
 
             # Fill the attribute with processed data    
             vbo.attr_fill(id=name, data=processed_data)
