@@ -105,39 +105,6 @@ def create_bezier_curve(
         b2.co = loc2.to_3d()
 
 
-# NOTE: When tweaking, it's necessary to constrain a point that is only temporary available
-# and has no SlvsPoint representation
-def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
-    func = None
-    set_wp = False
-
-    if entity_type:
-        handle = e2
-    else:
-        entity_type = type(e2)
-        handle = e2.py_data
-
-    if entity_type in LINE:
-        func = solvesys.addPointOnLine
-        set_wp = True
-    elif entity_type in CURVE:
-        func = solvesys.addPointOnCircle
-    elif entity_type == SlvsWorkplane:
-        func = solvesys.addPointInPlane
-    elif entity_type in POINT:
-        func = solvesys.addPointsCoincident
-        set_wp = True
-
-    kwargs = {
-        "group": group,
-    }
-
-    if set_wp:
-        kwargs["wrkpln"] = wp
-
-    return func(point_handle, handle, **kwargs)
-
-
 def update_pointers(scene, index_old, index_new):
     """Replaces all references to an entity index with its new index"""
     logger.debug("Update references {} -> {}".format(index_old, index_new))

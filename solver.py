@@ -1,9 +1,7 @@
 import logging
 from .utilities.bpy import bpyEnum
 from .global_data import solver_state_items
-
-# TODO: Move to utilities.data_handling
-from .model.utilities import make_coincident
+from .utilities.data_handling import make_coincident
 
 logger = logging.getLogger(__name__)
 
