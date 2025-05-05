@@ -58,6 +58,7 @@ if bpy.app.version < get_min_blender_version():
         f"{get_min_blender_version()} or greater.\n"
     )
 
+# Keep module import for global_data since we modify module variables
 from . import global_data
 from .registration import register_base, unregister_base, register_full, unregister_full
 from .utilities.install import check_module
