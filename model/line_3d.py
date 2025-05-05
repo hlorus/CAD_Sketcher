@@ -6,7 +6,6 @@ from bpy.types import PropertyGroup
 from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch  # Import necessary types
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 from ..utilities.geometry import nearest_point_line_line
