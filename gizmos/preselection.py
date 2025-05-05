@@ -87,6 +87,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         pass
 
     def test_select(self, context, location):
+        global _edge_selection_active
         
         # reset gizmo highlight
         if global_data.highlight_constraint:
@@ -105,7 +106,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         
         # Track current mouse position
         current_pos = (mouse_x, mouse_y)
-        global_data._last_mouse_pos = current_pos
+        _last_mouse_pos = current_pos
 
         # Reset hover state every time, but be more careful about it
         # Don't clear everything if we're in a sketch - we need to keep track of sketch entities
@@ -113,12 +114,12 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         global_data.hover_stack_index = -1
         
         # Keep edge selection state for workplanes
-        if not global_data._edge_selection_active:
-            global_data._selected_edge_workplane = -1
+        if not _edge_selection_active:
+            _selected_edge_workplane = -1
 
         # Clear hover state by default but don't do a full reset
         # This allows hover state to be properly updated
-        # global_data.hover = -1
+        global_data.hover = -1
 
         # Check for entities at current mouse position
         if not global_data.offscreen:
@@ -138,7 +139,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         
         PICK_SIZE = 5  # select more easily
         for x, y in get_spiral_coords(mouse_x, mouse_y, context.area.width, context.area.height, PICK_SIZE):
-            with offscreen.bind():
+            with global_data.offscreen.bind():
                 fb = gpu.state.active_framebuffer_get()
                 buffer = fb.read_color(x, y, 1, 1, 4, 0, "FLOAT")
             r, g, b, alpha = buffer[0][0]
@@ -177,8 +178,8 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
                 pos_2d = get_pos_2d(context, entity, location)
                 
                 if pos_2d and is_point_on_edge(entity, (pos_2d.x, pos_2d.y)):
-                    global_data._edge_selection_active = True
-                    global_data._selected_edge_workplane = entity.slvs_index
+                    _edge_selection_active = True
+                    _selected_edge_workplane = entity.slvs_index
             
             context.area.tag_redraw()
             return -1
@@ -190,6 +191,8 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
 
     def cycle_hover_stack(self, context):
         """Cycle to the next entity in the hover stack""" 
+        global _edge_selection_active, _selected_edge_workplane
+
         if not global_data.hover_stack:
             return
         
@@ -203,11 +206,11 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         if entity and isinstance(entity, SlvsWorkplane):
              # Re-check if the current cursor position is actually on its edge?
              # For now, just assume if it's a workplane in the stack, it might be an edge.
-            global_data._edge_selection_active = True
-            global_data._selected_edge_workplane = entity.slvs_index
+            _edge_selection_active = True
+            _selected_edge_workplane = entity.slvs_index
         else:
-            global_data._edge_selection_active = False
-            global_data._selected_edge_workplane = -1
+            _edge_selection_active = False
+            _selected_edge_workplane = -1
             
         # Log what entity we're hovering
         entity_name = entity.name if entity else "Unknown"

@@ -18,7 +18,7 @@ redraw_selection_buffer = True
 
 hover = -1
 hover_index = -1
-ignore_list = {}
+ignore_list = []
 selected = []
 
 # Allows to highlight a constraint gizmo,

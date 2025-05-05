@@ -578,7 +578,7 @@ class StatefulOperatorLogic:
         if self._undo:
             bpy.ops.ed.undo_push(message="Redo: " + self.bl_label)
             bpy.ops.ed.undo()
-            global_data.ignore_list.clear()
+            global_data.ignore_list = []
             self.redo_states(context)
             self._undo = False
 
@@ -655,7 +655,7 @@ class StatefulOperatorLogic:
         context.window.cursor_modal_restore()
         if hasattr(self, "fini"):
             self.fini(context, succeede)
-        global_data.ignore_list.clear()
+        global_data.ignore_list = []
 
         context.workspace.status_text_set(None)
 
