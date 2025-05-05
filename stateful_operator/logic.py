@@ -6,7 +6,7 @@ from mathutils import Vector
 # TODO: Move to entity extended op
 from .. import global_data
 
-from .utilities.generic import to_list
+from ..utilities.data_handling import to_list
 from .utilities.description import state_desc, stateful_op_desc
 from .utilities.keymap import (
     get_key_map_desc,

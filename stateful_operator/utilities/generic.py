@@ -4,17 +4,6 @@ from bpy.types import Object
 from mathutils.bvhtree import BVHTree
 from ..logic import StatefulOperatorLogic
 
-
-def to_list(val):
-    if val is None:
-        return []
-    if type(val) in (list, tuple):
-        return list(val)
-    return [
-        val,
-    ]
-
-
 def get_pointer_get_set(index: int):
     @property
     def func(self):

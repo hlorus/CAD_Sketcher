@@ -11,7 +11,6 @@ from .geometry import intersect_line_line_2d, intersect_line_sphere_2d
 from ..model.base_entity import SlvsGenericEntity
 from .data_handling import to_list
 
-
 class ElementTypes(str, Enum):
     Line = "LINE"
     Sphere = "Sphere"
