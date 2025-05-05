@@ -6,7 +6,17 @@ from mathutils import Matrix
 from ..model.types import GenericConstraint
 from ..utilities.constants import QUARTER_TURN
 from ..utilities.preferences import get_prefs
-
+# Import fallback colors from theme.py
+from ..base.theme import (
+    CONSTRAINT_COLOR_DEFAULT,
+    CONSTRAINT_COLOR_HIGHLIGHT,
+    CONSTRAINT_COLOR_FAILED,
+    CONSTRAINT_COLOR_FAILED_HIGHLIGHT,
+    CONSTRAINT_COLOR_REFERENCE,
+    CONSTRAINT_COLOR_REFERENCE_HIGHLIGHT,
+    CONSTRAINT_COLOR_TEXT,
+    CONSTRAINT_COLOR_TEXT_HIGHLIGHT
+)
 
 class Color(Enum):
     Default = auto()
@@ -24,7 +34,26 @@ def get_constraint_color_type(constraint: GenericConstraint):
 
 
 def get_color(color_type: Color, highlit: bool):
-    c_theme = get_prefs().theme_settings.constraint
+    prefs = get_prefs()
+    
+    # Handle case when preferences aren't available
+    if prefs is None:
+        # Use fallback colors
+        fallback_match = {
+            # (type, highlit): color
+            (Color.Default, False): CONSTRAINT_COLOR_DEFAULT,
+            (Color.Default, True): CONSTRAINT_COLOR_HIGHLIGHT,
+            (Color.Failed, False): CONSTRAINT_COLOR_FAILED,
+            (Color.Failed, True): CONSTRAINT_COLOR_FAILED_HIGHLIGHT,
+            (Color.Reference, False): CONSTRAINT_COLOR_REFERENCE,
+            (Color.Reference, True): CONSTRAINT_COLOR_REFERENCE_HIGHLIGHT,
+            (Color.Text, False): CONSTRAINT_COLOR_TEXT,
+            (Color.Text, True): CONSTRAINT_COLOR_TEXT_HIGHLIGHT,
+        }
+        return fallback_match[(color_type, highlit)]
+    
+    # Use theme settings when available
+    c_theme = prefs.theme_settings.constraint
     theme_match = {
         # (type, highlit): color
         (Color.Default, False): c_theme.default,
