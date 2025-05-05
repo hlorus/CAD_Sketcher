@@ -40,7 +40,7 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
             return (type(e),)
         return cls.signature[index]
 
-    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED:
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         e1, e2 = self.entity1, self.entity2
 
         func = None

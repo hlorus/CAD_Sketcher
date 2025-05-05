@@ -14,6 +14,7 @@ from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, tag_update
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN, QUARTER_TURN
+from ..base.constants import SOLVER_GROUP_FIXED
 from ..utilities.math import range_2pi, pol2cart
 from ..utilities.draw import coords_arc_2d, safe_batch_for_shader
 from .utilities import (

@@ -1,7 +1,6 @@
 import logging
 from .utilities.bpy import bpyEnum
 from .global_data import solver_state_items
-from .utilities.data_handling import make_coincident
 from .base.constants import SOLVER_GROUP_FIXED, SOLVER_GROUP_3D, SOLVER_START_SKETCH_GROUPS
 
 logger = logging.getLogger(__name__)
@@ -92,7 +91,8 @@ class Solver:
                         )
 
                     e.create_slvs_data(self.solvesys, group=group)
-
+                    # avoid circular import
+                    from .utilities.data_handling import make_coincident
                     self.tweak_constraint = make_coincident(
                         self.solvesys, p, e, wp, group
                     )

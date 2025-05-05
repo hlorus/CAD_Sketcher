@@ -12,7 +12,6 @@ from ..declarations import Operators
 from ..utilities.preferences import get_prefs
 from ..utilities.index import index_to_rgb, breakdown_index
 from ..utilities.view import update_cb
-from ..utilities.solver import update_system_cb
 from ..base.theme import (
     ENTITY_COLOR_DEFAULT,
     ENTITY_COLOR_HIGHLIGHT,
@@ -24,6 +23,12 @@ from ..base.theme import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# wrapper to dynamically import update_system_cb when needed to avoid circular imports
+def _update_system_cb(self, context):
+    from ..utilities.solver import update_system_cb
+    update_system_cb(self, context)
 
 
 class SlvsGenericEntity:
@@ -40,7 +45,7 @@ class SlvsGenericEntity:
         set=entity_name_setter,
         options={"SKIP_SAVE"},
     )
-    fixed: BoolProperty(name="Fixed", update=update_system_cb)
+    fixed: BoolProperty(name="Fixed", update=_update_system_cb)
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     origin: BoolProperty(name="Origin")
     construction: BoolProperty(name="Construction")

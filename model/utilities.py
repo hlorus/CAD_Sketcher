@@ -6,9 +6,6 @@ from bpy.types import Context
 import math
 from mathutils import Vector, Matrix
 
-from .categories import LINE, CURVE, POINT
-from .workplane import SlvsWorkplane
-
 logger = logging.getLogger(__name__)
 
 

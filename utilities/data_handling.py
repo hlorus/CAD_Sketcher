@@ -4,7 +4,8 @@ import logging
 
 from bpy.types import Scene, Context
 
-from ..model.types import SlvsGenericEntity, SlvsSketch, GenericConstraint
+from ..model.base_entity import SlvsGenericEntity
+from ..model.types import SlvsSketch, GenericConstraint
 from ..model.utilities import update_pointers
 from ..model.workplane import SlvsWorkplane
 from ..model.categories import LINE, CURVE, POINT

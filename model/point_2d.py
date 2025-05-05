@@ -8,11 +8,10 @@ from gpu_extras.batch import batch_for_shader
 from mathutils import Matrix, Vector
 from bpy.utils import register_classes_factory
 
-from ..utilities.draw import draw_rect_2d, safe_batch_for_shader
-from ..solver import Solver
+from ..utilities.draw import safe_batch_for_shader
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
-from .utilities import slvs_entity_pointer, make_coincident
+from .utilities import slvs_entity_pointer
 from .line_2d import SlvsLine2D
 from ..global_data import safe_create_batch, safe_clear_dirty
 from ..base.constants import SOLVER_GROUP_FIXED
@@ -118,6 +117,9 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         endpoint = solvesys.addPoint2d(wrkpln.py_data, *params, group=group)
 
         edge = solvesys.addLineSegment(startpoint, endpoint, group=group)
+        # avoid circular dependency
+        from ..utilities.data_handling import make_coincident
+
         make_coincident(
             solvesys, self.py_data, edge, wrkpln.py_data, group, entity_type=SlvsLine2D
         )
