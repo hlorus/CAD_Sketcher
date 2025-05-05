@@ -11,6 +11,7 @@ from .utilities import slvs_entity_pointer
 from ..utilities.geometry import nearest_point_line_line
 from ..utilities.draw import safe_batch_for_shader
 from ..base.constants import SOLVER_GROUP_FIXED
+from .. import global_data
 
 
 logger = logging.getLogger(__name__)
@@ -49,11 +50,11 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         p1, p2 = self.p1.location, self.p2.location
         coords = [p1, p2]
 
-        # Use safe_batch_for_shader instead
-        self._batch = safe_batch_for_shader(
+        # Use global data's safe batch storage instead of direct assignment
+        global_data.safe_create_batch(self, safe_batch_for_shader,
             self._shader, "LINES", {"pos": coords}
         )
-        self.is_dirty = False
+        global_data.safe_clear_dirty(self)
 
     def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)

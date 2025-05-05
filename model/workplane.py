@@ -7,6 +7,7 @@ from mathutils import Vector, Matrix
 from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
+from .. import global_data
 from ..declarations import Operators
 from .. import global_data
 from ..utilities.draw import draw_rect_2d, safe_batch_for_shader
@@ -55,11 +56,11 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
         indices = ((0, 1), (1, 2), (2, 3), (3, 0))
 
-        # Use safe_batch_for_shader instead
-        self._batch = safe_batch_for_shader(
+        # Use global_data's safe batch storage instead of direct assignment
+        global_data.safe_create_batch(self, safe_batch_for_shader,
             self._shader, "LINES", {"pos": coords_3d}, indices=indices
         )
-        self.is_dirty = False
+        global_data.safe_clear_dirty(self)
 
     # NOTE: probably better to avoid overwriting draw func..
     def draw(self, context):

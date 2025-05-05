@@ -11,7 +11,6 @@ from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 from ..utilities.bpy import bpyEnum
 from .. import global_data
-from ..global_data import solver_state_items
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +73,8 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
             yield e
 
     def update(self):
-        self.is_dirty = False
+        # Use global_data's safe method instead of direct assignment
+        global_data.safe_clear_dirty(self)
 
     def draw(self, context):
         pass
