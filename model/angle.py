@@ -12,6 +12,7 @@ from ..utilities.math import range_2pi
 from ..global_data import WpReq
 from ..utilities.view import location_3d_to_region_2d
 from .base_constraint import DimensionalConstraint
+from ..base.constants import SOLVER_GROUP_FIXED
 from .line_2d import SlvsLine2D
 from .utilities import slvs_entity_pointer
 from ..utilities.geometry import line_abc_form, get_line_intersection
@@ -70,7 +71,7 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     def from_displayed_value(self, value):
         return HALF_TURN - value if self.setting else value
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         kwargs = {
             "group": group,
         }

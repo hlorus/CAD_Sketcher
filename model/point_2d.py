@@ -15,6 +15,7 @@ from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, make_coincident
 from .line_2d import SlvsLine2D
 from ..global_data import safe_create_batch, safe_clear_dirty
+from ..base.constants import SOLVER_GROUP_FIXED
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class Point2D(Entity2D):
     def placement(self):
         return self.location
 
-    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, coords=None, group=SOLVER_GROUP_FIXED):
         if not coords:
             coords = self.co
 

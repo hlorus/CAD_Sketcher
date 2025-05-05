@@ -12,6 +12,7 @@ from .utilities import slvs_entity_pointer
 from .categories import POINT
 from .workplane import SlvsWorkplane
 from .line_2d import SlvsLine2D
+from ..base.constants import SOLVER_GROUP_FIXED
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class SlvsSymmetric(GenericConstraint, PropertyGroup):
             return WpReq.NOT_FREE
         return WpReq.FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         e1, e2, e3 = self.entity1, self.entity2, self.entity3
 
         # NOTE: this doesn't seem to work correctly, acts like addSymmetricVertical
