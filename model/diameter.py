@@ -6,7 +6,7 @@ from bpy.props import BoolProperty, FloatProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 
-from ..solver import Solver
+from ..base.constants import SOLVER_GROUP_FIXED
 from ..global_data import WpReq
 from ..utilities.view import location_3d_to_region_2d
 from ..utilities.math import range_2pi, pol2cart
@@ -78,7 +78,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     def needs_wp(self):
         return WpReq.OPTIONAL
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         return solvesys.addDiameter(self.diameter, self.entity1.py_data, group=group)
 
     def _get_init_value(self, setting):

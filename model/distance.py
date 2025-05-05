@@ -7,7 +7,6 @@ from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 from mathutils.geometry import distance_point_to_plane, intersect_point_line
 
-from ..solver import Solver
 from ..utilities import preferences
 from ..global_data import WpReq
 from ..utilities.view import location_3d_to_region_2d
@@ -17,6 +16,7 @@ from .utilities import slvs_entity_pointer
 from .categories import POINT, LINE, POINT2D, CURVE
 from ..utilities.solver import update_system_cb
 from ..utilities.bpy import setprop, bpyEnum
+from ..base.constants import SOLVER_GROUP_FIXED
 
 from .workplane import SlvsWorkplane
 from .point_3d import SlvsPoint3D
@@ -142,7 +142,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             return value * -1
         return value
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         if self.entity1 == self.entity2:
             raise AttributeError("Cannot create constraint between one entity itself")
         # TODO: don't allow Distance if Point -> Line if (Point in Line)

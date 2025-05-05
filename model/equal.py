@@ -1,10 +1,11 @@
 import logging
 
+import bpy
 from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
 from .base_constraint import GenericConstraint
+from ..base.constants import SOLVER_GROUP_FIXED
 from .utilities import slvs_entity_pointer
 from .categories import LINE, CURVE
 from .line_2d import SlvsLine2D
@@ -39,7 +40,7 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
             return (type(e),)
         return cls.signature[index]
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED:
         e1, e2 = self.entity1, self.entity2
 
         func = None
