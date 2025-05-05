@@ -31,7 +31,9 @@ from .constants import (
     DEFAULT_ARROW_SCALE,
     DEFAULT_USE_ALIGN_VIEW,
 )
-from .. import global_data, units
+# Keep module import for global_data since we need to access a variable that may be modified
+from .. import global_data
+from .. import units
 from ..declarations import Operators
 from ..utilities.register import get_path, get_name
 from ..utilities.view import update_cb

@@ -18,6 +18,7 @@ from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 from ..base.constants import DEFAULT_WORKPLANE_SIZE
 from .constants import WORKPLANE_EDGE_LINE_WIDTH
+from ..global_data import Z_AXIS
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +188,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     @property
     def normal(self):
-        v = global_data.Z_AXIS.copy()
+        v = Z_AXIS.copy()
         quat = self.nm.orientation
         v.rotate(quat)
         return v
