@@ -62,10 +62,21 @@ def unregister():
 
     for tool in reversed(tools):
         try:
+            # Check if the tool has already been unregistered
+            if not hasattr(tool[0], "_bl_tool"):
+                logger.info(f"Tool {tool[0].bl_idname} already unregistered, skipping")
+                continue
+                
             unregister_tool(tool[0])
         except ValueError as e:
             # Handle the case where the tool is already removed or not found
             logger.warning(f"Failed to unregister tool {tool[0].bl_idname}: {str(e)}")
+            # Clean up the tool reference to prevent future errors
+            if hasattr(tool[0], "_bl_tool"):
+                del tool[0]._bl_tool
         except Exception as e:
             # Log other unexpected errors but continue unregistering
             logger.error(f"Error unregistering tool {tool[0].bl_idname}: {str(e)}")
+            # Clean up the tool reference to prevent future errors
+            if hasattr(tool[0], "_bl_tool"):
+                del tool[0]._bl_tool
