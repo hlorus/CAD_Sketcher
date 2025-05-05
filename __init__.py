@@ -3,6 +3,7 @@ import logging
 import bpy
 import addon_utils
 from bpy.app import background
+import bpy.app
 
 
 bl_info = {
@@ -62,18 +63,30 @@ from .utilities.logging import setup_logger, update_logger
 
 # Globals
 logger = logging.getLogger(__name__)
+_load_post_handler_added = False
+
+
+def initialize_logger_level():
+    global _load_post_handler_added
+    # Ensure it runs only once and cleans up
+    if initialize_logger_level in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(initialize_logger_level)
+    _load_post_handler_added = False  # Reset flag after execution or removal
+    try:
+        update_logger(logger)
+        logger.debug("Logger level updated from preferences.")
+    except Exception as e:
+        logger.error(f"Error updating logger level from preferences: {e}")
 
 
 def register():
-
+    global _load_post_handler_added
     # Setup root logger
     setup_logger(logger)
 
     # Register base
     ensure_addon_presets()
     register_base()
-
-    update_logger(logger)
 
     if not background:
         from . import icon_manager
@@ -94,8 +107,23 @@ def register():
             "Solvespace module isn't available, only base modules registered\n" + str(e)
         )
 
+    # Add handler to update logger level after Blender loads fully
+    if not _load_post_handler_added and initialize_logger_level not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(initialize_logger_level)
+        _load_post_handler_added = True
+
 
 def unregister():
+    global _load_post_handler_added
+    # Remove the handler if it was added
+    if _load_post_handler_added and initialize_logger_level in bpy.app.handlers.load_post:
+        try:
+            bpy.app.handlers.load_post.remove(initialize_logger_level)
+            _load_post_handler_added = False
+        except ValueError:
+            _load_post_handler_added = False  # Ensure flag is reset
+            pass  # Ignore error if handler not found
+
     if not background:
         from . import icon_manager
         icon_manager.unload()
