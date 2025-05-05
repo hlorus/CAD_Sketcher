@@ -8,6 +8,8 @@ from ..global_data import WpReq
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
 from .categories import POINT, LINE
+from ..base.constants import SOLVER_GROUP_FIXED
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,7 @@ class SlvsMidpoint(GenericConstraint, PropertyGroup):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         kwargs = {
             "group": group,
         }

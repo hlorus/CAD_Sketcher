@@ -7,6 +7,8 @@ from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 from .base_entity import Entity2D
+from ..base.constants import SOLVER_GROUP_FIXED
+
 
 
 logger = logging.getLogger(__name__)
@@ -31,9 +33,10 @@ class SlvsNormal2D(Entity2D, PropertyGroup):
     def draw_id(self, context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         handle = solvesys.addNormal2d(self.wp.py_data, group=group)
         self.py_data = handle
+        return handle
 
 
 slvs_entity_pointer(SlvsNormal2D, "sketch")

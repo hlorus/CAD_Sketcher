@@ -9,7 +9,7 @@ from bpy.utils import register_classes_factory
 from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_line_line, intersect_line_line_2d
 
-from ..solver import Solver
+from ..base.constants import SOLVER_GROUP_FIXED
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, get_connection_point, round_v
@@ -67,7 +67,7 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         # Safely clear the dirty flag
         safe_clear_dirty(self)
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)
         self.py_data = handle
 

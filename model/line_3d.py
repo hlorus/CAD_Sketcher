@@ -11,6 +11,7 @@ from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 from ..utilities.geometry import nearest_point_line_line
 from ..utilities.draw import safe_batch_for_shader
+from ..base.constants import SOLVER_GROUP_FIXED
 
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         )
         self.is_dirty = False
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)
         self.py_data = handle
 
