@@ -6,11 +6,11 @@ from bpy.types import PropertyGroup
 from bpy.props import EnumProperty, BoolProperty, IntProperty, PointerProperty
 from bpy.utils import register_classes_factory
 
-from .. import global_data
 from ..solver import Solver, solve_system
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 from ..utilities.bpy import bpyEnum
+from ..global_data import solver_state_items
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         default=True,
     )
     solver_state: EnumProperty(
-        name="Solver Status", items=global_data.solver_state_items
+        name="Solver Status", items=solver_state_items
     )
     dof: IntProperty(name="Degrees of Freedom", max=6)
     target_curve: PointerProperty(type=bpy.types.Curve)
@@ -96,7 +96,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         return self.visible
 
     def get_solver_state(self):
-        return bpyEnum(global_data.solver_state_items, identifier=self.solver_state)
+        return bpyEnum(solver_state_items, identifier=self.solver_state)
 
     def solve(self, context):
         return solve_system(context, sketch=self)
