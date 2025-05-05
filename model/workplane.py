@@ -12,11 +12,10 @@ from .. import global_data
 from ..utilities.draw import draw_rect_2d, safe_batch_for_shader
 from ..shaders import Shaders
 from ..utilities import preferences
-from ..solver import Solver
 from ..utilities.index import index_to_rgb
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
-from ..base.constants import DEFAULT_WORKPLANE_SIZE
+from ..base.constants import DEFAULT_WORKPLANE_SIZE, SOLVER_GROUP_FIXED
 from .constants import WORKPLANE_EDGE_LINE_WIDTH
 from ..global_data import Z_AXIS
 
@@ -177,7 +176,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         # Call draw_id_edges with the provided shader
         self.draw_id_edges(context, shader)
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         handle = solvesys.addWorkplane(self.p1.py_data, self.nm.py_data, group=group)
         self.py_data = handle
 
