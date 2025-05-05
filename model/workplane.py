@@ -16,7 +16,7 @@ from ..solver import Solver
 from ..utilities.index import index_to_rgb
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
-
+from ..base.preferences import DEFAULT_WORKPLANE_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,9 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     @property
     def size(self):
-        return preferences.get_prefs().workplane_size
+        prefs = preferences.get_prefs()
+        # Return the default size if preferences are not available yet
+        return prefs.workplane_size if prefs else DEFAULT_WORKPLANE_SIZE
 
     def update(self):
         if bpy.app.background:

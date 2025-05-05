@@ -21,6 +21,8 @@ from ..utilities.register import get_path, get_name
 from ..utilities.view import update_cb
 from ..utilities.install import check_module
 
+# Size constants
+DEFAULT_WORKPLANE_SIZE = 0.4
 
 log_levels = [
     ("CRITICAL", "Critical", "", 0),
@@ -158,7 +160,7 @@ class Preferences(AddonPreferences):
         name="Entity Scale", default=1.0, min=0.1, soft_max=3.0, update=theme.update
     )
     workplane_size: FloatProperty(
-        name="Workplane Size", default=0.4, soft_min=0.1, soft_max=1.0
+        name="Workplane Size", default=DEFAULT_WORKPLANE_SIZE, soft_min=0.1, soft_max=1.0
     )
     gizmo_scale: FloatProperty(
         name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update

@@ -35,24 +35,6 @@ def get_constraint_color_type(constraint: GenericConstraint):
 
 def get_color(color_type: Color, highlit: bool):
     prefs = get_prefs()
-    
-    # Handle case when preferences aren't available
-    if prefs is None:
-        # Use fallback colors
-        fallback_match = {
-            # (type, highlit): color
-            (Color.Default, False): CONSTRAINT_COLOR_DEFAULT,
-            (Color.Default, True): CONSTRAINT_COLOR_HIGHLIGHT,
-            (Color.Failed, False): CONSTRAINT_COLOR_FAILED,
-            (Color.Failed, True): CONSTRAINT_COLOR_FAILED_HIGHLIGHT,
-            (Color.Reference, False): CONSTRAINT_COLOR_REFERENCE,
-            (Color.Reference, True): CONSTRAINT_COLOR_REFERENCE_HIGHLIGHT,
-            (Color.Text, False): CONSTRAINT_COLOR_TEXT,
-            (Color.Text, True): CONSTRAINT_COLOR_TEXT_HIGHLIGHT,
-        }
-        return fallback_match[(color_type, highlit)]
-    
-    # Use theme settings when available
     c_theme = prefs.theme_settings.constraint
     theme_match = {
         # (type, highlit): color

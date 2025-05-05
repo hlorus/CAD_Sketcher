@@ -179,31 +179,6 @@ class SlvsGenericEntity:
 
     def color(self, context: Context):        
         prefs = get_prefs()
-        # Handle case when preferences are not available
-        if prefs is None:
-            # Return default color values when preferences aren't available
-            active = self.is_active(context.scene.sketcher.active_sketch)
-            highlight = self.is_highlight()
-            fixed = self.fixed
-            origin = self.origin
-            
-            if not active:
-                if highlight:
-                    return ENTITY_COLOR_HIGHLIGHT
-                if self.selected:
-                    return ENTITY_COLOR_INACTIVE_SELECTED
-                return ENTITY_COLOR_INACTIVE
-            elif self.selected:
-                if highlight:
-                    return ENTITY_COLOR_SELECTED_HIGHLIGHT
-                return ENTITY_COLOR_SELECTED
-            elif highlight:
-                return ENTITY_COLOR_HIGHLIGHT
-                
-            if fixed and not origin:
-                return ENTITY_COLOR_FIXED
-            return ENTITY_COLOR_DEFAULT
-            
         ts = prefs.theme_settings
         active = self.is_active(context.scene.sketcher.active_sketch)
         highlight = self.is_highlight()
