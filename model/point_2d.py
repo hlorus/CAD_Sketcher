@@ -14,6 +14,7 @@ from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, make_coincident
 from .line_2d import SlvsLine2D
+from ..global_data import safe_create_batch, safe_clear_dirty
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,17 @@ class Point2D(Entity2D):
 
         pos = self.location
 
-        # Use the safe batch creation function
-        self._batch = safe_batch_for_shader(
-            self._shader, "POINTS", {"pos": pos[:]}
+        # Use our safe batch creation system instead of directly setting _batch
+        safe_create_batch(
+            self,
+            safe_batch_for_shader,
+            self._shader,
+            "POINTS",
+            {"pos": pos[:]}
         )
-        self.is_dirty = False
+        
+        # Safely clear the dirty flag
+        safe_clear_dirty(self)
 
     @property
     def location(self):

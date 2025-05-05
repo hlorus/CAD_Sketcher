@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 import bpy
 from bpy.types import PropertyGroup, Context
-from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch  # Import necessary types
+from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch
 from bpy.utils import register_classes_factory
 from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_line_line, intersect_line_line_2d
@@ -15,7 +15,7 @@ from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, get_connection_point, round_v
 from ..utilities.geometry import nearest_point_line_line
 from ..utilities.draw import safe_batch_for_shader
-
+from ..global_data import safe_create_batch, safe_clear_dirty
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +55,17 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         p1, p2 = self.p1.location, self.p2.location
         coords = [p1, p2]
 
-        # Use safe_batch_for_shader instead
-        self._batch = safe_batch_for_shader(
-            self._shader, "LINES", {"pos": coords}
+        # Use our safe batch creation system
+        safe_create_batch(
+            self,
+            safe_batch_for_shader,
+            self._shader,
+            "LINES",
+            {"pos": coords}
         )
-        self.is_dirty = False
+        
+        # Safely clear the dirty flag
+        safe_clear_dirty(self)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)
