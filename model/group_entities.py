@@ -10,7 +10,7 @@ from mathutils import Vector, Euler, Quaternion
 
 from ..utilities.constants import QUARTER_TURN
 from ..utilities.index import breakdown_index, assemble_index
-from ..global_data import redraw_selection_buffer
+from ..global_data import redraw_selection_buffer, selected as _selected
 
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer, update_pointers
@@ -436,9 +436,11 @@ class SlvsEntities(PropertyGroup):
     @property
     def selected(self):
         """Return all selected entities, might include inactive entities"""
+        global _selected
+        
         context = bpy.context
         items = []
-        for index in global_data.selected:
+        for index in _selected:
             if index is None:
                 continue
             entity = self.get(index)

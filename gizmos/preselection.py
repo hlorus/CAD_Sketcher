@@ -91,6 +91,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
 
     def test_select(self, context, location):
         global _last_mouse_pos, _edge_selection_active, _selected_edge_workplane
+        global highlight_constraint, highlight_entities, hover_stack, hover_stack_index, hover
         
         # reset gizmo highlight
         if highlight_constraint:
