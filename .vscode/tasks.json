@@ -37,7 +37,7 @@
             "command": "blender",
             "args": ["--addons", "CAD_Sketcher","--python","./.vscode/debugpy_port.py","--","--log_level=DEBUG", "--log-stdout", "--interactive"],
             "type": "shell",
-            "isBackground": false,
+            "isBackground": true,
             "problemMatcher": {
                 "owner": "python",
                 "source": "python",
@@ -67,7 +67,7 @@
             "command": "/Applications/Blender.app/Contents/MacOS/Blender", // Use full path
             "args": ["--addons", "CAD_Sketcher", "--python","./.vscode/debugpy_port.py", "--", "--log_level=DEBUG", "--log-stdout", "--interactive"],
             "type": "shell",
-            "isBackground": false,
+            "isBackground": true,
             "problemMatcher": {
                 "owner": "python",
                 "source": "python",
