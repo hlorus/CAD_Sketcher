@@ -81,7 +81,7 @@ def get_prefs():
         
     # If preferences aren't available yet, return our mock preferences object with defaults
     # This prevents AttributeError when accessing preferences during early initialization
-    logger.warning(f"Could not find addon preferences for '{addon_name}'. Using defaults.")
+    #logger.warning(f"Could not find addon preferences for '{addon_name}'. Using defaults.")
     return MockPrefs()
 
 

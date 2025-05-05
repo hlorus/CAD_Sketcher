@@ -63,7 +63,7 @@ def is_point_on_edge(workplane, point_2d, tolerance=WORKPLANE_EDGE_SELECT_TOLERA
     if x < left - tolerance or x > right + tolerance or y < bottom - tolerance or y > top + tolerance:
         return False
     
-    # Check distance to each edge with a very generous tolerance
+    # Check distance to each edge with a generous tolerance
     # When near corners, both edges will activate
     edges = [
         abs(y - top) <= tolerance and left - tolerance <= x <= right + tolerance,    # Top edge
@@ -194,65 +194,55 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
                             global_data.hover_stack.append(index)
             
             # EVEN MORE AGGRESSIVE: Check ALL workplanes in scene for edges near cursor
-            from ..utilities.view import get_pos_2d
-            edge_indices = []
+            # from ..utilities.view import get_pos_2d
+            edge_indices = [] # Keep this line to avoid NameError later
             
-            # Check all selectable workplanes in the scene for edges
-            for entity in context.scene.sketcher.entities.all:
-                if isinstance(entity, SlvsWorkplane) and entity.is_selectable(context):
-                    # Skip if already found in hover stack
-                    if entity.slvs_index in found_indices:
-                        continue
+            # # Check all selectable workplanes in the scene for edges
+            # for entity in context.scene.sketcher.entities.all:
+            #     if isinstance(entity, SlvsWorkplane) and entity.is_selectable(context):
+            #         # Skip if already found in hover stack
+            #         if entity.slvs_index in found_indices:
+            #             continue
                         
-                    # Get 2D position on this workplane
-                    pos_2d = get_pos_2d(context, entity, location)
-                    if pos_2d:
-                        # Check if this 2D point is on an edge with large tolerance
-                        if is_point_on_edge(entity, (pos_2d.x, pos_2d.y)):
-                            edge_indices.append(entity.slvs_index)
+            #         # Get 2D position on this workplane
+            #         pos_2d = get_pos_2d(context, entity, location)
+            #         if pos_2d:
+            #             # Check if this 2D point is on an edge with large tolerance
+            #             if is_point_on_edge(entity, (pos_2d.x, pos_2d.y)):
+            #                 edge_indices.append(entity.slvs_index)
                             
-                            # Calculate depth for this workplane
-                            center_pos = entity.p1.location
-                            depth = (center_pos - view_origin).length
-                            entity_depths[entity.slvs_index] = depth
+            #                 # Calculate depth for this workplane
+            #                 center_pos = entity.p1.location
+            #                 depth = (center_pos - view_origin).length
+            #                 entity_depths[entity.slvs_index] = depth
                             
-                            # Add to hover stack
-                            if entity.slvs_index not in global_data.hover_stack:
-                                global_data.hover_stack.append(entity.slvs_index)
+            #                 # Add to hover stack
+            #                 if entity.slvs_index not in global_data.hover_stack:
+            #                     global_data.hover_stack.append(entity.slvs_index)
             
-            # Sort entities by depth (except edges which stay at the front)
+            # Sort entities by depth (previously included edge sorting logic here)
             if global_data.hover_stack:
-                # First separate edges and other entities
-                edge_entities = [idx for idx in global_data.hover_stack if idx in edge_indices]
-                other_entities = [idx for idx in global_data.hover_stack if idx not in edge_indices]
-                
-                # Sort the non-edge entities by depth
-                other_entities.sort(key=lambda idx: entity_depths.get(idx, float('inf')))
-                
-                # Put edges first, then depth-sorted entities
-                global_data.hover_stack = edge_entities + other_entities
-                
-                # Prioritize edges for edge selection mode
-                if edge_entities:
-                    # We found edges, enter edge selection mode
-                    _edge_selection_active = True
-                    _selected_edge_workplane = edge_entities[0]
-                    
-                    # Find the closest edge if we have multiple
-                    if len(edge_entities) > 1:
-                        closest_edge = min(edge_entities, key=lambda idx: entity_depths.get(idx, float('inf')))
-                        _selected_edge_workplane = closest_edge
-                        
-                        # Reorder edge entities by depth
-                        edge_entities.sort(key=lambda idx: entity_depths.get(idx, float('inf')))
-                        global_data.hover_stack = edge_entities + other_entities
-            
-            # If we found entities, select the first one
+                # Sort all found entities by depth
+                global_data.hover_stack.sort(key=lambda idx: entity_depths.get(idx, float('inf')))
+
+                # Check if the top entity is a workplane edge (based on buffer sampling)
+                top_entity_index = global_data.hover_stack[0]
+                entity = context.scene.sketcher.entities.get(top_entity_index)
+                # Simple check: if it's a workplane, assume edge for now
+                if entity and isinstance(entity, SlvsWorkplane):
+                     # We might need a more robust way to confirm it's an edge hit later
+                     _edge_selection_active = True # Tentatively mark as edge active
+                     _selected_edge_workplane = top_entity_index
+                else:
+                    _edge_selection_active = False
+                    _selected_edge_workplane = -1
+
+            # If we found entities, select the first one (closest by depth)
             if global_data.hover_stack:
                 global_data.hover_stack_index = 0
                 global_data.hover = global_data.hover_stack[0]
                 context.area.tag_redraw()
-                logger.debug(f"Found {len(global_data.hover_stack)} overlapping entities at cursor")
+                logger.debug(f"Found {len(global_data.hover_stack)} overlapping entities at cursor (using buffer only)")
                 return -1
         
         # If we have an existing hover stack but nothing is currently hovered,
@@ -284,9 +274,12 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         global_data.hover_stack_index = (global_data.hover_stack_index + 1) % stack_len
         global_data.hover = global_data.hover_stack[global_data.hover_stack_index]
         
-        # Update edge selection tracking
+        # Update edge selection tracking based on the currently cycled entity
         entity = context.scene.sketcher.entities.get(global_data.hover)
+        # Simple check: if it's a workplane, assume edge for now
         if entity and isinstance(entity, SlvsWorkplane):
+             # Re-check if the current cursor position is actually on its edge?
+             # For now, just assume if it's a workplane in the stack, it might be an edge.
             _edge_selection_active = True
             _selected_edge_workplane = entity.slvs_index
         else:

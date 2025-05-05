@@ -94,13 +94,18 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
         self.restore_opengl_defaults()
 
-    def draw_id_face(self, context):
+    def draw_id_face(self, context, shader):
         """Draw only the face of the workplane to the selection buffer"""
-        if not self.is_selectable(context):
+        # Selectability check removed, handled by caller (draw_selection_buffer)
+        # if not self.is_selectable(context):
+        #     return
+
+        batch = self._batch # Assuming face uses the same batch for ID
+        if not batch:
+            logger.debug(f"draw_id_face({self.slvs_index}): No batch found.")
             return
 
-        shader = self._id_shader
-        shader.bind()
+        logger.debug(f"draw_id_face({self.slvs_index}): Drawing with shader {shader.name}")
         shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
         shader.uniform_bool("dashed", (False,))
 
@@ -113,27 +118,31 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             coords_2d = draw_rect_2d(0, 0, self.size, self.size)
             coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
             indices = ((0, 1, 2), (0, 2, 3))
+            # Recreate batch specifically for face geometry if needed
             face_batch = safe_batch_for_shader(shader, "TRIS", {"pos": coords_3d}, indices=indices)
-            face_batch.draw(shader)
-        
-        gpu.shader.unbind()
+            if face_batch:
+                face_batch.draw(shader)
+                logger.debug(f"draw_id_face({self.slvs_index}): Face batch drawn.")
+            else:
+                logger.debug(f"draw_id_face({self.slvs_index}): Failed to create face batch.")
 
-    def draw_id_edges(self, context):
+    def draw_id_edges(self, context, shader):
         """Draw only the edges of the workplane to the selection buffer"""
-        if not self.is_selectable(context):
-            return
+        # Selectability check removed, handled by caller (draw_selection_buffer)
+        # if not self.is_selectable(context):
+        #     return
 
-        shader = self._id_shader
-        shader.bind()
+        batch = self._batch
+        if not batch:
+             logger.debug(f"draw_id_edges({self.slvs_index}): No batch found.")
+             return
+             
+        logger.debug(f"draw_id_edges({self.slvs_index}): Drawing with shader {shader.name}")
         shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
         shader.uniform_bool("dashed", (False,))
         
-        # Use much thicker lines for better edge selection
-        gpu.state.line_width_set(WORKPLANE_EDGE_LINE_WIDTH)
-        
-        # Disable depth testing completely to ensure edges are always drawn
-        # regardless of what's in front of them
-        gpu.state.depth_test_set('ALWAYS')
+        # Use thick lines for selection
+        gpu.state.line_width_set(self.line_width_select)
         
         with gpu.matrix.push_pop():
             # Apply workplane's transformation
@@ -143,25 +152,29 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             scale = context.region_data.view_distance
             gpu.matrix.scale(Vector((scale, scale, scale)))
             
-            # Create the square edges with precise line geometry
+            # Create the square edges
             coords_2d = draw_rect_2d(0, 0, self.size, self.size)
             coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
-            
-            # Draw each edge separately as a thick line
             indices = ((0, 1), (1, 2), (2, 3), (3, 0))
+            
+            # Use the main batch for edges
             edge_batch = safe_batch_for_shader(shader, "LINES", {"pos": coords_3d}, indices=indices)
-            edge_batch.draw(shader)
+            if edge_batch:
+                edge_batch.draw(shader)
+                logger.debug(f"draw_id_edges({self.slvs_index}): Edge batch drawn.")
+            else:
+                 logger.debug(f"draw_id_edges({self.slvs_index}): Failed to create edge batch.")
         
-        # Restore OpenGL state
+        # Restore line width
         gpu.state.line_width_set(1.0)
-        gpu.state.depth_test_set('NONE')
-        gpu.shader.unbind()
 
-    def draw_id(self, context):
-        """Legacy compatibility method - now we use separate face and edge drawing"""
-        # Draw both face and edges with the default approach
-        self.draw_id_face(context)
-        self.draw_id_edges(context)
+    def draw_id(self, context, shader):
+        """Draw only the edges for selection buffer identification."""
+        # Selectability check removed, handled by caller (draw_selection_buffer)
+        # if not self.is_selectable(context):
+        #     return
+        # Call draw_id_edges with the provided shader
+        self.draw_id_edges(context, shader)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.addWorkplane(self.p1.py_data, self.nm.py_data, group=group)

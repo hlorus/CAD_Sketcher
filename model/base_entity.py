@@ -162,17 +162,29 @@ class SlvsGenericEntity:
             return not active_sketch
 
     def is_selectable(self, context: Context):
+        # Always check visibility first
         if not self.is_visible(context):
             return False
 
+        # Allow override via experimental feature
         if preferences.use_experimental("all_entities_selectable", False):
             return True
 
+        # Special case for Workplanes: Allow selection even if a sketch is active
+        # Use class name check to avoid circular imports
+        if self.__class__.__name__ == "SlvsWorkplane":
+             # Workplanes are fundamentally 3D and should be selectable outside sketches
+             # or for operations like creating a new sketch ON them.
+             return True # Allow selection if visible
+
+        # For other entities:
         active_sketch = context.scene.sketcher.active_sketch
-        if active_sketch and hasattr(self, "sketch"):
-            # Allow to select entities that share the active sketch's wp
-            return active_sketch.wp == self.sketch.wp
-        return self.is_active(active_sketch)
+        if hasattr(self, "sketch"):
+            # 2D entities are selectable only if their sketch is the active one
+            return self.sketch == active_sketch
+        else:
+            # 3D entities (excluding workplanes now) are selectable only if NO sketch is active
+            return not active_sketch
 
     def is_highlight(self):
         return self.hover or self in global_data.highlight_entities
@@ -247,30 +259,37 @@ class SlvsGenericEntity:
         gpu.shader.unbind()
         self.restore_opengl_defaults()
 
-    def draw_id(self, context):
-        # Note: Design Question, should it be possible to select elements that are not active?!
-        # e.g. to activate a sketch
-        # maybe it should be dynamically defined what is selectable (points only, lines only, ...)
+    def draw_id(self, context, shader):
+        """Draw entity to selection buffer with the given shader.
+        
+        Args:
+            context: The Blender context
+            shader: The shader to use (MUST be bound by caller).
+        """
+        # Selectability check removed, handled by caller (draw_selection_buffer)
+        # if not self.is_selectable(context):
+        #     return
 
         batch = self._batch
         if not batch:
+            logger.debug(f"draw_id({self.slvs_index}): No batch found.")
             return
-
-        shader = self._id_shader
-        shader.bind()
+            
+        # Assume shader is correctly passed and bound by the caller
+        logger.debug(f"draw_id({self.slvs_index}): Drawing with shader {shader.name}")
 
         gpu.state.point_size_set(self.point_size_select)
 
         shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
         if not self.is_point():
-            # viewport = [context.area.width, context.area.height]
-            # shader.uniform_float("Viewport", viewport)
             shader.uniform_bool("dashed", (False,))
             gpu.state.line_width_set(self.line_width_select)
 
         batch.draw(shader)
-        gpu.shader.unbind()
-        self.restore_opengl_defaults()
+        logger.debug(f"draw_id({self.slvs_index}): Batch drawn.")
+            
+        # Restore defaults relevant to this draw call
+        # self.restore_opengl_defaults() # Let caller handle global state restoration
 
     def create_slvs_data(self, solvesys):
         """Create a solvespace entity from parameters"""
