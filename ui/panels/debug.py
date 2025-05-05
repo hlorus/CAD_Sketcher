@@ -34,4 +34,5 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
     @classmethod
     def poll(cls, context: Context):
         prefs = preferences.get_prefs()
-        return prefs.show_debug_settings
+        # Check if prefs is not None before accessing attributes
+        return prefs is not None and prefs.show_debug_settings
