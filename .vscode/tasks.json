@@ -33,7 +33,7 @@
         },
         {
             "label": "Run Blender interactively",
-            "detail": "Starts remote debugpy session and Blender gui with solely this addon activated",
+            "detail": "Starts remote debugpy session and Blender GUI",
             "command": "/Applications/Blender.app/Contents/MacOS/Blender", // Use full path
             "args": ["--addons", "CAD_Sketcher", "--python","./.vscode/debugpy_port.py", "--", "--log_level=DEBUG", "--log-stdout", "--interactive"],
             "type": "shell",
