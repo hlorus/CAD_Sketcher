@@ -1,6 +1,12 @@
 import bpy
 import logging
 from . import get_addon_version_tuple
+from .model.utilities import update_pointers
+from .model.line_2d import SlvsLine2D
+from .model.distance import SlvsDistance
+from .model.point_2d import SlvsPoint2D
+from .model.sketch import SlvsSketch
+from .utilities.data_handling import recalc_pointers
 
 logger = logging.getLogger(__name__)
 
@@ -14,27 +20,6 @@ def write_addon_version(context):
     # place we can put this value
     for scene in bpy.data.scenes:
         scene.sketcher.version = version
-
-
-def recalc_pointers(scene):
-    """Updates type index of entities keeping local index as is"""
-
-    # TODO: Move to utilities.data_handling
-    from .model.utilities import update_pointers
-
-    msg = ""
-    entities = list(scene.sketcher.entities.all)
-    for e in reversed(entities):
-        i = e.slvs_index
-        # scene.sketcher.entities._set_index(e)
-        scene.sketcher.entities.recalc_type_index(e)
-
-        if i != e.slvs_index:
-            msg += "\n - {}: {} -> {}".format(e, i, e.slvs_index)
-            update_pointers(scene, i, e.slvs_index)
-
-    if msg:
-        logger.debug("Update entity indices:" + msg)
 
 
 def do_versioning(self):
@@ -104,10 +89,6 @@ def do_versioning(self):
         if version < (0, 27, 4):
             # update distance constraints on only a line
             # to distance constraints on the endpoints of that line.
-            from .model.line_2d import SlvsLine2D
-            from .model.distance import SlvsDistance
-            from .model.point_2d import SlvsPoint2D
-            from .model.sketch import SlvsSketch
 
             for c in context.scene.sketcher.constraints.dimensional:
                 if len(c.dependencies()) != 2:

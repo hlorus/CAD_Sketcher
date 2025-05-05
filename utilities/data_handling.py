@@ -1,9 +1,13 @@
 from collections import deque
 from typing import Generator, Deque, List, Sequence
+import logging
 
 from bpy.types import Scene, Context
 
 from ..model.types import SlvsGenericEntity, SlvsSketch, GenericConstraint
+from ..model.utilities import update_pointers
+
+logger = logging.getLogger(__name__)
 
 
 def to_list(value):
@@ -137,3 +141,21 @@ def entities_3d(context: Context) -> Generator[SlvsGenericEntity, None, None]:
         if hasattr(entity, "sketch"):
             continue
         yield entity
+
+
+def recalc_pointers(scene):
+    """Updates type index of entities keeping local index as is"""
+
+    msg = ""
+    entities = list(scene.sketcher.entities.all)
+    for e in reversed(entities):
+        i = e.slvs_index
+        # scene.sketcher.entities._set_index(e)
+        scene.sketcher.entities.recalc_type_index(e)
+
+        if i != e.slvs_index:
+            msg += "\n - {}: {} -> {}".format(e, i, e.slvs_index)
+            update_pointers(scene, i, e.slvs_index)
+
+    if msg:
+        logger.debug("Update entity indices:" + msg)
