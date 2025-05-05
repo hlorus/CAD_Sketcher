@@ -13,6 +13,7 @@ from .shaders import Shaders
 from .model.normal_2d import SlvsNormal2D
 from .model.normal_3d import SlvsNormal3D
 from .model.sketch import SlvsSketch
+from .model.categories import POINT, LINE, CURVE
 from . import global_data  # Keep the general import for modifying global variables
 
 logger = logging.getLogger(__name__)
@@ -81,11 +82,12 @@ def draw_selection_buffer(context: Context):
             logger.debug(f"Entities grouped: {len(standard_draw_entities)} standard, " +
                         f"{len(workplanes)} workplanes, {len(context_only_entities)} context-only")
             
-            # Sort entities by drawing category
-            points = [e for e in standard_draw_entities if hasattr(e, 'is_point') and e.is_point()]
-            lines = [e for e in standard_draw_entities if hasattr(e, 'is_point') and not e.is_point()]
+            # Sort entities by drawing category using category constants
+            points = [e for e in standard_draw_entities if type(e) in POINT]
+            lines = [e for e in standard_draw_entities if type(e) in LINE]
+            curves = [e for e in standard_draw_entities if type(e) in CURVE]
             
-            logger.debug(f"Standard entities: {len(points)} points, {len(lines)} lines")
+            logger.debug(f"Standard entities: {len(points)} points, {len(lines)} lines, {len(curves)} curves")
             
             # Skip drawing passes if no entities of that type
             # Pass 1: Draw Workplane Faces with standard depth testing
@@ -154,6 +156,28 @@ def draw_selection_buffer(context: Context):
                     drawn_count += 1
                     
                 logger.debug(f"  Drawn {drawn_count} lines.")
+                gpu.shader.unbind()
+
+            # Pass 3b: Draw curve entities with standard depth testing
+            if curves:
+                line_shader = Shaders.id_line_3d()
+                line_shader.bind()
+                logger.debug("Pass 3b: Curve Entities (LESS depth)")
+                drawn_count = 0
+                
+                for e in reversed(curves):
+                    # Update the entity to ensure it has batches - use the safe batch access
+                    batch = global_data.get_batch(e)
+                    if not batch and hasattr(e, "update"):
+                        logger.debug(f"  Generating batch for curve {e.slvs_index}")
+                        e.update()
+                    
+                    # Draw curve entity with shader
+                    logger.debug(f"  Drawing curve {e.slvs_index} of type {type(e).__name__}")
+                    e.draw_id(context, line_shader)
+                    drawn_count += 1
+                    
+                logger.debug(f"  Drawn {drawn_count} curves.")
                 gpu.shader.unbind()
             
             # Pass 4: Draw entities with context-only draw_id method
@@ -243,9 +267,113 @@ def update_elements(context: Context, force: bool = False):
 
 
 def draw_elements(context: Context):
-    for entity in reversed(list(context.scene.sketcher.entities.all)):
-        if hasattr(entity, "draw"):
-            entity.draw(context)
+    """Draw all visible entities in the scene, optimized by entity type.
+    
+    This function categorizes entities by type and uses appropriate shaders
+    and drawing settings for each category to minimize state changes.
+    """
+    # Get all visible entities
+    entities = [e for e in context.scene.sketcher.entities.all if hasattr(e, "draw")]
+    if not entities:
+        return
+        
+    # Group entities by category for optimized drawing
+    points = [e for e in entities if type(e) in POINT and e.is_visible(context)]
+    lines = [e for e in entities if type(e) in LINE and e.is_visible(context)]
+    curves = [e for e in entities if type(e) in CURVE and e.is_visible(context)]
+    
+    # Get special entities that need custom drawing
+    workplanes = [e for e in entities if isinstance(e, SlvsWorkplane) and e.is_visible(context)]
+    other_entities = [e for e in entities if e.is_visible(context) and
+                     not type(e) in POINT and 
+                     not type(e) in LINE and
+                     not type(e) in CURVE and
+                     not isinstance(e, SlvsWorkplane)]
+    
+    # 1. Draw points with point shader
+    if points:
+        # Set up point drawing once for all points
+        point_shader = Shaders.uniform_color_3d()
+        point_shader.bind()
+        gpu.state.blend_set("ALPHA")
+        
+        for entity in reversed(points):
+            batch = entity._batch
+            if not batch:
+                continue
+                
+            # Set entity-specific settings
+            gpu.state.point_size_set(entity.point_size)
+            point_shader.uniform_float("color", entity.color(context))
+            
+            # Draw the entity
+            batch.draw(point_shader)
+            
+        # Clean up after all points
+        gpu.shader.unbind()
+        
+    # 2. Draw lines with line shader
+    if lines:
+        # Set up line drawing once for all lines
+        line_shader = Shaders.uniform_color_line_3d()
+        line_shader.bind()
+        gpu.state.blend_set("ALPHA")
+        
+        for entity in reversed(lines):
+            batch = entity._batch
+            if not batch:
+                continue
+                
+            # Set entity-specific settings
+            gpu.state.line_width_set(entity.line_width)
+            line_shader.uniform_float("color", entity.color(context))
+            line_shader.uniform_bool("dashed", (entity.is_dashed(),))
+            line_shader.uniform_float("dash_width", 0.05)
+            line_shader.uniform_float("dash_factor", 0.3)
+            
+            # Draw the entity
+            batch.draw(line_shader)
+            
+        # Clean up after all lines
+        gpu.shader.unbind()
+        
+    # 3. Draw curves with line shader
+    if curves:
+        # Set up curve drawing once for all curves
+        curve_shader = Shaders.uniform_color_line_3d()
+        curve_shader.bind()
+        gpu.state.blend_set("ALPHA")
+        
+        for entity in reversed(curves):
+            batch = entity._batch
+            if not batch:
+                continue
+                
+            # Set entity-specific settings
+            gpu.state.line_width_set(entity.line_width)
+            curve_shader.uniform_float("color", entity.color(context))
+            curve_shader.uniform_bool("dashed", (entity.is_dashed(),))
+            curve_shader.uniform_float("dash_width", 0.05)
+            curve_shader.uniform_float("dash_factor", 0.3)
+            
+            # Draw the entity
+            batch.draw(curve_shader)
+            
+        # Clean up after all curves
+        gpu.shader.unbind()
+    
+    # 4. Draw workplanes with their custom drawing method
+    for entity in reversed(workplanes):
+        entity.draw(context)
+    
+    # 5. Draw remaining entities with their regular drawing method
+    for entity in reversed(other_entities):
+        entity.draw(context)
+        
+    # Restore OpenGL defaults
+    gpu.state.line_width_set(1)
+    gpu.state.point_size_set(1)
+    gpu.state.blend_set("NONE")
 
 
 def draw_cb():
