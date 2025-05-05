@@ -16,7 +16,7 @@ from ..solver import Solver
 from ..utilities.index import index_to_rgb
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
-from ..base.preferences import DEFAULT_WORKPLANE_SIZE
+from ..base.constants import DEFAULT_WORKPLANE_SIZE
 from ..gizmos.constants import WORKPLANE_EDGE_LINE_WIDTH
 
 logger = logging.getLogger(__name__)

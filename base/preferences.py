@@ -15,32 +15,27 @@ from bpy.props import (
 )
 
 from . import theme
+from .constants import (
+    DEFAULT_SHOW_DEBUG_SETTINGS,
+    DEFAULT_SHOW_THEME_SETTINGS,
+    DEFAULT_HIDE_INACTIVE_CONSTRAINTS,
+    DEFAULT_ALL_ENTITIES_SELECTABLE,
+    DEFAULT_FORCE_REDRAW,
+    DEFAULT_DECIMAL_PRECISION,
+    DEFAULT_ANGLE_PRECISION,
+    DEFAULT_AUTO_HIDE_OBJECTS,
+    DEFAULT_ENTITY_SCALE,
+    DEFAULT_WORKPLANE_SIZE,
+    DEFAULT_GIZMO_SCALE,
+    DEFAULT_TEXT_SIZE,
+    DEFAULT_ARROW_SCALE,
+    DEFAULT_USE_ALIGN_VIEW,
+)
 from .. import global_data, units
 from ..declarations import Operators
 from ..utilities.register import get_path, get_name
 from ..utilities.view import update_cb
 from ..utilities.install import check_module
-
-# Default values for preferences
-# Size and scale constants
-DEFAULT_WORKPLANE_SIZE = 0.4
-DEFAULT_ENTITY_SCALE = 1.0
-DEFAULT_GIZMO_SCALE = 15.0
-DEFAULT_TEXT_SIZE = 15
-DEFAULT_ARROW_SCALE = 1.0
-
-# Precision constants
-DEFAULT_DECIMAL_PRECISION = 3
-DEFAULT_ANGLE_PRECISION = 0
-
-# Boolean preference defaults
-DEFAULT_SHOW_DEBUG_SETTINGS = False
-DEFAULT_HIDE_INACTIVE_CONSTRAINTS = True
-DEFAULT_ALL_ENTITIES_SELECTABLE = False
-DEFAULT_FORCE_REDRAW = True
-DEFAULT_AUTO_HIDE_OBJECTS = True
-DEFAULT_USE_ALIGN_VIEW = True
-DEFAULT_SHOW_THEME_SETTINGS = False
 
 log_levels = [
     ("CRITICAL", "Critical", "", 0),
