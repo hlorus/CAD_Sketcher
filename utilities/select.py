@@ -3,7 +3,7 @@ import logging
 from bpy.props import EnumProperty
 from bpy.types import Context
 
-from .. import global_data
+from ..global_data import selected
 from ..utilities.data_handling import entities_3d
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ def select_all(context: Context):
 
 def deselect_all(context: Context):
     logger.debug("Deselecting all sketcher entities")
-    global_data.selected.clear()
+    selected.clear()
 
 
 mode_property = EnumProperty(

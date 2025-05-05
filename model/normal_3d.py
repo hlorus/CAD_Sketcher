@@ -7,6 +7,7 @@ from mathutils import Euler
 
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
+from ..global_data import safe_clear_dirty
 
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,8 @@ logger = logging.getLogger(__name__)
 
 class Normal3D(SlvsGenericEntity):
     def update(self):
-        self.is_dirty = False
+        # Use the safe property access system
+        safe_clear_dirty(self)
 
     def draw(self, context: Context):
         pass

@@ -1,5 +1,7 @@
 from ..utilities.register import module_register_factory
 from ..stateful_operator.utilities.register import register_stateops_factory
+from ..stateful_operator.invoke_op import View3D_OT_invoke_tool
+from ..stateful_operator.test_op import View3D_OT_slvs_test
 
 modules = [
     "select",
@@ -44,9 +46,6 @@ modules = [
 
 def _register_unregister_extern():
     """Imports and registers externally defined operators"""
-    from ..stateful_operator.invoke_op import View3D_OT_invoke_tool
-    from ..stateful_operator.test_op import View3D_OT_slvs_test
-
     classes = (View3D_OT_invoke_tool, View3D_OT_slvs_test)
     return register_stateops_factory(classes)
 

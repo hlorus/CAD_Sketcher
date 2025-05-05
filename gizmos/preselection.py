@@ -4,13 +4,17 @@ from bpy.types import Gizmo, GizmoGroup
 import math
 from mathutils import Vector
 
-from .. import global_data
 from ..declarations import Gizmos, GizmoGroups
 from ..draw_handler import ensure_selection_texture
 from ..utilities.index import rgb_to_index
 from ..model.types import SlvsWorkplane
 from .utilities import context_mode_check
 from .constants import WORKPLANE_EDGE_SELECT_TOLERANCE, SIGNIFICANT_MOUSE_MOVEMENT
+from ..utilities.view import get_pos_2d
+from ..global_data import (
+    highlight_constraint, highlight_entities, hover_stack, 
+    hover_stack_index, hover, offscreen, ignore_list
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,12 +93,12 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         global _last_mouse_pos, _edge_selection_active, _selected_edge_workplane
         
         # reset gizmo highlight
-        if global_data.highlight_constraint:
-            global_data.highlight_constraint = None
+        if highlight_constraint:
+            highlight_constraint = None
             context.area.tag_redraw()
 
-        if global_data.highlight_entities:
-            global_data.highlight_entities.clear()
+        if highlight_entities:
+            highlight_entities.clear()
             context.area.tag_redraw()
 
         # ensure selection texture is up to date
@@ -103,179 +107,104 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         # sample selection texture and mark hovered entity
         mouse_x, mouse_y = location
         
-        # Check if mouse has moved since last position
+        # Track current mouse position
         current_pos = (mouse_x, mouse_y)
-        moved_significantly = False
-        
-        if _last_mouse_pos is not None:
-            # Calculate distance moved
-            dx = current_pos[0] - _last_mouse_pos[0]
-            dy = current_pos[1] - _last_mouse_pos[1]
-            distance_moved = math.sqrt(dx*dx + dy*dy)
-            
-            # Only consider significant movement if moved more than the threshold 
-            moved_significantly = distance_moved > SIGNIFICANT_MOUSE_MOVEMENT
-            
-        # Only clear the hover stack when moved significantly
-        if moved_significantly:
-            # Reset selection only if not in edge selection mode or moved significantly
-            if not _edge_selection_active or distance_moved > 20:
-                global_data.hover_stack = []
-                global_data.hover_stack_index = -1
-                _edge_selection_active = False
-                _selected_edge_workplane = -1
-        
         _last_mouse_pos = current_pos
 
-        offscreen = global_data.offscreen
+        # Reset hover state every time, but be more careful about it
+        # Don't clear everything if we're in a sketch - we need to keep track of sketch entities
+        hover_stack.clear()
+        hover_stack_index = -1
+        
+        # Keep edge selection state for workplanes
+        if not _edge_selection_active:
+            _selected_edge_workplane = -1
+
+        # Clear hover state by default but don't do a full reset
+        # This allows hover state to be properly updated
+        # hover = -1
+
+        # Check for entities at current mouse position
         if not offscreen:
+            # No selection buffer available, clear hover state
+            hover = -1
             return -1
         
-        # If we're currently in edge selection mode, first check if the 
-        # previously selected edge is still valid
-        if _edge_selection_active and _selected_edge_workplane != -1:
-            entity = context.scene.sketcher.entities.get(_selected_edge_workplane)
-            if entity and entity.is_selectable(context) and isinstance(entity, SlvsWorkplane):
-                # Check if we're still on the edge
-                from ..utilities.view import get_pos_2d
+        # Find entities under cursor
+        found_indices = set()  # Use a set to prevent duplicates
+        entity_depths = {}  # Dictionary to store entity depths
+        active_sketch = context.scene.sketcher.active_sketch
+        
+        # Get view info for depth calculations
+        region = context.region
+        rv3d = context.region_data
+        view_origin = rv3d.view_matrix.inverted().translation
+        
+        PICK_SIZE = 5  # select more easily
+        for x, y in get_spiral_coords(mouse_x, mouse_y, context.area.width, context.area.height, PICK_SIZE):
+            with offscreen.bind():
+                fb = gpu.state.active_framebuffer_get()
+                buffer = fb.read_color(x, y, 1, 1, 4, 0, "FLOAT")
+            r, g, b, alpha = buffer[0][0]
+
+            if alpha > 0:
+                index = rgb_to_index(r, g, b)
+                if index not in found_indices and index not in ignore_list:
+                    found_indices.add(index)
+                    
+                    # Verify this is a valid entity
+                    entity = context.scene.sketcher.entities.get(index)
+                    if entity and entity.is_selectable(context):
+                        # Calculate depth for proper sorting
+                        depth = float('inf')  # Default to far away
+                        if isinstance(entity, SlvsWorkplane):
+                            # Calculate depth as distance from view origin to workplane center
+                            center_pos = entity.p1.location
+                            depth = (center_pos - view_origin).length
+                        
+                        # Store depth information
+                        entity_depths[index] = depth
+                        hover_stack.append(index)
+        
+        # If we found entities, sort by depth and select the closest one
+        if hover_stack:
+            # Sort all found entities by depth
+            hover_stack.sort(key=lambda idx: entity_depths.get(idx, float('inf')))
+            
+            # Set hover to the closest entity
+            hover_stack_index = 0
+            hover = hover_stack[0]
+            
+            # Check if it's a workplane edge
+            entity = context.scene.sketcher.entities.get(hover)
+            if entity and isinstance(entity, SlvsWorkplane):
                 pos_2d = get_pos_2d(context, entity, location)
                 
                 if pos_2d and is_point_on_edge(entity, (pos_2d.x, pos_2d.y)):
-                    # Still on the edge, keep selection active
-                    if _selected_edge_workplane not in global_data.hover_stack:
-                        global_data.hover_stack = [_selected_edge_workplane]
-                    
-                    global_data.hover_stack_index = 0
-                    global_data.hover = _selected_edge_workplane
-                    context.area.tag_redraw()
-                    return -1
-                else:
-                    # Not on the edge anymore and moved significantly
-                    if moved_significantly:
-                        _edge_selection_active = False
-                        _selected_edge_workplane = -1
+                    _edge_selection_active = True
+                    _selected_edge_workplane = entity.slvs_index
             
-        # Only find all entities if hover stack is empty
-        if not global_data.hover_stack:
-            found_indices = set()  # Use a set to prevent duplicates
-            found_workplanes = []  # List to store found workplanes for edge detection
-            entity_depths = {}  # Dictionary to store entity depths
-            
-            # Get view info for depth calculations
-            region = context.region
-            rv3d = context.region_data
-            view_origin = rv3d.view_matrix.inverted().translation
-            
-            PICK_SIZE = 5  # select more easily
-            for x, y in get_spiral_coords(mouse_x, mouse_y, context.area.width, context.area.height, PICK_SIZE):
-                with offscreen.bind():
-                    fb = gpu.state.active_framebuffer_get()
-                    buffer = fb.read_color(x, y, 1, 1, 4, 0, "FLOAT")
-                r, g, b, alpha = buffer[0][0]
-
-                if alpha > 0:
-                    index = rgb_to_index(r, g, b)
-                    if index not in found_indices and index not in global_data.ignore_list:
-                        found_indices.add(index)
-                        
-                        # Verify this is a valid entity
-                        entity = context.scene.sketcher.entities.get(index)
-                        if entity and entity.is_selectable(context):
-                            # Calculate depth for workplanes
-                            depth = float('inf')  # Default to far away
-                            if isinstance(entity, SlvsWorkplane):
-                                # Calculate depth as distance from view origin to workplane center
-                                center_pos = entity.p1.location
-                                depth = (center_pos - view_origin).length
-                                found_workplanes.append(entity)
-                            
-                            # Store depth information
-                            entity_depths[index] = depth
-                            global_data.hover_stack.append(index)
-            
-            # EVEN MORE AGGRESSIVE: Check ALL workplanes in scene for edges near cursor
-            # from ..utilities.view import get_pos_2d
-            edge_indices = [] # Keep this line to avoid NameError later
-            
-            # # Check all selectable workplanes in the scene for edges
-            # for entity in context.scene.sketcher.entities.all:
-            #     if isinstance(entity, SlvsWorkplane) and entity.is_selectable(context):
-            #         # Skip if already found in hover stack
-            #         if entity.slvs_index in found_indices:
-            #             continue
-                        
-            #         # Get 2D position on this workplane
-            #         pos_2d = get_pos_2d(context, entity, location)
-            #         if pos_2d:
-            #             # Check if this 2D point is on an edge with large tolerance
-            #             if is_point_on_edge(entity, (pos_2d.x, pos_2d.y)):
-            #                 edge_indices.append(entity.slvs_index)
-                            
-            #                 # Calculate depth for this workplane
-            #                 center_pos = entity.p1.location
-            #                 depth = (center_pos - view_origin).length
-            #                 entity_depths[entity.slvs_index] = depth
-                            
-            #                 # Add to hover stack
-            #                 if entity.slvs_index not in global_data.hover_stack:
-            #                     global_data.hover_stack.append(entity.slvs_index)
-            
-            # Sort entities by depth (previously included edge sorting logic here)
-            if global_data.hover_stack:
-                # Sort all found entities by depth
-                global_data.hover_stack.sort(key=lambda idx: entity_depths.get(idx, float('inf')))
-
-                # Check if the top entity is a workplane edge (based on buffer sampling)
-                top_entity_index = global_data.hover_stack[0]
-                entity = context.scene.sketcher.entities.get(top_entity_index)
-                # Simple check: if it's a workplane, assume edge for now
-                if entity and isinstance(entity, SlvsWorkplane):
-                     # We might need a more robust way to confirm it's an edge hit later
-                     _edge_selection_active = True # Tentatively mark as edge active
-                     _selected_edge_workplane = top_entity_index
-                else:
-                    _edge_selection_active = False
-                    _selected_edge_workplane = -1
-
-            # If we found entities, select the first one (closest by depth)
-            if global_data.hover_stack:
-                global_data.hover_stack_index = 0
-                global_data.hover = global_data.hover_stack[0]
-                context.area.tag_redraw()
-                logger.debug(f"Found {len(global_data.hover_stack)} overlapping entities at cursor (using buffer only)")
-                return -1
-        
-        # If we have an existing hover stack but nothing is currently hovered,
-        # select the first entity in the stack
-        elif global_data.hover_stack and global_data.hover == -1:
-            global_data.hover_stack_index = 0
-            global_data.hover = global_data.hover_stack[0]
             context.area.tag_redraw()
             return -1
-
-        if not global_data.hover_stack:
-            if global_data.hover != -1:
-                context.area.tag_redraw()
-                global_data.hover = -1
-            # Also reset edge selection mode
-            _edge_selection_active = False
-            _selected_edge_workplane = -1
-        
-        return -1
+        else:
+            # No entity found at current position
+            hover = -1
+            context.area.tag_redraw()
+            return -1
 
     def cycle_hover_stack(self, context):
         """Cycle to the next entity in the hover stack"""
         global _edge_selection_active, _selected_edge_workplane
         
-        if not global_data.hover_stack:
+        if not hover_stack:
             return
         
-        stack_len = len(global_data.hover_stack)
-        global_data.hover_stack_index = (global_data.hover_stack_index + 1) % stack_len
-        global_data.hover = global_data.hover_stack[global_data.hover_stack_index]
+        stack_len = len(hover_stack)
+        hover_stack_index = (hover_stack_index + 1) % stack_len
+        hover = hover_stack[hover_stack_index]
         
         # Update edge selection tracking based on the currently cycled entity
-        entity = context.scene.sketcher.entities.get(global_data.hover)
+        entity = context.scene.sketcher.entities.get(hover)
         # Simple check: if it's a workplane, assume edge for now
         if entity and isinstance(entity, SlvsWorkplane):
              # Re-check if the current cursor position is actually on its edge?
@@ -288,7 +217,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             
         # Log what entity we're hovering
         entity_name = entity.name if entity else "Unknown"
-        logger.debug(f"Cycling to entity {global_data.hover_stack_index + 1}/{stack_len}: {entity_name} (index: {global_data.hover})")
+        logger.debug(f"Cycling to entity {hover_stack_index + 1}/{stack_len}: {entity_name} (index: {hover})")
         
         context.area.tag_redraw()
 

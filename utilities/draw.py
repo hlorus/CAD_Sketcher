@@ -8,8 +8,8 @@ import gpu
 from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch, GPUIndexBuf
 from gpu_extras.batch import batch_for_shader  # We'll wrap this function
 
-from .. import global_data
 from .constants import FULL_TURN
+from ..global_data import Z_AXIS
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +187,7 @@ def draw_rect_2d(cx: float, cy: float, width: float, height: float):
 
 
 def draw_rect_3d(origin: Vector, orientation: Vector, width: float) -> List[Vector]:
-    mat_rot = global_data.Z_AXIS.rotation_difference(orientation).to_matrix()
+    mat_rot = Z_AXIS.rotation_difference(orientation).to_matrix()
     mat = Matrix.Translation(origin) @ mat_rot.to_4x4()
     coords = draw_rect_2d(0, 0, width, width)
     coords = [(mat @ Vector(co))[:] for co in coords]

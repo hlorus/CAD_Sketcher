@@ -8,9 +8,9 @@ from bpy.props import CollectionProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Euler, Quaternion
 
-from .. import global_data
 from ..utilities.constants import QUARTER_TURN
 from ..utilities.index import breakdown_index, assemble_index
+from ..global_data import redraw_selection_buffer
 
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer, update_pointers
@@ -173,6 +173,10 @@ class SlvsEntities(PropertyGroup):
         entity["visible"] = visible
 
         index = self._set_index(entity)
+        
+        # Mark the selection buffer for redraw since we've added a new entity
+        global redraw_selection_buffer
+        redraw_selection_buffer = True
 
         if index_reference:
             return index
@@ -461,17 +465,35 @@ class SlvsEntities(PropertyGroup):
         return [e for e in self.selected if e.is_active(active_sketch)]
 
     def ensure_origin_elements(self, context):
+        logger.debug("=== ENSURING ORIGIN ELEMENTS START ===")
         def set_origin_props(e):
             e.fixed = True
             e.origin = True
+            logger.debug(f"  Set origin props on {e}")
 
         sse = context.scene.sketcher.entities
+        logger.debug(f"  Using entities from context: {sse}")
+        logger.debug(f"  Self (this SlvsEntities instance): {self}")
+        
+        # Check if we're using the same entities instance
+        is_same_instance = (sse is self)
+        logger.debug(f"  Is same instance as context.scene.sketcher.entities: {is_same_instance}")
+        
+        # Verify collections before we start
+        for coll_name in _entity_collections:
+            coll = getattr(self, coll_name)
+            logger.debug(f"  Collection {coll_name} has {len(coll)} items")
+        
         # origin
         if not self.origin:
+            logger.debug("  Creating origin point")
             p = sse.add_point_3d((0.0, 0.0, 0.0))
             set_origin_props(p)
             p.name = "OriginPoint3D"
             self.origin = p
+            logger.debug(f"  Origin point created: {p.slvs_index}")
+        else:
+            logger.debug(f"  Origin point already exists: {self.origin}")
 
         # axis
         pi_2 = QUARTER_TURN
@@ -480,12 +502,17 @@ class SlvsEntities(PropertyGroup):
             ("origin_axis_X", "origin_axis_Y", "origin_axis_Z"),
             (Euler((pi_2, 0.0, pi_2)), Euler((pi_2, 0.0, 0.0)), Euler()),
         ):
-            if getattr(self, name):
+            ptr_name = name
+            if getattr(self, ptr_name):
+                logger.debug(f"  {label} already exists: {getattr(self, ptr_name)}")
                 continue
+                
+            logger.debug(f"  Creating {label}")
             nm = sse.add_normal_3d(Euler(angles).to_quaternion())
             set_origin_props(nm)
-            setattr(self, name, nm)
+            setattr(self, ptr_name, nm)
             nm.name = label
+            logger.debug(f"  {label} created: {nm.slvs_index}")
 
         # workplanes
         for label, nm_name, wp_name in (
@@ -493,12 +520,35 @@ class SlvsEntities(PropertyGroup):
             ("OriginWorkplaneXZ", "origin_axis_Y", "origin_plane_XZ"),
             ("OriginWorkplaneXY", "origin_axis_Z", "origin_plane_XY"),
         ):
-            if getattr(self, wp_name):
+            ptr_name = wp_name
+            if getattr(self, ptr_name):
+                logger.debug(f"  {label} already exists: {getattr(self, ptr_name)}")
                 continue
+                
+            logger.debug(f"  Creating {label}")
             wp = sse.add_workplane(self.origin, getattr(self, nm_name))
             set_origin_props(wp)
-            setattr(self, wp_name, wp)
+            setattr(self, ptr_name, wp)
             wp.name = label
+            logger.debug(f"  {label} created: {wp.slvs_index}")
+            
+        # Now verify what's in our collections after creation
+        logger.debug("  After creation:")
+        for coll_name in _entity_collections:
+            coll = getattr(self, coll_name)
+            logger.debug(f"  Collection {coll_name} has {len(coll)} items")
+            # If not empty, log some details about each item
+            if len(coll) > 0:
+                for i, item in enumerate(coll):
+                    logger.debug(f"    {coll_name}[{i}]: {item}, index: {item.slvs_index}")
+            
+        # Check what 'all' returns
+        all_entities = list(self.all)
+        logger.debug(f"  self.all returns {len(all_entities)} items")
+        for i, e in enumerate(all_entities):
+            logger.debug(f"    all[{i}]: {e}, index: {e.slvs_index}")
+        
+        logger.debug("=== ENSURING ORIGIN ELEMENTS END ===")
 
     def collection_offsets(self):
         offsets = {}
