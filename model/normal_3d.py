@@ -1,11 +1,12 @@
 import logging
 
+import bpy
 from bpy.types import PropertyGroup, Context
 from bpy.props import FloatVectorProperty
 from bpy.utils import register_classes_factory
 from mathutils import Euler
 
-from ..solver import Solver
+from ..base.constants import SOLVER_GROUP_FIXED
 from .base_entity import SlvsGenericEntity
 from ..global_data import safe_clear_dirty
 
@@ -24,10 +25,11 @@ class Normal3D(SlvsGenericEntity):
     def draw_id(self, context: Context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         quat = self.orientation
         handle = solvesys.addNormal3dV(quat.w, quat.x, quat.y, quat.z, group=group)
         self.py_data = handle
+        return handle
 
 
 class SlvsNormal3D(Normal3D, PropertyGroup):

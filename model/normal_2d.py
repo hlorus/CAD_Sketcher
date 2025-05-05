@@ -36,7 +36,6 @@ class SlvsNormal2D(Entity2D, PropertyGroup):
     def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         handle = solvesys.addNormal2d(self.wp.py_data, group=group)
         self.py_data = handle
-        return handle
 
 
 slvs_entity_pointer(SlvsNormal2D, "sketch")
