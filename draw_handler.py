@@ -7,66 +7,63 @@ from bpy.utils import register_class, unregister_class
 
 from . import global_data
 from .utilities.preferences import use_experimental
+from .utilities.constants import CLEAR_COLOR
 from .declarations import Operators
 from .model.types import SlvsWorkplane
+from .shaders import Shaders
 
 logger = logging.getLogger(__name__)
 
 
 def draw_selection_buffer(context: Context):
     """Draw elements offscreen"""
-    region = context.region
+    offscreen = global_data.offscreen
 
-    # create offscreen
-    width, height = region.width, region.height
-    offscreen = global_data.offscreen = gpu.types.GPUOffScreen(width, height)
+    if offscreen is not None:
+        shader = Shaders.id_shader()
+        shader.bind()
 
-    with offscreen.bind():
-        fb = gpu.state.active_framebuffer_get()
-        fb.clear(color=(0.0, 0.0, 0.0, 0.0))
-        
-        entities = list(context.scene.sketcher.entities.all)
-        
-        # First pass: Draw all non-workplane entities and workplane FACES with depth testing
-        gpu.state.depth_test_set('LESS_EQUAL')
-        gpu.state.depth_mask_set(True)
-        
-        for e in reversed(entities):
-            if e.slvs_index in global_data.ignore_list:
-                continue
-            if not hasattr(e, "draw_id"):
-                continue
-            if not e.is_selectable(context):
-                continue
-                
-            # For workplanes, only draw faces in this first pass
-            if isinstance(e, SlvsWorkplane):
-                if hasattr(e, "draw_id_face"):
-                    e.draw_id_face(context)
-            else:
-                # Draw all non-workplane entities normally
-                e.draw_id(context)
-        
-        # Second pass: Draw ALL workplane EDGES with depth testing disabled
-        # This ensures edges can always be selected regardless of other geometry
-        gpu.state.depth_test_set('ALWAYS')
-        
-        for e in reversed(entities):
-            if e.slvs_index in global_data.ignore_list:
-                continue
-            if not isinstance(e, SlvsWorkplane):
-                continue
-            if not hasattr(e, "draw_id_edges"):
-                continue
-            if not e.is_selectable(context):
-                continue
+        with offscreen.bind():
+            # NOTE: we have to make sure to clear both the depth buffer
+            # and the color buffer
+            gpu.state.depth_mask_set(True)
+            fb = gpu.state.active_framebuffer_get()
+            fb.clear(color=CLEAR_COLOR, depth=1.0)
+
+            # Create a list of entities to be sorted by type
+            entities = list(context.scene.sketcher.entities.all)
             
-            # Draw workplane edges
-            e.draw_id_edges(context)
-        
-        # Restore default state
-        gpu.state.depth_test_set('NONE')
-        gpu.state.depth_mask_set(False)
+            # First pass: Draw all non-workplane entities
+            gpu.state.depth_test_set('LESS')
+            
+            for e in reversed(entities):
+                if e.slvs_index in global_data.ignore_list:
+                    continue
+                    
+                if not isinstance(e, SlvsWorkplane):
+                    # Draw all non-workplane entities normally
+                    e.draw_id(context)
+            
+            # Second pass: Draw ONLY workplane EDGES with depth testing disabled
+            # This ensures edges can always be selected regardless of other geometry
+            gpu.state.depth_test_set('ALWAYS')
+            
+            for e in reversed(entities):
+                if e.slvs_index in global_data.ignore_list:
+                    continue
+                if not isinstance(e, SlvsWorkplane):
+                    continue
+                if not hasattr(e, "draw_id_edges"):
+                    continue
+                if not e.is_selectable(context):
+                    continue
+                
+                # Draw workplane edges with special handling to ensure selectability
+                e.draw_id_edges(context)
+            
+            # Restore default state
+            gpu.state.depth_test_set('NONE')
+            gpu.state.depth_mask_set(False)
 
 
 def ensure_selection_texture(context: Context):
