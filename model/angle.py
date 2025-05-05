@@ -9,7 +9,6 @@ from mathutils import Vector, Matrix
 from ..utilities.math import pol2cart
 from ..utilities.constants import HALF_TURN, QUARTER_TURN
 from ..utilities.math import range_2pi
-from ..solver import Solver
 from ..global_data import WpReq
 from ..utilities.view import location_3d_to_region_2d
 from .base_constraint import DimensionalConstraint
@@ -17,7 +16,6 @@ from .line_2d import SlvsLine2D
 from .utilities import slvs_entity_pointer
 from ..utilities.geometry import line_abc_form, get_line_intersection
 from ..utilities.solver import update_system_cb
-
 
 logger = logging.getLogger(__name__)
 

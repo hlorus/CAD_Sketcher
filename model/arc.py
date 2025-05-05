@@ -4,13 +4,11 @@ from typing import List
 import bpy
 from bpy.types import PropertyGroup, Context
 from bpy.props import BoolProperty
-from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch
 import math
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, tag_update
@@ -111,7 +109,7 @@ class SlvsArc(Entity2D, PropertyGroup):
             
         self.is_dirty = False
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         handle = solvesys.addArcOfCircle(
             self.wp.py_data,
             self.ct.py_data,

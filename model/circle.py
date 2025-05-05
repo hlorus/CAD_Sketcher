@@ -3,6 +3,7 @@ import math
 from typing import List
 
 import bpy
+import gpu
 from bpy.types import PropertyGroup
 from bpy.props import FloatProperty
 from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch
@@ -10,13 +11,13 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
 from ..utilities.math import range_2pi, pol2cart
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, tag_update
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN
+from ..base.constants import SOLVER_GROUP_FIXED
 from ..utilities.draw import coords_arc_2d, safe_batch_for_shader
 from .utilities import (
     get_bezier_curve_midpoint_positions,
@@ -82,7 +83,7 @@ class SlvsCircle(Entity2D, PropertyGroup):
         )
         self.is_dirty = False
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         self.param = solvesys.addParamV(self.radius, group)
 
         nm = None

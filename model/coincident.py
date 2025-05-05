@@ -5,6 +5,7 @@ from bpy.utils import register_classes_factory
 
 from ..solver import Solver
 from ..global_data import WpReq
+from ..base.constants import SOLVER_GROUP_FIXED
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer, make_coincident
 from .categories import POINT, LINE
@@ -37,7 +38,7 @@ class SlvsCoincident(GenericConstraint, PropertyGroup):
             return WpReq.FREE
         return WpReq.OPTIONAL
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         return make_coincident(
             solvesys, self.entity1.py_data, self.entity2, self.get_workplane(), group
         )
