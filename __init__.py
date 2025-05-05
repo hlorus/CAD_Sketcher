@@ -20,6 +20,11 @@ bl_info = {
 }
 
 
+# Import conditionally to avoid errors when in background mode
+icon_manager = None
+if not background:
+    from . import icon_manager
+
 
 def get_addon_version_tuple() -> tuple:
     """Return addon version as a tuple e.g. (0, 27, 1)"""
@@ -88,8 +93,7 @@ def register():
     ensure_addon_presets()
     register_base()
 
-    if not background:
-        from . import icon_manager
+    if not background and icon_manager:
         icon_manager.load()
 
     logger.info("Enabled CAD Sketcher base, version: {}".format(get_addon_version()))
@@ -124,8 +128,7 @@ def unregister():
             _load_post_handler_added = False  # Ensure flag is reset
             pass  # Ignore error if handler not found
 
-    if not background:
-        from . import icon_manager
+    if not background and icon_manager:
         icon_manager.unload()
 
     if global_data.registered:
