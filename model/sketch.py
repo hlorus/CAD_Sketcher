@@ -6,7 +6,8 @@ from bpy.types import PropertyGroup
 from bpy.props import EnumProperty, BoolProperty, IntProperty, PointerProperty
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver, solve_system
+from ..solver import solve_system
+from ..base.constants import SOLVER_GROUP_FIXED
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 from ..utilities.bpy import bpyEnum
@@ -81,7 +82,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     def draw_id(self, context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SSOLVER_GROUP_FIXED):
         pass
 
     def remove_objects(self):

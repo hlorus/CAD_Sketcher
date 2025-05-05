@@ -7,8 +7,8 @@ from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
 from ..utilities.draw import draw_cube_3d, safe_batch_for_shader
-from ..solver import Solver
 from .base_entity import SlvsGenericEntity
+from ..base.constants import SOLVER_GROUP_FIXED
 
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class Point3D(SlvsGenericEntity):
     def placement(self):
         return self.location
 
-    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, coords=None, group=SOLVER_GROUP_FIXED):
         if not coords:
             coords = self.location
 
