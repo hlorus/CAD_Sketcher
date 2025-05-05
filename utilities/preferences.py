@@ -1,9 +1,27 @@
 import bpy
+import logging
 
 from .register import get_name
 
+# Set up module logger
+logger = logging.getLogger(__name__)
+
 # Import constants for default values
-from ..base.preferences import DEFAULT_WORKPLANE_SIZE
+from ..base.preferences import (
+    DEFAULT_WORKPLANE_SIZE,
+    DEFAULT_ENTITY_SCALE,
+    DEFAULT_GIZMO_SCALE,
+    DEFAULT_TEXT_SIZE,
+    DEFAULT_ARROW_SCALE,
+    DEFAULT_DECIMAL_PRECISION,
+    DEFAULT_ANGLE_PRECISION,
+    DEFAULT_SHOW_DEBUG_SETTINGS,
+    DEFAULT_HIDE_INACTIVE_CONSTRAINTS,
+    DEFAULT_ALL_ENTITIES_SELECTABLE,
+    DEFAULT_FORCE_REDRAW,
+    DEFAULT_AUTO_HIDE_OBJECTS,
+    DEFAULT_USE_ALIGN_VIEW
+)
 from ..base.theme import (
     ENTITY_COLOR_DEFAULT, ENTITY_COLOR_HIGHLIGHT, ENTITY_COLOR_SELECTED,
     ENTITY_COLOR_SELECTED_HIGHLIGHT, ENTITY_COLOR_INACTIVE, ENTITY_COLOR_INACTIVE_SELECTED,
@@ -39,19 +57,19 @@ class MockTheme:
 # Mock preferences class with default values
 class MockPrefs:
     theme_settings = MockTheme()
-    entity_scale = 1.0
+    entity_scale = DEFAULT_ENTITY_SCALE
     workplane_size = DEFAULT_WORKPLANE_SIZE
-    gizmo_scale = 15.0
-    text_size = 15
-    arrow_scale = 1.0
-    show_debug_settings = False
-    hide_inactive_constraints = True
-    all_entities_selectable = False
-    force_redraw = True
-    decimal_precision = 3
-    angle_precision = 0
-    auto_hide_objects = True
-    use_align_view = True
+    gizmo_scale = DEFAULT_GIZMO_SCALE
+    text_size = DEFAULT_TEXT_SIZE
+    arrow_scale = DEFAULT_ARROW_SCALE
+    show_debug_settings = DEFAULT_SHOW_DEBUG_SETTINGS
+    hide_inactive_constraints = DEFAULT_HIDE_INACTIVE_CONSTRAINTS
+    all_entities_selectable = DEFAULT_ALL_ENTITIES_SELECTABLE
+    force_redraw = DEFAULT_FORCE_REDRAW
+    decimal_precision = DEFAULT_DECIMAL_PRECISION
+    angle_precision = DEFAULT_ANGLE_PRECISION
+    auto_hide_objects = DEFAULT_AUTO_HIDE_OBJECTS
+    use_align_view = DEFAULT_USE_ALIGN_VIEW
     
     # Add any additional properties that are needed with their default values
 
@@ -63,7 +81,7 @@ def get_prefs():
         
     # If preferences aren't available yet, return our mock preferences object with defaults
     # This prevents AttributeError when accessing preferences during early initialization
-    print(f"Warning: Could not find addon preferences for '{addon_name}'. Using defaults.")
+    logger.warning(f"Could not find addon preferences for '{addon_name}'. Using defaults.")
     return MockPrefs()
 
 
