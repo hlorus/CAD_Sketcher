@@ -5,6 +5,7 @@ import addon_utils
 from bpy.app import background
 import bpy.app
 
+logger = logging.getLogger(__name__)
 
 bl_info = {
     "name": "CAD Sketcher",
@@ -24,6 +25,11 @@ bl_info = {
 icon_manager = None
 if not background:
     from . import icon_manager
+    # Pre-initialize icon manager right away to prevent race conditions
+    try:
+        icon_manager.load()
+    except Exception as e:
+        logger.error(f"Failed to initialize icon manager: {e}")
 
 
 def get_addon_version_tuple() -> tuple:
