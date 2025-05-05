@@ -17,6 +17,7 @@ from ..utilities.index import index_to_rgb
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 from ..base.preferences import DEFAULT_WORKPLANE_SIZE
+from ..gizmos.constants import WORKPLANE_EDGE_LINE_WIDTH
 
 logger = logging.getLogger(__name__)
 
@@ -127,8 +128,8 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
         shader.uniform_bool("dashed", (False,))
         
-        # Use thicker lines for better edge selection - increased significantly
-        gpu.state.line_width_set(2.0)
+        # Use much thicker lines for better edge selection
+        gpu.state.line_width_set(WORKPLANE_EDGE_LINE_WIDTH)
         
         # Disable depth testing completely to ensure edges are always drawn
         # regardless of what's in front of them

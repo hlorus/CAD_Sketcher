@@ -10,6 +10,7 @@ from ..draw_handler import ensure_selection_texture
 from ..utilities.index import rgb_to_index
 from ..model.types import SlvsWorkplane
 from .utilities import context_mode_check
+from .constants import WORKPLANE_EDGE_SELECT_TOLERANCE, SIGNIFICANT_MOUSE_MOVEMENT
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +36,13 @@ class VIEW3D_GGT_slvs_preselection(GizmoGroup):
         self.gizmo = self.gizmos.new(VIEW3D_GT_slvs_preselection.bl_idname)
 
 
-def is_point_on_edge(workplane, point_2d, tolerance=2):
+def is_point_on_edge(workplane, point_2d, tolerance=WORKPLANE_EDGE_SELECT_TOLERANCE):
     """Check if a 2D point is close to any edge of the workplane square
     
     Args:
         workplane: The workplane to check edges for
         point_2d: 2D point coordinates on the workplane (x, y)
-        tolerance: Distance threshold for edge detection (greatly increased)
+        tolerance: Distance threshold for edge detection (default from constants)
     
     Returns:
         bool: True if point is within tolerance of an edge
@@ -112,8 +113,8 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             dy = current_pos[1] - _last_mouse_pos[1]
             distance_moved = math.sqrt(dx*dx + dy*dy)
             
-            # Only consider significant movement if moved more than 5 pixels
-            moved_significantly = distance_moved > 5
+            # Only consider significant movement if moved more than the threshold 
+            moved_significantly = distance_moved > SIGNIFICANT_MOUSE_MOVEMENT
             
         # Only clear the hover stack when moved significantly
         if moved_significantly:
@@ -139,7 +140,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
                 from ..utilities.view import get_pos_2d
                 pos_2d = get_pos_2d(context, entity, location)
                 
-                if pos_2d and is_point_on_edge(entity, (pos_2d.x, pos_2d.y), tolerance=3.0):
+                if pos_2d and is_point_on_edge(entity, (pos_2d.x, pos_2d.y)):
                     # Still on the edge, keep selection active
                     if _selected_edge_workplane not in global_data.hover_stack:
                         global_data.hover_stack = [_selected_edge_workplane]
