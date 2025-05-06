@@ -9,11 +9,13 @@ from ..draw_handler import ensure_selection_texture
 from ..utilities.index import rgb_to_index
 from ..model.types import SlvsWorkplane
 from .utilities import context_mode_check
-from .constants import WORKPLANE_EDGE_SELECT_TOLERANCE, SIGNIFICANT_MOUSE_MOVEMENT
+from .constants import WORKPLANE_EDGE_SELECT_TOLERANCE, PICK_SIZE
 from ..utilities.view import get_pos_2d
 from .. import global_data  # Import the whole module
 
 logger = logging.getLogger(__name__)
+
+# TODO: move this module state to global_data 
 
 _last_mouse_pos = None
 _edge_selection_active = False  # Track if we're currently in edge selection mode
@@ -137,7 +139,8 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         rv3d = context.region_data
         view_origin = rv3d.view_matrix.inverted().translation
         
-        PICK_SIZE = 5  # select more easily
+        # Increased from 5 to 8 to make it easier to select vertical lines
+        PICK_SIZE = 8  # select more easily
         for x, y in get_spiral_coords(mouse_x, mouse_y, context.area.width, context.area.height, PICK_SIZE):
             with global_data.offscreen.bind():
                 fb = gpu.state.active_framebuffer_get()
