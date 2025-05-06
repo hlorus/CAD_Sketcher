@@ -140,7 +140,6 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         view_origin = rv3d.view_matrix.inverted().translation
         
         # Increased from 5 to 8 to make it easier to select vertical lines
-        PICK_SIZE = 8  # select more easily
         for x, y in get_spiral_coords(mouse_x, mouse_y, context.area.width, context.area.height, PICK_SIZE):
             with global_data.offscreen.bind():
                 fb = gpu.state.active_framebuffer_get()
