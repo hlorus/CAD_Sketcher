@@ -97,9 +97,13 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     def draw_id_face(self, context, shader):
         """Draw only the face of the workplane to the selection buffer"""
-        # Selectability check removed, handled by caller (draw_selection_buffer)
-        # if not self.is_selectable(context):
-        #     return
+        # Check if workplane should be shown in selection buffer when inside a sketch
+        active_sketch = context.scene.sketcher.active_sketch
+        if active_sketch and active_sketch.wp != self:
+            # Don't draw workplane in selection buffer if we're in a sketch
+            # that isn't based on this workplane
+            logger.debug(f"draw_id_face({self.slvs_index}): Skipped due to active sketch")
+            return
 
         batch = self._batch # Assuming face uses the same batch for ID
         if not batch:
@@ -129,9 +133,13 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     def draw_id_edges(self, context, shader):
         """Draw only the edges of the workplane to the selection buffer"""
-        # Selectability check removed, handled by caller (draw_selection_buffer)
-        # if not self.is_selectable(context):
-        #     return
+        # Check if workplane should be shown in selection buffer when inside a sketch
+        active_sketch = context.scene.sketcher.active_sketch
+        if active_sketch and active_sketch.wp != self:
+            # Don't draw workplane in selection buffer if we're in a sketch
+            # that isn't based on this workplane
+            logger.debug(f"draw_id_edges({self.slvs_index}): Skipped due to active sketch")
+            return
 
         batch = self._batch
         if not batch:
