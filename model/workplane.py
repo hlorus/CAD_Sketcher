@@ -44,6 +44,26 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         # Return the default size if preferences are not available yet
         return prefs.workplane_size if prefs else DEFAULT_WORKPLANE_SIZE
 
+    def is_sketch_active(self, context):
+        """Check if any sketch is currently active"""
+        return context.scene.sketcher.active_sketch_i != -1
+
+    def is_visible(self, context):
+        """Override visibility check to hide workplanes when in sketch mode"""
+        # First check if any sketch is active - don't show workplanes in sketch mode
+        if self.is_sketch_active(context):
+            return False
+        # Otherwise use the standard visibility check
+        return super().is_visible(context)
+
+    def is_selectable(self, context):
+        """Override selectable check to hide workplanes when in sketch mode"""
+        # First check if any sketch is active - don't select workplanes in sketch mode
+        if self.is_sketch_active(context):
+            return False
+        # Otherwise use the standard selectable check
+        return super().is_selectable(context)
+
     def update(self):
         if bpy.app.background:
             return
@@ -64,6 +84,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     # NOTE: probably better to avoid overwriting draw func..
     def draw(self, context):
+        # Don't draw workplanes when a sketch is active
         if not self.is_visible(context):
             return
 
@@ -98,11 +119,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
     def draw_id_face(self, context, shader):
         """Draw only the face of the workplane to the selection buffer"""
         # Check if workplane should be shown in selection buffer when inside a sketch
-        active_sketch = context.scene.sketcher.active_sketch
-        if active_sketch and active_sketch.wp != self:
-            # Don't draw workplane in selection buffer if we're in a sketch
-            # that isn't based on this workplane
-            logger.debug(f"draw_id_face({self.slvs_index}): Skipped due to active sketch")
+        if not self.is_selectable(context):
             return
 
         batch = self._batch # Assuming face uses the same batch for ID
@@ -134,11 +151,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
     def draw_id_edges(self, context, shader):
         """Draw only the edges of the workplane to the selection buffer"""
         # Check if workplane should be shown in selection buffer when inside a sketch
-        active_sketch = context.scene.sketcher.active_sketch
-        if active_sketch and active_sketch.wp != self:
-            # Don't draw workplane in selection buffer if we're in a sketch
-            # that isn't based on this workplane
-            logger.debug(f"draw_id_edges({self.slvs_index}): Skipped due to active sketch")
+        if not self.is_selectable(context):
             return
 
         batch = self._batch
@@ -179,10 +192,12 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     def draw_id(self, context, shader):
         """Draw only the edges for selection buffer identification."""
-        # Selectability check removed, handled by caller (draw_selection_buffer)
-        # if not self.is_selectable(context):
-        #     return
-        # Call draw_id_edges with the provided shader
+        # Don't draw workplanes in ID buffer when a sketch is active
+        if not self.is_selectable(context):
+            return
+            
+        # Draw both face and edges with the default approach
+        self.draw_id_face(context, shader)
         self.draw_id_edges(context, shader)
 
     def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
