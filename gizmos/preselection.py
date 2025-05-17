@@ -191,7 +191,8 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             context.area.tag_redraw()
             return -1
 
-    def cycle_hover_stack(self, context):
+    @staticmethod
+    def cycle_hover_stack(context):
         """Cycle to the next entity in the hover stack""" 
         global _edge_selection_active, _selected_edge_workplane
 
@@ -219,6 +220,8 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         logger.debug(f"Cycling to entity {global_data.hover_stack_index + 1}/{stack_len}: {entity_name} (index: {global_data.hover})")
         
         context.area.tag_redraw()
+        
+        return entity
 
 
 def _spiral(N, M):
