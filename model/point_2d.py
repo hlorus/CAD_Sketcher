@@ -8,12 +8,13 @@ from gpu_extras.batch import batch_for_shader
 from mathutils import Matrix, Vector
 from bpy.utils import register_classes_factory
 
-from ..utilities.draw import draw_rect_2d
-from ..solver import Solver
+from ..utilities.draw import safe_batch_for_shader
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
-from .utilities import slvs_entity_pointer, make_coincident
+from .utilities import slvs_entity_pointer
 from .line_2d import SlvsLine2D
+from ..global_data import safe_create_batch, safe_clear_dirty
+from ..base.constants import SOLVER_GROUP_FIXED
 
 logger = logging.getLogger(__name__)
 
@@ -27,17 +28,19 @@ class Point2D(Entity2D):
         if bpy.app.background:
             return
 
-        u, v = self.co
-        mat_local = Matrix.Translation(Vector((u, v, 0)))
-
-        mat = self.wp.matrix_basis @ mat_local
-        size = 0.1
-        coords = draw_rect_2d(0, 0, size, size)
-        coords = [(mat @ Vector(co))[:] for co in coords]
-        indices = ((0, 1, 2), (0, 2, 3))
         pos = self.location
-        self._batch = batch_for_shader(self._shader, "POINTS", {"pos": (pos[:],)})
-        self.is_dirty = False
+
+        # Use our safe batch creation system instead of directly setting _batch
+        safe_create_batch(
+            self,
+            safe_batch_for_shader,
+            self._shader,
+            "POINTS",
+            {"pos": pos[:]}
+        )
+        
+        # Safely clear the dirty flag
+        safe_clear_dirty(self)
 
     @property
     def location(self):
@@ -49,7 +52,7 @@ class Point2D(Entity2D):
     def placement(self):
         return self.location
 
-    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, coords=None, group=SOLVER_GROUP_FIXED):
         if not coords:
             coords = self.co
 
@@ -114,6 +117,9 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         endpoint = solvesys.addPoint2d(wrkpln.py_data, *params, group=group)
 
         edge = solvesys.addLineSegment(startpoint, endpoint, group=group)
+        # avoid circular dependency
+        from ..utilities.data_handling import make_coincident
+
         make_coincident(
             solvesys, self.py_data, edge, wrkpln.py_data, group, entity_type=SlvsLine2D
         )

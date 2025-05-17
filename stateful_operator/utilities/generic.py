@@ -2,17 +2,7 @@ import bpy
 import bmesh
 from bpy.types import Object
 from mathutils.bvhtree import BVHTree
-
-
-def to_list(val):
-    if val is None:
-        return []
-    if type(val) in (list, tuple):
-        return list(val)
-    return [
-        val,
-    ]
-
+from ..logic import StatefulOperatorLogic
 
 def get_pointer_get_set(index: int):
     @property
@@ -28,8 +18,6 @@ def get_pointer_get_set(index: int):
 
 def get_subclasses():
     """Get all classes that inherit from StatefulOperatorLogic"""
-    from ..logic import StatefulOperatorLogic
-
     def _get_classes(cls_list):
         ret = []
         for c in cls_list:

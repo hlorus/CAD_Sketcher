@@ -10,7 +10,8 @@ Add integration with native blender types, following are supported:
 
 from .logic import StatefulOperatorLogic
 from .constants import mesh_element_types
-from .utilities.generic import get_pointer_get_set, to_list
+from .utilities.generic import get_pointer_get_set
+from ..utilities.data_handling import to_list
 from .utilities.geometry import (
     get_evaluated_obj,
     get_mesh_element,

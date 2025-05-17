@@ -6,11 +6,11 @@ from bpy.types import PropertyGroup
 from bpy.props import EnumProperty, BoolProperty, IntProperty, PointerProperty
 from bpy.utils import register_classes_factory
 
-from .. import global_data
-from ..solver import Solver, solve_system
+from ..base.constants import SOLVER_GROUP_FIXED
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 from ..utilities.bpy import bpyEnum
+from .. import global_data
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,8 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
             yield e
 
     def update(self):
-        self.is_dirty = False
+        # Use global_data's safe method instead of direct assignment
+        global_data.safe_clear_dirty(self)
 
     def draw(self, context):
         pass
@@ -81,7 +82,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     def draw_id(self, context):
         pass
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         pass
 
     def remove_objects(self):
@@ -99,6 +100,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         return bpyEnum(global_data.solver_state_items, identifier=self.solver_state)
 
     def solve(self, context):
+        from ..solver import solve_system
         return solve_system(context, sketch=self)
 
     @classmethod

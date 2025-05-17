@@ -4,11 +4,11 @@ from functools import cache
 import gpu
 import bpy
 import bpy.utils.previews
-from gpu_extras.batch import batch_for_shader
 from bpy.app import background
 
 from .declarations import Operators
 from .shaders import Shaders
+from .utilities.draw import safe_batch_for_shader  # Import our safe function
 
 icons = {}
 preview_icons = None
@@ -33,10 +33,11 @@ def _get_shader():
 
 @cache
 def _get_batch():
-    return batch_for_shader(_get_shader(), "TRI_FAN", {
-    "pos": ((-.5, -.5), (.5, -.5), (.5, .5), (-.5, .5)),
-    "texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
-})
+    # Use our safe batch creation function instead
+    return safe_batch_for_shader(_get_shader(), "TRI_FAN", {
+        "pos": ((-.5, -.5), (.5, -.5), (.5, .5), (-.5, .5)),
+        "texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
+    })
 
 def get_folder_path():
     return Path(__file__).parent / "resources" / "icons"

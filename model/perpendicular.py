@@ -9,6 +9,7 @@ from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
 from .line_2d import SlvsLine2D
 from .utilities import get_connection_point
+from ..base.constants import SOLVER_GROUP_FIXED
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class SlvsPerpendicular(GenericConstraint, PropertyGroup):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         return solvesys.addPerpendicular(
             self.entity1.py_data,
             self.entity2.py_data,

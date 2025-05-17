@@ -166,7 +166,51 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
             gpu.matrix.load_matrix(self.matrix_basis)
             scale = self.scale_basis
             gpu.matrix.scale(Vector((scale, scale)))
-            icon_manager.draw(self.type, col)
+            
+            # Check if icon_manager is valid and has a draw method
+            if icon_manager is None or not hasattr(icon_manager, 'draw'):
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Icon manager is not properly initialized: {icon_manager}")
+                # Draw fallback shape if icon manager isn't available
+                # Manually create batch to avoid issues with batch_for_shader
+                from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch
+                shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+                shader.bind()
+                shader.uniform_float("color", col)
+                
+                # Simple square as fallback
+                coords = [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]
+                fmt = GPUVertFormat()
+                pos_id = fmt.attr_add(id="pos", comp_type='F32', len=2, fetch_mode='FLOAT')
+                vbo = GPUVertBuf(fmt, len(coords))
+                vbo.attr_fill(id=pos_id, data=coords)
+                batch = GPUBatch(type='LINE_LOOP', buf=vbo)
+                batch.draw(shader)
+                return
+                
+            # Try to draw the icon with error handling
+            try:
+                icon_manager.draw(self.type, col)
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to draw constraint icon: {e}, type: {self.type}")
+                # Draw fallback shape if icon can't be drawn
+                # Manually create batch to avoid issues with batch_for_shader
+                from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch
+                shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+                shader.bind()
+                shader.uniform_float("color", col)
+                
+                # Simple square as fallback
+                coords = [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]
+                fmt = GPUVertFormat()
+                pos_id = fmt.attr_add(id="pos", comp_type='F32', len=2, fetch_mode='FLOAT')
+                vbo = GPUVertBuf(fmt, len(coords))
+                vbo.attr_fill(id=pos_id, data=coords)
+                batch = GPUBatch(type='LINE_LOOP', buf=vbo)
+                batch.draw(shader)
 
     def setup(self):
         pass

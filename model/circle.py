@@ -3,21 +3,23 @@ import math
 from typing import List
 
 import bpy
+import gpu
 from bpy.types import PropertyGroup
 from bpy.props import FloatProperty
-from gpu_extras.batch import batch_for_shader
+from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
+from .. import global_data
 from ..utilities.math import range_2pi, pol2cart
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, tag_update
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN
-from ..utilities.draw import coords_arc_2d
+from ..base.constants import SOLVER_GROUP_FIXED
+from ..utilities.draw import coords_arc_2d, safe_batch_for_shader
 from .utilities import (
     get_bezier_curve_midpoint_positions,
     create_bezier_curve,
@@ -76,11 +78,13 @@ class SlvsCircle(Entity2D, PropertyGroup):
         mat = self.wp.matrix_basis @ mat_local
         coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
-        kwargs = {"pos": coords}
-        self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
-        self.is_dirty = False
+        # Use global data's safe batch storage instead of direct assignment
+        global_data.safe_create_batch(self, safe_batch_for_shader,
+            self._shader, "LINE_STRIP", {"pos": coords}
+        )
+        global_data.safe_clear_dirty(self)
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         self.param = solvesys.addParamV(self.radius, group)
 
         nm = None

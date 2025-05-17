@@ -1,17 +1,16 @@
 import logging
 from .utilities.bpy import bpyEnum
 from .global_data import solver_state_items
-
-# TODO: Move to utilities.data_handling
-from .model.utilities import make_coincident
+from .base.constants import SOLVER_GROUP_FIXED, SOLVER_GROUP_3D, SOLVER_START_SKETCH_GROUPS
 
 logger = logging.getLogger(__name__)
 
 
 class Solver:
-    group_fixed = 1
-    group_3d = 2
-    start_sketch_groups = 3
+    # For backward compatibility
+    group_fixed = SOLVER_GROUP_FIXED
+    group_3d = SOLVER_GROUP_3D
+    start_sketch_groups = SOLVER_START_SKETCH_GROUPS
 
     # iterate over constraints of active group and lazily init required entities
     def __init__(self, context, sketch, all=False):
@@ -27,7 +26,7 @@ class Solver:
         self.all = all
         self.failed_sketches = []
 
-        group = self._get_group(sketch) if sketch else self.group_3d
+        group = self._get_group(sketch) if sketch else SOLVER_GROUP_3D
         logger.info(
             "--- Start solving ---\nAll:{}, Sketch:{}, g:{}".format(all, sketch, group)
         )
@@ -52,11 +51,11 @@ class Solver:
 
     def _get_group(self, sketch):
         if not sketch:
-            return self.group_3d
+            return SOLVER_GROUP_3D
         type, index = self.context.scene.sketcher.entities._breakdown_index(
             sketch.slvs_index
         )
-        return self.start_sketch_groups + index
+        return SOLVER_START_SKETCH_GROUPS + index
 
     def _init_slvs_data(self):
         context = self.context
@@ -66,11 +65,11 @@ class Solver:
             self.entities.append(e)
 
             if e.fixed:
-                group = self.group_fixed
+                group = SOLVER_GROUP_FIXED
             elif hasattr(e, "sketch"):
                 group = self._get_group(e.sketch)
             else:
-                group = self.group_3d
+                group = SOLVER_GROUP_3D
 
             if self.tweak_entity and e == self.tweak_entity:
                 wp = self.get_workplane()
@@ -92,7 +91,8 @@ class Solver:
                         )
 
                     e.create_slvs_data(self.solvesys, group=group)
-
+                    # avoid circular import
+                    from .utilities.data_handling import make_coincident
                     self.tweak_constraint = make_coincident(
                         self.solvesys, p, e, wp, group
                     )
@@ -115,7 +115,7 @@ class Solver:
             if hasattr(c, "sketch") and c.sketch:
                 group = self._get_group(c.sketch)
             else:
-                group = self.group_3d
+                group = SOLVER_GROUP_3D
 
             if self.report:
                 c.failed = False
@@ -157,7 +157,7 @@ class Solver:
     # def dummy():
     # wp = None
     # if context.scene.sketcher.active_workplane_i == -1:
-    #     group = self.group_3d
+    #     group = SOLVER_GROUP_3D
     # else:
     #     wp = context.scene.sketcher.active_workplane
     #     # i = context.scene.sketcher.entities.get_local_index(wp.slvs_index)

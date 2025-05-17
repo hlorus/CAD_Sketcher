@@ -9,6 +9,7 @@ from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
 from .point_2d import SlvsPoint2D
 from .line_2d import SlvsLine2D
+from ..base.constants import SOLVER_GROUP_FIXED
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class SlvsHorizontal(GenericConstraint, PropertyGroup):
     def needs_wp(self):
         return WpReq.NOT_FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         wp = self.get_workplane()
         if self.entity1.is_point():
             return solvesys.addPointsHorizontal(

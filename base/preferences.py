@@ -15,12 +15,29 @@ from bpy.props import (
 )
 
 from . import theme
-from .. import global_data, units
+from .constants import (
+    DEFAULT_SHOW_DEBUG_SETTINGS,
+    DEFAULT_SHOW_THEME_SETTINGS,
+    DEFAULT_HIDE_INACTIVE_CONSTRAINTS,
+    DEFAULT_ALL_ENTITIES_SELECTABLE,
+    DEFAULT_FORCE_REDRAW,
+    DEFAULT_DECIMAL_PRECISION,
+    DEFAULT_ANGLE_PRECISION,
+    DEFAULT_AUTO_HIDE_OBJECTS,
+    DEFAULT_ENTITY_SCALE,
+    DEFAULT_WORKPLANE_SIZE,
+    DEFAULT_GIZMO_SCALE,
+    DEFAULT_TEXT_SIZE,
+    DEFAULT_ARROW_SCALE,
+    DEFAULT_USE_ALIGN_VIEW,
+)
+# Keep module import for global_data since we need to access a variable that may be modified
+from .. import global_data
+from .. import units
 from ..declarations import Operators
 from ..utilities.register import get_path, get_name
 from ..utilities.view import update_cb
 from ..utilities.install import check_module
-
 
 log_levels = [
     ("CRITICAL", "Critical", "", 0),
@@ -105,12 +122,12 @@ class Preferences(AddonPreferences):
 
     show_debug_settings: BoolProperty(
         name="Show Debug Settings",
-        default=False,
+        default=DEFAULT_SHOW_DEBUG_SETTINGS,
     )
     show_theme_settings: BoolProperty(
         name="Show Theme Settings",
         description="Expand this box to show various theme settings",
-        default=False,
+        default=DEFAULT_SHOW_THEME_SETTINGS,
     )
     package_path: StringProperty(
         name="Package Filepath",
@@ -126,17 +143,17 @@ class Preferences(AddonPreferences):
         default=2,
     )
     hide_inactive_constraints: BoolProperty(
-        name="Hide inactive Constraints", default=True, update=update_cb
+        name="Hide inactive Constraints", default=DEFAULT_HIDE_INACTIVE_CONSTRAINTS, update=update_cb
     )
     all_entities_selectable: BoolProperty(
-        name="Make all Entities Selectable", update=update_cb
+        name="Make all Entities Selectable", default=DEFAULT_ALL_ENTITIES_SELECTABLE, update=update_cb
     )
-    force_redraw: BoolProperty(name="Force Entity Redraw", default=True)
+    force_redraw: BoolProperty(name="Force Entity Redraw", default=DEFAULT_FORCE_REDRAW)
 
     decimal_precision: IntProperty(
         name="Decimal Precision",
         description="Number of digits after the comma",
-        default=3,
+        default=DEFAULT_DECIMAL_PRECISION,
         min=0,
         soft_max=7,
     )
@@ -145,30 +162,30 @@ class Preferences(AddonPreferences):
         name="Angle Precision",
         min=0,
         max=5,
-        default=0,
+        default=DEFAULT_ANGLE_PRECISION,
         description="Angle decimal precision",
     )
 
     auto_hide_objects: BoolProperty(
         name="Auto Fade Objects",
         description="Fade curves/meshes while in sketch mode",
-        default=True,
+        default=DEFAULT_AUTO_HIDE_OBJECTS,
     )
     entity_scale: FloatProperty(
-        name="Entity Scale", default=1.0, min=0.1, soft_max=3.0, update=theme.update
+        name="Entity Scale", default=DEFAULT_ENTITY_SCALE, min=0.1, soft_max=3.0, update=theme.update
     )
     workplane_size: FloatProperty(
-        name="Workplane Size", default=0.4, soft_min=0.1, soft_max=1.0
+        name="Workplane Size", default=DEFAULT_WORKPLANE_SIZE, soft_min=0.1, soft_max=1.0
     )
     gizmo_scale: FloatProperty(
-        name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update
+        name="Icon Scale", default=DEFAULT_GIZMO_SCALE, min=1.0, soft_max=25.0, update=theme.update
     )
-    text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
-    arrow_scale: FloatProperty(name="Arrow Scale", default=1, min=0.2, soft_max=3)
+    text_size: IntProperty(name="Text Size", default=DEFAULT_TEXT_SIZE, min=5, soft_max=25)
+    arrow_scale: FloatProperty(name="Arrow Scale", default=DEFAULT_ARROW_SCALE, min=0.2, soft_max=3)
     use_align_view: BoolProperty(
         name="Align View",
         description="Automatically align view to workplane when activating a sketch.",
-        default=True,
+        default=DEFAULT_USE_ALIGN_VIEW,
     )
 
     def draw(self, context):

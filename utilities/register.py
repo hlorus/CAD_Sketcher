@@ -1,8 +1,12 @@
 import os
 import sys
 import importlib
+import logging
 from typing import List
 from traceback import print_exc
+from bpy.utils import register_class, unregister_class
+
+logger = logging.getLogger(__name__)
 
 
 # From: https://github.com/iyadahmed/bpy_helper/blob/main/bpy_helper/register.py
@@ -31,17 +35,28 @@ def module_register_factory(parent_module_name: str, module_names: List[str]):
     ]
 
     def register():
+        logger.debug("Registering modules: {}".format(str(modules)))
         for m in modules:
             try:
+                if not m:
+                    logger.info("Empty module, skipping")
+                    continue
+
                 m.register()
-            except Exception:
-                print_exc()
+            except Exception as e:
+                logger.exception(f"Failed to register module: {m.__name__}")
 
     def unregister():
-        for m in reversed(modules):
+        logger.debug("Unregistering modules: {}".format(str(modules)))
+        for m in reversed(list(modules)):
+            if not m:
+                logger.info("Empty module, skipping")
+                continue
+
             try:
                 m.unregister()
-            except Exception:
-                print_exc()
+            except Exception as e:
+                logger.exception(f"Error unregistering module {m.__name__}: {str(e)}")
+                # Continue unregistering other modules even if one fails
 
     return register, unregister

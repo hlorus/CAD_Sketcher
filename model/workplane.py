@@ -5,18 +5,20 @@ import bpy
 import gpu
 from mathutils import Vector, Matrix
 from bpy.types import PropertyGroup
-from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
+from .. import global_data
 from ..declarations import Operators
 from .. import global_data
-from ..utilities.draw import draw_rect_2d
+from ..utilities.draw import draw_rect_2d, safe_batch_for_shader
 from ..shaders import Shaders
 from ..utilities import preferences
-from ..solver import Solver
+from ..utilities.index import index_to_rgb
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
-
+from ..base.constants import DEFAULT_WORKPLANE_SIZE, SOLVER_GROUP_FIXED
+from .constants import WORKPLANE_EDGE_LINE_WIDTH
+from ..global_data import Z_AXIS
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +40,29 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     @property
     def size(self):
-        return preferences.get_prefs().workplane_size
+        prefs = preferences.get_prefs()
+        # Return the default size if preferences are not available yet
+        return prefs.workplane_size if prefs else DEFAULT_WORKPLANE_SIZE
+
+    def is_sketch_active(self, context):
+        """Check if any sketch is currently active"""
+        return context.scene.sketcher.active_sketch_i != -1
+
+    def is_visible(self, context):
+        """Override visibility check to hide workplanes when in sketch mode"""
+        # First check if any sketch is active - don't show workplanes in sketch mode
+        if self.is_sketch_active(context):
+            return False
+        # Otherwise use the standard visibility check
+        return super().is_visible(context)
+
+    def is_selectable(self, context):
+        """Override selectable check to hide workplanes when in sketch mode"""
+        # First check if any sketch is active - don't select workplanes in sketch mode
+        if self.is_sketch_active(context):
+            return False
+        # Otherwise use the standard selectable check
+        return super().is_selectable(context)
 
     def update(self):
         if bpy.app.background:
@@ -46,17 +70,21 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
         p1, nm = self.p1, self.nm
 
-        coords = draw_rect_2d(0, 0, self.size, self.size)
-        coords = [(Vector(co))[:] for co in coords]
+        coords_2d = draw_rect_2d(0, 0, self.size, self.size)
+        # Convert 2D coords to 3D Vectors (assuming Z=0 in local space)
+        coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
 
         indices = ((0, 1), (1, 2), (2, 3), (3, 0))
-        self._batch = batch_for_shader(
-            self._shader, "LINES", {"pos": coords}, indices=indices
+
+        # Use global_data's safe batch storage instead of direct assignment
+        global_data.safe_create_batch(self, safe_batch_for_shader,
+            self._shader, "LINES", {"pos": coords_3d}, indices=indices
         )
-        self.is_dirty = False
+        global_data.safe_clear_dirty(self)
 
     # NOTE: probably better to avoid overwriting draw func..
     def draw(self, context):
+        # Don't draw workplanes when a sketch is active
         if not self.is_visible(context):
             return
 
@@ -78,22 +106,106 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
             shader.uniform_float("color", col_surface)
 
-            coords = draw_rect_2d(0, 0, self.size, self.size)
-            coords = [Vector(co)[:] for co in coords]
+            coords_2d = draw_rect_2d(0, 0, self.size, self.size)
+            coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
             indices = ((0, 1, 2), (0, 2, 3))
-            batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
+
+            # Use safe_batch_for_shader instead
+            batch = safe_batch_for_shader(shader, "TRIS", {"pos": coords_3d}, indices=indices)
             batch.draw(shader)
 
         self.restore_opengl_defaults()
 
-    def draw_id(self, context):
+    def draw_id_face(self, context, shader):
+        """Draw only the face of the workplane to the selection buffer"""
+        # Explicitly skip drawing if a sketch is active
+        if hasattr(context.scene, "sketcher") and getattr(context.scene.sketcher, "active_sketch_i", -1) != -1:
+            logger.debug(f"draw_id_face({self.slvs_index}): Skipping face (sketch active)")
+            return
+
+        # Check if workplane should be shown in selection buffer when inside a sketch
+        if not self.is_selectable(context):
+            return
+
+        batch = self._batch # Assuming face uses the same batch for ID
+        if not batch:
+            logger.debug(f"draw_id_face({self.slvs_index}): No batch found.")
+            return
+
+        logger.debug(f"draw_id_face({self.slvs_index}): Drawing with shader {shader.name}")
+        shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
+        shader.uniform_bool("dashed", (False,))
+
         with gpu.matrix.push_pop():
             scale = context.region_data.view_distance
             gpu.matrix.multiply_matrix(self.matrix_basis)
             gpu.matrix.scale(Vector((scale, scale, scale)))
-            super().draw_id(context)
+            
+            # Draw the workplane face with depth testing
+            coords_2d = draw_rect_2d(0, 0, self.size, self.size)
+            coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
+            indices = ((0, 1, 2), (0, 2, 3))
+            # Recreate batch specifically for face geometry if needed
+            face_batch = safe_batch_for_shader(shader, "TRIS", {"pos": coords_3d}, indices=indices)
+            if face_batch:
+                face_batch.draw(shader)
+                logger.debug(f"draw_id_face({self.slvs_index}): Face batch drawn.")
+            else:
+                logger.debug(f"draw_id_face({self.slvs_index}): Failed to create face batch.")
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def draw_id_edges(self, context, shader):
+        """Draw only the edges of the workplane to the selection buffer"""
+        # Check if workplane should be shown in selection buffer when inside a sketch
+        if not self.is_selectable(context):
+            return
+
+        batch = self._batch
+        if not batch:
+             logger.debug(f"draw_id_edges({self.slvs_index}): No batch found.")
+             return
+             
+        logger.debug(f"draw_id_edges({self.slvs_index}): Drawing with shader {shader.name}")
+        shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
+        shader.uniform_bool("dashed", (False,))
+        
+        # Use thick lines for selection
+        gpu.state.line_width_set(self.line_width_select)
+        
+        with gpu.matrix.push_pop():
+            # Apply workplane's transformation
+            gpu.matrix.multiply_matrix(self.matrix_basis)
+            
+            # Apply scale to make it visually the same size
+            scale = context.region_data.view_distance
+            gpu.matrix.scale(Vector((scale, scale, scale)))
+            
+            # Create the square edges
+            coords_2d = draw_rect_2d(0, 0, self.size, self.size)
+            coords_3d = [Vector((co[0], co[1], 0.0)) for co in coords_2d]
+            indices = ((0, 1), (1, 2), (2, 3), (3, 0))
+            
+            # Use the main batch for edges
+            edge_batch = safe_batch_for_shader(shader, "LINES", {"pos": coords_3d}, indices=indices)
+            if edge_batch:
+                edge_batch.draw(shader)
+                logger.debug(f"draw_id_edges({self.slvs_index}): Edge batch drawn.")
+            else:
+                 logger.debug(f"draw_id_edges({self.slvs_index}): Failed to create edge batch.")
+        
+        # Restore line width
+        gpu.state.line_width_set(1.0)
+
+    def draw_id(self, context, shader):
+        """Draw only the edges for selection buffer identification."""
+        # Don't draw workplanes in ID buffer when a sketch is active
+        if not self.is_selectable(context):
+            return
+            
+        # Draw both face and edges with the default approach
+        self.draw_id_face(context, shader)
+        self.draw_id_edges(context, shader)
+
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         handle = solvesys.addWorkplane(self.p1.py_data, self.nm.py_data, group=group)
         self.py_data = handle
 
@@ -104,7 +216,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     @property
     def normal(self):
-        v = global_data.Z_AXIS.copy()
+        v = Z_AXIS.copy()
         quat = self.nm.orientation
         v.rotate(quat)
         return v

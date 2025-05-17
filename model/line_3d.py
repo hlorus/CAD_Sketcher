@@ -3,13 +3,16 @@ from typing import List
 
 import bpy
 from bpy.types import PropertyGroup
-from gpu_extras.batch import batch_for_shader
+from gpu.types import GPUVertFormat, GPUVertBuf, GPUBatch  # Import necessary types
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 from ..utilities.geometry import nearest_point_line_line
+from ..utilities.draw import safe_batch_for_shader
+from ..base.constants import SOLVER_GROUP_FIXED
+from .. import global_data
+
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +48,15 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
             return
 
         p1, p2 = self.p1.location, self.p2.location
-        coords = (p1, p2)
+        coords = [p1, p2]
 
-        kwargs = {"pos": coords}
-        self._batch = batch_for_shader(self._shader, "LINES", kwargs)
+        # Use global data's safe batch storage instead of direct assignment
+        global_data.safe_create_batch(self, safe_batch_for_shader,
+            self._shader, "LINES", {"pos": coords}
+        )
+        global_data.safe_clear_dirty(self)
 
-        self.is_dirty = False
-
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         handle = solvesys.addLineSegment(self.p1.py_data, self.p2.py_data, group=group)
         self.py_data = handle
 

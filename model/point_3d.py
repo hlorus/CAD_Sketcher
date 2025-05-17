@@ -6,9 +6,10 @@ from bpy.props import FloatVectorProperty
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
-from ..utilities.draw import draw_cube_3d
-from ..solver import Solver
+from .. import global_data
+from ..utilities.draw import draw_cube_3d, safe_batch_for_shader
 from .base_entity import SlvsGenericEntity
+from ..base.constants import SOLVER_GROUP_FIXED
 
 
 logger = logging.getLogger(__name__)
@@ -23,17 +24,17 @@ class Point3D(SlvsGenericEntity):
         if bpy.app.background:
             return
 
-        coords, indices = draw_cube_3d(*self.location, 0.05)
-        self._batch = batch_for_shader(
-            self._shader, "POINTS", {"pos": (self.location[:],)}
+        # Use global_data's safe batch storage instead of direct assignment
+        global_data.safe_create_batch(self, safe_batch_for_shader,
+            self._shader, "POINTS", {"pos": self.location[:]}
         )
-        self.is_dirty = False
+        global_data.safe_clear_dirty(self)
 
     # TODO: maybe rename -> pivot_point, midpoint
     def placement(self):
         return self.location
 
-    def create_slvs_data(self, solvesys, coords=None, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, coords=None, group=SOLVER_GROUP_FIXED):
         if not coords:
             coords = self.location
 

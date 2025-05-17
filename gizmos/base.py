@@ -1,7 +1,7 @@
-from .. import global_data
 from ..declarations import Operators
 from ..model.types import GenericConstraint
 from .utilities import get_color, get_constraint_color_type, set_gizmo_colors
+from .. import global_data  # Import the whole module instead of specific variables
 
 
 class ConstraintGizmo:

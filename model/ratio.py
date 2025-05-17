@@ -5,6 +5,7 @@ from bpy.props import FloatProperty
 from bpy.utils import register_classes_factory
 
 from ..solver import Solver
+from ..base.constants import SOLVER_GROUP_FIXED
 from ..global_data import WpReq
 from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
@@ -41,7 +42,7 @@ class SlvsRatio(DimensionalConstraint, PropertyGroup):
             return WpReq.NOT_FREE
         return WpReq.FREE
 
-    def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+    def create_slvs_data(self, solvesys, group=SOLVER_GROUP_FIXED):
         e1, e2 = self.entity1, self.entity2
 
         return solvesys.addLengthRatio(

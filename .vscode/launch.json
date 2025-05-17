@@ -27,7 +27,7 @@
                 "host": "localhost",
                 "port": 5678
             },
-            "preLaunchTask": "Run Blender interactively",
+            "preLaunchTask": "Run Blender interactively (Linux)",
             "pathMappings": [
                 {
                     "localRoot": "${workspaceFolder}",

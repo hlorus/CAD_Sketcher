@@ -1,3 +1,6 @@
+import _bpy
+from .utilities.generic import get_subclasses
+
 class GenericStateTool:
     """Base for WorkSpaceTools that expose a StatefulOperator"""
 
@@ -7,9 +10,6 @@ class GenericStateTool:
         # Get description from operator
         op_name = cls.bl_operator if hasattr(cls, "bl_operator") else ""
         if op_name:
-            import _bpy
-            from .utilities.generic import get_subclasses
-
             func = None
             for op in get_subclasses():
                 if not hasattr(op, "bl_idname"):

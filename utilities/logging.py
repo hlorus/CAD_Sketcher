@@ -4,6 +4,7 @@ from tempfile import gettempdir
 from pathlib import Path
 
 from .register import get_name
+from .preferences import get_prefs
 
 
 def setup_logger(logger):
@@ -34,7 +35,5 @@ def setup_logger(logger):
 
 
 def update_logger(logger):
-    from .preferences import get_prefs
-
     prefs = get_prefs()
     logger.setLevel(prefs.logging_level)

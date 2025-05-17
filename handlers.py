@@ -2,6 +2,7 @@ import bpy
 import logging
 
 from bpy.app.handlers import persistent
+from .versioning import write_addon_version, do_versioning
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +63,6 @@ def unregister_handlers():
 
 
 def _setup_builtin_handlers():
-    from .versioning import write_addon_version, do_versioning
-
     add_builtin_handler("version_update", do_versioning)
     add_builtin_handler("save_pre", write_addon_version)
 
