@@ -199,21 +199,25 @@ def draw_selection_buffer(context: Context):
             
             # Pass 5: Draw ONLY workplane EDGES with depth testing disabled ('ALWAYS')
             if workplanes:
-                gpu.state.depth_test_set('ALWAYS')
-                line_shader = Shaders.id_line_3d()
-                line_shader.bind()
-                logger.debug("Pass 5: Workplane Edges (ALWAYS depth)")
-                drawn_count = 0
-                
-                for wp in reversed(workplanes):
-                    # Draw workplane edges
-                    if hasattr(wp, "draw_id_edges"):
-                        logger.debug(f"  Drawing edges for WP {wp.slvs_index}")
-                        wp.draw_id_edges(context, line_shader)
-                        drawn_count += 1
-                        
-                logger.debug(f"  Drawn {drawn_count} edges.")
-                gpu.shader.unbind()
+                # Skip drawing workplane edges if a sketch is active
+                if hasattr(context.scene, "sketcher") and getattr(context.scene.sketcher, "active_sketch_i", -1) != -1:
+                    logger.debug("Skipping workplane edge drawing: sketch is active")
+                else:
+                    gpu.state.depth_test_set('ALWAYS')
+                    line_shader = Shaders.id_line_3d()
+                    line_shader.bind()
+                    logger.debug("Pass 5: Workplane Edges (ALWAYS depth)")
+                    drawn_count = 0
+                    
+                    for wp in reversed(workplanes):
+                        # Draw workplane edges
+                        if hasattr(wp, "draw_id_edges"):
+                            logger.debug(f"  Drawing edges for WP {wp.slvs_index}")
+                            wp.draw_id_edges(context, line_shader)
+                            drawn_count += 1
+                    
+                    logger.debug(f"  Drawn {drawn_count} edges.")
+                    gpu.shader.unbind()
             
             # Restore default state
             gpu.state.depth_test_set('NONE')
