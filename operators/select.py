@@ -3,6 +3,7 @@ from bpy.props import IntProperty, BoolProperty
 from bpy.utils import register_classes_factory
 import logging
 
+from ..utilities.logging import setup_logger
 from .utilities import select_extend, select_invert
 from ..utilities.select import select_all, deselect_all
 from .. import global_data
@@ -12,6 +13,7 @@ from ..utilities.select import mode_property
 from ..gizmos.preselection import VIEW3D_GT_slvs_preselection
 
 logger = logging.getLogger(__name__)
+setup_logger(logger)
 
 
 class View3D_OT_slvs_select(Operator, HighlightElement):
@@ -29,7 +31,7 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
 
     index: IntProperty(name="Index", default=-1)
     mode: mode_property
-    cycle: BoolProperty(name="Cycle through overlapping entities", default=False)
+    cycle: BoolProperty(name="Cycle through overlapping entities", default=True)
 
     def invoke(self, context, event):
         # When clicking directly, enable cycling behavior
@@ -37,11 +39,14 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
         return self.execute(context)
 
     def execute(self, context: Context):
+        logger.debug(f"[SELECT] index={self.index}, mode={self.mode}, cycle={self.cycle}, hover={getattr(global_data, 'hover', None)}, hover_stack={getattr(global_data, 'hover_stack', None)}")
         # Handle when directly selecting an entity by index (e.g., from UI)
         if self.properties.is_property_set("index") and self.index != -1:
             entity = context.scene.sketcher.entities.get(self.index)
+            logger.debug(f"[SELECT] Direct index selection: {self.index}, entity={getattr(entity, 'name', None)}, selected={getattr(entity, 'selected', None)}")
             if entity:
                 if self.mode == "SET":
+                    logger.debug("[SELECT] Deselecting all (direct index)")
                     deselect_all(context)
                 
                 value = True
@@ -49,7 +54,7 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
                     value = False
                 if self.mode == "TOGGLE":
                     value = not entity.selected
-                
+                logger.debug(f"[SELECT] Setting entity.selected = {value}")
                 entity.selected = value
                 context.area.tag_redraw()
                 return {"FINISHED"}
@@ -58,46 +63,40 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
         index = global_data.hover
         hit = index != -1
         mode = self.mode
+        logger.debug(f"[SELECT] Hover selection: index={index}, hit={hit}, mode={mode}, hover_stack={getattr(global_data, 'hover_stack', None)}")
 
-        # If we're in "SET" mode or nothing is hit, deselect all
+        # ---- CYCLE FIRST -------------------------------------------------
+        if hit and self.cycle and len(global_data.hover_stack) > 1:
+            entity = context.scene.sketcher.entities.get(index)
+            logger.debug(f"[SELECT] Cycle check: entity={getattr(entity, 'name', None)}, selected={getattr(entity, 'selected', None)}, mode={mode}")
+            if entity.selected and mode in {"SET", "TOGGLE"}:
+                logger.debug("[SELECT] Attempting to cycle hover stack...")
+                try:
+                    VIEW3D_GT_slvs_preselection.cycle_hover_stack(context)
+                except Exception as e:
+                    logger.error(f"[SELECT] Error cycling hover stack: {e}")
+                index = global_data.hover
+                entity = context.scene.sketcher.entities.get(index)
+                logger.debug(f"[SELECT] After cycle: index={index}, entity={getattr(entity, 'name', None)}")
+                entity.selected = True
+                logger.info(f"Cycled to entity: {getattr(entity, 'name', None)}")
+                context.area.tag_redraw()
+                return {"FINISHED"}
+
+        # ---- NORMAL SELECTION -------------------------------------------
         if mode == "SET" or not hit:
+            logger.debug("[SELECT] Deselecting all (normal selection)")
             deselect_all(context)
 
         if hit:
-            # Check if we're trying to cycle through stacked entities
-            if self.cycle and len(global_data.hover_stack) > 1:
-                # Check if this is a click on already selected entity - if so, cycle
-                entity = context.scene.sketcher.entities.get(index)
-                if entity.selected and mode in ("SET", "TOGGLE"):
-                    # Get all gizmo groups
-                    for gizmogroup in context.window_manager.gizmo_group_properties:
-                        # Find our preselection gizmo group
-                        if gizmogroup.name == "preselection ggt":
-                            # Find the gizmo instance
-                            for space in context.workspace.screens[0].areas:
-                                if space.type == 'VIEW_3D':
-                                    for region in space.regions:
-                                        if region.type == 'WINDOW':
-                                            gizmo_instances = [g for g in region.gizmos if isinstance(g, VIEW3D_GT_slvs_preselection)]
-                                            if gizmo_instances:
-                                                # Cycle to the next entity
-                                                gizmo_instances[0].cycle_hover_stack(context)
-                                                # Now the hover has been updated, select the new entity
-                                                index = global_data.hover
-                                                entity = context.scene.sketcher.entities.get(index)
-                                                entity.selected = True
-                                                logger.info(f"Cycled to entity: {entity.name}")
-                                                context.area.tag_redraw()
-                                                return {"FINISHED"}
-            
-            # Normal selection behavior
             entity = context.scene.sketcher.entities.get(index)
+            logger.debug(f"[SELECT] Normal selection: entity={getattr(entity, 'name', None)}, selected={getattr(entity, 'selected', None)}")
             value = True
             if mode == "SUBTRACT":
                 value = False
             if mode == "TOGGLE":
                 value = not entity.selected
-
+            logger.debug(f"[SELECT] Setting entity.selected = {value}")
             entity.selected = value
 
         context.area.tag_redraw()
@@ -156,6 +155,20 @@ class View3D_OT_slvs_select_extend_all(Operator):
             pass
         context.area.tag_redraw()
         return {"FINISHED"}
+
+
+def _find_preselection_gizmo(context):
+    """Find the active VIEW3D_GT_slvs_preselection gizmo instance in all VIEW_3D areas."""
+    for window in context.window_manager.windows:
+        for area in window.screen.areas:
+            if area.type == 'VIEW_3D':
+                for region in area.regions:
+                    if region.type == 'WINDOW':
+                        if hasattr(region, 'gizmo_map'):
+                            for gizmo in region.gizmo_map.gizmos:
+                                if isinstance(gizmo, VIEW3D_GT_slvs_preselection):
+                                    return gizmo
+    return None
 
 
 register, unregister = register_classes_factory(

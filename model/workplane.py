@@ -118,6 +118,11 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     def draw_id_face(self, context, shader):
         """Draw only the face of the workplane to the selection buffer"""
+        # Explicitly skip drawing if a sketch is active
+        if hasattr(context.scene, "sketcher") and getattr(context.scene.sketcher, "active_sketch_i", -1) != -1:
+            logger.debug(f"draw_id_face({self.slvs_index}): Skipping face (sketch active)")
+            return
+
         # Check if workplane should be shown in selection buffer when inside a sketch
         if not self.is_selectable(context):
             return
