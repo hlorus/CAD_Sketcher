@@ -147,6 +147,11 @@ tool_access = (
         Operators.AddCircle2D,
     ),
     tool_invoke_kmi(
+        "I",
+        WorkSpaceTools.ProjectInclude,
+        Operators.ProjectInclude,
+    ),
+    tool_invoke_kmi(
         "A",
         WorkSpaceTools.AddArc2D,
         Operators.AddArc2D,
@@ -166,11 +171,7 @@ tool_access = (
         WorkSpaceTools.Bevel,
         Operators.Bevel,
     ),
-    tool_invoke_kmi(
-        "O",
-        WorkSpaceTools.Offset,
-        Operators.Offset
-    ),
+    tool_invoke_kmi("O", WorkSpaceTools.Offset, Operators.Offset),
     (
         Operators.AddSketch,
         {"type": "S", "value": "PRESS"},

@@ -1,5 +1,5 @@
-from ..utilities.register import module_register_factory
 from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.register import module_register_factory
 
 modules = [
     "select",
@@ -36,6 +36,7 @@ modules = [
     "add_geometric_constraints",
     "align_workplane",
     "align_view",
+    "project_include",
     "modifiers",
     "move",
     "duplicate",
