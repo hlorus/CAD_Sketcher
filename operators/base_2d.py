@@ -13,16 +13,12 @@ from .utilities import ignore_hover
 
 
 class Operator2d(GenericEntityOp):
-
-    event: Event
-
     @classmethod
     def poll(cls, context: Context):
         return context.scene.sketcher.active_sketch_i != -1
 
     def init(self, context: Context, event: Event):
         self.sketch = context.scene.sketcher.active_sketch
-        self.event = event
         return True
 
     def state_func(self, context: Context, coords):
