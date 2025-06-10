@@ -1,22 +1,21 @@
+from typing import Optional
+
 import bpy
-from bpy.props import IntProperty, BoolProperty
+from bpy.props import BoolProperty, IntProperty
 from bpy.types import Context, Event
 from mathutils import Vector
 
 # TODO: Move to entity extended op
 from .. import global_data
-
-from .utilities.generic import to_list
 from .utilities.description import state_desc, stateful_op_desc
+from .utilities.generic import to_list
 from .utilities.keymap import (
     get_key_map_desc,
-    is_numeric_input,
-    is_unit_input,
     get_unit_value,
     get_value_from_event,
+    is_numeric_input,
+    is_unit_input,
 )
-
-from typing import Optional
 
 
 class StatefulOperatorLogic:
@@ -200,7 +199,9 @@ class StatefulOperatorLogic:
         is_confirm_button = event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER")
 
         if is_confirm_button and event.value == "PRESS":
+            self.event = event  # give event access to modal operators
             return True
+
         if self.state_index == 0 and not self.wait_for_input:
             # Trigger the first state
             return not self.state_data.get("is_numeric_edit", False)
@@ -466,6 +467,13 @@ class StatefulOperatorLogic:
             return {"PASS_THROUGH"}
         return {"RUNNING_MODAL"}
 
+    def _is_mousemove(self, event: Event, reset: bool = False) -> bool:
+        coords = Vector((event.mouse_region_x, event.mouse_region_y))
+        mousemove_threshold = 0.1
+        if reset:
+            self._last_coords = coords
+        return (coords - self._last_coords).length > mousemove_threshold
+
     def modal(self, context: Context, event: Event):
         state = self.state
         event_triggered = self.check_event(event)
@@ -489,9 +497,7 @@ class StatefulOperatorLogic:
 
         # HACK: when calling ops.ed.undo() inside an operator a mousemove event
         # is getting triggered. manually check if there's a mousemove...
-        mousemove_threshold = 0.1
-        is_mousemove = (coords - self._last_coords).length > mousemove_threshold
-        self._last_coords = coords
+        is_mousemove = self._is_mousemove(event=event, reset=True)
 
         if not event_triggered:
             if is_numeric_event:
