@@ -1,22 +1,21 @@
 import logging
 
 import bpy
-from bpy.types import Operator, Context
+from bpy.types import Context, Operator
 
 from .. import global_data
-from ..model.types import SlvsNormal3D
-from ..model.categories import NORMAL3D
-
-from ..utilities.geometry import get_face_orientation
 from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
+from ..model.categories import NORMAL3D
+from ..model.types import SlvsNormal3D
+from ..solver import solve_system
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.geometry import get_evaluated_obj, get_mesh_element
-from ..solver import solve_system
+from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.geometry import get_face_orientation
+from ..utilities.view import get_placement_pos
 from .base_3d import Operator3d
 from .constants import types_point_3d
 from .utilities import ignore_hover
-from ..utilities.view import get_placement_pos
 
 logger = logging.getLogger(__name__)
 
