@@ -1,12 +1,14 @@
 def index_to_rgb(i: int):
-    r = (i & int("0x000000FF", 16)) / 255
-    g = ((i & int("0x0000FF00", 16)) >> 8) / 255
-    b = ((i & int("0x00FF0000", 16)) >> 16) / 255
+    r = ((i & 0x0000ff) >>  0) / 255
+    g = ((i & 0x00ff00) >>  8) / 255
+    b = ((i & 0xff0000) >> 16) / 255
     return r, g, b
 
 
 def rgb_to_index(r: int, g: int, b: int) -> int:
-    i = int(r * 255 + g * 255 * 256 + b * 255 * 256 * 256)
+    i = (int(r * 255 + 0.5) <<  0) \
+      | (int(g * 255 + 0.5) <<  8) \
+      | (int(b * 255 + 0.5) << 16)
     return i
 
 
