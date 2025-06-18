@@ -263,11 +263,13 @@ class SlvsGenericEntity:
                     # Try viewportSize as tuple first, then as separate components
                     try:
                         shader.uniform_float("viewportSize", (context.region.width, context.region.height))
-                    except:
+                    except (AttributeError, ValueError) as e:
+                        logger.debug(f"Vulkan viewportSize tuple failed, trying components: {e}")
                         shader.uniform_float("viewportSize[0]", float(context.region.width))
                         shader.uniform_float("viewportSize[1]", float(context.region.height))
-                except:
+                except (AttributeError, ValueError, TypeError) as e:
                     # Fall back to OpenGL state if uniforms fail
+                    logger.debug(f"Vulkan uniform setup failed, falling back to OpenGL state: {e}")
                     gpu.state.line_width_set(self.line_width)
             else:
                 # On OpenGL, use custom shader uniforms for dashed lines
@@ -275,8 +277,8 @@ class SlvsGenericEntity:
                     shader.uniform_bool("dashed", (self.is_dashed(),))
                     shader.uniform_float("dash_width", 0.05)
                     shader.uniform_float("dash_factor", 0.3)
-                except:
-                    pass
+                except (AttributeError, ValueError) as e:
+                    logger.debug(f"OpenGL shader uniform setup failed: {e}")
                 gpu.state.line_width_set(self.line_width)
 
         batch.draw(shader)

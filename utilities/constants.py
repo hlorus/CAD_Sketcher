@@ -1,4 +1,7 @@
 import math
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Mathematical constants
 PI = math.pi
@@ -40,7 +43,9 @@ class BackendCache:
             try:
                 import gpu
                 cls._backend_type = gpu.platform.backend_type_get()
-            except:
+                logger.debug(f"Detected GPU backend: {cls._backend_type}")
+            except (ImportError, AttributeError) as e:
+                logger.warning(f"Failed to detect GPU backend, using OpenGL fallback: {e}")
                 cls._backend_type = 'OPENGL'  # Safe fallback
         return cls._backend_type
 
