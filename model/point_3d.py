@@ -24,10 +24,24 @@ class Point3D(SlvsGenericEntity):
         if bpy.app.background:
             return
 
-        coords, indices = draw_cube_3d(*self.location, 0.05)
-        self._batch = batch_for_shader(
-            self._shader, "POINTS", {"pos": (self.location[:],)}
-        )
+        # Check if we're on Vulkan/Metal backend
+        try:
+            backend_type = gpu.platform.backend_type_get()
+            is_vulkan_metal = backend_type in ('VULKAN', 'METAL')
+        except:
+            is_vulkan_metal = False
+
+        if is_vulkan_metal:
+            # On Vulkan/Metal, render points as small cubes for proper size support
+            coords, indices = draw_cube_3d(*self.location, 0.05)
+            self._batch = batch_for_shader(
+                self._shader, "TRIS", {"pos": coords}, indices=indices
+            )
+        else:
+            # On OpenGL, use traditional point rendering
+            self._batch = batch_for_shader(
+                self._shader, "POINTS", {"pos": (self.location[:],)}
+            )
         self.is_dirty = False
 
     # TODO: maybe rename -> pivot_point, midpoint

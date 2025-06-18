@@ -35,8 +35,23 @@ class Point2D(Entity2D):
         coords = draw_rect_2d(0, 0, size, size)
         coords = [(mat @ Vector(co))[:] for co in coords]
         indices = ((0, 1, 2), (0, 2, 3))
-        pos = self.location
-        self._batch = batch_for_shader(self._shader, "POINTS", {"pos": (pos[:],)})
+
+        # Check if we're on Vulkan/Metal backend
+        try:
+            backend_type = gpu.platform.backend_type_get()
+            is_vulkan_metal = backend_type in ('VULKAN', 'METAL')
+        except:
+            is_vulkan_metal = False
+
+        if is_vulkan_metal:
+            # On Vulkan/Metal, render points as small rectangles for proper size support
+            self._batch = batch_for_shader(
+                self._shader, "TRIS", {"pos": coords}, indices=indices
+            )
+        else:
+            # On OpenGL, use traditional point rendering
+            pos = self.location
+            self._batch = batch_for_shader(self._shader, "POINTS", {"pos": (pos[:],)})
         self.is_dirty = False
 
     @property

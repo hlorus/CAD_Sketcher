@@ -91,7 +91,8 @@ class SlvsGenericEntity:
 
         if self.is_point():
             if is_vulkan_metal:
-                return Shaders.point_color_3d()
+                # Points are rendered as triangles (cubes/rectangles) on Vulkan/Metal
+                return Shaders.uniform_color_3d()
             return Shaders.uniform_color_3d()
 
         # For lines, use built-in shaders on Vulkan/Metal if not dashed
@@ -259,7 +260,11 @@ class SlvsGenericEntity:
         shader.uniform_float("color", col)
 
         if self.is_point():
-            gpu.state.point_size_set(self.point_size)
+            is_vulkan_metal = self._is_vulkan_metal_backend()
+
+            if not is_vulkan_metal:
+                # On OpenGL, use traditional point size setting
+                gpu.state.point_size_set(self.point_size)
         else:
             is_vulkan_metal = self._is_vulkan_metal_backend()
 
