@@ -85,9 +85,10 @@ class SlvsGenericEntity:
                 return Shaders.uniform_color_3d()
             return Shaders.uniform_color_3d()
 
-        # For lines, use built-in shaders on Vulkan if not dashed
-        if is_vulkan and not self.is_dashed():
+        # For lines on Vulkan, always use POLYLINE_UNIFORM_COLOR for proper line width
+        if is_vulkan:
             return Shaders.polyline_color_3d()
+        # On OpenGL, use custom shader for dash support
         return Shaders.uniform_color_line_3d()
 
     @property
@@ -258,8 +259,8 @@ class SlvsGenericEntity:
         else:
             is_vulkan = self._is_vulkan_backend()
 
-            if is_vulkan and not self.is_dashed():
-                # Set uniforms for POLYLINE_UNIFORM_COLOR shader
+            if is_vulkan:
+                # On Vulkan, use POLYLINE_UNIFORM_COLOR for all lines (proper line width)
                 try:
                     shader.uniform_float("lineWidth", self.line_width)
                     # Try viewportSize as tuple first, then as separate components
@@ -272,7 +273,7 @@ class SlvsGenericEntity:
                     # Fall back to OpenGL state if uniforms fail
                     gpu.state.line_width_set(self.line_width)
             else:
-                # Custom shader uniforms for dashed lines or OpenGL
+                # On OpenGL, use custom shader uniforms for dashed lines
                 try:
                     shader.uniform_bool("dashed", (self.is_dashed(),))
                     shader.uniform_float("dash_width", 0.05)
