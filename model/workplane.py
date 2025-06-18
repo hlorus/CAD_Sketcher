@@ -91,7 +91,26 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             scale = context.region_data.view_distance
             gpu.matrix.multiply_matrix(self.matrix_basis)
             gpu.matrix.scale(Vector((scale, scale, scale)))
+
+            # Draw both the outline (lines) and the surface (triangles) for selection
+            # This makes the entire plane selectable, not just the edges
             super().draw_id(context)
+
+            # Additionally draw the surface for selection
+            shader = self._id_shader
+            shader.bind()
+
+            from ..utilities.index import index_to_rgb
+            shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
+
+            coords = draw_rect_2d(0, 0, self.size, self.size)
+            coords = [Vector(co)[:] for co in coords]
+            indices = ((0, 1, 2), (0, 2, 3))
+            batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
+            batch.draw(shader)
+
+            gpu.shader.unbind()
+            self.restore_opengl_defaults()
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.add_workplane(group, self.p1.py_data, self.nm.py_data)
