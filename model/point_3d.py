@@ -9,6 +9,7 @@ from bpy.utils import register_classes_factory
 from ..utilities.draw import draw_cube_3d
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
+from .base_entity import tag_update
 
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class SlvsPoint3D(Point3D, PropertyGroup):
         description="The location of the point",
         subtype="XYZ",
         unit="LENGTH",
-        update=SlvsGenericEntity.tag_update,
+        update=tag_update,
     )
     props = ("location",)
 

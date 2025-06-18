@@ -1,3 +1,13 @@
+"""
+Base entity classes for CAD Sketcher.
+
+This module includes Vulkan/Metal GPU backend compatibility for proper line width
+and point size rendering. The implementation automatically detects the GPU backend
+and uses appropriate shaders:
+- Vulkan/Metal: Built-in POLYLINE_UNIFORM_COLOR and UNIFORM_COLOR shaders
+- OpenGL: Custom shaders with dash support
+"""
+
 import logging
 from typing import List
 
@@ -17,6 +27,12 @@ from ..utilities.solver import update_system_cb
 logger = logging.getLogger(__name__)
 
 
+def tag_update(self, _context=None):
+    # context argument ignored
+    if not self.is_dirty:
+        self.is_dirty = True
+
+
 class SlvsGenericEntity:
     def entity_name_getter(self):
         return self.get("name", str(self))
@@ -34,7 +50,7 @@ class SlvsGenericEntity:
     fixed: BoolProperty(name="Fixed", update=update_system_cb)
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     origin: BoolProperty(name="Origin")
-    construction: BoolProperty(name="Construction")
+    construction: BoolProperty(name="Construction", update=tag_update)
     props = ()
     dirty: BoolProperty(name="Needs Update", default=True, options={"SKIP_SAVE"})
 
@@ -61,10 +77,26 @@ class SlvsGenericEntity:
     def is_dirty(self, value: bool):
         self.dirty = value
 
+    def _is_vulkan_metal_backend(self):
+        """Check if the current GPU backend is Vulkan or Metal."""
+        try:
+            backend_type = gpu.platform.backend_type_get()
+            return backend_type in ('VULKAN', 'METAL')
+        except:
+            return False
+
     @property
     def _shader(self):
+        is_vulkan_metal = self._is_vulkan_metal_backend()
+
         if self.is_point():
+            if is_vulkan_metal:
+                return Shaders.point_color_3d()
             return Shaders.uniform_color_3d()
+
+        # For lines, use built-in shaders on Vulkan/Metal if not dashed
+        if is_vulkan_metal and not self.is_dashed():
+            return Shaders.polyline_color_3d()
         return Shaders.uniform_color_line_3d()
 
     @property
@@ -213,7 +245,7 @@ class SlvsGenericEntity:
 
     def draw(self, context):
         if not self.is_visible(context):
-            return None
+            return
 
         batch = self._batch
         if not batch:
@@ -221,18 +253,38 @@ class SlvsGenericEntity:
 
         shader = self._shader
         shader.bind()
-
         gpu.state.blend_set("ALPHA")
-        gpu.state.point_size_set(self.point_size)
 
         col = self.color(context)
         shader.uniform_float("color", col)
 
-        if not self.is_point():
-            shader.uniform_bool("dashed", (self.is_dashed(),))
-            shader.uniform_float("dash_width", 0.05)
-            shader.uniform_float("dash_factor", 0.3)
-            gpu.state.line_width_set(self.line_width)
+        if self.is_point():
+            gpu.state.point_size_set(self.point_size)
+        else:
+            is_vulkan_metal = self._is_vulkan_metal_backend()
+
+            if is_vulkan_metal and not self.is_dashed():
+                # Set uniforms for POLYLINE_UNIFORM_COLOR shader
+                try:
+                    shader.uniform_float("lineWidth", self.line_width)
+                    # Try viewportSize as tuple first, then as separate components
+                    try:
+                        shader.uniform_float("viewportSize", (context.region.width, context.region.height))
+                    except:
+                        shader.uniform_float("viewportSize[0]", float(context.region.width))
+                        shader.uniform_float("viewportSize[1]", float(context.region.height))
+                except:
+                    # Fall back to OpenGL state if uniforms fail
+                    gpu.state.line_width_set(self.line_width)
+            else:
+                # Custom shader uniforms for dashed lines or OpenGL
+                try:
+                    shader.uniform_bool("dashed", (self.is_dashed(),))
+                    shader.uniform_float("dash_width", 0.05)
+                    shader.uniform_float("dash_factor", 0.3)
+                except:
+                    pass
+                gpu.state.line_width_set(self.line_width)
 
         batch.draw(shader)
         gpu.shader.unbind()
@@ -330,11 +382,6 @@ class SlvsGenericEntity:
         layout.operator(Operators.DeleteEntity, icon="X").index = self.slvs_index
 
         return sub
-
-    def tag_update(self, _context=None):
-        # context argument ignored
-        if not self.is_dirty:
-            self.is_dirty = True
 
     def new(self, context: Context, **kwargs):
         """Create new entity based on this instance"""
