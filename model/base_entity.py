@@ -69,11 +69,30 @@ class SlvsGenericEntity:
         self.dirty = value
 
     def _is_vulkan_backend(self):
-        """Check if the current GPU backend is Vulkan."""
+        """
+        Check if the current GPU backend is Vulkan.
+
+        Uses cached backend detection for performance. This method is called
+        frequently during rendering operations, so caching prevents expensive
+        repeated GPU queries.
+
+        Returns:
+            bool: True if backend is Vulkan, False for OpenGL or other backends
+        """
         return BackendCache.is_vulkan()
 
     @property
     def _shader(self):
+        """
+        Get the appropriate shader for this entity based on GPU backend.
+
+        Vulkan and OpenGL require different shaders for optimal rendering:
+        - Vulkan: Uses built-in POLYLINE_UNIFORM_COLOR for proper line width support
+        - OpenGL: Uses custom shaders with dash pattern support
+
+        Returns:
+            GPUShader: Appropriate shader for current backend and entity type
+        """
         is_vulkan = self._is_vulkan_backend()
 
         if self.is_point():
@@ -233,6 +252,19 @@ class SlvsGenericEntity:
         return False
 
     def draw(self, context):
+        """
+        Render this entity using GPU-appropriate methods.
+
+        This method handles rendering differences between Vulkan and OpenGL:
+        - Vulkan: Uses POLYLINE_UNIFORM_COLOR shader with lineWidth/viewportSize uniforms
+        - OpenGL: Uses custom shaders with traditional gpu.state line width setting
+
+        For points on Vulkan, entities should override update() to create triangle
+        geometry instead of using point primitives.
+
+        Args:
+            context: Blender context containing viewport and region information
+        """
         if not self.is_visible(context):
             return
 
