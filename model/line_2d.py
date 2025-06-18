@@ -10,6 +10,7 @@ from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_line_line, intersect_line_line_2d
 
 from ..utilities.constants import BackendCache, RenderingConstants
+from .vulkan_compat import VulkanCompatibleEntity, DashedLineRenderer
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
@@ -20,7 +21,7 @@ from ..utilities.geometry import nearest_point_line_line
 logger = logging.getLogger(__name__)
 
 
-class SlvsLine2D(Entity2D, PropertyGroup):
+class SlvsLine2D(Entity2D, VulkanCompatibleEntity, PropertyGroup):
     """Representation of a line in 2D space. Connects p1 and p2 and lies on the
     sketche's workplane.
 
@@ -52,57 +53,23 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         if bpy.app.background:
             return
 
+        # Safety check for workplane reference
+        if not self.wp:
+            logger.warning(f"Line2D {self} has no workplane reference, skipping update")
+            return
+
         p1, p2 = self.p1.location, self.p2.location
 
-        # Check if we're on Vulkan backend and this is a construction line
-        is_vulkan = BackendCache.is_vulkan()
-
-        if is_vulkan and self.is_dashed():
-            # Create dashed line geometry for Vulkan
-            coords = self._create_dashed_line_coords(p1, p2)
-            kwargs = {"pos": coords}
-            self._batch = batch_for_shader(self._shader, "LINES", kwargs)
+        if self.is_vulkan_backend and self.is_dashed():
+            # Create dashed line geometry for Vulkan using utility
+            coords = DashedLineRenderer.create_dashed_coords(p1, p2)
+            self._batch = self.setup_vulkan_line_rendering(coords, is_dashed=True)
         else:
             # Standard solid line
             coords = (p1, p2)
-            kwargs = {"pos": coords}
-            self._batch = batch_for_shader(self._shader, "LINES", kwargs)
+            self._batch = self.setup_vulkan_line_rendering(coords, is_dashed=False)
 
         self.is_dirty = False
-
-    def _create_dashed_line_coords(self, p1, p2):
-        """Create coordinates for a dashed line with gaps."""
-        line_vec = p2 - p1
-        line_length = line_vec.length
-
-        if line_length == 0:
-            return [p1, p2]
-
-        # Dash parameters (in world units) - use centralized constants
-        dash_length = RenderingConstants.DASH_LENGTH
-        gap_length = RenderingConstants.GAP_LENGTH
-        pattern_length = RenderingConstants.dash_pattern_length()
-
-        # Calculate number of complete patterns
-        num_patterns = int(line_length / pattern_length)
-
-        coords = []
-        direction = line_vec.normalized()
-
-        current_pos = 0.0
-        while current_pos < line_length:
-            # Start of dash
-            dash_start = p1 + direction * current_pos
-            dash_end_pos = min(current_pos + dash_length, line_length)
-            dash_end = p1 + direction * dash_end_pos
-
-            # Add dash segment
-            coords.extend([dash_start, dash_end])
-
-            # Move to next dash (skip gap)
-            current_pos += pattern_length
-
-        return coords
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.add_line_2d(group, self.p1.py_data, self.p2.py_data, self.wp.py_data)
