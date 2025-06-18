@@ -6,6 +6,27 @@ HALF_TURN = PI
 QUARTER_TURN = PI / 2
 FULL_TURN = 2 * PI
 
+# Rendering constants for Vulkan compatibility
+class RenderingConstants:
+    """Centralized rendering constants for consistent visual appearance."""
+
+    # Point sizes for Vulkan geometry-based rendering
+    VULKAN_POINT_2D_SIZE = 0.06  # Size of 2D point rectangles
+    VULKAN_POINT_3D_SIZE = 0.03  # Size of 3D point cubes
+
+    # Line widths
+    LINE_WIDTH_REGULAR = 2.0     # Regular line thickness
+    LINE_WIDTH_CONSTRUCTION = 1.5 # Construction line thickness
+
+    # Construction line dash patterns
+    DASH_LENGTH = 0.1            # Length of each dash segment
+    GAP_LENGTH = 0.05            # Length of each gap between dashes
+
+    @classmethod
+    def dash_pattern_length(cls):
+        """Total length of one dash pattern (dash + gap)."""
+        return cls.DASH_LENGTH + cls.GAP_LENGTH
+
 # GPU Backend detection cache
 class BackendCache:
     """Cache GPU backend detection to avoid repeated expensive queries."""

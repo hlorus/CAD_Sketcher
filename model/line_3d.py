@@ -6,7 +6,7 @@ from bpy.types import PropertyGroup
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
-from ..utilities.constants import BackendCache
+from ..utilities.constants import BackendCache, RenderingConstants
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
@@ -71,10 +71,10 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         if line_length == 0:
             return [p1, p2]
 
-        # Dash parameters (in world units)
-        dash_length = 0.2  # Length of each dash
-        gap_length = 0.1   # Length of each gap
-        pattern_length = dash_length + gap_length
+        # Dash parameters (in world units) - use centralized constants
+        dash_length = RenderingConstants.DASH_LENGTH
+        gap_length = RenderingConstants.GAP_LENGTH
+        pattern_length = RenderingConstants.dash_pattern_length()
 
         coords = []
         direction = line_vec.normalized()

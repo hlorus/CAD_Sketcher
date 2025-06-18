@@ -7,7 +7,7 @@ from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
 from ..utilities.draw import draw_cube_3d
-from ..utilities.constants import BackendCache
+from ..utilities.constants import BackendCache, RenderingConstants
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import tag_update
@@ -30,7 +30,7 @@ class Point3D(SlvsGenericEntity):
 
         if is_vulkan:
             # On Vulkan, render points as small cubes for proper size support
-            coords, indices = draw_cube_3d(*self.location, 0.03)
+            coords, indices = draw_cube_3d(*self.location, RenderingConstants.VULKAN_POINT_3D_SIZE)
             self._batch = batch_for_shader(
                 self._shader, "TRIS", {"pos": coords}, indices=indices
             )

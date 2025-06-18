@@ -7,7 +7,7 @@ from bpy.types import Context
 
 from .. import global_data
 from ..utilities import preferences
-from ..utilities.constants import BackendCache
+from ..utilities.constants import BackendCache, RenderingConstants
 from ..shaders import Shaders
 from ..declarations import Operators
 from ..utilities.preferences import get_prefs
@@ -106,8 +106,8 @@ class SlvsGenericEntity:
     def line_width(self):
         scale = preferences.get_scale()
         if self.construction:
-            return 1.5 * scale
-        return 2 * scale
+            return RenderingConstants.LINE_WIDTH_CONSTRUCTION * scale
+        return RenderingConstants.LINE_WIDTH_REGULAR * scale
 
     @property
     def line_width_select(self):

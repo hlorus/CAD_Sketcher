@@ -9,7 +9,7 @@ from mathutils import Matrix, Vector
 from bpy.utils import register_classes_factory
 
 from ..utilities.draw import draw_rect_2d
-from ..utilities.constants import BackendCache
+from ..utilities.constants import BackendCache, RenderingConstants
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity, Entity2D, tag_update
 from .utilities import slvs_entity_pointer, make_coincident
@@ -32,7 +32,7 @@ class Point2D(Entity2D):
         mat_local = Matrix.Translation(Vector((u, v, 0)))
 
         mat = self.wp.matrix_basis @ mat_local
-        size = 0.06  # Reduced from 0.1 to make points smaller
+        size = RenderingConstants.VULKAN_POINT_2D_SIZE  # Use centralized constant
         coords = draw_rect_2d(0, 0, size, size)
         coords = [(mat @ Vector(co))[:] for co in coords]
         indices = ((0, 1, 2), (0, 2, 3))

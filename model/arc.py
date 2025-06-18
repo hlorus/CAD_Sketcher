@@ -10,7 +10,7 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
-from ..utilities.constants import BackendCache
+from ..utilities.constants import BackendCache, RenderingConstants
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
@@ -128,9 +128,9 @@ class SlvsArc(Entity2D, PropertyGroup):
         if radius <= 0 or total_angle <= 0:
             return []
 
-        # Dash parameters (in world units)
-        dash_length_world = 0.2  # World units
-        gap_length_world = 0.1   # World units
+        # Dash parameters (in world units) - use centralized constants
+        dash_length_world = RenderingConstants.DASH_LENGTH
+        gap_length_world = RenderingConstants.GAP_LENGTH
 
         # Convert to angular measurements
         dash_angle = dash_length_world / radius

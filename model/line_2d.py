@@ -9,7 +9,7 @@ from bpy.utils import register_classes_factory
 from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_line_line, intersect_line_line_2d
 
-from ..utilities.constants import BackendCache
+from ..utilities.constants import BackendCache, RenderingConstants
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
@@ -78,10 +78,10 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         if line_length == 0:
             return [p1, p2]
 
-        # Dash parameters (in world units)
-        dash_length = 0.2  # Length of each dash
-        gap_length = 0.1   # Length of each gap
-        pattern_length = dash_length + gap_length
+        # Dash parameters (in world units) - use centralized constants
+        dash_length = RenderingConstants.DASH_LENGTH
+        gap_length = RenderingConstants.GAP_LENGTH
+        pattern_length = RenderingConstants.dash_pattern_length()
 
         # Calculate number of complete patterns
         num_patterns = int(line_length / pattern_length)

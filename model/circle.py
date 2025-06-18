@@ -10,7 +10,7 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
-from ..utilities.constants import BackendCache
+from ..utilities.constants import BackendCache, RenderingConstants
 from ..solver import Solver
 from ..utilities.math import range_2pi, pol2cart
 from .base_entity import SlvsGenericEntity
@@ -98,10 +98,10 @@ class SlvsCircle(Entity2D, PropertyGroup):
         if self.radius <= 0:
             return []
 
-        # Dash parameters (in radians)
+        # Dash parameters (in radians) - use centralized constants
         circumference = 2 * math.pi * self.radius
-        dash_length_world = 0.2  # World units
-        gap_length_world = 0.1   # World units
+        dash_length_world = RenderingConstants.DASH_LENGTH
+        gap_length_world = RenderingConstants.GAP_LENGTH
 
         # Convert to angular measurements
         dash_angle = dash_length_world / self.radius
