@@ -9,6 +9,7 @@ from bpy.utils import register_classes_factory
 from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_line_line, intersect_line_line_2d
 
+from ..utilities.constants import BackendCache
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
@@ -54,12 +55,7 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         p1, p2 = self.p1.location, self.p2.location
 
         # Check if we're on Vulkan backend and this is a construction line
-        try:
-            import gpu
-            backend_type = gpu.platform.backend_type_get()
-            is_vulkan = backend_type == 'VULKAN'
-        except:
-            is_vulkan = False
+        is_vulkan = BackendCache.is_vulkan()
 
         if is_vulkan and self.is_dashed():
             # Create dashed line geometry for Vulkan

@@ -9,6 +9,7 @@ from mathutils import Matrix, Vector
 from bpy.utils import register_classes_factory
 
 from ..utilities.draw import draw_rect_2d
+from ..utilities.constants import BackendCache
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity, Entity2D, tag_update
 from .utilities import slvs_entity_pointer, make_coincident
@@ -37,11 +38,7 @@ class Point2D(Entity2D):
         indices = ((0, 1, 2), (0, 2, 3))
 
         # Check if we're on Vulkan backend
-        try:
-            backend_type = gpu.platform.backend_type_get()
-            is_vulkan = backend_type == 'VULKAN'
-        except:
-            is_vulkan = False
+        is_vulkan = BackendCache.is_vulkan()
 
         if is_vulkan:
             # On Vulkan, render points as small rectangles for proper size support

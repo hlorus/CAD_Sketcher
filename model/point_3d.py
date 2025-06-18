@@ -7,6 +7,7 @@ from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
 from ..utilities.draw import draw_cube_3d
+from ..utilities.constants import BackendCache
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import tag_update
@@ -25,11 +26,7 @@ class Point3D(SlvsGenericEntity):
             return
 
         # Check if we're on Vulkan backend
-        try:
-            backend_type = gpu.platform.backend_type_get()
-            is_vulkan = backend_type == 'VULKAN'
-        except:
-            is_vulkan = False
+        is_vulkan = BackendCache.is_vulkan()
 
         if is_vulkan:
             # On Vulkan, render points as small cubes for proper size support

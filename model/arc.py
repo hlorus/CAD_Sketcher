@@ -10,6 +10,7 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
+from ..utilities.constants import BackendCache
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
@@ -94,12 +95,7 @@ class SlvsArc(Entity2D, PropertyGroup):
             angle = range_2pi(p2.angle_signed(p1))
 
             # Check if we're on Vulkan backend and this is a construction arc
-            try:
-                import gpu
-                backend_type = gpu.platform.backend_type_get()
-                is_vulkan = backend_type == 'VULKAN'
-            except:
-                is_vulkan = False
+            is_vulkan = BackendCache.is_vulkan()
 
             if is_vulkan and self.is_dashed():
                 # Create dashed arc geometry for Vulkan

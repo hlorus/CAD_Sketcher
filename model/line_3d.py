@@ -6,6 +6,7 @@ from bpy.types import PropertyGroup
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
+from ..utilities.constants import BackendCache
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
@@ -47,12 +48,7 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         p1, p2 = self.p1.location, self.p2.location
 
         # Check if we're on Vulkan backend and this is a construction line
-        try:
-            import gpu
-            backend_type = gpu.platform.backend_type_get()
-            is_vulkan = backend_type == 'VULKAN'
-        except:
-            is_vulkan = False
+        is_vulkan = BackendCache.is_vulkan()
 
         if is_vulkan and self.is_dashed():
             # Create dashed line geometry for Vulkan

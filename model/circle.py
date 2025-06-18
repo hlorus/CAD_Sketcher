@@ -10,6 +10,7 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
+from ..utilities.constants import BackendCache
 from ..solver import Solver
 from ..utilities.math import range_2pi, pol2cart
 from .base_entity import SlvsGenericEntity
@@ -69,12 +70,7 @@ class SlvsCircle(Entity2D, PropertyGroup):
             return
 
         # Check if we're on Vulkan backend and this is a construction circle
-        try:
-            import gpu
-            backend_type = gpu.platform.backend_type_get()
-            is_vulkan = backend_type == 'VULKAN'
-        except:
-            is_vulkan = False
+        is_vulkan = BackendCache.is_vulkan()
 
         if is_vulkan and self.is_dashed():
             # Create dashed circle geometry for Vulkan

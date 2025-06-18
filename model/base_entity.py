@@ -7,6 +7,7 @@ from bpy.types import Context
 
 from .. import global_data
 from ..utilities import preferences
+from ..utilities.constants import BackendCache
 from ..shaders import Shaders
 from ..declarations import Operators
 from ..utilities.preferences import get_prefs
@@ -69,11 +70,7 @@ class SlvsGenericEntity:
 
     def _is_vulkan_backend(self):
         """Check if the current GPU backend is Vulkan."""
-        try:
-            backend_type = gpu.platform.backend_type_get()
-            return backend_type == 'VULKAN'
-        except:
-            return False
+        return BackendCache.is_vulkan()
 
     @property
     def _shader(self):
