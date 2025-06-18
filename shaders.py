@@ -124,7 +124,7 @@ class Shaders:
     @staticmethod
     @cache
     def polyline_color_3d():
-        """Get polyline shader for thick lines on Vulkan/Metal backends."""
+        """Get polyline shader for thick lines on Vulkan backends."""
         return gpu.shader.from_builtin("POLYLINE_UNIFORM_COLOR")
 
     @classmethod

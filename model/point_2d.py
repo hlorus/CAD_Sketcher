@@ -36,15 +36,15 @@ class Point2D(Entity2D):
         coords = [(mat @ Vector(co))[:] for co in coords]
         indices = ((0, 1, 2), (0, 2, 3))
 
-        # Check if we're on Vulkan/Metal backend
+        # Check if we're on Vulkan backend
         try:
             backend_type = gpu.platform.backend_type_get()
-            is_vulkan_metal = backend_type in ('VULKAN', 'METAL')
+            is_vulkan = backend_type == 'VULKAN'
         except:
-            is_vulkan_metal = False
+            is_vulkan = False
 
-        if is_vulkan_metal:
-            # On Vulkan/Metal, render points as small rectangles for proper size support
+        if is_vulkan:
+            # On Vulkan, render points as small rectangles for proper size support
             self._batch = batch_for_shader(
                 self._shader, "TRIS", {"pos": coords}, indices=indices
             )

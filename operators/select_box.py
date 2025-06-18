@@ -24,12 +24,12 @@ def draw_callback_px(self, context):
     # Simple backend detection
     try:
         backend_type = gpu.platform.backend_type_get()
-        is_vulkan_metal = backend_type in ('VULKAN', 'METAL')
+        is_vulkan = backend_type == 'VULKAN'
     except:
-        is_vulkan_metal = False
+        is_vulkan = False
 
     # Use appropriate shader
-    if is_vulkan_metal:
+    if is_vulkan:
         shader = gpu.shader.from_builtin("UNIFORM_COLOR")
     else:
         shader = Shaders.uniform_color_line_2d()

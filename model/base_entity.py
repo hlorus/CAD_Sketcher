@@ -1,13 +1,3 @@
-"""
-Base entity classes for CAD Sketcher.
-
-This module includes Vulkan/Metal GPU backend compatibility for proper line width
-and point size rendering. The implementation automatically detects the GPU backend
-and uses appropriate shaders:
-- Vulkan/Metal: Built-in POLYLINE_UNIFORM_COLOR and UNIFORM_COLOR shaders
-- OpenGL: Custom shaders with dash support
-"""
-
 import logging
 from typing import List
 
@@ -77,26 +67,26 @@ class SlvsGenericEntity:
     def is_dirty(self, value: bool):
         self.dirty = value
 
-    def _is_vulkan_metal_backend(self):
-        """Check if the current GPU backend is Vulkan or Metal."""
+    def _is_vulkan_backend(self):
+        """Check if the current GPU backend is Vulkan."""
         try:
             backend_type = gpu.platform.backend_type_get()
-            return backend_type in ('VULKAN', 'METAL')
+            return backend_type == 'VULKAN'
         except:
             return False
 
     @property
     def _shader(self):
-        is_vulkan_metal = self._is_vulkan_metal_backend()
+        is_vulkan = self._is_vulkan_backend()
 
         if self.is_point():
-            if is_vulkan_metal:
-                # Points are rendered as triangles (cubes/rectangles) on Vulkan/Metal
+            if is_vulkan:
+                # Points are rendered as triangles (cubes/rectangles) on Vulkan
                 return Shaders.uniform_color_3d()
             return Shaders.uniform_color_3d()
 
-        # For lines, use built-in shaders on Vulkan/Metal if not dashed
-        if is_vulkan_metal and not self.is_dashed():
+        # For lines, use built-in shaders on Vulkan if not dashed
+        if is_vulkan and not self.is_dashed():
             return Shaders.polyline_color_3d()
         return Shaders.uniform_color_line_3d()
 
@@ -260,15 +250,15 @@ class SlvsGenericEntity:
         shader.uniform_float("color", col)
 
         if self.is_point():
-            is_vulkan_metal = self._is_vulkan_metal_backend()
+            is_vulkan = self._is_vulkan_backend()
 
-            if not is_vulkan_metal:
+            if not is_vulkan:
                 # On OpenGL, use traditional point size setting
                 gpu.state.point_size_set(self.point_size)
         else:
-            is_vulkan_metal = self._is_vulkan_metal_backend()
+            is_vulkan = self._is_vulkan_backend()
 
-            if is_vulkan_metal and not self.is_dashed():
+            if is_vulkan and not self.is_dashed():
                 # Set uniforms for POLYLINE_UNIFORM_COLOR shader
                 try:
                     shader.uniform_float("lineWidth", self.line_width)
