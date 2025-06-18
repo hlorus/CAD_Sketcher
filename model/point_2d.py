@@ -31,7 +31,7 @@ class Point2D(Entity2D):
         mat_local = Matrix.Translation(Vector((u, v, 0)))
 
         mat = self.wp.matrix_basis @ mat_local
-        size = 0.1
+        size = 0.06  # Reduced from 0.1 to make points smaller
         coords = draw_rect_2d(0, 0, size, size)
         coords = [(mat @ Vector(co))[:] for co in coords]
         indices = ((0, 1, 2), (0, 2, 3))

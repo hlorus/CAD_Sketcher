@@ -33,7 +33,7 @@ class Point3D(SlvsGenericEntity):
 
         if is_vulkan:
             # On Vulkan, render points as small cubes for proper size support
-            coords, indices = draw_cube_3d(*self.location, 0.05)
+            coords, indices = draw_cube_3d(*self.location, 0.03)
             self._batch = batch_for_shader(
                 self._shader, "TRIS", {"pos": coords}, indices=indices
             )
