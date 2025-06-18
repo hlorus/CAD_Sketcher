@@ -45,12 +45,58 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
             return
 
         p1, p2 = self.p1.location, self.p2.location
-        coords = (p1, p2)
 
-        kwargs = {"pos": coords}
-        self._batch = batch_for_shader(self._shader, "LINES", kwargs)
+        # Check if we're on Vulkan backend and this is a construction line
+        try:
+            import gpu
+            backend_type = gpu.platform.backend_type_get()
+            is_vulkan = backend_type == 'VULKAN'
+        except:
+            is_vulkan = False
+
+        if is_vulkan and self.is_dashed():
+            # Create dashed line geometry for Vulkan
+            coords = self._create_dashed_line_coords(p1, p2)
+            kwargs = {"pos": coords}
+            self._batch = batch_for_shader(self._shader, "LINES", kwargs)
+        else:
+            # Standard solid line
+            coords = (p1, p2)
+            kwargs = {"pos": coords}
+            self._batch = batch_for_shader(self._shader, "LINES", kwargs)
 
         self.is_dirty = False
+
+    def _create_dashed_line_coords(self, p1, p2):
+        """Create coordinates for a dashed line with gaps."""
+        line_vec = p2 - p1
+        line_length = line_vec.length
+
+        if line_length == 0:
+            return [p1, p2]
+
+        # Dash parameters (in world units)
+        dash_length = 0.2  # Length of each dash
+        gap_length = 0.1   # Length of each gap
+        pattern_length = dash_length + gap_length
+
+        coords = []
+        direction = line_vec.normalized()
+
+        current_pos = 0.0
+        while current_pos < line_length:
+            # Start of dash
+            dash_start = p1 + direction * current_pos
+            dash_end_pos = min(current_pos + dash_length, line_length)
+            dash_end = p1 + direction * dash_end_pos
+
+            # Add dash segment
+            coords.extend([dash_start, dash_end])
+
+            # Move to next dash (skip gap)
+            current_pos += pattern_length
+
+        return coords
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.add_line_3d(group, self.p1.py_data, self.p2.py_data)
