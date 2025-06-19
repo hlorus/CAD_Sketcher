@@ -7,7 +7,7 @@ from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
 from ..utilities.draw import draw_cube_3d
-from ..utilities.constants import BackendCache, RenderingConstants
+from ..utilities.constants import RenderingConstants
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import tag_update
@@ -25,20 +25,11 @@ class Point3D(SlvsGenericEntity):
         if bpy.app.background:
             return
 
-        # Check if we're on Vulkan backend
-        is_vulkan = BackendCache.is_vulkan()
-
-        if is_vulkan:
-            # On Vulkan, render points as small cubes for proper size support
-            coords, indices = draw_cube_3d(*self.location, RenderingConstants.VULKAN_POINT_3D_SIZE)
-            self._batch = batch_for_shader(
-                self._shader, "TRIS", {"pos": coords}, indices=indices
-            )
-        else:
-            # On OpenGL, use traditional point rendering
-            self._batch = batch_for_shader(
-                self._shader, "POINTS", {"pos": (self.location[:],)}
-            )
+        # Always render points as small cubes for consistent appearance
+        coords, indices = draw_cube_3d(*self.location, RenderingConstants.POINT_3D_SIZE)
+        self._batch = batch_for_shader(
+            self._shader, "TRIS", {"pos": coords}, indices=indices
+        )
         self.is_dirty = False
 
     # TODO: maybe rename -> pivot_point, midpoint

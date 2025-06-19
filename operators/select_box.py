@@ -20,19 +20,9 @@ def get_start_dist(value1, value2, invert: bool = False):
 
 
 def draw_callback_px(self, context):
-    """Draw selection box with appropriate shader based on GPU backend."""
-    # Simple backend detection
-    try:
-        backend_type = gpu.platform.backend_type_get()
-        is_vulkan = backend_type == 'VULKAN'
-    except:
-        is_vulkan = False
-
-    # Use appropriate shader
-    if is_vulkan:
-        shader = gpu.shader.from_builtin("UNIFORM_COLOR")
-    else:
-        shader = Shaders.uniform_color_line_2d()
+    """Draw selection box using POLYLINE_UNIFORM_COLOR shader."""
+    # Use POLYLINE_UNIFORM_COLOR shader for consistent rendering
+    shader = gpu.shader.from_builtin("POLYLINE_UNIFORM_COLOR")
 
     gpu.state.blend_set("ALPHA")
 
@@ -44,14 +34,14 @@ def draw_callback_px(self, context):
     shader.bind()
     shader.uniform_float("color", (0.0, 0.0, 0.0, 0.5))
 
-    # Set line width uniforms for custom shader only
-    if not is_vulkan_metal:
-        try:
-            shader.uniform_float("lineWidth", 2.0)
-        except:
-            pass
+    # Set line width uniforms for POLYLINE_UNIFORM_COLOR
+    try:
+        shader.uniform_float("lineWidth", 2.0)
+        shader.uniform_float("viewportSize", (context.region.width, context.region.height))
+    except (AttributeError, ValueError):
+        # Fall back to OpenGL state if uniforms fail
+        gpu.state.line_width_set(2.0)
 
-    gpu.state.line_width_set(2.0)
     batch.draw(shader)
 
     # Restore OpenGL defaults

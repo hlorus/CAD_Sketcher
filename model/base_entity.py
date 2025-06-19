@@ -7,7 +7,7 @@ from bpy.types import Context
 
 from .. import global_data
 from ..utilities import preferences
-from ..utilities.constants import BackendCache, RenderingConstants
+from ..utilities.constants import RenderingConstants
 from ..shaders import Shaders
 from ..declarations import Operators
 from ..utilities.preferences import get_prefs
@@ -68,44 +68,22 @@ class SlvsGenericEntity:
     def is_dirty(self, value: bool):
         self.dirty = value
 
-    def _is_vulkan_backend(self):
-        """
-        Check if the current GPU backend is Vulkan.
-
-        Uses cached backend detection for performance. This method is called
-        frequently during rendering operations, so caching prevents expensive
-        repeated GPU queries.
-
-        Returns:
-            bool: True if backend is Vulkan, False for OpenGL or other backends
-        """
-        return BackendCache.is_vulkan()
-
     @property
     def _shader(self):
         """
-        Get the appropriate shader for this entity based on GPU backend.
+        Get the appropriate shader for this entity.
 
-        Vulkan and OpenGL require different shaders for optimal rendering:
-        - Vulkan: Uses built-in POLYLINE_UNIFORM_COLOR for proper line width support
-        - OpenGL: Uses custom shaders with dash pattern support
+        Uses geometry-based rendering approach for all backends:
+        - Points: UNIFORM_COLOR shader (for triangle-based point geometry)
+        - Lines: POLYLINE_UNIFORM_COLOR shader (for proper line width support)
 
         Returns:
-            GPUShader: Appropriate shader for current backend and entity type
+            GPUShader: Appropriate shader for entity type
         """
-        is_vulkan = self._is_vulkan_backend()
-
         if self.is_point():
-            if is_vulkan:
-                # Points are rendered as triangles (cubes/rectangles) on Vulkan
-                return Shaders.uniform_color_3d()
             return Shaders.uniform_color_3d()
-
-        # For lines on Vulkan, always use POLYLINE_UNIFORM_COLOR for proper line width
-        if is_vulkan:
-            return Shaders.polyline_color_3d()
-        # On OpenGL, use custom shader for dash support
-        return Shaders.uniform_color_line_3d()
+        # For lines, always use POLYLINE_UNIFORM_COLOR for proper line width
+        return Shaders.polyline_color_3d()
 
     @property
     def _id_shader(self):
@@ -253,14 +231,10 @@ class SlvsGenericEntity:
 
     def draw(self, context):
         """
-        Render this entity using GPU-appropriate methods.
+        Render this entity using geometry-based rendering.
 
-        This method handles rendering differences between Vulkan and OpenGL:
-        - Vulkan: Uses POLYLINE_UNIFORM_COLOR shader with lineWidth/viewportSize uniforms
-        - OpenGL: Uses custom shaders with traditional gpu.state line width setting
-
-        For points on Vulkan, entities should override update() to create triangle
-        geometry instead of using point primitives.
+        Uses POLYLINE_UNIFORM_COLOR shader for lines with lineWidth/viewportSize uniforms.
+        Points are rendered as triangle geometry using UNIFORM_COLOR shader.
 
         Args:
             context: Blender context containing viewport and region information
@@ -280,37 +254,22 @@ class SlvsGenericEntity:
         shader.uniform_float("color", col)
 
         if self.is_point():
-            is_vulkan = self._is_vulkan_backend()
-
-            if not is_vulkan:
-                # On OpenGL, use traditional point size setting
-                gpu.state.point_size_set(self.point_size)
+            # Points are already rendered as triangles, no additional setup needed
+            pass
         else:
-            is_vulkan = self._is_vulkan_backend()
-
-            if is_vulkan:
-                # On Vulkan, use POLYLINE_UNIFORM_COLOR for all lines (proper line width)
+            # For lines, use POLYLINE_UNIFORM_COLOR with proper uniforms
+            try:
+                shader.uniform_float("lineWidth", self.line_width)
+                # Try viewportSize as tuple first, then as separate components
                 try:
-                    shader.uniform_float("lineWidth", self.line_width)
-                    # Try viewportSize as tuple first, then as separate components
-                    try:
-                        shader.uniform_float("viewportSize", (context.region.width, context.region.height))
-                    except (AttributeError, ValueError) as e:
-                        logger.debug(f"Vulkan viewportSize tuple failed, trying components: {e}")
-                        shader.uniform_float("viewportSize[0]", float(context.region.width))
-                        shader.uniform_float("viewportSize[1]", float(context.region.height))
-                except (AttributeError, ValueError, TypeError) as e:
-                    # Fall back to OpenGL state if uniforms fail
-                    logger.debug(f"Vulkan uniform setup failed, falling back to OpenGL state: {e}")
-                    gpu.state.line_width_set(self.line_width)
-            else:
-                # On OpenGL, use custom shader uniforms for dashed lines
-                try:
-                    shader.uniform_bool("dashed", (self.is_dashed(),))
-                    shader.uniform_float("dash_width", 0.05)
-                    shader.uniform_float("dash_factor", 0.3)
+                    shader.uniform_float("viewportSize", (context.region.width, context.region.height))
                 except (AttributeError, ValueError) as e:
-                    logger.debug(f"OpenGL shader uniform setup failed: {e}")
+                    logger.debug(f"viewportSize tuple failed, trying components: {e}")
+                    shader.uniform_float("viewportSize[0]", float(context.region.width))
+                    shader.uniform_float("viewportSize[1]", float(context.region.height))
+            except (AttributeError, ValueError, TypeError) as e:
+                # Fall back to OpenGL state if uniforms fail
+                logger.debug(f"Line uniform setup failed, falling back to OpenGL state: {e}")
                 gpu.state.line_width_set(self.line_width)
 
         batch.draw(shader)

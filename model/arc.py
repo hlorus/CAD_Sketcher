@@ -10,7 +10,8 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
-from ..utilities.constants import BackendCache, RenderingConstants
+from ..utilities.constants import RenderingConstants
+from .vulkan_compat import DashedLineRenderer
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
@@ -25,7 +26,6 @@ from .utilities import (
     create_bezier_curve,
     round_v,
 )
-from ..utilities.math import range_2pi, pol2cart
 
 logger = logging.getLogger(__name__)
 
@@ -94,11 +94,8 @@ class SlvsArc(Entity2D, PropertyGroup):
             offset = p1.angle_signed(Vector((1, 0)))
             angle = range_2pi(p2.angle_signed(p1))
 
-            # Check if we're on Vulkan backend and this is a construction arc
-            is_vulkan = BackendCache.is_vulkan()
-
-            if is_vulkan and self.is_dashed():
-                # Create dashed arc geometry for Vulkan
+            if self.is_dashed():
+                # Create dashed arc geometry
                 coords = self._create_dashed_arc_coords(radius, angle, offset)
                 # Transform coordinates
                 mat_local = Matrix.Translation(self.ct.co.to_3d())
@@ -125,61 +122,10 @@ class SlvsArc(Entity2D, PropertyGroup):
 
     def _create_dashed_arc_coords(self, radius, total_angle, start_offset):
         """Create coordinates for a dashed arc with gaps."""
-        if radius <= 0 or total_angle <= 0:
-            return []
-
-        # Dash parameters (in world units) - use centralized constants
-        dash_length_world = RenderingConstants.DASH_LENGTH
-        gap_length_world = RenderingConstants.GAP_LENGTH
-
-        # Convert to angular measurements
-        dash_angle = dash_length_world / radius
-        gap_angle = gap_length_world / radius
-        pattern_angle = dash_angle + gap_angle
-
-        # Calculate number of complete patterns that fit in the arc
-        num_patterns = int(total_angle / pattern_angle)
-
-        coords = []
-        segments_per_dash = max(2, int(CURVE_RESOLUTION * dash_angle / (2 * math.pi)))
-
-        current_angle = 0.0
-        for i in range(num_patterns):
-            # Create dash segment within the arc
-            dash_start = current_angle
-            dash_end = min(current_angle + dash_angle, total_angle)
-
-            if dash_end > dash_start:
-                # Generate points for this dash
-                dash_coords = coords_arc_2d(0, 0, radius, segments_per_dash,
-                                          angle=(dash_end - dash_start),
-                                          offset=(start_offset + dash_start))
-
-                # Convert to line segments (pairs of points)
-                for j in range(len(dash_coords) - 1):
-                    coords.extend([dash_coords[j], dash_coords[j + 1]])
-
-            # Move to next dash (skip gap)
-            current_angle += pattern_angle
-
-            # Stop if we've covered the entire arc
-            if current_angle >= total_angle:
-                break
-
-        # Add final partial dash if there's remaining arc length
-        if current_angle < total_angle and current_angle + dash_angle > current_angle:
-            dash_start = current_angle
-            dash_end = total_angle
-
-            if dash_end > dash_start:
-                dash_coords = coords_arc_2d(0, 0, radius, segments_per_dash,
-                                          angle=(dash_end - dash_start),
-                                          offset=(start_offset + dash_start))
-
-                for j in range(len(dash_coords) - 1):
-                    coords.extend([dash_coords[j], dash_coords[j + 1]])
-
-        return coords
+        return DashedLineRenderer.create_dashed_arc_coords(
+            None, radius, total_angle, start_offset,
+            max(3, int(CURVE_RESOLUTION * 0.1))
+        )
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.add_arc(

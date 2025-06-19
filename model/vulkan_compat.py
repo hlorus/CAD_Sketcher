@@ -1,25 +1,20 @@
 """
-Vulkan compatibility mixins and utilities for CAD Sketcher entities.
+Geometry-based rendering utilities for CAD Sketcher entities.
 
-This module provides common functionality for Vulkan backend rendering
-to reduce code duplication across entity classes.
+This module provides common functionality for geometry-based rendering
+to ensure consistent visual appearance across all GPU backends.
 """
 
 import logging
 from gpu_extras.batch import batch_for_shader
 
-from ..utilities.constants import BackendCache, RenderingConstants
+from ..utilities.constants import RenderingConstants
 
 logger = logging.getLogger(__name__)
 
 
-class VulkanCompatibleEntity:
-    """Mixin class providing Vulkan compatibility methods for entities."""
-
-    @property
-    def is_vulkan_backend(self):
-        """Check if current backend is Vulkan using cached detection."""
-        return BackendCache.is_vulkan()
+class GeometryRenderer:
+    """Mixin class providing geometry-based rendering methods for entities."""
 
     def create_batch(self, coords, batch_type="LINES", indices=None):
         """Create a GPU batch with appropriate parameters."""
@@ -28,27 +23,19 @@ class VulkanCompatibleEntity:
             return batch_for_shader(self._shader, batch_type, kwargs, indices=indices)
         return batch_for_shader(self._shader, batch_type, kwargs)
 
-    def setup_vulkan_line_rendering(self, coords, is_dashed=False):
-        """Setup line rendering for Vulkan backend with proper batch type."""
-        if self.is_vulkan_backend and is_dashed:
+    def setup_line_rendering(self, coords, is_dashed=False):
+        """Setup line rendering with proper batch type."""
+        if is_dashed:
             # Dashed lines use LINES (individual segments)
             return self.create_batch(coords, "LINES")
-        elif self.is_vulkan_backend:
+        else:
             # Solid lines can use LINE_STRIP for efficiency
             return self.create_batch(coords, "LINE_STRIP")
-        else:
-            # OpenGL fallback
-            return self.create_batch(coords, "LINES")
 
-    def setup_vulkan_point_rendering(self, coords, indices):
-        """Setup point rendering for Vulkan backend using triangle geometry."""
-        if self.is_vulkan_backend:
-            # Points as triangles on Vulkan
-            return self.create_batch(coords, "TRIS", indices)
-        else:
-            # Traditional points on OpenGL
-            pos = self.location if hasattr(self, 'location') else coords[0]
-            return self.create_batch([pos], "POINTS")
+    def setup_point_rendering(self, coords, indices):
+        """Setup point rendering using triangle geometry."""
+        # Points as triangles for all backends
+        return self.create_batch(coords, "TRIS", indices)
 
 
 class DashedLineRenderer:

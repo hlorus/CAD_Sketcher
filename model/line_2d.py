@@ -9,8 +9,8 @@ from bpy.utils import register_classes_factory
 from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_line_line, intersect_line_line_2d
 
-from ..utilities.constants import BackendCache, RenderingConstants
-from .vulkan_compat import VulkanCompatibleEntity, DashedLineRenderer
+from ..utilities.constants import RenderingConstants
+from .vulkan_compat import GeometryRenderer, DashedLineRenderer
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
@@ -21,7 +21,7 @@ from ..utilities.geometry import nearest_point_line_line
 logger = logging.getLogger(__name__)
 
 
-class SlvsLine2D(Entity2D, VulkanCompatibleEntity, PropertyGroup):
+class SlvsLine2D(Entity2D, GeometryRenderer, PropertyGroup):
     """Representation of a line in 2D space. Connects p1 and p2 and lies on the
     sketche's workplane.
 
@@ -60,14 +60,14 @@ class SlvsLine2D(Entity2D, VulkanCompatibleEntity, PropertyGroup):
 
         p1, p2 = self.p1.location, self.p2.location
 
-        if self.is_vulkan_backend and self.is_dashed():
-            # Create dashed line geometry for Vulkan using utility
+        if self.is_dashed():
+            # Create dashed line geometry using utility
             coords = DashedLineRenderer.create_dashed_coords(p1, p2)
-            self._batch = self.setup_vulkan_line_rendering(coords, is_dashed=True)
+            self._batch = self.setup_line_rendering(coords, is_dashed=True)
         else:
             # Standard solid line
             coords = (p1, p2)
-            self._batch = self.setup_vulkan_line_rendering(coords, is_dashed=False)
+            self._batch = self.setup_line_rendering(coords, is_dashed=False)
 
         self.is_dirty = False
 

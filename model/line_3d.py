@@ -6,7 +6,8 @@ from bpy.types import PropertyGroup
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
-from ..utilities.constants import BackendCache, RenderingConstants
+from ..utilities.constants import RenderingConstants
+from .vulkan_compat import DashedLineRenderer
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
@@ -47,12 +48,9 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
 
         p1, p2 = self.p1.location, self.p2.location
 
-        # Check if we're on Vulkan backend and this is a construction line
-        is_vulkan = BackendCache.is_vulkan()
-
-        if is_vulkan and self.is_dashed():
-            # Create dashed line geometry for Vulkan
-            coords = self._create_dashed_line_coords(p1, p2)
+        if self.is_dashed():
+            # Create dashed line geometry
+            coords = DashedLineRenderer.create_dashed_coords(p1, p2)
             kwargs = {"pos": coords}
             self._batch = batch_for_shader(self._shader, "LINES", kwargs)
         else:
@@ -62,37 +60,6 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
             self._batch = batch_for_shader(self._shader, "LINES", kwargs)
 
         self.is_dirty = False
-
-    def _create_dashed_line_coords(self, p1, p2):
-        """Create coordinates for a dashed line with gaps."""
-        line_vec = p2 - p1
-        line_length = line_vec.length
-
-        if line_length == 0:
-            return [p1, p2]
-
-        # Dash parameters (in world units) - use centralized constants
-        dash_length = RenderingConstants.DASH_LENGTH
-        gap_length = RenderingConstants.GAP_LENGTH
-        pattern_length = RenderingConstants.dash_pattern_length()
-
-        coords = []
-        direction = line_vec.normalized()
-
-        current_pos = 0.0
-        while current_pos < line_length:
-            # Start of dash
-            dash_start = p1 + direction * current_pos
-            dash_end_pos = min(current_pos + dash_length, line_length)
-            dash_end = p1 + direction * dash_end_pos
-
-            # Add dash segment
-            coords.extend([dash_start, dash_end])
-
-            # Move to next dash (skip gap)
-            current_pos += pattern_length
-
-        return coords
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.add_line_3d(group, self.p1.py_data, self.p2.py_data)

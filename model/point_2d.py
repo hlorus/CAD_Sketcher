@@ -9,7 +9,7 @@ from mathutils import Matrix, Vector
 from bpy.utils import register_classes_factory
 
 from ..utilities.draw import draw_rect_2d
-from ..utilities.constants import BackendCache, RenderingConstants
+from ..utilities.constants import RenderingConstants
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity, Entity2D, tag_update
 from .utilities import slvs_entity_pointer, make_coincident
@@ -32,23 +32,15 @@ class Point2D(Entity2D):
         mat_local = Matrix.Translation(Vector((u, v, 0)))
 
         mat = self.wp.matrix_basis @ mat_local
-        size = RenderingConstants.VULKAN_POINT_2D_SIZE  # Use centralized constant
+        size = RenderingConstants.POINT_2D_SIZE
         coords = draw_rect_2d(0, 0, size, size)
         coords = [(mat @ Vector(co))[:] for co in coords]
         indices = ((0, 1, 2), (0, 2, 3))
 
-        # Check if we're on Vulkan backend
-        is_vulkan = BackendCache.is_vulkan()
-
-        if is_vulkan:
-            # On Vulkan, render points as small rectangles for proper size support
-            self._batch = batch_for_shader(
-                self._shader, "TRIS", {"pos": coords}, indices=indices
-            )
-        else:
-            # On OpenGL, use traditional point rendering
-            pos = self.location
-            self._batch = batch_for_shader(self._shader, "POINTS", {"pos": (pos[:],)})
+        # Always render points as small rectangles for consistent appearance
+        self._batch = batch_for_shader(
+            self._shader, "TRIS", {"pos": coords}, indices=indices
+        )
         self.is_dirty = False
 
     @property
