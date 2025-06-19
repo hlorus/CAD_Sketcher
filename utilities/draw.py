@@ -2,6 +2,7 @@ from collections import deque
 from math import sin, cos
 from typing import List
 
+import bpy
 from mathutils import Vector, Matrix
 
 from .. import global_data
@@ -62,6 +63,46 @@ def draw_quad_3d(cx: float, cy: float, cz: float, width: float):
         (cx - half_width, cy + half_width, cz),
     )
     indices = ((0, 1, 2), (2, 3, 0))
+    return coords, indices
+
+
+def draw_billboard_quad_3d(cx: float, cy: float, cz: float, width: float):
+    """Create a screen-facing quad that always appears as a square regardless of view angle."""
+    half_width = width / 2
+    center = Vector((cx, cy, cz))
+
+    # Get current view matrix to determine camera orientation
+    context = bpy.context
+    if hasattr(context, 'region_data') and context.region_data:
+        # Get the view matrix to determine camera orientation
+        view_matrix = context.region_data.view_matrix
+
+        # Extract camera right and up vectors from the view matrix
+        # The view matrix transforms from world to view space
+        # So we need the inverse to get world space vectors
+        view_matrix_inv = view_matrix.inverted()
+
+        # Camera right vector (X axis in view space)
+        right = Vector((view_matrix_inv[0][0], view_matrix_inv[1][0], view_matrix_inv[2][0])).normalized()
+        # Camera up vector (Y axis in view space)
+        up = Vector((view_matrix_inv[0][1], view_matrix_inv[1][1], view_matrix_inv[2][1])).normalized()
+    else:
+        # Fallback to XY plane if no context
+        right = Vector((1, 0, 0))
+        up = Vector((0, 1, 0))
+
+    # Create quad vertices using camera-relative vectors
+    coords = (
+        center - right * half_width - up * half_width,  # Bottom-left
+        center + right * half_width - up * half_width,  # Bottom-right
+        center + right * half_width + up * half_width,  # Top-right
+        center - right * half_width + up * half_width,  # Top-left
+    )
+
+    # Convert to tuples for GPU batch
+    coords = [co[:] for co in coords]
+    indices = ((0, 1, 2), (2, 3, 0))
+
     return coords, indices
 
 

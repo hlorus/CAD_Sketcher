@@ -3,34 +3,38 @@ import logging
 import bpy
 from bpy.types import PropertyGroup
 from bpy.props import FloatVectorProperty
-from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
-from ..utilities.draw import draw_cube_3d
 from ..utilities.constants import RenderingConstants
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import tag_update
+from .vulkan_compat import BillboardPointRenderer
 
 
 logger = logging.getLogger(__name__)
 
 
-class Point3D(SlvsGenericEntity):
+class Point3D(SlvsGenericEntity, BillboardPointRenderer):
     @classmethod
     def is_point(cls):
         return True
 
-    def update(self):
-        if bpy.app.background:
-            return
+    def get_point_location_3d(self):
+        """Get the 3D location for billboard rendering."""
+        return self.location
 
-        # Always render points as small cubes for consistent appearance
-        coords, indices = draw_cube_3d(*self.location, RenderingConstants.POINT_3D_SIZE)
-        self._batch = batch_for_shader(
-            self._shader, "TRIS", {"pos": coords}, indices=indices
-        )
-        self.is_dirty = False
+    def get_point_base_size(self):
+        """Get the base size for 3D points."""
+        return RenderingConstants.POINT_3D_SIZE
+
+    def update(self):
+        """Update billboard point geometry."""
+        return self.update_billboard_point()
+
+    def draw(self, context):
+        """Draw billboard point with camera-facing geometry."""
+        return self.draw_billboard_point(context)
 
     # TODO: maybe rename -> pivot_point, midpoint
     def placement(self):

@@ -22,7 +22,7 @@ class RenderingConstants:
 
     # Point sizes for geometry-based rendering
     POINT_2D_SIZE = 0.06  # Size of 2D point rectangles
-    POINT_3D_SIZE = 0.03  # Size of 3D point cubes
+    POINT_3D_SIZE = 0.06  # Size of 3D point cubes (increased to match 2D)
 
     # Line widths
     LINE_WIDTH_REGULAR = 2.0     # Regular line thickness

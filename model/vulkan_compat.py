@@ -6,9 +6,12 @@ to ensure consistent visual appearance across all GPU backends.
 """
 
 import logging
+import bpy
+import gpu
 from gpu_extras.batch import batch_for_shader
 
 from ..utilities.constants import RenderingConstants
+from ..utilities.draw import draw_billboard_quad_3d
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,76 @@ class GeometryRenderer:
         """Setup point rendering using triangle geometry."""
         # Points as triangles for all backends
         return self.create_batch(coords, "TRIS", indices)
+
+
+class BillboardPointRenderer:
+    """Mixin class providing billboard point rendering for camera-facing squares."""
+
+    def get_screen_consistent_size(self, context, base_size):
+        """Calculate screen-consistent size based on view distance."""
+        if hasattr(context, 'region_data') and context.region_data:
+            view_distance = context.region_data.view_distance
+            # Scale the point size inversely with view distance
+            return base_size * view_distance * 0.1
+        else:
+            # Fallback if no context available
+            return base_size
+
+    def get_point_location_3d(self):
+        """Get the 3D location for billboard rendering. Override in subclasses."""
+        raise NotImplementedError("Subclasses must implement get_point_location_3d()")
+
+    def get_point_base_size(self):
+        """Get the base size for this point type. Override in subclasses."""
+        raise NotImplementedError("Subclasses must implement get_point_base_size()")
+
+    def update_billboard_point(self):
+        """Update method for billboard points - creates initial geometry."""
+        if bpy.app.background:
+            return
+
+        # Get location and size
+        location_3d = self.get_point_location_3d()
+        base_size = self.get_point_base_size()
+
+        # Calculate screen-consistent size
+        context = bpy.context
+        screen_consistent_size = self.get_screen_consistent_size(context, base_size)
+
+        # Create billboard geometry
+        coords, indices = draw_billboard_quad_3d(*location_3d, screen_consistent_size)
+        self._batch = batch_for_shader(
+            self._shader, "TRIS", {"pos": coords}, indices=indices
+        )
+        self.is_dirty = False
+
+    def draw_billboard_point(self, context):
+        """Draw method for billboard points - regenerates geometry each frame."""
+        if not self.is_visible(context):
+            return
+
+        # Get location and size
+        location_3d = self.get_point_location_3d()
+        base_size = self.get_point_base_size()
+
+        # Calculate screen-consistent size
+        screen_consistent_size = self.get_screen_consistent_size(context, base_size)
+
+        # Generate fresh billboard geometry that faces the camera
+        coords, indices = draw_billboard_quad_3d(*location_3d, screen_consistent_size)
+        batch = batch_for_shader(self._shader, "TRIS", {"pos": coords}, indices=indices)
+
+        # Render the batch
+        shader = self._shader
+        shader.bind()
+        gpu.state.blend_set("ALPHA")
+
+        col = self.color(context)
+        shader.uniform_float("color", col)
+
+        batch.draw(shader)
+        gpu.shader.unbind()
+        self.restore_opengl_defaults()
 
 
 class DashedLineRenderer:
