@@ -96,7 +96,8 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             # This makes the entire plane selectable, not just the edges
             super().draw_id(context)
 
-            # Additionally draw the surface for selection
+            # Additionally draw the surface for selection with slight depth offset
+            # This ensures the surface is slightly behind the outline
             shader = self._id_shader
             shader.bind()
 
@@ -104,7 +105,8 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
 
             coords = draw_rect_2d(0, 0, self.size, self.size)
-            coords = [Vector(co)[:] for co in coords]
+            # Add small negative Z offset to push surface slightly behind outline
+            coords = [(co[0], co[1], co[2] - 0.001) for co in coords]
             indices = ((0, 1, 2), (0, 2, 3))
             batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
             batch.draw(shader)
