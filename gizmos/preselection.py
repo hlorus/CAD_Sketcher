@@ -37,6 +37,15 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         pass
 
     def test_select(self, context, location):
+        mouse_x, mouse_y = location
+        region = context.region
+
+        # Fix for tab boundary freezing: GPU operations hang near viewport/tab boundary
+        # Only the top edge (where tabs are) causes this issue, other edges are fine
+        BORDER_MARGIN = 5
+        if mouse_y >= (region.height - BORDER_MARGIN):
+            return -1
+
         # reset gizmo highlight
         if global_data.highlight_constraint:
             global_data.highlight_constraint = None
@@ -78,11 +87,11 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
 
 
 def _spiral(N, M):
-    x,y = 0,0   
+    x,y = 0,0
     dx, dy = 0, -1
 
     for dumb in range(N*M):
-        if abs(x) == abs(y) and [dx,dy] != [1,0] or x>0 and y == 1-x:  
+        if abs(x) == abs(y) and [dx,dy] != [1,0] or x>0 and y == 1-x:
             dx, dy = -dy, dx            # corner, change direction
 
         if abs(x)>N/2 or abs(y)>M/2:    # non-square
