@@ -1,11 +1,9 @@
 import logging
 
-import bpy
 from bpy.types import PropertyGroup
 from bpy.props import FloatVectorProperty
 from bpy.utils import register_classes_factory
 
-from ..utilities.constants import RenderingConstants
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import tag_update
@@ -21,15 +19,11 @@ class Point3D(SlvsGenericEntity, BillboardPointRenderer):
         return True
 
     def get_point_location_3d(self):
-        """Get the 3D location for billboard rendering."""
+        """Get the 3D location for point rendering."""
         return self.location
 
-    def get_point_base_size(self):
-        """Get the base size for 3D points."""
-        return RenderingConstants.POINT_3D_SIZE
-
     def update(self):
-        """Update billboard point geometry."""
+        """Update screen-space point geometry."""
         return self.update_billboard_point()
 
     def draw(self, context):

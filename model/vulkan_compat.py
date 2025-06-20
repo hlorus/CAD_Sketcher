@@ -9,6 +9,7 @@ import logging
 import bpy
 import gpu
 from gpu_extras.batch import batch_for_shader
+from mathutils import Vector
 
 from ..utilities.constants import RenderingConstants
 from ..utilities.draw import draw_billboard_quad_3d
@@ -42,63 +43,62 @@ class GeometryRenderer:
 
 
 class BillboardPointRenderer:
-    """Mixin class providing billboard point rendering for camera-facing squares."""
-
-    def get_screen_consistent_size(self, context, base_size):
-        """Calculate screen-consistent size based on view distance."""
-        if hasattr(context, 'region_data') and context.region_data:
-            view_distance = context.region_data.view_distance
-            # Scale the point size inversely with view distance
-            return base_size * view_distance * 0.1
-        else:
-            # Fallback if no context available
-            return base_size
+    """Mixin class providing screen-space point rendering."""
 
     def get_point_location_3d(self):
-        """Get the 3D location for billboard rendering. Override in subclasses."""
+        """Get the 3D location for point rendering. Override in subclasses."""
         raise NotImplementedError("Subclasses must implement get_point_location_3d()")
 
-    def get_point_base_size(self):
-        """Get the base size for this point type. Override in subclasses."""
-        raise NotImplementedError("Subclasses must implement get_point_base_size()")
-
     def update_billboard_point(self):
-        """Update method for billboard points - creates initial geometry."""
+        """Update method for billboard points - creates base geometry."""
         if bpy.app.background:
             return
 
-        # Get location and size
+        # Create a basic batch - size will be calculated during draw
         location_3d = self.get_point_location_3d()
-        base_size = self.get_point_base_size()
-
-        # Calculate screen-consistent size
-        context = bpy.context
-        screen_consistent_size = self.get_screen_consistent_size(context, base_size)
-
-        # Create billboard geometry
-        coords, indices = draw_billboard_quad_3d(*location_3d, screen_consistent_size)
-        self._batch = batch_for_shader(
-            self._shader, "TRIS", {"pos": coords}, indices=indices
-        )
+        coords, indices = draw_billboard_quad_3d(*location_3d, 0.01)  # Base size
+        self._batch = batch_for_shader(self._shader, "TRIS", {"pos": coords}, indices=indices)
+        self._cached_view_distance = None  # Reset cache
         self.is_dirty = False
 
     def draw_billboard_point(self, context):
-        """Draw method for billboard points - regenerates geometry each frame."""
+        """Draw method for billboard points - efficient with view-change detection."""
         if not self.is_visible(context):
             return
 
-        # Get location and size
-        location_3d = self.get_point_location_3d()
-        base_size = self.get_point_base_size()
+        # Lazy initialization of cache
+        if not hasattr(self, '_cached_view_distance'):
+            self._cached_view_distance = None
 
-        # Calculate screen-consistent size
-        screen_consistent_size = self.get_screen_consistent_size(context, base_size)
+        # Check if view has changed and we need to regenerate geometry
+        current_view_distance = None
+        if hasattr(context, 'region_data') and context.region_data:
+            current_view_distance = getattr(context.region_data, 'view_distance', 1.0)
 
-        # Generate fresh billboard geometry that faces the camera
-        coords, indices = draw_billboard_quad_3d(*location_3d, screen_consistent_size)
-        batch = batch_for_shader(self._shader, "TRIS", {"pos": coords}, indices=indices)
+        # Only regenerate geometry if view distance changed significantly
+        needs_update = (
+            self._cached_view_distance is None or  # First time
+            (current_view_distance is None) != (self._cached_view_distance is None) or  # None state changed
+            (current_view_distance is not None and self._cached_view_distance is not None and
+             abs(current_view_distance - self._cached_view_distance) > 0.001)  # Significant change
+        )
 
-        # Render the batch
+        if needs_update:
+            # Calculate proper screen-space size
+            location_3d = self.get_point_location_3d()
+            base_size = RenderingConstants.POINT_SIZE
+
+            if current_view_distance:
+                screen_size = base_size * current_view_distance * RenderingConstants.POINT_SIZE
+            else:
+                screen_size = base_size
+
+            # Regenerate billboard geometry with new size
+            coords, indices = draw_billboard_quad_3d(*location_3d, screen_size)
+            self._batch = batch_for_shader(self._shader, "TRIS", {"pos": coords}, indices=indices)
+            self._cached_view_distance = current_view_distance
+
+        # Efficient rendering of cached geometry
         shader = self._shader
         shader.bind()
         gpu.state.blend_set("ALPHA")
@@ -106,7 +106,10 @@ class BillboardPointRenderer:
         col = self.color(context)
         shader.uniform_float("color", col)
 
-        batch.draw(shader)
+        batch = self._batch
+        if batch:
+            batch.draw(shader)
+
         gpu.shader.unbind()
         self.restore_opengl_defaults()
 

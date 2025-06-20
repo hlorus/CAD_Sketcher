@@ -1,19 +1,16 @@
 import logging
 from typing import List
 
-import bpy
 from bpy.types import PropertyGroup
 from bpy.props import FloatVectorProperty
 from mathutils import Matrix, Vector
 from bpy.utils import register_classes_factory
 
-from ..utilities.constants import RenderingConstants
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity, Entity2D, tag_update
 from .utilities import slvs_entity_pointer, make_coincident
 from .line_2d import SlvsLine2D
 from .vulkan_compat import BillboardPointRenderer
-from ..utilities.constants import HALF_TURN
 
 logger = logging.getLogger(__name__)
 
@@ -24,18 +21,14 @@ class Point2D(Entity2D, BillboardPointRenderer):
         return True
 
     def get_point_location_3d(self):
-        """Get the 3D location for billboard rendering."""
+        """Get the 3D location for point rendering."""
         u, v = self.co
         mat_local = Matrix.Translation(Vector((u, v, 0)))
         mat = self.wp.matrix_basis @ mat_local
         return mat @ Vector((0, 0, 0))
 
-    def get_point_base_size(self):
-        """Get the base size for 2D points."""
-        return RenderingConstants.POINT_2D_SIZE
-
     def update(self):
-        """Update billboard point geometry."""
+        """Update screen-space point geometry."""
         return self.update_billboard_point()
 
     def draw(self, context):

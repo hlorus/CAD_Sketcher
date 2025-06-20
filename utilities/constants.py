@@ -20,12 +20,11 @@ class RenderingConstants:
     - Dash patterns create actual geometry gaps rather than shader effects
     """
 
-    # Point sizes for geometry-based rendering
-    POINT_2D_SIZE = 0.06  # Size of 2D point rectangles
-    POINT_3D_SIZE = 0.06  # Size of 3D point cubes (increased to match 2D)
+    # Point size for screen-space billboard rendering
+    POINT_SIZE = 0.06  # Base size for screen-space point billboards
 
-    # Line widths
-    LINE_WIDTH_REGULAR = 2.0     # Regular line thickness
+    # Line widths (in pixels for POLYLINE_UNIFORM_COLOR shader)
+    LINE_WIDTH_REGULAR = 2.0      # Regular line thickness
     LINE_WIDTH_CONSTRUCTION = 1.5 # Construction line thickness
 
     # Construction line dash patterns
