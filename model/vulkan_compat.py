@@ -54,17 +54,29 @@ class BillboardPointRenderer:
         if bpy.app.background:
             return
 
+        # Mark as needing update but don't create geometry until needed
+        self._needs_billboard_update = True
+        self.is_dirty = False
+
+    def _ensure_billboard_geometry(self, context):
+        """Lazy creation of billboard geometry only when needed for drawing."""
+        if not getattr(self, '_needs_billboard_update', True):
+            return
+
         # Create a basic batch - size will be calculated during draw
         location_3d = self.get_point_location_3d()
         coords, indices = draw_billboard_quad_3d(*location_3d, 0.01)  # Base size
         self._batch = batch_for_shader(self._shader, "TRIS", {"pos": coords}, indices=indices)
         self._cached_view_distance = None  # Reset cache
-        self.is_dirty = False
+        self._needs_billboard_update = False
 
     def draw_billboard_point(self, context):
         """Draw method for billboard points - efficient with view-change detection."""
         if not self.is_visible(context):
             return
+
+        # Ensure geometry exists (lazy initialization)
+        self._ensure_billboard_geometry(context)
 
         # Lazy initialization of cache
         if not hasattr(self, '_cached_view_distance'):

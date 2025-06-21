@@ -81,6 +81,9 @@ class PerformanceCache:
 # Global performance cache instance
 _perf_cache = PerformanceCache()
 
+# Frame counter for periodic cleanup
+_cleanup_frame_counter = 0
+
 
 def get_entity_distance_from_camera(entity, context, camera_location=None):
     """Calculate the distance from the entity to the camera for depth sorting."""
@@ -219,6 +222,13 @@ def draw_cb():
     # Restore original behavior: mark for redraw every frame
     # This ensures selection works correctly
     global_data.redraw_selection_buffer = True
+
+    # Periodic cleanup of unused GPU batches (every 1000 frames to avoid performance impact)
+    global _cleanup_frame_counter
+    _cleanup_frame_counter += 1
+    if _cleanup_frame_counter >= 1000:
+        global_data.cleanup_unused_batches(context)
+        _cleanup_frame_counter = 0
 
 
 def reset_performance_cache():

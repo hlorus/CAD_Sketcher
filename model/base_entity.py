@@ -22,6 +22,9 @@ def tag_update(self, _context=None):
     # context argument ignored
     if not self.is_dirty:
         self.is_dirty = True
+        # Invalidate dependency cache when entity changes
+        if hasattr(self, '_dependency_cache'):
+            del self._dependency_cache
 
 
 class SlvsGenericEntity:
@@ -338,6 +341,12 @@ class SlvsGenericEntity:
 
     def dependencies(self) -> List["SlvsGenericEntity"]:
         return []
+
+    def get_cached_dependencies(self) -> List["SlvsGenericEntity"]:
+        """Get dependencies with caching to avoid repeated calculations."""
+        if not hasattr(self, '_dependency_cache'):
+            self._dependency_cache = self.dependencies()
+        return self._dependency_cache
 
     def draw_props(self, layout):
         is_experimental = preferences.is_experimental()
