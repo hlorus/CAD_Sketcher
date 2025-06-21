@@ -177,6 +177,11 @@ class SlvsGenericEntity:
         if preferences.use_experimental("all_entities_selectable", False):
             return True
 
+        # Workplanes should always be selectable - users need to be able to select them
+        # to switch between workplanes even when there's an active sketch
+        if self.__class__.__name__ == 'SlvsWorkplane':
+            return True
+
         active_sketch = context.scene.sketcher.active_sketch
         if active_sketch and hasattr(self, "sketch"):
             # Allow to select entities that share the active sketch's wp

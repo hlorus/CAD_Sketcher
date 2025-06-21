@@ -96,8 +96,8 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             # This makes the entire plane selectable, not just the edges
             super().draw_id(context)
 
-            # Additionally draw the surface for selection with slight depth offset
-            # This ensures the surface is slightly behind the outline
+            # Draw workplane surface both behind and slightly in front of outline
+            # This creates maximum selectability while preserving outline visibility
             shader = self._id_shader
             shader.bind()
 
@@ -105,11 +105,17 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
 
             coords = draw_rect_2d(0, 0, self.size, self.size)
-            # Add small negative Z offset to push surface slightly behind outline
-            coords = [(co[0], co[1], co[2] - 0.001) for co in coords]
+
+            # Draw surface behind outline (for areas not covered by outline)
+            coords_behind = [(co[0], co[1], co[2] - 0.0001) for co in coords]
             indices = ((0, 1, 2), (0, 2, 3))
-            batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
-            batch.draw(shader)
+            batch_behind = batch_for_shader(shader, "TRIS", {"pos": coords_behind}, indices=indices)
+            batch_behind.draw(shader)
+
+            # Draw surface slightly in front of outline (for better selection area)
+            coords_front = [(co[0], co[1], co[2] + 0.0001) for co in coords]
+            batch_front = batch_for_shader(shader, "TRIS", {"pos": coords_front}, indices=indices)
+            batch_front.draw(shader)
 
             gpu.shader.unbind()
             self.restore_opengl_defaults()
