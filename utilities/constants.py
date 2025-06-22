@@ -37,6 +37,7 @@ class RenderingConstants:
 
     # Performance constants
     CLEANUP_FRAME_INTERVAL = 1000       # Frames between GPU batch cleanup cycles
+    CLEANUP_INTERVAL_SECONDS = 10.0     # Seconds between time-based cleanup cycles
 
     # UI interaction constants
     UI_BORDER_MARGIN = 5                # Pixel margin to avoid UI boundary issues
