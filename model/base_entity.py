@@ -8,6 +8,7 @@ from bpy.types import Context
 from .. import global_data
 from ..utilities import preferences
 from ..utilities.constants import RenderingConstants
+from ..utilities.gpu_manager import ShaderManager
 from ..shaders import Shaders
 from ..declarations import Operators
 from ..utilities.preferences import get_prefs
@@ -74,25 +75,24 @@ class SlvsGenericEntity:
     @property
     def _shader(self):
         """
-        Get the appropriate shader for this entity.
+        Get the appropriate cached shader for this entity.
 
         Uses geometry-based rendering approach for all backends:
-        - Points: UNIFORM_COLOR shader (for triangle-based point geometry)
-        - Lines: POLYLINE_UNIFORM_COLOR shader (for proper line width support)
+        - Points: Cached UNIFORM_COLOR shader (for triangle-based point geometry)
+        - Lines: Cached POLYLINE_UNIFORM_COLOR shader (for proper line width support)
 
         Returns:
-            GPUShader: Appropriate shader for entity type
+            GPUShader: Appropriate cached shader for entity type
         """
         if self.is_point():
-            return Shaders.uniform_color_3d()
-        # For lines, always use POLYLINE_UNIFORM_COLOR for proper line width
-        return Shaders.polyline_color_3d()
+            return ShaderManager.get_uniform_color_shader()
+        # For lines, always use cached POLYLINE_UNIFORM_COLOR for proper line width
+        return ShaderManager.get_polyline_shader()
 
     @property
     def _id_shader(self):
-        if self.is_point():
-            return Shaders.id_shader_3d()
-        return Shaders.id_line_3d()
+        """Get the appropriate cached ID shader for selection rendering."""
+        return ShaderManager.get_id_shader(is_point=self.is_point())
 
     @property
     def point_size(self):

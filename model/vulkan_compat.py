@@ -13,6 +13,7 @@ from mathutils import Vector
 
 from ..utilities.constants import RenderingConstants
 from ..utilities.draw import draw_billboard_quad_3d
+from ..utilities.gpu_manager import ShaderManager
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +24,11 @@ class GeometryRenderer:
     def create_batch(self, coords, batch_type="LINES", indices=None):
         """Create a GPU batch with appropriate parameters."""
         kwargs = {"pos": coords}
+        # Use cached shader instead of _shader property
+        shader = ShaderManager.get_polyline_shader() if batch_type in ("LINES", "LINE_STRIP") else ShaderManager.get_uniform_color_shader()
         if indices is not None:
-            return batch_for_shader(self._shader, batch_type, kwargs, indices=indices)
-        return batch_for_shader(self._shader, batch_type, kwargs)
+            return batch_for_shader(shader, batch_type, kwargs, indices=indices)
+        return batch_for_shader(shader, batch_type, kwargs)
 
     def setup_line_rendering(self, coords, is_dashed=False):
         """Setup line rendering with proper batch type."""
@@ -66,7 +69,8 @@ class BillboardPointRenderer:
         # Create a basic batch - size will be calculated during draw
         location_3d = self.get_point_location_3d()
         coords, indices = draw_billboard_quad_3d(*location_3d, 0.01)  # Base size
-        self._batch = batch_for_shader(self._shader, "TRIS", {"pos": coords}, indices=indices)
+        shader = ShaderManager.get_uniform_color_shader()
+        self._batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
         self._cached_view_distance = None  # Reset cache
         self._needs_billboard_update = False
 
@@ -107,11 +111,12 @@ class BillboardPointRenderer:
 
             # Regenerate billboard geometry with new size
             coords, indices = draw_billboard_quad_3d(*location_3d, screen_size)
-            self._batch = batch_for_shader(self._shader, "TRIS", {"pos": coords}, indices=indices)
+            shader = ShaderManager.get_uniform_color_shader()
+            self._batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
             self._cached_view_distance = current_view_distance
 
-        # Efficient rendering of cached geometry
-        shader = self._shader
+        # Efficient rendering of cached geometry using cached shader
+        shader = ShaderManager.get_uniform_color_shader()
         shader.bind()
         gpu.state.blend_set("ALPHA")
 

@@ -11,6 +11,7 @@ from bpy.utils import register_classes_factory
 from ..declarations import Operators
 from .. import global_data
 from ..utilities.draw import draw_rect_2d
+from ..utilities.gpu_manager import ShaderManager
 from ..shaders import Shaders
 from ..utilities import preferences
 from ..solver import Solver
@@ -72,7 +73,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             # Additionally draw a face
             col_surface = col[:-1] + (0.2,)
 
-            shader = Shaders.uniform_color_3d()
+            shader = ShaderManager.get_uniform_color_shader()
             shader.bind()
             gpu.state.blend_set("ALPHA")
 
