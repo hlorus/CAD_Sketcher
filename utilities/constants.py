@@ -31,6 +31,16 @@ class RenderingConstants:
     DASH_LENGTH = 0.1            # Length of each dash segment
     GAP_LENGTH = 0.05            # Length of each gap between dashes
 
+    # Selection and depth sorting constants
+    WORKPLANE_SELECTION_PRIORITY = 0.1  # Multiplier to give workplanes selection priority
+    VIEW_CHANGE_THRESHOLD = 0.001       # Minimum view distance change to trigger geometry update
+
+    # Performance constants
+    CLEANUP_FRAME_INTERVAL = 1000       # Frames between GPU batch cleanup cycles
+
+    # UI interaction constants
+    UI_BORDER_MARGIN = 5                # Pixel margin to avoid UI boundary issues
+
     @classmethod
     def dash_pattern_length(cls):
         """

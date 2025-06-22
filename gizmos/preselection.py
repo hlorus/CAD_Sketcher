@@ -5,6 +5,7 @@ from .. import global_data
 from ..declarations import Gizmos, GizmoGroups
 from ..draw_handler import ensure_selection_texture
 from ..utilities.index import rgb_to_index
+from ..utilities.constants import RenderingConstants
 from .utilities import context_mode_check
 
 
@@ -42,8 +43,7 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
 
         # Fix for tab boundary freezing: GPU operations hang near viewport/tab boundary
         # Only the top edge (where tabs are) causes this issue, other edges are fine
-        BORDER_MARGIN = 5
-        if mouse_y >= (region.height - BORDER_MARGIN):
+        if mouse_y >= (region.height - RenderingConstants.UI_BORDER_MARGIN):
             return -1
 
         # reset gizmo highlight

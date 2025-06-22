@@ -2,10 +2,12 @@ import bpy
 import gpu
 from bpy.types import Context, Operator
 from bpy.utils import register_class, unregister_class
+from bpy.app.handlers import persistent
 from mathutils import Vector
 
 from . import global_data
 from .utilities.preferences import use_experimental
+from .utilities.constants import RenderingConstants
 from .declarations import Operators
 
 
@@ -30,7 +32,7 @@ class PerformanceCache:
             return Vector((0, 0, 0))
 
         view_matrix = context.region_data.view_matrix
-        # Use matrix hash to detect changes efficiently
+        # Use matrix hash to detect changes efficiently - revert to original working method
         current_hash = hash(tuple(view_matrix.col[0]) + tuple(view_matrix.col[1]) +
                            tuple(view_matrix.col[2]) + tuple(view_matrix.col[3]))
 
@@ -112,7 +114,11 @@ def get_entity_distance_from_camera(entity, context, camera_location=None):
 
         return (camera_location - entity_pos).length
 
-    except Exception as e:
+    except (AttributeError, ValueError, TypeError) as e:
+        # Log specific errors for debugging while gracefully handling them
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Distance calculation failed for entity {getattr(entity, '__class__', type(entity)).__name__}: {e}")
         # Return large distance on error so entity is drawn first
         return float('inf')
 
@@ -159,7 +165,7 @@ def draw_selection_buffer(context: Context):
 
             if is_workplane:
                 # Reduce workplane distance significantly to give them selection priority
-                distance *= 0.1
+                distance *= RenderingConstants.WORKPLANE_SELECTION_PRIORITY
 
             return distance
 
@@ -215,6 +221,13 @@ def draw_elements(context: Context):
 def draw_cb():
     context = bpy.context
 
+    # Ensure performance cache is initialized for loaded files
+    global _perf_cache
+    if not hasattr(_perf_cache, '_initialized_for_scene'):
+        _perf_cache.reset()
+        _perf_cache.mark_entities_dirty()
+        _perf_cache._initialized_for_scene = True
+
     force = use_experimental("force_redraw", True)
     update_elements(context, force=force)
     draw_elements(context)
@@ -223,10 +236,10 @@ def draw_cb():
     # This ensures selection works correctly
     global_data.redraw_selection_buffer = True
 
-    # Periodic cleanup of unused GPU batches (every 1000 frames to avoid performance impact)
+    # Periodic cleanup of unused GPU batches to avoid performance impact
     global _cleanup_frame_counter
     _cleanup_frame_counter += 1
-    if _cleanup_frame_counter >= 1000:
+    if _cleanup_frame_counter >= RenderingConstants.CLEANUP_FRAME_INTERVAL:
         global_data.cleanup_unused_batches(context)
         _cleanup_frame_counter = 0
 
@@ -256,6 +269,40 @@ def get_cache_status():
     }
 
 
+@persistent
+def load_handler_reset_cache(dummy):
+    """Reset performance cache when file is loaded to ensure selection works with existing entities."""
+    global _perf_cache
+    _perf_cache.reset()
+    _perf_cache.mark_entities_dirty()
+    # Clear scene initialization flag so it gets properly set up
+    if hasattr(_perf_cache, '_initialized_for_scene'):
+        delattr(_perf_cache, '_initialized_for_scene')
+    # Force selection buffer redraw
+    global_data.redraw_selection_buffer = True
+
+    # Ensure Select tool is active to enable click selection - use timer for deferred activation
+    def activate_select_tool():
+        """Deferred function to activate select tool after file load completes."""
+        from .declarations import WorkSpaceTools
+        try:
+            # Check if we're in the right context (3D viewport)
+            for area in bpy.context.screen.areas:
+                if area.type == 'VIEW_3D':
+                    # Activate the CAD Sketcher Select tool so click selection works
+                    bpy.ops.wm.tool_set_by_id(name=WorkSpaceTools.Select)
+                    break
+        except Exception as e:
+            # Log but don't fail if tool activation fails
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Could not activate Select tool on file load: {e}")
+        return None  # Don't repeat the timer
+
+    # Schedule tool activation for next frame to ensure everything is loaded
+    bpy.app.timers.register(activate_select_tool, first_interval=0.1)
+
+
 class View3D_OT_slvs_register_draw_cb(Operator):
     bl_idname = Operators.RegisterDrawCB
     bl_label = "Register Draw Callback"
@@ -281,8 +328,14 @@ class View3D_OT_slvs_unregister_draw_cb(Operator):
 def register():
     register_class(View3D_OT_slvs_register_draw_cb)
     register_class(View3D_OT_slvs_unregister_draw_cb)
+    # Register file load handler to reset cache when files are loaded
+    if load_handler_reset_cache not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(load_handler_reset_cache)
 
 
 def unregister():
     unregister_class(View3D_OT_slvs_unregister_draw_cb)
     unregister_class(View3D_OT_slvs_register_draw_cb)
+    # Unregister file load handler
+    if load_handler_reset_cache in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(load_handler_reset_cache)

@@ -92,18 +92,18 @@ class BillboardPointRenderer:
             self._cached_view_distance is None or  # First time
             (current_view_distance is None) != (self._cached_view_distance is None) or  # None state changed
             (current_view_distance is not None and self._cached_view_distance is not None and
-             abs(current_view_distance - self._cached_view_distance) > 0.001)  # Significant change
+             abs(current_view_distance - self._cached_view_distance) > RenderingConstants.VIEW_CHANGE_THRESHOLD)  # Significant change
         )
 
         if needs_update:
             # Calculate proper screen-space size
             location_3d = self.get_point_location_3d()
-            base_size = RenderingConstants.POINT_SIZE
 
             if current_view_distance:
-                screen_size = base_size * current_view_distance * RenderingConstants.POINT_SIZE
+                # Use correct scaling factor - matches original working implementation
+                screen_size = RenderingConstants.POINT_SIZE * current_view_distance * RenderingConstants.POINT_SIZE
             else:
-                screen_size = base_size
+                screen_size = RenderingConstants.POINT_SIZE
 
             # Regenerate billboard geometry with new size
             coords, indices = draw_billboard_quad_3d(*location_3d, screen_size)
