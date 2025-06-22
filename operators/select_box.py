@@ -20,9 +20,10 @@ def get_start_dist(value1, value2, invert: bool = False):
 
 
 def draw_callback_px(self, context):
-    """Draw selection box using POLYLINE_UNIFORM_COLOR shader."""
-    # Use POLYLINE_UNIFORM_COLOR shader for consistent rendering
-    shader = gpu.shader.from_builtin("POLYLINE_UNIFORM_COLOR")
+    """Draw selection box using cached POLYLINE_UNIFORM_COLOR shader."""
+    # Use cached POLYLINE_UNIFORM_COLOR shader for consistent rendering
+    from ..utilities.gpu_manager import ShaderManager
+    shader = ShaderManager.get_polyline_shader()
 
     gpu.state.blend_set("ALPHA")
 

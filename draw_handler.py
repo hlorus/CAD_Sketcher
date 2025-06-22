@@ -8,6 +8,7 @@ from mathutils import Vector
 from . import global_data
 from .utilities.preferences import use_experimental
 from .utilities.constants import RenderingConstants
+from .utilities.gpu_manager import GPUResourceManager
 from .declarations import Operators
 
 
@@ -236,11 +237,15 @@ def draw_cb():
     # This ensures selection works correctly
     global_data.redraw_selection_buffer = True
 
-    # Periodic cleanup of unused GPU batches to avoid performance impact
+    # Periodic cleanup of GPU resources (time-based instead of frame-based)
+    cleanup_stats = GPUResourceManager.periodic_cleanup(context)
+
+    # Keep the old frame-based cleanup as a backup for very long sessions
     global _cleanup_frame_counter
     _cleanup_frame_counter += 1
-    if _cleanup_frame_counter >= RenderingConstants.CLEANUP_FRAME_INTERVAL:
-        global_data.cleanup_unused_batches(context)
+    if _cleanup_frame_counter >= (RenderingConstants.CLEANUP_FRAME_INTERVAL * 10):  # Much less frequent
+        # Force cleanup every 10,000 frames as a safety net
+        GPUResourceManager.force_cleanup_all(context)
         _cleanup_frame_counter = 0
 
 
@@ -280,6 +285,17 @@ def load_handler_reset_cache(dummy):
         delattr(_perf_cache, '_initialized_for_scene')
     # Force selection buffer redraw
     global_data.redraw_selection_buffer = True
+
+    # Clean up GPU resources on file load to prevent accumulation
+    try:
+        import bpy
+        # Use a dummy context for cleanup - should be safe during file load
+        context = bpy.context
+        GPUResourceManager.force_cleanup_all(context)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"GPU cleanup on file load failed: {e}")
 
     # Ensure Select tool is active to enable click selection - use timer for deferred activation
     def activate_select_tool():
