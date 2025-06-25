@@ -14,8 +14,8 @@ from ..utilities.constants import RenderingConstants
 from .vulkan_compat import DashedLineRenderer
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
-from .base_entity import Entity2D
-from .utilities import slvs_entity_pointer, tag_update
+from .base_entity import Entity2D, tag_update
+from .utilities import slvs_entity_pointer
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN, QUARTER_TURN
 from ..utilities.math import range_2pi, pol2cart
