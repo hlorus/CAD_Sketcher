@@ -120,7 +120,7 @@ class Solver:
             indices = c.py_data(self.solvesys, group=group)
             indices = indices if type(indices) in (tuple, list) else (indices,)
             indices = [x['h'] for x in indices]
-            
+
             self._store_constraint_indices(
                 c, indices
             )
@@ -227,18 +227,18 @@ class Solver:
             if report and fails:
 
                 print("failed", fails)
-                # for i in fails:
-                #     if i == self.tweak_constraint:
-                #         continue
-                #     constr = self.constraints[i]
-                #     constr.failed = True
+                for i in fails:
+                    if i == self.tweak_constraint:
+                        continue
+                    constr = self.constraints[i]
+                    constr.failed = True
 
                 def _get_msg_failed():
                     msg = "Failed constraints:"
                     msg += str(fails)
-                    # for i in fails:
-                    #     constr = self.constraints[i]
-                    #     msg += "\n  - {}".format(constr)
+                    for i in fails:
+                        constr = self.constraints[i]
+                        msg += "\n  - {}".format(constr)
                     return msg
 
                 if logger.isEnabledFor(logging.DEBUG):
