@@ -30,35 +30,69 @@ class TestSolver2d(Sketch2dTestCase):
         context = self.context
         entities = self.entities
         constraints = self.constraints
-
-        # wp = entities.origin_plane_XY
-        # sketch2 = entities.add_sketch(wp)
-        # sketch2.name = "Sketch2"
-        sketch2 = self.sketch
+        sketch = self.sketch
+        # TODO: remove normal argument for add_arc and add_circle
+        nm = entities.add_normal_2d(sketch)
 
         # Line
-        origin = entities.add_point_2d((0, 0), sketch2, index_reference=True)
+        origin = entities.add_point_2d((0, 0), sketch, fixed=True, index_reference=True)
 
-        p1 = entities.add_point_2d((10, 20), sketch2, index_reference=True)
-        p2 = entities.add_point_2d((20, 10), sketch2, index_reference=True)
-        line = entities.add_line_2d(p1, p2, sketch2, index_reference=True)
-        constraints.add_distance(p1, p2, sketch2).value = 30
-        constraints.add_distance(origin, line).value = 10
-
-        # TODO: remove normal argument for add_arc and add_circle
-        nm = entities.add_normal_2d(sketch2)
-
+        p1 = entities.add_point_2d((10, 20), sketch, index_reference=True)
+        p2 = entities.add_point_2d((20, 10), sketch, index_reference=True)
+        line = entities.add_line_2d(p1, p2, sketch, index_reference=True)
 
         # Arc
-        p3 = entities.add_point_2d((100, 120), sketch2, index_reference=True)
-        p4 = entities.add_point_2d((120, 110), sketch2, index_reference=True)
-        p5 = entities.add_point_2d((150, 150), sketch2, index_reference=True)
-
-
-        arc = entities.add_arc(nm, p3, p4, p5, sketch2, index_reference=True)
+        p3 = entities.add_point_2d((100, 120), sketch, index_reference=True)
+        p4 = entities.add_point_2d((120, 110), sketch, index_reference=True)
+        p5 = entities.add_point_2d((115, 115), sketch, index_reference=True)
+        arc = entities.add_arc(nm, p3, p4, p5, sketch, index_reference=True)
 
         # Circle
-        # p6 = entities.add_point_2d((200, 200), sketch2)
-        # circle = entities.add_circle(nm, p6, 30, sketch2)
+        p6 = entities.add_point_2d((200, 200), sketch)
+        circle = entities.add_circle(nm, p6, 30, sketch)
 
-        self.assertTrue(sketch2.solve(context))
+        # Add constraints
+        constraints.add_distance(p1, p2, sketch).value = 30
+        constraints.add_distance(origin, line, sketch).value = 10
+        constraints.add_vertical(line, sketch=sketch)
+        constraints.add_distance(origin, p1, sketch).value = 15
+        constraints.add_equal(arc, circle, sketch)
+        constraints.add_diameter(arc, sketch).value = 17.0/2
+
+        self.assertTrue(sketch.solve(context))
+
+    def test_example_2d_fail(self):
+        context = self.context
+        entities = self.entities
+        constraints = self.constraints
+        sketch = self.sketch
+        nm = entities.add_normal_2d(sketch)
+
+        # Line
+        origin = entities.add_point_2d((0, 0), sketch, fixed=True, index_reference=True)
+
+        p1 = entities.add_point_2d((10, 20), sketch, index_reference=True)
+        p2 = entities.add_point_2d((20, 10), sketch, index_reference=True)
+        line = entities.add_line_2d(p1, p2, sketch, index_reference=True)
+
+        # Arc
+        p3 = entities.add_point_2d((100, 120), sketch, index_reference=True)
+        p4 = entities.add_point_2d((120, 110), sketch, index_reference=True)
+        p5 = entities.add_point_2d((115, 115), sketch, index_reference=True)
+        arc = entities.add_arc(nm, p3, p4, p5, sketch, index_reference=True)
+
+        # Circle
+        p6 = entities.add_point_2d((200, 200), sketch)
+        circle = entities.add_circle(nm, p6, 30, sketch)
+
+        # Add constraints
+        constraints.add_distance(p1, p2, sketch).value = 30
+        constraints.add_distance(origin, line, sketch).value = 10
+        constraints.add_vertical(line, sketch=sketch)
+        constraints.add_distance(origin, p1, sketch).value = 15
+        constraints.add_distance(origin, p2, sketch).value = 18
+        constraints.add_equal(arc, circle, sketch)
+        constraints.add_diameter(arc, sketch).value = 17.0/2
+
+        self.assertFalse(sketch.solve(context))
+        self.assertEqual(sketch.get_solver_state().identifier, "INCONSISTENT")
