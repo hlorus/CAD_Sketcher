@@ -203,7 +203,12 @@ class Solver:
 
         for sketch in sketches:
             g = self._get_group(sketch)
-            retval = self.solvesys.solve_sketch(g, report)
+
+            fails = []
+            if report:
+                retval, fails = self.solvesys.solve_sketch(g, report)
+            else:
+                retval = self.solvesys.solve_sketch(g, report)
 
             if retval['result'] > 4:
                 logger.debug("Solver returned undocumented value: {}".format(retval))
@@ -223,7 +228,6 @@ class Solver:
 
             logger.info(self.result.description)
 
-            fails = retval['bad']
             if report and fails:
 
                 print("failed", fails)
