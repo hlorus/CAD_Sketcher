@@ -17,7 +17,7 @@ def run(interactive, log_level=None):
     from bl_ext.extensions.CAD_Sketcher.testing import test_solver
     from bl_ext.extensions.CAD_Sketcher.testing.utils import BgsTestCase
 
-    BgsTestCase.interactive = True
+    BgsTestCase.interactive = interactive
     if log_level:
         BgsTestCase.log_level = log_level
 
@@ -35,12 +35,16 @@ def run(interactive, log_level=None):
 
 if __name__ == "__main__":
     import sys
+    import os
 
     args = []
     kwargs = {}
     argv = sys.argv
 
-    interactive = False
+    # Check environment variable first (most reliable)
+    interactive = os.environ.get("RUN_TESTS_INTERACTIVE", "").lower() in ("true", "1", "yes")
+
+    # Then check command line args
     log_level = None
     if "--" in argv:
         for arg in argv[argv.index("--") + 1 :]:
@@ -56,5 +60,9 @@ if __name__ == "__main__":
         if "--log_level" in kwargs.keys():
             log_level = kwargs["--log_level"]
 
+    # Set environment variable for child processes
+    os.environ["RUN_TESTS_INTERACTIVE"] = "1" if interactive else "0"
+
     print("args: {}\nkwargs: {}".format(args, kwargs))
+    print(f"Interactive mode: {interactive}")
     run(interactive, log_level)
