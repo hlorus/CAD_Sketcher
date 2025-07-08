@@ -1,7 +1,7 @@
 from unittest import skip
 from testing.utils import BgsTestCase
-from CAD_Sketcher.model.types import SlvsPoint3D
-from CAD_Sketcher.model.utilities import slvs_entity_pointer
+from bl_ext.extensions.CAD_Sketcher.model.types import SlvsPoint3D
+from bl_ext.extensions.CAD_Sketcher.model.utilities import slvs_entity_pointer
 
 from sys import float_info
 

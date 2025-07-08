@@ -1,5 +1,5 @@
 from unittest import TestCase
-from CAD_Sketcher.solver import solve_system
+from bl_ext.extensions.CAD_Sketcher.solver import solve_system
 
 
 class BgsTestCase(TestCase):
@@ -7,8 +7,15 @@ class BgsTestCase(TestCase):
     log_level = "INFO"
 
     @classmethod
+    def is_interactive(cls):
+        """Check if interactive mode is enabled via environment variable or class attribute"""
+        import os
+        return os.environ.get("RUN_TESTS_INTERACTIVE", "").lower() in ("true", "1", "yes") or cls.interactive
+
+    @classmethod
     def setUpClass(cls):
-        from CAD_Sketcher.utilities.preferences import get_prefs
+        print(f"BgsTestCase.setUpClass - interactive: {cls.interactive}")
+        from bl_ext.extensions.CAD_Sketcher.utilities.preferences import get_prefs
 
         prefs = get_prefs()
         prefs.logging_level = cls.log_level
@@ -28,7 +35,8 @@ class BgsTestCase(TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        if cls.interactive:
+        if cls.is_interactive():
+            # In interactive mode, keep scenes alive
             return
 
         # Delete scene
@@ -59,9 +67,10 @@ class Sketch2dTestCase(BgsTestCase):
 
     @classmethod
     def tearDownClass(cls):
-        super().tearDownClass()
-        if cls.interactive:
+        if cls.is_interactive():
+            # In interactive mode, skip teardown
             return
+        super().tearDownClass()
 
     def setUp(self) -> None:
         self.sketch = self.new_sketch()

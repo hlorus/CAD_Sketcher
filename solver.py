@@ -31,11 +31,12 @@ class Solver:
         logger.info(
             "--- Start solving ---\nAll:{}, Sketch:{}, g:{}".format(all, sketch, group)
         )
-        from py_slvs import slvs
+        import slvs
 
-        self.solvesys = slvs.System()
+        slvs.clear_sketch()
+        self.solvesys = slvs
 
-        self.FREE_IN_3D = slvs.SLVS_FREE_IN_3D
+        self.FREE_IN_3D = slvs.E_FREE_IN_3D
         self.sketch = sketch
 
         self.ok = True
@@ -75,28 +76,23 @@ class Solver:
             if self.tweak_entity and e == self.tweak_entity:
                 wp = self.get_workplane()
                 if hasattr(e, "tweak"):
+                    # Let the entity handle the dragging if it defines custom logic
                     e.tweak(self.solvesys, self.tweak_pos, group)
                 else:
+                    # Otherwise add a point and make it coincident with the dragged entity
                     if not self.sketch:
-                        params = [
-                            self.solvesys.addParamV(val, group)
-                            for val in self.tweak_pos
-                        ]
-                        p = self.solvesys.addPoint3d(*params, group=group)
+                        p = self.solvesys.add_point_3d(group, *self.tweak_pos)
                     else:
                         wrkpln = self.sketch.wp
                         u, v, _ = wrkpln.matrix_basis.inverted() @ self.tweak_pos
-                        params = [self.solvesys.addParamV(val, group) for val in (u, v)]
-                        p = self.solvesys.addPoint2d(
-                            wrkpln.py_data, *params, group=group
-                        )
+                        p = self.solvesys.add_point_2d(group, u, v, wrkpln.py_data)
 
                     e.create_slvs_data(self.solvesys, group=group)
 
                     self.tweak_constraint = make_coincident(
                         self.solvesys, p, e, wp, group
                     )
-                    self.solvesys.addWhereDragged(p, wrkpln=wp, group=group)
+                    self.solvesys.dragged(group, p, wp)
                 continue
 
             e.create_slvs_data(self.solvesys, group=group)
@@ -121,11 +117,12 @@ class Solver:
                 c.failed = False
 
             # Store a index-constraint mapping
-            from collections.abc import Iterable
-
             indices = c.py_data(self.solvesys, group=group)
+            indices = indices if type(indices) in (tuple, list) else (indices,)
+            indices = [x['h'] for x in indices]
+
             self._store_constraint_indices(
-                c, indices if isinstance(indices, Iterable) else (indices,)
+                c, indices
             )
 
         def _get_msg_constraints():
@@ -206,22 +203,24 @@ class Solver:
 
         for sketch in sketches:
             g = self._get_group(sketch)
-            retval = self.solvesys.solve(
-                group=g,
-                reportFailed=report,
-                findFreeParams=False,
-            )
 
-            if retval > 5:
+            fails = []
+            if report:
+                retval, fails = self.solvesys.solve_sketch(g, report)
+            else:
+                retval = self.solvesys.solve_sketch(g, report)
+
+            if retval['result'] > 4:
                 logger.debug("Solver returned undocumented value: {}".format(retval))
-
-            self.result = bpyEnum(solver_state_items, index=retval)
+                self.result = bpyEnum(solver_state_items, index=5)
+            else:
+                self.result = bpyEnum(solver_state_items, index=retval['result'])
 
             if report and sketch:
                 sketch.solver_state = self.result.identifier
-                sketch.dof = self.solvesys.Dof
+                sketch.dof = retval['dof']
 
-            if retval != 0 and retval != 5:
+            if retval['result'] != 0 and retval['result'] != 4:
                 self.ok = False
 
                 # Store sketch failures
@@ -229,9 +228,9 @@ class Solver:
 
             logger.info(self.result.description)
 
-            fails = self.solvesys.Failed
             if report and fails:
 
+                print("failed", fails)
                 for i in fails:
                     if i == self.tweak_constraint:
                         continue
@@ -240,6 +239,7 @@ class Solver:
 
                 def _get_msg_failed():
                     msg = "Failed constraints:"
+                    msg += str(fails)
                     for i in fails:
                         constr = self.constraints[i]
                         msg += "\n  - {}".format(constr)

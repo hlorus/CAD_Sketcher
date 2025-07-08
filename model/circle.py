@@ -81,7 +81,7 @@ class SlvsCircle(Entity2D, PropertyGroup):
         self.is_dirty = False
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        self.param = solvesys.addParamV(self.radius, group)
+        self.param_distance = solvesys.add_distance(group, self.radius, self.wp.py_data)
 
         nm = None
         if self.nm != -1:
@@ -89,16 +89,17 @@ class SlvsCircle(Entity2D, PropertyGroup):
         else:
             nm = self.wp.nm
 
-        handle = solvesys.addCircle(
+        handle = solvesys.add_circle(
+            group,
+            self.wp.nm.py_data,
             self.ct.py_data,
-            self.nm.py_data,
-            solvesys.addDistance(self.param),
-            group=group,
+            self.param_distance,
+            self.wp.py_data,
         )
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        self.radius = solvesys.getParam(self.param).val
+        self.radius = solvesys.get_param_value(self.param_distance['param'][0])
 
     def point_on_curve(self, angle):
         return pol2cart(self.radius, angle) + self.ct.co

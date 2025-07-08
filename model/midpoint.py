@@ -23,15 +23,13 @@ class SlvsMidpoint(GenericConstraint, PropertyGroup):
         return WpReq.NOT_FREE
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        kwargs = {
-            "group": group,
-        }
-
         wp = self.get_workplane()
+        kwargs = {}
         if wp:
-            kwargs["wrkpln"] = wp
+            kwargs["workplane"] = wp
 
-        return solvesys.addMidPoint(
+        return solvesys.midpoint(
+            group,
             self.entity1.py_data,
             self.entity2.py_data,
             **kwargs,

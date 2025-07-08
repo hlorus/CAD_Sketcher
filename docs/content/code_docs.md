@@ -114,7 +114,7 @@ The extension uses the [Python Binding](https://pypi.org/project/py-slvs/) of [S
 the an interactive python interpreter. This can be done inside blender's python console
 when the solver module has been installed, something like this:
 ```
-from py_slvs import slvs
+import slvs
 sys = slvs.System()
 ```
 

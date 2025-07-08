@@ -107,12 +107,13 @@ class SlvsArc(Entity2D, PropertyGroup):
         self.is_dirty = False
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addArcOfCircle(
-            self.wp.py_data,
+        handle = solvesys.add_arc(
+            group,
+            self.wp.nm.py_data,
             self.ct.py_data,
             self.start.py_data,
             self.end.py_data,
-            group=group,
+            self.wp.py_data,
         )
         self.py_data = handle
 

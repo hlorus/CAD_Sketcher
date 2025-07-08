@@ -94,7 +94,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             super().draw_id(context)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.addWorkplane(self.p1.py_data, self.nm.py_data, group=group)
+        handle = solvesys.add_workplane(group, self.p1.py_data, self.nm.py_data)
         self.py_data = handle
 
     @property

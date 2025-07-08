@@ -42,29 +42,12 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         e1, e2 = self.entity1, self.entity2
 
-        func = None
-        set_wp = False
+        wp = self.get_workplane()
+        kwargs = {}
+        if wp:
+            kwargs["workplane"] = wp
 
-        if all([type(e) in LINE for e in (e1, e2)]):
-            func = solvesys.addEqualLength
-            set_wp = True
-        elif all([type(e) in CURVE for e in (e1, e2)]):
-            func = solvesys.addEqualRadius
-        else:
-            func = solvesys.addEqualLineArcLength
-            set_wp = True
-
-            if e1.is_curve():
-                e1, e2 = e2, e1
-
-        kwargs = {
-            "group": group,
-        }
-
-        if set_wp:
-            kwargs["wrkpln"] = self.get_workplane()
-
-        return func(e1.py_data, e2.py_data, **kwargs)
+        return solvesys.equal(group, e1.py_data, e2.py_data, **kwargs)
 
     def placements(self):
         return (self.entity1, self.entity2)

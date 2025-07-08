@@ -108,34 +108,11 @@ def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
     from .categories import LINE, CURVE, POINT
     from .workplane import SlvsWorkplane
 
-    func = None
-    set_wp = False
+    kwargs = {}
+    if wp:
+        kwargs["workplane"] = wp
 
-    if entity_type:
-        handle = e2
-    else:
-        entity_type = type(e2)
-        handle = e2.py_data
-
-    if entity_type in LINE:
-        func = solvesys.addPointOnLine
-        set_wp = True
-    elif entity_type in CURVE:
-        func = solvesys.addPointOnCircle
-    elif entity_type == SlvsWorkplane:
-        func = solvesys.addPointInPlane
-    elif entity_type in POINT:
-        func = solvesys.addPointsCoincident
-        set_wp = True
-
-    kwargs = {
-        "group": group,
-    }
-
-    if set_wp:
-        kwargs["wrkpln"] = wp
-
-    return func(point_handle, handle, **kwargs)
+    return solvesys.coincident(group, point_handle, e2.py_data, **kwargs)
 
 
 def update_pointers(scene, index_old, index_new):

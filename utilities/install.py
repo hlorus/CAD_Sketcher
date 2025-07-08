@@ -24,6 +24,12 @@ def check_module(package: str, raise_exception: bool = False) -> ModuleType:
         sys.path.append(p)
     try:
         module = importlib.import_module(package)
+        
+        # Print information about the loaded module
+        logger.info(f"Module loaded: {package}")
+        logger.info(f"Module path: {getattr(module, '__file__', 'Unknown')}")
+        logger.info(f"Module version: {getattr(module, '__version__', 'Unknown')}")
+
         return module
 
     except ModuleNotFoundError as e:

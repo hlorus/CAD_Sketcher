@@ -53,13 +53,11 @@ class Point2D(Entity2D):
         if not coords:
             coords = self.co
 
-        self.params = [solvesys.addParamV(v, group) for v in coords]
-
-        handle = solvesys.addPoint2d(self.wp.py_data, *self.params, group=group)
+        handle = solvesys.add_point_2d(group, *coords, self.wp.py_data)
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        coords = [solvesys.getParam(i).val for i in self.params]
+        coords = [solvesys.get_param_value(self.py_data['param'][i]) for i in range(2)]
         self.co = coords
 
     def closest_picking_point(self, origin, view_vector):
@@ -89,34 +87,16 @@ class SlvsPoint2D(Point2D, PropertyGroup):
             self.sketch,
         ]
 
-    def tweak(self, solvesys, pos, group):
-        wrkpln = self.sketch.wp
-        u, v, _ = wrkpln.matrix_basis.inverted() @ pos
+    # def tweak(self, solvesys, pos, group):
+    #     wrkpln = self.sketch.wp
+    #     u, v, _ = wrkpln.matrix_basis.inverted() @ pos
 
-        self.create_slvs_data(solvesys, group=group)
+    #     self.create_slvs_data(solvesys, group=group)
 
-        # NOTE: When simply initializing the point on the tweaking positions
-        # the solver fails regularly, addWhereDragged fixes a point and might
-        # overconstrain a system. When not using addWhereDragged the tweak point
-        # might just jump to the tweaked geometry. Bypass this by creating a line
-        # perpendicular to move vector and constrain that.
-
-        orig_pos = self.co
-        tweak_pos = Vector((u, v))
-        tweak_vec = tweak_pos - orig_pos
-        perpendicular_vec = Vector((tweak_vec[1], -tweak_vec[0]))
-
-        params = [solvesys.addParamV(val, group) for val in (u, v)]
-        startpoint = solvesys.addPoint2d(wrkpln.py_data, *params, group=group)
-
-        p2 = tweak_pos + perpendicular_vec
-        params = [solvesys.addParamV(val, group) for val in (p2.x, p2.y)]
-        endpoint = solvesys.addPoint2d(wrkpln.py_data, *params, group=group)
-
-        edge = solvesys.addLineSegment(startpoint, endpoint, group=group)
-        make_coincident(
-            solvesys, self.py_data, edge, wrkpln.py_data, group, entity_type=SlvsLine2D
-        )
+    #     p = solvesys.add_point_2d(group, u, v, wrkpln.py_data)
+    #     make_coincident(solvesys, p, self, wrkpln.py_data, group, entity_type=SlvsPoint2D)
+    #     solvesys.dragged(group, p, wrkpln.py_data)
+    #     return
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)

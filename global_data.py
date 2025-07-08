@@ -69,13 +69,6 @@ solver_state_items = [
         3,  # SLVS_RESULT_TOO_MANY_UNKNOWNS
     ),
     (
-        "INIT_ERROR",
-        "Initialize Error",
-        "Solver failed to initialize.",
-        "ERROR",
-        4,  # SLVS_RESULT_INIT_ERROR
-    ),
-    (
         "REDUNDANT_OK",
         "Redundant Constraints",
         (
@@ -83,14 +76,14 @@ solver_state_items = [
             f"Check through the marked constraints and only keep what's necessary."
         ),
         "INFO",
-        5,  # SLVS_RESULT_REDUNDANT_OK
+        4,  # SLVS_RESULT_REDUNDANT_OK
     ),
     (
         "UNKNOWN_FAILURE",
         "Unknown Failure",
         "Cannot solve sketch because of unknown failure.",
         "ERROR",
-        6,
+        5,
     ),
 ]
 
