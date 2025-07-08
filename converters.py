@@ -107,6 +107,21 @@ class BezierConverter(EntityWalker):
                         if point_idx < len(entity_index_attr.data):
                             entity_index_attr.data[point_idx].value = segment.slvs_index
 
+                # Store entity slvs_index as attribute on segments/edges
+                segment_entity_index_attr = curve_data.attributes.get("segment_entity_index")
+                if segment_entity_index_attr:
+                    # Calculate edge indices for this segment
+                    edge_start = point_start
+                    edge_end = point_end - 1  # One less edge than points
+
+                    for edge_idx in range(edge_start, edge_end):
+                        if edge_idx < len(segment_entity_index_attr.data):
+                            segment_entity_index_attr.data[edge_idx].value = segment.slvs_index
+
+                    # For cyclic curves, add the closing edge back to the first point
+                    if i == last_index and is_cyclic and edge_end < len(segment_entity_index_attr.data):
+                        segment_entity_index_attr.data[edge_end].value = segment.slvs_index
+
                 # Call entities' to_bezier method
                 previous_point = segment.to_bezier(
                     curveSlice, previous_point, end, invert_direction, **kwargs
@@ -127,6 +142,7 @@ class BezierConverter(EntityWalker):
         _ensure_attrribute(attributes, "handle_right", "FLOAT_VECTOR", "POINT")
         _ensure_attrribute(attributes, "resolution", "INT", "CURVE")
         _ensure_attrribute(attributes, "entity_index", "INT", "POINT")
+        _ensure_attrribute(attributes, "segment_entity_index", "INT", "CURVE")
 
 
 
