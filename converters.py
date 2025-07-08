@@ -67,7 +67,6 @@ class BezierConverter(EntityWalker):
             startpoint = curveSlice.points[0]
             previous_point = startpoint
 
-
             # Loop over segments and set points
             last_index = len(path_segments) - 1
             index = 0
@@ -95,6 +94,19 @@ class BezierConverter(EntityWalker):
                 if sub_segment_count > 1:
                     kwargs["midpoints"] = midpoints
 
+                # Store entity slvs_index as attribute on points
+                point_start = index
+                # Include start point for first segment
+                if i == 0:
+                    point_start = 0
+                point_end = index + sub_segment_count + (1 if i == last_index and not is_cyclic else 0)
+
+                entity_index_attr = curve_data.attributes.get("entity_index")
+                if entity_index_attr:
+                    for point_idx in range(point_start, point_end):
+                        if point_idx < len(entity_index_attr.data):
+                            entity_index_attr.data[point_idx].value = segment.slvs_index
+
                 # Call entities' to_bezier method
                 previous_point = segment.to_bezier(
                     curveSlice, previous_point, end, invert_direction, **kwargs
@@ -114,6 +126,7 @@ class BezierConverter(EntityWalker):
         _ensure_attrribute(attributes, "handle_left", "FLOAT_VECTOR", "POINT")
         _ensure_attrribute(attributes, "handle_right", "FLOAT_VECTOR", "POINT")
         _ensure_attrribute(attributes, "resolution", "INT", "CURVE")
+        _ensure_attrribute(attributes, "entity_index", "INT", "POINT")
 
 
 
