@@ -1,12 +1,11 @@
 import logging
 import math
-from typing import Union, Any
+from typing import Union, Any, List
 
 import bpy
 import bmesh
 from bpy.types import Mesh, Scene, Object, Operator
 
-from .utilities.walker import EntityWalker
 from .assets_manager import load_asset
 from . import global_data
 
@@ -37,100 +36,106 @@ def set_attribute(attributes, name: str, value: Any, index:int=None):
         attribute.data[index].value = value
 
 
+class DirectConverter:
+    """Converts entities directly to splines without entity walking"""
 
-class BezierConverter(EntityWalker):
     def __init__(self, scene, sketch):
-        super().__init__(scene, sketch)
+        self.scene = scene
+        self.sketch = sketch
+        self.entities = self._get_entities()
+
+    def _get_entities(self) -> List:
+        """Get all drawable entities from the sketch"""
+        sketch_index = self.sketch.slvs_index
+        entities = []
+
+        for entity in self.scene.sketcher.entities.all:
+            if not hasattr(entity, "sketch") or entity.sketch_i != sketch_index:
+                continue
+            if not entity.is_path():
+                continue
+            if hasattr(entity, "construction") and entity.construction:
+                continue
+            entities.append(entity)
+
+        return entities
 
     def to_bezier(self, curve_data: bpy.types.Curve):
+        """Convert entities to bezier curves, with one spline per entity"""
+
+        # Calculate point counts for each entity
+        point_counts = []
+        for entity in self.entities:
+            if hasattr(entity, "bezier_point_count"):
+                point_counts.append(entity.bezier_point_count())
+            elif hasattr(entity, "bezier_segment_count"):
+                # For entities that only define segment count, add 1 for non-cyclic
+                is_cyclic = entity.is_closed() if hasattr(entity, "is_closed") else False
+                point_counts.append(entity.bezier_segment_count() + (0 if is_cyclic else 1))
+            else:
+                # Default to 2 points for simple entities like lines
+                point_counts.append(2)
+
         # Add all curve slices
-        curve_data.add_curves([self._get_point_count(p[0]) for p in self.paths])
+        curve_data.add_curves(point_counts)
         curve_data.set_types(type="BEZIER")
-        self._enusre_attributes(curve_data)
+        self._ensure_attributes(curve_data)
 
         # Set handle types
         set_attribute(curve_data.attributes, "handle_type_right", BezierHandleType.FREE)
         set_attribute(curve_data.attributes, "handle_type_left", BezierHandleType.FREE)
 
-        # Go through all curve slices
-        for spline_path_index, spline_path in enumerate(self.paths):
-            path_segments = spline_path[0]
-            curveSlice: bpy.types.CurveSlice = curve_data.curves[spline_path_index]
-            is_cyclic = self.is_cyclic_path(path_segments)
+        # Process each entity
+        for entity_index, entity in enumerate(self.entities):
+            curve_slice = curve_data.curves[entity_index]
+            is_cyclic = entity.is_closed() if hasattr(entity, "is_closed") else False
 
             # Set curve attributes
-            set_attribute(curve_data.attributes, "resolution", self.sketch.curve_resolution, spline_path_index)
-            set_attribute(curve_data.attributes, "cyclic", is_cyclic, spline_path_index)
+            set_attribute(curve_data.attributes, "resolution", self.sketch.curve_resolution, entity_index)
+            set_attribute(curve_data.attributes, "cyclic", is_cyclic, entity_index)
 
-            segment_count = self._get_segment_count(path_segments)
+            # Setup points for the to_bezier call
+            start_point = curve_slice.points[0]
+            end_point = curve_slice.points[-1] if not is_cyclic else curve_slice.points[0]
 
-            startpoint = curveSlice.points[0]
-            previous_point = startpoint
+            # For entities with multiple segments
+            midpoints = []
+            if len(curve_slice.points) > 2:
+                midpoints = [curve_slice.points[i] for i in range(1, len(curve_slice.points) - 1)]
 
-            # Loop over segments and set points
-            last_index = len(path_segments) - 1
-            index = 0
-            for i, segment in enumerate(path_segments):
-                invert_direction = spline_path[1][i]
+            # Setup kwargs for to_bezier call
+            kwargs = {
+                "set_startpoint": True,  # Always set startpoint for direct conversion
+            }
+            if midpoints:
+                kwargs["midpoints"] = midpoints
 
-                sub_segment_count = segment_count[i]
+            # Store entity slvs_index as attribute on points
+            entity_index_attr = curve_data.attributes.get("entity_index")
+            if entity_index_attr:
+                for point_idx in range(len(curve_slice.points)):
+                    if point_idx < len(entity_index_attr.data):
+                        entity_index_attr.data[point_idx].value = entity.slvs_index
 
-                if i == last_index and is_cyclic:
-                    end = curveSlice.points[0]
-                else:
-                    end = curveSlice.points[index + sub_segment_count]
+            # Store entity slvs_index as attribute on segments/edges
+            segment_entity_index_attr = curve_data.attributes.get("segment_entity_index")
+            if segment_entity_index_attr:
+                edge_count = len(curve_slice.points) - (0 if is_cyclic else 1)
+                for edge_idx in range(edge_count):
+                    if edge_idx < len(segment_entity_index_attr.data):
+                        segment_entity_index_attr.data[edge_idx].value = entity.slvs_index
 
-                midpoints = (
-                    [
-                        curveSlice.points[index + i + 1]
-                        for i in range(sub_segment_count - 1)
-                    ]
-                    if sub_segment_count
-                    else []
-                )
-                kwargs = {}
-                if i == 0:
-                    kwargs["set_startpoint"] = True
-                if sub_segment_count > 1:
-                    kwargs["midpoints"] = midpoints
-
-                # Store entity slvs_index as attribute on points
-                point_start = index
-                # Include start point for first segment
-                if i == 0:
-                    point_start = 0
-                point_end = index + sub_segment_count + (1 if i == last_index and not is_cyclic else 0)
-
-                entity_index_attr = curve_data.attributes.get("entity_index")
-                if entity_index_attr:
-                    for point_idx in range(point_start, point_end):
-                        if point_idx < len(entity_index_attr.data):
-                            entity_index_attr.data[point_idx].value = segment.slvs_index
-
-                # Store entity slvs_index as attribute on segments/edges
-                segment_entity_index_attr = curve_data.attributes.get("segment_entity_index")
-                if segment_entity_index_attr:
-                    # Calculate edge indices for this segment
-                    edge_start = point_start
-                    edge_end = point_end - 1  # One less edge than points
-
-                    for edge_idx in range(edge_start, edge_end):
-                        if edge_idx < len(segment_entity_index_attr.data):
-                            segment_entity_index_attr.data[edge_idx].value = segment.slvs_index
-
-                    # For cyclic curves, add the closing edge back to the first point
-                    if i == last_index and is_cyclic and edge_end < len(segment_entity_index_attr.data):
-                        segment_entity_index_attr.data[edge_end].value = segment.slvs_index
-
-                # Call entities' to_bezier method
-                previous_point = segment.to_bezier(
-                    curveSlice, previous_point, end, invert_direction, **kwargs
-                )
-                index += sub_segment_count
-
+            # Call the entity's to_bezier method
+            entity.to_bezier(
+                curve_slice,
+                start_point,
+                end_point,
+                False,  # No invert_direction needed with direct conversion
+                **kwargs
+            )
 
     @classmethod
-    def _enusre_attributes(cls, curve_data):
+    def _ensure_attributes(cls, curve_data):
         """Ensure all required attributes are present"""
 
         attributes = curve_data.attributes
@@ -143,28 +148,6 @@ class BezierConverter(EntityWalker):
         _ensure_attrribute(attributes, "resolution", "INT", "CURVE")
         _ensure_attrribute(attributes, "entity_index", "INT", "POINT")
         _ensure_attrribute(attributes, "segment_entity_index", "INT", "CURVE")
-
-
-
-    @classmethod
-    def _get_segment_count(cls, path_segments):
-        segment_count = [
-                    seg.bezier_segment_count()
-                    if hasattr(seg, "bezier_segment_count")
-                    else 1
-                    for seg in path_segments
-                ]
-        return segment_count
-
-    @classmethod
-    def _get_point_count(cls, path_segments):
-        segment_count = cls._get_segment_count(path_segments)
-        amount = sum(segment_count)
-
-        is_cyclic = cls.is_cyclic_path(path_segments)
-        if not is_cyclic:
-            amount += 1
-        return amount
 
 
 def mesh_from_temporary(mesh: Mesh, name: str, existing_mesh: Union[bool, None] = None):
@@ -240,6 +223,6 @@ def update_geometry(scene: Scene, operator: Operator, sketch=None):
         # Set the nodegroup
         modifier.node_group = data.node_groups["CAD Sketcher Convert"]
 
-        # Convert geometry to curve data
-        conv = BezierConverter(scene, sketch)
+        # Convert geometry to curve data using direct conversion
+        conv = DirectConverter(scene, sketch)
         conv.to_bezier(sketch.target_object.data)
