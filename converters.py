@@ -19,6 +19,7 @@ class BezierHandleType:
     ALIGN = 3
 
 def _ensure_attrribute(attributes, name, type, domain):
+    """Ensure an attribute exists or create it if missing"""
     attr = attributes.get(name)
     if not attr:
         attributes.new(name, type, domain)
@@ -81,7 +82,7 @@ class DirectConverter:
         curve_data.set_types(type="BEZIER")
         self._ensure_attributes(curve_data)
 
-        # Set handle types
+        # Set default handle types (individual entities will override these as needed)
         set_attribute(curve_data.attributes, "handle_type_right", BezierHandleType.FREE)
         set_attribute(curve_data.attributes, "handle_type_left", BezierHandleType.FREE)
 
@@ -101,7 +102,7 @@ class DirectConverter:
             # For entities with multiple segments
             midpoints = []
             if len(curve_slice.points) > 2:
-                midpoints = [curve_slice.points[i] for i in range(1, len(curve_slice.points) - 1)]
+                midpoints = [curve_slice.points[i] for i in range(1, len(curve_slice.points))]
 
             # Setup kwargs for to_bezier call
             kwargs = {
@@ -137,6 +138,7 @@ class DirectConverter:
     @classmethod
     def _ensure_attributes(cls, curve_data):
         """Ensure all required attributes are present"""
+        # Note: Each entity type can override the handle types as needed
 
         attributes = curve_data.attributes
         _ensure_attrribute(attributes, "cyclic", "BOOLEAN", "CURVE")
