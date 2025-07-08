@@ -21,6 +21,7 @@ from .perpendicular import SlvsPerpendicular
 from .tangent import SlvsTangent
 from .midpoint import SlvsMidpoint
 from .ratio import SlvsRatio
+from .symmetry import SlvsSymmetry
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class SlvsConstraints(PropertyGroup):
         SlvsMidpoint,
         SlvsPerpendicular,
         SlvsRatio,
+        SlvsSymmetry,
     )
 
     _constraints = (
@@ -58,6 +60,7 @@ class SlvsConstraints(PropertyGroup):
         SlvsMidpoint,
         SlvsPerpendicular,
         SlvsRatio,
+        SlvsSymmetry,
     )
 
     __annotations__ = {
@@ -456,6 +459,32 @@ class SlvsConstraints(PropertyGroup):
             c.assign_init_props(**settings)
         else:
             c.assign_settings(**settings)
+        return c
+
+    def add_symmetry(
+        self,
+        entity1: SlvsGenericEntity,
+        entity2: SlvsGenericEntity,
+        entity3: SlvsGenericEntity,
+        sketch: Union[SlvsSketch, None] = None,
+    ) -> SlvsSymmetry:
+        """Add a symmetry constraint.
+
+        Arguments:
+            entity1: First point entity
+            entity2: Second point entity
+            entity3: Line or workplane to be symmetric about
+            sketch: The sketch this constraint belongs to.
+
+        Returns:
+            SlvsSymmetry: The created constraint.
+        """
+        c = self.symmetry.add()
+        c["entity1_i"] = entity1 if isinstance(entity1, int) else entity1.slvs_index
+        c["entity2_i"] = entity2 if isinstance(entity2, int) else entity2.slvs_index
+        c["entity3_i"] = entity3 if isinstance(entity3, int) else entity3.slvs_index
+        if sketch is not None:
+            c["sketch_i"] = sketch if isinstance(sketch, int) else sketch.slvs_index
         return c
 
 
