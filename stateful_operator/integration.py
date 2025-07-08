@@ -183,7 +183,6 @@ class StatefulOperator(StatefulOperatorLogic):
             scale = get_scale_from_pos(old_pos, context.region_data) / 500
 
             # NOTE: self.state_init_coords is not set for non-interactive states
-            print((coords.x - self.state_init_coords.x) * scale)
             return type_cast((coords.x - self.state_init_coords.x) * scale)
 
         return super().state_func(context, coords)

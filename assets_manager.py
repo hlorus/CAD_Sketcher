@@ -1,5 +1,6 @@
 from pathlib import Path
 import logging
+import glob
 
 import bpy
 from .utilities.register import get_path
@@ -44,3 +45,26 @@ def load():
         lib.path = asset_path
 
 
+def load_asset(library, asset_type, asset):
+    """Loads an asset of given type from a specified library
+    Returns True if it is loaded or already present in file"""
+
+    # Check if the asset is already present in file
+    if asset in [a.name for a in getattr(bpy.data, asset_type)]:
+        return True
+
+    prefs = bpy.context.preferences
+    fp = prefs.filepaths.asset_libraries[library].path
+
+    for file in glob.glob(fp + "/*.blend"):
+        with bpy.data.libraries.load(file, assets_only=True) as (data_from, data_to):
+            coll = getattr(data_from, asset_type)
+            if not asset in coll:
+                continue
+            getattr(data_to, asset_type).append(asset)
+
+        group = getattr(bpy.data, "node_groups").get(asset)
+        group.use_fake_user = True
+
+        return True
+    return False

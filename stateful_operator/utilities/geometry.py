@@ -53,6 +53,8 @@ def get_mesh_element(
     else:
         # Alternatively do a object raycast if we know the object already
         tree = bvhtree_from_object(object)
+        if tree is None:
+            return None, None, None
         loc, _normal, face_index, _distance = tree.ray_cast(ray_origin, view_vector)
         result = loc is not None
         ob = object

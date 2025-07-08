@@ -45,7 +45,14 @@ def get_subclasses():
 def bvhtree_from_object(object: Object) -> BVHTree:
     depsgraph = bpy.context.evaluated_depsgraph_get()
     object_eval = object.evaluated_get(depsgraph)
+    
+    # Check if object has geometry data
+    if not object_eval.type in {'MESH', 'CURVE', 'SURFACE', 'FONT', 'META'}:
+        return None
+        
     mesh = object_eval.to_mesh()
+    if mesh is None or len(mesh.vertices) == 0:
+        return None
 
     bm = bmesh.new()
     bm.from_mesh(mesh)
