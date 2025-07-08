@@ -167,11 +167,13 @@ def _link_unlink_object(scene: Scene, ob: Object, keep: bool):
         objects.link(ob)
 
 
+CONVERT_MODIFIER_NAME = "CAD Sketcher Convert"
+
 def _ensure_convert_modifier(ob):
     """Get or create the convert modifier"""
-    modifier = ob.modifiers.get("Convert")
+    modifier = ob.modifiers.get(CONVERT_MODIFIER_NAME)
     if not modifier:
-        modifier = ob.modifiers.new("Convert", "NODES")
+        modifier = ob.modifiers.new(CONVERT_MODIFIER_NAME, "NODES")
     return modifier
 
 def update_geometry(scene: Scene, operator: Operator, sketch=None):
@@ -205,12 +207,10 @@ def update_geometry(scene: Scene, operator: Operator, sketch=None):
         if not load_asset(global_data.LIB_NAME, "node_groups", "CAD Sketcher Convert"):
             operator.report({"ERROR"}, "Cannot load asset 'CAD Sketcher Convert' from library")
             return {"CANCELLED"}
-        
+
         # Set the nodegroup
         modifier.node_group = data.node_groups["CAD Sketcher Convert"]
 
         # Convert geometry to curve data
         conv = BezierConverter(scene, sketch)
         conv.to_bezier(sketch.target_object.data)
-
-
