@@ -230,7 +230,6 @@ class Solver:
 
             if report and fails:
 
-                print("failed", fails)
                 for i in fails:
                     if i == self.tweak_constraint:
                         continue
