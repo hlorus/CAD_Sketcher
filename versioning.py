@@ -37,6 +37,30 @@ def recalc_pointers(scene):
         logger.debug("Update entity indices:" + msg)
 
 
+def copy_modifiers(source_obj, target_obj):
+    """Copy modifiers from source object to target object"""
+    if not source_obj or not target_obj:
+        return
+
+    # Clear existing modifiers on target
+    while target_obj.modifiers:
+        target_obj.modifiers.remove(target_obj.modifiers[0])
+
+    # Copy modifiers from source to target
+    for mod in source_obj.modifiers:
+        new_mod = target_obj.modifiers.new(name=mod.name, type=mod.type)
+        # Copy attributes that are common to all modifier types
+        for attr in dir(mod):
+            if attr.startswith('__') or attr in {'rna_type', 'type', 'name', 'bl_rna'}:
+                continue
+            try:
+                if hasattr(new_mod, attr):
+                    setattr(new_mod, attr, getattr(mod, attr))
+            except (AttributeError, TypeError):
+                # Skip attributes that can't be copied
+                pass
+
+
 def do_versioning(self):
 
     logger.debug("Check versioning")
@@ -128,18 +152,28 @@ def do_versioning(self):
         if version < (0, 28, 0):
             # Handle old 'MESH' and 'BEZIER' convertion types
             msg += "\n Update sketch conversion type to 'CURVE' for sketches:"
+
+            # Dictionary to temporarily store objects and their modifiers
+            old_objects = {}
+
             for sketch in context.scene.sketcher.entities.sketches:
                 if sketch.convert_type == 'NONE':
                     continue
 
-                # Delete previously converted objects
+                # Store references to the old objects before deleting them
+                sketch_id = str(sketch.slvs_index)
+                old_objects[sketch_id] = {
+                    'mesh_obj': sketch.target_object,
+                    'curve_obj': sketch.target_curve_object
+                }
+
+                # Clear links to objects but don't delete them yet
                 if sketch.target_object:
                     sketch.target_object.sketch_index = -1
-                    bpy.data.objects.remove(sketch.target_object, do_unlink=True)
                     sketch.target_object = None
+
                 if sketch.target_curve_object:
                     sketch.target_curve_object.sketch_index = -1
-                    bpy.data.objects.remove(sketch.target_curve_object, do_unlink=True)
                     sketch.target_curve_object = None
 
                 # Change the conversion type
@@ -147,8 +181,40 @@ def do_versioning(self):
 
                 msg += " {}".format(str(sketch))
 
-            # Trigger the convertion with the new convert type
+            # Trigger the conversion with the new convert type
             bpy.ops.view3d.slvs_update(solve=False)
-                
+
+            # Now copy modifiers from old objects to new objects
+            for sketch in context.scene.sketcher.entities.sketches:
+                sketch_id = str(sketch.slvs_index)
+                if sketch_id not in old_objects:
+                    continue
+
+                if sketch.target_curve_object:
+                    # Try to copy from mesh object first, then curve object
+                    if old_objects[sketch_id]['mesh_obj']:
+                        copy_modifiers(old_objects[sketch_id]['mesh_obj'], sketch.target_curve_object)
+                    elif old_objects[sketch_id]['curve_obj']:
+                        copy_modifiers(old_objects[sketch_id]['curve_obj'], sketch.target_curve_object)
+
+            # Unlink and rename old objects instead of deleting them
+            for sketch_id, objects in old_objects.items():
+                # Process mesh object
+                if objects['mesh_obj']:
+                    old_obj = objects['mesh_obj']
+                    # Unlink from all collections
+                    for collection in old_obj.users_collection:
+                        collection.objects.unlink(old_obj)
+                    # Rename to indicate it's an old version
+                    old_obj.name = f"OLD_{old_obj.name}"
+
+                # Process curve object
+                if objects['curve_obj']:
+                    old_obj = objects['curve_obj']
+                    # Unlink from all collections
+                    for collection in old_obj.users_collection:
+                        collection.objects.unlink(old_obj)
+                    # Rename to indicate it's an old version
+                    old_obj.name = f"OLD_{old_obj.name}"
 
     logger.warning(msg)
