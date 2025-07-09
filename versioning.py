@@ -156,15 +156,17 @@ def do_versioning(self):
             # Dictionary to temporarily store objects and their modifiers
             old_objects = {}
 
+            # First pass: store old objects and change conversion type
             for sketch in context.scene.sketcher.entities.sketches:
                 if sketch.convert_type == 'NONE':
                     continue
 
-                # Store references to the old objects before deleting them
+                # Store references to the old objects
                 sketch_id = str(sketch.slvs_index)
                 old_objects[sketch_id] = {
                     'mesh_obj': sketch.target_object,
-                    'curve_obj': sketch.target_curve_object
+                    'curve_obj': sketch.target_curve_object,
+                    'sketch': sketch
                 }
 
                 # Clear links to objects but don't delete them yet
@@ -181,21 +183,24 @@ def do_versioning(self):
 
                 msg += " {}".format(str(sketch))
 
-            # Trigger the conversion with the new convert type
-            bpy.ops.view3d.slvs_update(solve=False)
+            # Second pass: process each sketch individually
+            for sketch_id, objects in old_objects.items():
+                sketch = objects['sketch']
 
-            # Now copy modifiers from old objects to new objects
-            for sketch in context.scene.sketcher.entities.sketches:
-                sketch_id = str(sketch.slvs_index)
-                if sketch_id not in old_objects:
-                    continue
+                # Force creation of converted object for this sketch
+                bpy.ops.view3d.slvs_update(solve=False)
 
+                # Ensure the new object is created
                 if sketch.target_curve_object:
                     # Try to copy from mesh object first, then curve object
-                    if old_objects[sketch_id]['mesh_obj']:
-                        copy_modifiers(old_objects[sketch_id]['mesh_obj'], sketch.target_curve_object)
-                    elif old_objects[sketch_id]['curve_obj']:
-                        copy_modifiers(old_objects[sketch_id]['curve_obj'], sketch.target_curve_object)
+                    if objects['mesh_obj']:
+                        copy_modifiers(objects['mesh_obj'], sketch.target_curve_object)
+                    elif objects['curve_obj']:
+                        copy_modifiers(objects['curve_obj'], sketch.target_curve_object)
+
+                    logger.info(f"Copied modifiers to new object for sketch {sketch_id}")
+                else:
+                    logger.warning(f"Failed to create new object for sketch {sketch_id}")
 
             # Unlink and rename old objects instead of deleting them
             for sketch_id, objects in old_objects.items():
@@ -206,7 +211,7 @@ def do_versioning(self):
                     for collection in old_obj.users_collection:
                         collection.objects.unlink(old_obj)
                     # Rename to indicate it's an old version
-                    old_obj.name = f"OLD_{old_obj.name}"
+                    old_obj.name = f"OLD_{old_obj.name}_{sketch_id}"
 
                 # Process curve object
                 if objects['curve_obj']:
@@ -215,6 +220,6 @@ def do_versioning(self):
                     for collection in old_obj.users_collection:
                         collection.objects.unlink(old_obj)
                     # Rename to indicate it's an old version
-                    old_obj.name = f"OLD_{old_obj.name}"
+                    old_obj.name = f"OLD_{old_obj.name}_{sketch_id}"
 
     logger.warning(msg)
