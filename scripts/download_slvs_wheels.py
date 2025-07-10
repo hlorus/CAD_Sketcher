@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Script to download Python 3.11 compatible wheel files for the slvs package.
+Script to download Python wheel files for the slvs package.
 Updates the wheels section in blender_manifest.toml with the downloaded files.
 
 Usage:
-  python download_slvs_wheels.py [--test-pypi] [--version VERSION]
+  python download_slvs_wheels.py [--test-pypi] [--version VERSION] [--py-version PY_VERSION]
 
 Options:
-  --test-pypi     Download from Test PyPI instead of PyPI
-  --version VERSION   Download a specific version instead of the latest
+  --test-pypi           Download from Test PyPI instead of PyPI
+  --version VERSION     Download a specific version instead of the latest
+  --py-version VERSION  Python version to download wheels for (e.g., 3.11, 3.10-3.12)
 """
 
 import os
@@ -32,11 +33,13 @@ MANIFEST_PATH = os.path.join(PROJECT_ROOT, "blender_manifest.toml")
 
 def parse_arguments():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description='Download Python 3.11 compatible wheel files for the slvs package.')
+    parser = argparse.ArgumentParser(description='Download Python wheel files for the slvs package.')
     parser.add_argument('--test-pypi', action='store_true',
                         help='Download from Test PyPI instead of PyPI')
     parser.add_argument('--version', type=str,
                         help='Download a specific version instead of the latest')
+    parser.add_argument('--py-version', type=str, default='3.11',
+                        help='Python version to download wheels for (e.g., 3.11, 3.10-3.12)')
     return parser.parse_args()
 
 def get_json_api_url(test_pypi=False):
@@ -78,11 +81,41 @@ def download_file(url, filename):
         print(f"Error downloading {url}: {e}")
         return False
 
-def is_py311_compatible(filename):
-    """Check if the wheel file is compatible with Python 3.11.
+def parse_python_version_range(version_spec):
+    """Parse Python version specification into a range.
+
+    Args:
+        version_spec: String like '3.11' or '3.9-3.11'
+
+    Returns:
+        Tuple of (min_version, max_version) as tuples of integers
+    """
+    if '-' in version_spec:
+        min_ver_str, max_ver_str = version_spec.split('-')
+        min_ver = tuple(map(int, min_ver_str.split('.')))
+        max_ver = tuple(map(int, max_ver_str.split('.')))
+    else:
+        ver = tuple(map(int, version_spec.split('.')))
+        min_ver = ver
+        max_ver = ver
+
+    # Ensure we have at least major.minor
+    if len(min_ver) == 1:
+        min_ver = (min_ver[0], 0)
+    if len(max_ver) == 1:
+        max_ver = (max_ver[0], 0)
+
+    return min_ver, max_ver
+
+def is_python_version_compatible(filename, py_version_spec):
+    """Check if the wheel file is compatible with the specified Python version.
 
     This function checks the wheel filename which follows PEP 427 naming convention:
     {distribution}-{version}(-{build tag})?-{python tag}-{abi tag}-{platform tag}.whl
+
+    Args:
+        filename: Wheel filename
+        py_version_spec: Python version specification (e.g., '3.11' or '3.9-3.11')
     """
     # Extract the Python tag (e.g., 'cp311', 'py3', etc.)
     match = re.search(r'-([^-]+)-([^-]+)-([^-]+)\.whl$', filename)
@@ -92,10 +125,35 @@ def is_py311_compatible(filename):
     python_tag = match.group(1)
     abi_tag = match.group(2)
 
-    # Check if compatible with Python 3.11
-    # cp311: CPython 3.11
-    # py3: Pure Python 3.x
-    return python_tag == 'cp311' or (python_tag == 'py3' and abi_tag == 'none')
+    # Parse the version range
+    min_version, max_version = parse_python_version_range(py_version_spec)
+
+    # Handle pure Python wheels (py3)
+    if python_tag == 'py3' and abi_tag == 'none':
+        return True
+
+    # Handle CPython specific wheels (cp3XX)
+    if python_tag.startswith('cp'):
+        # Extract the Python version from the tag (e.g., 'cp311' -> (3, 11))
+        try:
+            # Format could be 'cp311' (CPython 3.11) or 'cp37m' (CPython 3.7 with pymalloc)
+            version_str = python_tag[2:]
+
+            # Handle tags like 'cp37m' by removing the 'm' suffix
+            version_str = re.sub(r'[^0-9]', '', version_str)
+
+            if len(version_str) >= 2:
+                major = int(version_str[0])
+                minor = int(version_str[1:])
+                wheel_version = (major, minor)
+
+                # Check if the wheel version is within the specified range
+                return min_version <= wheel_version <= max_version
+        except ValueError:
+            # If we can't parse the version, be conservative and return False
+            return False
+
+    return False
 
 def update_manifest(downloaded_files):
     """Update the wheels section in the manifest file without using the toml package."""
@@ -141,12 +199,13 @@ def update_manifest(downloaded_files):
         return False
 
 
-def download_wheels(test_pypi=False, specific_version=None):
-    """Download Python 3.11 compatible wheel files for the package.
+def download_wheels(test_pypi=False, specific_version=None, py_version='3.11'):
+    """Download Python wheel files for the package.
 
     Args:
         test_pypi: Whether to download from Test PyPI
         specific_version: A specific version to download instead of the latest
+        py_version: Python version to download wheels for (e.g., '3.11', '3.9-3.11')
     """
     source = "Test PyPI" if test_pypi else "PyPI"
     package_info = get_package_info(test_pypi)
@@ -198,23 +257,23 @@ def download_wheels(test_pypi=False, specific_version=None):
     # Filter for wheel files
     wheels = [f for f in files if f.get('packagetype') == 'bdist_wheel']
 
-    # Filter for Python 3.11 compatible wheels
-    py311_wheels = []
+    # Filter for Python version compatible wheels
+    compatible_wheels = []
     for wheel in wheels:
         filename = wheel.get('filename')
         if not filename:
             continue
 
-        if is_py311_compatible(filename):
-            py311_wheels.append(wheel)
+        if is_python_version_compatible(filename, py_version):
+            compatible_wheels.append(wheel)
 
-    wheels = py311_wheels
+    wheels = compatible_wheels
 
     if not wheels:
-        print(f"No Python 3.11 compatible wheel files found for version {version_to_download}")
+        print(f"No Python {py_version} compatible wheel files found for version {version_to_download}")
         return
 
-    print(f"Found {len(wheels)} Python 3.11 compatible wheel file(s) for version {version_to_download}")
+    print(f"Found {len(wheels)} Python {py_version} compatible wheel file(s) for version {version_to_download}")
     total_wheels = len(wheels)
 
     # Download each wheel file
@@ -231,7 +290,7 @@ def download_wheels(test_pypi=False, specific_version=None):
     print(f"\nDownload summary:")
     print(f"Source: {source}")
     print(f"Version: {version_to_download}")
-    print(f"Total Python 3.11 compatible wheel files found: {total_wheels}")
+    print(f"Total Python compatible wheel files found: {total_wheels}")
     print(f"Successfully downloaded: {downloaded_wheels}")
     print(f"Files saved to: {DOWNLOAD_DIR}")
 
@@ -246,7 +305,7 @@ if __name__ == "__main__":
     # Display what we're about to do
     source = "Test PyPI" if args.test_pypi else "PyPI"
     version_msg = f"version {args.version}" if args.version else "the latest version"
-    print(f"Starting download of Python 3.11 compatible {PACKAGE_NAME} wheel files ({version_msg}) from {source}")
+    print(f"Starting download of Python {args.py_version} compatible {PACKAGE_NAME} wheel files ({version_msg}) from {source}")
 
     # Download the wheels
-    download_wheels(test_pypi=args.test_pypi, specific_version=args.version)
+    download_wheels(test_pypi=args.test_pypi, specific_version=args.version, py_version=args.py_version)
