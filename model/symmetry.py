@@ -16,7 +16,7 @@ from .line_2d import SlvsLine2D
 logger = logging.getLogger(__name__)
 
 
-class SlvsSymmetric(GenericConstraint, PropertyGroup):
+class SlvsSymmetry(GenericConstraint, PropertyGroup):
     """Forces two points to be symmetric about a plane.
 
     The symmetry plane may be a workplane when used in 3D. Or, the symmetry plane
@@ -25,8 +25,8 @@ class SlvsSymmetric(GenericConstraint, PropertyGroup):
 
     """
 
-    type = "SYMMETRIC"
-    label = "Symmetric"
+    type = "SYMMETRY"
+    label = "Symmetry"
 
     # TODO: not all combinations are possible!
     signature = (
@@ -43,32 +43,26 @@ class SlvsSymmetric(GenericConstraint, PropertyGroup):
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         e1, e2, e3 = self.entity1, self.entity2, self.entity3
 
-        # NOTE: this doesn't seem to work correctly, acts like addSymmetricVertical
-        if isinstance(e3, SlvsLine2D):
-            return solvesys.addSymmetricLine(
-                e1.py_data,
-                e2.py_data,
-                e3.py_data,
-                self.get_workplane(),
-                group=group,
-            )
+        wp = self.get_workplane()
+        kwargs = {}
+        if wp:
+            kwargs['workplane'] = wp
 
-        elif isinstance(e3, SlvsWorkplane):
-            return solvesys.addSymmetric(
-                e1.py_data,
-                e2.py_data,
-                e3.py_data,
-                wrkpln=self.get_workplane(),
-                group=group,
-            )
+        return solvesys.symmetric(
+            group,
+            e1.py_data,
+            e2.py_data,
+            e3.py_data,
+            **kwargs,
+        )
 
     def placements(self):
         return (self.entity1, self.entity2, self.entity3)
 
 
-slvs_entity_pointer(SlvsSymmetric, "entity1")
-slvs_entity_pointer(SlvsSymmetric, "entity2")
-slvs_entity_pointer(SlvsSymmetric, "entity3")
-slvs_entity_pointer(SlvsSymmetric, "sketch")
+slvs_entity_pointer(SlvsSymmetry, "entity1")
+slvs_entity_pointer(SlvsSymmetry, "entity2")
+slvs_entity_pointer(SlvsSymmetry, "entity3")
+slvs_entity_pointer(SlvsSymmetry, "sketch")
 
-register, unregister = register_classes_factory((SlvsSymmetric,))
+register, unregister = register_classes_factory((SlvsSymmetry,))

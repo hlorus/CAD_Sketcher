@@ -24,8 +24,7 @@ modules = [
     "midpoint",
     "perpendicular",
     "ratio",
-    # currently disabled because of a bug in the solver module
-    # "symmetry",
+    "symmetry",
     "group_constraints",
     "group_sketcher",
 ]
