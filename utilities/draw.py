@@ -9,30 +9,6 @@ from .. import global_data
 from .constants import FULL_TURN
 
 
-# def draw_circle_2d(cx: float, cy: float, r: float, num_segments: int):
-#     """NOTE: Not used?"""
-#     # circle outline
-#     # NOTE: also see gpu_extras.presets.draw_circle_2d
-#     theta = FULL_TURN / num_segments
-
-#     # precalculate the sine and cosine
-#     c = math.cos(theta)
-#     s = math.sin(theta)
-
-#     # start at angle = 0
-#     x = r
-#     y = 0
-#     coords = []
-#     for _ in range(num_segments):
-#         coords.append((x + cx, y + cy))
-#         # apply the rotation matrix
-#         t = x
-#         x = c * x - s * y
-#         y = s * t + c * y
-#     coords.append(coords[0])
-#     return coords
-
-
 def draw_rect_2d(cx: float, cy: float, width: float, height: float):
     # NOTE: this currently returns xyz coordinates, might make sense to return 2d coords
     ox = cx - (width / 2)

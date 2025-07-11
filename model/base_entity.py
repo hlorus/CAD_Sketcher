@@ -302,7 +302,6 @@ class SlvsGenericEntity:
         if not self.is_point():
             # viewport = [context.area.width, context.area.height]
             # shader.uniform_float("Viewport", viewport)
-            shader.uniform_bool("dashed", (False,))
             gpu.state.line_width_set(self.line_width_select)
 
         batch.draw(shader)

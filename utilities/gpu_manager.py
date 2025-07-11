@@ -54,16 +54,14 @@ class ShaderManager:
         """Get cached ID shader for selection rendering."""
         from ..shaders import Shaders
 
-        shader_key = 'id_point' if is_point else 'id_line'
+        # Use single consolidated shader for both points and lines
+        shader_key = 'id_shader'
         if shader_key not in cls._cached_shaders:
             try:
-                if is_point:
-                    cls._cached_shaders[shader_key] = Shaders.id_shader_3d()
-                else:
-                    cls._cached_shaders[shader_key] = Shaders.id_line_3d()
+                cls._cached_shaders[shader_key] = Shaders.id_shader_3d()
                 logger.debug(f"Created shader: {shader_key}")
             except Exception as e:
-                logger.error(f"Failed to create ID shader ({shader_key}): {e}")
+                logger.error(f"Failed to create ID shader: {e}")
                 raise
         return cls._cached_shaders[shader_key]
 
