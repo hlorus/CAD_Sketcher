@@ -9,6 +9,7 @@ from ..declarations import Operators
 from ..utilities.index import rgb_to_index
 from ..utilities.view import refresh
 from ..utilities.select import mode_property, deselect_all
+from ..shaders import Shaders
 
 
 def get_start_dist(value1, value2, invert: bool = False):
@@ -19,9 +20,12 @@ def get_start_dist(value1, value2, invert: bool = False):
 
 
 def draw_callback_px(self, context):
-    shader = gpu.shader.from_builtin("UNIFORM_COLOR")
+    """Draw selection box using cached POLYLINE_UNIFORM_COLOR shader."""
+    # Use cached POLYLINE_UNIFORM_COLOR shader for consistent rendering
+    from ..utilities.gpu_manager import ShaderManager
+    shader = ShaderManager.get_polyline_shader()
+
     gpu.state.blend_set("ALPHA")
-    gpu.state.line_width_set(2.0)
 
     start = self.start_coords
     end = self.mouse_pos
@@ -30,9 +34,18 @@ def draw_callback_px(self, context):
     batch = batch_for_shader(shader, "LINE_STRIP", {"pos": box_path})
     shader.bind()
     shader.uniform_float("color", (0.0, 0.0, 0.0, 0.5))
+
+    # Set line width uniforms for POLYLINE_UNIFORM_COLOR
+    try:
+        shader.uniform_float("lineWidth", 2.0)
+        shader.uniform_float("viewportSize", (context.region.width, context.region.height))
+    except (AttributeError, ValueError):
+        # Fall back to OpenGL state if uniforms fail
+        gpu.state.line_width_set(2.0)
+
     batch.draw(shader)
 
-    # restore opengl defaults
+    # Restore OpenGL defaults
     gpu.state.line_width_set(1.0)
     gpu.state.blend_set("NONE")
 

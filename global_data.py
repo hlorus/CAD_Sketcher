@@ -30,6 +30,30 @@ draw_handle = None
 COPY_BUFFER = {}
 
 
+def cleanup_unused_batches(context):
+    """Clean up GPU batches for entities that no longer exist."""
+    if not batches:
+        return
+
+    # Get all valid entity indices
+    valid_indices = set()
+    for entity in context.scene.sketcher.entities.all:
+        valid_indices.add(entity.slvs_index)
+
+    # Remove batches for entities that no longer exist
+    invalid_indices = []
+    for index in batches.keys():
+        if index not in valid_indices:
+            invalid_indices.append(index)
+
+    for index in invalid_indices:
+        # GPU batches are automatically cleaned up by Blender when no longer referenced
+        del batches[index]
+
+    if invalid_indices:
+        print(f"Cleaned up {len(invalid_indices)} unused GPU batches")
+
+
 class WpReq(Enum):
     """Workplane requirement options"""
 

@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Dict, Set, Tuple
 from bpy.types import Context
 from bpy.props import BoolProperty
 
@@ -15,6 +15,35 @@ from .base_2d import Operator2d
 logger = logging.getLogger(__name__)
 
 state_docstr = "Pick entity to constrain."
+
+# Global cache for constraint existence checks
+_constraint_existence_cache: Dict[Tuple, Set[Tuple]] = {}
+_cache_invalidated = True
+
+def _invalidate_constraint_cache():
+    """Invalidate the constraint existence cache when constraints are added/removed."""
+    global _cache_invalidated
+    _cache_invalidated = True
+
+def _get_constraint_existence_cache(context):
+    """Get or build the constraint existence cache."""
+    global _constraint_existence_cache, _cache_invalidated
+
+    if _cache_invalidated:
+        _constraint_existence_cache.clear()
+
+        # Build cache: constraint_type -> set of dependency tuples
+        for c in context.scene.sketcher.constraints.all:
+            constraint_type = type(c)
+            dependencies = tuple(sorted(e.slvs_index for e in c.dependencies() if e))
+
+            if constraint_type not in _constraint_existence_cache:
+                _constraint_existence_cache[constraint_type] = set()
+            _constraint_existence_cache[constraint_type].add(dependencies)
+
+        _cache_invalidated = False
+
+    return _constraint_existence_cache
 
 
 class GenericConstraintOp(Operator2d):
@@ -132,12 +161,14 @@ class GenericConstraintOp(Operator2d):
         else:
             new_dependencies = [i for i in [self.entity1, self.sketch] if i is not None]
 
-        constraint_counter = 0
-        for c in context.scene.sketcher.constraints.all:
-            if isinstance(c, constraint_type):
-                if set(c.dependencies()) == set(new_dependencies):
-                    constraint_counter += 1
-                    if constraint_counter >= max_constraints:
-                        return True
+        # Convert to sorted tuple of indices for cache lookup
+        new_deps_tuple = tuple(sorted(e.slvs_index for e in new_dependencies if e))
 
-        return False
+        # Use cached constraint existence data
+        cache = _get_constraint_existence_cache(context)
+        existing_deps = cache.get(constraint_type, set())
+
+        # Count how many constraints match our dependencies
+        constraint_counter = sum(1 for deps in existing_deps if deps == new_deps_tuple)
+
+        return constraint_counter >= max_constraints

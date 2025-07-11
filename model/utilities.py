@@ -31,8 +31,7 @@ def slvs_entity_pointer(cls, name, **kwargs):
     setattr(cls, name, setter)
 
 
-def tag_update(self, context: Context):
-    self.tag_update()
+
 
 
 def round_v(vec, ndigits=None):

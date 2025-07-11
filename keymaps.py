@@ -277,6 +277,21 @@ tool_base_keymap = (
         {"type": "V", "value": "PRESS"},
         {"properties": [("use_active", True)]},
     ),
+    (
+        Operators.Select,
+        {"type": "LEFTMOUSE", "value": "CLICK"},
+        {"properties": [("mode", "SET")]},
+    ),
+    (
+        Operators.Select,
+        {"type": "LEFTMOUSE", "value": "CLICK", "shift": True},
+        {"properties": [("mode", "EXTEND")]},
+    ),
+    (
+        Operators.Select,
+        {"type": "LEFTMOUSE", "value": "CLICK", "ctrl": True},
+        {"properties": [("mode", "SUBTRACT")]},
+    ),
 )
 
 tool_generic = (
