@@ -254,6 +254,10 @@ class Solver:
 
             e.update_from_slvs(self.solvesys)
 
+        # Invalidate performance cache after solver updates entity positions
+        from .draw_handler import reset_performance_cache
+        reset_performance_cache()
+
         def _get_msg_update():
             msg = "Update entities from solver:"
             for e in self.entities:

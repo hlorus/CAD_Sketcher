@@ -150,6 +150,10 @@ class SlvsEntities(PropertyGroup):
         entity_list, i = self._get_list_and_index(index)
         entity_list.remove(i)
 
+        # Invalidate performance cache when entity is removed
+        from ..draw_handler import reset_performance_cache
+        reset_performance_cache()
+
         # Put last item to removed index and update all pointers to it
         last_index = len(entity_list) - 1
 
@@ -173,6 +177,10 @@ class SlvsEntities(PropertyGroup):
         entity["visible"] = visible
 
         index = self._set_index(entity)
+
+        # Invalidate performance cache when entity is created
+        from ..draw_handler import reset_performance_cache
+        reset_performance_cache()
 
         if index_reference:
             return index

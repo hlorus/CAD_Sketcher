@@ -10,11 +10,13 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
+from ..utilities.constants import RenderingConstants
+from .vulkan_compat import DashedLineRenderer
 from ..solver import Solver
 from ..utilities.math import range_2pi, pol2cart
 from .base_entity import SlvsGenericEntity
-from .base_entity import Entity2D
-from .utilities import slvs_entity_pointer, tag_update
+from .base_entity import Entity2D, tag_update
+from .utilities import slvs_entity_pointer
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN
 from ..utilities.draw import coords_arc_2d
@@ -68,17 +70,73 @@ class SlvsCircle(Entity2D, PropertyGroup):
         if bpy.app.background:
             return
 
-        coords = coords_arc_2d(0, 0, self.radius, CURVE_RESOLUTION)
+        if self.is_dashed():
+            # Create dashed circle geometry
+            coords = self._create_dashed_circle_coords()
+        else:
+            # Standard solid circle
+            coords = coords_arc_2d(0, 0, self.radius, CURVE_RESOLUTION)
 
         u, v = self.ct.co
-
         mat_local = Matrix.Translation(Vector((u, v, 0)))
         mat = self.wp.matrix_basis @ mat_local
         coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
-        kwargs = {"pos": coords}
-        self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
+        if self.is_dashed():
+            # For dashed circles, use LINES instead of LINE_STRIP
+            kwargs = {"pos": coords}
+            self._batch = batch_for_shader(self._shader, "LINES", kwargs)
+        else:
+            kwargs = {"pos": coords}
+            self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
         self.is_dirty = False
+
+    def _create_dashed_circle_coords(self):
+        """Create coordinates for a dashed circle with gaps."""
+        radius = self.radius
+        if radius <= 0:
+            return []
+
+        # Calculate segments per dash based on arc length
+        dash_arc_length = RenderingConstants.DASH_LENGTH
+        gap_arc_length = RenderingConstants.GAP_LENGTH
+
+        # Convert to angles
+        dash_angle = dash_arc_length / radius
+        gap_angle = gap_arc_length / radius
+        pattern_angle = dash_angle + gap_angle
+
+        # Number of complete patterns that fit in a full circle
+        num_patterns = int(FULL_TURN / pattern_angle)
+
+        coords = []
+        current_angle = 0.0
+
+        # Use reasonable segment resolution for each dash
+        segments_per_dash = max(3, int(CURVE_RESOLUTION * dash_angle / FULL_TURN))
+
+        for i in range(num_patterns):
+            # Create dash segment
+            dash_start = current_angle
+            dash_end = min(current_angle + dash_angle, FULL_TURN)
+
+            if dash_end > dash_start:
+                dash_coords = coords_arc_2d(0, 0, radius, segments_per_dash,
+                                          angle=(dash_end - dash_start),
+                                          offset=dash_start)
+
+                # Convert to line segments (pairs of points)
+                for j in range(len(dash_coords) - 1):
+                    coords.extend([dash_coords[j], dash_coords[j + 1]])
+
+            # Move to next dash (skip gap)
+            current_angle += pattern_angle
+
+            # Stop if we've covered the entire circle
+            if current_angle >= FULL_TURN:
+                break
+
+        return coords
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         self.param_distance = solvesys.add_distance(group, self.radius, self.wp.py_data)

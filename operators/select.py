@@ -34,19 +34,27 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
         hit = index != -1
         mode = self.mode
 
+        # Debug logging to help troubleshoot selection issues
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"Selection operator: index={index}, hover={global_data.hover}, hit={hit}, mode={mode}")
+
         if mode == "SET" or not hit:
             deselect_all(context)
 
         if hit:
             entity = context.scene.sketcher.entities.get(index)
+            if entity:
+                value = True
+                if mode == "SUBTRACT":
+                    value = False
+                if mode == "TOGGLE":
+                    value = not entity.selected
 
-            value = True
-            if mode == "SUBTRACT":
-                value = False
-            if mode == "TOGGLE":
-                value = not entity.selected
-
-            entity.selected = value
+                entity.selected = value
+                logger.debug(f"Selected entity {entity} with value {value}")
+            else:
+                logger.warning(f"Could not find entity with index {index}")
 
         context.area.tag_redraw()
         return {"FINISHED"}

@@ -11,6 +11,7 @@ from bpy.utils import register_classes_factory
 from ..declarations import Operators
 from .. import global_data
 from ..utilities.draw import draw_rect_2d
+from ..utilities.gpu_manager import ShaderManager
 from ..shaders import Shaders
 from ..utilities import preferences
 from ..solver import Solver
@@ -72,7 +73,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             # Additionally draw a face
             col_surface = col[:-1] + (0.2,)
 
-            shader = Shaders.uniform_color_3d()
+            shader = ShaderManager.get_uniform_color_shader()
             shader.bind()
             gpu.state.blend_set("ALPHA")
 
@@ -91,7 +92,34 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             scale = context.region_data.view_distance
             gpu.matrix.multiply_matrix(self.matrix_basis)
             gpu.matrix.scale(Vector((scale, scale, scale)))
+
+            # Draw both the outline (lines) and the surface (triangles) for selection
+            # This makes the entire plane selectable, not just the edges
             super().draw_id(context)
+
+            # Draw workplane surface both behind and slightly in front of outline
+            # This creates maximum selectability while preserving outline visibility
+            shader = self._id_shader
+            shader.bind()
+
+            from ..utilities.index import index_to_rgb
+            shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
+
+            coords = draw_rect_2d(0, 0, self.size, self.size)
+
+            # Draw surface behind outline (for areas not covered by outline)
+            coords_behind = [(co[0], co[1], co[2] - 0.0001) for co in coords]
+            indices = ((0, 1, 2), (0, 2, 3))
+            batch_behind = batch_for_shader(shader, "TRIS", {"pos": coords_behind}, indices=indices)
+            batch_behind.draw(shader)
+
+            # Draw surface slightly in front of outline (for better selection area)
+            coords_front = [(co[0], co[1], co[2] + 0.0001) for co in coords]
+            batch_front = batch_for_shader(shader, "TRIS", {"pos": coords_front}, indices=indices)
+            batch_front.draw(shader)
+
+            gpu.shader.unbind()
+            self.restore_opengl_defaults()
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.add_workplane(group, self.p1.py_data, self.nm.py_data)

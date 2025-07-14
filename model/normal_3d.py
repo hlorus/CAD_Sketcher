@@ -6,7 +6,7 @@ from bpy.utils import register_classes_factory
 from mathutils import Euler
 
 from ..solver import Solver
-from .base_entity import SlvsGenericEntity
+from .base_entity import SlvsGenericEntity, tag_update
 
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class SlvsNormal3D(Normal3D, PropertyGroup):
         description="Quaternion which describes the orientation of the normal",
         subtype="QUATERNION",
         size=4,
-        update=SlvsGenericEntity.tag_update,
+        update=tag_update,
     )
 
     ui_orientation: FloatVectorProperty(
@@ -60,7 +60,7 @@ class SlvsNormal3D(Normal3D, PropertyGroup):
         get=get_orientation,
         set=set_orientation,
         options={"SKIP_SAVE"},
-        update=SlvsGenericEntity.tag_update,
+        update=tag_update,
     )
     props = ("ui_orientation",)
 

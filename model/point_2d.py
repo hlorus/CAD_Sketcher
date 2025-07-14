@@ -1,43 +1,39 @@
 import logging
 from typing import List
 
-import bpy
 from bpy.types import PropertyGroup
 from bpy.props import FloatVectorProperty
-from gpu_extras.batch import batch_for_shader
 from mathutils import Matrix, Vector
 from bpy.utils import register_classes_factory
 
-from ..utilities.draw import draw_rect_2d
 from ..solver import Solver
-from .base_entity import SlvsGenericEntity
-from .base_entity import Entity2D
+from .base_entity import SlvsGenericEntity, Entity2D, tag_update
 from .utilities import slvs_entity_pointer, make_coincident
 from .line_2d import SlvsLine2D
+from .vulkan_compat import BillboardPointRenderer
 
 logger = logging.getLogger(__name__)
 
 
-class Point2D(Entity2D):
+class Point2D(Entity2D, BillboardPointRenderer):
     @classmethod
     def is_point(cls):
         return True
 
-    def update(self):
-        if bpy.app.background:
-            return
-
+    def get_point_location_3d(self):
+        """Get the 3D location for point rendering."""
         u, v = self.co
         mat_local = Matrix.Translation(Vector((u, v, 0)))
-
         mat = self.wp.matrix_basis @ mat_local
-        size = 0.1
-        coords = draw_rect_2d(0, 0, size, size)
-        coords = [(mat @ Vector(co))[:] for co in coords]
-        indices = ((0, 1, 2), (0, 2, 3))
-        pos = self.location
-        self._batch = batch_for_shader(self._shader, "POINTS", {"pos": (pos[:],)})
-        self.is_dirty = False
+        return mat @ Vector((0, 0, 0))
+
+    def update(self):
+        """Update screen-space point geometry."""
+        return self.update_billboard_point()
+
+    def draw(self, context):
+        """Draw billboard point with camera-facing geometry."""
+        return self.draw_billboard_point(context)
 
     @property
     def location(self):
@@ -79,8 +75,9 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         subtype="XYZ",
         size=2,
         unit="LENGTH",
-        update=SlvsGenericEntity.tag_update,
+        update=tag_update,
     )
+    props = ("co",)
 
     def dependencies(self) -> List[SlvsGenericEntity]:
         return [
