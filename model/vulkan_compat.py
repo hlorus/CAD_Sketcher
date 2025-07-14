@@ -12,7 +12,7 @@ from gpu_extras.batch import batch_for_shader
 from mathutils import Vector
 
 from ..utilities.constants import RenderingConstants
-from ..utilities.draw import draw_billboard_quad_3d
+from ..utilities.draw import draw_billboard_quad_3d, pixel_size_to_world_size
 from ..utilities.gpu_manager import ShaderManager
 
 logger = logging.getLogger(__name__)
@@ -66,9 +66,11 @@ class BillboardPointRenderer:
         if not getattr(self, '_needs_billboard_update', True):
             return
 
-        # Create a basic batch - size will be calculated during draw
         location_3d = self.get_point_location_3d()
-        coords, indices = draw_billboard_quad_3d(*location_3d, 0.01)  # Base size
+        # Use fixed pixel size for point handles
+        pixel_size = RenderingConstants.POINT_HANDLE_PIXEL_SIZE
+        world_size = pixel_size_to_world_size(location_3d, pixel_size, context)
+        coords, indices = draw_billboard_quad_3d(*location_3d, world_size)
         shader = ShaderManager.get_uniform_color_shader()
         self._batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
         self._cached_view_distance = None  # Reset cache
@@ -91,7 +93,7 @@ class BillboardPointRenderer:
         if hasattr(context, 'region_data') and context.region_data:
             current_view_distance = getattr(context.region_data, 'view_distance', 1.0)
 
-        # Only regenerate geometry if view distance changed significantly
+        # Only regenerate geometry if view distance changed significantly or viewport size changed
         needs_update = (
             self._cached_view_distance is None or  # First time
             (current_view_distance is None) != (self._cached_view_distance is None) or  # None state changed
@@ -100,17 +102,10 @@ class BillboardPointRenderer:
         )
 
         if needs_update:
-            # Calculate proper screen-space size
             location_3d = self.get_point_location_3d()
-
-            if current_view_distance:
-                # Use correct scaling factor - matches original working implementation
-                screen_size = RenderingConstants.POINT_SIZE * current_view_distance * RenderingConstants.POINT_SIZE
-            else:
-                screen_size = RenderingConstants.POINT_SIZE
-
-            # Regenerate billboard geometry with new size
-            coords, indices = draw_billboard_quad_3d(*location_3d, screen_size)
+            pixel_size = RenderingConstants.POINT_HANDLE_PIXEL_SIZE
+            world_size = pixel_size_to_world_size(location_3d, pixel_size, context)
+            coords, indices = draw_billboard_quad_3d(*location_3d, world_size)
             shader = ShaderManager.get_uniform_color_shader()
             self._batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
             self._cached_view_distance = current_view_distance

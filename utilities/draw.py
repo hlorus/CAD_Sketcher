@@ -143,3 +143,38 @@ def coords_arc_2d(
         else:
             coords.append((co_x, co_y))
     return coords
+
+
+def pixel_size_to_world_size(location_3d, pixel_size, context):
+    import bpy_extras
+    from mathutils import Vector
+
+    region = context.region
+    region_data = context.region_data
+    if not region or not region_data:
+        print(f"[DEBUG] Fallback: No region or region_data. Returning {pixel_size * 0.001}")
+        return pixel_size * 0.001  # fallback
+
+    # Project the 3D location to 2D screen space
+    co_2d = bpy_extras.view3d_utils.location_3d_to_region_2d(region, region_data, location_3d)
+    if co_2d is None:
+        print(f"[DEBUG] Fallback: location_3d_to_region_2d failed for {location_3d}. Returning {pixel_size * 0.001}")
+        return pixel_size * 0.001  # fallback
+
+    # Offset by pixel_size in X direction in screen space
+    co_2d_offset = co_2d + Vector((pixel_size, 0))
+
+    # Unproject both points back to 3D at the same depth as the original point
+    view_vector = bpy_extras.view3d_utils.region_2d_to_vector_3d(region, region_data, co_2d)
+    origin_3d = bpy_extras.view3d_utils.region_2d_to_origin_3d(region, region_data, co_2d)
+    depth = (location_3d - origin_3d).dot(view_vector)
+    location_3d_offset = origin_3d + view_vector * depth
+
+    # Now for the offset point
+    view_vector_offset = bpy_extras.view3d_utils.region_2d_to_vector_3d(region, region_data, co_2d_offset)
+    origin_3d_offset = bpy_extras.view3d_utils.region_2d_to_origin_3d(region, region_data, co_2d_offset)
+    location_3d_offset2 = origin_3d_offset + view_vector_offset * depth
+
+    world_size = (location_3d_offset2 - location_3d_offset).length
+    print(f"[DEBUG] Computed world_size: {world_size} for pixel_size: {pixel_size} at location: {location_3d}")
+    return world_size

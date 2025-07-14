@@ -21,15 +21,15 @@ class RenderingConstants:
     """
 
     # Point size for screen-space billboard rendering
-    POINT_SIZE = 0.06  # Base size for screen-space point billboards
+    POINT_HANDLE_PIXEL_SIZE = 5  # Fixed pixel size for point handles
 
     # Line widths (in pixels for POLYLINE_UNIFORM_COLOR shader)
     LINE_WIDTH_REGULAR = 2.0      # Regular line thickness
     LINE_WIDTH_CONSTRUCTION = 1.5 # Construction line thickness
 
     # Construction line dash patterns
-    DASH_LENGTH = 0.1            # Length of each dash segment
-    GAP_LENGTH = 0.05            # Length of each gap between dashes
+    DASH_LENGTH = 0.08            # Length of each dash segment
+    GAP_LENGTH = 0.03            # Length of each gap between dashes
 
     # Selection and depth sorting constants
     WORKPLANE_SELECTION_PRIORITY = 0.1  # Multiplier to give workplanes selection priority
