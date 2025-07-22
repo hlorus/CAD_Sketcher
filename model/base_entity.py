@@ -7,6 +7,8 @@ from bpy.types import Context
 
 from .. import global_data
 from ..utilities import preferences
+from ..utilities.constants import RenderingConstants
+from ..utilities.gpu_manager import ShaderManager
 from ..shaders import Shaders
 from ..declarations import Operators
 from ..utilities.preferences import get_prefs
@@ -15,6 +17,15 @@ from ..utilities.view import update_cb
 from ..utilities.solver import update_system_cb
 
 logger = logging.getLogger(__name__)
+
+
+def tag_update(self, _context=None):
+    # context argument ignored
+    if not self.is_dirty:
+        self.is_dirty = True
+        # Invalidate dependency cache when entity changes
+        if hasattr(self, '_dependency_cache'):
+            del self._dependency_cache
 
 
 class SlvsGenericEntity:
@@ -34,7 +45,7 @@ class SlvsGenericEntity:
     fixed: BoolProperty(name="Fixed", update=update_system_cb)
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     origin: BoolProperty(name="Origin")
-    construction: BoolProperty(name="Construction")
+    construction: BoolProperty(name="Construction", update=tag_update)
     props = ()
     dirty: BoolProperty(name="Needs Update", default=True, options={"SKIP_SAVE"})
 
@@ -63,15 +74,25 @@ class SlvsGenericEntity:
 
     @property
     def _shader(self):
+        """
+        Get the appropriate cached shader for this entity.
+
+        Uses geometry-based rendering approach for all backends:
+        - Points: Cached UNIFORM_COLOR shader (for triangle-based point geometry)
+        - Lines: Cached POLYLINE_UNIFORM_COLOR shader (for proper line width support)
+
+        Returns:
+            GPUShader: Appropriate cached shader for entity type
+        """
         if self.is_point():
-            return Shaders.uniform_color_3d()
-        return Shaders.uniform_color_line_3d()
+            return ShaderManager.get_uniform_color_shader()
+        # For lines, always use cached POLYLINE_UNIFORM_COLOR for proper line width
+        return ShaderManager.get_polyline_shader()
 
     @property
     def _id_shader(self):
-        if self.is_point():
-            return Shaders.id_shader_3d()
-        return Shaders.id_line_3d()
+        """Get the appropriate cached ID shader for selection rendering."""
+        return ShaderManager.get_id_shader(is_point=self.is_point())
 
     @property
     def point_size(self):
@@ -85,8 +106,8 @@ class SlvsGenericEntity:
     def line_width(self):
         scale = preferences.get_scale()
         if self.construction:
-            return 1.5 * scale
-        return 2 * scale
+            return RenderingConstants.LINE_WIDTH_CONSTRUCTION * scale
+        return RenderingConstants.LINE_WIDTH_REGULAR * scale
 
     @property
     def line_width_select(self):
@@ -159,6 +180,11 @@ class SlvsGenericEntity:
         if preferences.use_experimental("all_entities_selectable", False):
             return True
 
+        # Workplanes should always be selectable - users need to be able to select them
+        # to switch between workplanes even when there's an active sketch
+        if self.__class__.__name__ == 'SlvsWorkplane':
+            return True
+
         active_sketch = context.scene.sketcher.active_sketch
         if active_sketch and hasattr(self, "sketch"):
             # Allow to select entities that share the active sketch's wp
@@ -212,8 +238,17 @@ class SlvsGenericEntity:
         return False
 
     def draw(self, context):
+        """
+        Render this entity using geometry-based rendering.
+
+        Uses POLYLINE_UNIFORM_COLOR shader for lines with lineWidth/viewportSize uniforms.
+        Points are rendered as triangle geometry using UNIFORM_COLOR shader.
+
+        Args:
+            context: Blender context containing viewport and region information
+        """
         if not self.is_visible(context):
-            return None
+            return
 
         batch = self._batch
         if not batch:
@@ -221,18 +256,29 @@ class SlvsGenericEntity:
 
         shader = self._shader
         shader.bind()
-
         gpu.state.blend_set("ALPHA")
-        gpu.state.point_size_set(self.point_size)
 
         col = self.color(context)
         shader.uniform_float("color", col)
 
-        if not self.is_point():
-            shader.uniform_bool("dashed", (self.is_dashed(),))
-            shader.uniform_float("dash_width", 0.05)
-            shader.uniform_float("dash_factor", 0.3)
-            gpu.state.line_width_set(self.line_width)
+        if self.is_point():
+            # Points are already rendered as triangles, no additional setup needed
+            pass
+        else:
+            # For lines, use POLYLINE_UNIFORM_COLOR with proper uniforms
+            try:
+                shader.uniform_float("lineWidth", self.line_width)
+                # Try viewportSize as tuple first, then as separate components
+                try:
+                    shader.uniform_float("viewportSize", (context.region.width, context.region.height))
+                except (AttributeError, ValueError) as e:
+                    logger.debug(f"viewportSize tuple failed, trying components: {e}")
+                    shader.uniform_float("viewportSize[0]", float(context.region.width))
+                    shader.uniform_float("viewportSize[1]", float(context.region.height))
+            except (AttributeError, ValueError, TypeError) as e:
+                # Fall back to OpenGL state if uniforms fail
+                logger.debug(f"Line uniform setup failed, falling back to OpenGL state: {e}")
+                gpu.state.line_width_set(self.line_width)
 
         batch.draw(shader)
         gpu.shader.unbind()
@@ -256,7 +302,6 @@ class SlvsGenericEntity:
         if not self.is_point():
             # viewport = [context.area.width, context.area.height]
             # shader.uniform_float("Viewport", viewport)
-            shader.uniform_bool("dashed", (False,))
             gpu.state.line_width_set(self.line_width_select)
 
         batch.draw(shader)
@@ -296,6 +341,12 @@ class SlvsGenericEntity:
     def dependencies(self) -> List["SlvsGenericEntity"]:
         return []
 
+    def get_cached_dependencies(self) -> List["SlvsGenericEntity"]:
+        """Get dependencies with caching to avoid repeated calculations."""
+        if not hasattr(self, '_dependency_cache'):
+            self._dependency_cache = self.dependencies()
+        return self._dependency_cache
+
     def draw_props(self, layout):
         is_experimental = preferences.is_experimental()
 
@@ -330,11 +381,6 @@ class SlvsGenericEntity:
         layout.operator(Operators.DeleteEntity, icon="X").index = self.slvs_index
 
         return sub
-
-    def tag_update(self, _context=None):
-        # context argument ignored
-        if not self.is_dirty:
-            self.is_dirty = True
 
     def new(self, context: Context, **kwargs):
         """Create new entity based on this instance"""

@@ -6,6 +6,8 @@ from bpy.types import PropertyGroup
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
+from ..utilities.constants import RenderingConstants
+from .vulkan_compat import DashedLineRenderer
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
@@ -45,10 +47,17 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
             return
 
         p1, p2 = self.p1.location, self.p2.location
-        coords = (p1, p2)
 
-        kwargs = {"pos": coords}
-        self._batch = batch_for_shader(self._shader, "LINES", kwargs)
+        if self.is_dashed():
+            # Create dashed line geometry
+            coords = DashedLineRenderer.create_dashed_coords(p1, p2)
+            kwargs = {"pos": coords}
+            self._batch = batch_for_shader(self._shader, "LINES", kwargs)
+        else:
+            # Standard solid line
+            coords = (p1, p2)
+            kwargs = {"pos": coords}
+            self._batch = batch_for_shader(self._shader, "LINES", kwargs)
 
         self.is_dirty = False
 

@@ -8,6 +8,7 @@ from ..utilities.view import refresh
 from ..solver import solve_system
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement
+from ..draw_handler import reset_performance_cache
 
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,9 @@ class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
         logger.debug("Delete: {}".format(constr))
 
         constraints.remove(constr)
+
+        # Invalidate performance cache when constraint is deleted
+        reset_performance_cache()
 
         sketch = context.scene.sketcher.active_sketch
         solve_system(context, sketch=sketch)

@@ -72,6 +72,12 @@ class GenericConstraint:
                 deps.append(s)
         return deps
 
+    def get_cached_dependencies(self) -> List[SlvsGenericEntity]:
+        """Get dependencies with caching to avoid repeated calculations."""
+        if not hasattr(self, '_dependency_cache'):
+            self._dependency_cache = self.dependencies()
+        return self._dependency_cache
+
     # TODO: avoid duplicating code
     def update_pointers(self, index_old, index_new):
         def _update(name):
@@ -81,6 +87,9 @@ class GenericConstraint:
                     "Update reference {} of {} to {}: ".format(name, self, index_new)
                 )
                 setattr(self, name, index_new)
+                # Invalidate dependency cache when references change
+                if hasattr(self, '_dependency_cache'):
+                    del self._dependency_cache
 
         if hasattr(self, "sketch_i"):
             _update("sketch_i")

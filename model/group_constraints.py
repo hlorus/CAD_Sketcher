@@ -82,7 +82,17 @@ class SlvsConstraints(PropertyGroup):
         """
         name = type.lower()
         constraint_list = getattr(self, name)
-        return constraint_list.add()
+        constraint = constraint_list.add()
+
+        # Invalidate performance cache when constraint is created
+        from ..draw_handler import reset_performance_cache
+        reset_performance_cache()
+
+        # Invalidate constraint existence cache
+        from ..operators.base_constraint import _invalidate_constraint_cache
+        _invalidate_constraint_cache()
+
+        return constraint
 
     def get_lists(self):
         lists = []
@@ -134,6 +144,14 @@ class SlvsConstraints(PropertyGroup):
         """
         i = self.get_index(constr)
         self.get_list(constr.type).remove(i)
+
+        # Invalidate performance cache when constraint is removed
+        from ..draw_handler import reset_performance_cache
+        reset_performance_cache()
+
+        # Invalidate constraint existence cache
+        from ..operators.base_constraint import _invalidate_constraint_cache
+        _invalidate_constraint_cache()
 
     @property
     def dimensional(self):

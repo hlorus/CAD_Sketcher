@@ -10,10 +10,12 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
+from ..utilities.constants import RenderingConstants
+from .vulkan_compat import DashedLineRenderer
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
-from .base_entity import Entity2D
-from .utilities import slvs_entity_pointer, tag_update
+from .base_entity import Entity2D, tag_update
+from .utilities import slvs_entity_pointer
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN, QUARTER_TURN
 from ..utilities.math import range_2pi, pol2cart
@@ -24,7 +26,6 @@ from .utilities import (
     create_bezier_curve,
     round_v,
 )
-from ..utilities.math import range_2pi, pol2cart
 
 logger = logging.getLogger(__name__)
 
@@ -93,18 +94,38 @@ class SlvsArc(Entity2D, PropertyGroup):
             offset = p1.angle_signed(Vector((1, 0)))
             angle = range_2pi(p2.angle_signed(p1))
 
-            # TODO: resolution should depend on segment length?!
-            segments = round(CURVE_RESOLUTION * (angle / FULL_TURN))
+            if self.is_dashed():
+                # Create dashed arc geometry
+                coords = self._create_dashed_arc_coords(radius, angle, offset)
+                # Transform coordinates
+                mat_local = Matrix.Translation(self.ct.co.to_3d())
+                mat = self.wp.matrix_basis @ mat_local
+                coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
-            coords = coords_arc_2d(0, 0, radius, segments, angle=angle, offset=offset)
+                # Use LINES for dashed arcs
+                kwargs = {"pos": coords}
+                self._batch = batch_for_shader(self._shader, "LINES", kwargs)
+            else:
+                # Standard solid arc
+                # TODO: resolution should depend on segment length?!
+                segments = round(CURVE_RESOLUTION * (angle / FULL_TURN))
+                coords = coords_arc_2d(0, 0, radius, segments, angle=angle, offset=offset)
 
-            mat_local = Matrix.Translation(self.ct.co.to_3d())
-            mat = self.wp.matrix_basis @ mat_local
-            coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
+                mat_local = Matrix.Translation(self.ct.co.to_3d())
+                mat = self.wp.matrix_basis @ mat_local
+                coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
-        kwargs = {"pos": coords}
-        self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
+                kwargs = {"pos": coords}
+                self._batch = batch_for_shader(self._shader, "LINE_STRIP", kwargs)
+
         self.is_dirty = False
+
+    def _create_dashed_arc_coords(self, radius, total_angle, start_offset):
+        """Create coordinates for a dashed arc with gaps."""
+        return DashedLineRenderer.create_dashed_arc_coords(
+            None, radius, total_angle, start_offset,
+            max(3, int(CURVE_RESOLUTION * 0.1))
+        )
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         handle = solvesys.add_arc(

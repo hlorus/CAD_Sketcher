@@ -2,34 +2,11 @@ from collections import deque
 from math import sin, cos
 from typing import List
 
+import bpy
 from mathutils import Vector, Matrix
 
 from .. import global_data
 from .constants import FULL_TURN
-
-
-# def draw_circle_2d(cx: float, cy: float, r: float, num_segments: int):
-#     """NOTE: Not used?"""
-#     # circle outline
-#     # NOTE: also see gpu_extras.presets.draw_circle_2d
-#     theta = FULL_TURN / num_segments
-
-#     # precalculate the sine and cosine
-#     c = math.cos(theta)
-#     s = math.sin(theta)
-
-#     # start at angle = 0
-#     x = r
-#     y = 0
-#     coords = []
-#     for _ in range(num_segments):
-#         coords.append((x + cx, y + cy))
-#         # apply the rotation matrix
-#         t = x
-#         x = c * x - s * y
-#         y = s * t + c * y
-#     coords.append(coords[0])
-#     return coords
 
 
 def draw_rect_2d(cx: float, cy: float, width: float, height: float):
@@ -62,6 +39,46 @@ def draw_quad_3d(cx: float, cy: float, cz: float, width: float):
         (cx - half_width, cy + half_width, cz),
     )
     indices = ((0, 1, 2), (2, 3, 0))
+    return coords, indices
+
+
+def draw_billboard_quad_3d(cx: float, cy: float, cz: float, width: float):
+    """Create a screen-facing quad that always appears as a square regardless of view angle."""
+    half_width = width / 2
+    center = Vector((cx, cy, cz))
+
+    # Get current view matrix to determine camera orientation
+    context = bpy.context
+    if hasattr(context, 'region_data') and context.region_data:
+        # Get the view matrix to determine camera orientation
+        view_matrix = context.region_data.view_matrix
+
+        # Extract camera right and up vectors from the view matrix
+        # The view matrix transforms from world to view space
+        # So we need the inverse to get world space vectors
+        view_matrix_inv = view_matrix.inverted()
+
+        # Camera right vector (X axis in view space)
+        right = Vector((view_matrix_inv[0][0], view_matrix_inv[1][0], view_matrix_inv[2][0])).normalized()
+        # Camera up vector (Y axis in view space)
+        up = Vector((view_matrix_inv[0][1], view_matrix_inv[1][1], view_matrix_inv[2][1])).normalized()
+    else:
+        # Fallback to XY plane if no context
+        right = Vector((1, 0, 0))
+        up = Vector((0, 1, 0))
+
+    # Create quad vertices using camera-relative vectors
+    coords = (
+        center - right * half_width - up * half_width,  # Bottom-left
+        center + right * half_width - up * half_width,  # Bottom-right
+        center + right * half_width + up * half_width,  # Top-right
+        center - right * half_width + up * half_width,  # Top-left
+    )
+
+    # Convert to tuples for GPU batch
+    coords = [co[:] for co in coords]
+    indices = ((0, 1, 2), (2, 3, 0))
+
     return coords, indices
 
 
@@ -126,3 +143,38 @@ def coords_arc_2d(
         else:
             coords.append((co_x, co_y))
     return coords
+
+
+def pixel_size_to_world_size(location_3d, pixel_size, context):
+    import bpy_extras
+    from mathutils import Vector
+
+    region = context.region
+    region_data = context.region_data
+    if not region or not region_data:
+        print(f"[DEBUG] Fallback: No region or region_data. Returning {pixel_size * 0.001}")
+        return pixel_size * 0.001  # fallback
+
+    # Project the 3D location to 2D screen space
+    co_2d = bpy_extras.view3d_utils.location_3d_to_region_2d(region, region_data, location_3d)
+    if co_2d is None:
+        print(f"[DEBUG] Fallback: location_3d_to_region_2d failed for {location_3d}. Returning {pixel_size * 0.001}")
+        return pixel_size * 0.001  # fallback
+
+    # Offset by pixel_size in X direction in screen space
+    co_2d_offset = co_2d + Vector((pixel_size, 0))
+
+    # Unproject both points back to 3D at the same depth as the original point
+    view_vector = bpy_extras.view3d_utils.region_2d_to_vector_3d(region, region_data, co_2d)
+    origin_3d = bpy_extras.view3d_utils.region_2d_to_origin_3d(region, region_data, co_2d)
+    depth = (location_3d - origin_3d).dot(view_vector)
+    location_3d_offset = origin_3d + view_vector * depth
+
+    # Now for the offset point
+    view_vector_offset = bpy_extras.view3d_utils.region_2d_to_vector_3d(region, region_data, co_2d_offset)
+    origin_3d_offset = bpy_extras.view3d_utils.region_2d_to_origin_3d(region, region_data, co_2d_offset)
+    location_3d_offset2 = origin_3d_offset + view_vector_offset * depth
+
+    world_size = (location_3d_offset2 - location_3d_offset).length
+    print(f"[DEBUG] Computed world_size: {world_size} for pixel_size: {pixel_size} at location: {location_3d}")
+    return world_size
