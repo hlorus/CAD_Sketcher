@@ -37,6 +37,7 @@ class Operators(str, Enum):
     AddPoint3D = "view3d.slvs_add_point3d"
     AddPresetTheme = "bgs.theme_preset_add"
     AddRatio = "view3d.slvs_add_ratio"
+    AddSymmetry = "view3d.slvs_add_symmetry"
     AddRectangle = "view3d.slvs_add_rectangle"
     AddSketch = "view3d.slvs_add_sketch"
     AddTangent = "view3d.slvs_add_tangent"
@@ -127,4 +128,5 @@ ConstraintOperators = (
     Operators.AddTangent,
     Operators.AddMidPoint,
     Operators.AddRatio,
+    Operators.AddSymmetry,
 )

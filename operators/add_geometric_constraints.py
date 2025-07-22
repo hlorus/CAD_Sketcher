@@ -240,6 +240,27 @@ class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp):
         return super().main(context)
 
 
+class VIEW3D_OT_slvs_add_symmetry(Operator, GenericConstraintOp):
+    """Add a symmetry constraint"""
+
+    bl_idname = Operators.AddSymmetry
+    bl_label = "Symmetry"
+    bl_options = {"UNDO", "REGISTER"}
+
+    type = "SYMMETRY"
+
+    def main(self, context):
+        if not self.exists(context, SlvsRatio):
+            self.target = context.scene.sketcher.constraints.add_symmetry(
+                self.entity1,
+                self.entity2,
+                self.entity3,
+                sketch=self.sketch,
+            )
+
+        return super().main(context)
+
+
 constraint_operators = (
     VIEW3D_OT_slvs_add_coincident,
     VIEW3D_OT_slvs_add_equal,
@@ -250,6 +271,7 @@ constraint_operators = (
     VIEW3D_OT_slvs_add_tangent,
     VIEW3D_OT_slvs_add_midpoint,
     VIEW3D_OT_slvs_add_ratio,
+    VIEW3D_OT_slvs_add_symmetry,
 )
 
 register, unregister = register_stateops_factory(constraint_operators)
