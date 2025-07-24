@@ -1,17 +1,13 @@
 """
 Base entity classes for CAD Sketcher.
 
-This module includes Vulkan/Metal GPU backend compatibility for proper line width
-and point size rendering. The implementation automatically detects the GPU backend
-and uses appropriate shaders:
-- Vulkan/Metal: Built-in POLYLINE_UNIFORM_COLOR and UNIFORM_COLOR shaders
-- OpenGL: Custom shaders with dash support
 """
 
 import logging
 from typing import List
 
 import gpu
+from bpy import app
 from bpy.props import IntProperty, StringProperty, BoolProperty
 from bpy.types import Context
 
@@ -77,27 +73,13 @@ class SlvsGenericEntity:
     def is_dirty(self, value: bool):
         self.dirty = value
 
-    def _is_vulkan_metal_backend(self):
-        """Check if the current GPU backend is Vulkan or Metal."""
-        try:
-            backend_type = gpu.platform.backend_type_get()
-            return backend_type in ('VULKAN', 'METAL')
-        except:
-            return False
-
     @property
     def _shader(self):
-        is_vulkan_metal = self._is_vulkan_metal_backend()
-
         if self.is_point():
-            if is_vulkan_metal:
-                return Shaders.point_color_3d()
-            return Shaders.uniform_color_3d()
-
-        # For lines, use built-in shaders on Vulkan/Metal if not dashed
-        if is_vulkan_metal and not self.is_dashed():
-            return Shaders.polyline_color_3d()
-        return Shaders.uniform_color_line_3d()
+            return Shaders.point_color_3d()
+        if self.is_dashed():
+            return Shaders.uniform_color_line_3d()
+        return Shaders.polyline_color_3d()
 
     @property
     def _id_shader(self):
@@ -122,7 +104,7 @@ class SlvsGenericEntity:
 
     @property
     def line_width_select(self):
-        return 4 * preferences.get_scale()
+        return 4 * self.line_width
 
     def __str__(self):
         _, local_index = breakdown_index(self.slvs_index)
@@ -261,30 +243,15 @@ class SlvsGenericEntity:
         if self.is_point():
             gpu.state.point_size_set(self.point_size)
         else:
-            is_vulkan_metal = self._is_vulkan_metal_backend()
+            gpu.state.line_width_set(self.line_width)
 
-            if is_vulkan_metal and not self.is_dashed():
-                # Set uniforms for POLYLINE_UNIFORM_COLOR shader
-                try:
-                    shader.uniform_float("lineWidth", self.line_width)
-                    # Try viewportSize as tuple first, then as separate components
-                    try:
-                        shader.uniform_float("viewportSize", (context.region.width, context.region.height))
-                    except:
-                        shader.uniform_float("viewportSize[0]", float(context.region.width))
-                        shader.uniform_float("viewportSize[1]", float(context.region.height))
-                except:
-                    # Fall back to OpenGL state if uniforms fail
-                    gpu.state.line_width_set(self.line_width)
-            else:
-                # Custom shader uniforms for dashed lines or OpenGL
-                try:
-                    shader.uniform_bool("dashed", (self.is_dashed(),))
-                    shader.uniform_float("dash_width", 0.05)
-                    shader.uniform_float("dash_factor", 0.3)
-                except:
-                    pass
-                gpu.state.line_width_set(self.line_width)
+            if self.is_dashed():
+                shader.uniform_bool("dashed", (self.is_dashed(),))
+                shader.uniform_float("dash_width", 0.05)
+                shader.uniform_float("dash_factor", 0.3)
+            elif app.version >= (4, 5):
+                shader.uniform_float("lineWidth", self.line_width)
+                shader.uniform_float("viewportSize", (context.region.width, context.region.height))
 
         batch.draw(shader)
         gpu.shader.unbind()
@@ -306,10 +273,10 @@ class SlvsGenericEntity:
 
         shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
         if not self.is_point():
-            # viewport = [context.area.width, context.area.height]
-            # shader.uniform_float("Viewport", viewport)
-            shader.uniform_bool("dashed", (False,))
             gpu.state.line_width_set(self.line_width_select)
+            if app.version >= (4, 5):
+                shader.uniform_float("lineWidth", self.line_width_select)
+                shader.uniform_float("viewportSize", (context.region.width, context.region.height))
 
         batch.draw(shader)
         gpu.shader.unbind()

@@ -12,9 +12,9 @@ from bpy.utils import register_classes_factory
 
 from ..solver import Solver
 from ..utilities.math import range_2pi, pol2cart
-from .base_entity import SlvsGenericEntity
+from .base_entity import SlvsGenericEntity, tag_update
 from .base_entity import Entity2D
-from .utilities import slvs_entity_pointer, tag_update
+from .utilities import slvs_entity_pointer
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN
 from ..utilities.draw import coords_arc_2d
