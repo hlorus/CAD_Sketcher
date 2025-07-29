@@ -9,6 +9,7 @@ from ..declarations import Operators
 from ..utilities.index import rgb_to_index
 from ..utilities.view import refresh
 from ..utilities.select import mode_property, deselect_all
+from ..shaders import Shaders
 
 
 def get_start_dist(value1, value2, invert: bool = False):
@@ -19,9 +20,21 @@ def get_start_dist(value1, value2, invert: bool = False):
 
 
 def draw_callback_px(self, context):
-    shader = gpu.shader.from_builtin("UNIFORM_COLOR")
+    """Draw selection box with appropriate shader based on GPU backend."""
+    # Simple backend detection
+    try:
+        backend_type = gpu.platform.backend_type_get()
+        is_vulkan_metal = backend_type in ('VULKAN', 'METAL')
+    except:
+        is_vulkan_metal = False
+
+    # Use appropriate shader
+    if is_vulkan_metal:
+        shader = gpu.shader.from_builtin("UNIFORM_COLOR")
+    else:
+        shader = Shaders.uniform_color_line_2d()
+
     gpu.state.blend_set("ALPHA")
-    gpu.state.line_width_set(2.0)
 
     start = self.start_coords
     end = self.mouse_pos
@@ -30,9 +43,18 @@ def draw_callback_px(self, context):
     batch = batch_for_shader(shader, "LINE_STRIP", {"pos": box_path})
     shader.bind()
     shader.uniform_float("color", (0.0, 0.0, 0.0, 0.5))
+
+    # Set line width uniforms for custom shader only
+    if not is_vulkan_metal:
+        try:
+            shader.uniform_float("lineWidth", 2.0)
+        except:
+            pass
+
+    gpu.state.line_width_set(2.0)
     batch.draw(shader)
 
-    # restore opengl defaults
+    # Restore OpenGL defaults
     gpu.state.line_width_set(1.0)
     gpu.state.blend_set("NONE")
 

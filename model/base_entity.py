@@ -1,7 +1,13 @@
+"""
+Base entity classes for CAD Sketcher.
+
+"""
+
 import logging
 from typing import List
 
 import gpu
+from bpy import app
 from bpy.props import IntProperty, StringProperty, BoolProperty
 from bpy.types import Context
 
@@ -15,6 +21,12 @@ from ..utilities.view import update_cb
 from ..utilities.solver import update_system_cb
 
 logger = logging.getLogger(__name__)
+
+
+def tag_update(self, _context=None):
+    # context argument ignored
+    if not self.is_dirty:
+        self.is_dirty = True
 
 
 class SlvsGenericEntity:
@@ -34,7 +46,7 @@ class SlvsGenericEntity:
     fixed: BoolProperty(name="Fixed", update=update_system_cb)
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     origin: BoolProperty(name="Origin")
-    construction: BoolProperty(name="Construction")
+    construction: BoolProperty(name="Construction", update=tag_update)
     props = ()
     dirty: BoolProperty(name="Needs Update", default=True, options={"SKIP_SAVE"})
 
@@ -64,8 +76,10 @@ class SlvsGenericEntity:
     @property
     def _shader(self):
         if self.is_point():
-            return Shaders.uniform_color_3d()
-        return Shaders.uniform_color_line_3d()
+            return Shaders.point_color_3d()
+        if self.is_dashed():
+            return Shaders.uniform_color_line_3d()
+        return Shaders.polyline_color_3d()
 
     @property
     def _id_shader(self):
@@ -90,7 +104,7 @@ class SlvsGenericEntity:
 
     @property
     def line_width_select(self):
-        return 4 * preferences.get_scale()
+        return 4 * self.line_width
 
     def __str__(self):
         _, local_index = breakdown_index(self.slvs_index)
@@ -213,7 +227,7 @@ class SlvsGenericEntity:
 
     def draw(self, context):
         if not self.is_visible(context):
-            return None
+            return
 
         batch = self._batch
         if not batch:
@@ -221,18 +235,23 @@ class SlvsGenericEntity:
 
         shader = self._shader
         shader.bind()
-
         gpu.state.blend_set("ALPHA")
-        gpu.state.point_size_set(self.point_size)
 
         col = self.color(context)
         shader.uniform_float("color", col)
 
-        if not self.is_point():
-            shader.uniform_bool("dashed", (self.is_dashed(),))
-            shader.uniform_float("dash_width", 0.05)
-            shader.uniform_float("dash_factor", 0.3)
+        if self.is_point():
+            gpu.state.point_size_set(self.point_size)
+        else:
             gpu.state.line_width_set(self.line_width)
+
+            if self.is_dashed():
+                shader.uniform_bool("dashed", (self.is_dashed(),))
+                shader.uniform_float("dash_width", 0.05)
+                shader.uniform_float("dash_factor", 0.3)
+            elif app.version >= (4, 5):
+                shader.uniform_float("lineWidth", self.line_width)
+                shader.uniform_float("viewportSize", (context.region.width, context.region.height))
 
         batch.draw(shader)
         gpu.shader.unbind()
@@ -254,10 +273,10 @@ class SlvsGenericEntity:
 
         shader.uniform_float("color", (*index_to_rgb(self.slvs_index), 1.0))
         if not self.is_point():
-            # viewport = [context.area.width, context.area.height]
-            # shader.uniform_float("Viewport", viewport)
-            shader.uniform_bool("dashed", (False,))
             gpu.state.line_width_set(self.line_width_select)
+            if app.version >= (4, 5):
+                shader.uniform_float("lineWidth", self.line_width_select)
+                shader.uniform_float("viewportSize", (context.region.width, context.region.height))
 
         batch.draw(shader)
         gpu.shader.unbind()
@@ -330,11 +349,6 @@ class SlvsGenericEntity:
         layout.operator(Operators.DeleteEntity, icon="X").index = self.slvs_index
 
         return sub
-
-    def tag_update(self, _context=None):
-        # context argument ignored
-        if not self.is_dirty:
-            self.is_dirty = True
 
     def new(self, context: Context, **kwargs):
         """Create new entity based on this instance"""

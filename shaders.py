@@ -57,6 +57,17 @@ class Shaders:
         }
     """
 
+    base_vertex_shader_2d = """
+        void main() {
+           gl_Position = ModelViewProjectionMatrix * vec4(pos.xy, 0.0, 1.0f);
+        }
+    """
+    base_fragment_shader_2d = """
+        void main() {
+            fragColor = color;
+        }
+    """
+
     @classmethod
     def get_base_shader_3d_info(cls):
 
@@ -82,12 +93,44 @@ class Shaders:
 
         return shader_info
 
+    @classmethod
+    def get_base_shader_2d_info(cls):
+
+        shader_info = GPUShaderCreateInfo()
+        shader_info.push_constant("MAT4", "ModelViewProjectionMatrix")
+        shader_info.push_constant("VEC4", "color")
+        shader_info.push_constant("FLOAT", "lineWidth")
+        shader_info.vertex_in(0, "VEC2", "pos")
+        shader_info.fragment_out(0, "VEC4", "fragColor")
+
+        shader_info.vertex_source(cls.base_vertex_shader_2d)
+        shader_info.fragment_source(cls.base_fragment_shader_2d)
+
+        return shader_info
+
     @staticmethod
     @cache
     def uniform_color_3d():
         if app.version < (3, 5):
             return gpu.shader.from_builtin("3D_UNIFORM_COLOR")
         return gpu.shader.from_builtin("UNIFORM_COLOR")
+
+    @classmethod
+    @cache
+    def point_color_3d(cls):
+        """Get uniform color shader for points. Compatible with all GPU backends."""
+        if app.version < (4, 5):
+            return cls.uniform_color_3d()
+        return gpu.shader.from_builtin("POINT_UNIFORM_COLOR")
+
+    @classmethod
+    @cache
+    def polyline_color_3d(cls):
+        """Get polyline shader for thick lines"""
+        if app.version < (4, 5):
+            return cls.uniform_color_3d()
+        return gpu.shader.from_builtin("POLYLINE_UNIFORM_COLOR")
+
 
     @classmethod
     @cache
@@ -135,7 +178,7 @@ class Shaders:
     @classmethod
     @cache
     def id_line_3d(cls):
-        shader = cls.uniform_color_line_3d()
+        shader = cls.polyline_color_3d()
         return shader
 
     @classmethod
@@ -147,66 +190,16 @@ class Shaders:
         del shader_info
         return shader
 
-    @staticmethod
+    @classmethod
     @cache
-    def id_shader_3d():
-        shader_info = GPUShaderCreateInfo()
-        shader_info.push_constant("MAT4", "ModelViewProjectionMatrix")
-        shader_info.push_constant("VEC4", "color")
-        shader_info.vertex_in(0, "VEC3", "pos")
-        shader_info.fragment_out(0, "VEC4", "fragColor")
+    def id_shader_3d(cls):
+        shader = cls.point_color_3d()
+        return shader
 
-        shader_info.vertex_source(
-        """
-            void main()
-            {
-              gl_Position = ModelViewProjectionMatrix * vec4(pos, 1.0);
-            }
-        """
-        )
-
-        shader_info.fragment_source(
-        """
-            void main()
-            {
-              fragColor = color;
-            }
-        """
-        )
-        
+    @classmethod
+    @cache
+    def uniform_color_line_2d(cls):
+        shader_info = cls.get_base_shader_2d_info()
         shader = create_from_info(shader_info)
         del shader_info
         return shader
-
-    @staticmethod
-    @cache
-    def dashed_uniform_color_3d():
-        vertex_shader = """
-            uniform mat4 ModelViewProjectionMatrix;
-            in vec3 pos;
-            in float arcLength;
-
-            out float v_ArcLength;
-            vec4 project = ModelViewProjectionMatrix * vec4(pos, 1.0f);
-            vec4 offset = vec4(0,0,-0.001,0);
-            void main()
-            {
-                v_ArcLength = arcLength;
-                gl_Position = project + offset;
-            }
-        """
-
-        fragment_shader = """
-            uniform float u_Scale;
-            uniform vec4 color;
-
-            in float v_ArcLength;
-            out vec4 fragColor;
-
-            void main()
-            {
-                if (step(sin(v_ArcLength * u_Scale), 0.7) == 0) discard;
-                fragColor = color;
-            }
-        """
-        return GPUShader(vertex_shader, fragment_shader)

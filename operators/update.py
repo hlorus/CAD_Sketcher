@@ -1,23 +1,22 @@
-from bpy.types import Operator, Context
+import bpy
+from bpy.types import Operator
 from bpy.utils import register_classes_factory
 
-from ..declarations import Operators
 from ..solver import Solver
 from ..converters import update_convertor_geometry
 
 
-class View3D_OT_update(Operator):
-    """Solve all sketches and update converted geometry"""
+class VIEW3D_OT_update(Operator):
+    bl_idname = "view3d.slvs_update"
+    bl_label = "Update"
 
-    bl_idname = Operators.Update
-    bl_label = "Force Update"
-
-    def execute(self, context: Context):
-        solver = Solver(context, None, all=True)
-        solver.solve()
-
-        update_convertor_geometry(context.scene)
-        return {"FINISHED"}
+    def execute(self, context):
+        update_convertor_geometry()
+        solvesys = Solver()
+        solvesys.solve()
+        return {'FINISHED'}
 
 
-register, unregister = register_classes_factory((View3D_OT_update,))
+register, unregister = register_classes_factory((
+    VIEW3D_OT_update,
+))

@@ -10,10 +10,10 @@ from bpy.utils import register_classes_factory
 
 from ..utilities.draw import draw_rect_2d
 from ..solver import Solver
-from .base_entity import SlvsGenericEntity
-from .base_entity import Entity2D
+from .base_entity import SlvsGenericEntity, Entity2D, tag_update
 from .utilities import slvs_entity_pointer, make_coincident
 from .line_2d import SlvsLine2D
+from ..utilities.constants import HALF_TURN
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +79,9 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         subtype="XYZ",
         size=2,
         unit="LENGTH",
-        update=SlvsGenericEntity.tag_update,
+        update=tag_update,
     )
+    props = ("co",)
 
     def dependencies(self) -> List[SlvsGenericEntity]:
         return [
