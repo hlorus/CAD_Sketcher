@@ -55,8 +55,6 @@ class DirectConverter:
                 continue
             if not entity.is_path():
                 continue
-            if hasattr(entity, "construction") and entity.construction:
-                continue
             entities.append(entity)
 
         return entities
@@ -94,6 +92,7 @@ class DirectConverter:
             # Set curve attributes
             set_attribute(curve_data.attributes, "resolution", self.sketch.curve_resolution, entity_index)
             set_attribute(curve_data.attributes, "cyclic", is_cyclic, entity_index)
+            set_attribute(curve_data.attributes, "construction", entity.construction, entity_index)
 
             # Setup points for the to_bezier call
             start_point = curve_slice.points[0]
@@ -150,6 +149,7 @@ class DirectConverter:
         _ensure_attrribute(attributes, "resolution", "INT", "CURVE")
         _ensure_attrribute(attributes, "entity_index", "INT", "POINT")
         _ensure_attrribute(attributes, "segment_entity_index", "INT", "CURVE")
+        _ensure_attrribute(attributes, "construction", "BOOLEAN", "CURVE")
 
 
 def mesh_from_temporary(mesh: Mesh, name: str, existing_mesh: Union[bool, None] = None):
