@@ -11,10 +11,10 @@ class VIEW3D_OT_update(Operator):
     bl_label = "Update"
 
     def execute(self, context):
-        update_convertor_geometry()
-        solvesys = Solver()
-        solvesys.solve()
-        return {'FINISHED'}
+        solver = Solver(context, None, all=True)
+        solver.solve()
+        update_convertor_geometry(context.scene)
+        return {"FINISHED"}
 
 
 register, unregister = register_classes_factory((
