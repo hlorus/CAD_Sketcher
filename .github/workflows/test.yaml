@@ -1,0 +1,36 @@
+name: test
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: moguri/setup-blender@v1
+        with:
+          blender-version: "4.5"
+
+      - run: blender --version
+
+      - name: Checkout Addon
+        uses: actions/checkout@v4
+        with:
+          path: CAD_Sketcher
+
+      - name: Validate Extension
+        run: blender command extension validate
+        working-directory: ./CAD_Sketcher
+
+      - name: Build Extension
+        run: blender command extension build --output-filepath ./CAD_Sketcher.zip
+        working-directory: ./CAD_Sketcher
+
+      - name: Install Extension
+        run: blender command extension install-file --repo user_default --enable ./CAD_Sketcher.zip
+        working-directory: ./CAD_Sketcher
+
+      - name: Run Tests
+        run: blender --addons CAD_Sketcher --python-expr "import bpy; bpy.context.preferences.view.show_splash=False" --python ./testing/__init__.py -- --log_level=INFO
+        working-directory: ./CAD_Sketcher
