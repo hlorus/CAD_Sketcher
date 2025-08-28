@@ -1,6 +1,4 @@
 from unittest import TestCase
-from bl_ext.extensions.CAD_Sketcher.solver import solve_system
-
 
 class BgsTestCase(TestCase):
     interactive = False
@@ -15,11 +13,6 @@ class BgsTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         print(f"BgsTestCase.setUpClass - interactive: {cls.interactive}")
-        from bl_ext.extensions.CAD_Sketcher.utilities.preferences import get_prefs
-
-        prefs = get_prefs()
-        prefs.logging_level = cls.log_level
-
         import bpy
 
         # Create new scene for tests
@@ -50,6 +43,8 @@ class BgsTestCase(TestCase):
             entity.update()
 
     def solve(self):
+        from ..solver import solve_system
+
         self.assertTrue(solve_system(self.context))
 
 

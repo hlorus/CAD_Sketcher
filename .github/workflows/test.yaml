@@ -32,5 +32,5 @@ jobs:
         working-directory: ./CAD_Sketcher
 
       - name: Run Tests
-        run: blender --background --addons CAD_Sketcher --python-expr "import bpy; bpy.context.preferences.view.show_splash=False" --python ./testing/__init__.py -- --log_level=INFO
+        run: blender --background --addons CAD_Sketcher --python-expr "import bpy; bpy.context.preferences.view.show_splash=False; bpy.ops.view3d.slvs_test()"
         working-directory: ./CAD_Sketcher

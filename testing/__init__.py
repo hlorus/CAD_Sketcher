@@ -14,8 +14,7 @@ if module_path not in sys.path:
 
 
 def run(interactive, log_level=None):
-    from bl_ext.extensions.CAD_Sketcher.testing import test_solver
-    from bl_ext.extensions.CAD_Sketcher.testing.utils import BgsTestCase
+    from .utils import BgsTestCase
 
     BgsTestCase.interactive = interactive
     if log_level:

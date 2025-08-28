@@ -1,7 +1,7 @@
 import math
 from unittest import skip
 
-from testing.utils import Sketch2dTestCase
+from .utils import Sketch2dTestCase
 
 
 class TestConstraintAdd(Sketch2dTestCase):
@@ -50,7 +50,7 @@ class TestConstraintAdd(Sketch2dTestCase):
 
     def test_tangent(self):
         p0 = self.entities.add_point_2d((0, 0), self.sketch, fixed=True, index_reference=True)
-        
+
         # Add line
         p1 = self.entities.add_point_2d((3, -1), self.sketch)
         p2 = self.entities.add_point_2d((3, 1), self.sketch)

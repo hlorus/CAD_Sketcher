@@ -39,6 +39,7 @@ modules = [
     "modifiers",
     "move",
     "duplicate",
+    "test"
 ]
 
 
