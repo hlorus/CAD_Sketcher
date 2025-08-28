@@ -20,15 +20,15 @@ jobs:
           path: CAD_Sketcher
 
       - name: Validate Extension
-        run: blender --background command extension validate
+        run: blender --background --command extension validate
         working-directory: ./CAD_Sketcher
 
       - name: Build Extension
-        run: blender --background command extension build --output-filepath ./CAD_Sketcher.zip
+        run: blender --background --command extension build --output-filepath ./CAD_Sketcher.zip
         working-directory: ./CAD_Sketcher
 
       - name: Install Extension
-        run: blender --background command extension install-file --repo user_default --enable ./CAD_Sketcher.zip
+        run: blender --background --command extension install-file --repo user_default --enable ./CAD_Sketcher.zip
         working-directory: ./CAD_Sketcher
 
       - name: Run Tests
