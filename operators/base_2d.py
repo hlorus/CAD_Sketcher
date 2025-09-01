@@ -5,12 +5,11 @@ import bpy
 from bpy.types import Context, Event
 from mathutils import Vector
 
-from ..model.types import SlvsPoint2D
-from ..model.types import SlvsLine2D, SlvsCircle, SlvsArc
+from ..model.types import SlvsArc, SlvsCircle, SlvsLine2D, SlvsPoint2D
 from ..model.utilities import slvs_entity_pointer
+from ..utilities.view import get_pos_2d, get_scale_from_pos
 from .base_stateful import GenericEntityOp
 from .utilities import ignore_hover
-from ..utilities.view import get_pos_2d, get_scale_from_pos
 
 
 class Operator2d(GenericEntityOp):
