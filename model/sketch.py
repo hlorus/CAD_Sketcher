@@ -16,8 +16,7 @@ logger = logging.getLogger(__name__)
 
 convert_items = [
     ("NONE", "None", "", 1),
-    ("BEZIER", "Bezier", "", 2),
-    ("MESH", "Mesh", "", 3),
+    ("CURVE", "Curve", "Converts the sketch to the native curve type", 2),
 ]
 
 

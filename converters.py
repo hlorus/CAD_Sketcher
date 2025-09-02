@@ -1,80 +1,155 @@
 import logging
 import math
-from typing import Union
+from typing import Union, Any, List
 
 import bpy
 import bmesh
-from bpy.types import Mesh, Scene, Object
+from bpy.types import Mesh, Scene, Object, Operator
 
-from .utilities.bezier import set_handles
-from .utilities.walker import EntityWalker
+from .assets_manager import load_asset
+from . import global_data
 
 logger = logging.getLogger(__name__)
 
 
-class BezierConverter(EntityWalker):
+class BezierHandleType:
+    FREE = 0
+    AUTO = 1
+    VECTOR = 2
+    ALIGN = 3
+
+def _ensure_attrribute(attributes, name, type, domain):
+    """Ensure an attribute exists or create it if missing"""
+    attr = attributes.get(name)
+    if not attr:
+        attributes.new(name, type, domain)
+        attr = attributes.get(name)
+    return attr
+
+def set_attribute(attributes, name: str, value: Any, index:int=None):
+    """Set an attribute value either for given index or for all"""
+
+    attribute = attributes.get(name)
+
+    if index is None:
+        attribute.data.foreach_set("value", (value,) * len(attribute.data))
+    else:
+        attribute.data[index].value = value
+
+
+class DirectConverter:
+    """Converts entities directly to splines without entity walking"""
+
     def __init__(self, scene, sketch):
-        super().__init__(scene, sketch)
+        self.scene = scene
+        self.sketch = sketch
+        self.entities = self._get_entities()
 
-    def to_bezier(self, curve_data):
-        curve_data.fill_mode = "FRONT" if self.sketch.fill_shape else "NONE"
+    def _get_entities(self) -> List:
+        """Get all drawable entities from the sketch"""
+        sketch_index = self.sketch.slvs_index
+        entities = []
 
-        for spline_path in self.paths:
-            path_segments = spline_path[0]
-            s = curve_data.splines.new("BEZIER")
+        for entity in self.scene.sketcher.entities.all:
+            if not hasattr(entity, "sketch") or entity.sketch_i != sketch_index:
+                continue
+            if not entity.is_path():
+                continue
+            entities.append(entity)
 
-            is_cyclic = self.is_cyclic_path(path_segments)
-            if is_cyclic:
-                s.use_cyclic_u = True
+        return entities
 
-            segment_count = [
-                seg.bezier_segment_count()
-                if hasattr(seg, "bezier_segment_count")
-                else 1
-                for seg in path_segments
-            ]
-            amount = sum(segment_count)
+    def to_bezier(self, curve_data: bpy.types.Curve):
+        """Convert entities to bezier curves, with one spline per entity"""
 
-            if not is_cyclic:
-                amount += 1
-            # NOTE: There's  already one point in a new spline
-            s.bezier_points.add(amount - 1)
+        # Calculate point counts for each entity
+        point_counts = []
+        for entity in self.entities:
+            if hasattr(entity, "bezier_point_count"):
+                point_counts.append(entity.bezier_point_count())
+            elif hasattr(entity, "bezier_segment_count"):
+                # For entities that only define segment count, add 1 for non-cyclic
+                is_cyclic = entity.is_closed() if hasattr(entity, "is_closed") else False
+                point_counts.append(entity.bezier_segment_count() + (0 if is_cyclic else 1))
+            else:
+                # Default to 2 points for simple entities like lines
+                point_counts.append(2)
 
-            startpoint = s.bezier_points[0]
-            set_handles(startpoint)
-            previous_point = startpoint
+        # Add all curve slices
+        curve_data.add_curves(point_counts)
+        curve_data.set_types(type="BEZIER")
+        self._ensure_attributes(curve_data)
 
-            last_index = len(path_segments) - 1
-            index = 0
-            for i, segment in enumerate(path_segments):
-                invert_direction = spline_path[1][i]
+        # Set default handle types (individual entities will override these as needed)
+        set_attribute(curve_data.attributes, "handle_type_right", BezierHandleType.FREE)
+        set_attribute(curve_data.attributes, "handle_type_left", BezierHandleType.FREE)
 
-                # TODO: rename to seg_count and segment_counts
-                sub_segment_count = segment_count[i]
+        # Process each entity
+        for entity_index, entity in enumerate(self.entities):
+            curve_slice = curve_data.curves[entity_index]
+            is_cyclic = entity.is_closed() if hasattr(entity, "is_closed") else False
 
-                if i == last_index and is_cyclic:
-                    end = s.bezier_points[0]
-                else:
-                    end = s.bezier_points[index + sub_segment_count]
+            # Set curve attributes
+            set_attribute(curve_data.attributes, "resolution", self.sketch.curve_resolution, entity_index)
+            set_attribute(curve_data.attributes, "cyclic", is_cyclic, entity_index)
+            set_attribute(curve_data.attributes, "construction", entity.construction, entity_index)
 
-                midpoints = (
-                    [
-                        s.bezier_points[index + i + 1]
-                        for i in range(sub_segment_count - 1)
-                    ]
-                    if sub_segment_count
-                    else []
-                )
-                kwargs = {}
-                if i == 0:
-                    kwargs["set_startpoint"] = True
-                if sub_segment_count > 1:
-                    kwargs["midpoints"] = midpoints
+            # Setup points for the to_bezier call
+            start_point = curve_slice.points[0]
+            end_point = curve_slice.points[-1] if not is_cyclic else curve_slice.points[0]
 
-                previous_point = segment.to_bezier(
-                    s, previous_point, end, invert_direction, **kwargs
-                )
-                index += sub_segment_count
+            # For entities with multiple segments
+            midpoints = []
+            if len(curve_slice.points) > 2:
+                midpoints = [curve_slice.points[i] for i in range(1, len(curve_slice.points))]
+
+            # Setup kwargs for to_bezier call
+            kwargs = {
+                "set_startpoint": True,  # Always set startpoint for direct conversion
+            }
+            if midpoints:
+                kwargs["midpoints"] = midpoints
+
+            # Store entity slvs_index as attribute on points
+            entity_index_attr = curve_data.attributes.get("entity_index")
+            if entity_index_attr:
+                for point_idx in range(len(curve_slice.points)):
+                    if point_idx < len(entity_index_attr.data):
+                        entity_index_attr.data[point_idx].value = entity.slvs_index
+
+            # Store entity slvs_index as attribute on segments/edges
+            segment_entity_index_attr = curve_data.attributes.get("segment_entity_index")
+            if segment_entity_index_attr:
+                edge_count = len(curve_slice.points) - (0 if is_cyclic else 1)
+                for edge_idx in range(edge_count):
+                    if edge_idx < len(segment_entity_index_attr.data):
+                        segment_entity_index_attr.data[edge_idx].value = entity.slvs_index
+
+            # Call the entity's to_bezier method
+            entity.to_bezier(
+                curve_slice,
+                start_point,
+                end_point,
+                False,  # No invert_direction needed with direct conversion
+                **kwargs
+            )
+
+    @classmethod
+    def _ensure_attributes(cls, curve_data):
+        """Ensure all required attributes are present"""
+        # Note: Each entity type can override the handle types as needed
+
+        attributes = curve_data.attributes
+        _ensure_attrribute(attributes, "cyclic", "BOOLEAN", "CURVE")
+        _ensure_attrribute(attributes, "curve_type", "INT8", "CURVE")
+        _ensure_attrribute(attributes, "handle_type_left", "INT8", "POINT")
+        _ensure_attrribute(attributes, "handle_type_right", "INT8", "POINT")
+        _ensure_attrribute(attributes, "handle_left", "FLOAT_VECTOR", "POINT")
+        _ensure_attrribute(attributes, "handle_right", "FLOAT_VECTOR", "POINT")
+        _ensure_attrribute(attributes, "resolution", "INT", "CURVE")
+        _ensure_attrribute(attributes, "entity_index", "INT", "POINT")
+        _ensure_attrribute(attributes, "segment_entity_index", "INT", "CURVE")
+        _ensure_attrribute(attributes, "construction", "BOOLEAN", "CURVE")
 
 
 def mesh_from_temporary(mesh: Mesh, name: str, existing_mesh: Union[bool, None] = None):
@@ -95,17 +170,6 @@ def mesh_from_temporary(mesh: Mesh, name: str, existing_mesh: Union[bool, None] 
     return new_mesh
 
 
-def _cleanup_data(sketch, mode: str):
-    if sketch.target_object and mode != "MESH":
-        sketch.target_object.sketch_index = -1
-        bpy.data.objects.remove(sketch.target_object, do_unlink=True)
-        sketch.target_object = None
-    if sketch.target_curve_object and mode != "BEZIER":
-        sketch.target_curve_object.sketch_index = -1
-        bpy.data.objects.remove(sketch.target_curve_object, do_unlink=True)
-        sketch.target_curve_object = None
-
-
 def _link_unlink_object(scene: Scene, ob: Object, keep: bool):
     objects = scene.collection.objects
     exists = ob.name in objects
@@ -117,70 +181,50 @@ def _link_unlink_object(scene: Scene, ob: Object, keep: bool):
         objects.link(ob)
 
 
-def update_convertor_geometry(scene: Scene, sketch=None):
+CONVERT_MODIFIER_NAME = "CAD Sketcher Convert"
+
+def _ensure_convert_modifier(ob):
+    """Get or create the convert modifier"""
+    modifier = ob.modifiers.get(CONVERT_MODIFIER_NAME)
+    if not modifier:
+        modifier = ob.modifiers.new(CONVERT_MODIFIER_NAME, "NODES")
+    return modifier
+
+def update_geometry(scene: Scene, operator: Operator, sketch=None):
     coll = (sketch,) if sketch else scene.sketcher.entities.sketches
     for sketch in coll:
-        mode = sketch.convert_type
-        if sketch.convert_type == "NONE":
-            _cleanup_data(sketch, mode)
-            continue
-
         data = bpy.data
         name = sketch.name
 
-        # Create curve object
-        if not sketch.target_curve_object:
-            curve = bpy.data.objects.data.curves.new(name, "CURVE")
-            object = bpy.data.objects.new(name, curve)
-            sketch.target_curve_object = object
+        # Create object
+        if not sketch.target_object:
+            curve = data.hair_curves.new(name)
+            sketch.target_object = data.objects.new(name, curve)
         else:
-            # Clear curve data
-            sketch.target_curve_object.data.splines.clear()
+            sketch.target_object.data.remove_curves()
 
-        # Convert geometry to curve data
-        conv = BezierConverter(scene, sketch)
+        # Update object properties
+        sketch.target_object.matrix_world = sketch.wp.matrix_basis
+        sketch.target_object.sketch_index = sketch.slvs_index
+        sketch.target_object.name = sketch.name
 
-        # TODO: Avoid re-converting sketches where nothing has changed!
-        logger.info("Convert sketch {} to {}: ".format(sketch, mode.lower()))
-        curve_data = sketch.target_curve_object.data
-        conv.to_bezier(curve_data)
-        data = curve_data
+        # Link object
+        _link_unlink_object(scene, sketch.target_object, True)
 
-        # Link / unlink curve object
-        _link_unlink_object(scene, sketch.target_curve_object, mode == "BEZIER")
+        # Add GN modifier
+        modifier = _ensure_convert_modifier(sketch.target_object)
+        if not modifier:
+            operator.report({"ERROR"}, "Cannot add modifier to object")
+            return {"CANCELLED"}
 
-        if mode == "MESH":
-            # Set curve resolution
-            for spline in sketch.target_curve_object.data.splines:
-                spline.resolution_u = sketch.curve_resolution
+        # Ensure the convertor nodegroup is loaded
+        if not load_asset(global_data.LIB_NAME, "node_groups", "CAD Sketcher Convert"):
+            operator.report({"ERROR"}, "Cannot load asset 'CAD Sketcher Convert' from library")
+            return {"CANCELLED"}
 
-            # Create mesh data
-            temp_mesh = sketch.target_curve_object.to_mesh()
-            mesh = mesh_from_temporary(
-                temp_mesh,
-                name,
-                existing_mesh=(
-                    sketch.target_object.data if sketch.target_object else None
-                ),
-            )
-            sketch.target_curve_object.to_mesh_clear()
+        # Set the nodegroup
+        modifier.node_group = data.node_groups["CAD Sketcher Convert"]
 
-            # Create mesh object
-            if not sketch.target_object:
-                mesh_object = bpy.data.objects.new(name, mesh)
-                scene.collection.objects.link(mesh_object)
-                sketch.target_object = mesh_object
-            else:
-                sketch.target_object.data = mesh
-
-        _cleanup_data(sketch, mode)
-
-        target_ob = (
-            sketch.target_object if mode == "MESH" else sketch.target_curve_object
-        )
-        target_ob.matrix_world = sketch.wp.matrix_basis
-
-        target_ob.sketch_index = sketch.slvs_index
-
-        # Update object name
-        target_ob.name = sketch.name
+        # Convert geometry to curve data using direct conversion
+        conv = DirectConverter(scene, sketch)
+        conv.to_bezier(sketch.target_object.data)

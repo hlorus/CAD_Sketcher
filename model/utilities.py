@@ -69,6 +69,7 @@ def get_bezier_curve_midpoint_positions(
 
 
 def create_bezier_curve(
+    spline: bpy.types.CurveSlice,
     segment_count,
     bezier_points,
     locations,
@@ -80,6 +81,8 @@ def create_bezier_curve(
     if cyclic:
         bezier_points.append(bezier_points[0])
         locations.append(locations[0])
+
+    attributes = spline.id_data.attributes
 
     for index in range(segment_count):
         loc1, loc2 = locations[index], locations[index + 1]
@@ -97,9 +100,44 @@ def create_bezier_curve(
             offset.rotate(Matrix.Rotation(angle, 2))
             coords.append((center + offset).to_3d())
 
-        b1.handle_right = coords[0]
-        b2.handle_left = coords[1]
-        b2.co = loc2.to_3d()
+        attributes["handle_right"].data[b1.index].vector = coords[0]
+        attributes["handle_left"].data[b2.index].vector = coords[1]
+        b2.position = loc2.to_3d()
+        
+        # For non-cyclic curves, set both handles for endpoints
+        if not cyclic:
+            # Set handle_left for the first point (only for the first segment)
+            if index == 0:
+                pos = loc1 - center
+                angle = math.atan2(pos[1], pos[0])
+                offset = base_offset.copy()
+                
+                # Use opposite direction compared to handle_right
+                if not invert:
+                    offset[1] *= -1
+                
+                offset.rotate(Matrix.Rotation(angle, 2))
+                attributes["handle_left"].data[b1.index].vector = (center + offset).to_3d()
+            
+            # Set handle_right for the last point (only for the last segment)
+            if index == segment_count - 1:
+                pos = loc2 - center
+                angle = math.atan2(pos[1], pos[0])
+                offset = base_offset.copy()
+                
+                # Use opposite direction compared to handle_left
+                if invert:
+                    offset[1] *= -1
+                
+                offset.rotate(Matrix.Rotation(angle, 2))
+                attributes["handle_right"].data[b2.index].vector = (center + offset).to_3d()
+
+
+def create_bezier_curve_attributes(
+        spline,
+        segment_count,
+        point_indices):
+    pass
 
 
 # NOTE: When tweaking, it's necessary to constrain a point that is only temporary available

@@ -144,11 +144,14 @@ class SlvsCircle(Entity2D, PropertyGroup):
         )
         angle = FULL_TURN / segment_count
 
+        # Calculate handle size for smooth circle approximation
         n = FULL_TURN / angle
         q = (4 / 3) * math.tan(HALF_TURN / (2 * n))
         base_offset = Vector((radius, q * radius))
 
+        # Create curve with proper bezier handles
         create_bezier_curve(
+            spline,
             segment_count,
             bezier_points,
             locations,
