@@ -75,6 +75,10 @@ class DirectConverter:
                 # Default to 2 points for simple entities like lines
                 point_counts.append(2)
 
+        # Early exit if there are no entities to convert
+        if len(point_counts) == 0:
+            return
+
         # Add all curve slices
         curve_data.add_curves(point_counts)
         curve_data.set_types(type="BEZIER")

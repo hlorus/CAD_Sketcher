@@ -139,15 +139,13 @@ def activate_sketch(context: Context, index: int, operator: Operator):
     props.active_sketch_i = index
     context.area.tag_redraw()
 
-    if index != -1:
-        return {"FINISHED"}
-
     if context.mode != "OBJECT":
         return {"FINISHED"}
 
     update_geometry(context.scene, operator, sketch=last_sketch)
 
-    select_target_ob(context, last_sketch)
+    if index == -1:
+        select_target_ob(context, last_sketch)
 
     return {"FINISHED"}
 
@@ -162,5 +160,3 @@ def select_target_ob(context, sketch):
     if target_ob.name in context.view_layer.objects:
         target_ob.select_set(True)
         context.view_layer.objects.active = target_ob
-
-
