@@ -144,7 +144,10 @@ class SlvsEntities(PropertyGroup):
         """
         assert isinstance(index, int)
 
-        if self.get(index).origin:
+        entity = self.get(index)
+        if entity is None:
+            return
+        if entity.origin:
             return
 
         entity_list, i = self._get_list_and_index(index)
@@ -438,7 +441,8 @@ class SlvsEntities(PropertyGroup):
             if index is None:
                 continue
             entity = self.get(index)
-            items.append(entity)
+            if entity is not None:  # Skip if entity was not found
+                items.append(entity)
         return [e for e in items if e.is_selectable(context)]
 
     @property
@@ -450,7 +454,8 @@ class SlvsEntities(PropertyGroup):
             if index is None:
                 continue
             entity = self.get(index)
-            items.append(entity)
+            if entity is not None:  # Skip if entity was not found
+                items.append(entity)
         return [e for e in items if e.selected]
 
     @property
