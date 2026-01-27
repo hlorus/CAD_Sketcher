@@ -133,11 +133,17 @@ class SlvsLine2D(Entity2D, PropertyGroup):
             locations.reverse()
 
         if set_startpoint:
-            startpoint.co = locations[0]
-        endpoint.co = locations[1]
+            startpoint.position = locations[0]
+        endpoint.position = locations[1]
 
-        startpoint.handle_right = locations[0]
-        endpoint.handle_left = locations[1]
+        # For lines, set handles to be exactly at the points
+        attributes = spline.id_data.attributes
+
+        attributes["handle_right"].data[startpoint.index].vector = locations[0]
+        attributes["handle_left"].data[startpoint.index].vector = locations[0]
+
+        attributes["handle_right"].data[endpoint.index].vector = locations[1]
+        attributes["handle_left"].data[endpoint.index].vector = locations[1]
 
         return endpoint
 

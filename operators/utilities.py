@@ -5,7 +5,7 @@ from bpy.types import Context, Operator
 
 from .. import global_data
 from ..declarations import GizmoGroups, WorkSpaceTools
-from ..converters import update_convertor_geometry
+from ..converters import update_geometry
 from ..utilities.preferences import get_prefs
 from ..utilities.data_handling import entities_3d
 
@@ -145,7 +145,7 @@ def activate_sketch(context: Context, index: int, operator: Operator):
     if context.mode != "OBJECT":
         return {"FINISHED"}
 
-    update_convertor_geometry(context.scene, sketch=last_sketch)
+    update_geometry(context.scene, operator, sketch=last_sketch)
 
     select_target_ob(context, last_sketch)
 
@@ -153,8 +153,7 @@ def activate_sketch(context: Context, index: int, operator: Operator):
 
 
 def select_target_ob(context, sketch):
-    mode = sketch.convert_type
-    target_ob = sketch.target_object if mode == "MESH" else sketch.target_curve_object
+    target_ob = sketch.target_object
 
     bpy.ops.object.select_all(action="DESELECT")
     if not target_ob:
@@ -163,3 +162,5 @@ def select_target_ob(context, sketch):
     if target_ob.name in context.view_layer.objects:
         target_ob.select_set(True)
         context.view_layer.objects.active = target_ob
+
+
