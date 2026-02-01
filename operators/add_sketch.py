@@ -1,15 +1,14 @@
 import logging
 
 import bpy
-from bpy.types import Operator, Context, Event
+from bpy.types import Context, Event, Operator
 
-from ..model.types import SlvsWorkplane
 from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
+from ..model.types import SlvsWorkplane
 from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_3d import Operator3d
 from .utilities import activate_sketch, switch_sketch_mode
-
 
 logger = logging.getLogger(__name__)
 
