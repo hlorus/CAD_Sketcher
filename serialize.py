@@ -18,37 +18,124 @@ def dict_extend(original_dict, other):
         original_dict[key] = value
 
 
-# Format of scene dict:
-# {
-#   'entities': {
-#       'points3D': [{}, {}],
-#       'normals3D': [{}, {}],
-# }
+def group_as_dict(group) -> Dict:
+    """Get values from a property group as a dict using RNA type system."""
+    EXCLUDE = {'name', 'rna_type'}
+    prop_dict = {}
 
-
-def apply_dict(parent, d: Dict):
-    """Applies values from a dictionary to members of a IDPropertyGroup"""
-    for key, value in d.items():
-        if not isinstance(value, dict):
-            parent[key] = value
+    for prop in group.rna_type.properties:
+        key = prop.identifier
+        if key in EXCLUDE:
             continue
 
-        # Handle dictionaries recursivley
-        apply_dict(parent[key], value)
+        value = getattr(group, key)
+        prop_type = prop.type
+        
+        # Handle collection properties (store as list of dicts)
+        if prop_type == 'COLLECTION':
+            items_list = []
+            for item in value:
+                item_dict = {}
+                for item_prop in item.rna_type.properties:
+                    k = item_prop.identifier
+                    if k in EXCLUDE:
+                        continue
+                    v = getattr(item, k)
+                    # Store arrays properly (check if property supports is_array)
+                    if hasattr(item_prop, 'is_array') and item_prop.is_array:
+                        item_dict[k] = list(v) if v else []
+                    else:
+                        item_dict[k] = v
+                items_list.append(item_dict)
+            prop_dict[key] = items_list
+        # Handle pointer to other property groups (recursive)
+        elif prop_type == 'POINTER':
+            if value is not None:
+                prop_dict[key] = group_as_dict(value)
+        # Handle arrays/vectors
+        elif prop_type in ('INT', 'FLOAT') and hasattr(prop, 'is_array') and prop.is_array:
+            prop_dict[key] = list(value) if value else []
+        # Everything else store directly
+        else:
+            prop_dict[key] = value
+
+    return prop_dict
+
+
+def dict_to_group(group, data: Dict):
+    """Restore a property group from a dictionary using RNA type system."""
+    EXCLUDE = {'name', 'rna_type'}
+
+    for prop in group.rna_type.properties:
+        key = prop.identifier
+        if key in EXCLUDE or key not in data:
+            continue
+
+        value = data[key]
+        prop_type = prop.type
+
+        # Handle collection properties
+        if prop_type == 'COLLECTION':
+            collection = getattr(group, key)
+            collection.clear()
+            if isinstance(value, list):
+                for item_data in value:
+                    new_item = collection.add()
+                    if isinstance(item_data, dict):
+                        for k, v in item_data.items():
+                            if hasattr(new_item, k):
+                                # Check if this is an array property
+                                item_prop = new_item.rna_type.properties.get(k)
+                                if item_prop and hasattr(item_prop, 'is_array') and item_prop.is_array:
+                                    # Convert to tuple/list of correct size
+                                    if isinstance(v, (list, tuple)):
+                                        setattr(new_item, k, v[:item_prop.array_length])
+                                    else:
+                                        setattr(new_item, k, v)
+                                else:
+                                    setattr(new_item, k, v)
+
+        # Handle pointer to other property groups (recursive)
+        elif prop_type == 'POINTER':
+            if isinstance(value, dict):
+                ptr_group = getattr(group, key)
+                if ptr_group is not None:
+                    dict_to_group(ptr_group, value)
+
+        # Handle arrays/vectors
+        elif prop_type in ('INT', 'FLOAT') and hasattr(prop, 'is_array') and prop.is_array:
+            # Ensure correct array length
+            if isinstance(value, (list, tuple)):
+                setattr(group, key, value[:prop.array_length])
+            else:
+                setattr(group, key, value)
+
+        # Restore simple properties
+        else:
+            setattr(group, key, value)
 
 
 def scene_to_dict(scene: Scene) -> Dict:
     """Returns a dictionary which represents the relevant contents of the given scene"""
-    original = scene["sketcher"].to_dict()
-    elements = {key: original[key] for key in ("entities", "constraints")}
-    return elements
+    sketcher = scene.sketcher
+    
+    return {
+        'entities': group_as_dict(sketcher.entities),
+        'constraints': group_as_dict(sketcher.constraints),
+    }
 
 
 def scene_from_dict(scene: Scene, elements: Dict):
     """Constructs a scene from a dictionary"""
-    original = scene["sketcher"].to_dict()
-    original.update(elements)
-    apply_dict(scene["sketcher"], original)
+    sketcher = scene.sketcher
+    
+    # Restore entities
+    if 'entities' in elements:
+        dict_to_group(sketcher.entities, elements['entities'])
+    
+    # Restore constraints
+    if 'constraints' in elements:
+        dict_to_group(sketcher.constraints, elements['constraints'])
 
 
 def _extend_element_dict(scene, elements):

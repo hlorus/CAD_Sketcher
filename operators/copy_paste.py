@@ -7,7 +7,7 @@ from bpy.types import Operator, Context
 
 from .. import global_data
 from ..declarations import Operators
-from ..serialize import paste
+from ..serialize import paste, scene_to_dict
 from ..utilities.select import deselect_all
 from ..utilities.data_handling import (
     get_collective_dependencies,
@@ -59,7 +59,7 @@ class View3D_OT_slvs_copy(Operator):
         buffer = {"entities": {}, "constraints": {}}
 
         # Get the whole scene dictionary representation
-        scene_dict = context.scene["sketcher"].to_dict()
+        scene_dict = scene_to_dict(context.scene)
 
         # Get dependencies of selected entities
         dependencies = list(
