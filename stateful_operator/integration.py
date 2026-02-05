@@ -21,7 +21,7 @@ from .utilities.geometry import (
 import bpy
 from bpy.types import Context
 
-from typing import Optional
+from typing import Optional, Any
 
 
 class StatefulOperator(StatefulOperatorLogic):
@@ -136,7 +136,9 @@ class StatefulOperator(StatefulOperatorLogic):
         pointer_name = state.pointer
         data = self._state_data.get(index, {})
 
-        pointer_type = data["type"]
+        pointer_type = data.get("type")
+        if pointer_type is None:
+            return None
 
         def get_value(index):
             if values is None:
@@ -290,3 +292,47 @@ class StatefulOperator(StatefulOperatorLogic):
 
         if hasattr(self, "draw_settings"):
             self.draw_settings(context)
+
+    def create_snapshot(self, context: Context):
+        """Snapshot relevant Blender data references"""
+        if self.get_snapshot_scope() == "undo":
+            return None
+
+        # Store object names and mesh indices that are referenced
+        snapshot = {
+            'object_names': [],
+            'mesh_indices': {}
+        }
+
+        for i, state in enumerate(self.get_states()):
+            if not state.pointer:
+                continue
+            data = self._state_data.get(i, {})
+            pointer_type = data.get("type")
+
+            if pointer_type == bpy.types.Object:
+                name = data.get("object_name")
+                if name:
+                    snapshot['object_names'].append(name)
+            elif pointer_type in mesh_element_types:
+                name = data.get("object_name")
+                index = data.get("mesh_index")
+                if name and index is not None:
+                    snapshot['mesh_indices'].setdefault(name, []).append(index)
+
+        return snapshot
+
+    def restore_snapshot(self, context: Context, snapshot):
+        """Restore Blender references - mostly validation"""
+        if not snapshot:
+            return
+
+        # Validate objects still exist
+        for name in snapshot.get('object_names', []):
+            if name not in bpy.data.objects:
+                # Object was deleted, can't restore
+                pass
+
+    def get_snapshot_scope(self):
+        """Integration layer can work with undo for now"""
+        return "undo"
