@@ -189,9 +189,6 @@ class GenericEntityOp(StatefulOperator):
 
     def create_snapshot(self, context: Context) -> Any:
         """Create a complete snapshot of all sketcher state using serialization"""
-        if self.get_snapshot_scope() == "undo":
-            return None
-
         # Use the existing serialization system
         return scene_to_dict(context.scene)
 
@@ -202,7 +199,3 @@ class GenericEntityOp(StatefulOperator):
 
         # Use the existing deserialization system
         scene_from_dict(context.scene, snapshot)
-
-    def get_snapshot_scope(self) -> str:
-        """Entity operators should use internal snapshot"""
-        return "generic"

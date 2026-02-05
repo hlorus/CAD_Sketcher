@@ -36,9 +36,9 @@ class StatefulOperatorLogic:
     _state_snapshot = None
 
     def create_snapshot(self, context: Context) -> Any:
-        """Create a lightweight snapshot of relevant state.
+        """Create a snapshot of relevant state.
 
-        To be overridden by subclasses. Return value is opaque to base class.
+        To be overridden by subclasses. Return None to use Blender's undo system.
         """
         return None
 
@@ -48,16 +48,6 @@ class StatefulOperatorLogic:
         To be overridden by subclasses.
         """
         pass
-
-    def get_snapshot_scope(self) -> str:
-        """Return the scope of snapshot needed.
-
-        Returns:
-            "none" - No snapshot needed
-            "generic" - Use generic snapshot hooks
-            "undo" - Fall back to Blender's undo system
-        """
-        return "undo"
 
     def get_property(self, index: Optional[int] = None):
         if index is None:
@@ -336,9 +326,8 @@ class StatefulOperatorLogic:
 
     def invoke(self, context: Context, event: Event):
         self._state_data.clear()
-        # Create initial snapshot for internal undo system
-        if self.get_snapshot_scope() == "generic":
-            self._state_snapshot = self.create_snapshot(context)
+        # Create initial snapshot if supported by subclass
+        self._state_snapshot = self.create_snapshot(context)
         if hasattr(self, "init"):
             if not self.init(context, event):
                 return self._end(context, False)
@@ -604,14 +593,12 @@ class StatefulOperatorLogic:
                 ok = True
 
         if self._undo:
-            snapshot_scope = self.get_snapshot_scope()
-
-            if snapshot_scope == "generic" and self._state_snapshot is not None:
-                # Use internal lightweight snapshot
+            if self._state_snapshot is not None:
+                # Use custom snapshot
                 self.restore_snapshot(context, self._state_snapshot)
                 global_data.ignore_list.clear()
                 self.redo_states(context)
-            elif snapshot_scope == "undo":
+            else:
                 # Fall back to Blender's undo system
                 bpy.ops.ed.undo_push(message="Redo: " + self.bl_label)
                 bpy.ops.ed.undo()
@@ -696,8 +683,7 @@ class StatefulOperatorLogic:
         self.set_state(context, 1)
 
         # Create new snapshot for next segment
-        if self.get_snapshot_scope() == "generic":
-            self._state_snapshot = self.create_snapshot(context)
+        self._state_snapshot = self.create_snapshot(context)
 
     def _end(self, context, succeede, skip_undo=False):
         context.window.cursor_modal_restore()
@@ -708,11 +694,10 @@ class StatefulOperatorLogic:
         context.workspace.status_text_set(None)
 
         if not succeede and not skip_undo:
-            snapshot_scope = self.get_snapshot_scope()
-            if snapshot_scope == "generic" and self._state_snapshot is not None:
-                # Use internal snapshot for cancellation
+            if self._state_snapshot is not None:
+                # Use custom snapshot for cancellation
                 self.restore_snapshot(context, self._state_snapshot)
-            elif snapshot_scope == "undo":
+            else:
                 # Fall back to Blender's undo system
                 bpy.ops.ed.undo_push(message="Cancelled: " + self.bl_label)
                 bpy.ops.ed.undo()
