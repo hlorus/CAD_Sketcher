@@ -23,8 +23,11 @@ from ..utilities.solver import update_system_cb
 logger = logging.getLogger(__name__)
 
 
-def tag_update(self, _context=None):
-    # context argument ignored
+def tag_update(self, context=None):
+    # Skip update during loading to avoid solver errors and None dependencies
+    if context and context.scene.sketcher.is_loading:
+        return
+    
     if not self.is_dirty:
         self.is_dirty = True
 
@@ -65,7 +68,7 @@ class SlvsGenericEntity:
         deps = self.dependencies()
         for e in deps:
             # NOTE: might has to ckech through deps recursively -> e.is_dirty
-            if e.dirty:
+            if e and hasattr(e, 'dirty') and e.dirty:
                 return True
         return False
 

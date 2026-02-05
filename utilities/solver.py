@@ -5,5 +5,9 @@ from ..solver import solve_system
 
 def update_system_cb(self, context: Context):
     """Update scene and re-run the solver, used as a property update callback"""
+    # Skip solver execution during scene loading
+    if context.scene.sketcher.is_loading:
+        return
+    
     sketch = context.scene.sketcher.active_sketch
     solve_system(context, sketch=sketch)

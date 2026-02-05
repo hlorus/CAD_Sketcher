@@ -44,6 +44,14 @@ class SketcherProps(PropertyGroup):
 
     # This is needed for the sketches ui list
     ui_active_sketch: IntProperty()
+    
+    # Flag to prevent solver execution during scene loading
+    is_loading: BoolProperty(
+        name="Is Loading",
+        description="Flag to prevent solver execution during scene loading",
+        default=False,
+        options={"SKIP_SAVE"},
+    )
 
     @property
     def all(self) -> Generator[Union[SlvsGenericEntity, SlvsConstraints], None, None]:

@@ -129,13 +129,20 @@ def scene_from_dict(scene: Scene, elements: Dict):
     """Constructs a scene from a dictionary"""
     sketcher = scene.sketcher
     
-    # Restore entities
-    if 'entities' in elements:
-        dict_to_group(sketcher.entities, elements['entities'])
+    # Set loading flag to prevent solver execution during property updates
+    sketcher.is_loading = True
     
-    # Restore constraints
-    if 'constraints' in elements:
-        dict_to_group(sketcher.constraints, elements['constraints'])
+    try:
+        # Restore entities
+        if 'entities' in elements:
+            dict_to_group(sketcher.entities, elements['entities'])
+        
+        # Restore constraints
+        if 'constraints' in elements:
+            dict_to_group(sketcher.constraints, elements['constraints'])
+    finally:
+        # Always clear the loading flag, even if an error occurs
+        sketcher.is_loading = False
 
 
 def _extend_element_dict(scene, elements):
