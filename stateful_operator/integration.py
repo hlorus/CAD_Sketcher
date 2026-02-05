@@ -21,7 +21,7 @@ from .utilities.geometry import (
 import bpy
 from bpy.types import Context
 
-from typing import Optional
+from typing import Optional, Any
 
 
 class StatefulOperator(StatefulOperatorLogic):
@@ -136,7 +136,9 @@ class StatefulOperator(StatefulOperatorLogic):
         pointer_name = state.pointer
         data = self._state_data.get(index, {})
 
-        pointer_type = data["type"]
+        pointer_type = data.get("type")
+        if pointer_type is None:
+            return None
 
         def get_value(index):
             if values is None:
@@ -290,3 +292,11 @@ class StatefulOperator(StatefulOperatorLogic):
 
         if hasattr(self, "draw_settings"):
             self.draw_settings(context)
+
+    def create_snapshot(self, context: Context):
+        """Snapshot relevant Blender data references"""
+        return None
+
+    def restore_snapshot(self, context: Context, snapshot):
+        """Restore Blender references - mostly validation"""
+        pass
