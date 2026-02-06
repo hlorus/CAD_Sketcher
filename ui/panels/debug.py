@@ -1,8 +1,6 @@
 from bpy.types import Context
 
-from .. import constants
-from .. import declarations
-from .. import preferences
+from .. import constants, declarations, preferences
 from . import VIEW3D_PT_sketcher_base
 
 
@@ -24,6 +22,12 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
         ).all = True
 
         layout.operator(constants.Operators.Test)
+
+        # Snapshot / Restore
+        row = layout.row(align=True)
+        row.operator(declarations.Operators.Snapshot)
+        row.operator(declarations.Operators.Restore)
+
         layout.prop(context.scene.sketcher, "show_origin")
         layout.prop(prefs, "hide_inactive_constraints")
         layout.prop(prefs, "all_entities_selectable")
