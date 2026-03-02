@@ -119,11 +119,15 @@ def add_new_empty(context: Context, location: Vector, name="") -> Object:
 
 
 def setprop(data, key, value):
-    """Set an id prop without triggering it's update mehtod"""
+    """Set an id prop without triggering it's update method.
+    Uses version-conditional backing store for Blender 4.0-5.0 compatibility.
+    """
+    import bpy
     prop = data.rna_type.properties[key]
 
     # Handle Enums which have to be set by the item's id rather than identifier
     if prop.type == "ENUM":
         value = prop.enum_items[value].value
 
-    data[key] = value
+    store_key = ("_cad_" + key) if bpy.app.version >= (5, 0) else key
+    data[store_key] = value

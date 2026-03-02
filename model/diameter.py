@@ -1,5 +1,6 @@
 import logging
 
+import bpy
 import math
 from bpy.types import PropertyGroup
 from bpy.props import BoolProperty, FloatProperty
@@ -23,11 +24,14 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     """Sets the diameter of an arc or a circle."""
 
     def use_radius_getter(self):
-        return self.get("setting", self.bl_rna.properties["setting"].default)
+        key = "_cad_setting" if bpy.app.version >= (5, 0) else "setting"
+        return self.get(key, self.bl_rna.properties["setting"].default)
 
     def use_radius_setter(self, setting):
-        old_setting = self.get("setting", self.bl_rna.properties["setting"].default)
-        self["setting"] = setting
+        key_s = "_cad_setting" if bpy.app.version >= (5, 0) else "setting"
+        key_v = "_cad_value" if bpy.app.version >= (5, 0) else "value"
+        old_setting = self.get(key_s, self.bl_rna.properties["setting"].default)
+        self[key_s] = setting
 
         distance = None
         if old_setting and not setting:
@@ -37,7 +41,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
 
         if distance is not None:
             # Avoid triggering the property's update callback
-            self["value"] = distance
+            self[key_v] = distance
 
     @property
     def label(self):

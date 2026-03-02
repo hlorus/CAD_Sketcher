@@ -1,6 +1,7 @@
 import logging
 from typing import List
 
+import bpy
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import UILayout, Property, Context
 
@@ -18,10 +19,12 @@ logger = logging.getLogger(__name__)
 
 class GenericConstraint:
     def _name_getter(self):
-        return self.get("name", str(self))
+        key = "_cad_name" if bpy.app.version >= (5, 0) else "name"
+        return self.get(key, str(self))
 
     def _name_setter(self, new_name):
-        self["name"] = new_name
+        key = "_cad_name" if bpy.app.version >= (5, 0) else "name"
+        self[key] = new_name
 
     name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
     failed: BoolProperty(name="Failed")
@@ -193,15 +196,17 @@ class DimensionalConstraint(GenericConstraint):
             self._set_value_force(self.from_displayed_value(displayed_value))
 
     def _set_value_force(self, value: float):
-        self["value"] = value
+        key = "_cad_value" if bpy.app.version >= (5, 0) else "value"
+        self[key] = value
 
     def _get_value(self):
         if self.is_reference:
             val = self.init_props()["value"]
             return self.to_displayed_value(val)
-        if self.get("value") is None:
+        key = "_cad_value" if bpy.app.version >= (5, 0) else "value"
+        if self.get(key) is None:
             self.assign_init_props()
-        return self.to_displayed_value(self["value"])
+        return self.to_displayed_value(self[key])
 
     def assign_settings(self, **settings):
         for key, value in settings.items():

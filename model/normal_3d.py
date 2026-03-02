@@ -1,5 +1,6 @@
 import logging
 
+import bpy
 from bpy.types import PropertyGroup, Context
 from bpy.props import FloatVectorProperty
 from bpy.utils import register_classes_factory
@@ -43,7 +44,10 @@ class SlvsNormal3D(Normal3D, PropertyGroup):
         return getattr(self, "orientation").to_euler()
 
     def set_orientation(self, value):
-        self["orientation"] = Euler(value).to_quaternion()
+        if bpy.app.version >= (5, 0):
+            self.orientation = Euler(value).to_quaternion()
+        else:
+            self["orientation"] = Euler(value).to_quaternion()
 
     orientation: FloatVectorProperty(
         name="Orientation",

@@ -6,6 +6,7 @@ Base entity classes for CAD Sketcher.
 import logging
 from typing import List
 
+import bpy
 import gpu
 from bpy import app
 from bpy.props import IntProperty, StringProperty, BoolProperty
@@ -31,10 +32,12 @@ def tag_update(self, _context=None):
 
 class SlvsGenericEntity:
     def entity_name_getter(self):
-        return self.get("name", str(self))
+        key = "_cad_name" if bpy.app.version >= (5, 0) else "name"
+        return self.get(key, str(self))
 
     def entity_name_setter(self, new_name):
-        self["name"] = new_name
+        key = "_cad_name" if bpy.app.version >= (5, 0) else "name"
+        self[key] = new_name
 
     slvs_index: IntProperty(name="Global Index", default=-1)
     name: StringProperty(
@@ -50,10 +53,9 @@ class SlvsGenericEntity:
     props = ()
     dirty: BoolProperty(name="Needs Update", default=True, options={"SKIP_SAVE"})
 
-    @classmethod
-    @property
-    def type(cls) -> str:
-        return cls.__name__
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.type = cls.__name__
 
     @property
     def is_dirty(self) -> bool:

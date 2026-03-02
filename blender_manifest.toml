@@ -8,7 +8,7 @@ maintainer = "hlorus <dave19924@gmail.com>"
 type = "add-on"
 website = "https://www.cadsketcher.com/"
 tags = ["3D View", "Modeling", "Mesh", "Object"]
-blender_version_min = "3.3.0"
+blender_version_min = "4.0.0"
 license = ["SPDX:GPL-3.0-or-later"]
 
 wheels = [

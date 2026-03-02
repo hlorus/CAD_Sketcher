@@ -1,6 +1,7 @@
 import logging
 import math
 
+import bpy
 from bpy.types import PropertyGroup
 from bpy.props import BoolProperty, FloatProperty, EnumProperty
 from bpy.utils import register_classes_factory
@@ -56,9 +57,10 @@ def _get_value(self):
     if self.is_reference:
         val = self.init_props(align=self.align)["value"]
         return self.to_displayed_value(val)
-    if self.get("value") is None:
+    key = "_cad_value" if bpy.app.version >= (5, 0) else "value"
+    if self.get(key) is None:
         self.assign_init_props()
-    return self.to_displayed_value(self["value"])
+    return self.to_displayed_value(self[key])
 
 
 class SlvsDistance(DimensionalConstraint, PropertyGroup):
@@ -74,7 +76,8 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         setprop(self, "value", distance)
 
     def _get_align(self) -> int:
-        return self.get("align", 0)
+        key = "_cad_align" if bpy.app.version >= (5, 0) else "align"
+        return self.get(key, 0)
 
     label = "Distance"
     value: FloatProperty(
