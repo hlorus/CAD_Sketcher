@@ -2,18 +2,17 @@ from copy import deepcopy
 from typing import Any, List, Sequence, Tuple
 
 import bpy
+from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
-from bpy.types import Operator, Context
 
 from .. import global_data
 from ..declarations import Operators
-from ..serialize import paste
-from ..utilities.select import deselect_all
+from ..serialize import iter_elements_dict, paste, scene_to_dict
 from ..utilities.data_handling import (
     get_collective_dependencies,
     get_scoped_constraints,
 )
-from ..serialize import iter_elements_dict
+from ..utilities.select import deselect_all
 
 
 def _filter_elements_dict(
@@ -59,7 +58,7 @@ class View3D_OT_slvs_copy(Operator):
         buffer = {"entities": {}, "constraints": {}}
 
         # Get the whole scene dictionary representation
-        scene_dict = context.scene["sketcher"].to_dict()
+        scene_dict = scene_to_dict(context.scene)
 
         # Get dependencies of selected entities
         dependencies = list(

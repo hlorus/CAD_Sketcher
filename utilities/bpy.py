@@ -2,7 +2,7 @@ import re
 from typing import Any, Sequence, Union
 
 import bpy
-from bpy.types import Context, Object
+from bpy.types import Context, Object, PropertyGroup, bpy_prop_collection
 from mathutils import Vector
 
 
@@ -119,11 +119,59 @@ def add_new_empty(context: Context, location: Vector, name="") -> Object:
 
 
 def setprop(data, key, value):
-    """Set an id prop without triggering it's update mehtod"""
+    """Set a property value, handling enum index conversion."""
     prop = data.rna_type.properties[key]
 
     # Handle Enums which have to be set by the item's id rather than identifier
     if prop.type == "ENUM":
         value = prop.enum_items[value].value
 
-    data[key] = value
+    setattr(data, key, value)
+
+
+def pg_to_dict(pg):
+    """Convert a PropertyGroup to a dict using RNA introspection.
+
+    Compatible with Blender 5.0 where bpy.props-registered properties
+    are no longer accessible via dictionary-style IDProperty access.
+    """
+    d = {}
+    for prop in pg.bl_rna.properties:
+        key = prop.identifier
+        if key == "rna_type":
+            continue
+        value = getattr(pg, key)
+        if isinstance(value, bpy_prop_collection):
+            d[key] = [pg_to_dict(item) for item in value]
+        elif isinstance(value, PropertyGroup):
+            d[key] = pg_to_dict(value)
+        elif hasattr(value, "__len__") and not isinstance(value, str):
+            d[key] = list(value)  # Vector/Quaternion/etc -> plain list
+        else:
+            d[key] = value
+    return d
+
+
+def pg_from_dict(pg, d):
+    """Apply a dict to a PropertyGroup using RNA introspection.
+
+    Compatible with Blender 5.0 where bpy.props-registered properties
+    are no longer accessible via dictionary-style IDProperty access.
+    """
+    for prop in pg.bl_rna.properties:
+        key = prop.identifier
+        if key == "rna_type" or key not in d:
+            continue
+        value = d[key]
+        current = getattr(pg, key)
+        if isinstance(current, bpy_prop_collection):
+            current.clear()
+            for item_dict in value:
+                item = current.add()
+                pg_from_dict(item, item_dict)
+        elif isinstance(current, PropertyGroup):
+            pg_from_dict(current, value)
+        elif pg.is_property_readonly(key):
+            continue
+        else:
+            setattr(pg, key, value)

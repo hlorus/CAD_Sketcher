@@ -34,21 +34,9 @@ log_levels = [
 logger = logging.getLogger(__name__)
 
 
-def get_log_level(self):
-    prop = self.bl_rna.properties["logging_level"]
-    items = prop.enum_items
-    default_value = items[prop.default].value
-    item = items[self.get("logging_level", default_value)]
-    return item.value
-
-
-def set_log_level(self, value):
-    items = self.bl_rna.properties["logging_level"].enum_items
-    item = items[value]
-
-    level = item.identifier
-    logger.info("setting log level: {}".format(item.name))
-    self["logging_level"] = level
+def on_logging_level_update(self, context):
+    level = self.logging_level
+    logger.info("setting log level: {}".format(level))
     logger.setLevel(level)
 
 
@@ -121,8 +109,7 @@ class Preferences(AddonPreferences):
     logging_level: EnumProperty(
         name="Logging Level",
         items=log_levels,
-        get=get_log_level,
-        set=set_log_level,
+        update=on_logging_level_update,
         default=2,
     )
     hide_inactive_constraints: BoolProperty(

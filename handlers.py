@@ -1,6 +1,6 @@
-import bpy
 import logging
 
+import bpy
 from bpy.app.handlers import persistent
 
 logger = logging.getLogger(__name__)
@@ -61,11 +61,30 @@ def unregister_handlers():
         logger.debug(msg)
 
 
+def on_depsgraph_update(scene, depsgraph):
+    from . import global_data
+
+    if global_data.needs_solve:
+        global_data.needs_solve = False
+        from .solver import solve_system
+
+        context = bpy.context
+        sketch = scene.sketcher.active_sketch
+        solve_system(context, sketch=sketch)
+
+    if global_data.needs_redraw:
+        global_data.needs_redraw = False
+        context = bpy.context
+        if context.space_data and context.space_data.type == "VIEW_3D":
+            context.space_data.show_gizmo = True
+
+
 def _setup_builtin_handlers():
-    from .versioning import write_addon_version, do_versioning
+    from .versioning import do_versioning, write_addon_version
 
     add_builtin_handler("version_update", do_versioning)
     add_builtin_handler("save_pre", write_addon_version)
+    add_builtin_handler("depsgraph_update_post", on_depsgraph_update)
 
 
 def register():

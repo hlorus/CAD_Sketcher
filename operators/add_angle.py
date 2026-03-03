@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 
 
 def invert_angle_getter(self):
-    return self.get("setting", self.bl_rna.properties["setting"].default)
+    return self.setting_store
 
 
 def invert_angle_setter(self, setting):
-    self["value"] = HALF_TURN - self.value
-    self["setting"] = setting
+    self.value = HALF_TURN - self.value
+    self.setting_store = setting
 
 
 class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
@@ -36,6 +36,10 @@ class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
         unit="ROTATION",
         precision=5,
         options={"SKIP_SAVE"},
+    )
+    setting_store: BoolProperty(
+        name="Measure supplementary angle storage",
+        default=False,
     )
     setting: BoolProperty(
         name="Measure supplementary angle",

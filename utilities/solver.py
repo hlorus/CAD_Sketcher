@@ -1,9 +1,8 @@
 from bpy.types import Context
 
-from ..solver import solve_system
+from .. import global_data
 
 
 def update_system_cb(self, context: Context):
-    """Update scene and re-run the solver, used as a property update callback"""
-    sketch = context.scene.sketcher.active_sketch
-    solve_system(context, sketch=sketch)
+    """Mark that the solver needs to run, deferred to depsgraph_update_post."""
+    global_data.needs_solve = True

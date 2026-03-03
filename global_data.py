@@ -23,6 +23,9 @@ highlight_constraint = None
 
 highlight_entities = []
 
+needs_solve = False
+needs_redraw = False
+
 Z_AXIS = Vector((0, 0, 1))
 
 draw_handle = None

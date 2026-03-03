@@ -8,42 +8,51 @@ from typing import List
 
 import gpu
 from bpy import app
-from bpy.props import IntProperty, StringProperty, BoolProperty
+from bpy.props import BoolProperty, IntProperty, StringProperty
 from bpy.types import Context
 
 from .. import global_data
-from ..utilities import preferences
-from ..shaders import Shaders
 from ..declarations import Operators
+from ..shaders import Shaders
+from ..utilities import preferences
+from ..utilities.index import breakdown_index, index_to_rgb
 from ..utilities.preferences import get_prefs
-from ..utilities.index import index_to_rgb, breakdown_index
 from ..utilities.view import update_cb
-from ..utilities.solver import update_system_cb
 
 logger = logging.getLogger(__name__)
 
 
 def tag_update(self, _context=None):
-    # context argument ignored
     if not self.is_dirty:
         self.is_dirty = True
 
 
 class SlvsGenericEntity:
-    def entity_name_getter(self):
-        return self.get("name", str(self))
-
-    def entity_name_setter(self, new_name):
-        self["name"] = new_name
-
     slvs_index: IntProperty(name="Global Index", default=-1)
-    name: StringProperty(
-        name="Name",
-        get=entity_name_getter,
-        set=entity_name_setter,
-        options={"SKIP_SAVE"},
-    )
-    fixed: BoolProperty(name="Fixed", update=update_system_cb)
+
+    if app.version >= (5, 0):
+        def entity_name_get_transform(self, curr_value, is_set):
+            return curr_value if is_set else str(self)
+
+        name: StringProperty(
+            name="Name",
+            get_transform=entity_name_get_transform,
+            options={"SKIP_SAVE"},
+        )
+    else:
+        def entity_name_getter(self):
+            return self.get("name", str(self))
+
+        def entity_name_setter(self, new_name):
+            self["name"] = new_name
+
+        name: StringProperty(
+            name="Name",
+            get=entity_name_getter,
+            set=entity_name_setter,
+            options={"SKIP_SAVE"},
+        )
+    fixed: BoolProperty(name="Fixed")
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     origin: BoolProperty(name="Origin")
     construction: BoolProperty(name="Construction", update=tag_update)
@@ -64,6 +73,8 @@ class SlvsGenericEntity:
             return False
         deps = self.dependencies()
         for e in deps:
+            if e is None:
+                continue
             # NOTE: might has to ckech through deps recursively -> e.is_dirty
             if e.dirty:
                 return True
@@ -251,7 +262,9 @@ class SlvsGenericEntity:
                 shader.uniform_float("dash_factor", 0.3)
             elif app.version >= (4, 5):
                 shader.uniform_float("lineWidth", self.line_width)
-                shader.uniform_float("viewportSize", (context.region.width, context.region.height))
+                shader.uniform_float(
+                    "viewportSize", (context.region.width, context.region.height)
+                )
 
         batch.draw(shader)
         gpu.shader.unbind()
@@ -276,7 +289,9 @@ class SlvsGenericEntity:
             gpu.state.line_width_set(self.line_width_select)
             if app.version >= (4, 5):
                 shader.uniform_float("lineWidth", self.line_width_select)
-                shader.uniform_float("viewportSize", (context.region.width, context.region.height))
+                shader.uniform_float(
+                    "viewportSize", (context.region.width, context.region.height)
+                )
 
         batch.draw(shader)
         gpu.shader.unbind()
