@@ -70,7 +70,7 @@ def register():
     setup_logger(logger)
 
     # Register base
-    ensure_addon_presets()
+    ensure_addon_presets(force_write=True)
     register_base()
 
     update_logger(logger)
