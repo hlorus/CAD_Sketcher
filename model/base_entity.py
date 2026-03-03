@@ -59,10 +59,9 @@ class SlvsGenericEntity:
     props = ()
     dirty: BoolProperty(name="Needs Update", default=True, options={"SKIP_SAVE"})
 
-    @classmethod
-    @property
-    def type(cls) -> str:
-        return cls.__name__
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls.type = cls.__name__
 
     @property
     def is_dirty(self) -> bool:
