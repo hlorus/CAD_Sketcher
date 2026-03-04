@@ -32,6 +32,7 @@ class StatefulOperator(StatefulOperatorLogic):
         states = cls.get_states_definition()
         return any([s.pointer == "object" for s in states])
 
+    @classmethod
     def _get_global_object_index(cls):
         states = cls.get_states_definition()
         object_in_list = [s.pointer == "object" for s in states]
@@ -102,7 +103,10 @@ class StatefulOperator(StatefulOperatorLogic):
                 obj_name = self._state_data[global_ob_index]["object_name"]
             else:
                 obj_name = data["object_name"]
-            obj = get_evaluated_obj(bpy.context, bpy.data.objects[obj_name])
+            blender_obj = bpy.data.objects.get(obj_name)
+            if blender_obj is None:
+                return None
+            obj = get_evaluated_obj(bpy.context, blender_obj)
 
         if pointer_type in mesh_element_types:
             index = data["mesh_index"]
@@ -212,7 +216,7 @@ class StatefulOperator(StatefulOperatorLogic):
                 "object_name"
             )
             if global_ob_name:
-                global_ob = bpy.data.objects[global_ob_name]
+                global_ob = bpy.data.objects.get(global_ob_name)
 
         ob, type, index = get_mesh_element(context, coords, **types, object=global_ob)
 
@@ -237,7 +241,8 @@ class StatefulOperator(StatefulOperatorLogic):
         selected = []
         states = self.get_states()
         types = []
-        [types.extend(s.types) for s in states]
+        for s in states:
+            types.extend(s.types)
 
         # Note: Where to take mesh elements from? Editmode data is only written
         # when left probably making it impossible to use selected elements in realtime.
@@ -252,7 +257,7 @@ class StatefulOperator(StatefulOperatorLogic):
         # should go through objects, vertices, entities depending on state.types
 
         result = None
-        if not index:
+        if index is None:
             index = self.state_index
         state = self.get_states_definition()[index]
         data = self.get_state_data(index)
