@@ -322,7 +322,7 @@ class StatefulOperatorLogic:
         return self.get_func(state, name) is not None
 
     def state_func(self, context, coords):
-        return NotImplementedError
+        raise NotImplementedError
 
     def invoke(self, context: Context, event: Event):
         self._state_data.clear()
@@ -566,7 +566,7 @@ class StatefulOperatorLogic:
                 values = [
                     self.get_numeric_value(context, coords),
                 ]
-            elif not is_picked:
+            else:
                 values = to_list(self._get_state_values(context, state, coords))
 
             if values:

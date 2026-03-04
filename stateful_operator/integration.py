@@ -58,7 +58,7 @@ class StatefulOperator(StatefulOperatorLogic):
             if pointer_name in annotations.keys():
                 # Skip pointers that have a property defined
                 # Note: pointer might not need implicit props, thus no need for getter/setter
-                return
+                continue
 
             if hasattr(cls, pointer_name):
                 # This can happen when the addon is re-enabled in the same session
