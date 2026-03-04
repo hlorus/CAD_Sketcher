@@ -16,6 +16,75 @@ from .utilities.keymap import (
 from typing import Optional, Any
 
 
+class _NumericInput:
+    """Manages the text input buffer for numeric entry in a stateful operator.
+
+    Handles per-substate string buffers (e.g. X, Y, Z components of a vector),
+    substate cycling via TAB, and validation of entered characters.
+    """
+
+    def __init__(self):
+        self._buffer: dict = {}
+        self.substate_index: int = 0
+        self.substate_count: Optional[int] = None
+        self.prop = None
+        self.is_active: bool = False
+
+    def reset(self):
+        self._buffer = {}
+        self.substate_index = 0
+        self.substate_count = None
+        self.prop = None
+        self.is_active = False
+
+    def init_substate(self, prop):
+        self.substate_count = prop.array_length if prop else None
+        self.prop = prop
+
+    def iterate(self):
+        count = self.substate_count or 1
+        self.substate_index = (self.substate_index + 1) % count
+
+    @property
+    def current(self) -> str:
+        return self._buffer.get(self.substate_index, "")
+
+    @current.setter
+    def current(self, value: str):
+        self._buffer[self.substate_index] = value
+
+    def get(self, sub_index: int) -> str:
+        return self._buffer.get(sub_index, "")
+
+    def evaluate_event(self, event):
+        event_type = event.type
+        if event_type == "BACK_SPACE":
+            if self.current:
+                self.current = self.current[:-1]
+            return
+
+        if event_type in ("MINUS", "NUMPAD_MINUS"):
+            self.current = self.current[1:] if self.current.startswith("-") else "-" + self.current
+            return
+
+        if is_unit_input(event):
+            self.current += get_unit_value(event)
+            return
+
+        value = get_value_from_event(event)
+        self.current += self._validate(value)
+
+    def _validate(self, value: str) -> str:
+        """Check if value can be appended to the current input string."""
+        separators = (".", ",")
+        if value in separators:
+            if any(c in self.current for c in separators):
+                return ""
+            if not self.current or not self.current[-1].isdigit():
+                return "0."
+        return value
+
+
 class StatefulOperatorLogic:
     """Base class which implements the behaviour logic"""
 
@@ -28,7 +97,6 @@ class StatefulOperatorLogic:
     state_init_coords = None
     _state_data = {}
     _last_coords = Vector((0, 0))
-    _numeric_input = {}
     _undo = False
     _state_snapshot = None
 
@@ -72,7 +140,7 @@ class StatefulOperatorLogic:
     @classmethod
     def get_states_definition(cls):
         if callable(cls.states):
-            return cls.states()
+            return cls.states(operator=None)
         return cls.states
 
     def get_states(self):
@@ -106,7 +174,6 @@ class StatefulOperatorLogic:
         return True
 
     def set_status_text(self, context: Context):
-        # Setup state
         state = self.state
         desc = (
             state.description(self, state)
@@ -115,22 +182,21 @@ class StatefulOperatorLogic:
         )
 
         msg = state_desc(state.name, desc, state.types)
-        if self.state_data.get("is_numeric_edit", False):
-            index = self._substate_index
-            prop = self._stateprop
-            type = prop.type
+        if self._numeric.is_active:
+            prop = self._numeric.prop
+            index = self._numeric.substate_index
             array_length = prop.array_length if prop.array_length else 1
-            if type == "FLOAT":
-                input = [0.0] * array_length
-                for key, val in self._numeric_input.items():
-                    input[key] = val
 
-                input[index] = "*" + str(input[index])
-                input = str(input).replace('"', "").replace("'", "")
-            elif type == "INT":
-                input = self.numeric_input
-
-            msg += "    {}: {}".format(prop.subtype, input)
+            if prop.type == "FLOAT":
+                display = [0.0] * array_length
+                for key in range(array_length):
+                    val = self._numeric.get(key)
+                    display[key] = val if val else 0.0
+                display[index] = "*" + str(display[index])
+                display_str = str(display).replace('"', "").replace("'", "")
+                msg += "    {}: {}".format(prop.subtype, display_str)
+            elif prop.type == "INT":
+                msg += "    {}: {}".format(prop.subtype, self._numeric.current)
 
         context.workspace.status_text_set(msg)
 
@@ -139,7 +205,6 @@ class StatefulOperatorLogic:
 
         # TODO: Allow to define custom logic
 
-        state = self.state
         props = self.get_property()
 
         # Disable for multi props
@@ -158,54 +223,47 @@ class StatefulOperatorLogic:
             return False
         return True
 
-    def init_numeric(self, is_numeric):
-        self._numeric_input = {}
-        self._substate_index = 0
+    def init_numeric(self, is_numeric: bool) -> bool:
+        self._numeric.reset()
 
-        ok = False
-        if is_numeric:
-            ok = self.check_numeric()
-            # TODO: not when iterating substates
-            self.state_data["is_numeric_edit"] = is_numeric and ok
+        if not is_numeric:
+            self._init_substate()
+            return False
 
-        self.init_substate()
+        ok = self.check_numeric()
+        self._numeric.is_active = ok
+        self._init_substate()
         return ok
 
-    def init_substate(self):
-
-        # Reset
-        self._substate_count = None
-        self._stateprop = None
-
+    def _init_substate(self):
+        """Resolve the rna property for the current state and store it on _numeric."""
         props = self.get_property()
-        if not props:
-            return
-        if not props[0]:
+        if not props or not props[0]:
             return
 
-        prop_name = props[0]
-        prop = self.properties.rna_type.properties.get(prop_name)
-        if not prop:
-            return
+        prop = self.properties.rna_type.properties.get(props[0])
+        self._numeric.init_substate(prop)
 
-        self._substate_count = prop.array_length
-        self._stateprop = prop
+    # --- Public numeric helpers (delegate to _numeric) ---
 
     def iterate_substate(self):
-        i = self._substate_index
-        if i + 1 >= self._substate_count:
-            i = 0
-        else:
-            i += 1
-        self._substate_index = i
+        self._numeric.iterate()
 
     @property
-    def numeric_input(self):
-        return self._numeric_input.get(self._substate_index, "")
+    def numeric_input(self) -> str:
+        return self._numeric.current
 
     @numeric_input.setter
-    def numeric_input(self, value):
-        self._numeric_input[self._substate_index] = value
+    def numeric_input(self, value: str):
+        self._numeric.current = value
+
+    def evaluate_numeric_event(self, event: Event):
+        self._numeric.evaluate_event(event)
+
+    def validate_numeric_input(self, value: str) -> str:
+        return self._numeric._validate(value)
+
+    # --- End numeric helpers ---
 
     def check_event(self, event):
         state = self.state
@@ -215,46 +273,10 @@ class StatefulOperatorLogic:
             return True
         if self.state_index == 0 and not self.wait_for_input:
             # Trigger the first state
-            return not self.state_data.get("is_numeric_edit", False)
+            return not self._numeric.is_active
         if state.no_event:
             return True
         return False
-
-    def evaluate_numeric_event(self, event: Event):
-        type = event.type
-        if type == "BACK_SPACE":
-            input = self.numeric_input
-            if len(input):
-                self.numeric_input = input[:-1]
-            return
-
-        if type in ("MINUS", "NUMPAD_MINUS"):
-            input = self.numeric_input
-            if input.startswith("-"):
-                input = input[1:]
-            else:
-                input = "-" + input
-            self.numeric_input = input
-            return
-
-        if is_unit_input(event):
-            self.numeric_input += get_unit_value(event)
-            return
-
-        value = get_value_from_event(event)
-        self.numeric_input += self.validate_numeric_input(value)
-
-    def validate_numeric_input(self, value):
-        """Check if existing input is valid after appending value"""
-        num_input = self.numeric_input
-
-        separators = (".", ",")
-        if value in separators:
-            if any([char in num_input for char in separators]):
-                return ""
-            if not len(num_input) or not num_input[-1].isdigit():
-                return "0."
-        return value
 
     def is_in_previous_states(self, entity):
         i = self.state_index - 1
@@ -269,15 +291,12 @@ class StatefulOperatorLogic:
 
     def prefill_state_props(self, context: Context):
         selected = self.gather_selection(context)
-        states = self.get_states_definition()
 
         # Iterate states and try to prefill state props
         while True:
             index = self.state_index
-            result = None
             state = self.state
-            data = self.get_state_data(index)
-            coords = None
+            self.get_state_data(index)
 
             if not state.allow_prefill:
                 break
@@ -335,6 +354,7 @@ class StatefulOperatorLogic:
 
     def invoke(self, context: Context, event: Event):
         self._state_data.clear()
+        self._numeric = _NumericInput()
         # Create initial snapshot if supported by subclass
         self._state_snapshot = self.create_snapshot(context)
         if hasattr(self, "init"):
@@ -346,13 +366,13 @@ class StatefulOperatorLogic:
         go_modal = True
         if is_numeric_input(event):
             if self.init_numeric(True):
-                self.evaluate_numeric_event(event)
+                self._numeric.evaluate_event(event)
                 retval = {"RUNNING_MODAL"}
                 self.evaluate_state(context, event, False)
 
         # NOTE: This allows to start the operator but waits for action (LMB event).
         # Try to fill states based on selection only when this is True since it doesn't
-        # make senese to respect selection when the user interactivley starts the operator.
+        # make sense to respect selection when the user interactively starts the operator.
         elif self.wait_for_input:
             retval = self.prefill_state_props(context)
             if retval == {"FINISHED"}:
@@ -397,7 +417,7 @@ class StatefulOperatorLogic:
     def redo_states(self, context: Context):
         for i, state in enumerate(self.get_states()):
             if i > self.state_index:
-                # TODO: don't depend on active state, idealy it's possible to go back
+                # TODO: don't depend on active state, ideally it's possible to go back
                 break
             if state.pointer:
                 data = self._state_data.get(i, {})
@@ -420,14 +440,12 @@ class StatefulOperatorLogic:
         # maybe allow to be modal again?
 
     def get_numeric_value(self, context: Context, coords):
-        state = self.state
         prop_name = self.get_property()[0]
         prop = self.properties.rna_type.properties[prop_name]
 
         def parse_input(prop, input):
             units = context.scene.unit_settings
             unit = prop.unit
-            type = prop.type
             value = None
 
             if input == "-":
@@ -437,28 +455,26 @@ class StatefulOperatorLogic:
                     value = bpy.utils.units.to_value(units.system, unit, input)
                 except ValueError:
                     return prop.default
-                if type == "INT":
+                if prop.type == "INT":
                     value = int(value)
-            elif type == "FLOAT":
+            elif prop.type == "FLOAT":
                 value = float(input)
-            elif type == "INT":
+            elif prop.type == "INT":
                 value = int(input)
 
             if value is None:
                 return prop.default
             return value
 
-        size = max(1, self._substate_count)
+        size = max(1, self._numeric.substate_count or 0)
 
         def to_iterable(item):
             if hasattr(item, "__iter__") or hasattr(item, "__getitem__"):
                 return list(item)
-            return [
-                item,
-            ]
+            return [item]
 
         # TODO: Don't evaluate if not needed
-        interactive_val = self._get_state_values(context, state, coords)
+        interactive_val = self._get_state_values(context, self.state, coords)
         if interactive_val is None:
             interactive_val = [None] * size
         else:
@@ -468,11 +484,9 @@ class StatefulOperatorLogic:
         result = [None] * size
 
         for sub_index in range(size):
-            num = None
-
-            input = self._numeric_input.get(sub_index)
-            if input:
-                num = parse_input(prop, input)
+            raw = self._numeric.get(sub_index)
+            if raw:
+                num = parse_input(prop, raw)
                 result[sub_index] = num
                 storage[sub_index] = num
             elif interactive_val[sub_index] is not None:
@@ -482,7 +496,7 @@ class StatefulOperatorLogic:
 
         self.state_data["numeric_input"] = storage
 
-        if not self._substate_count:
+        if not self._numeric.substate_count:
             return result[0]
         return result
 
@@ -497,14 +511,14 @@ class StatefulOperatorLogic:
         event_triggered = self.check_event(event)
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
 
-        is_numeric_edit = self.state_data.get("is_numeric_edit", False)
+        is_numeric_edit = self._numeric.is_active
         is_numeric_event = event.value == "PRESS" and is_numeric_input(event)
 
         if is_numeric_edit:
             if is_unit_input(event) and event.value == "PRESS":
                 is_numeric_event = True
             elif event.type == "TAB" and event.value == "PRESS":
-                self.iterate_substate()
+                self._numeric.iterate()
                 self.set_status_text(context)
         elif is_numeric_event:
             # Initialize
@@ -532,7 +546,7 @@ class StatefulOperatorLogic:
 
         # TODO: Disable numeric input when no state.property
         if is_numeric_event:
-            self.evaluate_numeric_event(event)
+            self._numeric.evaluate_event(event)
             self.set_status_text(context)
 
         return self.evaluate_state(context, event, event_triggered)
@@ -548,14 +562,13 @@ class StatefulOperatorLogic:
     def evaluate_state(self, context: Context, event, triggered):
         state = self.state
         data = self.state_data
-        is_numeric = self.state_data.get("is_numeric_edit", False)
+        is_numeric = self._numeric.is_active
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
 
         if self.state_init_coords is None:
             self.state_init_coords = coords
 
         # Pick hovered element
-        hovered = None
         is_picked = False
         if not is_numeric and state.pointer:
             pick = self.get_func(state, "pick_element")
@@ -656,38 +669,43 @@ class StatefulOperatorLogic:
                 continue
             self.set_state_pointer(None, index=i)
         self._state_data.clear()
+        self._numeric = _NumericInput()
         self._state_snapshot = None
 
-    def do_continuous_draw(self, context):
-        # end operator
-        self._end(context, True)
-        bpy.ops.ed.undo_push(message=self.bl_label)
+    def _take_last_state_pointer(self):
+        """Find the last state with a pointer and return its implicit values + type.
 
-        # save last prop
-        last_pointer = None
-        last_type = None
+        Returns (last_index, implicit_values, type_metadata).
+        """
         for i, s in reversed(list(enumerate(self.get_states()))):
             if not s.pointer:
                 continue
-            last_index = i
-            last_pointer = getattr(self, s.pointer)
-            # Save the type before resetting
             last_type = self._state_data.get(i, {}).get("type")
-            break
+            values = to_list(self.get_state_pointer(index=i, implicit=True))
+            return i, values, last_type
+        return None, [], None
 
-        values = to_list(self.get_state_pointer(index=last_index, implicit=True))
+    def do_continuous_draw(self, context):
+        """Finish the current segment and immediately start the next one.
 
-        # reset operator
+        The last pointer of the finished segment (e.g. the endpoint of a line)
+        becomes the first pointer of the new segment, creating a chain.
+        """
+        # Commit the current segment
+        self._end(context, True)
+        bpy.ops.ed.undo_push(message=self.bl_label)
+
+        # Save the endpoint that will seed the next segment, before the reset wipes state
+        last_index, values, last_type = self._take_last_state_pointer()
+
+        # Reset operator for the next segment
         self._reset_op()
 
-        data = {}
-        self._state_data[0] = data
+        # Re-inject the saved endpoint as the first pointer of the new segment
+        data = self.get_state_data(0)
         data["is_existing_entity"] = True
-        # Restore the type so set_state_pointer can work
         if last_type:
             data["type"] = last_type
-
-        # set first pointer
         self.set_state_pointer(values, index=0, implicit=True)
         self.set_state(context, 1)
 

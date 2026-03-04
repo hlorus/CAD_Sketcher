@@ -41,8 +41,17 @@ class View3D_OT_invoke_tool(Operator):
 
         options["wait_for_input"] = True
 
-        op_name = self.operator.split(".", 1)
-        op = getattr(getattr(bpy.ops, op_name[0]), op_name[1])
+        parts = self.operator.split(".", 1)
+        if len(parts) != 2:
+            self.report({"ERROR"}, f"Invalid operator id '{self.operator}': expected 'module.name'")
+            return {"CANCELLED"}
+
+        module = getattr(bpy.ops, parts[0], None)
+        op = getattr(module, parts[1], None) if module is not None else None
+        if op is None:
+            self.report({"ERROR"}, f"Operator not found: '{self.operator}'")
+            return {"CANCELLED"}
+
         if op.poll():
             op("INVOKE_DEFAULT", **options)
         return {"FINISHED"}
