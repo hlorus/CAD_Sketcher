@@ -24,8 +24,6 @@ OperatorState = namedtuple(
         "parse_selection",  # Prefill Function which chooses entity to use for this stat
         "pick_element",
         "create_element",
-        # TODO: Implement!
-        "use_interactive_placemenet",  # Create new state element based on mouse coordinates
         "check_pointer",
         "optional",  # Operator can be run before this state's pointer/property is submitted
     ),
@@ -51,7 +49,6 @@ def state_from_args(name: str, **kwargs):
         "parse_selection": None,
         "pick_element": None,
         "create_element": None,
-        "use_interactive_placemenet": True,
         "check_pointer": None,
         "optional": False,
     }
