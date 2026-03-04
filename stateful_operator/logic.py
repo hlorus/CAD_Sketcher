@@ -3,6 +3,7 @@ from bpy.props import IntProperty, BoolProperty
 from bpy.types import Context, Event
 from mathutils import Vector
 
+from .state_machine import _StateMachineMixin
 from .utilities.generic import to_list
 from .utilities.description import state_desc, stateful_op_desc
 from .utilities.keymap import get_key_map_desc, is_numeric_input, is_unit_input
@@ -10,15 +11,14 @@ from .utilities.numeric import NumericInput
 
 from typing import Optional, Any
 
-# Re-export so existing `from .logic import _NumericInput` imports keep working.
+# Re-export so any `from .logic import _NumericInput` keeps working.
 _NumericInput = NumericInput
 
 
-class StatefulOperatorLogic:
-    """Base class which implements the stateful operator behaviour.
+class StatefulOperatorLogic(_StateMachineMixin):
+    """Stateful operator behaviour: numeric input, modal loop, undo, continuous draw.
 
-    Subclasses must define a ``states`` attribute (list or callable returning a
-    list of ``OperatorState``) and a ``main(context)`` method.
+    Inherits the pure state machine from ``_StateMachineMixin``.
 
     Lifecycle (modal path)
     ----------------------
@@ -35,9 +35,8 @@ class StatefulOperatorLogic:
     continuous_draw: BoolProperty(name="Continuous Draw", default=False)
 
     executed = False
-    # Stores the screen coords when a state first runs (used by state_func for delta/scale)
+    # Screen coords when a state first runs — used by state_func for delta/scale
     state_init_coords = None
-    _state_data = {}
     _last_coords = Vector((0, 0))
     _undo = False
     _state_snapshot = None
@@ -66,30 +65,8 @@ class StatefulOperatorLogic:
         pass
 
     # -------------------------------------------------------------------------
-    # State machine — states, transitions, data
+    # State transitions (depend on numeric + status text — stay here)
     # -------------------------------------------------------------------------
-
-    @classmethod
-    def get_states_definition(cls):
-        if callable(cls.states):
-            return cls.states(operator=None)
-        return cls.states
-
-    def get_states(self):
-        if callable(self.states):
-            return self.states(operator=self)
-        return self.states
-
-    @property
-    def state(self):
-        return self.get_states()[self.state_index]
-
-    def _index_from_state(self, state):
-        return [e.name for e in self.get_states()].index(state)
-
-    @state.setter
-    def state(self, state):
-        self.state_index = self._index_from_state(state)
 
     def set_state(self, context: Context, index: int):
         self.state_index = index
@@ -104,96 +81,6 @@ class StatefulOperatorLogic:
             return False
         self.set_state(context, i + 1)
         return True
-
-    @property
-    def state_data(self):
-        return self.get_state_data(self.state_index)
-
-    def get_state_data(self, index):
-        return self._state_data.setdefault(index, {})
-
-    def check_props(self):
-        """Return True when every non-optional state has its pointer/property set."""
-        for i, state in enumerate(self.get_states()):
-            if state.optional:
-                continue
-            if state.pointer:
-                if not bool(self.get_state_pointer(index=i)):
-                    return False
-            else:
-                props = self.get_property(index=i)
-                if props:
-                    for p in props:
-                        if not self.properties.is_property_set(p):
-                            return False
-        return True
-
-    def is_in_previous_states(self, entity):
-        """Return True if *entity* is already used by an earlier state's pointer."""
-        i = self.state_index - 1
-        while i >= 0:
-            state = self.get_states()[i]
-            if state.pointer and entity == getattr(self, state.pointer):
-                return True
-            i -= 1
-        return False
-
-    # -------------------------------------------------------------------------
-    # Property / callback resolution
-    # -------------------------------------------------------------------------
-
-    def get_property(self, index: Optional[int] = None):
-        if index is None:
-            index = self.state_index
-        state = self.get_states()[index]
-
-        if state.property is None:
-            return None
-
-        if callable(state.property):
-            props = state.property(self, index)
-        elif state.property:
-            if callable(getattr(self, state.property)):
-                props = getattr(self, state.property)(index)
-            else:
-                props = state.property
-        elif hasattr(self, "state_property") and callable(self.state_property):
-            props = self.state_property(index)
-        else:
-            return None
-
-        return to_list(props)
-
-    def get_func(self, state, name):
-        """Resolve a callback from the state definition, falling back to operator method.
-
-        A callback can be specified as:
-        - a callable on the state directly
-        - a string naming a method on the operator
-        - absent, in which case the operator method of the same name is used
-        """
-        func = getattr(state, name, None)
-
-        if func:
-            if isinstance(func, str):
-                method = getattr(self, func, None)
-                if method is None:
-                    raise AttributeError(
-                        f"{type(self).__name__} has no method '{func}' "
-                        f"(referenced by state '{state.name}' field '{name}')"
-                    )
-                return method
-            return func
-
-        if hasattr(self, name):
-            return getattr(self, name)
-        return None
-
-    def has_func(self, state, name):
-        return self.get_func(state, name) is not None
-
-    def state_func(self, context, coords):
-        raise NotImplementedError
 
     # -------------------------------------------------------------------------
     # Numeric input — delegates to self._numeric (NumericInput)
@@ -405,8 +292,7 @@ class StatefulOperatorLogic:
             return retval
 
         succeede = retval == {"FINISHED"}
-        # NOTE: It seems like there's no undo step pushed if an operator finishes
-        # from invoke. Pushing one here causes duplicated constraints after redo.
+        # NOTE: Pushing an undo step here causes duplicated constraints after redo.
         return self._end(context, succeede)
 
     def execute(self, context: Context):
@@ -468,7 +354,7 @@ class StatefulOperatorLogic:
     # -------------------------------------------------------------------------
 
     def _get_state_values(self, context: Context, state, coords):
-        """Call the state's state_func and return raw position/value, or None."""
+        """Call the state's state_func and return the raw position/value, or None."""
         cb = self.get_func(state, "state_func")
         if not cb:
             return None
@@ -477,8 +363,8 @@ class StatefulOperatorLogic:
     def _pick_hovered(self, context: Context, coords, state, is_numeric):
         """Try to pick an existing element under the cursor.
 
-        Returns ``(is_picked, pointer_values)`` — pointer_values is only
-        meaningful when is_picked is True.
+        Returns ``(is_picked, pointer_values)`` — pointer_values only valid when
+        is_picked is True.
         """
         if is_numeric or not state.pointer:
             return False, None
@@ -489,10 +375,10 @@ class StatefulOperatorLogic:
         return False, None
 
     def _resolve_values(self, context: Context, coords, state, is_numeric, is_picked):
-        """Compute property values for the current state via state_func or numeric input.
+        """Compute property values via state_func or numeric input.
 
         Returns ``(values, ok)`` — ok indicates the state can advance.
-        Sets properties on self and marks ``_undo`` if values were produced.
+        Sets properties on self and marks ``_undo`` when values are produced.
         """
         ok = False
         values = []
@@ -516,7 +402,7 @@ class StatefulOperatorLogic:
         return values, ok
 
     def _apply_undo(self, context: Context):
-        """Restore state to snapshot/undo and replay redo_states."""
+        """Restore to snapshot or Blender undo, then replay redo_states."""
         if self._state_snapshot is not None:
             self.restore_snapshot(context, self._state_snapshot)
             self.on_before_redo_states(context)
@@ -697,10 +583,3 @@ class StatefulOperatorLogic:
         if cls.__doc__:
             descs.append(cls.__doc__)
         return stateful_op_desc(" ".join(descs), *states)
-
-    # -------------------------------------------------------------------------
-    # Abstract — must be implemented by subclasses
-    # -------------------------------------------------------------------------
-
-    def gather_selection(self, context: Context):
-        raise NotImplementedError
