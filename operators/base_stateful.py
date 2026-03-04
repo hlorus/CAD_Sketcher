@@ -1,4 +1,4 @@
-from typing import Union, Any
+from typing import Optional, Any
 
 import bpy
 from bpy.types import Context
@@ -122,7 +122,7 @@ class GenericEntityOp(StatefulOperator):
             return pointer_name + "_fallback"
         return ""
 
-    def get_state_pointer(self, index=Union[None, int], implicit=False):
+    def get_state_pointer(self, index: Optional[int] = None, implicit=False):
         retval = super().get_state_pointer(index=index, implicit=implicit)
         if retval:
             return retval

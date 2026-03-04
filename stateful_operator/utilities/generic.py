@@ -54,11 +54,12 @@ def bvhtree_from_object(object: Object) -> BVHTree:
     if mesh is None or len(mesh.vertices) == 0:
         return None
 
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.transform(object.matrix_world)
-
-    bvhtree = BVHTree.FromBMesh(bm)
-    object_eval.to_mesh_clear()
-    bm.free()
+    try:
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bm.transform(object.matrix_world)
+        bvhtree = BVHTree.FromBMesh(bm)
+    finally:
+        object_eval.to_mesh_clear()
+        bm.free()
     return bvhtree

@@ -434,6 +434,7 @@ class StatefulOperatorLogic:
                     self.set_state_pointer(values, index=i, implicit=True)
 
     def execute(self, context: Context):
+        self._numeric = _NumericInput()
         self.redo_states(context)
         ok = self.main(context)
         return self._end(context, ok, skip_undo=True)
@@ -537,7 +538,6 @@ class StatefulOperatorLogic:
             if is_numeric_event:
                 pass
             elif is_mousemove and is_numeric_edit:
-                event_triggered = False
                 pass
             elif not state.interactive:
                 return self._handle_pass_through(context, event)
