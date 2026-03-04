@@ -1,56 +1,54 @@
-from collections import namedtuple
-
-OperatorState = namedtuple(
-    "OperatorState",
-    (
-        "name",  # The name to display in the interface
-        "description",  # Text to be displayed in statusbar
-        # Operator property this state acts upon
-        # Can also be a list of property names or a callback that returns
-        # a set of properties dynamically. When not explicitly set to None the
-        # operators state_property function will be called.
-        "property",
-        # Optional: A state can reference an element, pointer attribute set the name of property function
-        # if set this will be passed to main func,
-        # state_func should fill main property and create_element should fill this property
-        # maybe this could just store it in a normal attr, should work as long as the same operator instance is used, test!
-        "pointer",
-        "types",  # Types the pointer property can accept
-        "no_event",  # Trigger state without an event
-        "interactive",  # Always evaluate state and confirm by user input
-        "use_create",  # Enables or Disables creation of the element
-        "state_func",  # Function to get the state property value from mouse coordinates
-        "allow_prefill",  # Define if state should be filled from selected entities when invoked
-        "parse_selection",  # Prefill Function which chooses entity to use for this stat
-        "pick_element",
-        "create_element",
-        "check_pointer",
-        "optional",  # Operator can be run before this state's pointer/property is submitted
-    ),
-)
-del namedtuple
+from dataclasses import dataclass, field
+from typing import Any, Callable, Optional, Tuple
 
 
-def state_from_args(name: str, **kwargs):
-    """
-    Use so each state can avoid defining all members of the named tuple.
-    """
-    kw = {
-        "name": name,
-        "description": "",
-        "property": "",
-        "pointer": None,
-        "types": (),
-        "no_event": False,
-        "interactive": False,
-        "use_create": True,
-        "state_func": None,
-        "allow_prefill": True,
-        "parse_selection": None,
-        "pick_element": None,
-        "create_element": None,
-        "check_pointer": None,
-        "optional": False,
-    }
-    kw.update(kwargs)
-    return OperatorState(**kw)
+@dataclass(frozen=True)
+class OperatorState:
+    # The name to display in the interface
+    name: str
+
+    # Text to be displayed in statusbar
+    description: Any = ""
+
+    # Operator property this state acts upon.
+    # Can also be a list of property names or a callable that returns
+    # a set of properties dynamically. When not explicitly set to None the
+    # operator's state_property method will be called.
+    property: Any = ""
+
+    # Optional: A state can reference an element via a pointer attribute.
+    # If set, state_func fills the main property and create_element fills this pointer.
+    pointer: Optional[str] = None
+
+    # Types the pointer property can accept
+    types: Tuple = ()
+
+    # Trigger state without an event
+    no_event: bool = False
+
+    # Always evaluate state and confirm by user input
+    interactive: bool = False
+
+    # Enables or disables creation of the element
+    use_create: bool = True
+
+    # Callback (or string name) to get the state property value from mouse coordinates
+    state_func: Any = None
+
+    # Define if state should be filled from selected entities when invoked
+    allow_prefill: bool = True
+
+    # Prefill callback which chooses an entity to use for this state
+    parse_selection: Any = None
+
+    pick_element: Any = None
+    create_element: Any = None
+    check_pointer: Any = None
+
+    # Operator can be run before this state's pointer/property is submitted
+    optional: bool = False
+
+
+def state_from_args(name: str, **kwargs) -> OperatorState:
+    """Create an OperatorState, with all fields optional except name."""
+    return OperatorState(name=name, **kwargs)
