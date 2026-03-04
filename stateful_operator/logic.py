@@ -3,9 +3,6 @@ from bpy.props import IntProperty, BoolProperty
 from bpy.types import Context, Event
 from mathutils import Vector
 
-# TODO: Move to entity extended op
-from .. import global_data
-
 from .utilities.generic import to_list
 from .utilities.description import state_desc, stateful_op_desc
 from .utilities.keymap import (
@@ -297,12 +294,10 @@ class StatefulOperatorLogic:
 
     @property
     def state_data(self):
-        return self._state_data.setdefault(self.state_index, {})
+        return self.get_state_data(self.state_index)
 
     def get_state_data(self, index):
-        if not self._state_data.get(index):
-            self._state_data[index] = {}
-        return self._state_data[index]
+        return self._state_data.setdefault(index, {})
 
     def get_func(self, state, name):
         # fallback to operator method if function isn't specified by state
@@ -311,7 +306,13 @@ class StatefulOperatorLogic:
         if func:
             if isinstance(func, str):
                 # callback can be specified by function name
-                return getattr(self, func)
+                method = getattr(self, func, None)
+                if method is None:
+                    raise AttributeError(
+                        f"{type(self).__name__} has no method '{func}' "
+                        f"(referenced by state '{state.name}' field '{name}')"
+                    )
+                return method
             return func
 
         if hasattr(self, name):
@@ -323,6 +324,14 @@ class StatefulOperatorLogic:
 
     def state_func(self, context, coords):
         raise NotImplementedError
+
+    def on_before_redo_states(self, context: Context):
+        """Called before redo_states during undo/redo cycles.
+
+        Override to clear any transient state that must be rebuilt
+        (e.g. entity ignore lists used by draw handlers).
+        """
+        pass
 
     def invoke(self, context: Context, event: Event):
         self._state_data.clear()
@@ -596,13 +605,13 @@ class StatefulOperatorLogic:
             if self._state_snapshot is not None:
                 # Use custom snapshot
                 self.restore_snapshot(context, self._state_snapshot)
-                global_data.ignore_list.clear()
+                self.on_before_redo_states(context)
                 self.redo_states(context)
             else:
                 # Fall back to Blender's undo system
                 bpy.ops.ed.undo_push(message="Redo: " + self.bl_label)
                 bpy.ops.ed.undo()
-                global_data.ignore_list.clear()
+                self.on_before_redo_states(context)
                 self.redo_states(context)
 
             self._undo = False
@@ -689,7 +698,7 @@ class StatefulOperatorLogic:
         context.window.cursor_modal_restore()
         if hasattr(self, "fini"):
             self.fini(context, succeede)
-        global_data.ignore_list.clear()
+        self.on_before_redo_states(context)
 
         context.workspace.status_text_set(None)
 

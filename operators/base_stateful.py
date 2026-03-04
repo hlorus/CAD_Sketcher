@@ -187,6 +187,9 @@ class GenericEntityOp(StatefulOperator):
         selected.extend(list(context.scene.sketcher.entities.selected))
         return selected
 
+    def on_before_redo_states(self, context: Context):
+        global_data.ignore_list.clear()
+
     def create_snapshot(self, context: Context) -> Any:
         """Create a complete snapshot of all sketcher state using serialization"""
         # Use the existing serialization system
