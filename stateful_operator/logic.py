@@ -5,137 +5,69 @@ from mathutils import Vector
 
 from .utilities.generic import to_list
 from .utilities.description import state_desc, stateful_op_desc
-from .utilities.keymap import (
-    get_key_map_desc,
-    is_numeric_input,
-    is_unit_input,
-    get_unit_value,
-    get_value_from_event,
-)
+from .utilities.keymap import get_key_map_desc, is_numeric_input, is_unit_input
+from .utilities.numeric import NumericInput
 
 from typing import Optional, Any
 
-
-class _NumericInput:
-    """Manages the text input buffer for numeric entry in a stateful operator.
-
-    Handles per-substate string buffers (e.g. X, Y, Z components of a vector),
-    substate cycling via TAB, and validation of entered characters.
-    """
-
-    def __init__(self):
-        self._buffer: dict = {}
-        self.substate_index: int = 0
-        self.substate_count: Optional[int] = None
-        self.prop = None
-        self.is_active: bool = False
-
-    def reset(self):
-        self._buffer = {}
-        self.substate_index = 0
-        self.substate_count = None
-        self.prop = None
-        self.is_active = False
-
-    def init_substate(self, prop):
-        self.substate_count = prop.array_length if prop else None
-        self.prop = prop
-
-    def iterate(self):
-        count = self.substate_count or 1
-        self.substate_index = (self.substate_index + 1) % count
-
-    @property
-    def current(self) -> str:
-        return self._buffer.get(self.substate_index, "")
-
-    @current.setter
-    def current(self, value: str):
-        self._buffer[self.substate_index] = value
-
-    def get(self, sub_index: int) -> str:
-        return self._buffer.get(sub_index, "")
-
-    def evaluate_event(self, event):
-        event_type = event.type
-        if event_type == "BACK_SPACE":
-            if self.current:
-                self.current = self.current[:-1]
-            return
-
-        if event_type in ("MINUS", "NUMPAD_MINUS"):
-            self.current = self.current[1:] if self.current.startswith("-") else "-" + self.current
-            return
-
-        if is_unit_input(event):
-            self.current += get_unit_value(event)
-            return
-
-        value = get_value_from_event(event)
-        self.current += self._validate(value)
-
-    def _validate(self, value: str) -> str:
-        """Check if value can be appended to the current input string."""
-        separators = (".", ",")
-        if value in separators:
-            if any(c in self.current for c in separators):
-                return ""
-            if not self.current or not self.current[-1].isdigit():
-                return "0."
-        return value
+# Re-export so existing `from .logic import _NumericInput` imports keep working.
+_NumericInput = NumericInput
 
 
 class StatefulOperatorLogic:
-    """Base class which implements the behaviour logic"""
+    """Base class which implements the stateful operator behaviour.
+
+    Subclasses must define a ``states`` attribute (list or callable returning a
+    list of ``OperatorState``) and a ``main(context)`` method.
+
+    Lifecycle (modal path)
+    ----------------------
+    invoke → prefill_state_props (optional) → modal loop:
+        modal → evaluate_state → [next_state | _end | do_continuous_draw]
+
+    Lifecycle (redo/execute path)
+    -----------------------------
+    execute → redo_states → main → _end
+    """
 
     state_index: IntProperty(options={"HIDDEN", "SKIP_SAVE"})
     wait_for_input: BoolProperty(options={"HIDDEN", "SKIP_SAVE"}, default=True)
     continuous_draw: BoolProperty(name="Continuous Draw", default=False)
 
     executed = False
-    # Stores the returned value of state_func the first time it runs per state
+    # Stores the screen coords when a state first runs (used by state_func for delta/scale)
     state_init_coords = None
     _state_data = {}
     _last_coords = Vector((0, 0))
     _undo = False
     _state_snapshot = None
 
-    def create_snapshot(self, context: Context) -> Any:
-        """Create a snapshot of relevant state.
+    # -------------------------------------------------------------------------
+    # Snapshot / undo hooks (override in subclasses)
+    # -------------------------------------------------------------------------
 
-        To be overridden by subclasses. Return None to use Blender's undo system.
+    def create_snapshot(self, context: Context) -> Any:
+        """Return a snapshot of state to restore on cancel/undo.
+
+        Return ``None`` to fall back to Blender's undo system.
         """
         return None
 
     def restore_snapshot(self, context: Context, snapshot: Any) -> None:
-        """Restore state from snapshot.
+        """Restore state from a snapshot produced by ``create_snapshot``."""
+        pass
 
-        To be overridden by subclasses.
+    def on_before_redo_states(self, context: Context):
+        """Called before ``redo_states`` during undo/redo cycles.
+
+        Override to clear transient state that must be rebuilt
+        (e.g. entity ignore lists used by draw handlers).
         """
         pass
 
-    def get_property(self, index: Optional[int] = None):
-        if index is None:
-            index = self.state_index
-        state = self.get_states()[index]
-
-        if state.property is None:
-            return None
-
-        if callable(state.property):
-            props = state.property(self, index)
-        elif state.property:
-            if callable(getattr(self, state.property)):
-                props = getattr(self, state.property)(index)
-            else:
-                props = state.property
-        elif hasattr(self, "state_property") and callable(self.state_property):
-            props = self.state_property(index)
-        else:
-            return None
-
-        retval = to_list(props)
-        return retval
+    # -------------------------------------------------------------------------
+    # State machine — states, transitions, data
+    # -------------------------------------------------------------------------
 
     @classmethod
     def get_states_definition(cls):
@@ -173,6 +105,100 @@ class StatefulOperatorLogic:
         self.set_state(context, i + 1)
         return True
 
+    @property
+    def state_data(self):
+        return self.get_state_data(self.state_index)
+
+    def get_state_data(self, index):
+        return self._state_data.setdefault(index, {})
+
+    def check_props(self):
+        """Return True when every non-optional state has its pointer/property set."""
+        for i, state in enumerate(self.get_states()):
+            if state.optional:
+                continue
+            if state.pointer:
+                if not bool(self.get_state_pointer(index=i)):
+                    return False
+            else:
+                props = self.get_property(index=i)
+                if props:
+                    for p in props:
+                        if not self.properties.is_property_set(p):
+                            return False
+        return True
+
+    def is_in_previous_states(self, entity):
+        """Return True if *entity* is already used by an earlier state's pointer."""
+        i = self.state_index - 1
+        while i >= 0:
+            state = self.get_states()[i]
+            if state.pointer and entity == getattr(self, state.pointer):
+                return True
+            i -= 1
+        return False
+
+    # -------------------------------------------------------------------------
+    # Property / callback resolution
+    # -------------------------------------------------------------------------
+
+    def get_property(self, index: Optional[int] = None):
+        if index is None:
+            index = self.state_index
+        state = self.get_states()[index]
+
+        if state.property is None:
+            return None
+
+        if callable(state.property):
+            props = state.property(self, index)
+        elif state.property:
+            if callable(getattr(self, state.property)):
+                props = getattr(self, state.property)(index)
+            else:
+                props = state.property
+        elif hasattr(self, "state_property") and callable(self.state_property):
+            props = self.state_property(index)
+        else:
+            return None
+
+        return to_list(props)
+
+    def get_func(self, state, name):
+        """Resolve a callback from the state definition, falling back to operator method.
+
+        A callback can be specified as:
+        - a callable on the state directly
+        - a string naming a method on the operator
+        - absent, in which case the operator method of the same name is used
+        """
+        func = getattr(state, name, None)
+
+        if func:
+            if isinstance(func, str):
+                method = getattr(self, func, None)
+                if method is None:
+                    raise AttributeError(
+                        f"{type(self).__name__} has no method '{func}' "
+                        f"(referenced by state '{state.name}' field '{name}')"
+                    )
+                return method
+            return func
+
+        if hasattr(self, name):
+            return getattr(self, name)
+        return None
+
+    def has_func(self, state, name):
+        return self.get_func(state, name) is not None
+
+    def state_func(self, context, coords):
+        raise NotImplementedError
+
+    # -------------------------------------------------------------------------
+    # Numeric input — delegates to self._numeric (NumericInput)
+    # -------------------------------------------------------------------------
+
     def set_status_text(self, context: Context):
         state = self.state
         desc = (
@@ -201,50 +227,38 @@ class StatefulOperatorLogic:
         context.workspace.status_text_set(msg)
 
     def check_numeric(self):
-        """Check if the state supports numeric edit"""
-
+        """Return True if the current state supports numeric text entry."""
         # TODO: Allow to define custom logic
-
         props = self.get_property()
-
-        # Disable for multi props
         if not props or len(props) > 1:
             return False
-
         prop_name = props[0]
         if not prop_name:
             return False
-
         prop = self.properties.rna_type.properties.get(prop_name)
         if not prop:
             return False
-
-        if prop.type not in ("INT", "FLOAT"):
-            return False
-        return True
+        return prop.type in ("INT", "FLOAT")
 
     def init_numeric(self, is_numeric: bool) -> bool:
         self._numeric.reset()
-
         if not is_numeric:
             self._init_substate()
             return False
-
         ok = self.check_numeric()
         self._numeric.is_active = ok
         self._init_substate()
         return ok
 
     def _init_substate(self):
-        """Resolve the rna property for the current state and store it on _numeric."""
+        """Resolve the rna property for the current state and cache it on _numeric."""
         props = self.get_property()
         if not props or not props[0]:
             return
-
         prop = self.properties.rna_type.properties.get(props[0])
         self._numeric.init_substate(prop)
 
-    # --- Public numeric helpers (delegate to _numeric) ---
+    # Public wrappers — kept for API compatibility with operator subclasses
 
     def iterate_substate(self):
         self._numeric.iterate()
@@ -263,36 +277,67 @@ class StatefulOperatorLogic:
     def validate_numeric_input(self, value: str) -> str:
         return self._numeric._validate(value)
 
-    # --- End numeric helpers ---
+    def get_numeric_value(self, context: Context, coords):
+        """Convert the current numeric text buffer to a typed value (or list)."""
+        prop_name = self.get_property()[0]
+        prop = self.properties.rna_type.properties[prop_name]
 
-    def check_event(self, event):
-        state = self.state
-        is_confirm_button = event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER")
+        def parse_input(prop, raw):
+            units = context.scene.unit_settings
+            unit = prop.unit
+            value = None
+            if raw == "-":
+                pass
+            elif unit != "NONE":
+                try:
+                    value = bpy.utils.units.to_value(units.system, unit, raw)
+                except ValueError:
+                    return prop.default
+                if prop.type == "INT":
+                    value = int(value)
+            elif prop.type == "FLOAT":
+                value = float(raw)
+            elif prop.type == "INT":
+                value = int(raw)
+            return prop.default if value is None else value
 
-        if is_confirm_button and event.value == "PRESS":
-            return True
-        if self.state_index == 0 and not self.wait_for_input:
-            # Trigger the first state
-            return not self._numeric.is_active
-        if state.no_event:
-            return True
-        return False
+        def to_iterable(item):
+            if hasattr(item, "__iter__") or hasattr(item, "__getitem__"):
+                return list(item)
+            return [item]
 
-    def is_in_previous_states(self, entity):
-        i = self.state_index - 1
-        while True:
-            if i < 0:
-                break
-            state = self.get_states()[i]
-            if state.pointer and entity == getattr(self, state.pointer):
-                return True
-            i -= 1
-        return False
+        size = max(1, self._numeric.substate_count or 0)
+
+        # TODO: Don't evaluate interactive value if not needed
+        interactive_val = self._get_state_values(context, self.state, coords)
+        if interactive_val is None:
+            interactive_val = [None] * size
+        else:
+            interactive_val = to_iterable(interactive_val)
+
+        storage = [None] * size
+        result = [None] * size
+        for sub_index in range(size):
+            raw = self._numeric.get(sub_index)
+            if raw:
+                num = parse_input(prop, raw)
+                result[sub_index] = num
+                storage[sub_index] = num
+            elif interactive_val[sub_index] is not None:
+                result[sub_index] = interactive_val[sub_index]
+            else:
+                result[sub_index] = prop.default
+
+        self.state_data["numeric_input"] = storage
+        return result[0] if not self._numeric.substate_count else result
+
+    # -------------------------------------------------------------------------
+    # Selection prefill
+    # -------------------------------------------------------------------------
 
     def prefill_state_props(self, context: Context):
         selected = self.gather_selection(context)
 
-        # Iterate states and try to prefill state props
         while True:
             index = self.state_index
             state = self.state
@@ -311,82 +356,46 @@ class StatefulOperatorLogic:
             break
         return {"RUNNING_MODAL"}
 
-    @property
-    def state_data(self):
-        return self.get_state_data(self.state_index)
+    # -------------------------------------------------------------------------
+    # Operator lifecycle — invoke / modal / execute / _end
+    # -------------------------------------------------------------------------
 
-    def get_state_data(self, index):
-        return self._state_data.setdefault(index, {})
-
-    def get_func(self, state, name):
-        # fallback to operator method if function isn't specified by state
-        func = getattr(state, name, None)
-
-        if func:
-            if isinstance(func, str):
-                # callback can be specified by function name
-                method = getattr(self, func, None)
-                if method is None:
-                    raise AttributeError(
-                        f"{type(self).__name__} has no method '{func}' "
-                        f"(referenced by state '{state.name}' field '{name}')"
-                    )
-                return method
-            return func
-
-        if hasattr(self, name):
-            return getattr(self, name)
-        return None
-
-    def has_func(self, state, name):
-        return self.get_func(state, name) is not None
-
-    def state_func(self, context, coords):
-        raise NotImplementedError
-
-    def on_before_redo_states(self, context: Context):
-        """Called before redo_states during undo/redo cycles.
-
-        Override to clear any transient state that must be rebuilt
-        (e.g. entity ignore lists used by draw handlers).
-        """
-        pass
+    def check_event(self, event):
+        is_confirm = event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER")
+        if is_confirm and event.value == "PRESS":
+            return True
+        if self.state_index == 0 and not self.wait_for_input:
+            return not self._numeric.is_active
+        if self.state.no_event:
+            return True
+        return False
 
     def invoke(self, context: Context, event: Event):
         self._state_data.clear()
-        self._numeric = _NumericInput()
-        # Create initial snapshot if supported by subclass
+        self._numeric = NumericInput()
         self._state_snapshot = self.create_snapshot(context)
+
         if hasattr(self, "init"):
             if not self.init(context, event):
                 return self._end(context, False)
 
         retval = {"RUNNING_MODAL"}
-
         go_modal = True
+
         if is_numeric_input(event):
             if self.init_numeric(True):
                 self._numeric.evaluate_event(event)
-                retval = {"RUNNING_MODAL"}
                 self.evaluate_state(context, event, False)
 
-        # NOTE: This allows to start the operator but waits for action (LMB event).
-        # Try to fill states based on selection only when this is True since it doesn't
-        # make sense to respect selection when the user interactively starts the operator.
+        # wait_for_input=True: respect selection for prefill, but wait for LMB
         elif self.wait_for_input:
             retval = self.prefill_state_props(context)
             if retval == {"FINISHED"}:
                 go_modal = False
-
-            # NOTE: It might make sense to cancel Operator if no prop could be filled
-            # Otherwise it might not be obvious that an operator is running
-            # if self.state_index == 0:
-            #     return self._end(context, False)
-
             if not self.executed and self.check_props():
                 self.run_op(context)
                 self.executed = True
-            context.area.tag_redraw()  # doesn't seem to work...
+            context.area.tag_redraw()
 
         self.set_status_text(context)
 
@@ -396,113 +405,17 @@ class StatefulOperatorLogic:
             return retval
 
         succeede = retval == {"FINISHED"}
-        if succeede:
-            # NOTE: It seems like there's no undo step pushed if an operator finishes from invoke
-            # could push an undo_step here however this causes duplicated constraints after redo,
-            # disable for now
-            # bpy.ops.ed.undo_push()
-            pass
+        # NOTE: It seems like there's no undo step pushed if an operator finishes
+        # from invoke. Pushing one here causes duplicated constraints after redo.
         return self._end(context, succeede)
 
-    def run_op(self, context: Context):
-        if not hasattr(self, "main"):
-            raise NotImplementedError(
-                "StatefulOperators need to have a main method defined!"
-            )
-        retval = self.main(context)
-        self.executed = True
-        return retval
-
-    # Creates non-persistent data
-    def redo_states(self, context: Context):
-        for i, state in enumerate(self.get_states()):
-            if i > self.state_index:
-                # TODO: don't depend on active state, ideally it's possible to go back
-                break
-            if state.pointer:
-                data = self._state_data.get(i, {})
-                is_existing_entity = data["is_existing_entity"]
-
-                props = self.get_property(index=i)
-                if props and not is_existing_entity:
-                    create = self.get_func(state, "create_element")
-
-                    ret_values = create(
-                        context, [getattr(self, p) for p in props], state, data
-                    )
-                    values = to_list(ret_values)
-                    self.set_state_pointer(values, index=i, implicit=True)
-
     def execute(self, context: Context):
-        self._numeric = _NumericInput()
+        self._numeric = NumericInput()
         self.redo_states(context)
         ok = self.main(context)
         return self._end(context, ok, skip_undo=True)
-        # maybe allow to be modal again?
-
-    def get_numeric_value(self, context: Context, coords):
-        prop_name = self.get_property()[0]
-        prop = self.properties.rna_type.properties[prop_name]
-
-        def parse_input(prop, input):
-            units = context.scene.unit_settings
-            unit = prop.unit
-            value = None
-
-            if input == "-":
-                pass
-            elif unit != "NONE":
-                try:
-                    value = bpy.utils.units.to_value(units.system, unit, input)
-                except ValueError:
-                    return prop.default
-                if prop.type == "INT":
-                    value = int(value)
-            elif prop.type == "FLOAT":
-                value = float(input)
-            elif prop.type == "INT":
-                value = int(input)
-
-            if value is None:
-                return prop.default
-            return value
-
-        size = max(1, self._numeric.substate_count or 0)
-
-        def to_iterable(item):
-            if hasattr(item, "__iter__") or hasattr(item, "__getitem__"):
-                return list(item)
-            return [item]
-
-        # TODO: Don't evaluate if not needed
-        interactive_val = self._get_state_values(context, self.state, coords)
-        if interactive_val is None:
-            interactive_val = [None] * size
-        else:
-            interactive_val = to_iterable(interactive_val)
-
-        storage = [None] * size
-        result = [None] * size
-
-        for sub_index in range(size):
-            raw = self._numeric.get(sub_index)
-            if raw:
-                num = parse_input(prop, raw)
-                result[sub_index] = num
-                storage[sub_index] = num
-            elif interactive_val[sub_index] is not None:
-                result[sub_index] = interactive_val[sub_index]
-            else:
-                result[sub_index] = prop.default
-
-        self.state_data["numeric_input"] = storage
-
-        if not self._numeric.substate_count:
-            return result[0]
-        return result
 
     def _handle_pass_through(self, context: Context, event: Event):
-        # Only pass through navigation events
         if event.type in {"MIDDLEMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE", "MOUSEMOVE"}:
             return {"PASS_THROUGH"}
         return {"RUNNING_MODAL"}
@@ -522,14 +435,13 @@ class StatefulOperatorLogic:
                 self._numeric.iterate()
                 self.set_status_text(context)
         elif is_numeric_event:
-            # Initialize
             is_numeric_edit = self.init_numeric(True)
 
         if event.type in {"RIGHTMOUSE", "ESC"}:
             return self._end(context, False)
 
-        # HACK: when calling ops.ed.undo() inside an operator a mousemove event
-        # is getting triggered. manually check if there's a mousemove...
+        # HACK: calling ops.ed.undo() inside a modal triggers a spurious MOUSEMOVE.
+        # Check actual pixel movement to filter it out.
         mousemove_threshold = 0.1
         is_mousemove = (coords - self._last_coords).length > mousemove_threshold
         self._last_coords = coords
@@ -551,13 +463,70 @@ class StatefulOperatorLogic:
 
         return self.evaluate_state(context, event, event_triggered)
 
+    # -------------------------------------------------------------------------
+    # evaluate_state and its sub-steps
+    # -------------------------------------------------------------------------
+
     def _get_state_values(self, context: Context, state, coords):
-        # Get values of state_func, can be none
-        position_cb = self.get_func(state, "state_func")
-        if not position_cb:
+        """Call the state's state_func and return raw position/value, or None."""
+        cb = self.get_func(state, "state_func")
+        if not cb:
             return None
-        pos_val = position_cb(context, coords)
-        return pos_val
+        return cb(context, coords)
+
+    def _pick_hovered(self, context: Context, coords, state, is_numeric):
+        """Try to pick an existing element under the cursor.
+
+        Returns ``(is_picked, pointer_values)`` — pointer_values is only
+        meaningful when is_picked is True.
+        """
+        if is_numeric or not state.pointer:
+            return False, None
+        pick = self.get_func(state, "pick_element")
+        retval = pick(context, coords)
+        if retval is not None:
+            return True, to_list(retval)
+        return False, None
+
+    def _resolve_values(self, context: Context, coords, state, is_numeric, is_picked):
+        """Compute property values for the current state via state_func or numeric input.
+
+        Returns ``(values, ok)`` — ok indicates the state can advance.
+        Sets properties on self and marks ``_undo`` if values were produced.
+        """
+        ok = False
+        values = []
+        use_create = state.use_create and self.has_func(state, "create_element")
+        if not use_create or is_picked:
+            return values, ok
+
+        if is_numeric:
+            values = [self.get_numeric_value(context, coords)]
+        else:
+            values = to_list(self._get_state_values(context, state, coords))
+
+        if values:
+            props = self.get_property()
+            if props:
+                for i, v in enumerate(values):
+                    setattr(self, props[i], v)
+                self._undo = True
+                ok = not state.pointer
+
+        return values, ok
+
+    def _apply_undo(self, context: Context):
+        """Restore state to snapshot/undo and replay redo_states."""
+        if self._state_snapshot is not None:
+            self.restore_snapshot(context, self._state_snapshot)
+            self.on_before_redo_states(context)
+            self.redo_states(context)
+        else:
+            bpy.ops.ed.undo_push(message="Redo: " + self.bl_label)
+            bpy.ops.ed.undo()
+            self.on_before_redo_states(context)
+            self.redo_states(context)
+        self._undo = False
 
     def evaluate_state(self, context: Context, event, triggered):
         state = self.state
@@ -568,93 +537,99 @@ class StatefulOperatorLogic:
         if self.state_init_coords is None:
             self.state_init_coords = coords
 
-        # Pick hovered element
-        is_picked = False
-        if not is_numeric and state.pointer:
-            pick = self.get_func(state, "pick_element")
-            pick_retval = pick(context, coords)
+        is_picked, pointer_values = self._pick_hovered(context, coords, state, is_numeric)
+        values, ok = self._resolve_values(context, coords, state, is_numeric, is_picked)
 
-            if pick_retval is not None:
-                is_picked = True
-                pointer_values = to_list(pick_retval)
-
-        # Set state property
-        ok = False
-        values = []
-        use_create = state.use_create and self.has_func(state, "create_element")
-        if use_create and not is_picked:
-            if is_numeric:
-                # numeric edit is supported for one property only
-                values = [
-                    self.get_numeric_value(context, coords),
-                ]
-            else:
-                values = to_list(self._get_state_values(context, state, coords))
-
-            if values:
-                props = self.get_property()
-                if props:
-                    for i, v in enumerate(values):
-                        setattr(self, props[i], v)
-                    self._undo = True
-                    ok = not state.pointer
-
-        # Set state pointer
-        pointer = None
+        # Resolve state pointer
         if state.pointer:
             if is_picked:
-                pointer = pointer_values
-                self.state_data["is_existing_entity"] = True
-            elif values:
-                # Let pointer be filled from redo_states
-                self.state_data["is_existing_entity"] = False
+                data["is_existing_entity"] = True
+                self.set_state_pointer(pointer_values, implicit=True)
                 ok = True
-
-            if pointer:
-                self.set_state_pointer(pointer, implicit=True)
+            elif values:
+                # pointer will be filled during redo_states via create_element
+                data["is_existing_entity"] = False
                 ok = True
 
         if self._undo:
-            if self._state_snapshot is not None:
-                # Use custom snapshot
-                self.restore_snapshot(context, self._state_snapshot)
-                self.on_before_redo_states(context)
-                self.redo_states(context)
-            else:
-                # Fall back to Blender's undo system
-                bpy.ops.ed.undo_push(message="Redo: " + self.bl_label)
-                bpy.ops.ed.undo()
-                self.on_before_redo_states(context)
-                self.redo_states(context)
-
-            self._undo = False
+            self._apply_undo(context)
 
         succeede = False
         if self.check_props():
             succeede = self.run_op(context)
             self._undo = True
 
-        # Iterate state
+        # State transition
         if triggered and ok:
             if not self.next_state(context):
                 if self.check_continuous_draw():
                     self.do_continuous_draw(context)
                 else:
                     return self._end(context, succeede)
-
             if is_numeric:
-                # NOTE: Run next state already once even if there's no mousemove yet,
-                # This is needed in order for the geometry to update
+                # Run next state once immediately so geometry updates without a mousemove
                 self.evaluate_state(context, event, False)
+
         context.area.tag_redraw()
 
         if triggered and not ok:
-            # Event was triggered on non-valid selection, cancel operator to avoid confusion
+            # Triggered on non-valid target — cancel to avoid confusion
             return self._end(context, False)
 
         if triggered or is_numeric:
             return {"RUNNING_MODAL"}
         return self._handle_pass_through(context, event)
+
+    # -------------------------------------------------------------------------
+    # Operator execution helpers
+    # -------------------------------------------------------------------------
+
+    def run_op(self, context: Context):
+        if not hasattr(self, "main"):
+            raise NotImplementedError(
+                "StatefulOperators need to have a main method defined!"
+            )
+        retval = self.main(context)
+        self.executed = True
+        return retval
+
+    def redo_states(self, context: Context):
+        """Recreate non-persistent elements for states up to the current one."""
+        for i, state in enumerate(self.get_states()):
+            if i > self.state_index:
+                # TODO: don't depend on active state; ideally going back is possible
+                break
+            if state.pointer:
+                data = self._state_data.get(i, {})
+                is_existing_entity = data["is_existing_entity"]
+                props = self.get_property(index=i)
+                if props and not is_existing_entity:
+                    create = self.get_func(state, "create_element")
+                    ret_values = create(
+                        context, [getattr(self, p) for p in props], state, data
+                    )
+                    self.set_state_pointer(to_list(ret_values), index=i, implicit=True)
+
+    def _end(self, context, succeede, skip_undo=False):
+        context.window.cursor_modal_restore()
+        if hasattr(self, "fini"):
+            self.fini(context, succeede)
+        self.on_before_redo_states(context)
+        context.workspace.status_text_set(None)
+
+        if not succeede and not skip_undo:
+            if self._state_snapshot is not None:
+                self.restore_snapshot(context, self._state_snapshot)
+            else:
+                bpy.ops.ed.undo_push(message="Cancelled: " + self.bl_label)
+                bpy.ops.ed.undo()
+
+        self._state_snapshot = None
+        return {"FINISHED"} if succeede else {"CANCELLED"}
+
+    # -------------------------------------------------------------------------
+    # Continuous draw
+    # -------------------------------------------------------------------------
 
     def check_continuous_draw(self):
         if self.continuous_draw:
@@ -669,14 +644,11 @@ class StatefulOperatorLogic:
                 continue
             self.set_state_pointer(None, index=i)
         self._state_data.clear()
-        self._numeric = _NumericInput()
+        self._numeric = NumericInput()
         self._state_snapshot = None
 
     def _take_last_state_pointer(self):
-        """Find the last state with a pointer and return its implicit values + type.
-
-        Returns (last_index, implicit_values, type_metadata).
-        """
+        """Return (last_index, implicit_values, type_metadata) for the last pointer state."""
         for i, s in reversed(list(enumerate(self.get_states()))):
             if not s.pointer:
                 continue
@@ -688,69 +660,29 @@ class StatefulOperatorLogic:
     def do_continuous_draw(self, context):
         """Finish the current segment and immediately start the next one.
 
-        The last pointer of the finished segment (e.g. the endpoint of a line)
+        The last pointer of the finished segment (e.g. a line endpoint)
         becomes the first pointer of the new segment, creating a chain.
         """
-        # Commit the current segment
         self._end(context, True)
         bpy.ops.ed.undo_push(message=self.bl_label)
 
-        # Save the endpoint that will seed the next segment, before the reset wipes state
+        # Save the endpoint before _reset_op wipes state
         last_index, values, last_type = self._take_last_state_pointer()
 
-        # Reset operator for the next segment
         self._reset_op()
 
-        # Re-inject the saved endpoint as the first pointer of the new segment
+        # Re-inject the saved endpoint as the seed for the new segment
         data = self.get_state_data(0)
         data["is_existing_entity"] = True
         if last_type:
             data["type"] = last_type
         self.set_state_pointer(values, index=0, implicit=True)
         self.set_state(context, 1)
-
-        # Create new snapshot for next segment
         self._state_snapshot = self.create_snapshot(context)
 
-    def _end(self, context, succeede, skip_undo=False):
-        context.window.cursor_modal_restore()
-        if hasattr(self, "fini"):
-            self.fini(context, succeede)
-        self.on_before_redo_states(context)
-
-        context.workspace.status_text_set(None)
-
-        if not succeede and not skip_undo:
-            if self._state_snapshot is not None:
-                # Use custom snapshot for cancellation
-                self.restore_snapshot(context, self._state_snapshot)
-            else:
-                # Fall back to Blender's undo system
-                bpy.ops.ed.undo_push(message="Cancelled: " + self.bl_label)
-                bpy.ops.ed.undo()
-
-        # Clear snapshot
-        self._state_snapshot = None
-
-        retval = {"FINISHED"} if succeede else {"CANCELLED"}
-        return retval
-
-    def check_props(self):
-        for i, state in enumerate(self.get_states()):
-
-            if state.optional:
-                continue
-
-            props = self.get_property(index=i)
-            if state.pointer:
-                if not bool(self.get_state_pointer(index=i)):
-                    return False
-
-            elif props:
-                for p in props:
-                    if not self.properties.is_property_set(p):
-                        return False
-        return True
+    # -------------------------------------------------------------------------
+    # Class-level description
+    # -------------------------------------------------------------------------
 
     @classmethod
     def description(cls, context, _properties):
@@ -762,12 +694,13 @@ class StatefulOperatorLogic:
         hint = get_key_map_desc(context, cls.bl_idname)
         if hint:
             descs.append(hint)
-
         if cls.__doc__:
             descs.append(cls.__doc__)
-
         return stateful_op_desc(" ".join(descs), *states)
 
-    # Dummy methods
+    # -------------------------------------------------------------------------
+    # Abstract — must be implemented by subclasses
+    # -------------------------------------------------------------------------
+
     def gather_selection(self, context: Context):
         raise NotImplementedError
