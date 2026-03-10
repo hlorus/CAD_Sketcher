@@ -1,19 +1,42 @@
 import debugpy
+import os
+import sys
 
-try:
-    from colorama import Fore
 
-    YELLOW, GREEN, RED, RESET = Fore.YELLOW, Fore.GREEN, Fore.RED, Fore.RESET
-except ImportError:
-    YELLOW, GREEN, RED, RESET = [""] * 4
+def _kill_process_on_port(port):
+    my_pid = os.getpid()
+    if sys.platform in ("linux", "darwin"):
+        import subprocess, signal
 
-# https://code.visualstudio.com/docs/python/debugging#_debugging-by-attaching-over-a-network-connection
+        if sys.platform == "linux":
+            result = subprocess.run(
+                ["fuser", f"{port}/tcp"], capture_output=True, text=True
+            )
+        else:
+            result = subprocess.run(
+                ["lsof", "-ti", f"tcp:{port}"], capture_output=True, text=True
+            )
+        for pid in [int(p) for p in result.stdout.split() if p.strip().isdigit()]:
+            if pid != my_pid:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+    elif sys.platform == "win32":
+        import subprocess
 
-# 5678 is the default attach port in the VS Code debug configurations. Unless a host and port are specified, host defaults to 127.0.0.1
+        result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True)
+        for line in result.stdout.splitlines():
+            if f":{port}" in line and "LISTENING" in line:
+                try:
+                    pid = int(line.split()[-1])
+                    if pid != my_pid:
+                        subprocess.run(
+                            ["taskkill", "/PID", str(pid), "/F"], capture_output=True
+                        )
+                except Exception:
+                    pass
+
+
+_kill_process_on_port(5678)
 debugpy.listen(5678)
-print(f"{YELLOW}Waiting for debugger attach{RESET}")
-debugpy.wait_for_client()
-if debugpy.is_client_connected():
-    print(f"{GREEN}Debugger attached to client{RESET}")
-else:
-    print(f"{RED}Failed to connect to client{RESET}")

@@ -12,64 +12,46 @@
             "problemMatcher": []
         },
         {
-            "label": "Run Blender+testing",
-            "detail": "Runs testfiles using Blender in the background + opens debugpy port and waits for connection",
-            "command": "blender",
-            "args": ["--background", "--addons", "bl_ext.user_default.CAD_Sketcher","--python","./.vscode/debugpy_port.py","--python","./testing/__init__.py", "--", "--log_level=DEBUG"],
+            "label": "Launch Blender interactively",
+            "detail": "Start Blender with debugpy listening on port 5678. Then attach with 'Interactive+debugger'.",
             "type": "shell",
+            "command": "blender",
+            "args": [
+                "--python", ".vscode/debugpy_port.py",
+                "--", "--log_level=DEBUG", "--interactive"
+            ],
             "isBackground": true,
-            "problemMatcher": {
-                "owner": "python",
-                "source": "python",
-                "fileLocation": ["relative", "${workspaceFolder}"],
-                "pattern": {
-                    // Example error that we want to regex-catch
-                    //   File "/abs/path/to/CAD_Sketcher/class_defines.py", line 3467, in register
-                    //     bpy.utils.register_class(cls)
-                    //   ValueError: bpy_struct "SlvsPoint3D" registration error: 'slvs_index' PointerProperty could not register (see previous error)
-                    "regexp": "^ *File \"([\/\\w.]+)\", line (\\d+), in (\\w+)\n *(.*)\\n(\\w+: .*)$",
-                    "file": 1,
-                    "line": 2,
-                    // "message": 3, // The function name
-                    "code": 4,
-                    "message": 5
-                },
-                "background": {
-                    "activeOnStart": true,
-                    "beginsPattern": "^Blender.*$",
-                    "endsPattern": "Waiting for debugger attach", // See debugpy_port.py
-                }
-            }
+            "problemMatcher": []
         },
         {
-            "label": "Run Blender interactively",
-            "detail": "Starts remote debugpy session and Blender gui with solely this addon activated",
-            "command": "blender",
-            "args": ["--addons", "bl_ext.user_default.CAD_Sketcher", "--python","./.vscode/debugpy_port.py", "--", "--log_level=DEBUG", "--interactive"],
+            "label": "Run Blender+testing",
+            "detail": "Runs testfiles using Blender in the background + opens debugpy port on 5678",
             "type": "shell",
+            "command": "blender",
+            "args": [
+                "--background",
+                "--python", ".vscode/debugpy_port.py",
+                "--python", "./testing/__init__.py",
+                "--", "--log_level=DEBUG"
+            ],
             "isBackground": true,
             "problemMatcher": {
                 "owner": "python",
                 "source": "python",
                 "fileLocation": ["relative", "${workspaceFolder}"],
                 "pattern": {
-                    // Example error that we want to regex-catch
-                    //   File "/abs/path/to/CAD_Sketcher/class_defines.py", line 3467, in register
-                    //     bpy.utils.register_class(cls)
-                    //   ValueError: bpy_struct "SlvsPoint3D" registration error: 'slvs_index' PointerProperty could not register (see previous error)
                     "regexp": "^ *File \"([\/\\w.]+)\", line (\\d+), in (\\w+)\n *(.*)\\n(\\w+: .*)$",
                     "file": 1,
                     "line": 2,
-                    // "message": 3, // The function name
                     "code": 4,
                     "message": 5
                 },
                 "background": {
                     "activeOnStart": true,
                     "beginsPattern": "^Blender.*$",
-                    "endsPattern": "Waiting for debugger attach", // See debugpy_port.py
+                    "endsPattern": "^Blender quit$"
                 }
             }
-        },
+        }
     ]
 }

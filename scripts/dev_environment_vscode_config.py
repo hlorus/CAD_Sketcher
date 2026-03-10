@@ -1,13 +1,25 @@
 """Setup CAD_Sketcher development environment and configure VS Code.
 
-This script:
-  1. Replaces the installed Blender extension copy with a symlink to this repo.
-  2. Writes .vscode/settings.json with path mappings for the VS Code debugger.
+One-off setup (run once):
+  1. Install the CAD_Sketcher extension in Blender.
+  2. Run this script via the VS Code task "Configure CAD_Sketcher/vscode development environment",
+     or directly:
 
-Run it once via the VS Code task "Configure CAD_Sketcher/vscode development environment",
-or directly:
+         blender --background --python scripts/dev_environment_vscode_config.py
 
-    blender --background --python scripts/dev_environment_vscode_config.py
+     This replaces the installed extension copy with a symlink to this repo and
+     writes .vscode/settings.json with path mappings for the VS Code debugger.
+
+Per-session workflow:
+  1. Run the VS Code task "Launch Blender interactively" to start Blender with
+     debugpy listening on port 5678.
+  2. Run the "Interactive+debugger" launch configuration (F5) to attach the debugger.
+  3. To restart Blender from within Blender, one can use bonsai's operator (F3 -> bim.restart_blender).
+     Then re-run F5 to re-attach the debugger.
+
+For automated testing:
+  - Run the VS Code task "Run Blender+testing" to run the test suite headlessly.
+    The "Pytest+debugger" launch configuration (F5) can be used to attach mid-test if needed.
 """
 
 import json
@@ -17,10 +29,8 @@ from pathlib import Path
 
 import bpy
 
-# Repo root is two levels up from this script (scripts/dev_environment_vscode_config.py).
 repo_path = Path(__file__).resolve().parent.parent
 
-# Derive the Blender user config path from the running Blender version.
 major, minor, _ = bpy.app.version
 blender_version = f"{major}.{minor}"
 
@@ -42,7 +52,6 @@ assert install_path.exists() or install_path.is_symlink(), (
     "Make sure the addon is installed in Blender before running this script."
 )
 
-# Create / update the symlink so Blender loads directly from the repo.
 if install_path.is_symlink():
     current_target = install_path.resolve()
     if current_target == repo_path:
@@ -56,7 +65,6 @@ else:
     shutil.rmtree(install_path)
     install_path.symlink_to(repo_path, target_is_directory=True)
 
-# Write .vscode/settings.json consumed by launch.json path mappings.
 settings_path = repo_path / ".vscode" / "settings.json"
 settings_path.parent.mkdir(parents=True, exist_ok=True)
 
