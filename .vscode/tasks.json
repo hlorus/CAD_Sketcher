@@ -2,10 +2,20 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Configure CAD_Sketcher/vscode development environment",
+            "type": "shell",
+            "command": "blender",
+            "args": [
+                "--background",
+                "--python", "${workspaceFolder}/scripts/dev_environment_vscode_config.py"
+            ],
+            "problemMatcher": []
+        },
+        {
             "label": "Run Blender+testing",
             "detail": "Runs testfiles using Blender in the background + opens debugpy port and waits for connection",
             "command": "blender",
-            "args": ["--background", "--addons", "CAD_Sketcher","--python","./.vscode/debugpy_port.py","--python","./testing/__init__.py", "--", "--log_level=DEBUG"],
+            "args": ["--background", "--addons", "bl_ext.user_default.CAD_Sketcher","--python","./.vscode/debugpy_port.py","--python","./testing/__init__.py", "--", "--log_level=DEBUG"],
             "type": "shell",
             "isBackground": true,
             "problemMatcher": {
@@ -35,7 +45,7 @@
             "label": "Run Blender interactively",
             "detail": "Starts remote debugpy session and Blender gui with solely this addon activated",
             "command": "blender",
-            "args": ["--addons", "CAD_Sketcher", "--python","./.vscode/debugpy_port.py", "--", "--log_level=DEBUG", "--interactive"],
+            "args": ["--addons", "bl_ext.user_default.CAD_Sketcher", "--python","./.vscode/debugpy_port.py", "--", "--log_level=DEBUG", "--interactive"],
             "type": "shell",
             "isBackground": true,
             "problemMatcher": {
