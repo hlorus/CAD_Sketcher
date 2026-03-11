@@ -52,6 +52,7 @@ align_items = [
     ("VERTICAL", "Vertical", "", 2),
 ]
 
+
 def _get_value(self):
     if self.is_reference:
         val = self.init_props(align=self.align)["value"]
@@ -76,7 +77,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     def _get_align(self) -> int:
         if not self.is_property_set("align_store"):
             return 0
-        return self.align_store
+        return bpyEnum(align_items, identifier=self.align_store).index
 
     label = "Distance"
     value_store: FloatProperty(
@@ -199,18 +200,12 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
                 p = solvesys.add_point_2d(group, *coords, wp)
 
-                handles.append(
-                    solvesys.horizontal(group, p, wp, entityB=e2.py_data)
-                )
-                handles.append(
-                    solvesys.vertical(group, p, wp, entityB=e1.py_data)
-                )
+                handles.append(solvesys.horizontal(group, p, wp, entityB=e2.py_data))
+                handles.append(solvesys.vertical(group, p, wp, entityB=e1.py_data))
 
                 base_point = e1 if alignment == "VERTICAL" else e2
                 handles.append(
-                    solvesys.distance(
-                        group, p, base_point.py_data, value, wp
-                    )
+                    solvesys.distance(group, p, base_point.py_data, value, wp)
                 )
                 return handles
             else:
@@ -286,7 +281,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
             if v_rotation.length != 0:
                 angle = v_rotation.angle_signed(x_axis)
-                
+
             mat_rot = Matrix.Rotation(angle, 2, "Z")
             v_translation = (p2 + p1) / 2
 
@@ -304,7 +299,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
                     )
                 if v_rotation.length != 0:
                     angle = v_rotation.angle_signed(x_axis)
-                
+
                 mat_rot = Matrix.Rotation(angle, 2, "Z")
                 v_translation = (p2 + p1) / 2
             else:
