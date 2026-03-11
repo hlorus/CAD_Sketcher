@@ -119,12 +119,13 @@ def add_new_empty(context: Context, location: Vector, name="") -> Object:
 
 
 def setprop(data, key, value):
-    """Set a property value, handling enum index conversion."""
+    """Set an RNA property. For enums, integer values are treated as
+    indices into `enum_items` and converted to the enum identifier (the string Blender expects when assigning).
+    """
     prop = data.rna_type.properties[key]
 
-    # Handle Enums which have to be set by the item's id rather than identifier
-    if prop.type == "ENUM":
-        value = prop.enum_items[value].value
+    if prop.type == "ENUM" and isinstance(value, int):
+        value = prop.enum_items[value].identifier
 
     setattr(data, key, value)
 
