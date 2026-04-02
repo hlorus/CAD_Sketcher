@@ -71,7 +71,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     def _set_align(self, value: int):
         alignment = bpyEnum(align_items, value).identifier
         distance = _get_aligned_distance(self.entity1, self.entity2, alignment)
-        self.align_store = value
+        self.align_store = alignment
         self.value_store = distance
 
     def _get_align(self) -> int:
