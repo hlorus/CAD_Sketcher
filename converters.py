@@ -5,6 +5,7 @@ from typing import Union
 import bpy
 import bmesh
 from bpy.types import Mesh, Scene, Object
+from mathutils import Vector
 
 from .utilities.bezier import set_handles
 from .utilities.walker import EntityWalker
@@ -84,6 +85,22 @@ def mesh_from_temporary(mesh: Mesh, name: str, existing_mesh: Union[bool, None] 
     bmesh.ops.dissolve_limit(
         bm, angle_limit=math.radians(0.1), verts=bm.verts, edges=bm.edges
     )
+
+    # Clean up degenerate faces with invalid normal vectors
+    zero_normal_faces = [f for f in bm.faces if f.normal.length < 1e-6]
+    if zero_normal_faces:
+        try:
+            bmesh.ops.dissolve_faces(bm, faces=zero_normal_faces)
+        except Exception as e:               
+            pass # Could not dissolve faces
+
+    # Find the most common normal direction, and use that to fix faces that are reversed
+    normals = [f.normal.copy() for f in bm.faces if f.normal.length > 1e-6]
+    if normals:
+        avg_normal = sum(normals, Vector((0,0,0))) / len(normals)
+        wrong_way = [f for f in bm.faces if f.normal.dot(avg_normal) < 0]
+        if wrong_way:
+            bmesh.ops.reverse_faces(bm, faces=wrong_way)
 
     if existing_mesh:
         existing_mesh.clear_geometry()
