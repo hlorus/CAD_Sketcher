@@ -11,6 +11,7 @@ from ..utilities.ui import show_ui_message_popup
 from ..utilities.data_handling import (
     get_constraint_local_indices,
     get_entity_deps,
+    get_flat_deps,
     get_sketch_deps_indicies,
     is_entity_dependency,
 )
@@ -55,24 +56,31 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
                 operator.delete(entities.get(i), context)
 
         elif is_entity_dependency(entity, context):
+            deps = View3D_OT_slvs_delete_entity.get_ordered_dependents(entity, context)
+            dep_labels = [str(dep) for dep in deps]
+
+            for dep in deps:
+                operator.delete(dep, context)
+
             if operator.do_report:
-                deps = list(get_entity_deps(entity, context))
-                msg_deps = "\n".join([f" - {d}" for d in deps])
-                message = f"Unable to delete {entity.name}, other entities depend on it:\n{msg_deps}"
-                show_ui_message_popup(message=message, icon="ERROR")
+                msg_deps = "\n".join([f" - {label}" for label in dep_labels])
+                message = (
+                    f"Deletion of {entity.name} resulted in deletion of other "
+                    f"entities that depend on it:\n{msg_deps}"
+                )
 
                 operator.report(
-                    {"WARNING"},
-                    "Cannot delete {}, other entities depend on it.".format(
-                        entity.name
-                    ),
+                    {"INFO"},
+                    message,
                 )
-            return {"CANCELLED"}
 
         operator.delete(entity, context)
 
     @staticmethod
     def delete(entity, context: Context):
+        if entity is None:
+            return
+
         entity.selected = False
 
         # Delete constraints that depend on entity
@@ -89,6 +97,18 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         entities = context.scene.sketcher.entities
         entities.remove(entity.slvs_index)
 
+    @staticmethod
+    def get_ordered_dependents(entity, context: Context):
+        deps = list(get_entity_deps(entity, context))
+        deps.sort(
+            key=lambda dep: (
+                len([sub_dep for sub_dep in get_flat_deps(dep) if sub_dep in deps]),
+                dep.slvs_index,
+            ),
+            reverse=True,
+        )
+        return deps
+
     def execute(self, context: Context):
         index = self.index
         selected = context.scene.sketcher.entities.selected_active
@@ -101,18 +121,10 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
             self.main(context, selected[0].slvs_index, self)
         else:
             # Batch deletion
-            indices = []
-            for e in selected:
-                indices.append(e.slvs_index)
-
-            indices.sort(reverse=True)
+            indices = sorted((e.slvs_index for e in selected), reverse=True)
             for i in indices:
-                e = context.scene.sketcher.entities.get(i)
-
                 # NOTE: this might be slow when a lot of entities are selected, improve!
-                if is_entity_dependency(e, context):
-                    continue
-                self.delete(e, context)
+                self.main(context, i, self)
 
         solve_system(context, context.scene.sketcher.active_sketch)
         refresh(context)
