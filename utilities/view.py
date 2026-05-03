@@ -235,7 +235,7 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
 
     objects = []
     hit_object = ob.evaluated_get(depsgraph) if result and ob is not None and ob.type == "MESH" else None
-    if result and ob is not None and ob.type == "MESH":
+    if hit_object is not None and not _snap_show_xray(context):
         objects.append(hit_object)
     else:
         for visible in context.visible_objects:
