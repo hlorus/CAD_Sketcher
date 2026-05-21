@@ -468,6 +468,7 @@ class SlvsEntities(PropertyGroup):
         def set_origin_props(e):
             e.fixed = True
             e.origin = True
+            e.visible = False
 
         sse = context.scene.sketcher.entities
         # origin
