@@ -31,6 +31,7 @@ class SlvsGenericEntity:
     slvs_index: IntProperty(name="Global Index", default=-1)
 
     if app.version >= (5, 0):
+
         def entity_name_get_transform(self, curr_value, is_set):
             return curr_value if is_set else str(self)
 
@@ -40,6 +41,7 @@ class SlvsGenericEntity:
             options={"SKIP_SAVE"},
         )
     else:
+
         def entity_name_getter(self):
             return self.get("name", str(self))
 
@@ -226,7 +228,7 @@ class SlvsGenericEntity:
 
     def is_visible(self, context: Context) -> bool:
         if self.origin:
-            return context.scene.sketcher.show_origin
+            return self.visible or context.scene.sketcher.show_origin
 
         if hasattr(self, "sketch"):
             return self.sketch.is_visible(context) and self.visible
