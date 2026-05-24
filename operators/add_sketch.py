@@ -2,14 +2,12 @@ import logging
 
 import bpy
 from bpy.types import Operator, Context, Event
-
 from ..model.types import SlvsWorkplane
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from .base_3d import Operator3d
 from .utilities import activate_sketch, switch_sketch_mode
-
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +48,12 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
     def main(self, context: Context):
         sse = context.scene.sketcher.entities
         sketch = sse.add_sketch(self.wp)
+
+        # XY plane → Plan (normal ≈ ±Z); any other orientation → Elevation
+        if abs(self.wp.normal.z) > 0.99:
+            sketch.tag = "Plan"
+        else:
+            sketch.tag = "Elevation"
 
         # Add point at origin
         # NOTE: Maybe this could create a reference entity of the main origin?

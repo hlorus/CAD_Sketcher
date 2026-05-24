@@ -4,6 +4,7 @@ from typing import List
 import bpy
 import gpu
 from mathutils import Vector, Matrix
+from bpy.props import FloatProperty
 from bpy.types import PropertyGroup
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
@@ -16,7 +17,6 @@ from ..utilities import preferences
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
-
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,18 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     size = 0.4
 
+    linked_wp_width: FloatProperty(
+        name="Linked WP Width",
+        description="Width of the linked-sketch workplane display (set to the source line length on creation).",
+        default=0.0,
+        min=0.0,
+    )
+    linked_wp_height: FloatProperty(
+        name="Linked WP Height",
+        description="Height of the linked-sketch workplane display. Updated on sketch leave to match the extreme point drawn (positive = upward, negative = downward). Falls back to the linked workplane width (square) when 0.",
+        default=0.0,
+    )
+
     def dependencies(self) -> List[SlvsGenericEntity]:
         return [self.p1, self.nm]
 
@@ -46,7 +58,12 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
         p1, nm = self.p1, self.nm
 
-        coords = draw_rect_2d(0, 0, self.size, self.size)
+        if self.linked_wp_width > 0:
+            w = self.linked_wp_width
+            h = self.linked_wp_height if self.linked_wp_height != 0 else w
+            coords = draw_rect_2d(w / 2, h / 2, w, abs(h))
+        else:
+            coords = draw_rect_2d(0, 0, self.size, self.size)
         coords = [(Vector(co))[:] for co in coords]
 
         indices = ((0, 1), (1, 2), (2, 3), (3, 0))
@@ -61,9 +78,10 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
             return
 
         with gpu.matrix.push_pop():
-            scale = context.region_data.view_distance
             gpu.matrix.multiply_matrix(self.matrix_basis)
-            gpu.matrix.scale(Vector((scale, scale, scale)))
+            if self.linked_wp_width <= 0:
+                scale = context.region_data.view_distance
+                gpu.matrix.scale(Vector((scale, scale, scale)))
 
             col = self.color(context)
             # Let parent draw outline
@@ -78,7 +96,12 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
             shader.uniform_float("color", col_surface)
 
-            coords = draw_rect_2d(0, 0, self.size, self.size)
+            if self.linked_wp_width > 0:
+                w = self.linked_wp_width
+                h = self.linked_wp_height if self.linked_wp_height != 0 else w
+                coords = draw_rect_2d(w / 2, h / 2, w, abs(h))
+            else:
+                coords = draw_rect_2d(0, 0, self.size, self.size)
             coords = [Vector(co)[:] for co in coords]
             indices = ((0, 1, 2), (0, 2, 3))
             batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
@@ -88,9 +111,10 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
     def draw_id(self, context):
         with gpu.matrix.push_pop():
-            scale = context.region_data.view_distance
             gpu.matrix.multiply_matrix(self.matrix_basis)
-            gpu.matrix.scale(Vector((scale, scale, scale)))
+            if self.linked_wp_width <= 0:
+                scale = context.region_data.view_distance
+                gpu.matrix.scale(Vector((scale, scale, scale)))
             super().draw_id(context)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):

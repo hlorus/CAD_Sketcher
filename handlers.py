@@ -61,6 +61,65 @@ def unregister_handlers():
         logger.debug(msg)
 
 
+def update_linked_sketches(scene):
+    """Keep linked sketch workplanes in sync with their source Line2D.
+
+    Returns True if any dependent sketch was updated (so callers can schedule
+    a follow-up solve pass for those sketches).
+    """
+    from mathutils import Matrix
+
+    sse = scene.sketcher.entities
+    changed = False
+    for sketch in sse.sketches:
+        if sketch.source_line_i == -1:
+            continue
+
+        line = sse.get(sketch.source_line_i)
+        if line is None:
+            continue
+
+        origin_3d = line.p1.location.copy()
+        p2_3d = line.p2.location.copy()
+        line_vec = p2_3d - origin_3d
+        line_length = line_vec.length
+        if line_length < 1e-8:
+            continue
+
+        x_new = line_vec.normalized()
+        y_new = line.sketch.wp.normal.copy()
+        z_new = x_new.cross(y_new).normalized()
+        y_new = z_new.cross(x_new).normalized()
+
+        # Mirror the z-flip that add_linked_sketch applies when the source
+        # sketch is an Elevation (so the resulting Plan faces the right way).
+        if getattr(line.sketch, "tag", "") == "Elevation":
+            z_new = -z_new
+            y_new = z_new.cross(x_new).normalized()
+
+        mat3 = Matrix((x_new, y_new, z_new)).transposed()
+        quat = mat3.to_quaternion()
+
+        # Update workplane origin and orientation
+        # (assignments trigger tag_update via their update= callbacks)
+        sketch.wp.p1.location = origin_3d
+        sketch.wp.nm.orientation = quat
+        sketch.wp.is_dirty = True
+
+        # Update linked geometry endpoint along X axis
+        if sketch.source_linked_line_i != -1:
+            ext_line = sse.get(sketch.source_linked_line_i)
+            if ext_line is not None:
+                ext_line.p2.co = (line_length, 0.0)
+
+        # Keep the workplane display width in sync with the source line length.
+        sketch.wp.linked_wp_width = line_length
+
+        changed = True
+
+    return changed
+
+
 def on_depsgraph_update(scene, depsgraph):
     from . import global_data
 
@@ -71,6 +130,13 @@ def on_depsgraph_update(scene, depsgraph):
         context = bpy.context
         sketch = scene.sketcher.active_sketch
         solve_system(context, sketch=sketch)
+        changed = update_linked_sketches(scene)
+        # Re-solve dependent sketches whose linked geometry was just updated.
+        if changed:
+            from .solver import Solver
+
+            solver = Solver(context, None, all=True)
+            solver.solve()
 
     if global_data.needs_redraw:
         global_data.needs_redraw = False

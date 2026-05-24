@@ -3,7 +3,7 @@ from typing import List
 
 import bpy
 from bpy.types import PropertyGroup, Context
-from bpy.props import BoolProperty
+from bpy.props import BoolProperty, IntProperty
 from gpu_extras.batch import batch_for_shader
 import math
 from mathutils import Vector, Matrix
@@ -45,6 +45,12 @@ class SlvsArc(Entity2D, PropertyGroup):
         nm (SlvsNormal3D): Orientation
         sketch (SlvsSketch): The sketch this entity belongs to
     """
+
+    parent_wall_i: IntProperty(
+        name="Parent Wall Index",
+        description="slvs_index of the wall arc this door/window sits on",
+        default=-1,
+    )
 
     invert_direction: BoolProperty(
         name="Invert direction",
@@ -267,6 +273,9 @@ class SlvsArc(Entity2D, PropertyGroup):
     def draw_props(self, layout):
         sub = super().draw_props(layout)
         sub.prop(self, "invert_direction")
+        if self.guid:
+            row = sub.row()
+            row.prop(self, "guid", text="")
         return sub
 
     def is_inside(self, coords):

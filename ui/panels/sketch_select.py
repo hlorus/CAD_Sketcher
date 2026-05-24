@@ -13,10 +13,7 @@ def sketch_selector(
     active_sketch = context.scene.sketcher.active_sketch
 
     if not active_sketch:
-        row.operator(
-            declarations.Operators.AddSketch,
-            icon="ADD"
-        ).wait_for_input = True
+        row.operator(declarations.Operators.AddSketch, icon="ADD").wait_for_input = True
 
     else:
         row.operator(
@@ -40,6 +37,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
     def draw(self, context: Context):
         layout = self.layout
 
+        layout.prop(context.scene.sketcher, "ifc_integration")
         sketch_selector(context, layout)
         sketch = context.scene.sketcher.active_sketch
         layout.use_property_split = True
@@ -72,6 +70,13 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
 
             layout.separator()
 
+            col = layout.column()
+            col.use_property_split = False
+            row = col.row()
+            row.prop(context.scene.sketcher, "sketch_show_objects", toggle=False)
+            row.prop(context.scene.sketcher, "sketch_show_sketches", toggle=False)
+            row.prop(context.scene.sketcher, "sketch_show_workplanes", toggle=False)
+
             row = layout.row()
             row.prop(sketch, "name")
             layout.prop(sketch, "convert_type")
@@ -80,6 +85,15 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 layout.prop(sketch, "curve_resolution")
             if sketch.convert_type != "NONE":
                 layout.prop(sketch, "fill_shape")
+
+            row = layout.row(align=True)
+            row.prop(sketch, "tag", text="Tag")
+            row.operator(
+                "view3d.slvs_sketch_role_from_preset",
+                text="",
+                icon="VIEWZOOM",
+            )
+            layout.prop(sketch, "guid", text="GUID")
 
             layout.operator(
                 declarations.Operators.DeleteEntity,

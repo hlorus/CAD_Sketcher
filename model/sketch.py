@@ -63,6 +63,16 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     curve_resolution: IntProperty(
         name="Mesh Curve Resolution", default=12, min=1, soft_max=25
     )
+    source_line_i: IntProperty(
+        name="Source Line",
+        description="Index of the Line2D that drives this linked sketch's workplane. -1 if not a linked sketch.",
+        default=-1,
+    )
+    source_linked_line_i: IntProperty(
+        name="Linked Geometry Line",
+        description="Index of the construction Line2D inside this sketch that mirrors the source line length.",
+        default=-1,
+    )
 
     def dependencies(self) -> List[SlvsGenericEntity]:
         return [

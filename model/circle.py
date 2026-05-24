@@ -45,6 +45,7 @@ class SlvsCircle(Entity2D, PropertyGroup):
         unit="LENGTH",
         update=tag_update,
     )
+    props = ()
 
     @classmethod
     def is_path(cls):
@@ -99,7 +100,7 @@ class SlvsCircle(Entity2D, PropertyGroup):
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        self.radius = solvesys.get_param_value(self.param_distance['param'][0])
+        self.radius = solvesys.get_param_value(self.param_distance["param"][0])
 
     def point_on_curve(self, angle):
         return pol2cart(self.radius, angle) + self.ct.co
@@ -215,7 +216,6 @@ class SlvsCircle(Entity2D, PropertyGroup):
         retval = self.radius * angle
         return retval
 
-
     def new(self, context, **kwargs) -> SlvsGenericEntity:
         kwargs.setdefault("ct", self.ct)
         kwargs.setdefault("nm", self.nm)
@@ -223,6 +223,13 @@ class SlvsCircle(Entity2D, PropertyGroup):
         kwargs.setdefault("sketch", self.sketch)
         kwargs.setdefault("construction", self.construction)
         return context.scene.sketcher.entities.add_circle(**kwargs)
+
+    def draw_props(self, layout):
+        sub = super().draw_props(layout)
+        if self.guid:
+            row = sub.row()
+            row.prop(self, "guid", text="")
+        return sub
 
 
 slvs_entity_pointer(SlvsCircle, "nm")

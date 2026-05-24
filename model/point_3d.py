@@ -11,7 +11,6 @@ from ..solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import tag_update
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -41,7 +40,7 @@ class Point3D(SlvsGenericEntity):
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        coords = [solvesys.get_param_value(self.py_data['param'][i]) for i in range(3)]
+        coords = [solvesys.get_param_value(self.py_data["param"][i]) for i in range(3)]
         self.location = coords
 
     def closest_picking_point(self, origin, view_vector):
@@ -67,6 +66,9 @@ class SlvsPoint3D(Point3D, PropertyGroup):
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)
+        if self.guid:
+            row = sub.row()
+            row.prop(self, "guid", text="")
         sub.prop(self, "location")
         return sub
 

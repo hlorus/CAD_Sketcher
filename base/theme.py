@@ -76,6 +76,24 @@ class ThemeSettingsEntity(PropertyGroup):
         max=1.0,
         update=update,
     )
+    linked: FloatVectorProperty(
+        name="Linked Geometry",
+        subtype="COLOR",
+        default=(0.0, 0.8, 0.2, 0.9),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
+    linking: FloatVectorProperty(
+        name="Linking Geometry",
+        subtype="COLOR",
+        default=(0.15, 0.45, 1.0, 0.95),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
 
 
 class ThemeSettingsConstraint(PropertyGroup):

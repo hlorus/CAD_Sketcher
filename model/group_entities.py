@@ -20,6 +20,7 @@ from .normal_2d import SlvsNormal2D
 from .normal_3d import SlvsNormal3D
 from .point_2d import SlvsPoint2D
 from .point_3d import SlvsPoint3D
+from .polyline import SlvsPolyline
 from .sketch import SlvsSketch
 from .utilities import slvs_entity_pointer, update_pointers
 from .workplane import SlvsWorkplane
@@ -40,6 +41,7 @@ _entity_types = (
     SlvsNormal2D,
     SlvsArc,
     SlvsCircle,
+    SlvsPolyline,
 )
 
 _entity_collections = (
@@ -53,6 +55,7 @@ _entity_collections = (
     "normals2D",
     "arcs",
     "circles",
+    "polylines",
 )
 
 
@@ -395,6 +398,33 @@ class SlvsEntities(PropertyGroup):
 
         return self._init_entity(arc, fixed, construction, index_reference)
 
+    def add_polyline(
+        self,
+        segment_indices: list,
+        is_closed: bool,
+        sketch: SlvsSketch,
+    ) -> SlvsPolyline:
+        """Add a polyline grouping a sequence of connected segments.
+
+        Arguments:
+            segment_indices: List of slvs_index values for the member segments.
+            is_closed: Whether the polyline forms a closed loop.
+            sketch: The sketch this polyline belongs to.
+
+        Returns:
+            SlvsPolyline: The created polyline.
+        """
+        poly = self.polylines.add()
+        count = min(len(segment_indices), 32)
+        for i in range(count):
+            poly.segment_indices[i] = segment_indices[i]
+        poly.segment_count = count
+        poly.closed = is_closed
+        poly.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+        poly = self._init_entity(poly, False, False, False)
+        poly.name = str(poly)
+        return poly
+
     def add_circle(
         self,
         nm: SlvsNormal2D,
@@ -493,17 +523,22 @@ class SlvsEntities(PropertyGroup):
             nm.name = label
 
         # workplanes
-        for label, nm_name, wp_name in (
-            ("OriginWorkplaneYZ", "origin_axis_X", "origin_plane_YZ"),
-            ("OriginWorkplaneXZ", "origin_axis_Y", "origin_plane_XZ"),
-            ("OriginWorkplaneXY", "origin_axis_Z", "origin_plane_XY"),
+        for label, nm_name, wp_name, default_tag in (
+            ("OriginWorkplaneYZ", "origin_axis_X", "origin_plane_YZ", "Elevation"),
+            ("OriginWorkplaneXZ", "origin_axis_Y", "origin_plane_XZ", "Elevation"),
+            ("OriginWorkplaneXY", "origin_axis_Z", "origin_plane_XY", "Plan"),
         ):
-            if getattr(self, wp_name):
+            wp_existing = getattr(self, wp_name)
+            if wp_existing:
+                if not wp_existing.tag:
+                    wp_existing.tag = default_tag
                 continue
+
             wp = sse.add_workplane(self.origin, getattr(self, nm_name))
             set_origin_props(wp)
             setattr(self, wp_name, wp)
             wp.name = label
+            wp.tag = default_tag
 
     def collection_offsets(self):
         offsets = {}

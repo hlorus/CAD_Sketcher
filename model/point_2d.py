@@ -57,7 +57,7 @@ class Point2D(Entity2D):
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        coords = [solvesys.get_param_value(self.py_data['param'][i]) for i in range(2)]
+        coords = [solvesys.get_param_value(self.py_data["param"][i]) for i in range(2)]
         self.co = coords
 
     def closest_picking_point(self, origin, view_vector):
@@ -101,6 +101,9 @@ class SlvsPoint2D(Point2D, PropertyGroup):
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)
+        if self.guid:
+            row = sub.row()
+            row.prop(self, "guid", text="")
         sub.prop(self, "co")
         return sub
 

@@ -16,11 +16,13 @@ modules = [
     "add_line_3d",
     "add_workplane",
     "add_sketch",
+    "add_linked_sketch",
     "add_point_2d",
     "add_line_2d",
     "add_circle",
     "add_arc",
     "add_rectangle",
+    "add_polyline",
     "trim",
     "batch_set",
     "bevel",
@@ -40,7 +42,8 @@ modules = [
     "modifiers",
     "move",
     "duplicate",
-    "test"
+    "test",
+    "tag_preset",
 ]
 
 

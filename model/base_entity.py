@@ -6,9 +6,10 @@ Base entity classes for CAD Sketcher.
 import logging
 from typing import List
 
+import bpy
 import gpu
 from bpy import app
-from bpy.props import BoolProperty, IntProperty, StringProperty
+from bpy.props import BoolProperty, EnumProperty, IntProperty, StringProperty
 from bpy.types import Context
 
 from .. import global_data
@@ -57,9 +58,57 @@ class SlvsGenericEntity:
     fixed: BoolProperty(name="Fixed")
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     origin: BoolProperty(name="Origin")
+    tag: StringProperty(
+        name="Tag",
+        description="Freeform tag for integrations (e.g. an IFC class name)",
+        default="",
+    )
+    guid: StringProperty(
+        name="GUID",
+        description="Freeform GUID for integrations (e.g. GlobalId of a linked IFC element)",
+        default="",
+    )
     construction: BoolProperty(name="Construction", update=tag_update)
+    geometry: EnumProperty(
+        name="Geometry",
+        description="Geometry role used by linked-sketch workflows",
+        items=(
+            ("NONE", "None", "Regular geometry"),
+            ("LINKING", "Linking", "Source geometry used for linking"),
+            ("LINKED", "Linked", "Geometry projected from another sketch"),
+        ),
+        default="NONE",
+    )
     props = ()
     dirty: BoolProperty(name="Needs Update", default=True, options={"SKIP_SAVE"})
+
+    @property
+    def linked(self):
+        return self.geometry == "LINKED" or bool(self.get("linked", False))
+
+    @linked.setter
+    def linked(self, value):
+        if value:
+            self.geometry = "LINKED"
+        elif self.geometry == "LINKED":
+            self.geometry = "NONE"
+        self["linked"] = bool(value)
+
+    @property
+    def linking(self):
+        return self.geometry == "LINKING"
+
+    @linking.setter
+    def linking(self, value):
+        if value:
+            self.geometry = "LINKING"
+        elif self.geometry == "LINKING":
+            self.geometry = "NONE"
+
+    def geometry_role(self, context: Context = None) -> str:
+        if self.linked:
+            return "LINKED"
+        return self.geometry
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -216,6 +265,11 @@ class SlvsGenericEntity:
         elif highlight:
             return ts.entity.highlight
 
+        geometry_role = self.geometry_role(context)
+        if geometry_role == "LINKING":
+            return ts.entity.linking
+        if geometry_role == "LINKED":
+            return ts.entity.linked
         if fixed and not origin:
             return ts.entity.fixed
         return ts.entity.default
@@ -341,6 +395,7 @@ class SlvsGenericEntity:
         layout.separator()
         layout.label(text="Type: " + type(self).__name__)
         layout.label(text="Is Origin: " + str(self.origin))
+        layout.label(text="Geometry: " + self.geometry_role(bpy.context))
 
         if is_experimental:
             sub = layout.column()

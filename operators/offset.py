@@ -16,7 +16,6 @@ from ..model.utilities import get_connection_point
 from .base_2d import Operator2d
 from .utilities import ignore_hover
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -27,6 +26,7 @@ def _get_offset_co(point, normal, distance):
 
 def _bool_to_signed_int(invert):
     return -1 if invert else 1
+
 
 def _inverted_dist(invert, distance):
     sign = _bool_to_signed_int(invert) * _bool_to_signed_int(distance < 0)
@@ -73,7 +73,6 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             refresh(context)
             return True
 
-
         walker = EntityWalker(context.scene, sketch, entity=entity)
         path = walker.main_path()
         is_cyclic = walker.is_cyclic_path(path[0])
@@ -99,7 +98,9 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             intersections = sorted(
                 get_intersections(
                     get_offset_elements(entity, _inverted_dist(entity_dir, distance)),
-                    get_offset_elements(neighbour, _inverted_dist(neighbour_dir, distance)),
+                    get_offset_elements(
+                        neighbour, _inverted_dist(neighbour_dir, distance)
+                    ),
                 ),
                 key=lambda i: (i - point.co).length,
             )
@@ -178,6 +179,30 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         #     if not is_line(entity):
         #         continue
         #     constraints.add_parallel(entity, new_entity, sketch=self.sketch)
+
+        # If the source entity belongs to a polyline, create a matching offset polyline.
+        if not hasattr(self, "new_path") or not self.new_path:
+            return
+        sse = context.scene.sketcher.entities
+        source_polyline = None
+        source_idx = self.entity.slvs_index
+        for poly in sse.polylines:
+            for i in range(poly.segment_count):
+                if int(poly.segment_indices[i]) == source_idx:
+                    source_polyline = poly
+                    break
+            if source_polyline is not None:
+                break
+
+        if source_polyline is not None:
+            new_poly = sse.add_polyline(
+                self.new_path, source_polyline.closed, self.sketch
+            )
+            logger.debug(
+                "Created offset polyline %s from source polyline %s",
+                new_poly,
+                source_polyline,
+            )
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_offset,))
