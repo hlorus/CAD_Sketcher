@@ -1,13 +1,65 @@
 import logging
+from collections import Counter
 
 import bpy
 from bpy.types import Operator, Context
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
-from ..utilities.walker import EntityWalker
 
 logger = logging.getLogger(__name__)
+
+
+def _endpoints(seg):
+    """Return the (p1, p2) endpoint entities of a segment, or (None, None)."""
+    if hasattr(seg, "p1") and hasattr(seg, "p2"):
+        return seg.p1, seg.p2
+    return None, None
+
+
+def _chain_segments(segments):
+    """Sort segments into a connected chain using only the given segments.
+
+    Returns (ordered_segments, is_closed).
+    Any segments that cannot be connected are appended at the end in list order.
+    """
+    if not segments:
+        return [], False
+
+    remaining = list(segments)
+    ordered = [remaining.pop(0)]
+
+    changed = True
+    while remaining and changed:
+        changed = False
+        _, tail = _endpoints(ordered[-1])
+        for seg in list(remaining):
+            p1, p2 = _endpoints(seg)
+            if p1 is None:
+                continue
+            if tail is not None and p1 == tail:
+                ordered.append(seg)
+                remaining.remove(seg)
+                changed = True
+                break
+            if tail is not None and p2 == tail:
+                # Segment is reversed — still add it; direction lives in entity
+                ordered.append(seg)
+                remaining.remove(seg)
+                changed = True
+                break
+
+    ordered.extend(remaining)  # attach any disconnected stragglers
+
+    # Detect closure: every endpoint appears exactly twice in the chain
+    all_pts = []
+    for s in ordered:
+        p1, p2 = _endpoints(s)
+        if p1 is not None:
+            all_pts.extend([p1, p2])
+    is_closed = len(ordered) >= 2 and all(v == 2 for v in Counter(all_pts).values())
+
+    return ordered, is_closed
 
 
 class View3D_OT_slvs_add_polyline(Operator):
@@ -15,7 +67,7 @@ class View3D_OT_slvs_add_polyline(Operator):
 
     Select two or more connected lines or arcs in the active sketch,
     then run this operator to group them into a SlvsPolyline entity.
-    Closure is detected automatically.
+    Only the selected segments are used; closure is detected automatically.
     """
 
     bl_idname = Operators.AddPolyline
@@ -39,43 +91,22 @@ class View3D_OT_slvs_add_polyline(Operator):
         sketch = context.scene.sketcher.active_sketch
         sse = context.scene.sketcher.entities
 
+        # Collect selected segments in entity-list order (stable, predictable)
         segments = [
             e
-            for e in sse.selected_active
-            if e.is_segment() and hasattr(e, "sketch") and e.sketch == sketch
+            for e in sse.all
+            if e.is_segment()
+            and hasattr(e, "sketch")
+            and e.sketch == sketch
+            and e.selected
         ]
 
         if len(segments) < 2:
             self.report({"WARNING"}, "Select at least 2 connected segments")
             return {"CANCELLED"}
 
-        # Use EntityWalker to find the connected path starting from the first segment
-        walker = EntityWalker(context.scene, sketch, entity=segments[0])
-
-        if not walker.paths:
-            self.report({"ERROR"}, "Could not find a connected path from selection")
-            return {"CANCELLED"}
-
-        # Find the path that contains all selected segments
-        target_path = None
-        selected_indices = {e.slvs_index for e in segments}
-        for path_entities, _ in walker.paths:
-            path_indices = {e.slvs_index for e in path_entities}
-            if selected_indices.issubset(path_indices):
-                target_path = (path_entities, _)
-                break
-
-        if target_path is None:
-            # Fall back to the first path
-            target_path = walker.paths[0]
-            logger.warning(
-                "Selected segments do not all belong to one path; "
-                "using the first connected path found."
-            )
-
-        path_entities, _ = target_path
-        is_closed = EntityWalker.is_cyclic_path(path_entities)
-        segment_indices = [e.slvs_index for e in path_entities]
+        ordered, is_closed = _chain_segments(segments)
+        segment_indices = [e.slvs_index for e in ordered]
 
         if len(segment_indices) > 32:
             self.report(
@@ -84,6 +115,7 @@ class View3D_OT_slvs_add_polyline(Operator):
                     len(segment_indices)
                 ),
             )
+            segment_indices = segment_indices[:32]
 
         poly = sse.add_polyline(segment_indices, is_closed, sketch)
         logger.debug("Created {}".format(poly))

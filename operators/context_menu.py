@@ -64,6 +64,25 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
             col = self.layout.column()
             element.draw_props(col)
 
+            # Offer polyline creation in the entity popup when this entity is
+            # one of the selected segments in the active sketch.
+            sketch = context.scene.sketcher.active_sketch
+            if sketch is None:
+                return
+
+            sse = context.scene.sketcher.entities
+            selected_segments = [
+                e
+                for e in sse.selected_active
+                if e.is_segment() and hasattr(e, "sketch") and e.sketch == sketch
+            ]
+            if len(selected_segments) < 2:
+                return
+
+            if element in selected_segments:
+                col.separator()
+                col.operator(Operators.AddPolyline, icon="CURVE_PATH")
+
         if not element:
             bpy.ops.wm.call_menu(name="VIEW3D_MT_selected_menu")
             return {"FINISHED"}
