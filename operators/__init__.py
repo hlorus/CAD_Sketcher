@@ -32,6 +32,7 @@ modules = [
     "delete_constraint",
     "constraint_visibility",
     "tweak_constraint",
+    "flip_line_direction",
     "presets",
     "add_distance",
     "add_diameter",

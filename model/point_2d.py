@@ -1,3 +1,4 @@
+# pyright: reportInvalidTypeForm=false
 import logging
 from typing import List
 
@@ -12,7 +13,6 @@ from ..utilities.draw import draw_rect_2d
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity, Entity2D, tag_update
 from .utilities import slvs_entity_pointer, make_coincident
-from .line_2d import SlvsLine2D
 from ..utilities.constants import HALF_TURN
 
 logger = logging.getLogger(__name__)

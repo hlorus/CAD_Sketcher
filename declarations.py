@@ -56,6 +56,7 @@ class Operators(str, Enum):
     DeleteConstraint = "view3d.slvs_delete_constraint"
     DeleteEntity = "view3d.slvs_delete_entity"
     InstallPackage = "view3d.slvs_install_package"
+    FlipLineDirection = "view3d.slvs_flip_line_direction"
     Paste = "view3d.slvs_paste"
     Move = "view3d.slvs_move"
     Offset = "view3d.slvs_offset"

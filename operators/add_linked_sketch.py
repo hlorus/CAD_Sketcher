@@ -221,6 +221,36 @@ The line is mirrored as fixed construction geometry along the new X axis"""
             self.report({"ERROR"}, "Source line has zero length")
             return {"CANCELLED"}
 
+        print(f"\n=== Linked Sketch Creation ===")
+        print(f"Source line: {line.name} (slvs_index={line.slvs_index})")
+        print(f"  p1 entity: {line.p1.name} (slvs_index={line.p1.slvs_index})")
+        print(f"  p2 entity: {line.p2.name} (slvs_index={line.p2.slvs_index})")
+        print(f"  p1 location: {line.p1.location}")
+        print(f"  p2 location: {line.p2.location}")
+        print(f"  line_vec: {line_vec}, length: {line_length}")
+        print(
+            f"Source sketch: {line.sketch.name} (tag='{getattr(line.sketch, 'tag', '')}')"
+        )
+        print(f"Source workplane normal: {line.sketch.wp.normal}")
+
+        # Determine direction in SOURCE SKETCH LOCAL space, not world space.
+        # This avoids mirrored linked planes when the sketch basis is flipped in world.
+        src_wp_inv = line.sketch.wp.matrix_basis.inverted()
+        p1_local = src_wp_inv @ line.p1.location
+        p2_local = src_wp_inv @ line.p2.location
+        local_dx = p2_local.x - p1_local.x
+        local_dy = p2_local.y - p1_local.y
+
+        print(f"Source local p1: {p1_local}")
+        print(f"Source local p2: {p2_local}")
+        print(f"Source local delta: ({local_dx:.6f}, {local_dy:.6f})")
+
+        print("Using source p1 -> p2 as created for linked direction")
+        print(
+            "Linked sketch direction can be changed later with the new "
+            "Flip Line Direction operator."
+        )
+
         x_new = line_vec.normalized()
         # Source sketch normal becomes new Y axis (keeps planes orthogonal)
         y_new = line.sketch.wp.normal.copy()
@@ -228,20 +258,39 @@ The line is mirrored as fixed construction geometry along the new X axis"""
         # Re-orthogonalise y against z to guard float drift
         y_new = z_new.cross(x_new).normalized()
 
+        print(f"Initial basis (before elevation flip):")
+        print(f"  x_new (line direction): {x_new}")
+        print(f"  y_new (from wp normal): {y_new}")
+        print(f"  z_new (x cross y): {z_new}")
+
         # For an Elevation source the resulting plan workplane must face
         # downward, so flip the local z axis.
-        if getattr(line.sketch, "tag", "") == "Elevation":
+        source_tag = getattr(line.sketch, "tag", "")
+        if source_tag == "Elevation":
+            print(f"Source is Elevation: flipping z_new")
             z_new = -z_new
             y_new = z_new.cross(x_new).normalized()
+            print(f"After elevation flip:")
+            print(f"  z_new (flipped): {z_new}")
+            print(f"  y_new (recalc from z x x): {y_new}")
+        else:
+            print(f"Source is not Elevation (tag='{source_tag}'): no flip")
 
         # Rotation matrix whose columns are the new basis vectors
         mat3 = Matrix((x_new, y_new, z_new)).transposed()
         quat = mat3.to_quaternion()
+        print(f"Final quaternion: {quat}")
+        print(f"Final rotation matrix:")
+        print(mat3)
 
         # --- Build 3D workplane primitives ---
         origin_pt = sse.add_point_3d(tuple(origin_3d))
         nm = sse.add_normal_3d(tuple(quat))
         wp = sse.add_workplane(origin_pt, nm)
+
+        print(f"Created workplane: {wp.name} (slvs_index={wp.slvs_index})")
+        print(f"  origin: {wp.p1.location}")
+        print(f"  normal (local Z): {wp.normal}")
 
         # Align workplane rect with the linked geometry line:
         # start at origin, extend right by line_length, upward by workplane size.
@@ -259,19 +308,36 @@ The line is mirrored as fixed construction geometry along the new X axis"""
         if new_sketch.tag in {"Plan", "Elevation"}:
             wp.tag = new_sketch.tag
 
+        print(f"Created sketch: {new_sketch.name} (slvs_index={new_sketch.slvs_index})")
+        print(f"  tag: '{new_sketch.tag}' (source_role='{source_role}')")
+
         # Fixed sketch origin coinciding with the workplane origin
         p_origin = sse.add_point_2d((0.0, 0.0), new_sketch)
         p_origin.fixed = True
         p_origin.linked = True
+        print(
+            f"Created linked origin point: {p_origin.name} "
+            f"(slvs_index={p_origin.slvs_index})"
+        )
 
         # Linked geometry: fixed line along X axis mirroring the source line
         p_end = sse.add_point_2d((line_length, 0.0), new_sketch)
         p_end.fixed = True
         p_end.linked = True
+        print(
+            f"Created linked end point: {p_end.name} "
+            f"(slvs_index={p_end.slvs_index})"
+        )
 
         ext_line = sse.add_line_2d(p_origin, p_end, new_sketch)
         ext_line.fixed = True
         ext_line.linked = True
+        print(
+            f"Created linked guide line: {ext_line.name} "
+            f"(slvs_index={ext_line.slvs_index})"
+        )
+        print(f"  guide p1: {ext_line.p1.name} (slvs_index={ext_line.p1.slvs_index})")
+        print(f"  guide p2: {ext_line.p2.name} (slvs_index={ext_line.p2.slvs_index})")
 
         new_sketch.source_linked_line_i = ext_line.slvs_index
 
@@ -304,7 +370,11 @@ The line is mirrored as fixed construction geometry along the new X axis"""
                     _ext_pt.tag = _pt.tag
                 if getattr(_pt, "guid", ""):
                     _ext_pt.guid = _pt.guid
-                logger.debug("Added linked reference point at X=%.4f from %s", _t, _pt)
+                print(
+                    f"Added linked reference point at X={_t:.4f} "
+                    f"from {_pt.name} (slvs_index={_pt.slvs_index}) "
+                    f"to {_ext_pt.name} (slvs_index={_ext_pt.slvs_index})"
+                )
 
         # --- IFC IfcWall: pre-populate height and build elevation reference rectangle ---
         if context.scene.sketcher.ifc_integration:

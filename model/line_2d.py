@@ -283,6 +283,12 @@ class SlvsLine2D(Entity2D, PropertyGroup):
             row.prop(self, "guid", text="")
         sub.separator()
         op = sub.operator(
+            Operators.FlipLineDirection,
+            text="flip line direction",
+            icon="ARROW_LEFTRIGHT",
+        )
+        op.line_index = self.slvs_index
+        op = sub.operator(
             Operators.AddLinkedSketch,
             text="add linked sketch",
             icon="SNAP_PERPENDICULAR",
