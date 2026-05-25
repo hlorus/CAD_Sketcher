@@ -66,7 +66,6 @@ class View3D_OT_slvs_add_sketch_origin_offset(Operator):
         origin = sse.add_point_3d(origin_co)
         nm = sse.add_normal_3d(base_wp.nm.orientation)
         wp = sse.add_workplane(origin, nm)
-        wp.tag = getattr(base_wp, "tag", "")
 
         sketch = _create_sketch_for_workplane(context, wp, self)
         wp.visible = False

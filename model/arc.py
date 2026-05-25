@@ -11,7 +11,7 @@ from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere
 from bpy.utils import register_classes_factory
 
 from ..solver import Solver
-from .base_entity import SlvsGenericEntity, tag_update
+from .base_entity import SlvsGenericEntity, _entity_dirty_update
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer
 from .constants import CURVE_RESOLUTION
@@ -55,7 +55,7 @@ class SlvsArc(Entity2D, PropertyGroup):
     invert_direction: BoolProperty(
         name="Invert direction",
         description="Connect the points in the inverted order",
-        update=tag_update,
+        update=_entity_dirty_update,
     )
 
     @classmethod
@@ -273,9 +273,6 @@ class SlvsArc(Entity2D, PropertyGroup):
     def draw_props(self, layout):
         sub = super().draw_props(layout)
         sub.prop(self, "invert_direction")
-        if self.guid:
-            row = sub.row()
-            row.prop(self, "guid", text="")
         return sub
 
     def is_inside(self, coords):

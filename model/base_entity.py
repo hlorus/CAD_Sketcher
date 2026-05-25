@@ -23,7 +23,7 @@ from ..utilities.view import update_cb
 logger = logging.getLogger(__name__)
 
 
-def tag_update(self, _context=None):
+def _entity_dirty_update(self, _context=None):
     if not self.is_dirty:
         self.is_dirty = True
 
@@ -58,17 +58,7 @@ class SlvsGenericEntity:
     fixed: BoolProperty(name="Fixed")
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     origin: BoolProperty(name="Origin")
-    tag: StringProperty(
-        name="Tag",
-        description="Freeform tag for integrations (e.g. an IFC class name)",
-        default="",
-    )
-    guid: StringProperty(
-        name="GUID",
-        description="Freeform GUID for integrations (e.g. GlobalId of a linked IFC element)",
-        default="",
-    )
-    construction: BoolProperty(name="Construction", update=tag_update)
+    construction: BoolProperty(name="Construction", update=_entity_dirty_update)
     geometry: EnumProperty(
         name="Geometry",
         description="Geometry role used by linked-sketch workflows",

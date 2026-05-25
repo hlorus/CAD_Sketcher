@@ -45,6 +45,7 @@ modules = [
     "duplicate",
     "test",
     "tag_preset",
+    "manage_sketch_groups",
 ]
 
 

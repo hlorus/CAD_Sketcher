@@ -99,10 +99,8 @@ def sync_linked_intermediate_points(scene, sketch):
         reserved_indices.add(ext_line.p1.slvs_index)
         reserved_indices.add(ext_line.p2.slvs_index)
 
-    # Index existing intermediate linked points by guid (and collect those
-    # without a guid separately for position-based fallback matching).
-    existing_by_guid = {}  # guid -> SlvsPoint2D
-    existing_no_guid = []  # [SlvsPoint2D, ...]
+    # Index existing intermediate linked points for position-based matching.
+    existing_linked_pts = []
     for e in sse.points2D:
         if not hasattr(e, "sketch") or e.sketch.slvs_index != sketch.slvs_index:
             continue
@@ -110,34 +108,18 @@ def sync_linked_intermediate_points(scene, sketch):
             continue
         if e.slvs_index in reserved_indices:
             continue
-        g = getattr(e, "guid", "")
-        if g:
-            existing_by_guid[g] = e
-        else:
-            existing_no_guid.append(e)
+        existing_linked_pts.append(e)
 
     # Helper: update an existing linked point or create a new one.
     def _upsert(t, src_pt):
-        src_guid = getattr(src_pt, "guid", "")
-        if src_guid and src_guid in existing_by_guid:
-            existing_by_guid[src_guid].co = (t, 0.0)
-            return
-        for ep in existing_no_guid:
+        for ep in existing_linked_pts:
             if abs(ep.co[0] - t) < 1e-5:
                 ep.co = (t, 0.0)
-                if getattr(src_pt, "tag", ""):
-                    ep.tag = src_pt.tag
-                if src_guid:
-                    ep.guid = src_guid
-                existing_no_guid.remove(ep)
+                existing_linked_pts.remove(ep)
                 return
         ext_pt = sse.add_point_2d((t, 0.0), sketch)
         ext_pt.fixed = True
         ext_pt.linked = True
-        if getattr(src_pt, "tag", ""):
-            ext_pt.tag = src_pt.tag
-        if src_guid:
-            ext_pt.guid = src_guid
         logger.debug(
             "sync_linked_intermediate_points: added linked point "
             "at X=%.4f from %s into sketch %s",

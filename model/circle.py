@@ -12,7 +12,7 @@ from bpy.utils import register_classes_factory
 
 from ..solver import Solver
 from ..utilities.math import range_2pi, pol2cart
-from .base_entity import SlvsGenericEntity, tag_update
+from .base_entity import SlvsGenericEntity, _entity_dirty_update
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer
 from .constants import CURVE_RESOLUTION
@@ -43,7 +43,7 @@ class SlvsCircle(Entity2D, PropertyGroup):
         subtype="DISTANCE",
         min=0.0,
         unit="LENGTH",
-        update=tag_update,
+        update=_entity_dirty_update,
     )
     props = ()
 
@@ -226,9 +226,6 @@ class SlvsCircle(Entity2D, PropertyGroup):
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)
-        if self.guid:
-            row = sub.row()
-            row.prop(self, "guid", text="")
         return sub
 
 

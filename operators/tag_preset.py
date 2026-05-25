@@ -5,23 +5,25 @@ from bpy.utils import register_classes_factory
 from ..model.constants import TAG_ITEMS, SKETCH_ROLE_ITEMS
 
 
-class SLVS_OT_TagFromPreset(bpy.types.Operator):
-    """Pick a tag value from a searchable list of common IFC classes"""
+class SLVS_OT_TagGroupFromPreset(bpy.types.Operator):
+    """Pick an IFC class tag for the active group from a searchable list"""
 
-    bl_idname = "view3d.slvs_tag_from_preset"
-    bl_label = "Pick Tag"
+    bl_idname = "view3d.slvs_tag_group_from_preset"
+    bl_label = "Pick Group Tag"
     bl_property = "tag"
 
-    index: IntProperty(default=-1)
+    group_index: IntProperty(default=-1)
     tag: EnumProperty(name="Tag", items=TAG_ITEMS)
 
+    @classmethod
+    def poll(cls, context):
+        return context.scene.sketcher.active_sketch is not None
+
     def execute(self, context):
-        if self.index < 0:
+        sketch = context.scene.sketcher.active_sketch
+        if not (0 <= self.group_index < len(sketch.groups)):
             return {"CANCELLED"}
-        entity = context.scene.sketcher.entities.get(self.index)
-        if entity is None:
-            return {"CANCELLED"}
-        entity.tag = self.tag
+        sketch.groups[self.group_index].tag = self.tag
         return {"FINISHED"}
 
     def invoke(self, context, event):
@@ -52,5 +54,5 @@ class SLVS_OT_SketchRoleFromPreset(bpy.types.Operator):
 
 
 register, unregister = register_classes_factory(
-    (SLVS_OT_TagFromPreset, SLVS_OT_SketchRoleFromPreset)
+    (SLVS_OT_TagGroupFromPreset, SLVS_OT_SketchRoleFromPreset)
 )

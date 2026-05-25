@@ -172,9 +172,6 @@ class SlvsPolyline(Entity2D, PropertyGroup):
         # Specific props
         layout.separator()
         sub = layout.column()
-        if self.guid:
-            row = sub.row()
-            row.prop(self, "guid", text="")
 
         # Delete
         layout.separator()

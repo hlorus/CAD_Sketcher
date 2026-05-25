@@ -26,6 +26,23 @@ def _get_ref_plane_items(self, context):
     return _ref_plane_items
 
 
+def _get_ifcwall_group(context, line):
+    """Return the first SketchGroup on the line's sketch that has tag='IfcWall',
+    contains *line* as a member, and has a non-empty member GUID.
+    Returns ``None`` if no such group exists.
+    """
+    sketch = getattr(line, "sketch", None)
+    if sketch is None:
+        return None
+    for group in sketch.groups:
+        if group.tag != "IfcWall":
+            continue
+        member = group.get_member(line.slvs_index)
+        if member is not None and member.guid:
+            return group
+    return None
+
+
 class View3D_OT_slvs_pick_reference_planes(Operator):
     """Project linked geometry lines from same-tag reference planes into the
     new linked sketch. Each plane up to and including the chosen one
@@ -351,10 +368,6 @@ The line is mirrored as fixed construction geometry along the new X axis"""
             _ext_pt = sse.add_point_2d((_t, 0.0), new_sketch)
             _ext_pt.fixed = True
             _ext_pt.linked = True
-            if getattr(src_pt, "tag", ""):
-                _ext_pt.tag = src_pt.tag
-            if getattr(src_pt, "guid", ""):
-                _ext_pt.guid = src_pt.guid
             print(
                 f"Added linked reference point at X={_t:.4f} "
                 f"from {src_pt.name} (slvs_index={src_pt.slvs_index}) "
@@ -414,9 +427,10 @@ The line is mirrored as fixed construction geometry along the new X axis"""
 
         # --- IFC IfcWall: pre-populate height and build elevation reference rectangle ---
         if context.scene.sketcher.ifc_integration:
-            line_tag = getattr(line, "tag", "")
-            line_guid = getattr(line, "guid", "")
-            if line_tag == "IfcWall" and line_guid:
+            wall_group = _get_ifcwall_group(context, line)
+            if wall_group is not None:
+                wall_member = wall_group.get_member(line.slvs_index)
+                line_guid = wall_member.guid if wall_member else ""
                 wall_height = None
                 try:
                     import bonsai.tool as _bonsai_tool
@@ -459,8 +473,14 @@ The line is mirrored as fixed construction geometry along the new X axis"""
                         True,
                         new_sketch,
                     )
-                    elev_poly.tag = line_tag
-                    elev_poly.guid = line_guid
+                    # Mirror the wall group onto the elevation sketch so the
+                    # elevation polyline carries the same IFC class and GUIDs.
+                    elev_group = new_sketch.groups.add()
+                    elev_group.name = wall_group.name
+                    elev_group.tag = wall_group.tag
+                    elev_group.guid = wall_group.guid
+                    elev_member = elev_group.add_member(elev_poly.slvs_index)
+                    elev_member.guid = line_guid
 
         activate_sketch(context, new_sketch.slvs_index, self)
 

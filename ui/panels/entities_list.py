@@ -55,19 +55,6 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             if e.linked:
                 row.label(text="", icon="LOCKED")
 
-            # Tag field + preset picker
-            tag_sub = row.row(align=True)
-            tag_field = tag_sub.row(align=True)
-            tag_field.scale_x = 0.75
-            tag_field.prop(e, "tag", text="")
-            if context.scene.sketcher.ifc_integration and hasattr(e, "sketch"):
-                op = tag_sub.operator(
-                    "view3d.slvs_tag_from_preset",
-                    text="",
-                    icon="VIEWZOOM",
-                )
-                op.index = e.slvs_index
-
             # Context menu
             props = row.operator(
                 declarations.Operators.ContextMenu,

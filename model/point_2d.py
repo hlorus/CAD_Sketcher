@@ -12,7 +12,7 @@ from bpy.utils import register_classes_factory
 from ..utilities.draw import draw_rect_2d
 from ..declarations import WorkSpaceTools
 from ..solver import Solver
-from .base_entity import SlvsGenericEntity, Entity2D, tag_update
+from .base_entity import SlvsGenericEntity, Entity2D, _entity_dirty_update
 from .utilities import slvs_entity_pointer, make_coincident
 from .line_2d import SlvsLine2D
 from ..utilities.constants import HALF_TURN
@@ -116,7 +116,7 @@ class SlvsPoint2D(Point2D, PropertyGroup):
         subtype="XYZ",
         size=2,
         unit="LENGTH",
-        update=tag_update,
+        update=_entity_dirty_update,
     )
     props = ("co",)
 
@@ -125,22 +125,8 @@ class SlvsPoint2D(Point2D, PropertyGroup):
             self.sketch,
         ]
 
-    # def tweak(self, solvesys, pos, group):
-    #     wrkpln = self.sketch.wp
-    #     u, v, _ = wrkpln.matrix_basis.inverted() @ pos
-
-    #     self.create_slvs_data(solvesys, group=group)
-
-    #     p = solvesys.add_point_2d(group, u, v, wrkpln.py_data)
-    #     make_coincident(solvesys, p, self, wrkpln.py_data, group, entity_type=SlvsPoint2D)
-    #     solvesys.dragged(group, p, wrkpln.py_data)
-    #     return
-
     def draw_props(self, layout):
         sub = super().draw_props(layout)
-        if self.guid:
-            row = sub.row()
-            row.prop(self, "guid", text="")
         sub.prop(self, "co")
         return sub
 

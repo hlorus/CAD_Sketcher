@@ -4,7 +4,7 @@ from typing import List
 import bpy
 import gpu
 from mathutils import Vector, Matrix
-from bpy.props import FloatProperty
+from bpy.props import FloatProperty, StringProperty
 from bpy.types import PropertyGroup
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
@@ -43,6 +43,11 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         name="Linked WP Height",
         description="Height of the linked-sketch workplane display. Updated on sketch leave to match the extreme point drawn (positive = upward, negative = downward). Falls back to the linked workplane width (square) when 0.",
         default=0.0,
+    )
+    tag: StringProperty(
+        name="Tag",
+        description="Workflow role of this workplane (e.g. Plan, Elevation)",
+        default="",
     )
 
     def dependencies(self) -> List[SlvsGenericEntity]:

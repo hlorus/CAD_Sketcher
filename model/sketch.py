@@ -3,12 +3,20 @@ from typing import List
 
 import bpy
 from bpy.types import PropertyGroup
-from bpy.props import EnumProperty, BoolProperty, IntProperty, PointerProperty
+from bpy.props import (
+    CollectionProperty,
+    EnumProperty,
+    BoolProperty,
+    IntProperty,
+    PointerProperty,
+    StringProperty,
+)
 from bpy.utils import register_classes_factory
 
 from .. import global_data
 from ..solver import Solver, solve_system
 from .base_entity import SlvsGenericEntity
+from .sketch_group import SketchGroup
 from .utilities import slvs_entity_pointer
 from ..utilities.bpy import bpyEnum
 
@@ -71,6 +79,21 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     source_linked_line_i: IntProperty(
         name="Linked Geometry Line",
         description="Index of the construction Line2D inside this sketch that mirrors the source line length.",
+        default=-1,
+    )
+    tag: StringProperty(
+        name="Tag",
+        description="Workflow role of this sketch (e.g. Plan, Elevation)",
+        default="",
+    )
+    groups: CollectionProperty(
+        name="Groups",
+        description="Semantic groups of entities for IFC and other integrations",
+        type=SketchGroup,
+    )
+    active_group_index: IntProperty(
+        name="Active Group",
+        description="Index of the currently selected group in the Groups panel",
         default=-1,
     )
 

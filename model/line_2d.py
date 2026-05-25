@@ -278,9 +278,6 @@ class SlvsLine2D(Entity2D, PropertyGroup):
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)
-        if self.guid:
-            row = sub.row()
-            row.prop(self, "guid", text="")
         sub.separator()
         op = sub.operator(
             Operators.FlipLineDirection,

@@ -5,6 +5,7 @@ modules = [
     "line_3d",
     "normal_3d",
     "workplane",
+    "sketch_group",
     "sketch",
     "point_2d",
     "line_2d",
