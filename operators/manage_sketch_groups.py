@@ -101,6 +101,40 @@ class SLVS_OT_UnassignFromGroup(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class SLVS_OT_SelectGroup(bpy.types.Operator):
+    """Toggle selection of all entities in a group"""
+
+    bl_idname = "view3d.slvs_select_group"
+    bl_label = "Select Group"
+    bl_options = {"UNDO"}
+
+    group_index: IntProperty(default=-1)
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.sketcher.active_sketch is not None
+
+    def execute(self, context):
+        sketch = context.scene.sketcher.active_sketch
+        g_idx = self.group_index
+        if not (0 <= g_idx < len(sketch.groups)):
+            return {"CANCELLED"}
+        group = sketch.groups[g_idx]
+        indices = [m.entity_index for m in group.members if m.entity_index != -1]
+        all_selected = all(i in global_data.selected for i in indices)
+        if all_selected:
+            for i in indices:
+                if i in global_data.selected:
+                    global_data.selected.remove(i)
+        else:
+            for i in indices:
+                if i not in global_data.selected:
+                    global_data.selected.append(i)
+        global_data.needs_redraw = True
+        context.area.tag_redraw()
+        return {"FINISHED"}
+
+
 class SLVS_OT_AddGroupTag(bpy.types.Operator):
     """Add an IFC class tag to the active group"""
 
@@ -205,5 +239,6 @@ register, unregister = register_classes_factory(
         SLVS_OT_RemoveSketchTag,
         SLVS_OT_AssignToGroup,
         SLVS_OT_UnassignFromGroup,
+        SLVS_OT_SelectGroup,
     )
 )

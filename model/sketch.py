@@ -99,10 +99,15 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         name="Active Group",
         description="Index of the currently selected group in the Groups panel",
         default=-1,
+        update=lambda self, context: self._sync_group_selection(),
     )
 
+    def _sync_group_selection(self):
+        global_data.selected.clear()
+        global_data.needs_redraw = True
+
     def has_tag(self, value: str) -> bool:
-        return any(t.value == value for t in self.tags)
+        return any(t.value == value and t.enabled for t in self.tags)
 
     def add_tag(self, value: str):
         if not self.has_tag(value):
@@ -116,7 +121,7 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
                 return
 
     def tag_values(self) -> list:
-        return [t.value for t in self.tags]
+        return [t.value for t in self.tags if t.enabled]
 
     def dependencies(self) -> List[SlvsGenericEntity]:
         return [

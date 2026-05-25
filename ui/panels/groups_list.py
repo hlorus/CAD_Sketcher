@@ -1,5 +1,6 @@
 from bpy.types import Context, UIList
 
+from ... import global_data
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
 
@@ -24,6 +25,16 @@ class VIEW3D_UL_sketch_groups(UIList):
         group = item
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             row = layout.row(align=True)
+            # selection circle — full if all members are selected
+            indices = [m.entity_index for m in group.members if m.entity_index != -1]
+            all_sel = bool(indices) and all(i in global_data.selected for i in indices)
+            op = row.operator(
+                "view3d.slvs_select_group",
+                text="",
+                emboss=False,
+                icon="RADIOBUT_ON" if all_sel else "RADIOBUT_OFF",
+            )
+            op.group_index = index
             row.prop(group, "name", text="", emboss=False)
             tag_vals = group.tag_values()
             if tag_vals:
@@ -62,7 +73,8 @@ class VIEW3D_UL_group_tags(UIList):
         tag = item
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             row = layout.row(align=True)
-            row.label(text="", icon="LAYER_USED")
+            row.prop(tag, "enabled", text="", emboss=False,
+                     icon="HIDE_OFF" if tag.enabled else "HIDE_ON")
             row.prop(tag, "value", text="", emboss=True)
             if context.scene.sketcher.ifc_integration:
                 sketch = context.scene.sketcher.active_sketch
@@ -101,7 +113,16 @@ class VIEW3D_UL_group_members(UIList):
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             row = layout.row(align=True)
             if entity is not None:
-                row.label(text=entity.name, icon="SNAP_VERTEX")
+                is_sel = member.entity_index in global_data.selected
+                op = row.operator(
+                    "view3d.slvs_select",
+                    text="",
+                    emboss=False,
+                    icon="RADIOBUT_ON" if is_sel else "RADIOBUT_OFF",
+                )
+                op.index = member.entity_index
+                op.mode = "TOGGLE"
+                row.label(text=entity.name)
             else:
                 row.label(text="(missing)", icon="ERROR")
             row.prop(member, "guid", text="")
@@ -147,7 +168,6 @@ class VIEW3D_PT_sketcher_groups(VIEW3D_PT_sketcher_base):
         col_ops.operator("view3d.slvs_remove_sketch_group", text="", icon="REMOVE")
 
         if group is None:
-            layout.enabled = False
             layout.label(text="Select a group above", icon="INFO")
             return
 

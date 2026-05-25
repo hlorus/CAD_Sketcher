@@ -22,9 +22,11 @@ SketchGroup
     group-level GUID, and an ordered list of members.
 """
 
-from bpy.props import CollectionProperty, IntProperty, StringProperty
+from bpy.props import BoolProperty, CollectionProperty, IntProperty, StringProperty
 from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
+
+from .. import global_data
 
 
 class SketchGroupTag(PropertyGroup):
@@ -38,6 +40,11 @@ class SketchGroupTag(PropertyGroup):
         name="Tag",
         description="IFC class name (e.g. IfcWall, IfcSlab, IfcCovering)",
         default="",
+    )
+    enabled: BoolProperty(
+        name="Enabled",
+        description="When disabled this tag is ignored by all callers",
+        default=True,
     )
 
 
@@ -102,7 +109,17 @@ class SketchGroup(PropertyGroup):
     active_member_index: IntProperty(
         name="Active Member",
         default=-1,
+        update=lambda self, context: self._sync_member_selection(),
     )
+
+    def _sync_member_selection(self):
+        global_data.selected.clear()
+        idx = self.active_member_index
+        if 0 <= idx < len(self.members):
+            entity_index = self.members[idx].entity_index
+            if entity_index != -1:
+                global_data.selected.append(entity_index)
+        global_data.needs_redraw = True
 
     # ------------------------------------------------------------------
     # Tag helpers
@@ -110,7 +127,7 @@ class SketchGroup(PropertyGroup):
 
     def has_tag(self, value: str) -> bool:
         """Return ``True`` if *value* is already in the tag list."""
-        return any(t.value == value for t in self.tags)
+        return any(t.value == value and t.enabled for t in self.tags)
 
     def add_tag(self, value: str) -> "SketchGroupTag":
         """Add *value* as a tag if not already present; return the tag entry."""
@@ -136,8 +153,8 @@ class SketchGroup(PropertyGroup):
                 return
 
     def tag_values(self) -> list:
-        """Return a plain list of tag value strings."""
-        return [t.value for t in self.tags]
+        """Return a plain list of enabled tag value strings."""
+        return [t.value for t in self.tags if t.enabled]
 
     # ------------------------------------------------------------------
     # Member helpers
