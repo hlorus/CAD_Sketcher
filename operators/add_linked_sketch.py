@@ -346,6 +346,21 @@ The line is mirrored as fixed construction geometry along the new X axis"""
         # the source line is projected along the line direction onto the new sketch's
         # X axis and added as a fixed linked point.  This lets the user snap to
         # door/window positions, column grid intersections, etc. while drawing.
+        def _add_linked_ref(src_pt):
+            _t = (src_pt.location - origin_3d).dot(x_new)
+            _ext_pt = sse.add_point_2d((_t, 0.0), new_sketch)
+            _ext_pt.fixed = True
+            _ext_pt.linked = True
+            if getattr(src_pt, "tag", ""):
+                _ext_pt.tag = src_pt.tag
+            if getattr(src_pt, "guid", ""):
+                _ext_pt.guid = src_pt.guid
+            print(
+                f"Added linked reference point at X={_t:.4f} "
+                f"from {src_pt.name} (slvs_index={src_pt.slvs_index}) "
+                f"to {_ext_pt.name} (slvs_index={_ext_pt.slvs_index})"
+            )
+
         _seen_pt_indices = {line.p1.slvs_index, line.p2.slvs_index}
         for _constraint_col in (
             context.scene.sketcher.constraints.coincident,
@@ -362,19 +377,40 @@ The line is mirrored as fixed construction geometry along the new X axis"""
                 if _pt.slvs_index in _seen_pt_indices:
                     continue
                 _seen_pt_indices.add(_pt.slvs_index)
-                _t = (_pt.location - origin_3d).dot(x_new)
-                _ext_pt = sse.add_point_2d((_t, 0.0), new_sketch)
-                _ext_pt.fixed = True
-                _ext_pt.linked = True
-                if getattr(_pt, "tag", ""):
-                    _ext_pt.tag = _pt.tag
-                if getattr(_pt, "guid", ""):
-                    _ext_pt.guid = _pt.guid
-                print(
-                    f"Added linked reference point at X={_t:.4f} "
-                    f"from {_pt.name} (slvs_index={_pt.slvs_index}) "
-                    f"to {_ext_pt.name} (slvs_index={_ext_pt.slvs_index})"
-                )
+                _add_linked_ref(_pt)
+
+        # Also project both endpoints of any line that is colinear with the
+        # source line (parallel direction + one endpoint on the source axis).
+        _ANGLE_TOL = 1e-4
+        _DIST_TOL = 1e-4
+        for _cand in sse.lines2D:
+            if not hasattr(_cand, "sketch"):
+                continue
+            if _cand.sketch.slvs_index != line.sketch.slvs_index:
+                continue
+            if _cand.slvs_index == line.slvs_index:
+                continue
+            _cp1 = _cand.p1.location
+            _cp2 = _cand.p2.location
+            _cdir = _cp2 - _cp1
+            _clen = _cdir.length
+            if _clen < 1e-8:
+                continue
+            _cdir_n = _cdir / _clen
+            if abs(_cdir_n.dot(x_new)) < 1.0 - _ANGLE_TOL:
+                continue
+
+            def _perp(pt, _o=origin_3d, _x=x_new):
+                v = pt - _o
+                return (v - v.dot(_x) * _x).length
+
+            if _perp(_cp1) >= _DIST_TOL and _perp(_cp2) >= _DIST_TOL:
+                continue
+            for _pt in (_cand.p1, _cand.p2):
+                if _pt.slvs_index in _seen_pt_indices:
+                    continue
+                _seen_pt_indices.add(_pt.slvs_index)
+                _add_linked_ref(_pt)
 
         # --- IFC IfcWall: pre-populate height and build elevation reference rectangle ---
         if context.scene.sketcher.ifc_integration:

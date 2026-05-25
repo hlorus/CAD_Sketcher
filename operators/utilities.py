@@ -302,6 +302,13 @@ def activate_sketch(context: Context, index: int, operator: Operator):
     context.area.tag_redraw()
 
     if index != -1:
+        # Re-sync intermediate linked points if activating a linked sketch,
+        # so that any points added to or moved on the source line since the
+        # last activation are reflected inside the sketch.
+        if sk is not None and getattr(sk, "source_line_i", -1) != -1:
+            from ..handlers import sync_linked_intermediate_points
+
+            sync_linked_intermediate_points(context.scene, sk)
         return {"FINISHED"}
 
     if context.mode != "OBJECT":
