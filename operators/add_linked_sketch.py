@@ -316,17 +316,17 @@ The line is mirrored as fixed construction geometry along the new X axis"""
         # --- Create sketch ---
         new_sketch = sse.add_sketch(wp)
         new_sketch.source_line_i = line.slvs_index
-        source_role = getattr(line.sketch, "tag", "")
+source_role = line.sketch.tag_values()[0] if line.sketch.tag_values() else ""
         if source_role == "Plan":
-            new_sketch.tag = "Elevation"
+            new_sketch.add_tag("Elevation")
         elif source_role == "Elevation":
-            new_sketch.tag = "Plan"
+            new_sketch.add_tag("Plan")
 
-        if new_sketch.tag in {"Plan", "Elevation"}:
-            wp.tag = new_sketch.tag
+        if any(v in {"Plan", "Elevation"} for v in new_sketch.tag_values()):
+            wp.tag = new_sketch.tag_values()[0]
 
         print(f"Created sketch: {new_sketch.name} (slvs_index={new_sketch.slvs_index})")
-        print(f"  tag: '{new_sketch.tag}' (source_role='{source_role}')")
+        print(f"  tags: {new_sketch.tag_values()} (source_role='{source_role}')")
 
         # Fixed sketch origin coinciding with the workplane origin
         p_origin = sse.add_point_2d((0.0, 0.0), new_sketch)

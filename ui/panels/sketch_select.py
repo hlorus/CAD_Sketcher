@@ -1,7 +1,38 @@
-from bpy.types import Context, UILayout
+from bpy.types import Context, UILayout, UIList
 
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
+
+
+class VIEW3D_UL_sketch_tags(UIList):
+    """UIList of role tags on the active sketch."""
+
+    bl_idname = "VIEW3D_UL_sketch_tags"
+
+    def draw_item(
+        self,
+        context,
+        layout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_propname,
+        index=0,
+        flt_flag=0,
+    ):
+        tag = item
+        if self.layout_type in {"DEFAULT", "COMPACT"}:
+            row = layout.row(align=True)
+            row.prop(tag, "value", text="", emboss=True)
+            op = row.operator(
+                "view3d.slvs_sketch_role_from_preset",
+                text="",
+                icon="VIEWZOOM",
+            )
+        elif self.layout_type == "GRID":
+            layout.alignment = "CENTER"
+            layout.label(text=tag.value or "\u2014")
 
 
 def sketch_selector(
@@ -86,14 +117,24 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             if sketch.convert_type != "NONE":
                 layout.prop(sketch, "fill_shape")
 
-            row = layout.row(align=True)
-            row.prop(sketch, "tag", text="Tag")
-            row.operator(
-                "view3d.slvs_sketch_role_from_preset",
-                text="",
-                icon="VIEWZOOM",
+            # Sketch role tags UIList
+            layout.label(text="Roles:", icon="BOOKMARKS")
+            row_tags = layout.row()
+            col_tags = row_tags.column()
+            col_tags.template_list(
+                "VIEW3D_UL_sketch_tags",
+                "",
+                sketch,
+                "tags",
+                sketch,
+                "active_tag_index",
+                rows=2,
             )
-            layout.prop(sketch, "guid", text="GUID")
+            col_tag_ops = row_tags.column(align=True)
+            col_tag_ops.operator("view3d.slvs_add_sketch_tag", text="", icon="ADD")
+            col_tag_ops.operator(
+                "view3d.slvs_remove_sketch_tag", text="", icon="REMOVE"
+            )
 
             layout.operator(
                 declarations.Operators.DeleteEntity,

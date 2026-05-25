@@ -156,12 +156,53 @@ class SLVS_OT_RemoveGroupTag(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class SLVS_OT_AddSketchTag(bpy.types.Operator):
+    """Add a role tag to the active sketch"""
+
+    bl_idname = "view3d.slvs_add_sketch_tag"
+    bl_label = "Add Sketch Tag"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.scene.sketcher.active_sketch is not None
+
+    def execute(self, context):
+        sketch = context.scene.sketcher.active_sketch
+        t = sketch.tags.add()
+        t.value = ""
+        sketch.active_tag_index = len(sketch.tags) - 1
+        return {"FINISHED"}
+
+
+class SLVS_OT_RemoveSketchTag(bpy.types.Operator):
+    """Remove the active role tag from the active sketch"""
+
+    bl_idname = "view3d.slvs_remove_sketch_tag"
+    bl_label = "Remove Sketch Tag"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        sketch = context.scene.sketcher.active_sketch
+        return sketch is not None and 0 <= sketch.active_tag_index < len(sketch.tags)
+
+    def execute(self, context):
+        sketch = context.scene.sketcher.active_sketch
+        idx = sketch.active_tag_index
+        sketch.remove_tag_by_value(sketch.tags[idx].value)
+        sketch.active_tag_index = max(0, idx - 1) if sketch.tags else -1
+        return {"FINISHED"}
+
+
 register, unregister = register_classes_factory(
     (
         SLVS_OT_AddSketchGroup,
         SLVS_OT_RemoveSketchGroup,
         SLVS_OT_AddGroupTag,
         SLVS_OT_RemoveGroupTag,
+        SLVS_OT_AddSketchTag,
+        SLVS_OT_RemoveSketchTag,
         SLVS_OT_AssignToGroup,
         SLVS_OT_UnassignFromGroup,
     )

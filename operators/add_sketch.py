@@ -22,9 +22,9 @@ def _create_sketch_for_workplane(
 
     # XY plane -> Plan (normal ~= +/-Z); any other orientation -> Elevation
     if abs(wp.normal.z) > 0.99:
-        sketch.tag = "Plan"
+        sketch.add_tag("Plan")
     else:
-        sketch.tag = "Elevation"
+        sketch.add_tag("Elevation")
 
     # Add point at origin
     p = sse.add_point_2d((0.0, 0.0), sketch)

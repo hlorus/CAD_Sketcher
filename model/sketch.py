@@ -16,7 +16,7 @@ from bpy.utils import register_classes_factory
 from .. import global_data
 from ..solver import Solver, solve_system
 from .base_entity import SlvsGenericEntity
-from .sketch_group import SketchGroup
+from .sketch_group import SketchGroup, SketchGroupTag
 from .utilities import slvs_entity_pointer
 from ..utilities.bpy import bpyEnum
 
@@ -81,10 +81,14 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         description="Index of the construction Line2D inside this sketch that mirrors the source line length.",
         default=-1,
     )
-    tag: StringProperty(
-        name="Tag",
-        description="Workflow role of this sketch (e.g. Plan, Elevation)",
-        default="",
+    tags: CollectionProperty(
+        name="Tags",
+        description="Workflow roles of this sketch (e.g. Plan, Elevation)",
+        type=SketchGroupTag,
+    )
+    active_tag_index: IntProperty(
+        name="Active Tag",
+        default=-1,
     )
     groups: CollectionProperty(
         name="Groups",
@@ -96,6 +100,23 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         description="Index of the currently selected group in the Groups panel",
         default=-1,
     )
+
+    def has_tag(self, value: str) -> bool:
+        return any(t.value == value for t in self.tags)
+
+    def add_tag(self, value: str):
+        if not self.has_tag(value):
+            t = self.tags.add()
+            t.value = value
+
+    def remove_tag_by_value(self, value: str):
+        for i, t in enumerate(self.tags):
+            if t.value == value:
+                self.tags.remove(i)
+                return
+
+    def tag_values(self) -> list:
+        return [t.value for t in self.tags]
 
     def dependencies(self) -> List[SlvsGenericEntity]:
         return [
