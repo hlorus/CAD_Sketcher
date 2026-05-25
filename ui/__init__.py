@@ -12,6 +12,7 @@ from .panels.debug import VIEW3D_PT_sketcher_debug
 from .panels.entities_list import VIEW3D_PT_sketcher_entities
 from .panels.groups_list import (
     VIEW3D_UL_sketch_groups,
+    VIEW3D_UL_group_tags,
     VIEW3D_UL_group_members,
     VIEW3D_PT_sketcher_groups,
 )
@@ -47,6 +48,7 @@ classes = [
     VIEW3D_PT_sketcher_tools,
     VIEW3D_PT_sketcher_entities,
     VIEW3D_UL_sketch_groups,
+    VIEW3D_UL_group_tags,
     VIEW3D_UL_group_members,
     VIEW3D_PT_sketcher_groups,
     VIEW3D_PT_sketcher_constraints,

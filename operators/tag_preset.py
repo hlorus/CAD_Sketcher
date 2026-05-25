@@ -23,7 +23,7 @@ class SLVS_OT_TagGroupFromPreset(bpy.types.Operator):
         sketch = context.scene.sketcher.active_sketch
         if not (0 <= self.group_index < len(sketch.groups)):
             return {"CANCELLED"}
-        sketch.groups[self.group_index].tag = self.tag
+        sketch.groups[self.group_index].add_tag(self.tag)
         return {"FINISHED"}
 
     def invoke(self, context, event):

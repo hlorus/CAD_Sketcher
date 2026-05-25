@@ -1,8 +1,9 @@
 import bpy
-from bpy.props import IntProperty
+from bpy.props import IntProperty, StringProperty
 from bpy.utils import register_classes_factory
 
 from .. import global_data
+from ..model.constants import TAG_ITEMS
 
 
 class SLVS_OT_AddSketchGroup(bpy.types.Operator):
@@ -100,10 +101,67 @@ class SLVS_OT_UnassignFromGroup(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class SLVS_OT_AddGroupTag(bpy.types.Operator):
+    """Add an IFC class tag to the active group"""
+
+    bl_idname = "view3d.slvs_add_group_tag"
+    bl_label = "Add Tag"
+    bl_options = {"UNDO"}
+
+    group_index: IntProperty(default=-1)
+
+    @classmethod
+    def poll(cls, context):
+        sketch = context.scene.sketcher.active_sketch
+        return sketch is not None
+
+    def execute(self, context):
+        sketch = context.scene.sketcher.active_sketch
+        g_idx = self.group_index
+        if not (0 <= g_idx < len(sketch.groups)):
+            return {"CANCELLED"}
+        group = sketch.groups[g_idx]
+        t = group.tags.add()
+        t.value = ""
+        group.active_tag_index = len(group.tags) - 1
+        return {"FINISHED"}
+
+
+class SLVS_OT_RemoveGroupTag(bpy.types.Operator):
+    """Remove the active tag from the active group"""
+
+    bl_idname = "view3d.slvs_remove_group_tag"
+    bl_label = "Remove Tag"
+    bl_options = {"UNDO"}
+
+    group_index: IntProperty(default=-1)
+
+    @classmethod
+    def poll(cls, context):
+        sketch = context.scene.sketcher.active_sketch
+        if sketch is None:
+            return False
+        return True
+
+    def execute(self, context):
+        sketch = context.scene.sketcher.active_sketch
+        g_idx = self.group_index
+        if not (0 <= g_idx < len(sketch.groups)):
+            return {"CANCELLED"}
+        group = sketch.groups[g_idx]
+        t_idx = group.active_tag_index
+        if not (0 <= t_idx < len(group.tags)):
+            return {"CANCELLED"}
+        group.remove_tag_by_index(t_idx)
+        return {"FINISHED"}
+
+
 register, unregister = register_classes_factory(
     (
         SLVS_OT_AddSketchGroup,
         SLVS_OT_RemoveSketchGroup,
+        SLVS_OT_AddGroupTag,
+        SLVS_OT_RemoveGroupTag,
         SLVS_OT_AssignToGroup,
         SLVS_OT_UnassignFromGroup,
     )

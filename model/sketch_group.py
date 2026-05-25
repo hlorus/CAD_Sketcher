@@ -2,25 +2,43 @@
 Semantic grouping of sketch entities for IFC and other integrations.
 
 A SketchGroup is a named collection of entity references (by slvs_index) stored
-on a sketch, carrying an IFC class tag and optional GUIDs.  The same entity can
-belong to multiple groups with different tags, enabling one-geometry / many-IFC-
-elements patterns without duplicating CAD geometry.
+on a sketch.  Each group carries an ordered list of IFC class tags, allowing the
+same group (and its member entities) to be associated with several IFC classes
+simultaneously.  The same entity can also belong to multiple groups, enabling
+one-geometry / many-IFC-elements patterns without duplicating CAD geometry.
 
 Classes
 -------
+SketchGroupTag
+    One IFC class label within a :class:`SketchGroup`'s tag list.
+
 SketchGroupMember
     The *relationship* between one entity and one group.  Holds the entity's
     slvs_index plus the per-context GUID (e.g. the IfcWall GlobalId that this
     specific line represents within a wall-run group).
 
 SketchGroup
-    One semantic group: a name, a shared IFC class tag, an optional group-level
-    GUID (for IFC container abstractions), and an ordered list of members.
+    One semantic group: a name, an ordered list of IFC class tags, an optional
+    group-level GUID, and an ordered list of members.
 """
 
 from bpy.props import CollectionProperty, IntProperty, StringProperty
 from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
+
+
+class SketchGroupTag(PropertyGroup):
+    """One IFC class label in a :class:`SketchGroup`'s tag list.
+
+    ``value`` should be a fully-qualified IFC class name such as ``IfcWall``
+    or ``IfcSlab``.
+    """
+
+    value: StringProperty(
+        name="Tag",
+        description="IFC class name (e.g. IfcWall, IfcSlab, IfcCovering)",
+        default="",
+    )
 
 
 class SketchGroupMember(PropertyGroup):
@@ -49,9 +67,10 @@ class SketchGroupMember(PropertyGroup):
 class SketchGroup(PropertyGroup):
     """A named semantic group of sketch entities.
 
-    All members share the same IFC class (tag).  The same entity may appear as
-    a member of multiple groups, each with a different tag and GUID, allowing
-    the same CAD geometry to represent several IFC elements simultaneously.
+    Members may be associated with one or more IFC classes via the ``tags``
+    list.  The same entity may appear as a member of multiple groups, each with
+    a different tag set and GUID, allowing the same CAD geometry to represent
+    several IFC elements simultaneously.
     """
 
     name: StringProperty(
@@ -59,13 +78,14 @@ class SketchGroup(PropertyGroup):
         description="Human-readable label for this group",
         default="Group",
     )
-    tag: StringProperty(
-        name="Tag",
-        description=(
-            "IFC class shared by all members of this group "
-            "(e.g. IfcWall, IfcSlab, IfcCovering)"
-        ),
-        default="",
+    tags: CollectionProperty(
+        name="Tags",
+        description="IFC class names associated with this group",
+        type=SketchGroupTag,
+    )
+    active_tag_index: IntProperty(
+        name="Active Tag",
+        default=-1,
     )
     guid: StringProperty(
         name="Group GUID",
@@ -85,7 +105,42 @@ class SketchGroup(PropertyGroup):
     )
 
     # ------------------------------------------------------------------
-    # Convenience methods
+    # Tag helpers
+    # ------------------------------------------------------------------
+
+    def has_tag(self, value: str) -> bool:
+        """Return ``True`` if *value* is already in the tag list."""
+        return any(t.value == value for t in self.tags)
+
+    def add_tag(self, value: str) -> "SketchGroupTag":
+        """Add *value* as a tag if not already present; return the tag entry."""
+        for t in self.tags:
+            if t.value == value:
+                return t
+        t = self.tags.add()
+        t.value = value
+        self.active_tag_index = len(self.tags) - 1
+        return t
+
+    def remove_tag_by_index(self, index: int) -> None:
+        """Remove the tag at collection position *index*."""
+        self.tags.remove(index)
+        if self.active_tag_index >= len(self.tags):
+            self.active_tag_index = len(self.tags) - 1
+
+    def remove_tag_by_value(self, value: str) -> None:
+        """Remove the first tag whose value equals *value* (no-op if absent)."""
+        for i, t in enumerate(self.tags):
+            if t.value == value:
+                self.remove_tag_by_index(i)
+                return
+
+    def tag_values(self) -> list:
+        """Return a plain list of tag value strings."""
+        return [t.value for t in self.tags]
+
+    # ------------------------------------------------------------------
+    # Member helpers
     # ------------------------------------------------------------------
 
     def add_member(self, slvs_index: int) -> SketchGroupMember:
@@ -122,4 +177,6 @@ class SketchGroup(PropertyGroup):
                 yield e, m
 
 
-register, unregister = register_classes_factory((SketchGroupMember, SketchGroup))
+register, unregister = register_classes_factory(
+    (SketchGroupTag, SketchGroupMember, SketchGroup)
+)
