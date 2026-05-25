@@ -3,12 +3,13 @@ import logging
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 from mathutils import Vector
+from mathutils.geometry import intersect_point_line
 
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from ..solver import solve_system
-from ..utilities.view import get_pos_2d
+from ..utilities.view import get_blender_snap_info, get_pos_2d
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
@@ -53,7 +54,21 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
 
     def get_radius(self, context: Context, coords):
         wp = self.sketch.wp
-        pos = get_pos_2d(context, wp, coords)
+        snap_data = get_blender_snap_info(context, coords)
+        pos = get_pos_2d(context, wp, coords, respect_snapping=True)
+        if snap_data and snap_data["type"] in {"EDGE", "EDGE_MIDPOINT"}:
+            world_edge = snap_data.get("world_edge")
+            if world_edge:
+                edge_start, edge_end = [
+                    Vector((wp.matrix_basis.inverted() @ point)[:-1])
+                    for point in world_edge
+                ]
+                pos, factor = intersect_point_line(self.ct.co, edge_start, edge_end)
+                factor = min(max(factor, 0.0), 1.0)
+                pos = edge_start.lerp(edge_end, factor)
+        elif snap_data and snap_data["type"] == "VERTEX":
+            pos = Vector((wp.matrix_basis.inverted() @ snap_data["world_point"])[:-1])
+
         delta = Vector(pos) - self.ct.co
         radius = delta.length
         return radius

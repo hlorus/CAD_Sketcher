@@ -5,7 +5,7 @@ from mathutils.geometry import intersect_line_plane
 from .. import global_data
 from ..declarations import Operators
 from ..solver import Solver
-from ..utilities.view import get_picking_origin_dir
+from ..utilities.view import get_picking_origin_dir, get_pos_2d
 
 
 class View3D_OT_slvs_tweak(Operator):
@@ -14,6 +14,13 @@ class View3D_OT_slvs_tweak(Operator):
     bl_idname = Operators.Tweak
     bl_label = "Tweak Solvespace Entities"
     bl_options = {"UNDO"}
+
+    def _get_tweak_pos(self, context: Context, entity, coords):
+        wp = entity.wp
+        pos_2d = get_pos_2d(context, wp, coords, respect_snapping=True)
+        if pos_2d is None:
+            return None
+        return wp.matrix_basis @ pos_2d.to_3d()
 
     def invoke(self, context: Context, event):
         index = global_data.hover
@@ -34,13 +41,8 @@ class View3D_OT_slvs_tweak(Operator):
                 )
                 return {"CANCELLED"}
 
-            # For 2D entities it should be enough precise to get picking point from
-            # intersection with workplane
-            wp = entity.sketch.wp
             coords = (event.mouse_region_x, event.mouse_region_y)
-            origin, dir = get_picking_origin_dir(context, coords)
-            end_point = dir * context.space_data.clip_end + origin
-            pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
+            pos = self._get_tweak_pos(context, entity, coords)
         else:
             pos = entity.closest_picking_point(origin, view_vector)
 
@@ -65,9 +67,7 @@ class View3D_OT_slvs_tweak(Operator):
             origin, dir = get_picking_origin_dir(context, coords)
 
             if hasattr(entity, "sketch"):
-                wp = entity.wp
-                end_point = dir * context.space_data.clip_end + origin
-                pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
+                pos = self._get_tweak_pos(context, entity, coords)
             else:
                 pos = dir * self.depth + origin
 

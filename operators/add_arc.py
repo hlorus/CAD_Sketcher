@@ -8,11 +8,12 @@ from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from ..solver import solve_system
+from ..utilities.geometry import intersect_line_sphere_2d
 from ..utilities.math import pol2cart
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
-from ..utilities.view import get_pos_2d
+from ..utilities.view import get_blender_snap_info, get_pos_2d
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,10 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
     )
 
     def get_endpoint_pos(self, context: Context, coords):
-        mouse_pos = get_pos_2d(context, self.sketch.wp, coords)
+        snap_data = get_blender_snap_info(context, coords)
+        mouse_pos = get_pos_2d(
+            context, self.sketch.wp, coords, respect_snapping=True
+        )
         if mouse_pos is None:
             return None
 
@@ -65,6 +69,32 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
         # Get radius from distance ct - p1
         p1 = self.get_point(context, 1).co
         radius = (p1 - ct).length
+
+        if snap_data and snap_data["type"] in {"EDGE", "EDGE_MIDPOINT"}:
+            world_edge = snap_data.get("world_edge")
+            if world_edge:
+                edge_points = [
+                    Vector((self.sketch.wp.matrix_basis.inverted() @ point)[:-1])
+                    for point in world_edge
+                ]
+                intersections = intersect_line_sphere_2d(
+                    edge_points[0], edge_points[1], ct, radius
+                )
+                if intersections:
+                    return min(
+                        intersections,
+                        key=lambda point: (Vector(point) - mouse_pos).length,
+                    )
+
+        if snap_data and snap_data["type"] == "VERTEX":
+            vertex_pos = Vector(
+                (
+                    self.sketch.wp.matrix_basis.inverted() @ snap_data["world_point"]
+                )[:-1]
+            )
+            if abs((vertex_pos - ct).length - radius) < 1e-5:
+                return vertex_pos
+
         pos = pol2cart(radius, angle) + ct
         return pos
 
