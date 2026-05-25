@@ -136,7 +136,11 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
     def draw_props(self, layout):
         # Display the normals props as they're not drawn in the viewport
         sub = self.nm.draw_props(layout)
-        sub.operator(Operators.AlignWorkplaneCursor).index = self.slvs_index
+        row = sub.row()
+        row.enabled = not self.origin
+        row.operator(Operators.AlignWorkplaneCursor).index = self.slvs_index
+        if self.origin:
+            sub.label(text="Origin workplane cannot be changed")
         return sub
 
 
