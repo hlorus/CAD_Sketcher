@@ -9,15 +9,29 @@ class VIEW3D_UL_sketch_groups(UIList):
 
     bl_idname = "VIEW3D_UL_sketch_groups"
 
-    def draw_item(self, context, layout, data, item, icon,
-                  active_data, active_propname, index=0, flt_flag=0):
+    def draw_item(
+        self,
+        context,
+        layout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_propname,
+        index=0,
+        flt_flag=0,
+    ):
         group = item
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             row = layout.row(align=True)
             row.prop(group, "name", text="", emboss=False)
             tag_vals = group.tag_values()
             if tag_vals:
-                summary = tag_vals[0] if len(tag_vals) == 1 else f"{tag_vals[0]} +{len(tag_vals)-1}"
+                summary = (
+                    tag_vals[0]
+                    if len(tag_vals) == 1
+                    else f"{tag_vals[0]} +{len(tag_vals)-1}"
+                )
             else:
                 summary = "—"
             row.label(text=summary)
@@ -33,11 +47,22 @@ class VIEW3D_UL_group_tags(UIList):
 
     bl_idname = "VIEW3D_UL_group_tags"
 
-    def draw_item(self, context, layout, data, item, icon,
-                  active_data, active_propname, index=0, flt_flag=0):
+    def draw_item(
+        self,
+        context,
+        layout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_propname,
+        index=0,
+        flt_flag=0,
+    ):
         tag = item
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             row = layout.row(align=True)
+            row.label(text="", icon="LAYER_USED")
             row.prop(tag, "value", text="", emboss=True)
             if context.scene.sketcher.ifc_integration:
                 sketch = context.scene.sketcher.active_sketch
@@ -58,8 +83,18 @@ class VIEW3D_UL_group_members(UIList):
 
     bl_idname = "VIEW3D_UL_group_members"
 
-    def draw_item(self, context, layout, data, item, icon,
-                  active_data, active_propname, index=0, flt_flag=0):
+    def draw_item(
+        self,
+        context,
+        layout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_propname,
+        index=0,
+        flt_flag=0,
+    ):
         member = item
         sse = context.scene.sketcher.entities
         entity = sse.get(member.entity_index)
@@ -72,7 +107,9 @@ class VIEW3D_UL_group_members(UIList):
             row.prop(member, "guid", text="")
         elif self.layout_type == "GRID":
             layout.alignment = "CENTER"
-            layout.label(text=entity.name if entity is not None else str(member.entity_index))
+            layout.label(
+                text=entity.name if entity is not None else str(member.entity_index)
+            )
 
 
 class VIEW3D_PT_sketcher_groups(VIEW3D_PT_sketcher_base):
@@ -97,9 +134,12 @@ class VIEW3D_PT_sketcher_groups(VIEW3D_PT_sketcher_base):
         row = layout.row()
         col_list = row.column()
         col_list.template_list(
-            "VIEW3D_UL_sketch_groups", "",
-            sketch, "groups",
-            sketch, "active_group_index",
+            "VIEW3D_UL_sketch_groups",
+            "",
+            sketch,
+            "groups",
+            sketch,
+            "active_group_index",
             rows=3,
         )
         col_ops = row.column(align=True)
@@ -118,16 +158,23 @@ class VIEW3D_PT_sketcher_groups(VIEW3D_PT_sketcher_base):
         row2 = layout.row()
         col_tags = row2.column()
         col_tags.template_list(
-            "VIEW3D_UL_group_tags", "",
-            group, "tags",
-            group, "active_tag_index",
+            "VIEW3D_UL_group_tags",
+            "",
+            group,
+            "tags",
+            group,
+            "active_tag_index",
             rows=2,
         )
         col_tag_ops = row2.column(align=True)
-        add_tag_op = col_tag_ops.operator("view3d.slvs_add_group_tag", text="", icon="ADD")
+        add_tag_op = col_tag_ops.operator(
+            "view3d.slvs_add_group_tag", text="", icon="ADD"
+        )
         add_tag_op.group_index = g_idx
         if 0 <= group.active_tag_index < len(group.tags):
-            rm_tag_op = col_tag_ops.operator("view3d.slvs_remove_group_tag", text="", icon="REMOVE")
+            rm_tag_op = col_tag_ops.operator(
+                "view3d.slvs_remove_group_tag", text="", icon="REMOVE"
+            )
             rm_tag_op.group_index = g_idx
 
         layout.separator()
@@ -137,16 +184,23 @@ class VIEW3D_PT_sketcher_groups(VIEW3D_PT_sketcher_base):
         row3 = layout.row()
         col_members = row3.column()
         col_members.template_list(
-            "VIEW3D_UL_group_members", "",
-            group, "members",
-            group, "active_member_index",
+            "VIEW3D_UL_group_members",
+            "",
+            group,
+            "members",
+            group,
+            "active_member_index",
             rows=3,
         )
         col_ops2 = row3.column(align=True)
-        assign_op = col_ops2.operator("view3d.slvs_assign_to_group", text="", icon="PRESET_NEW")
+        assign_op = col_ops2.operator(
+            "view3d.slvs_assign_to_group", text="", icon="PRESET_NEW"
+        )
         assign_op.group_index = g_idx
         m_idx = group.active_member_index
         if 0 <= m_idx < len(group.members):
-            unassign_op = col_ops2.operator("view3d.slvs_unassign_from_group", text="", icon="REMOVE")
+            unassign_op = col_ops2.operator(
+                "view3d.slvs_unassign_from_group", text="", icon="REMOVE"
+            )
             unassign_op.group_index = g_idx
             unassign_op.member_index = m_idx

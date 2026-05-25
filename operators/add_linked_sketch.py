@@ -316,7 +316,7 @@ The line is mirrored as fixed construction geometry along the new X axis"""
         # --- Create sketch ---
         new_sketch = sse.add_sketch(wp)
         new_sketch.source_line_i = line.slvs_index
-source_role = line.sketch.tag_values()[0] if line.sketch.tag_values() else ""
+        source_role = line.sketch.tag_values()[0] if line.sketch.tag_values() else ""
         if source_role == "Plan":
             new_sketch.add_tag("Elevation")
         elif source_role == "Elevation":
