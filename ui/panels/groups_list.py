@@ -73,8 +73,13 @@ class VIEW3D_UL_group_tags(UIList):
         tag = item
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             row = layout.row(align=True)
-            row.prop(tag, "enabled", text="", emboss=False,
-                     icon="HIDE_OFF" if tag.enabled else "HIDE_ON")
+            row.prop(
+                tag,
+                "enabled",
+                text="",
+                emboss=False,
+                icon="HIDE_OFF" if tag.enabled else "HIDE_ON",
+            )
             row.prop(tag, "value", text="", emboss=True)
             if context.scene.sketcher.ifc_integration:
                 sketch = context.scene.sketcher.active_sketch

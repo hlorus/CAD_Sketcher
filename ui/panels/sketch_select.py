@@ -24,8 +24,13 @@ class VIEW3D_UL_sketch_tags(UIList):
         tag = item
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             row = layout.row(align=True)
-            row.prop(tag, "enabled", text="", emboss=False,
-                     icon="HIDE_OFF" if tag.enabled else "HIDE_ON")
+            row.prop(
+                tag,
+                "enabled",
+                text="",
+                emboss=False,
+                icon="HIDE_OFF" if tag.enabled else "HIDE_ON",
+            )
             row.prop(tag, "value", text="", emboss=True)
             op = row.operator(
                 "view3d.slvs_sketch_role_from_preset",
