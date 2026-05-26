@@ -33,7 +33,6 @@ class Operators(str, Enum):
     AddLine3D = "view3d.slvs_add_line3d"
     AddMidPoint = "view3d.slvs_add_midpoint"
     AddParallel = "view3d.slvs_add_parallel"
-    PickReferencePlanes = "view3d.slvs_pick_reference_planes"
     AddPerpendicular = "view3d.slvs_add_perpendicular"
     AddPoint2D = "view3d.slvs_add_point2d"
     AddPoint3D = "view3d.slvs_add_point3d"

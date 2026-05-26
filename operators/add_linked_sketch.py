@@ -3,9 +3,9 @@ import logging
 
 import bpy
 from bpy.types import Operator
-from bpy.props import IntProperty, EnumProperty
+from bpy.props import IntProperty, EnumProperty, BoolProperty
 from bpy.utils import register_classes_factory
-from mathutils import Matrix, Vector
+from mathutils import Matrix
 
 from ..declarations import Operators
 from ..model.types import SlvsLine2D
@@ -15,17 +15,15 @@ from ..utilities.tpg import tpg_get_guid
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Reference-plane picker popup
-# ---------------------------------------------------------------------------
 
-# Module-level cache populated in invoke() so the EnumProperty callback works.
-_ref_plane_items: list = [("-", "—  (none)", "", 0)]
-_ref_plane_sketch_indices: list = []  # slvs_index values, in sorted order
-
-
-def _get_ref_plane_items(self, context):
-    return _ref_plane_items
+def _sketch_role_tag(sketch) -> str:
+    """Return sketch workflow role ('Plan' or 'Elevation') from enabled tags."""
+    if sketch is None or not hasattr(sketch, "tag_values"):
+        return ""
+    for value in sketch.tag_values():
+        if value in {"Plan", "Elevation"}:
+            return value
+    return ""
 
 
 def _get_ifcwall_group(context, line):
@@ -49,157 +47,6 @@ def _get_ifcwall_group(context, line):
     return None
 
 
-class View3D_OT_slvs_pick_reference_planes(Operator):
-    """Project linked geometry lines from same-tag reference planes into the
-    new linked sketch. Each plane up to and including the chosen one
-    contributes one fixed construction line (the source line's endpoints
-    projected onto that plane along the new sketch's normal)."""
-
-    bl_idname = Operators.PickReferencePlanes
-    bl_label = "Add Reference Plane Projections"
-    bl_options = {"UNDO"}
-
-    new_sketch_index: IntProperty(name="New Sketch Index", default=-1)
-    source_line_index: IntProperty(name="Source Line Index", default=-1)
-    upto_plane: EnumProperty(
-        name="Up to plane",
-        description=(
-            "Create linked geometry projections for every same-tag plane up "
-            "to and including this one (ordered nearest → farthest along the "
-            "sketch's local Z).  Choose '—  (none)' to skip."
-        ),
-        items=_get_ref_plane_items,
-    )
-
-    @classmethod
-    def poll(cls, context):
-        return context.scene is not None
-
-    def invoke(self, context, event):
-        global _ref_plane_items, _ref_plane_sketch_indices
-
-        sse = context.scene.sketcher.entities
-        new_sketch = sse.get(self.new_sketch_index)
-        source_line = sse.get(self.source_line_index)
-        if new_sketch is None or source_line is None:
-            return self.execute(context)
-
-        # Use the SOURCE sketch's normal as the ray direction: it is
-        # perpendicular to the source plane and will intersect other planes
-        # that have the SAME tag as the source (e.g. Elevation→Elevation).
-        source_sketch = source_line.sketch
-        source_tag = getattr(source_sketch, "tag", "")
-        ray_dir = source_sketch.wp.normal.copy()
-        source_origin = source_sketch.wp.p1.location.copy()
-
-        # Candidates: same tag as the SOURCE sketch, restricted to one side
-        # of the source plane along its normal:
-        #   Plan   source → planes in the +normal direction (dist > 0)
-        #   Elevation source → planes in the -normal direction (dist < 0)
-        # Sorted by distance from closest to farthest.
-        sign = -1.0 if source_tag == "Elevation" else 1.0
-        candidates = []
-        for sk in sse.sketches:
-            if sk.slvs_index == source_sketch.slvs_index:
-                continue
-            if sk.slvs_index == self.new_sketch_index:
-                continue
-            if getattr(sk, "tag", "") != source_tag:
-                continue
-            raw = (sk.wp.p1.location - source_origin).dot(ray_dir)
-            dist = sign * raw  # positive means "in the wanted direction"
-            if dist > 1e-4:
-                candidates.append((dist, sk))
-
-        candidates.sort(key=lambda x: x[0])
-        _ref_plane_sketch_indices = [sk.slvs_index for _, sk in candidates]
-
-        # Build enum items: first entry is always the "none" option.
-        _ref_plane_items = [("-", "—  (none)", "", 0)]
-        for i, (dist, sk) in enumerate(candidates):
-            label = "{} ({:.3f} m)".format(sk.name, dist)
-            _ref_plane_items.append((str(sk.slvs_index), label, "", i + 1))
-
-        if len(_ref_plane_items) == 1:
-            # No candidate planes — nothing to show.
-            return self.execute(context)
-
-        return context.window_manager.invoke_props_dialog(self, width=340)
-
-    def draw(self, context):
-        self.layout.prop(self, "upto_plane", text="Up to plane")
-
-    def execute(self, context):
-        if self.upto_plane == "-":
-            return {"FINISHED"}
-
-        sse = context.scene.sketcher.entities
-        new_sketch = sse.get(self.new_sketch_index)
-        source_line = sse.get(self.source_line_index)
-        if new_sketch is None or source_line is None:
-            self.report({"ERROR"}, "Invalid sketch or source line index")
-            return {"CANCELLED"}
-
-        # Ray travels along the SOURCE sketch's normal (same as in invoke).
-        source_sketch = source_line.sketch
-        ray_dir = source_sketch.wp.normal.copy()
-        wp_mat_inv = new_sketch.wp.matrix_basis.inverted()
-
-        p1_world = source_line.p1.location.copy()
-        p2_world = source_line.p2.location.copy()
-
-        # Walk the ordered list and stop after the selected plane.
-        target_idx = int(self.upto_plane)
-        for plane_idx in _ref_plane_sketch_indices:
-            on_sketch = sse.get(plane_idx)
-            if on_sketch is None:
-                continue
-
-            on_origin = on_sketch.wp.p1.location.copy()
-            on_normal = on_sketch.wp.normal.copy()
-            denom = on_normal.dot(ray_dir)
-            if abs(denom) < 1e-8:
-                logger.debug("Ray parallel to plane %s — skipping", on_sketch.name)
-                if plane_idx == target_idx:
-                    break
-                continue
-
-            # Ray-plane intersection for p1 and p2 of the source line.
-            t1 = on_normal.dot(on_origin - p1_world) / denom
-            onp1_world = p1_world + t1 * ray_dir
-
-            t2 = on_normal.dot(on_origin - p2_world) / denom
-            onp2_world = p2_world + t2 * ray_dir
-
-            # Convert world positions to new sketch's local 2-D coordinates.
-            onp1_local = wp_mat_inv @ onp1_world
-            onp2_local = wp_mat_inv @ onp2_world
-
-            # Add fixed linked points and the connecting line.
-            pt1 = sse.add_point_2d((onp1_local.x, onp1_local.y), new_sketch)
-            pt1.fixed = True
-            pt1.linked = True
-
-            pt2 = sse.add_point_2d((onp2_local.x, onp2_local.y), new_sketch)
-            pt2.fixed = True
-            pt2.linked = True
-
-            ext_line = sse.add_line_2d(pt1, pt2, new_sketch)
-            ext_line.fixed = True
-            ext_line.linked = True
-
-            logger.debug(
-                "Added reference projection from '%s' into '%s'",
-                on_sketch.name,
-                new_sketch.name,
-            )
-
-            if plane_idx == target_idx:
-                break
-
-        return {"FINISHED"}
-
-
 # ---------------------------------------------------------------------------
 # Main operator
 # ---------------------------------------------------------------------------
@@ -220,12 +67,60 @@ The line is mirrored as fixed construction geometry along the new X axis"""
         description="slvs_index of the source Line2D",
         default=-1,
     )
+    local_z_direction: EnumProperty(
+        name="Local Z Direction",
+        description=(
+            "Choose whether the new linked sketch local Z points in positive "
+            "or negative direction"
+        ),
+        items=(
+            ("POSITIVE", "+localZ", "Use positive local Z"),
+            ("NEGATIVE", "-localZ", "Use negative local Z"),
+        ),
+        default="POSITIVE",
+    )
+    orientation_confirmed: BoolProperty(
+        default=False,
+        options={"HIDDEN", "SKIP_SAVE"},
+    )
 
     @classmethod
     def poll(cls, context):
         return context.scene is not None
 
+    def _set_default_local_z_direction(self, context):
+        sse = context.scene.sketcher.entities
+        line = sse.get(self.line_index)
+
+        source_role = ""
+        if isinstance(line, SlvsLine2D):
+            source_role = _sketch_role_tag(line.sketch)
+
+        self.local_z_direction = (
+            "NEGATIVE" if source_role == "Elevation" else "POSITIVE"
+        )
+
+    def invoke(self, context, event):
+        self._set_default_local_z_direction(context)
+        self.orientation_confirmed = True
+
+        return context.window_manager.invoke_props_dialog(self, width=260)
+
+    def draw(self, context):
+        col = self.layout.column(align=True)
+        col.label(text="Linked sketch local Z")
+        col.prop(self, "local_z_direction", expand=True)
+
     def execute(self, context):
+        # Direct calls like bpy.ops....slvs_add_linked_sketch(...) use
+        # EXEC_DEFAULT and skip invoke(), so open the same dialog here.
+        if not getattr(self, "orientation_confirmed", False):
+            self._set_default_local_z_direction(context)
+            self.orientation_confirmed = True
+            return context.window_manager.invoke_props_dialog(self, width=260)
+
+        self.orientation_confirmed = False
+
         sse = context.scene.sketcher.entities
 
         # Resolve source line
@@ -252,7 +147,8 @@ The line is mirrored as fixed construction geometry along the new X axis"""
         print(f"  p2 location: {line.p2.location}")
         print(f"  line_vec: {line_vec}, length: {line_length}")
         print(
-            f"Source sketch: {line.sketch.name} (tag='{getattr(line.sketch, 'tag', '')}')"
+            f"Source sketch: {line.sketch.name} "
+            f"(role='{_sketch_role_tag(line.sketch)}')"
         )
         print(f"Source workplane normal: {line.sketch.wp.normal}")
 
@@ -286,18 +182,15 @@ The line is mirrored as fixed construction geometry along the new X axis"""
         print(f"  y_new (from wp normal): {y_new}")
         print(f"  z_new (x cross y): {z_new}")
 
-        # For an Elevation source the resulting plan workplane must face
-        # downward, so flip the local z axis.
-        source_tag = getattr(line.sketch, "tag", "")
-        if source_tag == "Elevation":
-            print(f"Source is Elevation: flipping z_new")
+        if self.local_z_direction == "NEGATIVE":
+            print("Local Z direction is -localZ: flipping z_new")
             z_new = -z_new
             y_new = z_new.cross(x_new).normalized()
-            print(f"After elevation flip:")
+            print("After local Z flip:")
             print(f"  z_new (flipped): {z_new}")
             print(f"  y_new (recalc from z x x): {y_new}")
         else:
-            print(f"Source is not Elevation (tag='{source_tag}'): no flip")
+            print("Local Z direction is +localZ: no flip")
 
         # Rotation matrix whose columns are the new basis vectors
         mat3 = Matrix((x_new, y_new, z_new)).transposed()
@@ -322,7 +215,7 @@ The line is mirrored as fixed construction geometry along the new X axis"""
         # --- Create sketch ---
         new_sketch = sse.add_sketch(wp)
         new_sketch.source_line_i = line.slvs_index
-        source_role = line.sketch.tag_values()[0] if line.sketch.tag_values() else ""
+        source_role = _sketch_role_tag(line.sketch)
         if source_role == "Plan":
             new_sketch.add_tag("Elevation")
         elif source_role == "Elevation":
@@ -566,16 +459,7 @@ The line is mirrored as fixed construction geometry along the new X axis"""
 
         logger.debug("Added linked sketch: {}".format(new_sketch))
 
-        # Invite the user to pick reference planes for cross-projection.
-        bpy.ops.view3d.slvs_pick_reference_planes(
-            "INVOKE_DEFAULT",
-            new_sketch_index=new_sketch.slvs_index,
-            source_line_index=line.slvs_index,
-        )
-
         return {"FINISHED"}
 
 
-register, unregister = register_classes_factory(
-    (View3D_OT_slvs_pick_reference_planes, View3D_OT_slvs_add_linked_sketch)
-)
+register, unregister = register_classes_factory((View3D_OT_slvs_add_linked_sketch,))
