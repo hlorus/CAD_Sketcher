@@ -6,6 +6,23 @@ from .. import global_data
 from ..model.constants import TAG_ITEMS
 
 
+def _next_group_name(sketch) -> str:
+    prefix = "Group("
+    used = set()
+    for group in sketch.groups:
+        name = group.name
+        if not (name.startswith(prefix) and name.endswith(")")):
+            continue
+        number = name[len(prefix) : -1]
+        if number.isdigit():
+            used.add(int(number))
+
+    i = 0
+    while i in used:
+        i += 1
+    return f"Group({i})"
+
+
 class SLVS_OT_AddSketchGroup(bpy.types.Operator):
     """Add a new semantic group to the active sketch"""
 
@@ -20,28 +37,30 @@ class SLVS_OT_AddSketchGroup(bpy.types.Operator):
     def execute(self, context):
         sketch = context.scene.sketcher.active_sketch
         g = sketch.groups.add()
-        g.name = "Group"
+        g.name = _next_group_name(sketch)
         sketch.active_group_index = len(sketch.groups) - 1
         return {"FINISHED"}
 
 
 class SLVS_OT_RemoveSketchGroup(bpy.types.Operator):
-    """Remove the active group from the active sketch"""
+    """Remove a group from the active sketch"""
 
     bl_idname = "view3d.slvs_remove_sketch_group"
     bl_label = "Remove Group"
     bl_options = {"UNDO"}
 
+    group_index: IntProperty(default=-1)
+
     @classmethod
     def poll(cls, context):
         sketch = context.scene.sketcher.active_sketch
-        return sketch is not None and 0 <= sketch.active_group_index < len(
-            sketch.groups
-        )
+        return sketch is not None and len(sketch.groups) > 0
 
     def execute(self, context):
         sketch = context.scene.sketcher.active_sketch
-        idx = sketch.active_group_index
+        idx = self.group_index if self.group_index >= 0 else sketch.active_group_index
+        if not (0 <= idx < len(sketch.groups)):
+            return {"CANCELLED"}
         sketch.groups.remove(idx)
         sketch.active_group_index = max(0, idx - 1) if sketch.groups else -1
         return {"FINISHED"}
@@ -162,20 +181,18 @@ class SLVS_OT_AddGroupTag(bpy.types.Operator):
 
 
 class SLVS_OT_RemoveGroupTag(bpy.types.Operator):
-    """Remove the active tag from the active group"""
+    """Remove a tag from a group"""
 
     bl_idname = "view3d.slvs_remove_group_tag"
     bl_label = "Remove Tag"
     bl_options = {"UNDO"}
 
     group_index: IntProperty(default=-1)
+    tag_index: IntProperty(default=-1)
 
     @classmethod
     def poll(cls, context):
-        sketch = context.scene.sketcher.active_sketch
-        if sketch is None:
-            return False
-        return True
+        return context.scene.sketcher.active_sketch is not None
 
     def execute(self, context):
         sketch = context.scene.sketcher.active_sketch
@@ -183,7 +200,7 @@ class SLVS_OT_RemoveGroupTag(bpy.types.Operator):
         if not (0 <= g_idx < len(sketch.groups)):
             return {"CANCELLED"}
         group = sketch.groups[g_idx]
-        t_idx = group.active_tag_index
+        t_idx = self.tag_index if self.tag_index >= 0 else group.active_tag_index
         if not (0 <= t_idx < len(group.tags)):
             return {"CANCELLED"}
         group.remove_tag_by_index(t_idx)

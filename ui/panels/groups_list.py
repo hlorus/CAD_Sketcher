@@ -26,7 +26,7 @@ class VIEW3D_UL_sketch_groups(UIList):
         group = item
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             row = layout.row(align=True)
-            # selection circle — full if all members are selected
+            # selection circle — full when all members are selected
             indices = [m.entity_index for m in group.members if m.entity_index != -1]
             all_sel = bool(indices) and all(i in global_data.selected for i in indices)
             op = row.operator(
@@ -36,19 +36,27 @@ class VIEW3D_UL_sketch_groups(UIList):
                 icon="RADIOBUT_ON" if all_sel else "RADIOBUT_OFF",
             )
             op.group_index = index
-            row.prop(group, "name", text="", emboss=False)
+            row.prop(group, "name", text="", emboss=True)
             tag_vals = group.tag_values()
-            if tag_vals:
-                summary = (
+            summary = (
+                (
                     tag_vals[0]
                     if len(tag_vals) == 1
                     else f"{tag_vals[0]} +{len(tag_vals)-1}"
                 )
-            else:
-                summary = "—"
+                if tag_vals
+                else "—"
+            )
             row.label(text=summary)
-            row.prop(group, "guid", text="")
             row.label(text=str(len(group.members)))
+            # inline delete
+            op = row.operator(
+                "view3d.slvs_remove_sketch_group",
+                text="",
+                emboss=False,
+                icon="X",
+            )
+            op.group_index = index
         elif self.layout_type == "GRID":
             layout.alignment = "CENTER"
             layout.label(text=group.name)
@@ -82,9 +90,9 @@ class VIEW3D_UL_group_tags(UIList):
                 icon="HIDE_OFF" if tag.enabled else "HIDE_ON",
             )
             row.prop(tag, "value", text="", emboss=True)
-            if get_prefs().ifc_integration:
-                sketch = context.scene.sketcher.active_sketch
-                if sketch is not None:
+            sketch = context.scene.sketcher.active_sketch
+            if sketch is not None:
+                if get_prefs().ifc_integration:
                     op = row.operator(
                         "view3d.slvs_tag_group_from_preset",
                         text="",
@@ -92,6 +100,15 @@ class VIEW3D_UL_group_tags(UIList):
                     )
                     op.group_index = sketch.active_group_index
                     op.tag_index = index
+                # inline delete
+                op = row.operator(
+                    "view3d.slvs_remove_group_tag",
+                    text="",
+                    emboss=False,
+                    icon="X",
+                )
+                op.group_index = sketch.active_group_index
+                op.tag_index = index
         elif self.layout_type == "GRID":
             layout.alignment = "CENTER"
             layout.label(text=tag.value or "—")
@@ -117,6 +134,8 @@ class VIEW3D_UL_group_members(UIList):
         member = item
         sse = context.scene.sketcher.entities
         entity = sse.get(member.entity_index)
+        sketch = context.scene.sketcher.active_sketch
+        g_idx = sketch.active_group_index if sketch is not None else -1
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             row = layout.row(align=True)
             if entity is not None:
@@ -130,9 +149,28 @@ class VIEW3D_UL_group_members(UIList):
                 op.index = member.entity_index
                 op.mode = "TOGGLE"
                 row.label(text=entity.name)
+                # context menu for entity details
+                props = row.operator(
+                    declarations.Operators.ContextMenu,
+                    text="",
+                    emboss=False,
+                    icon="OUTLINER_DATA_GP_LAYER",
+                )
+                props.highlight_hover = True
+                props.highlight_active = True
+                props.highlight_members = True
+                props.index = member.entity_index
             else:
                 row.label(text="(missing)", icon="ERROR")
-            row.prop(member, "guid", text="")
+            # inline delete (works for both valid and missing members)
+            op = row.operator(
+                "view3d.slvs_unassign_from_group",
+                text="",
+                emboss=False,
+                icon="X",
+            )
+            op.group_index = g_idx
+            op.member_index = index
         elif self.layout_type == "GRID":
             layout.alignment = "CENTER"
             layout.label(
@@ -167,7 +205,7 @@ class VIEW3D_PT_sketcher_groups(VIEW3D_PT_sketcher_base):
             }
             pt = group.path_type(context.scene.sketcher.entities)
             pt_text, pt_icon = _PATH_LABEL[pt]
-            layout.label(text=pt_text)
+            layout.label(text=pt_text, icon=pt_icon)
             layout.separator()
 
         # ── Section 1: group list ───────────────────────────────────────────────
@@ -184,7 +222,6 @@ class VIEW3D_PT_sketcher_groups(VIEW3D_PT_sketcher_base):
         )
         col_ops = row.column(align=True)
         col_ops.operator("view3d.slvs_add_sketch_group", text="", icon="ADD")
-        col_ops.operator("view3d.slvs_remove_sketch_group", text="", icon="REMOVE")
 
         if group is None:
             layout.label(text="Select a group above", icon="INFO")
@@ -210,11 +247,6 @@ class VIEW3D_PT_sketcher_groups(VIEW3D_PT_sketcher_base):
             "view3d.slvs_add_group_tag", text="", icon="ADD"
         )
         add_tag_op.group_index = g_idx
-        if 0 <= group.active_tag_index < len(group.tags):
-            rm_tag_op = col_tag_ops.operator(
-                "view3d.slvs_remove_group_tag", text="", icon="REMOVE"
-            )
-            rm_tag_op.group_index = g_idx
 
         layout.separator()
 
@@ -236,10 +268,3 @@ class VIEW3D_PT_sketcher_groups(VIEW3D_PT_sketcher_base):
             "view3d.slvs_assign_to_group", text="", icon="PRESET_NEW"
         )
         assign_op.group_index = g_idx
-        m_idx = group.active_member_index
-        if 0 <= m_idx < len(group.members):
-            unassign_op = col_ops2.operator(
-                "view3d.slvs_unassign_from_group", text="", icon="REMOVE"
-            )
-            unassign_op.group_index = g_idx
-            unassign_op.member_index = m_idx
