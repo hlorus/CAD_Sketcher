@@ -434,10 +434,27 @@ The line is mirrored as fixed construction geometry along the new X axis"""
         # --- IFC IfcWall: pre-populate height and build elevation reference rectangle ---
         if get_prefs().ifc_integration:
             wall_group = _get_ifcwall_group(context, line)
+            print("[LINKED IFC] ifc_integration enabled")
+            print(
+                f"[LINKED IFC] source line: {line.name} (slvs_index={line.slvs_index})"
+            )
             if wall_group is not None:
+                src_tags = [
+                    getattr(t, "value", "")
+                    for t in getattr(wall_group, "tags", [])
+                    if (getattr(t, "value", "") or "").strip()
+                ]
+                print(
+                    f"[LINKED IFC] matched wall_group: name='{wall_group.name}', "
+                    f"tags={src_tags}, guid='{getattr(wall_group, 'guid', '')}'"
+                )
                 wall_member = wall_group.get_member(line.slvs_index)
                 line_guid = wall_member.guid if wall_member else ""
                 line_guid = tpg_get_guid(line_guid, "IfcWall")
+                print(
+                    f"[LINKED IFC] source member GUID for IfcWall: '{line_guid}' "
+                    f"(member found={wall_member is not None})"
+                )
                 wall_height = None
                 try:
                     import bonsai.tool as _bonsai_tool
@@ -461,6 +478,7 @@ The line is mirrored as fixed construction geometry along the new X axis"""
                     pass
 
                 if wall_height and wall_height > 1e-6:
+                    print(f"[LINKED IFC] resolved wall_height={wall_height:.6f}")
                     wp.linked_wp_height = wall_height
 
                     p_top_end = sse.add_point_2d((line_length, wall_height), new_sketch)
@@ -470,18 +488,60 @@ The line is mirrored as fixed construction geometry along the new X axis"""
                     top_line = sse.add_line_2d(p_top_end, p_top_origin, new_sketch)
                     left_line = sse.add_line_2d(p_top_origin, p_origin, new_sketch)
 
-                    # Mirror the wall group onto the elevation sketch by
-                    # grouping its boundary segments directly.
+                    # Build a dedicated linked wall group on the elevation sketch.
+                    # Keep GUID only at group level; members intentionally have no GUID.
                     elev_group = new_sketch.groups.add()
-                    elev_group.name = wall_group.name
-                    for tag in wall_group.tags:
-                        copied = elev_group.tags.add()
-                        copied.value = tag.value
-                        copied.enabled = tag.enabled
-                    elev_group.guid = wall_group.guid
+                    elev_group.name = "linkedWall"
+                    print(
+                        f"[LINKED IFC] created elevation group: name='{elev_group.name}'"
+                    )
+                    copied = elev_group.tags.add()
+                    copied.value = "IfcWall"
+                    copied.enabled = True
+                    print(
+                        f"[LINKED IFC] copied tag -> value='{copied.value}', "
+                        f"enabled={copied.enabled}"
+                    )
+
+                    if line_guid:
+                        elev_group.guid = json.dumps(
+                            {
+                                "v": 1,
+                                "entries": [
+                                    {
+                                        "t": "IfcWall",
+                                        "p": "",
+                                        "g": line_guid,
+                                    }
+                                ],
+                            },
+                            separators=(",", ":"),
+                        )
+                    else:
+                        elev_group.guid = ""
+                        print(
+                            "[LINKED IFC] warning: empty IfcWall GUID; "
+                            "group GUID left empty"
+                        )
+                    print(
+                        f"[LINKED IFC] assigned elevation group GUID='{elev_group.guid}'"
+                    )
                     for boundary in (ext_line, right_line, top_line, left_line):
                         elev_member = elev_group.add_member(boundary.slvs_index)
-                        elev_member.guid = line_guid
+                        elev_member.guid = ""
+                        print(
+                            f"[LINKED IFC] member added: entity_index={boundary.slvs_index}, "
+                            f"member_guid='{elev_member.guid}'"
+                        )
+                else:
+                    print(
+                        "[LINKED IFC] wall_height unresolved/invalid; "
+                        "skipping elevation wall rectangle and group mirror"
+                    )
+            else:
+                print(
+                    "[LINKED IFC] no IfcWall-tagged source group with member GUID found"
+                )
 
         activate_sketch(context, new_sketch.slvs_index, self)
 
