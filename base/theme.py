@@ -76,8 +76,20 @@ class ThemeSettingsEntity(PropertyGroup):
         max=1.0,
         update=update,
     )
+    line_origin: FloatVectorProperty(
+        name="Line Origin",
+        subtype="COLOR",
+        default=(1.0, 0.2, 0.7, 1.0),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
+
+
+class ThemeSettingsLinkedGeometry(PropertyGroup):
     linked: FloatVectorProperty(
-        name="Linked Geometry",
+        name="Linked Line",
         subtype="COLOR",
         default=(0.0, 0.8, 0.2, 0.9),
         size=4,
@@ -86,7 +98,7 @@ class ThemeSettingsEntity(PropertyGroup):
         update=update,
     )
     linking: FloatVectorProperty(
-        name="Linking Geometry",
+        name="Linking Line",
         subtype="COLOR",
         default=(0.15, 0.45, 1.0, 0.95),
         size=4,
@@ -181,15 +193,20 @@ class ThemeSettingsConstraint(PropertyGroup):
 class ThemeSettings(PropertyGroup):
     entity: PointerProperty(name="Entity", type=ThemeSettingsEntity)
     constraint: PointerProperty(name="Constraint", type=ThemeSettingsConstraint)
+    linked_geometry: PointerProperty(
+        name="Linked Geometry", type=ThemeSettingsLinkedGeometry
+    )
 
 
 def register():
     bpy.utils.register_class(ThemeSettingsEntity)
     bpy.utils.register_class(ThemeSettingsConstraint)
+    bpy.utils.register_class(ThemeSettingsLinkedGeometry)
     bpy.utils.register_class(ThemeSettings)
 
 
 def unregister():
     bpy.utils.unregister_class(ThemeSettings)
+    bpy.utils.unregister_class(ThemeSettingsLinkedGeometry)
     bpy.utils.unregister_class(ThemeSettingsConstraint)
     bpy.utils.unregister_class(ThemeSettingsEntity)

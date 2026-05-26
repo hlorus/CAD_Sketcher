@@ -16,6 +16,7 @@ from .base_entity import SlvsGenericEntity, Entity2D, _entity_dirty_update
 from .utilities import slvs_entity_pointer, make_coincident
 from .line_2d import SlvsLine2D
 from ..utilities.constants import HALF_TURN
+from ..utilities.preferences import get_prefs
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,7 @@ class Point2D(Entity2D):
 
     def color(self, context: Context):
         if self._is_selected_line_origin(context):
-            return (1.0, 0.0, 0.0, 1.0)
+            return get_prefs().theme_settings.entity.line_origin
         return super().color(context)
 
 

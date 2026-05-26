@@ -257,9 +257,9 @@ class SlvsGenericEntity:
 
         geometry_role = self.geometry_role(context)
         if geometry_role == "LINKING":
-            return ts.entity.linking
+            return ts.linked_geometry.linking
         if geometry_role == "LINKED":
-            return ts.entity.linked
+            return ts.linked_geometry.linked
         if fixed and not origin:
             return ts.entity.fixed
         return ts.entity.default
