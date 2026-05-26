@@ -146,13 +146,13 @@ class VIEW3D_PT_sketcher_groups(VIEW3D_PT_sketcher_base):
     bl_idname = declarations.Panels.SketcherGroups
     bl_options = {"DEFAULT_CLOSED"}
 
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.sketcher.active_sketch is not None
+
     def draw(self, context: Context):
         layout = self.layout
         sketch = context.scene.sketcher.active_sketch
-
-        if sketch is None:
-            layout.label(text="No active sketch", icon="INFO")
-            return
 
         g_idx = sketch.active_group_index
         group = sketch.groups[g_idx] if 0 <= g_idx < len(sketch.groups) else None

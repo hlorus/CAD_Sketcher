@@ -51,9 +51,9 @@ classes = [
     VIEW3D_UL_sketch_groups,
     VIEW3D_UL_group_tags,
     VIEW3D_UL_group_members,
-    VIEW3D_PT_sketcher_groups,
     VIEW3D_PT_sketcher_constraints,
     VIEW3D_PT_sketcher_debug,
+    VIEW3D_PT_sketcher_groups,
     VIEW3D_MT_selected_menu,
 ]
 
