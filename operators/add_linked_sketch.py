@@ -11,6 +11,7 @@ from ..declarations import Operators
 from ..model.types import SlvsLine2D
 from .utilities import activate_sketch
 from ..utilities.preferences import get_prefs
+from ..utilities.tpg import tpg_get_guid
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,14 @@ def _get_ifcwall_group(context, line):
     if sketch is None:
         return None
     for group in sketch.groups:
-        if group.tag != "IfcWall":
+        has_ifcwall = (
+            bool(hasattr(group, "has_tag") and group.has_tag("IfcWall"))
+            or getattr(group, "tag", "") == "IfcWall"
+        )
+        if not has_ifcwall:
             continue
         member = group.get_member(line.slvs_index)
-        if member is not None and member.guid:
+        if member is not None and tpg_get_guid(member.guid, "IfcWall"):
             return group
     return None
 
@@ -432,6 +437,7 @@ The line is mirrored as fixed construction geometry along the new X axis"""
             if wall_group is not None:
                 wall_member = wall_group.get_member(line.slvs_index)
                 line_guid = wall_member.guid if wall_member else ""
+                line_guid = tpg_get_guid(line_guid, "IfcWall")
                 wall_height = None
                 try:
                     import bonsai.tool as _bonsai_tool

@@ -32,6 +32,14 @@ class VIEW3D_UL_sketch_tags(UIList):
                 icon="HIDE_OFF" if tag.enabled else "HIDE_ON",
             )
             row.prop(tag, "value", text="", emboss=True)
+            props = row.operator(
+                declarations.Operators.ContextMenuSketch,
+                text="",
+                emboss=False,
+                icon="OUTLINER_DATA_GP_LAYER",
+            )
+            props.sketch_index = context.scene.sketcher.active_sketch.slvs_index
+            props.index = context.scene.sketcher.active_sketch.slvs_index
             op = row.operator(
                 "view3d.slvs_sketch_role_from_preset",
                 text="",
@@ -123,8 +131,8 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             if sketch.convert_type != "NONE":
                 layout.prop(sketch, "fill_shape")
 
-            # Sketch role tags UIList
-            layout.label(text="Roles:", icon="BOOKMARKS")
+            # Sketch tags UIList
+            layout.label(text=f'Tags for "{sketch.name}":', icon="BOOKMARKS")
             row_tags = layout.row()
             col_tags = row_tags.column()
             col_tags.template_list(

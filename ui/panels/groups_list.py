@@ -92,6 +92,15 @@ class VIEW3D_UL_group_tags(UIList):
             row.prop(tag, "value", text="", emboss=True)
             sketch = context.scene.sketcher.active_sketch
             if sketch is not None:
+                # context menu for tag GUID details
+                props = row.operator(
+                    "view3d.slvs_group_tag_context_menu",
+                    text="",
+                    emboss=False,
+                    icon="OUTLINER_DATA_GP_LAYER",
+                )
+                props.group_index = sketch.active_group_index
+                props.tag_index = index
                 if get_prefs().ifc_integration:
                     op = row.operator(
                         "view3d.slvs_tag_group_from_preset",
@@ -151,7 +160,7 @@ class VIEW3D_UL_group_members(UIList):
                 row.label(text=entity.name)
                 # context menu for entity details
                 props = row.operator(
-                    declarations.Operators.ContextMenu,
+                    "view3d.slvs_group_member_context_menu",
                     text="",
                     emboss=False,
                     icon="OUTLINER_DATA_GP_LAYER",
@@ -159,6 +168,8 @@ class VIEW3D_UL_group_members(UIList):
                 props.highlight_hover = True
                 props.highlight_active = True
                 props.highlight_members = True
+                props.group_index = g_idx
+                props.member_index = index
                 props.index = member.entity_index
             else:
                 row.label(text="(missing)", icon="ERROR")
