@@ -157,6 +157,18 @@ class VIEW3D_PT_sketcher_groups(VIEW3D_PT_sketcher_base):
         g_idx = sketch.active_group_index
         group = sketch.groups[g_idx] if 0 <= g_idx < len(sketch.groups) else None
 
+        # Path-type indicator at top of panel for quick feedback
+        if group is not None:
+            _PATH_LABEL = {
+                "CLOSED_PATH": ("Group is a closed path", "PROP_ON"),
+                "OPEN_PATH": ("Group is an open path", "PROP_CON"),
+                "NOT_PATH": ("Group is not a path", "PROP_OFF"),
+            }
+            pt = group.path_type(context.scene.sketcher.entities)
+            pt_text, pt_icon = _PATH_LABEL[pt]
+            layout.label(text=pt_text)
+            layout.separator()
+
         # ── Section 1: group list ───────────────────────────────────────────────
         row = layout.row()
         col_list = row.column()

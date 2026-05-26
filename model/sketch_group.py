@@ -181,6 +181,78 @@ class SketchGroup(PropertyGroup):
         """Return ``True`` if *slvs_index* is already a member of this group."""
         return self.get_member(slvs_index) is not None
 
+    # ------------------------------------------------------------------
+    # Path-type computation
+    # ------------------------------------------------------------------
+
+    def path_type(self, sse) -> str:
+        """Return one of ``'CLOSED_PATH'``, ``'OPEN_PATH'``, or ``'NOT_PATH'``.
+
+        Inspects the group's member entities using their ``connection_points()``
+        to determine whether they form a closed loop, an open chain, or neither.
+        *sse* is ``context.scene.sketcher.entities``.
+        """
+        from collections import defaultdict
+
+        entities = [sse.get(m.entity_index) for m in self.members]
+        entities = [e for e in entities if e is not None]
+
+        if not entities:
+            return "NOT_PATH"
+
+        if not all(hasattr(e, "is_path") and e.is_path() for e in entities):
+            return "NOT_PATH"
+
+        # Single entity: closed if it reports so (circle), else open
+        if len(entities) == 1:
+            e = entities[0]
+            if hasattr(e, "is_closed") and e.is_closed():
+                return "CLOSED_PATH"
+            return "OPEN_PATH"
+
+        if not all(hasattr(e, "connection_points") for e in entities):
+            return "NOT_PATH"
+
+        # Map each endpoint (by slvs_index) to the entities that touch it
+        point_entities = defaultdict(list)
+        for e in entities:
+            for p in e.connection_points():
+                point_entities[p.slvs_index].append(e.slvs_index)
+
+        # Branching (degree > 2) → not a simple path
+        if any(len(v) > 2 for v in point_entities.values()):
+            return "NOT_PATH"
+
+        # Build entity adjacency via shared degree-2 points
+        adj = defaultdict(set)
+        for pt, ent_ids in point_entities.items():
+            if len(ent_ids) == 2:
+                a, b = ent_ids
+                adj[a].add(b)
+                adj[b].add(a)
+
+        # BFS connectivity — all entities must be reachable from the first
+        start = entities[0].slvs_index
+        visited = {start}
+        queue = [start]
+        all_ids = {e.slvs_index for e in entities}
+        while queue:
+            cur = queue.pop()
+            for nb in adj[cur]:
+                if nb not in visited:
+                    visited.add(nb)
+                    queue.append(nb)
+
+        if visited != all_ids:
+            return "NOT_PATH"  # disconnected segments
+
+        degree_1 = sum(1 for v in point_entities.values() if len(v) == 1)
+        if degree_1 == 0:
+            return "CLOSED_PATH"
+        if degree_1 == 2:
+            return "OPEN_PATH"
+        return "NOT_PATH"
+
     def entities(self, context):
         """Yield ``(entity, member)`` pairs for every member of this group.
 
