@@ -22,11 +22,85 @@ SketchGroup
     group-level GUID, and an ordered list of members.
 """
 
+import bpy
 from bpy.props import BoolProperty, CollectionProperty, IntProperty, StringProperty
 from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
 from .. import global_data
+
+_TAG_UPDATE_GUARD = False
+
+
+def _normalize_tag_value(value: str) -> str:
+    return (value or "").strip().casefold()
+
+
+def _find_tag_owner_collection(context, tag):
+    scene = getattr(context, "scene", None)
+    if scene is None:
+        scene = getattr(bpy.context, "scene", None)
+    if scene is None:
+        return None, -1
+
+    sketches = getattr(scene.sketcher.entities, "sketches", ())
+    for sketch in sketches:
+        for i, t in enumerate(sketch.tags):
+            if t == tag:
+                return sketch.tags, i
+        for group in sketch.groups:
+            for i, t in enumerate(group.tags):
+                if t == tag:
+                    return group.tags, i
+
+    return None, -1
+
+
+def _show_duplicate_tag_warning(context):
+    wm = getattr(context, "window_manager", None)
+    if wm is None:
+        return
+
+    def _draw(self, _context):
+        self.layout.label(text="Tag already exists in this list", icon="ERROR")
+
+    wm.popup_menu(_draw, title="Duplicate Tag", icon="ERROR")
+
+
+def _on_tag_value_update(self, context):
+    global _TAG_UPDATE_GUARD
+    if _TAG_UPDATE_GUARD:
+        return
+
+    new_value = (self.value or "").strip()
+    if new_value != self.value:
+        _TAG_UPDATE_GUARD = True
+        self.value = new_value
+        _TAG_UPDATE_GUARD = False
+
+    if not new_value:
+        self.last_valid_value = ""
+        return
+
+    coll, own_index = _find_tag_owner_collection(context, self)
+    if coll is None:
+        self.last_valid_value = new_value
+        return
+
+    new_norm = _normalize_tag_value(new_value)
+    duplicate = any(
+        i != own_index and _normalize_tag_value(t.value) == new_norm
+        for i, t in enumerate(coll)
+    )
+
+    if duplicate:
+        _TAG_UPDATE_GUARD = True
+        self.value = self.last_valid_value
+        _TAG_UPDATE_GUARD = False
+        _show_duplicate_tag_warning(context)
+        return
+
+    self.last_valid_value = new_value
 
 
 class SketchGroupTag(PropertyGroup):
@@ -40,6 +114,12 @@ class SketchGroupTag(PropertyGroup):
         name="Tag",
         description="IFC class name (e.g. IfcWall, IfcSlab, IfcCovering)",
         default="",
+        update=_on_tag_value_update,
+    )
+    last_valid_value: StringProperty(
+        name="Last Valid Tag",
+        default="",
+        options={"HIDDEN", "SKIP_SAVE"},
     )
     enabled: BoolProperty(
         name="Enabled",
@@ -127,15 +207,17 @@ class SketchGroup(PropertyGroup):
 
     def has_tag(self, value: str) -> bool:
         """Return ``True`` if *value* is already in the tag list."""
-        return any(t.value == value and t.enabled for t in self.tags)
+        norm = _normalize_tag_value(value)
+        return any(_normalize_tag_value(t.value) == norm for t in self.tags)
 
     def add_tag(self, value: str) -> "SketchGroupTag":
         """Add *value* as a tag if not already present; return the tag entry."""
+        norm = _normalize_tag_value(value)
         for t in self.tags:
-            if t.value == value:
+            if _normalize_tag_value(t.value) == norm:
                 return t
         t = self.tags.add()
-        t.value = value
+        t.value = value.strip()
         self.active_tag_index = len(self.tags) - 1
         return t
 

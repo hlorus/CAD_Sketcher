@@ -16,6 +16,7 @@ from bpy.utils import register_classes_factory
 from .. import global_data
 from ..solver import Solver, solve_system
 from .base_entity import SlvsGenericEntity
+from .sketch_group import _normalize_tag_value
 from .sketch_group import SketchGroup, SketchGroupTag
 from .utilities import slvs_entity_pointer
 from ..utilities.bpy import bpyEnum
@@ -107,12 +108,13 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         global_data.needs_redraw = True
 
     def has_tag(self, value: str) -> bool:
-        return any(t.value == value and t.enabled for t in self.tags)
+        norm = _normalize_tag_value(value)
+        return any(_normalize_tag_value(t.value) == norm for t in self.tags)
 
     def add_tag(self, value: str):
         if not self.has_tag(value):
             t = self.tags.add()
-            t.value = value
+            t.value = value.strip()
 
     def remove_tag_by_value(self, value: str):
         for i, t in enumerate(self.tags):
