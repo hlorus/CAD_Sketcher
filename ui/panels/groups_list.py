@@ -1,6 +1,7 @@
 from bpy.types import Context, UIList
 
 from ... import global_data
+from ...utilities.preferences import get_prefs
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
 
@@ -81,7 +82,7 @@ class VIEW3D_UL_group_tags(UIList):
                 icon="HIDE_OFF" if tag.enabled else "HIDE_ON",
             )
             row.prop(tag, "value", text="", emboss=True)
-            if context.scene.sketcher.ifc_integration:
+            if get_prefs().ifc_integration:
                 sketch = context.scene.sketcher.active_sketch
                 if sketch is not None:
                     op = row.operator(

@@ -10,6 +10,7 @@ from mathutils import Matrix, Vector
 from ..declarations import Operators
 from ..model.types import SlvsLine2D
 from .utilities import activate_sketch
+from ..utilities.preferences import get_prefs
 
 logger = logging.getLogger(__name__)
 
@@ -426,7 +427,7 @@ The line is mirrored as fixed construction geometry along the new X axis"""
                 _add_linked_ref(_pt)
 
         # --- IFC IfcWall: pre-populate height and build elevation reference rectangle ---
-        if context.scene.sketcher.ifc_integration:
+        if get_prefs().ifc_integration:
             wall_group = _get_ifcwall_group(context, line)
             if wall_group is not None:
                 wall_member = wall_group.get_member(line.slvs_index)

@@ -132,12 +132,6 @@ class SketcherProps(PropertyGroup):
         options={"SKIP_SAVE"},
         update=update_cb,
     )
-    ifc_integration: BoolProperty(
-        name="IFC Integration (Bonsai)",
-        description="Show IFC tag fields and enable Bonsai IFC integration features",
-        default=False,
-        options={"SKIP_SAVE"},
-    )
     auto_create_polylines: BoolProperty(
         name="Auto-Create Polylines",
         description=(

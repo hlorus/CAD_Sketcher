@@ -75,7 +75,6 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
     def draw(self, context: Context):
         layout = self.layout
 
-        layout.prop(context.scene.sketcher, "ifc_integration")
         sketch_selector(context, layout)
         sketch = context.scene.sketcher.active_sketch
         layout.use_property_split = True

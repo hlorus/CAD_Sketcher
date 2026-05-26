@@ -21,7 +21,6 @@ from ..utilities.register import get_path, get_name
 from ..utilities.view import update_cb
 from ..utilities.install import check_module
 
-
 log_levels = [
     ("CRITICAL", "Critical", "", 0),
     ("ERROR", "Error", "", 1),
@@ -119,6 +118,11 @@ class Preferences(AddonPreferences):
         name="Make all Entities Selectable", update=update_cb
     )
     force_redraw: BoolProperty(name="Force Entity Redraw", default=True)
+    ifc_integration: BoolProperty(
+        name="IFC Integration (Bonsai)",
+        description="Show IFC tag fields and enable Bonsai IFC integration features",
+        default=False,
+    )
 
     decimal_precision: IntProperty(
         name="Decimal Precision",
@@ -191,6 +195,7 @@ class Preferences(AddonPreferences):
         col = box.column(align=True)
         col.prop(self, "auto_hide_objects")
         col.prop(self, "use_align_view")
+        col.prop(self, "ifc_integration")
 
         col.prop(self, "entity_scale")
         col.prop(self, "workplane_size")
