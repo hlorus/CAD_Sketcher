@@ -13,6 +13,7 @@ class SLVS_OT_TagGroupFromPreset(bpy.types.Operator):
     bl_property = "tag"
 
     group_index: IntProperty(default=-1)
+    tag_index: IntProperty(default=-1)
     tag: EnumProperty(name="Tag", items=TAG_ITEMS)
 
     @classmethod
@@ -23,7 +24,11 @@ class SLVS_OT_TagGroupFromPreset(bpy.types.Operator):
         sketch = context.scene.sketcher.active_sketch
         if not (0 <= self.group_index < len(sketch.groups)):
             return {"CANCELLED"}
-        sketch.groups[self.group_index].add_tag(self.tag)
+        group = sketch.groups[self.group_index]
+        if 0 <= self.tag_index < len(group.tags):
+            group.tags[self.tag_index].value = self.tag
+        else:
+            group.add_tag(self.tag)
         return {"FINISHED"}
 
     def invoke(self, context, event):

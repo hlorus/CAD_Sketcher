@@ -90,6 +90,7 @@ class VIEW3D_UL_group_tags(UIList):
                         icon="VIEWZOOM",
                     )
                     op.group_index = sketch.active_group_index
+                    op.tag_index = index
         elif self.layout_type == "GRID":
             layout.alignment = "CENTER"
             layout.label(text=tag.value or "—")
