@@ -7,6 +7,7 @@ from .. import global_data
 from ..utilities.highlighting import HighlightElement
 from ..utilities.tpg import tpg_decode
 from ..declarations import Operators
+from ..model.types import SlvsLine2D
 
 
 def _rows_from_tpg(tags, raw_value):
@@ -84,6 +85,17 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
         def draw_context_menu(self, context: Context):
             col = self.layout.column()
             element.draw_props(col)
+            if (
+                isinstance(element, SlvsLine2D)
+                and element.geometry_role(context) == "LINKING"
+            ):
+                col.separator()
+                op = col.operator(
+                    Operators.FlipLinkedSketchY,
+                    text="Flip Linked Sketch Y",
+                    icon="ARROW_LEFTRIGHT",
+                )
+                op.line_index = element.slvs_index
 
         if not element:
             bpy.ops.wm.call_menu(name="VIEW3D_MT_selected_menu")

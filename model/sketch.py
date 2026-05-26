@@ -82,6 +82,11 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         description="Index of the construction Line2D inside this sketch that mirrors the source line length.",
         default=-1,
     )
+    linked_y_inverted: BoolProperty(
+        name="Linked Y Inverted",
+        description="When true, linked sketch local Y points in the opposite direction",
+        default=False,
+    )
     tags: CollectionProperty(
         name="Tags",
         description="Workflow roles of this sketch (e.g. Plan, Elevation)",

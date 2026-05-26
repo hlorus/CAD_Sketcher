@@ -222,6 +222,12 @@ def update_linked_sketches(scene):
             z_new = -z_new
             y_new = z_new.cross(x_new).normalized()
 
+        # Optional linked-sketch orientation flip controlled from linking line
+        # context menu. Keep right-handed basis by flipping Y and Z together.
+        if getattr(sketch, "linked_y_inverted", False):
+            y_new = -y_new
+            z_new = -z_new
+
         mat3 = Matrix((x_new, y_new, z_new)).transposed()
         quat = mat3.to_quaternion()
 

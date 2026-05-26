@@ -57,6 +57,7 @@ class Operators(str, Enum):
     DeleteEntity = "view3d.slvs_delete_entity"
     InstallPackage = "view3d.slvs_install_package"
     FlipLineDirection = "view3d.slvs_flip_line_direction"
+    FlipLinkedSketchY = "view3d.slvs_flip_linked_sketch_y"
     Paste = "view3d.slvs_paste"
     Move = "view3d.slvs_move"
     Offset = "view3d.slvs_offset"
