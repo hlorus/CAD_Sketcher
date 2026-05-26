@@ -111,6 +111,15 @@ class VIEW3D_UL_group_tags(UIList):
                     )
                     op.group_index = sketch.active_group_index
                     op.tag_index = index
+                # context menu for tag details
+                props = row.operator(
+                    "view3d.slvs_group_tag_context_menu",
+                    text="",
+                    emboss=False,
+                    icon="OUTLINER_DATA_GP_LAYER",
+                )
+                props.group_index = sketch.active_group_index
+                props.tag_index = index
                 # inline delete
                 op = row.operator(
                     "view3d.slvs_remove_group_tag",
