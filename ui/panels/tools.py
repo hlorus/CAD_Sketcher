@@ -30,7 +30,6 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         # Drawing
         layout.label(text="Drawing:")
         layout.prop(context.scene.sketcher, "use_construction")
-        layout.prop(context.scene.sketcher, "auto_create_polylines")
 
         # Node modifier operators
         if is_experimental():

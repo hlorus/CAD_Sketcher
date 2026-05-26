@@ -46,11 +46,7 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
     )
 
     def init(self, context: Context, event: Event):
-        result = super().init(context, event)
-        self._polyline_segments = []
-        self._in_continuous_draw = False
-        self._polyline_index = -1
-        return result
+        return super().init(context, event)
 
     def main(self, context: Context):
         wp = self.sketch.wp
@@ -89,69 +85,7 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
         return True
 
     def do_continuous_draw(self, context):
-        if hasattr(self, "target") and self.target is not None:
-            self._polyline_segments.append(self.target.slvs_index)
-        self._in_continuous_draw = True
         super().do_continuous_draw(context)
-        self._in_continuous_draw = False
-
-    def _apply_polyline(self, context, segments):
-        """Create or update the running polyline with the given segment indices.
-
-        If the polyline spans the two endpoints of the sketch's linked geometry
-        line (linked-sketch case), the linked line is appended to close the
-        loop and the source line's GUID is inherited by the polyline.
-        """
-        if len(segments) < 2:
-            return
-        sse = context.scene.sketcher.entities
-        first_seg = sse.get(segments[0])
-        last_seg = sse.get(segments[-1])
-        is_closed = (
-            first_seg is not None
-            and last_seg is not None
-            and first_seg.p1.slvs_index == last_seg.p2.slvs_index
-        )
-
-        # --- Linked-geometry auto-close ---
-        # When this sketch was created by "add linked sketch" it carries a
-        # fixed linked line.  If the user's chain touches both endpoints of
-        # that linked line we append it to the segment list and mark the
-        # polyline as closed.  The polyline also inherits the GUID of the
-        # original source line so downstream tools (e.g. IFC export) can link
-        # the elevation loop back to its originating element.
-        inherited_guid = ""
-        linked_line_i = getattr(self.sketch, "source_linked_line_i", -1)
-        if linked_line_i != -1 and first_seg is not None and last_seg is not None:
-            linked_line = sse.get(linked_line_i)
-            if linked_line is not None:
-                ext_pts = {linked_line.p1.slvs_index, linked_line.p2.slvs_index}
-                user_pts = {first_seg.p1.slvs_index, last_seg.p2.slvs_index}
-                if user_pts == ext_pts and linked_line_i not in segments:
-                    segments = list(segments) + [linked_line_i]
-                    is_closed = True
-                    src_line_i = getattr(self.sketch, "source_line_i", -1)
-                    if src_line_i != -1:
-                        src_line = sse.get(src_line_i)
-                        if src_line is not None:
-                            inherited_guid = src_line.guid
-
-        if self._polyline_index == -1:
-            poly = sse.add_polyline(segments, is_closed, self.sketch)
-            self._polyline_index = poly.slvs_index
-        else:
-            poly = sse.get(self._polyline_index)
-            if poly is not None:
-                count = min(len(segments), 32)
-                for i in range(count):
-                    poly.segment_indices[i] = segments[i]
-                poly.segment_count = count
-                poly.closed = is_closed
-
-        if inherited_guid:
-            poly = sse.get(self._polyline_index)
-            if poly is not None:
-                poly.guid = inherited_guid
 
     def fini(self, context: Context, succeede: bool):
         if hasattr(self, "target"):
@@ -161,22 +95,6 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
             if self.has_coincident() or self.has_alignment:
                 solve_system(context, sketch=self.sketch)
             self.sketch.geometry_solved = False
-
-        if not context.scene.sketcher.auto_create_polylines:
-            return
-
-        if self._in_continuous_draw:
-            # Intermediate step: create/update polyline with all committed segments.
-            # This runs before undo_push so the polyline is included in the checkpoint.
-            if succeede:
-                self._apply_polyline(context, self._polyline_segments[:])
-        else:
-            # Final step (right-click/enter to confirm last segment)
-            if succeede and hasattr(self, "target") and self.target is not None:
-                self._apply_polyline(
-                    context, self._polyline_segments + [self.target.slvs_index]
-                )
-            # On cancel: polyline already holds all committed segments — nothing to do.
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_line2d,))

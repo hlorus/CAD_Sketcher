@@ -37,7 +37,6 @@ class Operators(str, Enum):
     AddPerpendicular = "view3d.slvs_add_perpendicular"
     AddPoint2D = "view3d.slvs_add_point2d"
     AddPoint3D = "view3d.slvs_add_point3d"
-    AddPolyline = "view3d.slvs_add_polyline"
     AddPresetTheme = "bgs.theme_preset_add"
     AddRatio = "view3d.slvs_add_ratio"
     AddSymmetry = "view3d.slvs_add_symmetry"

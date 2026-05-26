@@ -22,7 +22,6 @@ modules = [
     "add_circle",
     "add_arc",
     "add_rectangle",
-    "add_polyline",
     "trim",
     "batch_set",
     "bevel",

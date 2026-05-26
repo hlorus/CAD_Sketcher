@@ -132,15 +132,6 @@ class SketcherProps(PropertyGroup):
         options={"SKIP_SAVE"},
         update=update_cb,
     )
-    auto_create_polylines: BoolProperty(
-        name="Auto-Create Polylines",
-        description=(
-            "Automatically group consecutive lines drawn with the line tool "
-            "into a polyline entity when the chain finishes"
-        ),
-        default=True,
-        options={"SKIP_SAVE"},
-    )
     selectable_constraints: BoolProperty(
         name="Constraints Selectability",
         default=True,

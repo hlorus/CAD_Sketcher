@@ -464,24 +464,18 @@ The line is mirrored as fixed construction geometry along the new X axis"""
                     top_line = sse.add_line_2d(p_top_end, p_top_origin, new_sketch)
                     left_line = sse.add_line_2d(p_top_origin, p_origin, new_sketch)
 
-                    elev_poly = sse.add_polyline(
-                        [
-                            ext_line.slvs_index,
-                            right_line.slvs_index,
-                            top_line.slvs_index,
-                            left_line.slvs_index,
-                        ],
-                        True,
-                        new_sketch,
-                    )
-                    # Mirror the wall group onto the elevation sketch so the
-                    # elevation polyline carries the same IFC class and GUIDs.
+                    # Mirror the wall group onto the elevation sketch by
+                    # grouping its boundary segments directly.
                     elev_group = new_sketch.groups.add()
                     elev_group.name = wall_group.name
-                    elev_group.tag = wall_group.tag
+                    for tag in wall_group.tags:
+                        copied = elev_group.tags.add()
+                        copied.value = tag.value
+                        copied.enabled = tag.enabled
                     elev_group.guid = wall_group.guid
-                    elev_member = elev_group.add_member(elev_poly.slvs_index)
-                    elev_member.guid = line_guid
+                    for boundary in (ext_line, right_line, top_line, left_line):
+                        elev_member = elev_group.add_member(boundary.slvs_index)
+                        elev_member.guid = line_guid
 
         activate_sketch(context, new_sketch.slvs_index, self)
 

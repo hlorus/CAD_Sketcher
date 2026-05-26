@@ -1,11 +1,10 @@
-import logging
 import math
 
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 
 from ..model.categories import SEGMENT
-from ..model.identifiers import is_line, is_circle
+from ..model.identifiers import is_circle
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
@@ -15,8 +14,6 @@ from ..utilities.intersect import get_offset_elements, get_intersections
 from ..model.utilities import get_connection_point
 from .base_2d import Operator2d
 from .utilities import ignore_hover
-
-logger = logging.getLogger(__name__)
 
 
 def _get_offset_co(point, normal, distance):
@@ -176,33 +173,7 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
 
         # Add parallel constraint
         # for entity, new_entity in zip(self.entities, self.new_path):
-        #     if not is_line(entity):
-        #         continue
         #     constraints.add_parallel(entity, new_entity, sketch=self.sketch)
-
-        # If the source entity belongs to a polyline, create a matching offset polyline.
-        if not hasattr(self, "new_path") or not self.new_path:
-            return
-        sse = context.scene.sketcher.entities
-        source_polyline = None
-        source_idx = self.entity.slvs_index
-        for poly in sse.polylines:
-            for i in range(poly.segment_count):
-                if int(poly.segment_indices[i]) == source_idx:
-                    source_polyline = poly
-                    break
-            if source_polyline is not None:
-                break
-
-        if source_polyline is not None:
-            new_poly = sse.add_polyline(
-                self.new_path, source_polyline.closed, self.sketch
-            )
-            logger.debug(
-                "Created offset polyline %s from source polyline %s",
-                new_poly,
-                source_polyline,
-            )
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_offset,))

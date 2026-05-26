@@ -5,12 +5,12 @@ SKETCH_ROLE_ITEMS = [
     (
         "Plan",
         "Plan",
-        "Default plan view — lines become wall axes, closed polylines become slabs",
+        "Default plan view — lines become wall axes, closed path groups become slabs",
     ),
     (
         "Elevation",
         "Elevation",
-        "Elevation view — IfcWall polylines define wall height profiles",
+        "Elevation view — IfcWall path groups define wall height profiles",
     ),
 ]
 

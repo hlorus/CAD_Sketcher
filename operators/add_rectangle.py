@@ -72,11 +72,6 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         for e in (*points, *lines):
             ignore_hover(e)
 
-        # Auto-create a closed polyline for the rectangle
-        if context.scene.sketcher.auto_create_polylines:
-            segments = [line.slvs_index for line in lines]
-            sse.add_polyline(segments, is_closed=True, sketch=sketch)
-
         return True
 
     def fini(self, context: Context, succeede: bool):

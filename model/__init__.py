@@ -12,7 +12,6 @@ modules = [
     "normal_2d",
     "arc",
     "circle",
-    "polyline",
     "group_entities",
     "distance",
     "angle",

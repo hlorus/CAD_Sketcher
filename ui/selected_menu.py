@@ -57,16 +57,3 @@ class VIEW3D_MT_selected_menu(Menu):
 
         layout.separator()
         layout.operator(Operators.DeleteEntity, text="Delete Entities", icon="X")
-
-        # Create polyline from selected segments (≥2 required)
-        sketch = context.scene.sketcher.active_sketch
-        if sketch is not None:
-            sse = context.scene.sketcher.entities
-            seg_count = sum(
-                1
-                for e in sse.selected_active
-                if e.is_segment() and hasattr(e, "sketch") and e.sketch == sketch
-            )
-            if seg_count >= 2:
-                layout.separator()
-                layout.operator(Operators.AddPolyline, icon="CURVE_PATH")
