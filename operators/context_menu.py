@@ -5,8 +5,40 @@ from bpy.types import Operator, Context, Event, PropertyGroup
 
 from .. import global_data
 from ..utilities.highlighting import HighlightElement
-from ..utilities.tpg import tpg_get_guid, tpg_to_map
+from ..utilities.tpg import tpg_decode
 from ..declarations import Operators
+
+
+def _rows_from_tpg(tags, raw_value):
+    """Build (tag, param, guid) rows for display with legacy-safe fallback."""
+    entries, legacy_single = tpg_decode(raw_value)
+    entry_by_tag = {entry["t"]: entry for entry in entries}
+
+    rows = []
+    unmapped_guid = ""
+    if entries:
+        for tag_value in tags:
+            entry = entry_by_tag.get(tag_value)
+            if entry:
+                rows.append((tag_value, entry.get("p", ""), entry.get("g", "")))
+            else:
+                rows.append((tag_value, "", ""))
+        for entry in entries:
+            tag_value = entry.get("t", "")
+            if tag_value and tag_value not in tags:
+                rows.append((tag_value, entry.get("p", ""), entry.get("g", "")))
+    else:
+        # Legacy/plain storage has one string slot and no per-tag parameter.
+        if len(tags) == 1:
+            rows.append((tags[0], "", legacy_single))
+        elif tags:
+            for tag_value in tags:
+                rows.append((tag_value, "", ""))
+            unmapped_guid = legacy_single
+        else:
+            rows.append(("—", "", legacy_single))
+
+    return rows, unmapped_guid, bool(entries)
 
 
 class View3D_OT_slvs_context_menu(Operator, HighlightElement):
@@ -99,20 +131,28 @@ class View3D_OT_slvs_group_tag_context_menu(Operator, HighlightElement):
 
         if not (0 <= self.tag_index < len(group.tags)):
             return {"CANCELLED"}
-        tag = group.tags[self.tag_index]
 
-        tag_value = (tag.value or "").strip()
         raw_guid = (group.guid or "").strip()
-        guid_map = tpg_to_map(raw_guid)
-        guid_value = tpg_get_guid(raw_guid, tag_value)
+        group_tags = [t.value for t in group.tags if (t.value or "").strip()]
+        rows, unmapped_guid, structured = _rows_from_tpg(group_tags, raw_guid)
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column(align=True)
             col.label(text="Group Tag", icon="BOOKMARKS")
             col.separator()
-            col.label(text=f"Group: {group.name}")
-            col.label(text=f"Tag: {tag_value or '—'}")
-            col.label(text=f"GUID: {guid_value or '—'}")
+            col.label(text=f"Name: {group.name}")
+            col.label(text=f"Index: {self.group_index}")
+            if not structured and len(group_tags) > 1:
+                col.separator()
+                col.label(text="Single GUID storage detected", icon="INFO")
+                if unmapped_guid:
+                    col.label(text=f"Unmapped GUID: {unmapped_guid}")
+            col.separator()
+            col.label(text="TAG / Parameter / GUID")
+            for tag_value, param_value, guid_value in rows:
+                col.label(
+                    text=f"{tag_value} | {param_value or '—'} | {guid_value or '—'}"
+                )
 
         context.window_manager.popup_menu(draw_context_menu)
         return {"FINISHED"}
@@ -152,28 +192,7 @@ class View3D_OT_slvs_group_member_context_menu(Operator, HighlightElement):
 
         tags = [t.value for t in group.tags if (t.value or "").strip()]
         raw_guid = (member.guid or "").strip()
-        guid_map = tpg_to_map(raw_guid)
-
-        rows = []
-        unmapped_guid = ""
-        if guid_map:
-            # Keep group tag order first, then append any extra map keys.
-            for tag_value in tags:
-                rows.append((tag_value, guid_map.get(tag_value, "")))
-            for key, value in guid_map.items():
-                if key not in tags:
-                    rows.append((key, value))
-        else:
-            # Legacy/plain storage has only one string slot (member.guid).
-            # For multi-tag groups we cannot safely infer which tag it belongs to.
-            if len(tags) == 1:
-                rows.append((tags[0], raw_guid))
-            elif tags:
-                for tag_value in tags:
-                    rows.append((tag_value, ""))
-                unmapped_guid = raw_guid
-            else:
-                rows.append(("—", raw_guid))
+        rows, unmapped_guid, structured = _rows_from_tpg(tags, raw_guid)
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column(align=True)
@@ -182,14 +201,16 @@ class View3D_OT_slvs_group_member_context_menu(Operator, HighlightElement):
             col.label(text=f"Group: {group.name}")
             col.label(text=f"Entity: {entity_name}")
             col.label(text=f"Index: {member.entity_index}")
-            if not guid_map and len(tags) > 1:
+            if not structured and len(tags) > 1:
                 col.label(text="Single GUID storage detected", icon="INFO")
                 if unmapped_guid:
                     col.label(text=f"Unmapped GUID: {unmapped_guid}")
             col.separator()
-            col.label(text="Tag / GUID")
-            for tag_value, guid_value in rows:
-                col.label(text=f"{tag_value}: {guid_value or '—'}")
+            col.label(text="TAG / Parameter / GUID")
+            for tag_value, param_value, guid_value in rows:
+                col.label(
+                    text=f"{tag_value} | {param_value or '—'} | {guid_value or '—'}"
+                )
 
         context.window_manager.popup_menu(draw_context_menu)
         return {"FINISHED"}
@@ -199,7 +220,7 @@ class View3D_OT_slvs_sketch_context_menu(Operator, HighlightElement):
     """Show selected sketch metadata details"""
 
     bl_idname = "view3d.slvs_sketch_context_menu"
-    bl_label = "Sketch Details"
+    bl_label = "Sketch Tag"
 
     sketch_index: IntProperty(name="Sketch Index", default=-1, options={"SKIP_SAVE"})
     index: IntProperty(name="Index", default=-1, options={"SKIP_SAVE"})
@@ -217,40 +238,24 @@ class View3D_OT_slvs_sketch_context_menu(Operator, HighlightElement):
 
         tags = [t.value for t in getattr(sketch, "tags", []) if (t.value or "").strip()]
         raw_guid = (getattr(sketch, "guid", "") or "").strip()
-        guid_map = tpg_to_map(raw_guid)
-
-        rows = []
-        unmapped_guid = ""
-        if guid_map:
-            for tag_value in tags:
-                rows.append((tag_value, guid_map.get(tag_value, "")))
-            for key, value in guid_map.items():
-                if key not in tags:
-                    rows.append((key, value))
-        else:
-            if len(tags) == 1:
-                rows.append((tags[0], raw_guid))
-            elif tags:
-                for tag_value in tags:
-                    rows.append((tag_value, ""))
-                unmapped_guid = raw_guid
-            else:
-                rows.append(("—", raw_guid))
+        rows, unmapped_guid, structured = _rows_from_tpg(tags, raw_guid)
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column(align=True)
-            col.label(text="Sketch", icon="GREASEPENCIL")
+            col.label(text="Sketch Tag", icon="BOOKMARKS")
             col.separator()
             col.label(text=f"Name: {sketch.name}")
             col.label(text=f"Index: {sketch.slvs_index}")
-            if not guid_map and len(tags) > 1:
+            if not structured and len(tags) > 1:
                 col.label(text="Single GUID storage detected", icon="INFO")
                 if unmapped_guid:
                     col.label(text=f"Unmapped GUID: {unmapped_guid}")
             col.separator()
-            col.label(text="Tag / GUID")
-            for tag_value, guid_value in rows:
-                col.label(text=f"{tag_value}: {guid_value or '—'}")
+            col.label(text="TAG / Parameter / GUID")
+            for tag_value, param_value, guid_value in rows:
+                col.label(
+                    text=f"{tag_value} | {param_value or '—'} | {guid_value or '—'}"
+                )
 
         context.window_manager.popup_menu(draw_context_menu)
         return {"FINISHED"}
