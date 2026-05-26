@@ -39,7 +39,8 @@ class VIEW3D_UL_sketch_tags(UIList):
                 icon="OUTLINER_DATA_GP_LAYER",
             )
             props.sketch_index = context.scene.sketcher.active_sketch.slvs_index
-            props.index = context.scene.sketcher.active_sketch.slvs_index
+            props.tag_index = index
+            props.index = index
             op = row.operator(
                 "view3d.slvs_sketch_role_from_preset",
                 text="",

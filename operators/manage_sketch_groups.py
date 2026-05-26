@@ -233,6 +233,8 @@ class SLVS_OT_RemoveSketchTag(bpy.types.Operator):
     bl_label = "Remove Sketch Tag"
     bl_options = {"UNDO"}
 
+    tag_index: bpy.props.IntProperty(default=-1)
+
     @classmethod
     def poll(cls, context):
         sketch = context.scene.sketcher.active_sketch
@@ -240,7 +242,9 @@ class SLVS_OT_RemoveSketchTag(bpy.types.Operator):
 
     def execute(self, context):
         sketch = context.scene.sketcher.active_sketch
-        idx = sketch.active_tag_index
+        idx = self.tag_index if self.tag_index >= 0 else sketch.active_tag_index
+        if not (0 <= idx < len(sketch.tags)):
+            return {"CANCELLED"}
         sketch.remove_tag_by_value(sketch.tags[idx].value)
         sketch.active_tag_index = max(0, idx - 1) if sketch.tags else -1
         return {"FINISHED"}

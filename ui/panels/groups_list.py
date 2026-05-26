@@ -49,6 +49,17 @@ class VIEW3D_UL_sketch_groups(UIList):
             )
             row.label(text=summary)
             row.label(text=str(len(group.members)))
+            tag_index = group.active_tag_index
+            if not (0 <= tag_index < len(group.tags)):
+                tag_index = 0
+            props = row.operator(
+                "view3d.slvs_group_context_menu",
+                text="",
+                emboss=False,
+                icon="OUTLINER_DATA_GP_LAYER",
+            )
+            props.group_index = index
+            props.tag_index = tag_index
             # inline delete
             op = row.operator(
                 "view3d.slvs_remove_sketch_group",
@@ -92,15 +103,6 @@ class VIEW3D_UL_group_tags(UIList):
             row.prop(tag, "value", text="", emboss=True)
             sketch = context.scene.sketcher.active_sketch
             if sketch is not None:
-                # context menu for tag GUID details
-                props = row.operator(
-                    "view3d.slvs_group_tag_context_menu",
-                    text="",
-                    emboss=False,
-                    icon="OUTLINER_DATA_GP_LAYER",
-                )
-                props.group_index = sketch.active_group_index
-                props.tag_index = index
                 if get_prefs().ifc_integration:
                     op = row.operator(
                         "view3d.slvs_tag_group_from_preset",

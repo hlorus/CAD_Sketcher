@@ -105,10 +105,10 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
         return {"FINISHED"}
 
 
-class View3D_OT_slvs_group_tag_context_menu(Operator, HighlightElement):
+class View3D_OT_slvs_group_context_menu(Operator, HighlightElement):
     """Show selected group tag GUID details"""
 
-    bl_idname = "view3d.slvs_group_tag_context_menu"
+    bl_idname = "view3d.slvs_group_context_menu"
     bl_label = "Group Tag Details"
 
     group_index: IntProperty(name="Group Index", default=-1, options={"SKIP_SAVE"})
@@ -128,9 +128,25 @@ class View3D_OT_slvs_group_tag_context_menu(Operator, HighlightElement):
         if not (0 <= self.group_index < len(sketch.groups)):
             return {"CANCELLED"}
         group = sketch.groups[self.group_index]
+        group_index = self.group_index
 
         if not (0 <= self.tag_index < len(group.tags)):
-            return {"CANCELLED"}
+
+            def draw_no_tags(self, context: Context):
+                col = self.layout.column(align=True)
+                col.prop(group, "name", text="")
+                col.separator()
+                col.label(text="No TAGs defined", icon="INFO")
+                col.separator()
+                op = col.operator(
+                    "view3d.slvs_remove_sketch_group",
+                    text="Delete Group",
+                    icon="X",
+                )
+                op.group_index = group_index
+
+            context.window_manager.popup_menu(draw_no_tags)
+            return {"FINISHED"}
 
         raw_guid = (group.guid or "").strip()
         group_tags = [t.value for t in group.tags if (t.value or "").strip()]
@@ -138,10 +154,7 @@ class View3D_OT_slvs_group_tag_context_menu(Operator, HighlightElement):
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column(align=True)
-            col.label(text="Group Tag", icon="BOOKMARKS")
-            col.separator()
-            col.label(text=f"Name: {group.name}")
-            col.label(text=f"Index: {self.group_index}")
+            col.prop(group, "name", text="")
             if not structured and len(group_tags) > 1:
                 col.separator()
                 col.label(text="Single GUID storage detected", icon="INFO")
@@ -153,6 +166,13 @@ class View3D_OT_slvs_group_tag_context_menu(Operator, HighlightElement):
                 col.label(
                     text=f"{tag_value} | {param_value or '—'} | {guid_value or '—'}"
                 )
+            col.separator()
+            op = col.operator(
+                "view3d.slvs_remove_sketch_group",
+                text="Delete Group",
+                icon="X",
+            )
+            op.group_index = group_index
 
         context.window_manager.popup_menu(draw_context_menu)
         return {"FINISHED"}
@@ -216,13 +236,14 @@ class View3D_OT_slvs_group_member_context_menu(Operator, HighlightElement):
         return {"FINISHED"}
 
 
-class View3D_OT_slvs_sketch_context_menu(Operator, HighlightElement):
-    """Show selected sketch metadata details"""
+class View3D_OT_slvs_sketch_tag_context_menu(Operator, HighlightElement):
+    """Show selected sketch tag GUID details"""
 
-    bl_idname = "view3d.slvs_sketch_context_menu"
-    bl_label = "Sketch Tag"
+    bl_idname = "view3d.slvs_sketch_tag_context_menu"
+    bl_label = "Sketch Tag Details"
 
     sketch_index: IntProperty(name="Sketch Index", default=-1, options={"SKIP_SAVE"})
+    tag_index: IntProperty(name="Tag Index", default=-1, options={"SKIP_SAVE"})
     index: IntProperty(name="Index", default=-1, options={"SKIP_SAVE"})
 
     @classmethod
@@ -236,26 +257,47 @@ class View3D_OT_slvs_sketch_context_menu(Operator, HighlightElement):
         if sketch is None:
             return {"CANCELLED"}
 
-        tags = [t.value for t in getattr(sketch, "tags", []) if (t.value or "").strip()]
+        sketch_index = self.sketch_index
+        sketch_tags = getattr(sketch, "tags", [])
+
+        if not (0 <= self.tag_index < len(sketch_tags)):
+
+            def draw_no_tags(self, context: Context):
+                col = self.layout.column(align=True)
+                col.prop(sketch, "name", text="")
+                col.separator()
+                col.label(text="No TAGs defined", icon="INFO")
+
+            context.window_manager.popup_menu(draw_no_tags)
+            return {"FINISHED"}
+
+        tag_obj = sketch_tags[self.tag_index]
+        tag_value = (tag_obj.value or "").strip()
+        all_tag_values = [t.value for t in sketch_tags if (t.value or "").strip()]
         raw_guid = (getattr(sketch, "guid", "") or "").strip()
-        rows, unmapped_guid, structured = _rows_from_tpg(tags, raw_guid)
+        rows, unmapped_guid, structured = _rows_from_tpg(all_tag_values, raw_guid)
+        tag_row = next((r for r in rows if r[0] == tag_value), (tag_value, "", ""))
+        tag_val, param_val, guid_val = tag_row
+        sketch_tag_index = self.tag_index
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column(align=True)
-            col.label(text="Sketch Tag", icon="BOOKMARKS")
-            col.separator()
-            col.label(text=f"Name: {sketch.name}")
-            col.label(text=f"Index: {sketch.slvs_index}")
-            if not structured and len(tags) > 1:
+            col.prop(tag_obj, "value", text="")
+            if not structured and len(all_tag_values) > 1:
+                col.separator()
                 col.label(text="Single GUID storage detected", icon="INFO")
                 if unmapped_guid:
                     col.label(text=f"Unmapped GUID: {unmapped_guid}")
             col.separator()
             col.label(text="TAG / Parameter / GUID")
-            for tag_value, param_value, guid_value in rows:
-                col.label(
-                    text=f"{tag_value} | {param_value or '—'} | {guid_value or '—'}"
-                )
+            col.label(text=f"{tag_val} | {param_val or '—'} | {guid_val or '—'}")
+            col.separator()
+            op = col.operator(
+                "view3d.slvs_remove_sketch_tag",
+                text="Delete Tag",
+                icon="X",
+            )
+            op.tag_index = sketch_tag_index
 
         context.window_manager.popup_menu(draw_context_menu)
         return {"FINISHED"}
@@ -264,8 +306,8 @@ class View3D_OT_slvs_sketch_context_menu(Operator, HighlightElement):
 register, unregister = register_classes_factory(
     (
         View3D_OT_slvs_context_menu,
-        View3D_OT_slvs_group_tag_context_menu,
+        View3D_OT_slvs_group_context_menu,
         View3D_OT_slvs_group_member_context_menu,
-        View3D_OT_slvs_sketch_context_menu,
+        View3D_OT_slvs_sketch_tag_context_menu,
     )
 )
