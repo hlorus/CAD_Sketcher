@@ -54,7 +54,7 @@ class Point2D(Entity2D):
                 return True
         return False
 
-    def _linked_line_origin_state(self, context: Context):
+    def _linked_line_origin_state(self, context: Context, selected_only: bool = False):
         """Return linked-Y inversion state when this point is origin of a linking line.
 
         Returns:
@@ -72,6 +72,8 @@ class Point2D(Entity2D):
                 continue
             if line.p1.slvs_index != self.slvs_index:
                 continue
+            if selected_only and not getattr(line, "selected", False):
+                continue
 
             for linked_sketch in sse.sketches:
                 if getattr(linked_sketch, "source_line_i", -1) == line.slvs_index:
@@ -79,16 +81,16 @@ class Point2D(Entity2D):
         return None
 
     def _draw_linked_origin_marker(self, context: Context, inverted: bool):
-        col = get_prefs().theme_settings.linked_geometry.linking
+        col = get_prefs().theme_settings.entity.line_origin
         center = self.location
 
         wp_mat = self.wp.matrix_basis
         x_axis = wp_mat.col[0].to_3d().normalized()
         y_axis = wp_mat.col[1].to_3d().normalized()
 
-        radius = 0.06 * preferences.get_scale()
+        radius = 0.09 * preferences.get_scale()
         if radius <= 0.0:
-            radius = 0.06
+            radius = 0.09
 
         circle_steps = 24
         circle_coords = []
@@ -116,7 +118,7 @@ class Point2D(Entity2D):
         circle_batch.draw(shader_line)
 
         if inverted:
-            d = radius * 0.6
+            d = radius * 0.8
             x_coords = (
                 (center + (x_axis + y_axis) * d)[:],
                 (center - (x_axis + y_axis) * d)[:],
@@ -187,7 +189,7 @@ class Point2D(Entity2D):
 
     @property
     def point_size(self):
-        state = self._linked_line_origin_state(bpy.context)
+        state = self._linked_line_origin_state(bpy.context, selected_only=True)
         if state is not None:
             return 1.2 * super().point_size
         if self._is_selected_line_origin(bpy.context):
@@ -195,15 +197,15 @@ class Point2D(Entity2D):
         return super().point_size
 
     def color(self, context: Context):
-        state = self._linked_line_origin_state(context)
+        state = self._linked_line_origin_state(context, selected_only=True)
         if state is not None:
-            return get_prefs().theme_settings.linked_geometry.linking
+            return get_prefs().theme_settings.entity.line_origin
         if self._is_selected_line_origin(context):
             return get_prefs().theme_settings.entity.line_origin
         return super().color(context)
 
     def draw(self, context):
-        state = self._linked_line_origin_state(context)
+        state = self._linked_line_origin_state(context, selected_only=True)
         if state is not None:
             if not self.is_visible(context):
                 return
