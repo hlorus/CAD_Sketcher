@@ -1,6 +1,7 @@
 import logging
 from typing import List
 
+import bpy
 from bpy.props import StringProperty, BoolProperty
 from bpy.types import UILayout, Property, Context
 
@@ -17,13 +18,19 @@ logger = logging.getLogger(__name__)
 
 
 class GenericConstraint:
-    def _name_getter(self):
-        return self.get("name", str(self))
+    if bpy.app.version >= (5, 0):
+        def _name_get_transform(self, curr_value, is_set):
+            return curr_value if is_set else str(self)
 
-    def _name_setter(self, new_name):
-        self["name"] = new_name
+        name: StringProperty(name="Name", get_transform=_name_get_transform)
+    else:
+        def _name_getter(self):
+            return self.get("name", str(self))
 
-    name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
+        def _name_setter(self, new_name):
+            self["name"] = new_name
+
+        name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
     failed: BoolProperty(name="Failed")
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     is_reference = False  # Only DimensionalConstraint can be reference
@@ -193,15 +200,15 @@ class DimensionalConstraint(GenericConstraint):
             self._set_value_force(self.from_displayed_value(displayed_value))
 
     def _set_value_force(self, value: float):
-        self["value"] = value
+        self.value_store = value
 
     def _get_value(self):
         if self.is_reference:
             val = self.init_props()["value"]
             return self.to_displayed_value(val)
-        if self.get("value") is None:
+        if not self.is_property_set("value_store"):
             self.assign_init_props()
-        return self.to_displayed_value(self["value"])
+        return self.to_displayed_value(self.value_store)
 
     def assign_settings(self, **settings):
         for key, value in settings.items():

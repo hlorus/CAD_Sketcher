@@ -44,6 +44,12 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         self.draw_offset = dist if not self.setting else -dist
 
     label = "Angle"
+    value_store: FloatProperty(
+        name="Angle Storage",
+        subtype="ANGLE",
+        unit="ROTATION",
+        precision=6,
+    )
     value: FloatProperty(
         name=label,
         subtype="ANGLE",

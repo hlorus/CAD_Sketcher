@@ -40,10 +40,10 @@ class SlvsNormal3D(Normal3D, PropertyGroup):
     """
 
     def get_orientation(self):
-        return getattr(self, "orientation").to_euler()
+        return self.orientation.to_euler()
 
     def set_orientation(self, value):
-        self["orientation"] = Euler(value).to_quaternion()
+        self.orientation = Euler(value).to_quaternion()
 
     orientation: FloatVectorProperty(
         name="Orientation",

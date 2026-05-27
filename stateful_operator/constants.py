@@ -18,7 +18,6 @@ unit_key_types = (
     "F",
     "T",
     "Y",
-    "U",
     "R",
     "E",
     "G",

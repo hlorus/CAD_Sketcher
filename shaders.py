@@ -1,5 +1,5 @@
 import gpu
-from gpu.types import GPUShader, GPUShaderCreateInfo, GPUStageInterfaceInfo
+from gpu.types import GPUShaderCreateInfo, GPUStageInterfaceInfo
 from gpu.shader import create_from_info
 from bpy import app
 

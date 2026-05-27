@@ -1,11 +1,11 @@
 import pickle
-from typing import Union, Optional
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional, Union
 
 from bpy.types import Scene
 
-from .utilities.index import breakdown_index, assemble_index
+from .utilities.bpy import pg_from_dict, pg_to_dict
+from .utilities.index import assemble_index, breakdown_index
 
 
 def dict_extend(original_dict, other):
@@ -26,29 +26,32 @@ def dict_extend(original_dict, other):
 # }
 
 
-def apply_dict(parent, d: Dict):
-    """Applies values from a dictionary to members of a IDPropertyGroup"""
-    for key, value in d.items():
-        if not isinstance(value, dict):
-            parent[key] = value
-            continue
-
-        # Handle dictionaries recursivley
-        apply_dict(parent[key], value)
+# Whitelist of props to store/restore
+SKETCHER_SNAPSHOT_PROPS = ["entities", "constraints"]
 
 
 def scene_to_dict(scene: Scene) -> Dict:
     """Returns a dictionary which represents the relevant contents of the given scene"""
-    original = scene["sketcher"].to_dict()
-    elements = {key: original[key] for key in ("entities", "constraints")}
+    elements = {}
+    for prop in SKETCHER_SNAPSHOT_PROPS:
+        elements[prop] = pg_to_dict(getattr(scene.sketcher, prop))
     return elements
 
 
 def scene_from_dict(scene: Scene, elements: Dict):
     """Constructs a scene from a dictionary"""
-    original = scene["sketcher"].to_dict()
-    original.update(elements)
-    apply_dict(scene["sketcher"], original)
+    for prop_name in SKETCHER_SNAPSHOT_PROPS:
+        prop = getattr(scene.sketcher, prop_name)
+        pg_from_dict(prop, elements[prop_name])
+
+
+def update_scene_from_dict(scene: Scene, elements: Dict):
+    """Updates the scene with a dictionary"""
+    for prop_name in SKETCHER_SNAPSHOT_PROPS:
+        prop = getattr(scene.sketcher, prop_name)
+        original = pg_to_dict(prop)
+        original.update(elements)
+        pg_from_dict(prop, original[prop_name])
 
 
 def _extend_element_dict(scene, elements):
@@ -159,7 +162,7 @@ def load(file: Union[str, Path], scene: Optional[Scene] = None):
         unpickler = pickle.Unpickler(picklefile)
         load_dict = unpickler.load()
 
-        scene_from_dict(scene, load_dict)
+        update_scene_from_dict(scene, load_dict)
 
 
 def paste(context, dictionary):
@@ -172,4 +175,4 @@ def paste(context, dictionary):
             "constraints": dictionary["constraints"],
         },
     )
-    scene_from_dict(scene, final_dict)
+    update_scene_from_dict(scene, final_dict)

@@ -1,14 +1,14 @@
 from typing import Tuple
 
 from bpy.types import Context, RegionView3D
-from mathutils import Vector
-from mathutils.geometry import intersect_line_plane
 from bpy_extras.view3d_utils import (
     location_3d_to_region_2d,
     region_2d_to_location_3d,
-    region_2d_to_vector_3d,
     region_2d_to_origin_3d,
+    region_2d_to_vector_3d,
 )
+from mathutils import Vector
+from mathutils.geometry import intersect_line_plane
 
 
 def get_picking_origin_dir(context: Context, coords: Vector) -> Tuple[Vector, Vector]:
@@ -79,8 +79,7 @@ def refresh(context: Context):
 
 
 def update_cb(self, context: Context):
-    if not context.space_data:
-        return
-    # update gizmos!
-    if context.space_data.type == "VIEW_3D":
-        context.space_data.show_gizmo = True
+    """Mark that the viewport needs a redraw, deferred to depsgraph_update_post."""
+    from .. import global_data
+
+    global_data.needs_redraw = True

@@ -19,6 +19,12 @@ TARGET_MATRIX = None
 
 
 def animate_viewport():
+    global REGION3D
+    
+    # Check if REGION3D is still available
+    if REGION3D is None:
+        return None  # Stop animation
+    
     # Calculate the elapsed time
     elapsed_time = time.time() - START_TIME
     t = min(elapsed_time / DURATION, 1.0)  # Normalize time to [0, 1]
@@ -49,6 +55,11 @@ class View3D_OT_slvs_align_view(bpy.types.Operator):
 
         REGION3D = context.region_data
         DURATION = self.duration
+
+        # Check if region_data is available
+        if REGION3D is None:
+            self.report({'WARNING'}, "No 3D viewport available for alignment")
+            return {'CANCELLED'}
 
         # Store the current location and rotation
         START_LOCATION = REGION3D.view_location.copy()

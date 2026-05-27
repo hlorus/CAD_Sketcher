@@ -23,11 +23,11 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     """Sets the diameter of an arc or a circle."""
 
     def use_radius_getter(self):
-        return self.get("setting", self.bl_rna.properties["setting"].default)
+        return self.setting_store
 
     def use_radius_setter(self, setting):
-        old_setting = self.get("setting", self.bl_rna.properties["setting"].default)
-        self["setting"] = setting
+        old_setting = self.setting_store
+        self.setting_store = setting
 
         distance = None
         if old_setting and not setting:
@@ -36,13 +36,18 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
             distance = self.value / 2
 
         if distance is not None:
-            # Avoid triggering the property's update callback
-            self["value"] = distance
+            self.value_store = distance
 
     @property
     def label(self):
         return "Radius" if self.setting else "Diameter"
 
+    value_store: FloatProperty(
+        name="Size Storage",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        precision=6,
+    )
     value: FloatProperty(
         name="Size",
         subtype="DISTANCE",
@@ -52,6 +57,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         set=DimensionalConstraint._set_value,
         update=update_system_cb,
     )
+    setting_store: BoolProperty(name="Use Radius Storage", default=False)
     setting: BoolProperty(
         name="Use Radius", get=use_radius_getter, set=use_radius_setter
     )

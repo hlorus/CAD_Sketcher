@@ -13,7 +13,7 @@ class SKETCHER_OT_add_preset_theme(AddPresetBase, Operator):
     preset_menu = "SKETCHER_MT_theme_presets"
 
     preset_defines = [
-        'prefs = bpy.context.preferences.addons["CAD_Sketcher"].preferences',
+        'prefs = next(a for a in bpy.context.preferences.addons if a.module.endswith("CAD_Sketcher")).preferences',
         "theme = prefs.theme_settings",
         "entity = theme.entity",
         "constraint = theme.constraint",

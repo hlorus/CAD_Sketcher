@@ -204,11 +204,15 @@ class Solver:
         for sketch in sketches:
             g = self._get_group(sketch)
 
-            fails = []
-            if report:
-                retval, fails = self.solvesys.solve_sketch(g, report)
+            result = self.solvesys.solve_sketch(g, report)
+
+            # Handle API: result is always a dict, not a tuple
+            if isinstance(result, dict):
+                retval = result
+                fails = []  # New API doesn't return fails separately
             else:
-                retval = self.solvesys.solve_sketch(g, report)
+                # Fallback for old API (tuple unpacking)
+                retval, fails, *_ = result
 
             if retval['result'] > 4:
                 logger.debug("Solver returned undocumented value: {}".format(retval))

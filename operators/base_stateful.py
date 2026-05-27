@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Any
 
 import bpy
 from bpy.types import Context
@@ -8,6 +8,7 @@ from .. import global_data
 from ..stateful_operator.integration import StatefulOperator
 from ..model.types import SlvsGenericEntity, SlvsPoint3D, SlvsPoint2D, SlvsNormal3D
 from .utilities import get_hovered
+from ..serialize import scene_to_dict, scene_from_dict
 
 
 class GenericEntityOp(StatefulOperator):
@@ -121,7 +122,7 @@ class GenericEntityOp(StatefulOperator):
             return pointer_name + "_fallback"
         return ""
 
-    def get_state_pointer(self, index=Union[None, int], implicit=False):
+    def get_state_pointer(self, index: Optional[int] = None, implicit=False):
         retval = super().get_state_pointer(index=index, implicit=implicit)
         if retval:
             return retval
@@ -161,7 +162,9 @@ class GenericEntityOp(StatefulOperator):
         state = self.get_states_definition()[index]
         pointer_name = state.pointer
         data = self._state_data.get(index, {})
-        pointer_type = data["type"]
+        pointer_type = data.get("type")
+        if pointer_type is None:
+            return None
 
         if issubclass(pointer_type, SlvsGenericEntity):
             value = values[0] if values is not None else None
@@ -183,3 +186,19 @@ class GenericEntityOp(StatefulOperator):
 
         selected.extend(list(context.scene.sketcher.entities.selected))
         return selected
+
+    def on_before_redo_states(self, context: Context):
+        global_data.ignore_list.clear()
+
+    def create_snapshot(self, context: Context) -> Any:
+        """Create a complete snapshot of all sketcher state using serialization"""
+        # Use the existing serialization system
+        return scene_to_dict(context.scene)
+
+    def restore_snapshot(self, context: Context, snapshot: Any) -> None:
+        """Restore sketcher state from serialized snapshot"""
+        if not snapshot:
+            return
+
+        # Use the existing deserialization system
+        scene_from_dict(context.scene, snapshot)

@@ -135,3 +135,5 @@ utils/*
 
 # Blender specific
 .blender_ext/
+/notes
+nul

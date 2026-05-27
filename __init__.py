@@ -9,7 +9,7 @@ bl_info = {
     "name": "CAD Sketcher",
     "author": "hlorus",
     "version": (0, 27, 6),
-    "blender": (3, 3, 0),
+    "blender": (4, 0, 0),
     "location": "View3D > Toolbar",
     "description": "Parametric, constraint-based geometry sketcher",
     "warning": "Experimental",
@@ -70,7 +70,7 @@ def register():
     setup_logger(logger)
 
     # Register base
-    ensure_addon_presets()
+    ensure_addon_presets(force_write=True)
     register_base()
 
     update_logger(logger)

@@ -123,27 +123,20 @@ def get_unit_value(event: Event):
     return type.lower()
 
 
+_EVENT_TO_DIGIT = {
+    "ZERO": "0", "NUMPAD_0": "0",
+    "ONE": "1", "NUMPAD_1": "1",
+    "TWO": "2", "NUMPAD_2": "2",
+    "THREE": "3", "NUMPAD_3": "3",
+    "FOUR": "4", "NUMPAD_4": "4",
+    "FIVE": "5", "NUMPAD_5": "5",
+    "SIX": "6", "NUMPAD_6": "6",
+    "SEVEN": "7", "NUMPAD_7": "7",
+    "EIGHT": "8", "NUMPAD_8": "8",
+    "NINE": "9", "NUMPAD_9": "9",
+    "PERIOD": ".", "NUMPAD_PERIOD": ".",
+}
+
+
 def get_value_from_event(event: Event):
-    type = event.type
-    if type in ("ZERO", "NUMPAD_0"):
-        return "0"
-    if type in ("ONE", "NUMPAD_1"):
-        return "1"
-    if type in ("TWO", "NUMPAD_2"):
-        return "2"
-    if type in ("THREE", "NUMPAD_3"):
-        return "3"
-    if type in ("FOUR", "NUMPAD_4"):
-        return "4"
-    if type in ("FIVE", "NUMPAD_5"):
-        return "5"
-    if type in ("SIX", "NUMPAD_6"):
-        return "6"
-    if type in ("SEVEN", "NUMPAD_7"):
-        return "7"
-    if type in ("EIGHT", "NUMPAD_8"):
-        return "8"
-    if type in ("NINE", "NUMPAD_9"):
-        return "9"
-    if type in ("PERIOD", "NUMPAD_PERIOD"):
-        return "."
+    return _EVENT_TO_DIGIT.get(event.type, "")

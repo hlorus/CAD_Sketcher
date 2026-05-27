@@ -4,6 +4,7 @@ from ..stateful_operator.utilities.register import register_stateops_factory
 modules = [
     "select",
     "select_box",
+    "snapshot",
     "context_menu",
     "solver_state",
     "solve",

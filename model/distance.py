@@ -56,9 +56,9 @@ def _get_value(self):
     if self.is_reference:
         val = self.init_props(align=self.align)["value"]
         return self.to_displayed_value(val)
-    if self.get("value") is None:
+    if not self.is_property_set("value_store"):
         self.assign_init_props()
-    return self.to_displayed_value(self["value"])
+    return self.to_displayed_value(self.value_store)
 
 
 class SlvsDistance(DimensionalConstraint, PropertyGroup):
@@ -70,13 +70,25 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     def _set_align(self, value: int):
         alignment = bpyEnum(align_items, value).identifier
         distance = _get_aligned_distance(self.entity1, self.entity2, alignment)
-        setprop(self, "align", value)
-        setprop(self, "value", distance)
+        self.align_store = value
+        self.value_store = distance
 
     def _get_align(self) -> int:
-        return self.get("align", 0)
+        if not self.is_property_set("align_store"):
+            return 0
+        return self.align_store
 
     label = "Distance"
+    value_store: FloatProperty(
+        name="Value Storage",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        precision=6,
+    )
+    align_store: EnumProperty(
+        name="Align Storage",
+        items=align_items,
+    )
     value: FloatProperty(
         name=label,
         subtype="DISTANCE",

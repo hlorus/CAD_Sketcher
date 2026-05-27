@@ -25,6 +25,7 @@ _operator_types = {
     Operators.AddTangent: "TANGENT",
     Operators.AddMidPoint: "MIDPOINT",
     Operators.AddRatio: "RATIO",
+    Operators.AddSymmetry: "SYMMETRY",
 }
 
 @cache
