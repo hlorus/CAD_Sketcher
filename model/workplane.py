@@ -44,6 +44,16 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         description="Height of the linked-sketch workplane display. Updated on sketch leave to match the extreme point drawn (positive = upward, negative = downward). Falls back to the linked workplane width (square) when 0.",
         default=0.0,
     )
+    linked_wp_center_x: FloatProperty(
+        name="Linked WP Center X",
+        description="Local X center for sketch workplane display bounds.",
+        default=0.0,
+    )
+    linked_wp_center_y: FloatProperty(
+        name="Linked WP Center Y",
+        description="Local Y center for sketch workplane display bounds.",
+        default=0.0,
+    )
     tag: StringProperty(
         name="Tag",
         description="Workflow role of this workplane (e.g. Plan, Elevation)",
@@ -57,18 +67,41 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
     def size(self):
         return preferences.get_prefs().workplane_size
 
+    def _owner_sketch(self, context):
+        scene = getattr(context, "scene", None)
+        sketcher = getattr(scene, "sketcher", None)
+        entities = getattr(sketcher, "entities", None)
+        sketches = getattr(entities, "sketches", ())
+        for sketch in sketches:
+            if getattr(sketch, "wp", None) == self:
+                return sketch
+        return None
+
+    def _uses_linked_layout(self, context):
+        sketch = self._owner_sketch(context)
+        return sketch is not None and getattr(sketch, "source_line_i", -1) != -1
+
+    def _rect_coords(self, context):
+        if self.linked_wp_width <= 0:
+            return draw_rect_2d(0, 0, self.size, self.size)
+
+        w = self.linked_wp_width
+        h = self.linked_wp_height if self.linked_wp_height != 0 else w
+
+        if self._uses_linked_layout(context):
+            # Linked sketches use origin-anchored local coordinates.
+            return draw_rect_2d(w / 2, h / 2, w, abs(h))
+
+        # Regular sketches use a tight local-space bounding box center.
+        return draw_rect_2d(self.linked_wp_center_x, self.linked_wp_center_y, w, abs(h))
+
     def update(self):
         if bpy.app.background:
             return
 
         p1, nm = self.p1, self.nm
 
-        if self.linked_wp_width > 0:
-            w = self.linked_wp_width
-            h = self.linked_wp_height if self.linked_wp_height != 0 else w
-            coords = draw_rect_2d(w / 2, h / 2, w, abs(h))
-        else:
-            coords = draw_rect_2d(0, 0, self.size, self.size)
+        coords = self._rect_coords(bpy.context)
         coords = [(Vector(co))[:] for co in coords]
 
         indices = ((0, 1), (1, 2), (2, 3), (3, 0))
@@ -101,12 +134,7 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
 
             shader.uniform_float("color", col_surface)
 
-            if self.linked_wp_width > 0:
-                w = self.linked_wp_width
-                h = self.linked_wp_height if self.linked_wp_height != 0 else w
-                coords = draw_rect_2d(w / 2, h / 2, w, abs(h))
-            else:
-                coords = draw_rect_2d(0, 0, self.size, self.size)
+            coords = self._rect_coords(context)
             coords = [Vector(co)[:] for co in coords]
             indices = ((0, 1, 2), (0, 2, 3))
             batch = batch_for_shader(shader, "TRIS", {"pos": coords}, indices=indices)
