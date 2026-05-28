@@ -112,28 +112,21 @@ def _resolve_wall_depth_and_offset(context, group, member):
         ifcopenshell.util.unit.calculate_unit_scale(ifc_file) if ifc_file else 1.0
     )
 
-    # Primary source: resolved wall instance (GUID on member entry)
+    # CAD Sketcher is authoritative for member placement mode.
+    # IFC is only used to resolve physical depth when available.
     member_entry = tpg_entry_get(getattr(member, "guid", ""), _REF_TAG) or {
         "p": "",
         "g": "",
     }
     member_params = tpg_param_decode(member_entry.get("p", ""))
     member_guid = member_entry.get("g", "")
-    if ifc_file and ifc_element and member_guid:
-        element = _resolve_ifc_entity_by_identifier(ifc_file, member_guid)
-        if element is not None:
-            try:
-                material = ifc_element.get_material(element, should_skip_usage=False)
-            except Exception:
-                material = None
+    offset = str(
+        member_params.get("offset_type_vertical", "CENTER") or "CENTER"
+    ).upper()
+    if offset not in _VALID_OFFSETS:
+        offset = "CENTER"
 
-            layer_set = _get_layer_set(material)
-            thickness = _get_layer_set_thickness(layer_set)
-            if thickness is not None:
-                depth = thickness * unit_scale
-                return depth, _infer_offset_from_layer_usage(material)
-
-    # Fallback source: group type depth + member param offset.
+    # Prefer group type from CAD TAG parameters to resolve depth.
     group_entry = tpg_entry_get(getattr(group, "guid", ""), _REF_TAG) or {
         "p": "",
         "g": "",
@@ -154,11 +147,17 @@ def _resolve_wall_depth_and_offset(context, group, member):
             if thickness is not None:
                 depth = thickness * unit_scale
 
-    offset = str(
-        member_params.get("offset_type_vertical", "CENTER") or "CENTER"
-    ).upper()
-    if offset not in _VALID_OFFSETS:
-        offset = "CENTER"
+    # Depth fallback from current IFC instance when no type-based depth is available.
+    if depth is None and ifc_file and ifc_element and member_guid:
+        element = _resolve_ifc_entity_by_identifier(ifc_file, member_guid)
+        if element is not None:
+            try:
+                material = ifc_element.get_material(element, should_skip_usage=False)
+            except Exception:
+                material = None
+            thickness = _get_layer_set_thickness(_get_layer_set(material))
+            if thickness is not None:
+                depth = thickness * unit_scale
 
     return depth, offset
 

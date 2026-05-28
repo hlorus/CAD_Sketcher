@@ -66,7 +66,11 @@ class SlvsGenericEntity:
             ("NONE", "None", "Regular geometry"),
             ("LINKING", "Linking", "Source geometry used for linking"),
             ("LINKED", "Linked", "Geometry projected from another sketch"),
-            ("REFERENCE", "Reference", "Read-only contextual reference geometry (e.g. IFC element outlines)"),
+            (
+                "REFERENCE",
+                "Reference",
+                "Read-only contextual reference geometry (e.g. IFC element outlines)",
+            ),
         ),
         default="NONE",
     )
@@ -162,6 +166,8 @@ class SlvsGenericEntity:
     @property
     def line_width(self):
         scale = preferences.get_scale()
+        if self.geometry_role(bpy.context) == "REFERENCE":
+            return 1.0 * scale
         if self.construction:
             return 1.5 * scale
         return 2 * scale

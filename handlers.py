@@ -276,12 +276,23 @@ def on_depsgraph_update(scene, depsgraph):
             context.space_data.show_gizmo = True
 
 
+def on_load_post(_filepath):
+    scene_named_default = bpy.data.scenes.get("Scene")
+    if scene_named_default and hasattr(scene_named_default, "sketcher"):
+        scene_named_default.sketcher.sketch_show_objects = True
+
+    context_scene = getattr(bpy.context, "scene", None)
+    if context_scene and hasattr(context_scene, "sketcher"):
+        context_scene.sketcher.sketch_show_objects = True
+
+
 def _setup_builtin_handlers():
     from .versioning import do_versioning, write_addon_version
 
     add_builtin_handler("version_update", do_versioning)
     add_builtin_handler("save_pre", write_addon_version)
     add_builtin_handler("depsgraph_update_post", on_depsgraph_update)
+    add_builtin_handler("load_post", on_load_post)
 
 
 def register():

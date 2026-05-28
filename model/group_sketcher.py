@@ -139,28 +139,28 @@ class SketcherProps(PropertyGroup):
         update=update_cb,
     )
     sketch_show_objects: BoolProperty(
-        name="Show Blender Objects",
+        name="Blender Objects",
         description="Temporarily show Blender objects for reference while inside a sketch",
         default=False,
         options={"SKIP_SAVE"},
         update=_update_show_objects,
     )
     sketch_show_sketches: BoolProperty(
-        name="Show Sketches",
+        name="Sketches",
         description="Temporarily show other sketches for reference while inside a sketch",
         default=False,
         options={"SKIP_SAVE"},
         update=_update_show_sketches,
     )
     sketch_show_workplanes: BoolProperty(
-        name="Show Workplanes",
+        name="Workplanes",
         description="Temporarily show workplanes for reference while inside a sketch",
         default=False,
         options={"SKIP_SAVE"},
         update=_update_show_workplanes,
     )
     sketch_show_reference_geometry: BoolProperty(
-        name="Show Reference Geometry",
+        name="Reference Geometry",
         description="Show readonly IFC reference geometry (e.g. wall thickness previews) while inside a sketch",
         default=True,
         options={"SKIP_SAVE"},

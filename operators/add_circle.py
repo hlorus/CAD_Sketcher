@@ -89,8 +89,9 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
             logger.debug("Add: {}".format(self.target))
 
         if succeede:
-            if self.has_coincident():
-                solve_system(context, sketch=self.sketch)
+            # Always solve so sketch.dof reflects the newly added circle even
+            # when no coincident constraint was added.
+            solve_system(context, sketch=self.sketch)
             self.sketch.geometry_solved = False
 
 

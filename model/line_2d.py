@@ -52,7 +52,11 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         return [self.p1, self.p2, self.sketch]
 
     def is_dashed(self):
-        return self.construction and not self.linked
+        return (
+            self.construction
+            and not self.linked
+            and self.geometry_role() != "REFERENCE"
+        )
 
     def geometry_role(self, context: Context = None) -> str:
         role = super().geometry_role(context)
