@@ -226,6 +226,7 @@ def get_reference_geometry_color(context, highlight: bool = False):
     """Return the active reference geometry color from addon theme settings."""
     try:
         from ..utilities.register import get_name  # type: ignore
+
         prefs = context.preferences.addons[get_name()].preferences
         ts = prefs.theme_settings.reference_geometry
         return ts.highlight if highlight else ts.default

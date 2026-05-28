@@ -131,7 +131,9 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             row.prop(context.scene.sketcher, "sketch_show_objects", toggle=False)
             row.prop(context.scene.sketcher, "sketch_show_sketches", toggle=False)
             row.prop(context.scene.sketcher, "sketch_show_workplanes", toggle=False)
-            row.prop(context.scene.sketcher, "sketch_show_reference_geometry", toggle=False)
+            row.prop(
+                context.scene.sketcher, "sketch_show_reference_geometry", toggle=False
+            )
 
             row = layout.row()
             row.prop(sketch, "name")

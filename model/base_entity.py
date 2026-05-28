@@ -61,11 +61,12 @@ class SlvsGenericEntity:
     construction: BoolProperty(name="Construction", update=_entity_dirty_update)
     geometry: EnumProperty(
         name="Geometry",
-        description="Geometry role used by linked-sketch workflows",
+        description="Geometry role used by linked-sketch and reference workflows",
         items=(
             ("NONE", "None", "Regular geometry"),
             ("LINKING", "Linking", "Source geometry used for linking"),
             ("LINKED", "Linked", "Geometry projected from another sketch"),
+            ("REFERENCE", "Reference", "Read-only contextual reference geometry (e.g. IFC element outlines)"),
         ),
         default="NONE",
     )
@@ -95,8 +96,20 @@ class SlvsGenericEntity:
         elif self.geometry == "LINKING":
             self.geometry = "NONE"
 
+    @property
+    def reference(self):
+        return self.geometry == "REFERENCE"
+
+    @reference.setter
+    def reference(self, value):
+        if value:
+            self.geometry = "REFERENCE"
+        elif self.geometry == "REFERENCE":
+            self.geometry = "NONE"
+
     def geometry_role(self, context: Context = None) -> str:
-        if self.linked:
+        # Legacy: honour old RNA custom prop written before geometry enum existed
+        if self.geometry == "NONE" and bool(self.get("linked", False)):
             return "LINKED"
         return self.geometry
 
@@ -256,14 +269,14 @@ class SlvsGenericEntity:
             return ts.entity.highlight
 
         geometry_role = self.geometry_role(context)
+        if geometry_role == "REFERENCE":
+            if highlight:
+                return ts.reference_geometry.highlight
+            return ts.reference_geometry.default
         if geometry_role == "LINKING":
             return ts.linked_geometry.linking
         if geometry_role == "LINKED":
             return ts.linked_geometry.linked
-        if self.get("ref_kind"):
-            if highlight:
-                return ts.reference_geometry.highlight
-            return ts.reference_geometry.default
         if fixed and not origin:
             return ts.entity.fixed
         return ts.entity.default
@@ -278,7 +291,7 @@ class SlvsGenericEntity:
         if self.origin:
             return self.visible or context.scene.sketcher.show_origin
 
-        if self.get("ref_kind"):
+        if self.geometry == "REFERENCE":
             if not context.scene.sketcher.sketch_show_reference_geometry:
                 return False
 

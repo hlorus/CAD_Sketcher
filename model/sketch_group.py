@@ -111,7 +111,9 @@ def _on_tag_value_update(self, context):
     try:
         from ..utilities.reference_geometry import refresh_reference_geometry
 
-        refresh_reference_geometry(context or bpy.context, sketch=scene.sketcher.active_sketch)
+        refresh_reference_geometry(
+            context or bpy.context, sketch=scene.sketcher.active_sketch
+        )
     except Exception:
         return
 

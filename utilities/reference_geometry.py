@@ -108,10 +108,15 @@ def _resolve_wall_depth_and_offset(context, group, member):
         ifc_element = None
 
     ifc_file = bonsai_tool.Ifc.get() if bonsai_tool else None
-    unit_scale = ifcopenshell.util.unit.calculate_unit_scale(ifc_file) if ifc_file else 1.0
+    unit_scale = (
+        ifcopenshell.util.unit.calculate_unit_scale(ifc_file) if ifc_file else 1.0
+    )
 
     # Primary source: resolved wall instance (GUID on member entry)
-    member_entry = tpg_entry_get(getattr(member, "guid", ""), _REF_TAG) or {"p": "", "g": ""}
+    member_entry = tpg_entry_get(getattr(member, "guid", ""), _REF_TAG) or {
+        "p": "",
+        "g": "",
+    }
     member_params = tpg_param_decode(member_entry.get("p", ""))
     member_guid = member_entry.get("g", "")
     if ifc_file and ifc_element and member_guid:
@@ -129,7 +134,10 @@ def _resolve_wall_depth_and_offset(context, group, member):
                 return depth, _infer_offset_from_layer_usage(material)
 
     # Fallback source: group type depth + member param offset.
-    group_entry = tpg_entry_get(getattr(group, "guid", ""), _REF_TAG) or {"p": "", "g": ""}
+    group_entry = tpg_entry_get(getattr(group, "guid", ""), _REF_TAG) or {
+        "p": "",
+        "g": "",
+    }
     group_params = tpg_param_decode(group_entry.get("p", ""))
     type_guid = str(group_params.get("IfcWallType", "") or "").strip()
     depth = None
@@ -137,14 +145,18 @@ def _resolve_wall_depth_and_offset(context, group, member):
         type_element = _resolve_ifc_entity_by_identifier(ifc_file, type_guid)
         if type_element is not None:
             try:
-                type_material = ifc_element.get_material(type_element, should_skip_usage=False)
+                type_material = ifc_element.get_material(
+                    type_element, should_skip_usage=False
+                )
             except Exception:
                 type_material = None
             thickness = _get_layer_set_thickness(_get_layer_set(type_material))
             if thickness is not None:
                 depth = thickness * unit_scale
 
-    offset = str(member_params.get("offset_type_vertical", "CENTER") or "CENTER").upper()
+    offset = str(
+        member_params.get("offset_type_vertical", "CENTER") or "CENTER"
+    ).upper()
     if offset not in _VALID_OFFSETS:
         offset = "CENTER"
 
@@ -179,7 +191,7 @@ def _member_rectangle_coords(line, depth: float, offset_mode: str):
 def _entity_is_ref(entity, sketch_index: int) -> bool:
     return (
         getattr(entity, "sketch_i", -1) == sketch_index
-        and entity.get("ref_kind", "") == _REF_KIND
+        and entity.geometry == "REFERENCE"
     )
 
 
@@ -206,18 +218,17 @@ def _find_ref_line(sse, sketch_index: int, source_member_i: int, role: str):
 
 
 def _mark_ref_entity(entity, source_member_i: int, role: str):
-    entity["ref_kind"] = _REF_KIND
+    entity.geometry = "REFERENCE"
     entity["ref_source_member_i"] = int(source_member_i)
     entity["ref_role"] = role
-    entity.linked = True
     entity.fixed = True
     entity.construction = True
     entity.visible = True
 
 
 def is_reference_geometry(entity) -> bool:
-    """Return True when *entity* was generated as IFC reference geometry."""
-    return entity.get("ref_kind", "") == _REF_KIND
+    """Return True when *entity* has the REFERENCE geometry role."""
+    return entity.geometry == "REFERENCE"
 
 
 def _delete_ref_entities(context, entities):
@@ -245,7 +256,10 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
 
     desired = {}
     for group in getattr(sketch, "groups", ()):
-        if not any((getattr(t, "enabled", True) and getattr(t, "value", "") == _REF_TAG) for t in group.tags):
+        if not any(
+            (getattr(t, "enabled", True) and getattr(t, "value", "") == _REF_TAG)
+            for t in group.tags
+        ):
             continue
         for member in group.members:
             source_i = member.entity_index
