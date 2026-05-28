@@ -150,11 +150,68 @@ def _get_material_layer_set(element_type):
     return _get_layer_set(material)
 
 
+def _infer_wall_offset_type_vertical(ifc_entity):
+    if ifc_entity is None or not ifc_entity.is_a("IfcWall"):
+        return None
+
+    try:
+        import ifcopenshell.util.element as ifc_element  # pyright: ignore[reportMissingImports]
+    except ImportError:
+        return None
+
+    try:
+        material = ifc_element.get_material(ifc_entity, should_skip_usage=False)
+    except Exception:
+        return None
+
+    if material is None or not material.is_a("IfcMaterialLayerSetUsage"):
+        return None
+
+    layer_set = getattr(material, "ForLayerSet", None)
+    if layer_set is None:
+        return None
+
+    thickness = getattr(layer_set, "TotalThickness", None)
+    if thickness is None:
+        try:
+            thickness = sum(
+                (getattr(layer, "LayerThickness", 0.0) or 0.0)
+                for layer in getattr(layer_set, "MaterialLayers", ())
+            )
+        except Exception:
+            thickness = None
+    if thickness is None:
+        return None
+
+    direction = str(getattr(material, "DirectionSense", "POSITIVE") or "POSITIVE")
+    offset = float(getattr(material, "OffsetFromReferenceLine", 0.0) or 0.0)
+    thickness = float(thickness)
+
+    if direction == "POSITIVE":
+        candidates = {
+            "CENTER": -thickness / 2,
+            "INTERIOR": -thickness,
+            "EXTERIOR": 0.0,
+        }
+    else:
+        candidates = {
+            "CENTER": thickness / 2,
+            "INTERIOR": 0.0,
+            "EXTERIOR": thickness,
+        }
+
+    return min(candidates.items(), key=lambda item: abs(offset - item[1]))[0]
+
+
 def _read_display_value(source: str, ifc_entity, context=None):
     if source == "entity_name":
         return getattr(ifc_entity, "Name", None) or ifc_entity.is_a()
 
     if source == "scene_offset_type_vertical":
+        inferred = _infer_wall_offset_type_vertical(ifc_entity)
+        if inferred:
+            return inferred
+
         scene = getattr(context, "scene", None)
         model_props = getattr(scene, "BIMModelProperties", None)
         if model_props is None:
