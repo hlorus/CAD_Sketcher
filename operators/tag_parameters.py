@@ -30,6 +30,85 @@ _TYPE_NONE = "__NONE__"
 _ENUM_NONE = "__NONE__"
 
 
+def _resolve_ifc_entity_by_identifier(ifc_file, identifier: str):
+    identifier = (identifier or "").strip()
+    if not identifier or ifc_file is None:
+        return None
+
+    try:
+        return ifc_file.by_guid(identifier)
+    except Exception:
+        pass
+
+    if identifier.isdigit():
+        try:
+            return ifc_file.by_id(int(identifier))
+        except Exception:
+            return None
+
+    return None
+
+
+def _infer_member_offset_from_guid(guid: str) -> str:
+    guid = (guid or "").strip()
+    if not guid:
+        return _ENUM_NONE
+
+    try:
+        import bonsai.tool as bonsai_tool  # pyright: ignore[reportMissingImports]
+        import ifcopenshell.util.element as ifc_element  # pyright: ignore[reportMissingImports]
+    except ImportError:
+        return _ENUM_NONE
+
+    ifc_file = bonsai_tool.Ifc.get()
+    element = _resolve_ifc_entity_by_identifier(ifc_file, guid)
+    if element is None:
+        return _ENUM_NONE
+
+    try:
+        material = ifc_element.get_material(element, should_skip_usage=False)
+    except Exception:
+        return _ENUM_NONE
+
+    if material is None or not material.is_a("IfcMaterialLayerSetUsage"):
+        return _ENUM_NONE
+
+    layer_set = getattr(material, "ForLayerSet", None)
+    if layer_set is None:
+        return _ENUM_NONE
+
+    thickness = getattr(layer_set, "TotalThickness", None)
+    if thickness is None:
+        try:
+            thickness = sum(
+                (getattr(layer, "LayerThickness", 0.0) or 0.0)
+                for layer in getattr(layer_set, "MaterialLayers", ())
+            )
+        except Exception:
+            thickness = None
+    if thickness is None:
+        return _ENUM_NONE
+
+    direction = str(getattr(material, "DirectionSense", "POSITIVE") or "POSITIVE")
+    offset = float(getattr(material, "OffsetFromReferenceLine", 0.0) or 0.0)
+    thickness = float(thickness)
+
+    if direction == "POSITIVE":
+        candidates = {
+            "CENTER": -thickness / 2,
+            "INTERIOR": -thickness,
+            "EXTERIOR": 0.0,
+        }
+    else:
+        candidates = {
+            "CENTER": thickness / 2,
+            "INTERIOR": 0.0,
+            "EXTERIOR": thickness,
+        }
+
+    return min(candidates.items(), key=lambda item: abs(offset - item[1]))[0]
+
+
 def _type_items(self, _context):
     field = get_primary_type_field(self.tag_value)
     items = [(_TYPE_NONE, "None", "Clear the selected IFC type reference")]
@@ -258,6 +337,8 @@ class View3D_OT_slvs_edit_tag_parameters(Operator):
             if field.get("key") != "offset_type_vertical":
                 continue
             requested = str(params.pop(field["key"], "") or _ENUM_NONE)
+            if requested == _ENUM_NONE:
+                requested = _infer_member_offset_from_guid(entry.get("g", ""))
             try:
                 self.member_offset_type_vertical = requested
                 member_offset = requested

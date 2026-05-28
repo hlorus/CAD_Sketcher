@@ -1,9 +1,49 @@
 from bpy.types import Context, UIList
 
 from ... import global_data
+from ...utilities.ifc_param_schema import get_ifc_display_rows, get_tag_schema
 from ...utilities.preferences import get_prefs
+from ...utilities.tpg import tpg_entry_get, tpg_param_decode
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
+
+
+def _group_tag_first_param_label(context, group, tag_value: str) -> str:
+    raw_payload = getattr(group, "guid", "")
+    entry = tpg_entry_get(raw_payload, tag_value)
+    if not entry:
+        return ""
+
+    params = tpg_param_decode(entry.get("p", ""))
+    if not params:
+        return ""
+
+    first_key = next(
+        (
+            field.get("key", "")
+            for field in get_tag_schema(tag_value)
+            if field.get("key")
+        ),
+        "",
+    )
+    first_value = params.get(first_key) if first_key else None
+
+    if first_value in (None, ""):
+        _param_key, first_value = next(iter(params.items()), ("", None))
+    if first_value in (None, ""):
+        return ""
+
+    display_rows = get_ifc_display_rows(
+        tag_value,
+        "GROUP",
+        type_guid=str(first_value),
+        instance_guid="",
+        context=context,
+    )
+    if display_rows:
+        return display_rows[0][1]
+
+    return str(first_value)
 
 
 class VIEW3D_UL_sketch_groups(UIList):
@@ -101,6 +141,9 @@ class VIEW3D_UL_group_tags(UIList):
                 icon="HIDE_OFF" if tag.enabled else "HIDE_ON",
             )
             row.prop(tag, "value", text="", emboss=True)
+            first_param = _group_tag_first_param_label(context, data, tag.value)
+            if first_param:
+                row.label(text=first_param)
             sketch = context.scene.sketcher.active_sketch
             if sketch is not None:
                 if get_prefs().ifc_integration:
