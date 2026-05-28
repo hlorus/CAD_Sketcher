@@ -19,6 +19,7 @@ from ..utilities.tpg import (
     tpg_param_decode,
     tpg_param_encode,
 )
+from ..utilities.reference_geometry import refresh_reference_geometry
 
 _OWNER_ITEMS = (
     ("SKETCH", "Sketch", "Edit parameters stored on a sketch tag"),
@@ -448,6 +449,7 @@ class View3D_OT_slvs_edit_tag_parameters(Operator):
             guid=entry.get("g", ""),
         )
         setattr(owner, attr_name, updated)
+        refresh_reference_geometry(context, sketch=self._resolve_sketch(context))
         return {"FINISHED"}
 
 

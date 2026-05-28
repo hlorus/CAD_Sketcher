@@ -102,6 +102,19 @@ def _on_tag_value_update(self, context):
 
     self.last_valid_value = new_value
 
+    scene = getattr(context, "scene", None) if context is not None else None
+    if scene is None:
+        scene = getattr(bpy.context, "scene", None)
+    if scene is None:
+        return
+
+    try:
+        from ..utilities.reference_geometry import refresh_reference_geometry
+
+        refresh_reference_geometry(context or bpy.context, sketch=scene.sketcher.active_sketch)
+    except Exception:
+        return
+
 
 class SketchGroupTag(PropertyGroup):
     """One IFC class label in a :class:`SketchGroup`'s tag list.

@@ -190,23 +190,60 @@ class ThemeSettingsConstraint(PropertyGroup):
     )
 
 
+class ThemeSettingsReferenceGeometry(PropertyGroup):
+    default: FloatVectorProperty(
+        name="Default",
+        subtype="COLOR",
+        default=(0.55, 0.55, 0.55, 0.7),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
+    highlight: FloatVectorProperty(
+        name="Highlight",
+        subtype="COLOR",
+        default=(0.75, 0.75, 0.75, 0.9),
+        size=4,
+        min=0.0,
+        max=1.0,
+        update=update,
+    )
+
+
 class ThemeSettings(PropertyGroup):
     entity: PointerProperty(name="Entity", type=ThemeSettingsEntity)
     constraint: PointerProperty(name="Constraint", type=ThemeSettingsConstraint)
     linked_geometry: PointerProperty(
         name="Linked Geometry", type=ThemeSettingsLinkedGeometry
     )
+    reference_geometry: PointerProperty(
+        name="Reference Geometry", type=ThemeSettingsReferenceGeometry
+    )
+
+
+def get_reference_geometry_color(context, highlight: bool = False):
+    """Return the active reference geometry color from addon theme settings."""
+    try:
+        from ..utilities.register import get_name  # type: ignore
+        prefs = context.preferences.addons[get_name()].preferences
+        ts = prefs.theme_settings.reference_geometry
+        return ts.highlight if highlight else ts.default
+    except Exception:
+        return (0.55, 0.55, 0.55, 0.7)
 
 
 def register():
     bpy.utils.register_class(ThemeSettingsEntity)
     bpy.utils.register_class(ThemeSettingsConstraint)
     bpy.utils.register_class(ThemeSettingsLinkedGeometry)
+    bpy.utils.register_class(ThemeSettingsReferenceGeometry)
     bpy.utils.register_class(ThemeSettings)
 
 
 def unregister():
     bpy.utils.unregister_class(ThemeSettings)
+    bpy.utils.unregister_class(ThemeSettingsReferenceGeometry)
     bpy.utils.unregister_class(ThemeSettingsLinkedGeometry)
     bpy.utils.unregister_class(ThemeSettingsConstraint)
     bpy.utils.unregister_class(ThemeSettingsEntity)

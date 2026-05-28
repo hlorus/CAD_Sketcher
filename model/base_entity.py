@@ -260,6 +260,10 @@ class SlvsGenericEntity:
             return ts.linked_geometry.linking
         if geometry_role == "LINKED":
             return ts.linked_geometry.linked
+        if self.get("ref_kind"):
+            if highlight:
+                return ts.reference_geometry.highlight
+            return ts.reference_geometry.default
         if fixed and not origin:
             return ts.entity.fixed
         return ts.entity.default
@@ -273,6 +277,10 @@ class SlvsGenericEntity:
     def is_visible(self, context: Context) -> bool:
         if self.origin:
             return self.visible or context.scene.sketcher.show_origin
+
+        if self.get("ref_kind"):
+            if not context.scene.sketcher.sketch_show_reference_geometry:
+                return False
 
         if hasattr(self, "sketch"):
             return self.sketch.is_visible(context) and self.visible

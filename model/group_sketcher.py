@@ -159,6 +159,13 @@ class SketcherProps(PropertyGroup):
         options={"SKIP_SAVE"},
         update=_update_show_workplanes,
     )
+    sketch_show_reference_geometry: BoolProperty(
+        name="Show Reference Geometry",
+        description="Show readonly IFC reference geometry (e.g. wall thickness previews) while inside a sketch",
+        default=True,
+        options={"SKIP_SAVE"},
+        update=update_cb,
+    )
 
     version: IntVectorProperty(
         name="Extension Version",
