@@ -32,6 +32,15 @@ class VIEW3D_UL_sketch_tags(UIList):
                 icon="HIDE_OFF" if tag.enabled else "HIDE_ON",
             )
             row.prop(tag, "value", text="", emboss=True)
+            edit_op = row.operator(
+                declarations.Operators.EditTagParameters,
+                text="",
+                emboss=False,
+                icon="PREFERENCES",
+            )
+            edit_op.owner_kind = "SKETCH"
+            edit_op.sketch_index = context.scene.sketcher.active_sketch.slvs_index
+            edit_op.tag_index = index
             props = row.operator(
                 declarations.Operators.ContextMenuSketch,
                 text="",

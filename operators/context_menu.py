@@ -208,6 +208,8 @@ class View3D_OT_slvs_group_member_context_menu(Operator, HighlightElement):
         tags = [t.value for t in group.tags if (t.value or "").strip()]
         raw_guid = (member.guid or "").strip()
         rows, _structured = _rows_from_tpg(tags, raw_guid)
+        group_index = self.group_index
+        member_index = self.member_index
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column(align=True)
@@ -219,9 +221,19 @@ class View3D_OT_slvs_group_member_context_menu(Operator, HighlightElement):
             col.separator()
             col.label(text="TAG / Parameter / GUID")
             for tag_value, param_value, guid_value in rows:
-                col.label(
+                row = col.row(align=True)
+                row.label(
                     text=f"{tag_value} | {param_value or '—'} | {guid_value or '—'}"
                 )
+                op = row.operator(
+                    Operators.EditTagParameters,
+                    text="",
+                    icon="PREFERENCES",
+                )
+                op.owner_kind = "MEMBER"
+                op.group_index = group_index
+                op.member_index = member_index
+                op.tag_value = tag_value
 
         context.window_manager.popup_menu(draw_context_menu)
         return {"FINISHED"}
@@ -271,6 +283,15 @@ class View3D_OT_slvs_group_tag_context_menu(Operator, HighlightElement):
             col.separator()
             col.label(text="TAG / Parameter / GUID")
             col.label(text=f"{tag_val} | {param_val or '—'} | {guid_val or '—'}")
+            col.separator()
+            op = col.operator(
+                Operators.EditTagParameters,
+                text="Edit Parameters",
+                icon="PREFERENCES",
+            )
+            op.owner_kind = "GROUP"
+            op.group_index = group_index
+            op.tag_index = group_tag_index
             col.separator()
             op = col.operator(
                 "view3d.slvs_remove_group_tag",
@@ -334,6 +355,15 @@ class View3D_OT_slvs_sketch_tag_context_menu(Operator, HighlightElement):
             col.separator()
             col.label(text="TAG / Parameter / GUID")
             col.label(text=f"{tag_val} | {param_val or '—'} | {guid_val or '—'}")
+            col.separator()
+            op = col.operator(
+                Operators.EditTagParameters,
+                text="Edit Parameters",
+                icon="PREFERENCES",
+            )
+            op.owner_kind = "SKETCH"
+            op.sketch_index = sketch_index
+            op.tag_index = sketch_tag_index
             col.separator()
             op = col.operator(
                 "view3d.slvs_remove_sketch_tag",

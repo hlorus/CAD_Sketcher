@@ -111,6 +111,15 @@ class VIEW3D_UL_group_tags(UIList):
                     )
                     op.group_index = sketch.active_group_index
                     op.tag_index = index
+                edit_op = row.operator(
+                    declarations.Operators.EditTagParameters,
+                    text="",
+                    emboss=False,
+                    icon="PREFERENCES",
+                )
+                edit_op.owner_kind = "GROUP"
+                edit_op.group_index = sketch.active_group_index
+                edit_op.tag_index = index
                 # context menu for tag details
                 props = row.operator(
                     "view3d.slvs_group_tag_context_menu",
@@ -169,6 +178,16 @@ class VIEW3D_UL_group_members(UIList):
                 op.index = member.entity_index
                 op.mode = "TOGGLE"
                 row.label(text=entity.name)
+                edit_op = row.operator(
+                    declarations.Operators.EditTagParameters,
+                    text="",
+                    emboss=False,
+                    icon="PREFERENCES",
+                )
+                edit_op.owner_kind = "MEMBER"
+                edit_op.group_index = g_idx
+                edit_op.member_index = index
+                edit_op.tag_value = ""
                 # context menu for entity details
                 props = row.operator(
                     "view3d.slvs_group_member_context_menu",

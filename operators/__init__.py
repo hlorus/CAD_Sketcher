@@ -6,6 +6,7 @@ modules = [
     "select_box",
     "snapshot",
     "context_menu",
+    "tag_parameters",
     "solver_state",
     "solve",
     "update",

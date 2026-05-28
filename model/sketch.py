@@ -87,6 +87,14 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         description="When true, linked sketch local Y points in the opposite direction",
         default=False,
     )
+    guid: StringProperty(
+        name="Sketch GUID",
+        description=(
+            "Structured TPG payload storing per-sketch TAG parameter and GUID "
+            "entries"
+        ),
+        default="",
+    )
     tags: CollectionProperty(
         name="Tags",
         description="Workflow roles of this sketch (e.g. Plan, Elevation)",
