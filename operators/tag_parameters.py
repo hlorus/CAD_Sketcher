@@ -8,8 +8,9 @@ from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from ..utilities.ifc_param_schema import (
-    get_ifc_type_display_rows,
+    get_ifc_display_rows,
     get_ifc_type_items,
+    get_member_param_schema,
     get_primary_type_field,
 )
 from ..utilities.tpg import (
@@ -26,6 +27,7 @@ _OWNER_ITEMS = (
 )
 
 _TYPE_NONE = "__NONE__"
+_ENUM_NONE = "__NONE__"
 
 
 def _type_items(self, _context):
@@ -59,6 +61,40 @@ def _type_items(self, _context):
     return items
 
 
+def _member_offset_items(self, context):
+    if self.owner_kind != "MEMBER" or self.tag_value != "IfcWall":
+        return [(_ENUM_NONE, "None", "No offset override")]
+
+    scene = getattr(context, "scene", None)
+    model_props = getattr(scene, "BIMModelProperties", None)
+    if model_props is None:
+        return [(_ENUM_NONE, "None", "No offset override")]
+
+    try:
+        enum_items = model_props.bl_rna.properties["offset_type_vertical"].enum_items
+    except Exception:
+        return [(_ENUM_NONE, "None", "No offset override")]
+
+    items = [(_ENUM_NONE, "None", "No offset override")]
+    for item in enum_items:
+        items.append((item.identifier, item.name, item.description))
+
+    current_value = self.get("member_offset_type_vertical", _ENUM_NONE)
+    if (
+        isinstance(current_value, str)
+        and current_value != _ENUM_NONE
+        and not any(item[0] == current_value for item in items)
+    ):
+        items.append(
+            (
+                current_value,
+                f"Missing: {current_value}",
+                "Value not found in current scene enum",
+            )
+        )
+    return items
+
+
 class View3D_OT_slvs_edit_tag_parameters(Operator):
     """Edit the parameter payload for one TAG entry"""
 
@@ -74,7 +110,19 @@ class View3D_OT_slvs_edit_tag_parameters(Operator):
     tag_value: StringProperty(name="Tag", default="", options={"SKIP_SAVE"})
 
     type_guid: EnumProperty(name="Type", items=_type_items)
+    member_offset_type_vertical: EnumProperty(
+        name="Offset",
+        items=_member_offset_items,
+        options={"SKIP_SAVE"},
+    )
     params_json: StringProperty(name="Additional Parameters", default="")
+
+    def _get_entry(self, context):
+        tag_value = self._resolve_tag_value(context)
+        _owner, raw_value, _attr = self._resolve_owner(context)
+        if not tag_value:
+            return None
+        return tpg_entry_get(raw_value, tag_value) or {"p": "", "g": ""}
 
     def _resolve_sketch(self, context):
         scene = context.scene
@@ -187,7 +235,10 @@ class View3D_OT_slvs_edit_tag_parameters(Operator):
         params = tpg_param_decode(entry.get("p", ""))
 
         type_field = get_primary_type_field(tag_value)
-        if type_field is not None:
+        if self.owner_kind == "MEMBER" and type_field is not None:
+            params.pop(type_field["key"], None)
+            self.type_guid = _TYPE_NONE
+        elif type_field is not None:
             requested = str(params.pop(type_field["key"], "") or _TYPE_NONE)
             try:
                 self.type_guid = requested
@@ -198,6 +249,23 @@ class View3D_OT_slvs_edit_tag_parameters(Operator):
                 )
         else:
             self.type_guid = _TYPE_NONE
+
+        member_fields = (
+            get_member_param_schema(tag_value) if self.owner_kind == "MEMBER" else []
+        )
+        member_offset = _ENUM_NONE
+        for field in member_fields:
+            if field.get("key") != "offset_type_vertical":
+                continue
+            requested = str(params.pop(field["key"], "") or _ENUM_NONE)
+            try:
+                self.member_offset_type_vertical = requested
+                member_offset = requested
+            except Exception:
+                self.member_offset_type_vertical = _ENUM_NONE
+                member_offset = _ENUM_NONE
+        if not member_fields:
+            self.member_offset_type_vertical = _ENUM_NONE
 
         raw_params = entry.get("p", "") or ""
         self.params_json = (
@@ -218,16 +286,31 @@ class View3D_OT_slvs_edit_tag_parameters(Operator):
         layout.label(text=f"TAG: {self.tag_value or '—'}")
 
         field = get_primary_type_field(self.tag_value)
-        if field is not None:
+        if self.owner_kind != "MEMBER" and field is not None:
             layout.prop(self, "type_guid", text=field["key"])
         else:
-            print(f"[CAD_Sketcher] No schema fields for tag {self.tag_value!r}")
+            if self.owner_kind != "MEMBER":
+                print(f"[CAD_Sketcher] No schema fields for tag {self.tag_value!r}")
+
+        for field in get_member_param_schema(self.tag_value):
+            if self.owner_kind != "MEMBER":
+                continue
+            if field.get("key") == "offset_type_vertical":
+                layout.prop(
+                    self,
+                    "member_offset_type_vertical",
+                    text=field.get("label", "Offset"),
+                )
 
         layout.prop(self, "params_json", text="Additional Parameters")
 
-        summary = get_ifc_type_display_rows(
+        entry = self._get_entry(context) or {"g": ""}
+        summary = get_ifc_display_rows(
             self.tag_value,
-            "" if self.type_guid == _TYPE_NONE else self.type_guid,
+            self.owner_kind,
+            type_guid="" if self.type_guid == _TYPE_NONE else self.type_guid,
+            instance_guid=entry.get("g", ""),
+            context=context,
         )
         if summary:
             box = layout.box()
@@ -258,11 +341,23 @@ class View3D_OT_slvs_edit_tag_parameters(Operator):
 
         field = get_primary_type_field(tag_value)
         current_type_guid = getattr(self, "type_guid", _TYPE_NONE)
-        if field is not None:
+        if self.owner_kind == "MEMBER" and field is not None:
+            params.pop(field["key"], None)
+        elif field is not None:
             if current_type_guid != _TYPE_NONE:
                 params[field["key"]] = current_type_guid
             else:
                 params.pop(field["key"], None)
+
+        if self.owner_kind == "MEMBER":
+            for member_field in get_member_param_schema(tag_value):
+                if member_field.get("key") != "offset_type_vertical":
+                    continue
+                current_value = getattr(self, "member_offset_type_vertical", _ENUM_NONE)
+                if current_value and current_value != _ENUM_NONE:
+                    params[member_field["key"]] = current_value
+                else:
+                    params.pop(member_field["key"], None)
 
         entry = tpg_entry_get(raw_value, tag_value) or {"g": ""}
         updated = tpg_entry_upsert(
