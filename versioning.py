@@ -5,6 +5,36 @@ from . import get_addon_version_tuple
 logger = logging.getLogger(__name__)
 
 
+def _remove_dangling_constraints(scene):
+    constraints = scene.sketcher.constraints
+    stale = []
+
+    for constraint in constraints.all:
+        if hasattr(constraint, "sketch_i") and constraint.sketch_i != -1:
+            if getattr(constraint, "sketch", None) is None:
+                stale.append(constraint)
+                continue
+
+        for prop_name in dir(constraint):
+            if not prop_name.startswith("entity") or not prop_name.endswith("_i"):
+                continue
+
+            index = getattr(constraint, prop_name, -1)
+            if index == -1:
+                continue
+
+            entity = getattr(constraint, prop_name[:-2], None)
+            if entity is None:
+                stale.append(constraint)
+                break
+
+    for constraint in reversed(stale):
+        logger.warning("Remove dangling constraint during versioning: %s", constraint)
+        constraints.remove(constraint)
+
+    return len(stale)
+
+
 def write_addon_version(context):
     version = get_addon_version_tuple()
 
@@ -124,5 +154,11 @@ def do_versioning(self):
                         isinstance(line_dependencies[1], SlvsPoint2D)):
                     setattr(c, "entity1", line_dependencies[0])
                     setattr(c, "entity2", line_dependencies[1])
+
+        removed_constraints = _remove_dangling_constraints(scene)
+        if removed_constraints:
+            msg += (
+                "\n Remove dangling constraints: {}".format(removed_constraints)
+            )
 
     logger.debug(msg)

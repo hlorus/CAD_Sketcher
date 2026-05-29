@@ -134,4 +134,17 @@ def update_pointers(scene, index_old, index_new):
             continue
         o.update_pointers(index_old, index_new)
 
+    for sketch in scene.sketcher.entities.sketches:
+        if getattr(sketch, "source_line_i", -1) == index_old:
+            sketch.source_line_i = index_new
+
+        for group in getattr(sketch, "groups", ()):
+            for member in getattr(group, "members", ()):
+                if getattr(member, "entity_index", -1) == index_old:
+                    member.entity_index = index_new
+
+    for entity in scene.sketcher.entities.all:
+        if entity.get("ref_source_member_i", -1) == index_old:
+            entity["ref_source_member_i"] = index_new
+
     scene.sketcher.purge_stale_data()

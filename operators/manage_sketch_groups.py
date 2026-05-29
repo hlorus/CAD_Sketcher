@@ -4,7 +4,7 @@ from bpy.utils import register_classes_factory
 
 from .. import global_data
 from ..model.constants import TAG_ITEMS
-from ..utilities.reference_geometry import refresh_reference_geometry
+from ..utilities.reference_geometry import member_representation_indices, refresh_reference_geometry
 
 
 def _next_group_name(sketch) -> str:
@@ -145,15 +145,35 @@ class SLVS_OT_SelectGroup(bpy.types.Operator):
             return {"CANCELLED"}
         group = sketch.groups[g_idx]
         indices = [m.entity_index for m in group.members if m.entity_index != -1]
-        all_selected = all(i in global_data.selected for i in indices)
+        all_selected = all(
+            any(
+                related_index in global_data.selected
+                for related_index in member_representation_indices(
+                    context.scene.sketcher.entities,
+                    getattr(sketch, "slvs_index", -1),
+                    i,
+                )
+            )
+            for i in indices
+        )
         if all_selected:
             for i in indices:
-                if i in global_data.selected:
-                    global_data.selected.remove(i)
+                for related_index in member_representation_indices(
+                    context.scene.sketcher.entities,
+                    getattr(sketch, "slvs_index", -1),
+                    i,
+                ):
+                    if related_index in global_data.selected:
+                        global_data.selected.remove(related_index)
         else:
             for i in indices:
-                if i not in global_data.selected:
-                    global_data.selected.append(i)
+                for related_index in member_representation_indices(
+                    context.scene.sketcher.entities,
+                    getattr(sketch, "slvs_index", -1),
+                    i,
+                ):
+                    if related_index not in global_data.selected:
+                        global_data.selected.append(related_index)
         global_data.needs_redraw = True
         context.area.tag_redraw()
         return {"FINISHED"}

@@ -28,6 +28,7 @@ from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
 from .. import global_data
+from ..utilities.reference_geometry import member_representation_indices
 
 _TAG_UPDATE_GUARD = False
 
@@ -213,7 +214,13 @@ class SketchGroup(PropertyGroup):
         if 0 <= idx < len(self.members):
             entity_index = self.members[idx].entity_index
             if entity_index != -1:
-                global_data.selected.append(entity_index)
+                sketch_index = getattr(self.id_data, "slvs_index", -1)
+                for related_index in member_representation_indices(
+                    bpy.context.scene.sketcher.entities,
+                    sketch_index,
+                    entity_index,
+                ):
+                    global_data.selected.append(related_index)
         global_data.needs_redraw = True
 
     # ------------------------------------------------------------------

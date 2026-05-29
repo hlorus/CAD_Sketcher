@@ -3,6 +3,7 @@ from bpy.types import Context, UIList
 from ... import global_data
 from ...utilities.ifc_param_schema import get_ifc_display_rows, get_tag_schema
 from ...utilities.preferences import get_prefs
+from ...utilities.reference_geometry import member_is_selected
 from ...utilities.tpg import tpg_entry_get, tpg_param_decode
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
@@ -68,7 +69,17 @@ class VIEW3D_UL_sketch_groups(UIList):
             row = layout.row(align=True)
             # selection circle — full when all members are selected
             indices = [m.entity_index for m in group.members if m.entity_index != -1]
-            all_sel = bool(indices) and all(i in global_data.selected for i in indices)
+            sketch = context.scene.sketcher.active_sketch
+            sketch_index = getattr(sketch, "slvs_index", -1)
+            all_sel = bool(indices) and all(
+                member_is_selected(
+                    context.scene.sketcher.entities,
+                    sketch_index,
+                    i,
+                    global_data.selected,
+                )
+                for i in indices
+            )
             op = row.operator(
                 "view3d.slvs_select_group",
                 text="",
@@ -208,10 +219,16 @@ class VIEW3D_UL_group_members(UIList):
         entity = sse.get(member.entity_index)
         sketch = context.scene.sketcher.active_sketch
         g_idx = sketch.active_group_index if sketch is not None else -1
+        sketch_index = getattr(sketch, "slvs_index", -1)
         if self.layout_type in {"DEFAULT", "COMPACT"}:
             row = layout.row(align=True)
             if entity is not None:
-                is_sel = member.entity_index in global_data.selected
+                is_sel = member_is_selected(
+                    sse,
+                    sketch_index,
+                    member.entity_index,
+                    global_data.selected,
+                )
                 op = row.operator(
                     "view3d.slvs_select",
                     text="",

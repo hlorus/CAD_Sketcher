@@ -230,6 +230,47 @@ def is_reference_geometry(entity) -> bool:
     return entity.geometry == "REFERENCE"
 
 
+def reference_source_member_index(entity) -> int:
+    """Return the source member index represented by *entity*."""
+    if entity is None:
+        return -1
+
+    if is_reference_geometry(entity):
+        return int(entity.get("ref_source_member_i", -1))
+
+    return int(getattr(entity, "slvs_index", -1))
+
+
+def member_representation_indices(sse, sketch_index: int, source_member_i: int) -> set[int]:
+    """Return all selectable entity indices that represent one group member."""
+    if source_member_i == -1:
+        return set()
+
+    indices = {int(source_member_i)}
+    if sse is None or sketch_index == -1:
+        return indices
+
+    for collection_name in ("lines2D", "points2D"):
+        for entity in getattr(sse, collection_name, ()):
+            if not _entity_is_ref(entity, sketch_index):
+                continue
+            if int(entity.get("ref_source_member_i", -1)) != source_member_i:
+                continue
+            indices.add(int(entity.slvs_index))
+    return indices
+
+
+def member_is_selected(
+    sse, sketch_index: int, source_member_i: int, selected_indices
+) -> bool:
+    """Return True when any representation of the member is selected."""
+    selected = set(selected_indices)
+    return any(
+        index in selected
+        for index in member_representation_indices(sse, sketch_index, source_member_i)
+    )
+
+
 def _delete_ref_entities(context, entities):
     if not entities:
         return
