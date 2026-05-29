@@ -78,7 +78,12 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         if bpy.app.background:
             return
 
-        if self.p1 is None or self.p2 is None:
+        if (
+            self.p1 is None
+            or self.p2 is None
+            or not hasattr(self.p1, "location")
+            or not hasattr(self.p2, "location")
+        ):
             # Endpoints may be temporarily unresolved during regen/remap cycles.
             # Keep drawing robust and let later updates refresh this batch.
             self._batch = None

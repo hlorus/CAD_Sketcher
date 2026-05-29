@@ -254,24 +254,60 @@ def update_linked_sketches(scene):
 def on_depsgraph_update(scene, depsgraph):
     from . import global_data
 
+    if not getattr(scene.sketcher, "geometry_solved", True):
+        return
+
+    def _reference_driver_snapshot(sketch):
+        if sketch is None:
+            return {}
+
+        sse = scene.sketcher.entities
+        snapshot = {}
+        for group in getattr(sketch, "groups", ()):
+            if not any(
+                getattr(tag, "enabled", True) and getattr(tag, "value", "") == "IfcWall"
+                for tag in getattr(group, "tags", ())
+            ):
+                continue
+
+            for member in getattr(group, "members", ()):
+                entity = sse.get(getattr(member, "entity_index", -1))
+                if entity is None:
+                    continue
+                if not hasattr(entity, "p1") or not hasattr(entity, "p2"):
+                    continue
+                snapshot[entity.slvs_index] = (
+                    tuple(entity.p1.co),
+                    tuple(entity.p2.co),
+                )
+        return snapshot
+
     if global_data.needs_solve:
+        print("[CAD_Sketcher] on_depsgraph_update: running solve pass")
         global_data.needs_solve = False
         from .solver import solve_system
         from .utilities.reference_geometry import refresh_reference_geometry
 
         context = bpy.context
         sketch = scene.sketcher.active_sketch
+        driver_before = _reference_driver_snapshot(sketch)
         solve_system(context, sketch=sketch)
         linked_changed = update_linked_sketches(scene)
-        refs_changed = refresh_reference_geometry(context, sketch=sketch)
+        driver_after = _reference_driver_snapshot(sketch)
+        refs_changed = driver_before != driver_after
+        if refs_changed:
+            refs_changed = refresh_reference_geometry(context, sketch=sketch)
+        print(
+            "[CAD_Sketcher] solve pass done: "
+            f"linked_changed={linked_changed} refs_changed={refs_changed}"
+        )
         # Re-solve dependent sketches whose linked geometry was just updated.
         if linked_changed:
+            print("[CAD_Sketcher] running full re-solve due to linked sketch updates")
             from .solver import Solver
 
             solver = Solver(context, None, all=True)
             solver.solve()
-        elif refs_changed:
-            solve_system(context, sketch=sketch)
 
     if global_data.needs_redraw:
         global_data.needs_redraw = False

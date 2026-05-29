@@ -138,6 +138,12 @@ class SketcherProps(PropertyGroup):
         options={"SKIP_SAVE"},
         update=update_cb,
     )
+    geometry_solved: BoolProperty(
+        name="Geometry Solved",
+        description="When false, defer solver and reference refresh until editing finishes",
+        default=True,
+        options={"SKIP_SAVE"},
+    )
     sketch_show_objects: BoolProperty(
         name="Blender Objects",
         description="Temporarily show Blender objects for reference while inside a sketch",

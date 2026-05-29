@@ -44,7 +44,12 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         if bpy.app.background:
             return
 
-        if self.p1 is None or self.p2 is None:
+        if (
+            self.p1 is None
+            or self.p2 is None
+            or not hasattr(self.p1, "location")
+            or not hasattr(self.p2, "location")
+        ):
             # Endpoints may be temporarily unresolved during regen/remap cycles.
             self._batch = None
             self.is_dirty = False

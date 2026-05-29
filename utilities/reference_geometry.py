@@ -202,6 +202,40 @@ def _has_ref_entities(sse, sketch_index: int) -> bool:
     return False
 
 
+def should_refresh_reference_geometry(scene, sketch=None) -> bool:
+    """Return True only when reference geometry could exist or be required."""
+    if scene is None:
+        return False
+
+    if sketch is None:
+        sketch = scene.sketcher.active_sketch
+    if sketch is None:
+        return False
+
+    sketch_index = getattr(sketch, "slvs_index", -1)
+    if sketch_index == -1:
+        return False
+
+    sse = scene.sketcher.entities
+
+    # Existing reference entities always require upkeep.
+    if _has_ref_entities(sse, sketch_index):
+        return True
+
+    # Only Plan sketches with enabled IfcWall group tags can generate references.
+    if not _is_plan_sketch(sketch):
+        return False
+
+    for group in getattr(sketch, "groups", ()):
+        if any(
+            getattr(tag, "enabled", True) and getattr(tag, "value", "") == _REF_TAG
+            for tag in getattr(group, "tags", ())
+        ):
+            return True
+
+    return False
+
+
 def _find_ref_point(sse, sketch_index: int, source_member_i: int, role: str):
     for point in sse.points2D:
         if not _entity_is_ref(point, sketch_index):
@@ -333,6 +367,7 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
         return False
 
     changed = False
+    change_reasons = []
 
     # Clean references for members no longer producing references.
     stale_lines = []
@@ -352,6 +387,9 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
 
     if stale_lines or stale_points:
         changed = True
+        change_reasons.append(
+            f"delete stale lines={len(stale_lines)} points={len(stale_points)}"
+        )
 
     _delete_ref_entities(context, stale_lines)
     _delete_ref_entities(context, stale_points)
@@ -364,11 +402,18 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
             if point is None:
                 point = sse.add_point_2d(tuple(coords[role]), sketch)
                 changed = True
+                change_reasons.append(
+                    f"create point member={source_i} role={role} co={tuple(coords[role])}"
+                )
             else:
                 new_co = tuple(coords[role])
                 if tuple(point.co) != new_co:
+                    old_co = tuple(point.co)
                     point.co = new_co
                     changed = True
+                    change_reasons.append(
+                        f"move point member={source_i} role={role} from={old_co} to={new_co}"
+                    )
             _mark_ref_entity(point, source_i, role)
             points[role] = point
 
@@ -379,21 +424,51 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
             if line is None:
                 line = sse.add_line_2d(p1, p2, sketch)
                 changed = True
+                change_reasons.append(
+                    f"create line member={source_i} role={line_role} p1={p1.slvs_index} p2={p2.slvs_index}"
+                )
             else:
                 if line.p1 != p1:
+                    old_p1 = getattr(line.p1, "slvs_index", -1)
                     line.p1 = p1
                     changed = True
+                    change_reasons.append(
+                        f"rewire line member={source_i} role={line_role} p1={old_p1}->{p1.slvs_index}"
+                    )
                 if line.p2 != p2:
+                    old_p2 = getattr(line.p2, "slvs_index", -1)
                     line.p2 = p2
                     changed = True
+                    change_reasons.append(
+                        f"rewire line member={source_i} role={line_role} p2={old_p2}->{p2.slvs_index}"
+                    )
             _mark_ref_entity(line, source_i, line_role)
+
+    if changed:
+        print(
+            "[CAD_Sketcher] regenerate_ifc_plan_references: "
+            f"sketch_i={sketch_index} reasons={change_reasons}"
+        )
 
     return changed
 
 
-def refresh_reference_geometry(context, sketch=None) -> None:
+def refresh_reference_geometry(context, sketch=None) -> bool:
     try:
-        return bool(regenerate_ifc_plan_references(context, sketch=sketch))
-    except Exception:
+        scene = getattr(context, "scene", None) if context is not None else None
+        sketcher = getattr(scene, "sketcher", None) if scene is not None else None
+        if sketcher is not None and not getattr(sketcher, "geometry_solved", True):
+            return False
+
+        changed = bool(regenerate_ifc_plan_references(context, sketch=sketch))
+        if changed:
+            print(
+                "[CAD_Sketcher] refresh_reference_geometry: "
+                f"sketch_i={getattr(sketch, 'slvs_index', -1) if sketch else -1} "
+                "changed=True"
+            )
+        return changed
+    except Exception as exc:
         # Never block interactive editing because of reference-preview errors.
+        print(f"[CAD_Sketcher] refresh_reference_geometry: error: {exc}")
         return False

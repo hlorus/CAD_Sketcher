@@ -449,7 +449,17 @@ class View3D_OT_slvs_edit_tag_parameters(Operator):
             guid=entry.get("g", ""),
         )
         setattr(owner, attr_name, updated)
-        refresh_reference_geometry(context, sketch=self._resolve_sketch(context))
+        sketch = self._resolve_sketch(context)
+        print(
+            "[CAD_Sketcher] tag_parameters: refresh_reference_geometry "
+            f"owner={self.owner_kind} tag={tag_value} "
+            f"sketch_i={getattr(sketch, 'slvs_index', -1)}"
+        )
+        refs_changed = refresh_reference_geometry(context, sketch=sketch)
+        print(
+            "[CAD_Sketcher] tag_parameters: refresh_reference_geometry done "
+            f"changed={refs_changed}"
+        )
         return {"FINISHED"}
 
 
