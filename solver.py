@@ -62,8 +62,26 @@ class Solver:
     def _init_slvs_data(self):
         context = self.context
 
+        # Build a set of entity indices that are explicitly referenced by constraints.
+        # REFERENCE preview geometry can be numerous; if unconstrained, it should not
+        # be sent to the solver on every interaction.
+        constrained_entity_indices = set()
+        for c in context.scene.sketcher.constraints.all:
+            for prop_name in dir(c):
+                if not prop_name.startswith("entity") or not prop_name.endswith("_i"):
+                    continue
+                index = getattr(c, prop_name, -1)
+                if isinstance(index, int) and index != -1:
+                    constrained_entity_indices.add(index)
+
         # Initialize Entities
         for e in context.scene.sketcher.entities.all:
+            if (
+                getattr(e, "geometry", "") == "REFERENCE"
+                and e.slvs_index not in constrained_entity_indices
+            ):
+                continue
+
             self.entities.append(e)
 
             if e.fixed:

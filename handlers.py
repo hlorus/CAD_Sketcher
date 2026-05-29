@@ -257,17 +257,21 @@ def on_depsgraph_update(scene, depsgraph):
     if global_data.needs_solve:
         global_data.needs_solve = False
         from .solver import solve_system
+        from .utilities.reference_geometry import refresh_reference_geometry
 
         context = bpy.context
         sketch = scene.sketcher.active_sketch
         solve_system(context, sketch=sketch)
-        changed = update_linked_sketches(scene)
+        linked_changed = update_linked_sketches(scene)
+        refs_changed = refresh_reference_geometry(context, sketch=sketch)
         # Re-solve dependent sketches whose linked geometry was just updated.
-        if changed:
+        if linked_changed:
             from .solver import Solver
 
             solver = Solver(context, None, all=True)
             solver.solve()
+        elif refs_changed:
+            solve_system(context, sketch=sketch)
 
     if global_data.needs_redraw:
         global_data.needs_redraw = False

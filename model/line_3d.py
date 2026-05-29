@@ -44,6 +44,12 @@ class SlvsLine3D(SlvsGenericEntity, PropertyGroup):
         if bpy.app.background:
             return
 
+        if self.p1 is None or self.p2 is None:
+            # Endpoints may be temporarily unresolved during regen/remap cycles.
+            self._batch = None
+            self.is_dirty = False
+            return
+
         p1, p2 = self.p1.location, self.p2.location
         coords = (p1, p2)
 

@@ -194,6 +194,14 @@ def _entity_is_ref(entity, sketch_index: int) -> bool:
     )
 
 
+def _has_ref_entities(sse, sketch_index: int) -> bool:
+    for collection_name in ("lines2D", "points2D"):
+        for entity in getattr(sse, collection_name, ()):
+            if _entity_is_ref(entity, sketch_index):
+                return True
+    return False
+
+
 def _find_ref_point(sse, sketch_index: int, source_member_i: int, role: str):
     for point in sse.points2D:
         if not _entity_is_ref(point, sketch_index):
@@ -295,12 +303,15 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
     sketch_index = sketch.slvs_index
 
     desired = {}
+    has_enabled_ref_group = False
     for group in getattr(sketch, "groups", ()):
-        if not any(
+        group_has_ref_tag = any(
             (getattr(t, "enabled", True) and getattr(t, "value", "") == _REF_TAG)
             for t in group.tags
-        ):
+        )
+        if not group_has_ref_tag:
             continue
+        has_enabled_ref_group = True
         for member in group.members:
             source_i = member.entity_index
             line = sse.get(source_i)
@@ -318,6 +329,11 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
                 continue
             desired[source_i] = coords
 
+    if not has_enabled_ref_group and not _has_ref_entities(sse, sketch_index):
+        return False
+
+    changed = False
+
     # Clean references for members no longer producing references.
     stale_lines = []
     stale_points = []
@@ -334,6 +350,9 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
         if source_i not in desired:
             stale_points.append(point)
 
+    if stale_lines or stale_points:
+        changed = True
+
     _delete_ref_entities(context, stale_lines)
     _delete_ref_entities(context, stale_points)
 
@@ -344,8 +363,12 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
             point = _find_ref_point(sse, sketch_index, source_i, role)
             if point is None:
                 point = sse.add_point_2d(tuple(coords[role]), sketch)
+                changed = True
             else:
-                point.co = tuple(coords[role])
+                new_co = tuple(coords[role])
+                if tuple(point.co) != new_co:
+                    point.co = new_co
+                    changed = True
             _mark_ref_entity(point, source_i, role)
             points[role] = point
 
@@ -355,15 +378,22 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
             p2 = points[end_role]
             if line is None:
                 line = sse.add_line_2d(p1, p2, sketch)
+                changed = True
             else:
-                line.p1 = p1
-                line.p2 = p2
+                if line.p1 != p1:
+                    line.p1 = p1
+                    changed = True
+                if line.p2 != p2:
+                    line.p2 = p2
+                    changed = True
             _mark_ref_entity(line, source_i, line_role)
+
+    return changed
 
 
 def refresh_reference_geometry(context, sketch=None) -> None:
     try:
-        regenerate_ifc_plan_references(context, sketch=sketch)
+        return bool(regenerate_ifc_plan_references(context, sketch=sketch))
     except Exception:
         # Never block interactive editing because of reference-preview errors.
-        return
+        return False
