@@ -92,9 +92,8 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
             logger.debug("Add: {}".format(self.target))
 
         if succeede:
-            # Always solve so sketch.dof reflects the newly added line even
-            # when no coincident/alignment constraint was created.
-            solve_system(context, sketch=self.sketch)
+            if self.has_coincident() or self.has_alignment:
+                solve_system(context, sketch=self.sketch)
             self.sketch.geometry_solved = False
 
 

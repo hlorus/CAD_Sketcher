@@ -54,9 +54,8 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
             logger.debug("Add: {}".format(self.target))
 
         if succeede:
-            # Always solve so sketch.dof updates even when no coincident
-            # constraint is added for the new point.
-            solve_system(context, sketch=self.sketch)
+            if self.has_coincident():
+                solve_system(context, sketch=self.sketch)
             self.sketch.geometry_solved = False
 
 
