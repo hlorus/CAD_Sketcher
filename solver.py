@@ -242,6 +242,8 @@ class Solver:
                 sketch.solver_state = self.result.identifier
                 sketch.dof = retval['dof']
                 sketch.geometry_solved = True
+                if hasattr(self.context.scene, "sketcher"):
+                    self.context.scene.sketcher.geometry_solved = True
 
             if retval['result'] != 0 and retval['result'] != 4:
                 self.ok = False

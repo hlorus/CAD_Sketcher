@@ -367,7 +367,6 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
         return False
 
     changed = False
-    change_reasons = []
 
     # Clean references for members no longer producing references.
     stale_lines = []
@@ -387,9 +386,6 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
 
     if stale_lines or stale_points:
         changed = True
-        change_reasons.append(
-            f"delete stale lines={len(stale_lines)} points={len(stale_points)}"
-        )
 
     _delete_ref_entities(context, stale_lines)
     _delete_ref_entities(context, stale_points)
@@ -402,18 +398,11 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
             if point is None:
                 point = sse.add_point_2d(tuple(coords[role]), sketch)
                 changed = True
-                change_reasons.append(
-                    f"create point member={source_i} role={role} co={tuple(coords[role])}"
-                )
             else:
                 new_co = tuple(coords[role])
                 if tuple(point.co) != new_co:
-                    old_co = tuple(point.co)
                     point.co = new_co
                     changed = True
-                    change_reasons.append(
-                        f"move point member={source_i} role={role} from={old_co} to={new_co}"
-                    )
             _mark_ref_entity(point, source_i, role)
             points[role] = point
 
@@ -424,31 +413,14 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
             if line is None:
                 line = sse.add_line_2d(p1, p2, sketch)
                 changed = True
-                change_reasons.append(
-                    f"create line member={source_i} role={line_role} p1={p1.slvs_index} p2={p2.slvs_index}"
-                )
             else:
                 if line.p1 != p1:
-                    old_p1 = getattr(line.p1, "slvs_index", -1)
                     line.p1 = p1
                     changed = True
-                    change_reasons.append(
-                        f"rewire line member={source_i} role={line_role} p1={old_p1}->{p1.slvs_index}"
-                    )
                 if line.p2 != p2:
-                    old_p2 = getattr(line.p2, "slvs_index", -1)
                     line.p2 = p2
                     changed = True
-                    change_reasons.append(
-                        f"rewire line member={source_i} role={line_role} p2={old_p2}->{p2.slvs_index}"
-                    )
             _mark_ref_entity(line, source_i, line_role)
-
-    if changed:
-        print(
-            "[CAD_Sketcher] regenerate_ifc_plan_references: "
-            f"sketch_i={sketch_index} reasons={change_reasons}"
-        )
 
     return changed
 

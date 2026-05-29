@@ -123,6 +123,8 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 dof_icon = "CHECKMARK" if dof_ok else "ERROR"
                 row.label(text=dof_msg, icon=dof_icon)
 
+            row.alert = bool(not sketch.geometry_solved)
+
             layout.separator()
 
             col = layout.column()
