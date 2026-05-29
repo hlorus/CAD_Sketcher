@@ -99,6 +99,7 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         if succeede:
             if self.has_coincident():
                 solve_system(context, sketch=self.sketch)
+            self.sketch.geometry_solved = False
 
     def create_point(self, context: Context, values, state, state_data):
         value = values[0]

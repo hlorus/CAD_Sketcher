@@ -27,6 +27,7 @@ def sketch_selector(
         ).index = -1
         row.active = True
 
+    row.alert = bool(active_sketch and not active_sketch.geometry_solved)
     row.operator(declarations.Operators.Update, icon="FILE_REFRESH", text="")
 
 
