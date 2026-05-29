@@ -85,6 +85,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
             return
 
         trim.replace(context)
+        sketch.geometry_solved = False
         refresh(context)
 
 

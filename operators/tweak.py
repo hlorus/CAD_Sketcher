@@ -53,6 +53,9 @@ class View3D_OT_slvs_tweak(Operator):
     def modal(self, context: Context, event: Event):
         if event.type == "LEFTMOUSE" and event.value == "RELEASE":
             context.window.cursor_modal_restore()
+            sketch = context.scene.sketcher.active_sketch
+            if sketch:
+                sketch.geometry_solved = False
             return {"FINISHED"}
 
         context.window.cursor_modal_set("HAND")
