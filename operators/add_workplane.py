@@ -2,6 +2,7 @@ import logging
 
 import bpy
 from bpy.types import Operator, Context
+from mathutils import Vector
 
 from .. import global_data
 from ..model.types import SlvsNormal3D
@@ -17,6 +18,7 @@ from .base_3d import Operator3d
 from .constants import types_point_3d
 from .utilities import ignore_hover
 from ..utilities.view import get_placement_pos
+from .utilities import activate_sketch, switch_sketch_mode
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +141,7 @@ class View3D_OT_slvs_add_workplane_face(Operator, Operator3d):
         ignore_hover(self.target)
         context.area.tag_redraw() # Force re-draw of UI (Blender doesn't update after tool usage)
         return True
+
 
 
 register, unregister = register_stateops_factory(
