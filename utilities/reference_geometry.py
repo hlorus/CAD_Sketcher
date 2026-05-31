@@ -283,6 +283,43 @@ def reference_source_member_index(entity) -> int:
     return int(getattr(entity, "slvs_index", -1))
 
 
+def reference_index_by_source(sse, sketch_index: int) -> dict[int, dict[str, list]]:
+    """Return source->reference entities index for one sketch.
+
+    Result shape:
+        {
+            source_index: {
+                "lines": [line_entity, ...],
+                "points": [point_entity, ...],
+            },
+            ...
+        }
+    """
+    index: dict[int, dict[str, list]] = {}
+    if sse is None or sketch_index == -1:
+        return index
+
+    for collection_name, key in (("lines2D", "lines"), ("points2D", "points")):
+        for entity in getattr(sse, collection_name, ()):
+            if not _entity_is_ref(entity, sketch_index):
+                continue
+            source_i = int(entity.get("ref_source_member_i", -1))
+            if source_i == -1:
+                continue
+            entry = index.setdefault(source_i, {"lines": [], "points": []})
+            entry[key].append(entity)
+
+    return index
+
+
+def reference_entities_for_source(sse, sketch_index: int, source_member_i: int):
+    """Return (lines, points) reference entities for one source index."""
+    entry = reference_index_by_source(sse, sketch_index).get(source_member_i)
+    if not entry:
+        return [], []
+    return entry["lines"], entry["points"]
+
+
 def member_representation_indices(sse, sketch_index: int, source_member_i: int) -> set[int]:
     """Return all selectable entity indices that represent one group member."""
     if source_member_i == -1:
@@ -292,13 +329,11 @@ def member_representation_indices(sse, sketch_index: int, source_member_i: int) 
     if sse is None or sketch_index == -1:
         return indices
 
-    for collection_name in ("lines2D", "points2D"):
-        for entity in getattr(sse, collection_name, ()):
-            if not _entity_is_ref(entity, sketch_index):
-                continue
-            if int(entity.get("ref_source_member_i", -1)) != source_member_i:
-                continue
-            indices.add(int(entity.slvs_index))
+    ref_index = reference_index_by_source(sse, sketch_index)
+    for entity in ref_index.get(source_member_i, {}).get("lines", ()):
+        indices.add(int(entity.slvs_index))
+    for entity in ref_index.get(source_member_i, {}).get("points", ()):
+        indices.add(int(entity.slvs_index))
     return indices
 
 

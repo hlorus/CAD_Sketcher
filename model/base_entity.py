@@ -243,6 +243,11 @@ class SlvsGenericEntity:
         if preferences.use_experimental("all_entities_selectable", False):
             return True
 
+        # Reference geometry is always selectable while it is visible so that
+        # users can hover over it and snap constraints to it.
+        if getattr(self, "geometry", "") == "REFERENCE":
+            return True
+
         active_sketch = context.scene.sketcher.active_sketch
         if active_sketch and hasattr(self, "sketch"):
             # Allow to select entities that share the active sketch's wp
@@ -259,6 +264,18 @@ class SlvsGenericEntity:
         highlight = self.is_highlight()
         fixed = self.fixed
         origin = self.origin
+        geometry_role = self.geometry_role(context)
+
+        if geometry_role == "REFERENCE":
+            if self.selected:
+                if highlight:
+                    return ts.entity.selected_highlight
+                if active:
+                    return ts.entity.selected
+                return ts.entity.inactive_selected
+            if highlight:
+                return ts.reference_geometry.highlight
+            return ts.reference_geometry.default
 
         if not active:
             if highlight:
@@ -273,12 +290,6 @@ class SlvsGenericEntity:
             return ts.entity.selected
         elif highlight:
             return ts.entity.highlight
-
-        geometry_role = self.geometry_role(context)
-        if geometry_role == "REFERENCE":
-            if highlight:
-                return ts.reference_geometry.highlight
-            return ts.reference_geometry.default
         if geometry_role == "LINKING":
             return ts.linked_geometry.linking
         if geometry_role == "LINKED":

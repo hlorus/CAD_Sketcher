@@ -7,10 +7,6 @@ from ..utilities.select import select_all, deselect_all
 from .. import global_data
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement
-from ..utilities.reference_geometry import (
-    member_representation_indices,
-    reference_source_member_index,
-)
 from ..utilities.select import mode_property
 from ..model.types import SlvsWorkplane
 
@@ -26,28 +22,6 @@ def _sync_ui_sketch_selection_from_workplane(context: Context, entity):
 
     # For origin workplanes there may be multiple sketches, select the last one in UI list.
     context.scene.sketcher.ui_active_sketch = matching_indices[-1]
-
-
-def _sync_reference_selection(context: Context, entity, value: bool):
-    scene = getattr(context, "scene", None)
-    if scene is None:
-        return
-
-    sse = scene.sketcher.entities
-    active_sketch = scene.sketcher.active_sketch
-    sketch_index = getattr(active_sketch, "slvs_index", -1)
-    source_member_i = reference_source_member_index(entity)
-    if source_member_i == -1:
-        return
-
-    related_indices = member_representation_indices(sse, sketch_index, source_member_i)
-    for related_index in related_indices:
-        if related_index == getattr(entity, "slvs_index", -1):
-            continue
-        related_entity = sse.get(related_index)
-        if related_entity is None:
-            continue
-        related_entity.selected = value
 
 
 class View3D_OT_slvs_select(Operator, HighlightElement):
@@ -87,7 +61,6 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
                 value = not entity.selected
 
             entity.selected = value
-            _sync_reference_selection(context, entity, value)
 
             if value:
                 _sync_ui_sketch_selection_from_workplane(context, entity)

@@ -74,6 +74,29 @@ class Solver:
                 if isinstance(index, int) and index != -1:
                     constrained_entity_indices.add(index)
 
+        # Also include all dependencies of non-REFERENCE entities so that
+        # REFERENCE points/normals used by regular lines/arcs are not skipped.
+        for e in context.scene.sketcher.entities.all:
+            if getattr(e, "geometry", "") != "REFERENCE":
+                for dep in e.dependencies():
+                    if dep is not None:
+                        constrained_entity_indices.add(dep.slvs_index)
+
+        # Transitively expand: a constrained REFERENCE entity (e.g. a reference
+        # line) requires its own dependencies (e.g. its endpoint points) to also
+        # be registered, even when those deps are themselves REFERENCE entities.
+        entity_by_index = {e.slvs_index: e for e in context.scene.sketcher.entities.all}
+        pending = list(constrained_entity_indices)
+        while pending:
+            idx = pending.pop()
+            e = entity_by_index.get(idx)
+            if e is None:
+                continue
+            for dep in e.dependencies():
+                if dep is not None and dep.slvs_index not in constrained_entity_indices:
+                    constrained_entity_indices.add(dep.slvs_index)
+                    pending.append(dep.slvs_index)
+
         # Initialize Entities
         for e in context.scene.sketcher.entities.all:
             if (

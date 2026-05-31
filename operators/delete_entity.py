@@ -45,6 +45,13 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         if not entity:
             return {"CANCELLED"}
 
+        if getattr(entity, "geometry", "") == "REFERENCE":
+            operator.report(
+                {"WARNING"},
+                "Cannot delete reference geometry directly; delete from source",
+            )
+            return {"CANCELLED"}
+
         if entity.linked:
             operator.report(
                 {"WARNING"}, "Cannot delete linked geometry: {}".format(entity.name)
@@ -145,9 +152,14 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
             # Batch deletion
             indices = sorted((e.slvs_index for e in selected), reverse=True)
             skipped_linked = []
+            skipped_reference = []
             for i in indices:
                 e = context.scene.sketcher.entities.get(i)
                 if not e:
+                    continue
+
+                if getattr(e, "geometry", "") == "REFERENCE":
+                    skipped_reference.append(e.name)
                     continue
 
                 if e.linked:
@@ -161,6 +173,13 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
                     {"WARNING"},
                     "Cannot delete linked geometry: {}".format(
                         ", ".join(skipped_linked)
+                    ),
+                )
+            if skipped_reference:
+                self.report(
+                    {"WARNING"},
+                    "Cannot delete reference geometry directly; delete from source: {}".format(
+                        ", ".join(skipped_reference)
                     ),
                 )
 
