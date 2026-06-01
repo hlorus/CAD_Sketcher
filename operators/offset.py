@@ -168,6 +168,9 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         if not succeede:
             return
 
+        if self.sketch:
+            self.sketch.geometry_solved = False
+
         constraints = context.scene.sketcher.constraints
 
         # Add parallel constraint

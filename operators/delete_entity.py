@@ -126,7 +126,10 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
                 # NOTE: this might be slow when a lot of entities are selected, improve!
                 self.main(context, i, self)
 
-        solve_system(context, context.scene.sketcher.active_sketch)
+        sketch = context.scene.sketcher.active_sketch
+        if sketch:
+            sketch.geometry_solved = False
+        solve_system(context, sketch)
         refresh(context)
         return {"FINISHED"}
 

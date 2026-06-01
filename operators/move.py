@@ -94,6 +94,8 @@ class View3D_OT_slvs_move(Operator, Operator2d):
 
     def fini(self, context: Context, succeede: bool):
         if succeede:
+            if self.sketch:
+                self.sketch.geometry_solved = False
             solve_system(context, sketch=self.sketch)
 
 

@@ -88,6 +88,7 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
         if succeede:
             if self.has_coincident() or self.has_alignment:
                 solve_system(context, sketch=self.sketch)
+            self.sketch.geometry_solved = False
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_line2d,))

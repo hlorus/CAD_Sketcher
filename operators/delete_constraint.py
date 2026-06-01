@@ -43,6 +43,8 @@ class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
         constraints.remove(constr)
 
         sketch = context.scene.sketcher.active_sketch
+        if sketch:
+            sketch.geometry_solved = False
         solve_system(context, sketch=sketch)
         refresh(context)
         return {"FINISHED"}

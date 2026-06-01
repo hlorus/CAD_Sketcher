@@ -50,7 +50,12 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
     solver_state: EnumProperty(
         name="Solver Status", items=global_data.solver_state_items
     )
-    dof: IntProperty(name="Degrees of Freedom", max=6)
+    dof: IntProperty(name="Degrees of Freedom")
+    geometry_solved: BoolProperty(
+        name="Geometry Solved",
+        description="Whether the sketch geometry has been solved after the last edit",
+        default=True,
+    )
     target_curve: PointerProperty(type=bpy.types.Curve)
     target_curve_object: PointerProperty(type=bpy.types.Object)
     target_mesh: PointerProperty(type=bpy.types.Mesh)

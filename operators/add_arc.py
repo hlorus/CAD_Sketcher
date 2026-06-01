@@ -128,7 +128,10 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
     def fini(self, context: Context, succeede: bool):
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
-            self.solve_state(context, self.sketch)
+        if succeede:
+            if self.has_coincident():
+                self.solve_state(context, self.sketch)
+            self.sketch.geometry_solved = False
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_arc2d,))
