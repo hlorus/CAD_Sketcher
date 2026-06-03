@@ -3,14 +3,10 @@ import logging
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 
-from ..model.utilities import update_pointers
 from ..solver import solve_system
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
-from ..utilities.select import deselect_all
-from ..utilities.view import refresh
-from ..solver import solve_system
 
 from ..model.coincident import SlvsCoincident
 from ..model.equal import SlvsEqual
@@ -25,11 +21,6 @@ from ..model.ratio import SlvsRatio
 logger = logging.getLogger(__name__)
 
 
-def merge_points(context, duplicate, target):
-    update_pointers(context.scene, duplicate.slvs_index, target.slvs_index)
-    context.scene.sketcher.entities.remove(duplicate.slvs_index)
-
-
 class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
     """Add a coincident constraint"""
 
@@ -39,27 +30,21 @@ class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
 
     type = "COINCIDENT"
 
-    def handle_merge(self, context):
+    def _is_restricted_point_pair(self):
         points = self.entity1, self.entity2
 
-        if not all([e.is_point() for e in points]):
+        if not all(point.is_point() for point in points):
             return False
 
-        for p1, p2 in (points, reversed(points)):
-            if p1.origin:
-                continue
-            if p1.fixed:
-                continue
-
-            merge_points(context, p1, p2)
-            solve_system(context, context.scene.sketcher.active_sketch)
-            break
-        return True
+        return all(point.fixed for point in points)
 
     def main(self, context: Context):
-        # Implicitly merge points
-        if self.handle_merge(context):
-            return True
+        if self._is_restricted_point_pair():
+            self.report(
+                {"WARNING"},
+                "Cannot add coincident between two fixed points",
+            )
+            return False
 
         if not self.exists(context, SlvsCoincident):
             self.target = context.scene.sketcher.constraints.add_coincident(
