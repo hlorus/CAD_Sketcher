@@ -124,6 +124,9 @@ class VIEW3D_OT_slvs_merge_points(Operator):
 
         deleted_lines = delete_collapsed_lines(context, point_indices={target_index})
 
+        active_sketch = context.scene.sketcher.active_sketch
+        if active_sketch:
+            active_sketch.geometry_solved = False
         solve_system(context, context.scene.sketcher.active_sketch)
         refresh(context)
         if deleted_lines:
