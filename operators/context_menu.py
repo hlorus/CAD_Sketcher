@@ -217,7 +217,7 @@ class View3D_OT_slvs_remove_group_coincident_constraints(Operator):
             self.report({"INFO"}, "No coincident constraints found for group members")
             return {"CANCELLED"}
 
-        for constraint in coincident_to_remove:
+        for constraint in reversed(coincident_to_remove):
             constraints.remove(constraint)
 
         solve_system(context, sketch=sketch)
