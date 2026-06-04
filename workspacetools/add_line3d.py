@@ -22,3 +22,4 @@ class VIEW3D_T_slvs_add_line3d(GenericStateTool, WorkSpaceTool):
     def draw_settings(context, layout, tool):
         props = tool.operator_properties(Operators.AddLine3D)
         layout.prop(props, "continuous_draw")
+        layout.prop(context.scene.sketcher, "auto_axis_constraints", text="Auto Constraints")

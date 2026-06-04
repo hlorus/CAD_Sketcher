@@ -28,6 +28,7 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
     l2d_state2_doc = ("Endpoint", "Pick or place line's ending Point.")
 
     continuous_draw: BoolProperty(name="Continuous Draw", default=True)
+    _skip_auto_axis_this_segment = False
 
     states = (
         state_from_args(
@@ -45,6 +46,21 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
         ),
     )
 
+    def init(self, context, event):
+        self._skip_auto_axis_this_segment = False
+        return super().init(context, event)
+
+    def check_event(self, event):
+        if self.state_index == 1 and event.shift:
+            self._skip_auto_axis_this_segment = True
+
+        is_confirm = event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER")
+        if is_confirm and event.value == "PRESS":
+            self._skip_auto_axis_this_segment = (
+                self._skip_auto_axis_this_segment or bool(event.shift)
+            )
+        return super().check_event(event)
+
     def main(self, context: Context):
         wp = self.sketch.wp
         p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
@@ -53,20 +69,26 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
         if context.scene.sketcher.use_construction:
             self.target.construction = True
 
-        # auto vertical/horizontal constraint
         self.has_alignment = False
-        constraints = context.scene.sketcher.constraints
-        vec_dir = self.target.direction_vec()
-        if vec_dir.length:
-            angle = vec_dir.angle(Vector((1, 0)))
+        use_auto_axis = (
+            context.scene.sketcher.auto_axis_constraints
+            and not self._skip_auto_axis_this_segment
+        )
+        if use_auto_axis:
+            constraints = context.scene.sketcher.constraints
+            vec_dir = self.target.direction_vec()
+            if vec_dir.length:
+                angle = vec_dir.angle(Vector((1, 0)))
 
-            threshold = 0.1
-            if angle < threshold or angle > HALF_TURN - threshold:
-                constraints.add_horizontal(self.target, sketch=self.sketch)
-                self.has_alignment = True
-            elif (QUARTER_TURN - threshold) < angle < (QUARTER_TURN + threshold):
-                constraints.add_vertical(self.target, sketch=self.sketch)
-                self.has_alignment = True
+                threshold = 0.1
+                if angle < threshold or angle > HALF_TURN - threshold:
+                    constraints.add_horizontal(self.target, sketch=self.sketch)
+                    self.has_alignment = True
+                elif (QUARTER_TURN - threshold) < angle < (QUARTER_TURN + threshold):
+                    constraints.add_vertical(self.target, sketch=self.sketch)
+                    self.has_alignment = True
+
+        self._skip_auto_axis_this_segment = False
 
         ignore_hover(self.target)
         return True

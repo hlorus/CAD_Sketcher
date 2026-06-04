@@ -19,3 +19,6 @@ class VIEW3D_T_slvs_add_point3d(GenericStateTool, WorkSpaceTool):
         *tool_generic,
         *operator_access(Operators.AddPoint3D),
     )
+
+    def draw_settings(context, layout, tool):
+        layout.prop(context.scene.sketcher, "auto_axis_constraints", text="Auto Constraints")
