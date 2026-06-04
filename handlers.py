@@ -65,6 +65,9 @@ def on_depsgraph_update(scene, depsgraph):
     from . import global_data
 
     if global_data.needs_solve:
+        if global_data.stateful_op_running:
+            return
+
         global_data.needs_solve = False
         from .solver import solve_system
 

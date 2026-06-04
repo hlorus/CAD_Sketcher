@@ -3,6 +3,7 @@ from bpy.props import IntProperty, BoolProperty
 from bpy.types import Context, Event
 from mathutils import Vector
 
+from .. import global_data
 from .state_machine import _StateMachineMixin
 from .utilities.generic import to_list
 from .utilities.description import state_desc, stateful_op_desc
@@ -258,6 +259,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         return False
 
     def invoke(self, context: Context, event: Event):
+        global_data.stateful_op_running = True
         self._state_data.clear()
         self._numeric = NumericInput()
         self._state_snapshot = self.create_snapshot(context)
@@ -296,6 +298,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         return self._end(context, succeede)
 
     def execute(self, context: Context):
+        global_data.stateful_op_running = True
         self._numeric = NumericInput()
         self.redo_states(context)
         ok = self.main(context)
@@ -496,12 +499,15 @@ class StatefulOperatorLogic(_StateMachineMixin):
                     )
                     self.set_state_pointer(to_list(ret_values), index=i, implicit=True)
 
-    def _end(self, context, succeede, skip_undo=False):
+    def _end(self, context, succeede, skip_undo=False, keep_stateful_running=False):
         context.window.cursor_modal_restore()
         if hasattr(self, "fini"):
             self.fini(context, succeede)
         self.on_before_redo_states(context)
         context.workspace.status_text_set(None)
+
+        if not keep_stateful_running:
+            global_data.stateful_op_running = False
 
         if not succeede and not skip_undo:
             if self._state_snapshot is not None:
@@ -549,7 +555,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         The last pointer of the finished segment (e.g. a line endpoint)
         becomes the first pointer of the new segment, creating a chain.
         """
-        self._end(context, True)
+        self._end(context, True, keep_stateful_running=True)
         bpy.ops.ed.undo_push(message=self.bl_label)
 
         # Save the endpoint before _reset_op wipes state
