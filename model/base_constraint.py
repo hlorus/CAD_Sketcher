@@ -215,6 +215,23 @@ class DimensionalConstraint(GenericConstraint):
             if value is None:
                 continue
 
+            # "value" has a custom RNA getter that may call assign_init_props,
+            # so never read it back — just write unconditionally.
+            if key == "value":
+                setprop(self, key, value)
+                continue
+
+            # For all other keys (e.g. "setting", "flip", "align") skip the
+            # write when the value is unchanged so we don't fire update
+            # callbacks that would re-enter assign_init_props and recurse.
+            try:
+                current = getattr(self, key)
+            except Exception:
+                current = object()
+
+            if current == value:
+                continue
+
             setprop(self, key, value)
 
     def assign_init_props(self, context: Context = None, **kwargs):
