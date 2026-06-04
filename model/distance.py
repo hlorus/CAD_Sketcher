@@ -39,6 +39,8 @@ def get_side_of_line(line_start, line_end, point):
 
 
 def _get_aligned_distance(p_1, p_2, alignment):
+    if p_1 is None or p_2 is None:
+        return 0.0
     if alignment == "HORIZONTAL":
         return abs(p_2.co.x - p_1.co.x)
     if alignment == "VERTICAL":
@@ -70,9 +72,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
     def _set_align(self, value: int):
         alignment = bpyEnum(align_items, value).identifier
-        distance = _get_aligned_distance(self.entity1, self.entity2, alignment)
         self.align_store = alignment
-        self.value_store = distance
+        if self.entity1 is None or self.entity2 is None:
+            return
+        self.value_store = _get_aligned_distance(self.entity1, self.entity2, alignment)
 
     def _get_align(self) -> int:
         if not self.is_property_set("align_store"):
@@ -133,15 +136,21 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
     def use_flipping(self):
         # Only use flipping for constraint between point and line/workplane
-        if self.entity1.is_curve():
+        e1, e2 = self.entity1, self.entity2
+        if e1 is None or e2 is None:
             return False
-        return type(self.entity2) in (*LINE, SlvsWorkplane)
+        if e1.is_curve():
+            return False
+        return type(e2) in (*LINE, SlvsWorkplane)
 
     def use_align(self):
         """Returns True if constraint's entities allow distance to be aligned"""
-        if type(self.entity2) in (*LINE, SlvsWorkplane):
+        e1, e2 = self.entity1, self.entity2
+        if e1 is None or e2 is None:
             return False
-        if self.entity1.is_curve():
+        if type(e2) in (*LINE, SlvsWorkplane):
+            return False
+        if e1.is_curve():
             return False
         return True
 
@@ -318,6 +327,11 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     def _get_init_value(self, alignment):
         e1, e2 = self.entity1, self.entity2
 
+        if e1 is None or e2 is None:
+            if self.is_property_set("value_store"):
+                return self.value_store
+            return 0.0
+
         if e1.is_3d():
             return (e1.location - e2.location).length
 
@@ -359,7 +373,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         alignment = kwargs.get("align")
         retval = {}
 
-        value = kwargs.get("value", self._get_init_value(alignment))
+        if "value" in kwargs:
+            value = kwargs["value"]
+        else:
+            value = self._get_init_value(alignment)
 
         if self.use_flipping() and value < 0:
             value = abs(value)

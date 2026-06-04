@@ -31,9 +31,12 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     def assign_init_props(self, context: Context = None, **kwargs):
         # Updating self.setting will create recursion loop
 
-        super().assign_init_props(context)
+        super().assign_init_props(context, **kwargs)
 
         line1, line2 = self.entity1, self.entity2
+        if line1 is None or line2 is None:
+            return
+
         origin = get_line_intersection(
             *line_abc_form(line1.p1.co, line1.p2.co),
             *line_abc_form(line2.p1.co, line2.p2.co),
@@ -130,7 +133,12 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         return math.degrees(math.acos(x))
 
     def _get_init_value(self, setting):
-        vec1, vec2 = self.entity1.direction_vec(), self.entity2.direction_vec()
+        e1, e2 = self.entity1, self.entity2
+        if e1 is None or e2 is None:
+            if self.is_property_set("value_store"):
+                return math.degrees(self.value_store)
+            return 0.0
+        vec1, vec2 = e1.direction_vec(), e2.direction_vec()
         return self._get_angle(vec1, vec2)
 
     def init_props(self, **kwargs):
@@ -141,7 +149,10 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         """
 
         setting = kwargs.get("setting", self.setting)
-        angle = kwargs.get("value", self._get_init_value(setting))
+        if "value" in kwargs:
+            angle = kwargs["value"]
+        else:
+            angle = self._get_init_value(setting)
 
         return {
             "value": math.radians(angle),
