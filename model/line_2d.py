@@ -4,17 +4,18 @@ from typing import List, Tuple
 
 import bpy
 from bpy.types import PropertyGroup, Context
+from bpy.props import IntProperty
 from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_line_line, intersect_line_line_2d
 
 from ..solver import Solver
+from ..declarations import Operators
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, get_connection_point, round_v
 from ..utilities.geometry import nearest_point_line_line
-
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,12 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         p2 (SlvsPoint2D): Line's endpoint
         sketch (SlvsSketch): The sketch this entity belongs to
     """
+
+    parent_wall_i: IntProperty(
+        name="Parent Wall Index",
+        description="slvs_index of the wall line this door/window sits on",
+        default=-1,
+    )
 
     @classmethod
     def is_path(cls):
@@ -45,10 +52,42 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         return [self.p1, self.p2, self.sketch]
 
     def is_dashed(self):
-        return self.construction
+        return (
+            self.construction
+            and not self.linked
+            and self.geometry_role() != "REFERENCE"
+        )
+
+    def geometry_role(self, context: Context = None) -> str:
+        role = super().geometry_role(context)
+        if role == "LINKED":
+            return role
+
+        if context is None:
+            context = bpy.context
+        scene = getattr(context, "scene", None)
+        if not scene:
+            return role
+
+        for sketch in scene.sketcher.entities.sketches:
+            if getattr(sketch, "source_line_i", -1) == self.slvs_index:
+                return "LINKING"
+        return role
 
     def update(self):
         if bpy.app.background:
+            return
+
+        if (
+            self.p1 is None
+            or self.p2 is None
+            or not hasattr(self.p1, "location")
+            or not hasattr(self.p2, "location")
+        ):
+            # Endpoints may be temporarily unresolved during regen/remap cycles.
+            # Keep drawing robust and let later updates refresh this batch.
+            self._batch = None
+            self.is_dirty = False
             return
 
         p1, p2 = self.p1.location, self.p2.location
@@ -59,7 +98,9 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         self.is_dirty = False
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
-        handle = solvesys.add_line_2d(group, self.p1.py_data, self.p2.py_data, self.wp.py_data)
+        handle = solvesys.add_line_2d(
+            group, self.p1.py_data, self.p2.py_data, self.wp.py_data
+        )
         self.py_data = handle
 
     def closest_picking_point(self, origin, view_vector):
@@ -250,6 +291,23 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         kwargs.setdefault("sketch", self.sketch)
         kwargs.setdefault("construction", self.construction)
         return context.scene.sketcher.entities.add_line_2d(**kwargs)
+
+    def draw_props(self, layout):
+        sub = super().draw_props(layout)
+        sub.separator()
+        op = sub.operator(
+            Operators.FlipLineDirection,
+            text="flip line direction",
+            icon="ARROW_LEFTRIGHT",
+        )
+        op.line_index = self.slvs_index
+        op = sub.operator(
+            Operators.AddLinkedSketch,
+            text="add linked sketch",
+            icon="SNAP_PERPENDICULAR",
+        )
+        op.line_index = self.slvs_index
+        return sub
 
 
 slvs_entity_pointer(SlvsLine2D, "p1")

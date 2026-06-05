@@ -1,6 +1,6 @@
 import logging
 
-from bpy.types import Operator, Context
+from bpy.types import Operator, Context, Event
 from bpy.props import BoolProperty
 from mathutils import Vector
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class View3D_OT_slvs_add_line2d(Operator, Operator2d):
     """Add a line to the active sketch"""
-    
+
     bl_idname = Operators.AddLine2D
     bl_label = "Add Solvespace 2D Line"
     bl_options = {"REGISTER", "UNDO"}
@@ -44,6 +44,9 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
             interactive=True,
         ),
     )
+
+    def init(self, context: Context, event: Event):
+        return super().init(context, event)
 
     def main(self, context: Context):
         wp = self.sketch.wp
@@ -80,6 +83,9 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
         if last_state.get("coincident"):
             return False
         return True
+
+    def do_continuous_draw(self, context):
+        super().do_continuous_draw(context)
 
     def fini(self, context: Context, succeede: bool):
         if hasattr(self, "target"):

@@ -8,6 +8,20 @@ from .. import global_data
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement
 from ..utilities.select import mode_property
+from ..model.types import SlvsWorkplane
+
+
+def _sync_ui_sketch_selection_from_workplane(context: Context, entity):
+    if not isinstance(entity, SlvsWorkplane):
+        return
+
+    sketches = context.scene.sketcher.entities.sketches
+    matching_indices = [i for i, sketch in enumerate(sketches) if sketch.wp == entity]
+    if not matching_indices:
+        return
+
+    # For origin workplanes there may be multiple sketches, select the last one in UI list.
+    context.scene.sketcher.ui_active_sketch = matching_indices[-1]
 
 
 class View3D_OT_slvs_select(Operator, HighlightElement):
@@ -47,6 +61,9 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
                 value = not entity.selected
 
             entity.selected = value
+
+            if value:
+                _sync_ui_sketch_selection_from_workplane(context, entity)
 
         context.area.tag_redraw()
         return {"FINISHED"}

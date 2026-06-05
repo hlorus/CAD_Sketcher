@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Union, Generator
 
@@ -15,6 +16,107 @@ from .group_constraints import SlvsConstraints
 from ..utilities.view import update_cb
 
 logger = logging.getLogger(__name__)
+
+_OBJ_PROP = "slvs_pre_sketch_hidden"
+_SK_PROP = "slvs_pre_sketch_visible"
+_WP_PROP = "slvs_pre_sketch_wp_visible"
+
+
+def _update_show_objects(self, context):
+    """Toggle visibility of all Blender objects while inside a sketch."""
+    if self.sketch_show_objects:
+        # Restore pre-sketch object visibility
+        state_str = context.scene.get(_OBJ_PROP)
+        if state_str:
+            try:
+                state = json.loads(state_str)
+                for obj in context.view_layer.objects:
+                    obj.hide_set(state.get(obj.name, False))
+                return
+            except (json.JSONDecodeError, TypeError):
+                pass
+        # Fallback: show everything
+        for obj in context.view_layer.objects:
+            obj.hide_set(False)
+    else:
+        # Re-hide all objects
+        for obj in context.view_layer.objects:
+            obj.hide_set(True)
+
+
+def _update_show_sketches(self, context):
+    """Toggle visibility of other sketches while inside a sketch."""
+    active_index = self.active_sketch_i
+    sketches = self.entities.sketches
+    if self.sketch_show_sketches:
+        # Restore pre-sketch sketch visibility
+        state_str = context.scene.get(_SK_PROP)
+        if state_str:
+            try:
+                state = json.loads(state_str)
+                for i, sketch in enumerate(sketches):
+                    sketch.visible = state.get(str(i), sketch.visible)
+                return
+            except (json.JSONDecodeError, TypeError):
+                pass
+        # Fallback: show all
+        for sketch in sketches:
+            sketch.visible = True
+    else:
+        # Re-hide other sketches
+        for sketch in sketches:
+            if sketch.slvs_index != active_index:
+                sketch.visible = False
+
+
+def _update_show_workplanes(self, context):
+    """Toggle visibility of global 3D entities (workplanes, 3D points/lines/normals) while inside a sketch."""
+    entities = self.entities
+    global_cols = (
+        entities.points3D,
+        entities.lines3D,
+        entities.normals3D,
+        entities.workplanes,
+    )
+    if self.sketch_show_workplanes:
+        state_str = context.scene.get(_WP_PROP)
+        if state_str:
+            try:
+                state = json.loads(state_str)
+                for col in global_cols:
+                    for ent in col:
+                        ent.visible = state.get(str(ent.slvs_index), ent.visible)
+                return
+            except (json.JSONDecodeError, TypeError):
+                pass
+        # Fallback: show all
+        for col in global_cols:
+            for ent in col:
+                ent.visible = True
+    else:
+        for col in global_cols:
+            for ent in col:
+                ent.visible = False
+
+
+def _update_ui_active_sketch(self, context):
+    if context is None:
+        return
+
+    sketches = self.entities.sketches
+    index = self.ui_active_sketch
+    if index < 0 or index >= len(sketches):
+        return
+
+    wp = sketches[index].wp
+    if not wp:
+        return
+
+    global_data.selected.clear()
+    global_data.selected.append(wp.slvs_index)
+
+    if context.area:
+        context.area.tag_redraw()
 
 
 class SketcherProps(PropertyGroup):
@@ -36,6 +138,40 @@ class SketcherProps(PropertyGroup):
         options={"SKIP_SAVE"},
         update=update_cb,
     )
+    geometry_solved: BoolProperty(
+        name="Geometry Solved",
+        description="When false, defer solver and reference refresh until editing finishes",
+        default=True,
+        options={"SKIP_SAVE"},
+    )
+    sketch_show_objects: BoolProperty(
+        name="Blender Objects",
+        description="Temporarily show Blender objects for reference while inside a sketch",
+        default=False,
+        options={"SKIP_SAVE"},
+        update=_update_show_objects,
+    )
+    sketch_show_sketches: BoolProperty(
+        name="Sketches",
+        description="Temporarily show other sketches for reference while inside a sketch",
+        default=False,
+        options={"SKIP_SAVE"},
+        update=_update_show_sketches,
+    )
+    sketch_show_workplanes: BoolProperty(
+        name="Workplanes",
+        description="Temporarily show workplanes for reference while inside a sketch",
+        default=False,
+        options={"SKIP_SAVE"},
+        update=_update_show_workplanes,
+    )
+    sketch_show_reference_geometry: BoolProperty(
+        name="Reference Geometry",
+        description="Show readonly IFC reference geometry (e.g. wall thickness previews) while inside a sketch",
+        default=True,
+        options={"SKIP_SAVE"},
+        update=update_cb,
+    )
 
     version: IntVectorProperty(
         name="Extension Version",
@@ -43,7 +179,7 @@ class SketcherProps(PropertyGroup):
     )
 
     # This is needed for the sketches ui list
-    ui_active_sketch: IntProperty()
+    ui_active_sketch: IntProperty(update=_update_ui_active_sketch)
 
     @property
     def all(self) -> Generator[Union[SlvsGenericEntity, SlvsConstraints], None, None]:

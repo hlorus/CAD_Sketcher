@@ -71,6 +71,7 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
 
         for e in (*points, *lines):
             ignore_hover(e)
+
         return True
 
     def fini(self, context: Context, succeede: bool):

@@ -6,9 +6,10 @@ Base entity classes for CAD Sketcher.
 import logging
 from typing import List
 
+import bpy
 import gpu
 from bpy import app
-from bpy.props import BoolProperty, IntProperty, StringProperty
+from bpy.props import BoolProperty, EnumProperty, IntProperty, StringProperty
 from bpy.types import Context
 
 from .. import global_data
@@ -22,7 +23,7 @@ from ..utilities.view import update_cb
 logger = logging.getLogger(__name__)
 
 
-def tag_update(self, _context=None):
+def _entity_dirty_update(self, _context=None):
     if not self.is_dirty:
         self.is_dirty = True
 
@@ -57,9 +58,64 @@ class SlvsGenericEntity:
     fixed: BoolProperty(name="Fixed")
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     origin: BoolProperty(name="Origin")
-    construction: BoolProperty(name="Construction", update=tag_update)
+    construction: BoolProperty(name="Construction", update=_entity_dirty_update)
+    geometry: EnumProperty(
+        name="Geometry",
+        description="Geometry role used by linked-sketch and reference workflows",
+        items=(
+            ("NONE", "None", "Regular geometry"),
+            ("LINKING", "Linking", "Source geometry used for linking"),
+            ("LINKED", "Linked", "Geometry projected from another sketch"),
+            (
+                "REFERENCE",
+                "Reference",
+                "Read-only contextual reference geometry (e.g. IFC element outlines)",
+            ),
+        ),
+        default="NONE",
+    )
     props = ()
     dirty: BoolProperty(name="Needs Update", default=True, options={"SKIP_SAVE"})
+
+    @property
+    def linked(self):
+        return self.geometry == "LINKED" or bool(self.get("linked", False))
+
+    @linked.setter
+    def linked(self, value):
+        if value:
+            self.geometry = "LINKED"
+        elif self.geometry == "LINKED":
+            self.geometry = "NONE"
+        self["linked"] = bool(value)
+
+    @property
+    def linking(self):
+        return self.geometry == "LINKING"
+
+    @linking.setter
+    def linking(self, value):
+        if value:
+            self.geometry = "LINKING"
+        elif self.geometry == "LINKING":
+            self.geometry = "NONE"
+
+    @property
+    def reference(self):
+        return self.geometry == "REFERENCE"
+
+    @reference.setter
+    def reference(self, value):
+        if value:
+            self.geometry = "REFERENCE"
+        elif self.geometry == "REFERENCE":
+            self.geometry = "NONE"
+
+    def geometry_role(self, context: Context = None) -> str:
+        # Legacy: honour old RNA custom prop written before geometry enum existed
+        if self.geometry == "NONE" and bool(self.get("linked", False)):
+            return "LINKED"
+        return self.geometry
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -110,6 +166,8 @@ class SlvsGenericEntity:
     @property
     def line_width(self):
         scale = preferences.get_scale()
+        if self.geometry_role(bpy.context) == "REFERENCE":
+            return 1.0 * scale
         if self.construction:
             return 1.5 * scale
         return 2 * scale
@@ -185,6 +243,11 @@ class SlvsGenericEntity:
         if preferences.use_experimental("all_entities_selectable", False):
             return True
 
+        # Reference geometry is always selectable while it is visible so that
+        # users can hover over it and snap constraints to it.
+        if getattr(self, "geometry", "") == "REFERENCE":
+            return True
+
         active_sketch = context.scene.sketcher.active_sketch
         if active_sketch and hasattr(self, "sketch"):
             # Allow to select entities that share the active sketch's wp
@@ -201,6 +264,18 @@ class SlvsGenericEntity:
         highlight = self.is_highlight()
         fixed = self.fixed
         origin = self.origin
+        geometry_role = self.geometry_role(context)
+
+        if geometry_role == "REFERENCE":
+            if self.selected:
+                if highlight:
+                    return ts.entity.selected_highlight
+                if active:
+                    return ts.entity.selected
+                return ts.entity.inactive_selected
+            if highlight:
+                return ts.reference_geometry.highlight
+            return ts.reference_geometry.default
 
         if not active:
             if highlight:
@@ -215,7 +290,10 @@ class SlvsGenericEntity:
             return ts.entity.selected
         elif highlight:
             return ts.entity.highlight
-
+        if geometry_role == "LINKING":
+            return ts.linked_geometry.linking
+        if geometry_role == "LINKED":
+            return ts.linked_geometry.linked
         if fixed and not origin:
             return ts.entity.fixed
         return ts.entity.default
@@ -229,6 +307,10 @@ class SlvsGenericEntity:
     def is_visible(self, context: Context) -> bool:
         if self.origin:
             return self.visible or context.scene.sketcher.show_origin
+
+        if self.geometry == "REFERENCE":
+            if not context.scene.sketcher.sketch_show_reference_geometry:
+                return False
 
         if hasattr(self, "sketch"):
             return self.sketch.is_visible(context) and self.visible
@@ -341,6 +423,7 @@ class SlvsGenericEntity:
         layout.separator()
         layout.label(text="Type: " + type(self).__name__)
         layout.label(text="Is Origin: " + str(self.origin))
+        layout.label(text="Geometry: " + self.geometry_role(bpy.context))
 
         if is_experimental:
             sub = layout.column()

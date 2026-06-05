@@ -65,13 +65,23 @@ def _get_value(self):
 class SlvsDistance(DimensionalConstraint, PropertyGroup):
     """Sets the distance between a point and some other entity (point/line/Workplane)."""
 
+    def _has_resolved_entities(self) -> bool:
+        e1 = self.entity1
+        if e1 is None:
+            return False
+        if e1.is_line():
+            return e1.p1 is not None and e1.p2 is not None
+        return self.entity2 is not None
+
     def _set_value_force(self, value):
         DimensionalConstraint._set_value_force(self, abs(value))
 
     def _set_align(self, value: int):
         alignment = bpyEnum(align_items, value).identifier
-        distance = _get_aligned_distance(self.entity1, self.entity2, alignment)
         self.align_store = alignment
+        if not self._has_resolved_entities():
+            return
+        distance = _get_aligned_distance(self.entity1, self.entity2, alignment)
         self.value_store = distance
 
     def _get_align(self) -> int:
@@ -133,12 +143,16 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
     def use_flipping(self):
         # Only use flipping for constraint between point and line/workplane
+        if not self._has_resolved_entities():
+            return False
         if self.entity1.is_curve():
             return False
         return type(self.entity2) in (*LINE, SlvsWorkplane)
 
     def use_align(self):
         """Returns True if constraint's entities allow distance to be aligned"""
+        if not self._has_resolved_entities():
+            return False
         if type(self.entity2) in (*LINE, SlvsWorkplane):
             return False
         if self.entity1.is_curve():
@@ -156,6 +170,8 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         return value
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
+        if not self._has_resolved_entities():
+            return []
         if self.entity1 == self.entity2:
             raise AttributeError("Cannot create constraint between one entity itself")
         # TODO: don't allow Distance if Point -> Line if (Point in Line)
@@ -219,6 +235,8 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         return func(group, e1.py_data, e2.py_data, value, *args)
 
     def matrix_basis(self):
+        if not self._has_resolved_entities():
+            return Matrix()
         if self.sketch_i == -1 or not self.entity1.is_2d():
             # TODO: Support distance in 3d
             return Matrix()
@@ -318,12 +336,21 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     def _get_init_value(self, alignment):
         e1, e2 = self.entity1, self.entity2
 
+        if e1 is None:
+            return 0.0
+
         if e1.is_3d():
+            if e2 is None:
+                return 0.0
             return (e1.location - e2.location).length
 
         if e1.is_line():
+            if e1.p1 is None or e1.p2 is None:
+                return 0.0
             return _get_aligned_distance(e1.p1, e1.p2, alignment)
         if type(e1) in CURVE:
+            if e2 is None:
+                return 0.0
             centerpoint = e1.ct.co
             if isinstance(e2, SlvsLine2D):
                 endpoint, _ = intersect_point_line(centerpoint, e2.p1.co, e2.p2.co)
@@ -331,6 +358,8 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
                 assert isinstance(e2, SlvsPoint2D)
                 endpoint = e2.co
             return (centerpoint - endpoint).length - e1.radius
+        if e2 is None:
+            return 0.0
         if isinstance(e2, SlvsWorkplane):
             # Returns the signed distance to the plane
             return distance_point_to_plane(e1.co, e2.p1.co, e2.normal)

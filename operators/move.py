@@ -8,6 +8,7 @@ from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.data_handling import get_flat_deps
 from ..solver import solve_system
+from ..utilities.reference_geometry import should_refresh_reference_geometry
 from ..utilities.view import get_pos_2d
 
 
@@ -82,13 +83,22 @@ class View3D_OT_slvs_move(Operator, Operator2d):
         return delta
 
     def main(self, context: Context):
+        self._moved_reference_driver_line = False
+        should_track_unsolved = should_refresh_reference_geometry(
+            context.scene, sketch=self.sketch
+        )
+
         points = get_points(context)
+        moved_any_point = False
 
         for point in points:
             if point.fixed:
                 continue
 
             point.co += self.offset
+            moved_any_point = True
+
+        self._moved_reference_driver_line = should_track_unsolved and moved_any_point
 
         return {"FINISHED"}
 
@@ -97,6 +107,9 @@ class View3D_OT_slvs_move(Operator, Operator2d):
             if self.sketch:
                 self.sketch.geometry_solved = False
             solve_system(context, sketch=self.sketch)
+            if self._moved_reference_driver_line:
+                self.sketch.geometry_solved = False
+                context.scene.sketcher.geometry_solved = False
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_move,))

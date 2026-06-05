@@ -9,8 +9,7 @@ from bpy.utils import register_classes_factory
 from ..utilities.draw import draw_cube_3d
 from ..solver import Solver
 from .base_entity import SlvsGenericEntity
-from .base_entity import tag_update
-
+from .base_entity import _entity_dirty_update
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ class Point3D(SlvsGenericEntity):
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        coords = [solvesys.get_param_value(self.py_data['param'][i]) for i in range(3)]
+        coords = [solvesys.get_param_value(self.py_data["param"][i]) for i in range(3)]
         self.location = coords
 
     def closest_picking_point(self, origin, view_vector):
@@ -61,7 +60,7 @@ class SlvsPoint3D(Point3D, PropertyGroup):
         description="The location of the point",
         subtype="XYZ",
         unit="LENGTH",
-        update=tag_update,
+        update=_entity_dirty_update,
     )
     props = ("location",)
 

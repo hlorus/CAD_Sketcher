@@ -10,7 +10,13 @@ from .panels.tools import VIEW3D_PT_sketcher_tools
 from .panels.constraints_list import VIEW3D_PT_sketcher_constraints
 from .panels.debug import VIEW3D_PT_sketcher_debug
 from .panels.entities_list import VIEW3D_PT_sketcher_entities
-from .panels.sketch_select import VIEW3D_PT_sketcher
+from .panels.groups_list import (
+    VIEW3D_UL_sketch_groups,
+    VIEW3D_UL_group_tags,
+    VIEW3D_UL_group_members,
+    VIEW3D_PT_sketcher_groups,
+)
+from .panels.sketch_select import VIEW3D_PT_sketcher, VIEW3D_UL_sketch_tags
 from .sketches_list import VIEW3D_UL_sketches
 from .selected_menu import VIEW3D_MT_selected_menu
 
@@ -39,10 +45,15 @@ def draw_add_sketch_in_add_menu(self, context: Context):
 classes = [
     VIEW3D_UL_sketches,
     VIEW3D_PT_sketcher,
+    VIEW3D_UL_sketch_tags,
     VIEW3D_PT_sketcher_tools,
     VIEW3D_PT_sketcher_entities,
+    VIEW3D_UL_sketch_groups,
+    VIEW3D_UL_group_tags,
+    VIEW3D_UL_group_members,
     VIEW3D_PT_sketcher_constraints,
     VIEW3D_PT_sketcher_debug,
+    VIEW3D_PT_sketcher_groups,
     VIEW3D_MT_selected_menu,
 ]
 

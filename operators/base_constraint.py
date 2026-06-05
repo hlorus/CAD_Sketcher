@@ -5,7 +5,12 @@ from bpy.props import BoolProperty
 
 from ..utilities.bpy import setprop
 from ..model.types import SlvsConstraints
+from ..model.base_constraint import DimensionalConstraint
 from ..solver import solve_system
+from ..utilities.reference_geometry import (
+    all_entities_are_reference,
+    refresh_reference_geometry,
+)
 from ..stateful_operator.state import state_from_args
 from ..utilities.select import deselect_all
 from ..utilities.view import refresh
@@ -106,8 +111,34 @@ class GenericConstraintOp(Operator2d):
     def main(self, context: Context):
         self.sync_settings()
 
+        if hasattr(self, "target") and self.target:
+            entities = tuple(self.target.entities())
+            if all_entities_are_reference(entities):
+                if isinstance(self.target, DimensionalConstraint):
+                    if not self.target.is_reference:
+                        self.target.is_reference = True
+                        self.report(
+                            {"INFO"},
+                            "Reference-geometry dimension set to measurement only",
+                        )
+                else:
+                    context.scene.sketcher.constraints.remove(self.target)
+                    self.target = None
+                    self.report(
+                        {"WARNING"},
+                        "Cannot constrain only reference geometry; constrain a non-reference entity instead",
+                    )
+                    refresh(context)
+                    return False
+
         deselect_all(context)
         solve_system(context, sketch=self.sketch)
+
+        refs_changed = refresh_reference_geometry(context, sketch=self.sketch)
+        if refs_changed:
+            # Keep constrained geometry aligned to updated REFERENCE entities.
+            solve_system(context, sketch=self.sketch)
+
         refresh(context)
         self.initialized = True
         return hasattr(self, "target") and bool(self.target)

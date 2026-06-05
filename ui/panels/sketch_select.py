@@ -1,7 +1,63 @@
-from bpy.types import Context, UILayout
+from bpy.types import Context, UILayout, UIList
 
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
+
+
+class VIEW3D_UL_sketch_tags(UIList):
+    """UIList of role tags on the active sketch."""
+
+    bl_idname = "VIEW3D_UL_sketch_tags"
+
+    def draw_item(
+        self,
+        context,
+        layout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_propname,
+        index=0,
+        flt_flag=0,
+    ):
+        tag = item
+        if self.layout_type in {"DEFAULT", "COMPACT"}:
+            row = layout.row(align=True)
+            row.prop(
+                tag,
+                "enabled",
+                text="",
+                emboss=False,
+                icon="HIDE_OFF" if tag.enabled else "HIDE_ON",
+            )
+            row.prop(tag, "value", text="", emboss=True)
+            edit_op = row.operator(
+                declarations.Operators.EditTagParameters,
+                text="",
+                emboss=False,
+                icon="PREFERENCES",
+            )
+            edit_op.owner_kind = "SKETCH"
+            edit_op.sketch_index = context.scene.sketcher.active_sketch.slvs_index
+            edit_op.tag_index = index
+            props = row.operator(
+                declarations.Operators.ContextMenuSketch,
+                text="",
+                emboss=False,
+                icon="OUTLINER_DATA_GP_LAYER",
+            )
+            props.sketch_index = context.scene.sketcher.active_sketch.slvs_index
+            props.tag_index = index
+            props.index = index
+            op = row.operator(
+                "view3d.slvs_sketch_role_from_preset",
+                text="",
+                icon="VIEWZOOM",
+            )
+        elif self.layout_type == "GRID":
+            layout.alignment = "CENTER"
+            layout.label(text=tag.value or "\u2014")
 
 
 def sketch_selector(
@@ -13,10 +69,7 @@ def sketch_selector(
     active_sketch = context.scene.sketcher.active_sketch
 
     if not active_sketch:
-        row.operator(
-            declarations.Operators.AddSketch,
-            icon="ADD"
-        ).wait_for_input = True
+        row.operator(declarations.Operators.AddSketch, icon="ADD").wait_for_input = True
 
     else:
         row.operator(
@@ -70,7 +123,19 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 dof_icon = "CHECKMARK" if dof_ok else "ERROR"
                 row.label(text=dof_msg, icon=dof_icon)
 
+            row.alert = bool(not sketch.geometry_solved)
+
             layout.separator()
+
+            col = layout.column()
+            col.use_property_split = False
+            row = col.row()
+            row.prop(context.scene.sketcher, "sketch_show_objects", toggle=False)
+            row.prop(context.scene.sketcher, "sketch_show_sketches", toggle=False)
+            row.prop(context.scene.sketcher, "sketch_show_workplanes", toggle=False)
+            row.prop(
+                context.scene.sketcher, "sketch_show_reference_geometry", toggle=False
+            )
 
             row = layout.row()
             row.prop(sketch, "name")
@@ -80,6 +145,25 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 layout.prop(sketch, "curve_resolution")
             if sketch.convert_type != "NONE":
                 layout.prop(sketch, "fill_shape")
+
+            # Sketch tags UIList
+            layout.label(text=f'Tags for "{sketch.name}":', icon="BOOKMARKS")
+            row_tags = layout.row()
+            col_tags = row_tags.column()
+            col_tags.template_list(
+                "VIEW3D_UL_sketch_tags",
+                "",
+                sketch,
+                "tags",
+                sketch,
+                "active_tag_index",
+                rows=2,
+            )
+            col_tag_ops = row_tags.column(align=True)
+            col_tag_ops.operator("view3d.slvs_add_sketch_tag", text="", icon="ADD")
+            col_tag_ops.operator(
+                "view3d.slvs_remove_sketch_tag", text="", icon="REMOVE"
+            )
 
             layout.operator(
                 declarations.Operators.DeleteEntity,

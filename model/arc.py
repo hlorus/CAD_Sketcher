@@ -3,7 +3,7 @@ from typing import List
 
 import bpy
 from bpy.types import PropertyGroup, Context
-from bpy.props import BoolProperty
+from bpy.props import BoolProperty, IntProperty
 from gpu_extras.batch import batch_for_shader
 import math
 from mathutils import Vector, Matrix
@@ -11,7 +11,7 @@ from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere
 from bpy.utils import register_classes_factory
 
 from ..solver import Solver
-from .base_entity import SlvsGenericEntity, tag_update
+from .base_entity import SlvsGenericEntity, _entity_dirty_update
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer
 from .constants import CURVE_RESOLUTION
@@ -46,10 +46,16 @@ class SlvsArc(Entity2D, PropertyGroup):
         sketch (SlvsSketch): The sketch this entity belongs to
     """
 
+    parent_wall_i: IntProperty(
+        name="Parent Wall Index",
+        description="slvs_index of the wall arc this door/window sits on",
+        default=-1,
+    )
+
     invert_direction: BoolProperty(
         name="Invert direction",
         description="Connect the points in the inverted order",
-        update=tag_update,
+        update=_entity_dirty_update,
     )
 
     @classmethod

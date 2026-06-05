@@ -52,6 +52,9 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
 
             row.prop(e, "name", text="")
 
+            if e.linked:
+                row.label(text="", icon="LOCKED")
+
             # Context menu
             props = row.operator(
                 declarations.Operators.ContextMenu,
@@ -73,7 +76,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             props.index = e.slvs_index
             props.highlight_hover = True
 
-            # Props
+            # Props (X / Y / Z coordinates etc.)
             if e.props:
                 row_props = col.row()
                 row_props.alignment = "RIGHT"

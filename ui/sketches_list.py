@@ -1,6 +1,7 @@
 from bpy.types import UIList, Context, UILayout, PropertyGroup
 
 from ..declarations import Operators
+from ..model.types import SlvsLine2D
 
 
 class VIEW3D_UL_sketches(UIList):
@@ -62,6 +63,24 @@ class VIEW3D_UL_sketches(UIList):
                 else:
                     row.separator()
                     row.separator()
+
+                tags = item.tag_values() if hasattr(item, "tag_values") else []
+                if tags:
+                    tag_label = tags[0]
+                    if len(tags) > 1:
+                        tag_label = f"{tags[0]} +{len(tags)-1}"
+
+                    ext_count = sum(
+                        1
+                        for e in item.sketch_entities(context)
+                        if isinstance(e, SlvsLine2D) and getattr(e, "linked", False)
+                    )
+                    tag_text = (
+                        tag_label
+                        if ext_count == 0
+                        else "{} [{}]".format(tag_label, ext_count)
+                    )
+                    row.label(text=tag_text)
 
             else:
                 layout.label(text="", translate=False, icon_value=icon)

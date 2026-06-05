@@ -493,17 +493,22 @@ class SlvsEntities(PropertyGroup):
             nm.name = label
 
         # workplanes
-        for label, nm_name, wp_name in (
-            ("OriginWorkplaneYZ", "origin_axis_X", "origin_plane_YZ"),
-            ("OriginWorkplaneXZ", "origin_axis_Y", "origin_plane_XZ"),
-            ("OriginWorkplaneXY", "origin_axis_Z", "origin_plane_XY"),
+        for label, nm_name, wp_name, default_tag in (
+            ("OriginWorkplaneYZ", "origin_axis_X", "origin_plane_YZ", "Elevation"),
+            ("OriginWorkplaneXZ", "origin_axis_Y", "origin_plane_XZ", "Elevation"),
+            ("OriginWorkplaneXY", "origin_axis_Z", "origin_plane_XY", "Plan"),
         ):
-            if getattr(self, wp_name):
+            wp_existing = getattr(self, wp_name)
+            if wp_existing:
+                if not wp_existing.tag:
+                    wp_existing.tag = default_tag
                 continue
+
             wp = sse.add_workplane(self.origin, getattr(self, nm_name))
             set_origin_props(wp)
             setattr(self, wp_name, wp)
             wp.name = label
+            wp.tag = default_tag
 
     def collection_offsets(self):
         offsets = {}

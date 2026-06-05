@@ -3,6 +3,7 @@ from bpy.props import IntProperty, BoolProperty
 from bpy.types import Context, Event
 from mathutils import Vector
 
+from .. import global_data
 from .state_machine import _StateMachineMixin
 from .utilities.generic import to_list
 from .utilities.description import state_desc, stateful_op_desc
@@ -258,6 +259,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
         return False
 
     def invoke(self, context: Context, event: Event):
+        context.scene.sketcher.geometry_solved = False
+        global_data.needs_solve = False
         self._state_data.clear()
         self._numeric = NumericInput()
         self._state_snapshot = self.create_snapshot(context)
@@ -296,6 +299,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
         return self._end(context, succeede)
 
     def execute(self, context: Context):
+        context.scene.sketcher.geometry_solved = False
+        global_data.needs_solve = False
         self._numeric = NumericInput()
         self.redo_states(context)
         ok = self.main(context)
@@ -500,6 +505,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         context.window.cursor_modal_restore()
         if hasattr(self, "fini"):
             self.fini(context, succeede)
+        context.scene.sketcher.geometry_solved = True
         self.on_before_redo_states(context)
         context.workspace.status_text_set(None)
 
@@ -551,6 +557,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """
         self._end(context, True)
         bpy.ops.ed.undo_push(message=self.bl_label)
+        context.scene.sketcher.geometry_solved = False
+        global_data.needs_solve = False
 
         # Save the endpoint before _reset_op wipes state
         last_index, values, last_type = self._take_last_state_pointer()

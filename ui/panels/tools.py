@@ -35,6 +35,6 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         if is_experimental():
             layout.label(text="Node Tools:")
             col = layout.column(align=True)
-            #col.operator(declarations.Operators.NodeFill)
+            # col.operator(declarations.Operators.NodeFill)
             col.operator(declarations.Operators.NodeExtrude)
             col.operator(declarations.Operators.NodeArrayLinear)

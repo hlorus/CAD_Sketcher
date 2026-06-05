@@ -20,6 +20,10 @@ class View3D_OT_slvs_align_workplane_cursor(Operator):
         if not wp or not isinstance(wp, SlvsWorkplane):
             return {"CANCELLED"}
 
+        if wp.origin:
+            self.report({"ERROR"}, "Origin workplane cannot be changed")
+            return {"CANCELLED"}
+
         cursor = context.scene.cursor
         wp.nm.orientation = cursor.matrix.to_quaternion()
         wp.p1.location = cursor.location

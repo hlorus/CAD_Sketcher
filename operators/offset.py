@@ -1,11 +1,10 @@
-import logging
 import math
 
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 
 from ..model.categories import SEGMENT
-from ..model.identifiers import is_line, is_circle
+from ..model.identifiers import is_circle
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
@@ -17,9 +16,6 @@ from .base_2d import Operator2d
 from .utilities import ignore_hover
 
 
-logger = logging.getLogger(__name__)
-
-
 def _get_offset_co(point, normal, distance):
     # For start or endpoint: get point translated by distance along normal
     return point.co + normal * distance
@@ -27,6 +23,7 @@ def _get_offset_co(point, normal, distance):
 
 def _bool_to_signed_int(invert):
     return -1 if invert else 1
+
 
 def _inverted_dist(invert, distance):
     sign = _bool_to_signed_int(invert) * _bool_to_signed_int(distance < 0)
@@ -73,7 +70,6 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             refresh(context)
             return True
 
-
         walker = EntityWalker(context.scene, sketch, entity=entity)
         path = walker.main_path()
         is_cyclic = walker.is_cyclic_path(path[0])
@@ -99,7 +95,9 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             intersections = sorted(
                 get_intersections(
                     get_offset_elements(entity, _inverted_dist(entity_dir, distance)),
-                    get_offset_elements(neighbour, _inverted_dist(neighbour_dir, distance)),
+                    get_offset_elements(
+                        neighbour, _inverted_dist(neighbour_dir, distance)
+                    ),
                 ),
                 key=lambda i: (i - point.co).length,
             )
@@ -175,8 +173,6 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
 
         # Add parallel constraint
         # for entity, new_entity in zip(self.entities, self.new_path):
-        #     if not is_line(entity):
-        #         continue
         #     constraints.add_parallel(entity, new_entity, sketch=self.sketch)
 
 
