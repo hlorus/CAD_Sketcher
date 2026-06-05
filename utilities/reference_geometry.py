@@ -236,25 +236,95 @@ def should_refresh_reference_geometry(scene, sketch=None) -> bool:
     return False
 
 
-def _find_ref_point(sse, sketch_index: int, source_member_i: int, role: str):
+def _find_ref_point(
+    sse,
+    sketch_index: int,
+    source_member_i: int,
+    role: str,
+    target_co=None,
+):
+    target_source_i = int(source_member_i)
+
+    # Prefer exact source+role matches.
     for point in sse.points2D:
         if not _entity_is_ref(point, sketch_index):
             continue
-        if point.get("ref_source_member_i", -1) != source_member_i:
+        if int(point.get("ref_source_member_i", -1)) != target_source_i:
             continue
         if point.get("ref_role", "") == role:
             return point
+
+    # Compatibility fallback: same source with missing/legacy role metadata.
+    for point in sse.points2D:
+        if not _entity_is_ref(point, sketch_index):
+            continue
+        if int(point.get("ref_source_member_i", -1)) != target_source_i:
+            continue
+        if not point.get("ref_role", ""):
+            return point
+
+    # Last-resort fallback: reclaim a nearby REFERENCE point with matching role,
+    # even if its stored source index is stale.
+    if target_co is not None:
+        best = None
+        best_dist = math.inf
+        target = Vector(target_co)
+        for point in sse.points2D:
+            if not _entity_is_ref(point, sketch_index):
+                continue
+            if str(point.get("ref_role", "")) != role:
+                continue
+            dist = (Vector(point.co) - target).length
+            if dist < best_dist:
+                best = point
+                best_dist = dist
+        if best is not None and best_dist < 1e-6:
+            return best
+
     return None
 
 
-def _find_ref_line(sse, sketch_index: int, source_member_i: int, role: str):
+def _find_ref_line(
+    sse,
+    sketch_index: int,
+    source_member_i: int,
+    role: str,
+    p1=None,
+    p2=None,
+):
+    target_source_i = int(source_member_i)
+
+    # Prefer exact source+role matches.
     for line in sse.lines2D:
         if not _entity_is_ref(line, sketch_index):
             continue
-        if line.get("ref_source_member_i", -1) != source_member_i:
+        if int(line.get("ref_source_member_i", -1)) != target_source_i:
             continue
         if line.get("ref_role", "") == role:
             return line
+
+    # Compatibility fallback: same source with missing/legacy role metadata.
+    for line in sse.lines2D:
+        if not _entity_is_ref(line, sketch_index):
+            continue
+        if int(line.get("ref_source_member_i", -1)) != target_source_i:
+            continue
+        if not line.get("ref_role", ""):
+            return line
+
+    # Last-resort fallback: reclaim a REFERENCE line by endpoints, even when
+    # its stored source metadata is stale.
+    if p1 is not None and p2 is not None:
+        p1_i = int(getattr(p1, "slvs_index", -1))
+        p2_i = int(getattr(p2, "slvs_index", -1))
+        for line in sse.lines2D:
+            if not _entity_is_ref(line, sketch_index):
+                continue
+            line_p1_i = int(getattr(line.p1, "slvs_index", -1))
+            line_p2_i = int(getattr(line.p2, "slvs_index", -1))
+            if (line_p1_i, line_p2_i) in ((p1_i, p2_i), (p2_i, p1_i)):
+                return line
+
     return None
 
 
@@ -270,6 +340,18 @@ def _mark_ref_entity(entity, source_member_i: int, role: str):
 def is_reference_geometry(entity) -> bool:
     """Return True when *entity* has the REFERENCE geometry role."""
     return entity.geometry == "REFERENCE"
+
+
+def all_entities_are_reference(entities) -> bool:
+    """Return True when every entity in *entities* is REFERENCE geometry."""
+    if not entities:
+        return False
+
+    for entity in entities:
+        if entity is None or not is_reference_geometry(entity):
+            return False
+
+    return True
 
 
 def reference_source_member_index(entity) -> int:
@@ -348,16 +430,6 @@ def member_is_selected(
     )
 
 
-def _delete_ref_entities(context, entities):
-    if not entities:
-        return
-
-    from ..operators.delete_entity import View3D_OT_slvs_delete_entity
-
-    for entity in entities:
-        View3D_OT_slvs_delete_entity.delete(entity, context)
-
-
 def regenerate_ifc_plan_references(context, sketch=None) -> None:
     scene = getattr(context, "scene", None)
     if scene is None:
@@ -403,33 +475,24 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
 
     changed = False
 
-    # Clean references for members no longer producing references.
-    stale_lines = []
-    stale_points = []
-    for line in list(sse.lines2D):
-        if not _entity_is_ref(line, sketch_index):
-            continue
-        source_i = line.get("ref_source_member_i", -1)
-        if source_i not in desired:
-            stale_lines.append(line)
-    for point in list(sse.points2D):
-        if not _entity_is_ref(point, sketch_index):
-            continue
-        source_i = point.get("ref_source_member_i", -1)
-        if source_i not in desired:
-            stale_points.append(point)
-
-    if stale_lines or stale_points:
-        changed = True
-
-    _delete_ref_entities(context, stale_lines)
-    _delete_ref_entities(context, stale_points)
+    # Keep previously generated reference entities, even when they are not
+    # currently produced by TAG parameters. Deleting them renumbers indices,
+    # which can break constraints that target reference geometry.
+    #
+    # Existing entities are reused and updated in-place below whenever a
+    # matching source/role becomes desired again.
 
     # Upsert references for current members.
     for source_i, coords in desired.items():
         points = {}
         for role in _POINT_ROLES:
-            point = _find_ref_point(sse, sketch_index, source_i, role)
+            point = _find_ref_point(
+                sse,
+                sketch_index,
+                source_i,
+                role,
+                target_co=coords[role],
+            )
             if point is None:
                 point = sse.add_point_2d(tuple(coords[role]), sketch)
                 changed = True
@@ -442,9 +505,16 @@ def regenerate_ifc_plan_references(context, sketch=None) -> None:
             points[role] = point
 
         for line_role, (start_role, end_role) in _LINE_ROLES.items():
-            line = _find_ref_line(sse, sketch_index, source_i, line_role)
             p1 = points[start_role]
             p2 = points[end_role]
+            line = _find_ref_line(
+                sse,
+                sketch_index,
+                source_i,
+                line_role,
+                p1=p1,
+                p2=p2,
+            )
             if line is None:
                 line = sse.add_line_2d(p1, p2, sketch)
                 changed = True

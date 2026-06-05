@@ -30,6 +30,7 @@ class View3D_OT_slvs_tweak(Operator):
 
         entity = context.scene.sketcher.entities.get(index)
         self.entity = entity
+        self._moved = False
 
         coords = (event.mouse_region_x, event.mouse_region_y)
         origin, view_vector = get_picking_origin_dir(context, coords)
@@ -86,6 +87,7 @@ class View3D_OT_slvs_tweak(Operator):
             # self.report({'WARNING'}, "Cannot solve sketch, error: {}".format(retval))
 
             context.area.tag_redraw()
+            self._moved = True
 
         return {"RUNNING_MODAL"}
 
