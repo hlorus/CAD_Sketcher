@@ -88,14 +88,22 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         return solvesys.diameter(group, self.entity1.py_data, self.diameter)
 
     def _get_init_value(self, setting):
-        value = self.entity1.radius
+        entity = self.entity1
+        if entity is None:
+            if self.is_property_set("value_store"):
+                return self.value_store
+            return 0.0
+        value = entity.radius
         if not setting:
             return value * 2
         return value
 
     def init_props(self, **kwargs):
         setting = kwargs.get("setting", self.setting)
-        value = kwargs.get("value", self._get_init_value(setting))
+        if "value" in kwargs:
+            value = kwargs["value"]
+        else:
+            value = self._get_init_value(setting)
         return {"value": value, "setting": setting}
 
     def matrix_basis(self):

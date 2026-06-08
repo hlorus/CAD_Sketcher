@@ -30,6 +30,13 @@ class SketcherProps(PropertyGroup):
         options={"SKIP_SAVE"},
         update=update_cb,
     )
+    auto_axis_constraints: BoolProperty(
+        name="Auto Constraints",
+        description="Automatically add inferred constraints (for example auto axis alignment and auto coincident)",
+        default=True,
+        options={"SKIP_SAVE"},
+        update=update_cb,
+    )
     selectable_constraints: BoolProperty(
         name="Constraints Selectability",
         default=True,

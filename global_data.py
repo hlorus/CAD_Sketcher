@@ -25,6 +25,7 @@ highlight_entities = []
 
 needs_solve = False
 needs_redraw = False
+stateful_op_running = False
 
 Z_AXIS = Vector((0, 0, 1))
 

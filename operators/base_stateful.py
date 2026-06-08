@@ -15,7 +15,17 @@ class GenericEntityOp(StatefulOperator):
     """Extend StatefulOperator with extension specific types"""
 
     def check_event(self, event):
+        if event.shift:
+            self.state_data["skip_auto_constraints"] = True
         return super().check_event(event)
+
+    def use_auto_constraints(self, context: Context, state_data=None) -> bool:
+        if state_data is None:
+            state_data = self.state_data
+        return (
+            context.scene.sketcher.auto_axis_constraints
+            and not state_data.get("skip_auto_constraints", False)
+        )
 
     def pick_element(self, context, coords):
         retval = super().pick_element(context, coords)
@@ -41,6 +51,9 @@ class GenericEntityOp(StatefulOperator):
         return hovered.slvs_index if hovered else None
 
     def add_coincident(self, context: Context, point, state, state_data):
+        if not self.use_auto_constraints(context, state_data):
+            return
+
         index = state_data.get("hovered", -1)
         if index != -1:
             hovered = context.scene.sketcher.entities.get(index)

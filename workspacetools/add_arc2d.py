@@ -18,3 +18,6 @@ class VIEW3D_T_slvs_add_arc2d(GenericStateTool, WorkSpaceTool):
         *tool_generic,
         *operator_access(Operators.AddArc2D),
     )
+
+    def draw_settings(context, layout, tool):
+        layout.prop(context.scene.sketcher, "auto_axis_constraints", text="Auto Constraints")
