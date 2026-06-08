@@ -22,6 +22,9 @@ SketchGroup
     group-level GUID, and an ordered list of members.
 """
 
+import json
+import uuid
+
 import bpy
 from bpy.props import BoolProperty, CollectionProperty, IntProperty, StringProperty
 from bpy.types import PropertyGroup
@@ -31,6 +34,10 @@ from .. import global_data
 from ..utilities.reference_geometry import member_representation_indices
 
 _TAG_UPDATE_GUARD = False
+
+
+def _new_internal_uid() -> str:
+    return uuid.uuid4().hex
 
 
 def _normalize_tag_value(value: str) -> str:
@@ -142,6 +149,11 @@ class SketchGroupTag(PropertyGroup):
         description="When disabled this tag is ignored by all callers",
         default=True,
     )
+    internal_uid: StringProperty(
+        name="Internal UID",
+        description="Stable internal identifier for this tag",
+        default="",
+    )
 
 
 class SketchGroupMember(PropertyGroup):
@@ -165,6 +177,66 @@ class SketchGroupMember(PropertyGroup):
         ),
         default="",
     )
+    internal_uid: StringProperty(
+        name="Internal UID",
+        description="Stable internal identifier for this group member",
+        default="",
+    )
+    tag_member_uids_json: StringProperty(
+        name="Tag Member UID Map",
+        description="Internal mapping from tag internal UID to tag-member UID",
+        default="{}",
+    )
+
+    def _load_uid_map(self) -> dict[str, str]:
+        try:
+            raw = self.tag_member_uids_json or "{}"
+            data = json.loads(raw)
+        except Exception:
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        return {
+            str(key): str(value)
+            for key, value in data.items()
+            if str(key).strip() and str(value).strip()
+        }
+
+    def _store_uid_map(self, uid_map: dict[str, str]) -> None:
+        self.tag_member_uids_json = json.dumps(uid_map, sort_keys=True)
+
+    def ensure_internal_uid(self) -> str:
+        if not (self.internal_uid or "").strip():
+            self.internal_uid = _new_internal_uid()
+        return self.internal_uid
+
+    def get_tag_member_uid(self, tag_internal_uid: str) -> str:
+        key = str(tag_internal_uid or "").strip()
+        if not key:
+            return ""
+        return self._load_uid_map().get(key, "")
+
+    def ensure_tag_member_uid(self, tag_internal_uid: str) -> str:
+        key = str(tag_internal_uid or "").strip()
+        if not key:
+            raise ValueError("tag_internal_uid must be non-empty")
+
+        uid_map = self._load_uid_map()
+        uid = str(uid_map.get(key, "") or "").strip()
+        if not uid:
+            uid = _new_internal_uid()
+            uid_map[key] = uid
+            self._store_uid_map(uid_map)
+        return uid
+
+    def remove_tag_member_uid(self, tag_internal_uid: str) -> None:
+        key = str(tag_internal_uid or "").strip()
+        if not key:
+            return
+        uid_map = self._load_uid_map()
+        if key in uid_map:
+            del uid_map[key]
+            self._store_uid_map(uid_map)
 
 
 class SketchGroup(PropertyGroup):
@@ -180,6 +252,11 @@ class SketchGroup(PropertyGroup):
         name="Name",
         description="Human-readable label for this group",
         default="Group",
+    )
+    internal_uid: StringProperty(
+        name="Internal UID",
+        description="Stable internal identifier for this semantic group",
+        default="",
     )
     tags: CollectionProperty(
         name="Tags",
@@ -212,13 +289,16 @@ class SketchGroup(PropertyGroup):
         global_data.selected.clear()
         idx = self.active_member_index
         if 0 <= idx < len(self.members):
-            entity_index = self.members[idx].entity_index
+            member = self.members[idx]
+            entity_index = member.entity_index
             if entity_index != -1:
                 sketch_index = getattr(self.id_data, "slvs_index", -1)
                 for related_index in member_representation_indices(
                     bpy.context.scene.sketcher.entities,
                     sketch_index,
                     entity_index,
+                    group=self,
+                    member=member,
                 ):
                     global_data.selected.append(related_index)
         global_data.needs_redraw = True
@@ -237,15 +317,27 @@ class SketchGroup(PropertyGroup):
         norm = _normalize_tag_value(value)
         for t in self.tags:
             if _normalize_tag_value(t.value) == norm:
+                if not (t.internal_uid or "").strip():
+                    t.internal_uid = _new_internal_uid()
+                self.ensure_member_uids_for_tag(t)
                 return t
         t = self.tags.add()
         t.value = value.strip()
+        t.internal_uid = _new_internal_uid()
+        self.ensure_member_uids_for_tag(t)
         self.active_tag_index = len(self.tags) - 1
         return t
 
     def remove_tag_by_index(self, index: int) -> None:
         """Remove the tag at collection position *index*."""
+        if not (0 <= index < len(self.tags)):
+            return
+
+        removed_uid = str(getattr(self.tags[index], "internal_uid", "") or "").strip()
         self.tags.remove(index)
+        if removed_uid:
+            for member in self.members:
+                member.remove_tag_member_uid(removed_uid)
         if self.active_tag_index >= len(self.tags):
             self.active_tag_index = len(self.tags) - 1
 
@@ -268,7 +360,34 @@ class SketchGroup(PropertyGroup):
         """Append *slvs_index* as a new member and return the new record."""
         m = self.members.add()
         m.entity_index = slvs_index
+        m.ensure_internal_uid()
+        for tag in self.tags:
+            tag_uid = str(getattr(tag, "internal_uid", "") or "").strip()
+            if not tag_uid:
+                tag.internal_uid = _new_internal_uid()
+                tag_uid = tag.internal_uid
+            m.ensure_tag_member_uid(tag_uid)
         return m
+
+    def ensure_member_uids_for_tag(self, tag) -> None:
+        tag_uid = str(getattr(tag, "internal_uid", "") or "").strip()
+        if not tag_uid:
+            tag.internal_uid = _new_internal_uid()
+            tag_uid = tag.internal_uid
+        for member in self.members:
+            member.ensure_internal_uid()
+            member.ensure_tag_member_uid(tag_uid)
+
+    def ensure_internal_identity(self) -> None:
+        if not (self.internal_uid or "").strip():
+            self.internal_uid = _new_internal_uid()
+        for tag in self.tags:
+            if not (tag.internal_uid or "").strip():
+                tag.internal_uid = _new_internal_uid()
+        for member in self.members:
+            member.ensure_internal_uid()
+            for tag in self.tags:
+                member.ensure_tag_member_uid(tag.internal_uid)
 
     def remove_member(self, member_index: int) -> None:
         """Remove the member at *member_index* (collection position)."""

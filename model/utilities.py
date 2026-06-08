@@ -144,7 +144,7 @@ def update_pointers(scene, index_old, index_new):
                     member.entity_index = index_new
 
     for entity in scene.sketcher.entities.all:
-        if entity.get("ref_source_member_i", -1) == index_old:
-            entity["ref_source_member_i"] = index_new
+        if entity.get("ref_source_entity_index", -1) == index_old:
+            entity["ref_source_entity_index"] = index_new
 
     scene.sketcher.purge_stale_data()

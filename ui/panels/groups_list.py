@@ -61,7 +61,7 @@ def _selected_member_source_indices(context) -> set[int]:
             continue
 
         if getattr(entity, "geometry", "") == "REFERENCE":
-            source_i = int(entity.get("ref_source_member_i", -1))
+            source_i = int(entity.get("ref_source_entity_index", -1))
             if source_i != -1:
                 selected.add(source_i)
                 continue

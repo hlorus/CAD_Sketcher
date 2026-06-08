@@ -6,6 +6,7 @@ from bpy.types import Operator, Context, Event, PropertyGroup
 from .. import global_data
 from ..utilities.highlighting import HighlightElement
 from ..utilities.reference_geometry import (
+    reference_entities_for_member,
     reference_entities_for_source,
     reference_source_member_index,
 )
@@ -72,6 +73,50 @@ def _delete_reference_geometry_for_source(
                 getattr(entity, "geometry", "") != "REFERENCE"
                 or reference_source_member_index(entity) != source_member_i
             ):
+                continue
+
+            View3D_OT_slvs_delete_entity.delete(entity, context)
+            deleted_count += 1
+            progress = True
+
+        if not progress:
+            break
+
+    return deleted_count
+
+
+def _delete_reference_geometry_for_member(
+    context: Context, sketch, group, member, log_prefix: str
+):
+    sse = context.scene.sketcher.entities
+    sketch_index = getattr(sketch, "slvs_index", -1)
+    deleted_count = 0
+
+    for pass_i in range(1, 65):
+        ref_lines, ref_points = reference_entities_for_member(
+            sse,
+            sketch_index,
+            group,
+            member,
+        )
+
+        if not ref_lines and not ref_points:
+            break
+
+        target_indices = {
+            int(entity.slvs_index)
+            for entity in (*ref_lines, *ref_points)
+            if getattr(entity, "slvs_index", -1) != -1
+        }
+        if not target_indices:
+            break
+
+        progress = False
+        for idx in sorted(target_indices, reverse=True):
+            entity = sse.get(idx)
+            if entity is None:
+                continue
+            if getattr(entity, "geometry", "") != "REFERENCE":
                 continue
 
             View3D_OT_slvs_delete_entity.delete(entity, context)
@@ -255,20 +300,22 @@ class View3D_OT_slvs_remove_member_reference_geometry(Operator):
         if source_member_i == -1:
             return {"CANCELLED"}
 
-        ref_lines, ref_points = reference_entities_for_source(
+        ref_lines, ref_points = reference_entities_for_member(
             context.scene.sketcher.entities,
             getattr(sketch, "slvs_index", -1),
-            source_member_i,
+            group,
+            member,
         )
 
         if not ref_lines and not ref_points:
             self.report({"INFO"}, "No reference geometry found for member")
             return {"CANCELLED"}
 
-        deleted_count = _delete_reference_geometry_for_source(
+        deleted_count = _delete_reference_geometry_for_member(
             context,
             sketch,
-            source_member_i,
+            group,
+            member,
             "remove_member_reference_geometry",
         )
 
