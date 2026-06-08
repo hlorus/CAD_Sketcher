@@ -170,10 +170,6 @@ class SlvsConstraints(PropertyGroup):
             SlvsCoincident: The created constraint.
         """
 
-        if all([e.is_point() for e in (entity1, entity2)]):
-            # TODO: Implicitly merge points
-            return
-
         c = self.coincident.add()
         c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
         c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index

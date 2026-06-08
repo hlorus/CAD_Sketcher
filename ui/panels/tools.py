@@ -18,6 +18,8 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
     def draw(self, context: Context):
         layout = self.layout
 
+        layout.operator(declarations.Operators.MergePoints)
+
         # Constraints
         layout.label(text="Constraints:")
         col = layout.column(align=True)

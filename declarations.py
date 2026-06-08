@@ -52,6 +52,7 @@ class Operators(str, Enum):
     DeleteConstraint = "view3d.slvs_delete_constraint"
     DeleteEntity = "view3d.slvs_delete_entity"
     InstallPackage = "view3d.slvs_install_package"
+    MergePoints = "view3d.slvs_merge_points"
     Paste = "view3d.slvs_paste"
     Move = "view3d.slvs_move"
     Offset = "view3d.slvs_offset"

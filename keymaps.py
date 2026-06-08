@@ -14,6 +14,11 @@ constraint_access = (
         },
     ),
     (
+        Operators.MergePoints,
+        {"type": "M", "value": "PRESS", "alt": True},
+        None,
+    ),
+    (
         Operators.AddVertical,
         {"type": "V", "value": "PRESS", "shift": True},
         {

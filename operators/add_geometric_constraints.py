@@ -3,14 +3,13 @@ import logging
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 
-from ..model.utilities import update_pointers
 from ..solver import solve_system
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
 from ..utilities.select import deselect_all
 from ..utilities.view import refresh
-from ..solver import solve_system
+from ..utilities.merge import delete_collapsed_lines, merge_point_indices
 
 from ..model.coincident import SlvsCoincident
 from ..model.equal import SlvsEqual
@@ -25,11 +24,6 @@ from ..model.ratio import SlvsRatio
 logger = logging.getLogger(__name__)
 
 
-def merge_points(context, duplicate, target):
-    update_pointers(context.scene, duplicate.slvs_index, target.slvs_index)
-    context.scene.sketcher.entities.remove(duplicate.slvs_index)
-
-
 class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
     """Add a coincident constraint"""
 
@@ -39,27 +33,21 @@ class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
 
     type = "COINCIDENT"
 
-    def handle_merge(self, context):
+    def _is_restricted_point_pair(self):
         points = self.entity1, self.entity2
 
-        if not all([e.is_point() for e in points]):
+        if not all(point.is_point() for point in points):
             return False
 
-        for p1, p2 in (points, reversed(points)):
-            if p1.origin:
-                continue
-            if p1.fixed:
-                continue
-
-            merge_points(context, p1, p2)
-            solve_system(context, context.scene.sketcher.active_sketch)
-            break
-        return True
+        return all(point.fixed for point in points)
 
     def main(self, context: Context):
-        # Implicitly merge points
-        if self.handle_merge(context):
-            return True
+        if self._is_restricted_point_pair():
+            self.report(
+                {"WARNING"},
+                "Cannot add coincident between two fixed points",
+            )
+            return False
 
         if not self.exists(context, SlvsCoincident):
             self.target = context.scene.sketcher.constraints.add_coincident(
@@ -68,6 +56,87 @@ class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
                 sketch=self.sketch,
             )
         return super().main(context)
+
+
+class VIEW3D_OT_slvs_merge_points(Operator):
+    """Merge selected points"""
+
+    bl_idname = Operators.MergePoints
+    bl_label = "Merge Points"
+    bl_options = {"UNDO", "REGISTER"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.sketcher.active_sketch_i != -1
+
+    def _selected_points(self, context: Context):
+        entities = context.scene.sketcher.entities
+        return [entity for entity in entities.selected if entity.is_point()]
+
+    def _resolve_target(self, points):
+        origin_points = [point for point in points if point.origin]
+        fixed_points = [point for point in points if point.fixed and not point.origin]
+
+        if len(origin_points) > 1:
+            return None, "Multiple origin points selected"
+
+        if origin_points:
+            if fixed_points:
+                return None, "Cannot merge with origin and fixed points selected"
+            return origin_points[0], None
+
+        if len(fixed_points) > 1:
+            return None, "Cannot merge multiple fixed points"
+
+        if fixed_points:
+            return fixed_points[0], None
+
+        return points[-1], None
+
+    def execute(self, context: Context):
+        points = self._selected_points(context)
+        if len(points) < 2:
+            self.report({"WARNING"}, "Select at least two points to merge")
+            return {"CANCELLED"}
+
+        target, error = self._resolve_target(points)
+        if error:
+            level = {"WARNING"} if error == "Cannot merge multiple fixed points" else {"ERROR"}
+            self.report(level, error)
+            return {"CANCELLED"}
+
+        duplicates = list(points)
+        duplicates.remove(target)
+        duplicate_indices = sorted(
+            (point.slvs_index for point in duplicates),
+            reverse=True,
+        )
+        target_index = target.slvs_index
+        target_index = merge_point_indices(context, target_index, duplicate_indices)
+
+        target = context.scene.sketcher.entities.get(target_index)
+        if target is None:
+            self.report({"ERROR"}, "Merge target became invalid")
+            return {"CANCELLED"}
+
+        deselect_all(context)
+        target.selected = True
+
+        deleted_lines = delete_collapsed_lines(context, point_indices={target_index})
+
+        active_sketch = context.scene.sketcher.active_sketch
+        if active_sketch:
+            active_sketch.geometry_solved = False
+        solve_system(context, context.scene.sketcher.active_sketch)
+        refresh(context)
+        if deleted_lines:
+            self.report(
+                {"INFO"},
+                f"Merged {len(duplicates)} point(s) and deleted {deleted_lines} collapsed line(s)",
+            )
+        else:
+            self.report({"INFO"}, f"Merged {len(duplicates)} point(s)")
+        return {"FINISHED"}
 
 
 class VIEW3D_OT_slvs_add_equal(Operator, GenericConstraintOp):
@@ -263,6 +332,7 @@ class VIEW3D_OT_slvs_add_symmetry(Operator, GenericConstraintOp):
 
 constraint_operators = (
     VIEW3D_OT_slvs_add_coincident,
+    VIEW3D_OT_slvs_merge_points,
     VIEW3D_OT_slvs_add_equal,
     VIEW3D_OT_slvs_add_vertical,
     VIEW3D_OT_slvs_add_horizontal,
