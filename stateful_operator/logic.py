@@ -260,49 +260,58 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
     def invoke(self, context: Context, event: Event):
         global_data.stateful_op_running = True
+        entered_modal = False
         self._state_data.clear()
         self._numeric = NumericInput()
         self._state_snapshot = self.create_snapshot(context)
+        try:
+            if hasattr(self, "init"):
+                if not self.init(context, event):
+                    return self._end(context, False)
 
-        if hasattr(self, "init"):
-            if not self.init(context, event):
-                return self._end(context, False)
+            retval = {"RUNNING_MODAL"}
+            go_modal = True
 
-        retval = {"RUNNING_MODAL"}
-        go_modal = True
+            if is_numeric_input(event):
+                if self.init_numeric(True):
+                    self._numeric.evaluate_event(event)
+                    self.evaluate_state(context, event, False)
 
-        if is_numeric_input(event):
-            if self.init_numeric(True):
-                self._numeric.evaluate_event(event)
-                self.evaluate_state(context, event, False)
+            # wait_for_input=True: respect selection for prefill, but wait for LMB
+            elif self.wait_for_input:
+                retval = self.prefill_state_props(context)
+                if retval == {"FINISHED"}:
+                    go_modal = False
+                if not self.executed and self.check_props():
+                    self.run_op(context)
+                    self.executed = True
+                context.area.tag_redraw()
 
-        # wait_for_input=True: respect selection for prefill, but wait for LMB
-        elif self.wait_for_input:
-            retval = self.prefill_state_props(context)
-            if retval == {"FINISHED"}:
-                go_modal = False
-            if not self.executed and self.check_props():
-                self.run_op(context)
-                self.executed = True
-            context.area.tag_redraw()
+            self.set_status_text(context)
 
-        self.set_status_text(context)
+            if go_modal:
+                context.window.cursor_modal_set("CROSSHAIR")
+                context.window_manager.modal_handler_add(self)
+                entered_modal = True
+                return retval
 
-        if go_modal:
-            context.window.cursor_modal_set("CROSSHAIR")
-            context.window_manager.modal_handler_add(self)
-            return retval
-
-        succeede = retval == {"FINISHED"}
-        # NOTE: Pushing an undo step here causes duplicated constraints after redo.
-        return self._end(context, succeede)
+            succeede = retval == {"FINISHED"}
+            # NOTE: Pushing an undo step here causes duplicated constraints after redo.
+            return self._end(context, succeede)
+        finally:
+            if not entered_modal and global_data.stateful_op_running:
+                global_data.stateful_op_running = False
 
     def execute(self, context: Context):
         global_data.stateful_op_running = True
-        self._numeric = NumericInput()
-        self.redo_states(context)
-        ok = self.main(context)
-        return self._end(context, ok, skip_undo=True)
+        try:
+            self._numeric = NumericInput()
+            self.redo_states(context)
+            ok = self.main(context)
+            return self._end(context, ok, skip_undo=True)
+        finally:
+            if global_data.stateful_op_running:
+                global_data.stateful_op_running = False
 
     def _handle_pass_through(self, context: Context, event: Event):
         if event.type in {"MIDDLEMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE", "MOUSEMOVE"}:
