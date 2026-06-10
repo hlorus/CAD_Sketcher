@@ -37,6 +37,16 @@ def draw_constraint_listitem(
     middle_sub = row.row()
 
     for constraint_prop in constraint.props:
+        if constraint_prop == "value":
+            uid = getattr(constraint, "constraint_uid", "")
+            key = None
+            if uid:
+                key = context.scene.sketcher.get_or_create_constraint_value_endpoint(
+                    constraint
+                )
+            if key:
+                middle_sub.prop(context.scene, f'["{key}"]', text="")
+                continue
         middle_sub.prop(constraint, constraint_prop, text="")
 
     # Context menu, shows constraint name

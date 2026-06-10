@@ -1,4 +1,5 @@
 import logging
+import secrets
 from typing import Union
 
 from bpy.types import PropertyGroup
@@ -74,6 +75,48 @@ class SlvsConstraints(PropertyGroup):
                 return constraint
         return None
 
+    def _new_constraint_uid(self) -> str:
+        return secrets.token_hex(8)
+
+    def _ensure_unique_uid(self, uid: str) -> str:
+        if uid and self.get_by_uid(uid):
+            uid = ""
+        while not uid:
+            candidate = self._new_constraint_uid()
+            if not self.get_by_uid(candidate):
+                uid = candidate
+        return uid
+
+    def _init_constraint(self, constr: GenericConstraint) -> GenericConstraint:
+        uid = getattr(constr, "constraint_uid", "")
+        if not uid:
+            uid = self._ensure_unique_uid(uid)
+            constr.constraint_uid = uid
+        if hasattr(constr, "value"):
+            scene = getattr(self, "id_data", None)
+            if scene and hasattr(scene, "sketcher") and scene.sketcher:
+                try:
+                    scene.sketcher.get_or_create_constraint_value_endpoint(constr)
+                except (RuntimeError, AttributeError):
+                    pass
+        return constr
+
+    def ensure_constraint_uid(self, constr: GenericConstraint) -> str:
+        uid = getattr(constr, "constraint_uid", "")
+        if uid:
+            return uid
+        uid = self._ensure_unique_uid(uid)
+        constr.constraint_uid = uid
+        return uid
+
+    def get_by_uid(self, uid: str) -> GenericConstraint:
+        if not uid:
+            return None
+        for constraint in self.all:
+            if getattr(constraint, "constraint_uid", "") == uid:
+                return constraint
+        return None
+
     def new_from_type(self, type: str) -> GenericConstraint:
         """Create a constraint by type.
 
@@ -82,7 +125,7 @@ class SlvsConstraints(PropertyGroup):
         """
         name = type.lower()
         constraint_list = getattr(self, name)
-        return constraint_list.add()
+        return self._init_constraint(constraint_list.add())
 
     def get_lists(self):
         lists = []
@@ -132,6 +175,11 @@ class SlvsConstraints(PropertyGroup):
         Arguments:
             constr: Constraint to be removed.
         """
+        uid = getattr(constr, "constraint_uid", "")
+        if uid:
+            scene = getattr(self, "id_data", None)
+            if scene and hasattr(scene, "sketcher"):
+                scene.sketcher.remove_constraint_value_endpoint(uid)
         i = self.get_index(constr)
         self.get_list(constr.type).remove(i)
 
@@ -175,7 +223,7 @@ class SlvsConstraints(PropertyGroup):
         c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return c
+        return self._init_constraint(c)
 
     def add_equal(
         self,
@@ -198,7 +246,7 @@ class SlvsConstraints(PropertyGroup):
         c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return c
+        return self._init_constraint(c)
 
     def add_distance(
         self,
@@ -230,7 +278,7 @@ class SlvsConstraints(PropertyGroup):
             c.assign_init_props(**settings)
         else:
             c.assign_settings(**settings)
-        return c
+        return self._init_constraint(c)
 
     def add_angle(
         self,
@@ -260,7 +308,7 @@ class SlvsConstraints(PropertyGroup):
             c.assign_init_props(**settings)
         else:
             c.assign_settings(**settings)
-        return c
+        return self._init_constraint(c)
 
     def add_diameter(
         self,
@@ -287,7 +335,7 @@ class SlvsConstraints(PropertyGroup):
             c.assign_init_props(**settings)
         else:
             c.assign_settings(**settings)
-        return c
+        return self._init_constraint(c)
 
     def add_parallel(
         self,
@@ -310,7 +358,7 @@ class SlvsConstraints(PropertyGroup):
         c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return c
+        return self._init_constraint(c)
 
     def add_horizontal(
         self,
@@ -333,7 +381,7 @@ class SlvsConstraints(PropertyGroup):
             c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return c
+        return self._init_constraint(c)
 
     def add_vertical(
         self,
@@ -356,7 +404,7 @@ class SlvsConstraints(PropertyGroup):
             c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return c
+        return self._init_constraint(c)
 
     def add_tangent(
         self,
@@ -379,7 +427,7 @@ class SlvsConstraints(PropertyGroup):
         c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return c
+        return self._init_constraint(c)
 
     def add_midpoint(
         self,
@@ -402,7 +450,7 @@ class SlvsConstraints(PropertyGroup):
         c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return c
+        return self._init_constraint(c)
 
     def add_perpendicular(
         self,
@@ -425,7 +473,7 @@ class SlvsConstraints(PropertyGroup):
         c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return c
+        return self._init_constraint(c)
 
     def add_ratio(
         self,
@@ -455,7 +503,7 @@ class SlvsConstraints(PropertyGroup):
             c.assign_init_props(**settings)
         else:
             c.assign_settings(**settings)
-        return c
+        return self._init_constraint(c)
 
     def add_symmetry(
         self,
@@ -481,7 +529,7 @@ class SlvsConstraints(PropertyGroup):
         c.entity3_i = entity3 if isinstance(entity3, int) else entity3.slvs_index
         if sketch is not None:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return c
+        return self._init_constraint(c)
 
 
 register, unregister = register_classes_factory((SlvsConstraints,))

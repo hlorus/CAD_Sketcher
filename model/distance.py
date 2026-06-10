@@ -15,7 +15,7 @@ from ..utilities.math import range_2pi
 from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import POINT, LINE, POINT2D, CURVE
-from ..utilities.solver import update_system_cb
+from ..utilities.solver import update_system_cb, constraint_value_update_cb
 from ..utilities.bpy import setprop, bpyEnum
 
 from .workplane import SlvsWorkplane
@@ -98,7 +98,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         subtype="DISTANCE",
         unit="LENGTH",
         precision=6,
-        update=update_system_cb,
+        update=constraint_value_update_cb,
         get=_get_value,
         set=DimensionalConstraint._set_value,
     )

@@ -64,6 +64,12 @@ def unregister_handlers():
 def on_depsgraph_update(scene, depsgraph):
     from . import global_data
 
+    try:
+        if scene.sketcher.apply_constraint_value_endpoints():
+            global_data.needs_solve = True
+    except (RuntimeError, AttributeError):
+        pass
+
     if global_data.needs_solve:
         if global_data.stateful_op_running:
             return

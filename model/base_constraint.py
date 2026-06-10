@@ -32,6 +32,7 @@ class GenericConstraint:
 
         name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
     failed: BoolProperty(name="Failed")
+    constraint_uid: StringProperty(name="Constraint UID", default="")
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     is_reference = False  # Only DimensionalConstraint can be reference
     signature = ()
@@ -279,10 +280,14 @@ class DimensionalConstraint(GenericConstraint):
         sub.prop(self, "is_reference")
         if hasattr(self, "value"):
             col = sub.column()
-            # Could not find a way to have the property "readonly",
-            # so we disable user input instead
-            col.prop(self, "value")
             col.enabled = not self.is_reference
+            scene = getattr(self, "id_data", None)
+            uid = getattr(self, "constraint_uid", "")
+            key = None
+            if scene and uid:
+                key = scene.sketcher.get_or_create_constraint_value_endpoint(self)
+            if key:
+                col.prop(scene, f'["{key}"]')
         if hasattr(self, "setting"):
             row = sub.row()
             row.prop(self, "setting")

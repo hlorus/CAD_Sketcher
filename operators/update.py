@@ -11,6 +11,7 @@ class VIEW3D_OT_update(Operator):
     bl_label = "Update"
 
     def execute(self, context):
+        context.scene.sketcher.apply_constraint_value_endpoints()
         solver = Solver(context, None, all=True)
         solver.solve()
         update_convertor_geometry(context.scene)
