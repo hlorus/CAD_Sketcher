@@ -13,7 +13,7 @@ from ..utilities.math import range_2pi, pol2cart
 from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import CURVE
-from ..utilities.solver import update_system_cb
+from ..utilities.solver import update_system_cb, constraint_value_update_cb
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,10 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
             distance = self.value / 2
 
         if distance is not None:
-            self.value_store = distance
+            scene = getattr(self, "id_data", None)
+            uid = getattr(self, "constraint_uid", "")
+            if scene is not None and uid:
+                scene[f"slvs:c:{uid}"] = distance
 
     @property
     def label(self):
@@ -47,6 +50,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         subtype="DISTANCE",
         unit="LENGTH",
         precision=6,
+        options={"HIDDEN"},
     )
     value: FloatProperty(
         name="Size",
@@ -55,7 +59,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         precision=6,
         get=DimensionalConstraint._get_value,
         set=DimensionalConstraint._set_value,
-        update=update_system_cb,
+        update=constraint_value_update_cb,
     )
     setting_store: BoolProperty(name="Use Radius Storage", default=False)
     setting: BoolProperty(
@@ -90,8 +94,12 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     def _get_init_value(self, setting):
         entity = self.entity1
         if entity is None:
-            if self.is_property_set("value_store"):
-                return self.value_store
+            scene = getattr(self, "id_data", None)
+            uid = getattr(self, "constraint_uid", "")
+            if scene is not None and uid:
+                key = f"slvs:c:{uid}"
+                if key in scene:
+                    return float(scene[key])
             return 0.0
         value = entity.radius
         if not setting:

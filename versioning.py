@@ -125,4 +125,10 @@ def do_versioning(self):
                     setattr(c, "entity1", line_dependencies[0])
                     setattr(c, "entity2", line_dependencies[1])
 
+        if version < (0, 27, 7):
+            constraints = scene.sketcher.constraints
+            for c in list(constraints.dimensional):
+                constraints.ensure_constraint_uid(c)
+                scene.sketcher.create_constraint_value_endpoint(c)
+
     logger.debug(msg)

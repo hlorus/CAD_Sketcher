@@ -103,6 +103,41 @@ class TestConstraintInit(Sketch2dTestCase):
         # self.solve()
         # self.assertAlmostEqual(c3.value, 2.0)
 
+    def test_endpoint_has_stable_name(self):
+        p0 = self.entities.add_point_2d((0, 0), self.sketch, fixed=True)
+        p1 = self.entities.add_point_2d((2, 0), self.sketch)
+        c = self.constraints.add_distance(p0, p1, sketch=self.sketch, init=True)
+        uid = c.constraint_uid
+        self.assertTrue(uid, "constraint_uid must be assigned at creation")
+        key = f"slvs:c:{uid}"
+        self.assertIn(key, self.scene, "endpoint must exist as a scene custom property")
+
+    def test_endpoint_stays_in_sync(self):
+        p0 = self.entities.add_point_2d((0, 0), self.sketch, fixed=True)
+        p1 = self.entities.add_point_2d((2, 0), self.sketch)
+        c = self.constraints.add_distance(p0, p1, sketch=self.sketch, init=True)
+        key = f"slvs:c:{c.constraint_uid}"
+        self.assertIn(key, self.scene)
+
+        c.value = 3.5
+        self.assertAlmostEqual(float(self.scene[key]), 3.5)
+
+        self.scene[key] = 4.5
+        self.assertAlmostEqual(c.value, 4.5)
+
+    def test_endpoint_removed_on_delete(self):
+        p0 = self.entities.add_point_2d((0, 0), self.sketch, fixed=True)
+        p1 = self.entities.add_point_2d((2, 0), self.sketch)
+        c = self.constraints.add_distance(p0, p1, sketch=self.sketch, init=True)
+        uid = c.constraint_uid
+        self.assertIn(f"slvs:c:{uid}", self.scene)
+        self.constraints.remove(c)
+        self.assertNotIn(
+            f"slvs:c:{uid}",
+            self.scene,
+            "endpoint must be removed when its constraint is deleted",
+        )
+
     def test_distance_flip(self):
         context = self.context
         entities = self.entities

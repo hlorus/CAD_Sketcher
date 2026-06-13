@@ -16,7 +16,7 @@ from .base_constraint import DimensionalConstraint
 from .line_2d import SlvsLine2D
 from .utilities import slvs_entity_pointer
 from ..utilities.geometry import line_abc_form, get_line_intersection
-from ..utilities.solver import update_system_cb
+from ..utilities.solver import update_system_cb, constraint_value_update_cb
 
 
 logger = logging.getLogger(__name__)
@@ -52,13 +52,14 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         subtype="ANGLE",
         unit="ROTATION",
         precision=6,
+        options={"HIDDEN"},
     )
     value: FloatProperty(
         name=label,
         subtype="ANGLE",
         unit="ROTATION",
         precision=6,
-        update=update_system_cb,
+        update=constraint_value_update_cb,
         get=DimensionalConstraint._get_value,
         set=DimensionalConstraint._set_value,
     )
@@ -135,8 +136,12 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     def _get_init_value(self, setting):
         e1, e2 = self.entity1, self.entity2
         if e1 is None or e2 is None:
-            if self.is_property_set("value_store"):
-                return math.degrees(self.value_store)
+            scene = getattr(self, "id_data", None)
+            uid = getattr(self, "constraint_uid", "")
+            if scene is not None and uid:
+                key = f"slvs:c:{uid}"
+                if key in scene:
+                    return math.degrees(float(scene[key]))
             return 0.0
         vec1, vec2 = e1.direction_vec(), e2.direction_vec()
         return self._get_angle(vec1, vec2)

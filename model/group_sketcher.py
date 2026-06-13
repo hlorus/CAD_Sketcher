@@ -16,6 +16,9 @@ from ..utilities.view import update_cb
 
 logger = logging.getLogger(__name__)
 
+# Prefix for all constraint driver target custom properties on the scene.
+_EP_PREFIX = "slvs:c:"
+
 
 class SketcherProps(PropertyGroup):
     """The base structure for CAD Sketcher"""
@@ -62,6 +65,47 @@ class SketcherProps(PropertyGroup):
 
     def solve(self, context: Context):
         return solve_system(context)
+
+    def create_constraint_value_endpoint(self, constraint) -> str | None:
+        uid = getattr(constraint, "constraint_uid", "")
+        if not uid:
+            return None
+        scene = self.id_data
+        key = f"{_EP_PREFIX}{uid}"
+        if key not in scene:
+            if (
+                hasattr(constraint, "value_store")
+                and constraint.is_property_set("value_store")
+            ):
+                init_value = float(constraint.value_store)
+            else:
+                init_value = 0.0
+
+            scene[key] = init_value
+            try:
+                rna_prop = type(constraint).bl_rna.properties.get("value_store")
+                subtype = rna_prop.subtype if rna_prop else "NONE"
+                scene.id_properties_ui(key).update(subtype=subtype, min=0.0, soft_min=0.0)
+            except Exception:
+                pass
+        return key
+
+    def get_constraint_value_endpoint(self, constraint) -> str | None:
+        uid = getattr(constraint, "constraint_uid", "")
+        if not uid:
+            return None
+        key = f"{_EP_PREFIX}{uid}"
+        scene = self.id_data
+        return key if key in scene else None
+
+    def remove_constraint_value_endpoint(self, constraint_uid: str):
+        """Delete the scene custom property for a constraint that is being removed."""
+        if not constraint_uid:
+            return
+        scene = self.id_data
+        key = f"{_EP_PREFIX}{constraint_uid}"
+        if key in scene:
+            del scene[key]
 
     def purge_stale_data(self):
         global_data.hover = -1
