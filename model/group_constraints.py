@@ -96,7 +96,7 @@ class SlvsConstraints(PropertyGroup):
             scene = getattr(self, "id_data", None)
             if scene and hasattr(scene, "sketcher") and scene.sketcher:
                 try:
-                    scene.sketcher.get_or_create_constraint_value_endpoint(constr)
+                    scene.sketcher.create_constraint_value_endpoint(constr)
                 except (RuntimeError, AttributeError):
                     pass
         return constr
@@ -274,11 +274,12 @@ class SlvsConstraints(PropertyGroup):
             c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+        self._init_constraint(c)
         if init:
             c.assign_init_props(**settings)
         else:
             c.assign_settings(**settings)
-        return self._init_constraint(c)
+        return c
 
     def add_angle(
         self,
@@ -304,11 +305,12 @@ class SlvsConstraints(PropertyGroup):
         c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+        self._init_constraint(c)
         if init:
             c.assign_init_props(**settings)
         else:
             c.assign_settings(**settings)
-        return self._init_constraint(c)
+        return c
 
     def add_diameter(
         self,
@@ -331,11 +333,12 @@ class SlvsConstraints(PropertyGroup):
         c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
         if sketch:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+        self._init_constraint(c)
         if init:
             c.assign_init_props(**settings)
         else:
             c.assign_settings(**settings)
-        return self._init_constraint(c)
+        return c
 
     def add_parallel(
         self,
@@ -499,11 +502,12 @@ class SlvsConstraints(PropertyGroup):
         c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
         if sketch is not None:
             c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+        self._init_constraint(c)
         if init:
             c.assign_init_props(**settings)
         else:
             c.assign_settings(**settings)
-        return self._init_constraint(c)
+        return c
 
     def add_symmetry(
         self,

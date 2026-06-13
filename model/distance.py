@@ -59,9 +59,14 @@ def _get_value(self):
     if self.is_reference:
         val = self.init_props(align=self.align)["value"]
         return self.to_displayed_value(val)
-    if not self.is_property_set("value_store"):
-        self.assign_init_props()
-    return self.to_displayed_value(self.value_store)
+    scene = getattr(self, "id_data", None)
+    uid = getattr(self, "constraint_uid", "")
+    if scene is not None and uid:
+        key = f"slvs:c:{uid}"
+        if key in scene:
+            return self.to_displayed_value(float(scene[key]))
+    val = self.init_props(align=self.align).get("value", 0.0)
+    return self.to_displayed_value(val)
 
 
 class SlvsDistance(DimensionalConstraint, PropertyGroup):
@@ -75,7 +80,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         self.align_store = alignment
         if self.entity1 is None or self.entity2 is None:
             return
-        self.value_store = _get_aligned_distance(self.entity1, self.entity2, alignment)
+        scene = getattr(self, "id_data", None)
+        uid = getattr(self, "constraint_uid", "")
+        if scene is not None and uid:
+            scene[f"slvs:c:{uid}"] = _get_aligned_distance(self.entity1, self.entity2, alignment)
 
     def _get_align(self) -> int:
         if not self.is_property_set("align_store"):
@@ -88,6 +96,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         subtype="DISTANCE",
         unit="LENGTH",
         precision=6,
+        options={"HIDDEN"},
     )
     align_store: EnumProperty(
         name="Align Storage",
@@ -328,8 +337,12 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         e1, e2 = self.entity1, self.entity2
 
         if e1 is None or e2 is None:
-            if self.is_property_set("value_store"):
-                return self.value_store
+            scene = getattr(self, "id_data", None)
+            uid = getattr(self, "constraint_uid", "")
+            if scene is not None and uid:
+                key = f"slvs:c:{uid}"
+                if key in scene:
+                    return float(scene[key])
             return 0.0
 
         if e1.is_3d():

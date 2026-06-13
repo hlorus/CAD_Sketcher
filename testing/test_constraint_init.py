@@ -123,7 +123,6 @@ class TestConstraintInit(Sketch2dTestCase):
         self.assertAlmostEqual(float(self.scene[key]), 3.5)
 
         self.scene[key] = 4.5
-        self.sketcher.apply_constraint_value_endpoints()
         self.assertAlmostEqual(c.value, 4.5)
 
     def test_endpoint_removed_on_delete(self):

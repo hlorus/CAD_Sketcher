@@ -52,6 +52,7 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         subtype="ANGLE",
         unit="ROTATION",
         precision=6,
+        options={"HIDDEN"},
     )
     value: FloatProperty(
         name=label,
@@ -135,8 +136,12 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     def _get_init_value(self, setting):
         e1, e2 = self.entity1, self.entity2
         if e1 is None or e2 is None:
-            if self.is_property_set("value_store"):
-                return math.degrees(self.value_store)
+            scene = getattr(self, "id_data", None)
+            uid = getattr(self, "constraint_uid", "")
+            if scene is not None and uid:
+                key = f"slvs:c:{uid}"
+                if key in scene:
+                    return math.degrees(float(scene[key]))
             return 0.0
         vec1, vec2 = e1.direction_vec(), e2.direction_vec()
         return self._get_angle(vec1, vec2)

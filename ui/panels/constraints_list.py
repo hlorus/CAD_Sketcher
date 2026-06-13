@@ -41,7 +41,7 @@ def draw_constraint_listitem(
             uid = getattr(constraint, "constraint_uid", "")
             key = None
             if uid:
-                key = context.scene.sketcher.get_or_create_constraint_value_endpoint(
+                key = context.scene.sketcher.get_constraint_value_endpoint(
                     constraint
                 )
             if key:

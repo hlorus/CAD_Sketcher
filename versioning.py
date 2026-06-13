@@ -129,6 +129,6 @@ def do_versioning(self):
             constraints = scene.sketcher.constraints
             for c in list(constraints.dimensional):
                 constraints.ensure_constraint_uid(c)
-                scene.sketcher.get_or_create_constraint_value_endpoint(c)
+                scene.sketcher.create_constraint_value_endpoint(c)
 
     logger.debug(msg)

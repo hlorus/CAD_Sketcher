@@ -66,23 +66,21 @@ class SketcherProps(PropertyGroup):
     def solve(self, context: Context):
         return solve_system(context)
 
-    def get_or_create_constraint_value_endpoint(self, constraint):
-        """Create (or return the key of) a scene custom property that serves as
-        a stable driver target for the constraint's value.
-
-        The RNA path ``bpy.data.scenes["Scene"]["slvs:c:<uid>"]`` is keyed by
-        the UID string, so it is unaffected by collection compaction.
-        """
+    def create_constraint_value_endpoint(self, constraint) -> str | None:
         uid = getattr(constraint, "constraint_uid", "")
         if not uid:
             return None
         scene = self.id_data
         key = f"{_EP_PREFIX}{uid}"
         if key not in scene:
-            try:
-                init_value = float(constraint.value) if hasattr(constraint, "value") else 0.0
-            except Exception:
+            if (
+                hasattr(constraint, "value_store")
+                and constraint.is_property_set("value_store")
+            ):
+                init_value = float(constraint.value_store)
+            else:
                 init_value = 0.0
+
             scene[key] = init_value
             try:
                 rna_prop = type(constraint).bl_rna.properties.get("value_store")
@@ -92,6 +90,14 @@ class SketcherProps(PropertyGroup):
                 pass
         return key
 
+    def get_constraint_value_endpoint(self, constraint) -> str | None:
+        uid = getattr(constraint, "constraint_uid", "")
+        if not uid:
+            return None
+        key = f"{_EP_PREFIX}{uid}"
+        scene = self.id_data
+        return key if key in scene else None
+
     def remove_constraint_value_endpoint(self, constraint_uid: str):
         """Delete the scene custom property for a constraint that is being removed."""
         if not constraint_uid:
@@ -100,32 +106,6 @@ class SketcherProps(PropertyGroup):
         key = f"{_EP_PREFIX}{constraint_uid}"
         if key in scene:
             del scene[key]
-
-    def apply_constraint_value_endpoints(self, tolerance: float = 1e-9) -> bool:
-        """Read scene custom-property driver targets and apply changed values
-        into the actual constraints.  Returns True if any value changed so the
-        caller can schedule a solve pass.
-        """
-        changed = False
-        scene = self.id_data
-        for constraint in self.constraints.dimensional:
-            uid = getattr(constraint, "constraint_uid", "")
-            if not uid:
-                continue
-            key = f"{_EP_PREFIX}{uid}"
-            if key not in scene:
-                continue
-            ep_value = float(scene[key])
-            if abs(ep_value - constraint.value) <= tolerance:
-                continue
-            constraint._set_value_force(
-                constraint.from_displayed_value(ep_value)
-            )
-            sketch = getattr(constraint, "sketch", None)
-            if sketch:
-                sketch.geometry_solved = False
-            changed = True
-        return changed
 
     def purge_stale_data(self):
         global_data.hover = -1
