@@ -15,7 +15,7 @@ from ..utilities.math import range_2pi
 from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import POINT, LINE, POINT2D, CURVE
-from ..utilities.solver import update_system_cb
+from ..utilities.solver import update_system_cb, constraint_value_update_cb
 from ..utilities.bpy import setprop, bpyEnum
 
 from .workplane import SlvsWorkplane
@@ -59,9 +59,22 @@ def _get_value(self):
     if self.is_reference:
         val = self.init_props(align=self.align)["value"]
         return self.to_displayed_value(val)
-    if not self.is_property_set("value_store"):
-        self.assign_init_props()
-    return self.to_displayed_value(self.value_store)
+    scene = getattr(self, "id_data", None)
+    uid = getattr(self, "constraint_uid", "")
+    if scene is not None and uid:
+        key = f"slvs:c:{uid}"
+        if key in scene:
+            return self.to_displayed_value(float(scene[key]))
+    val = self.init_props(align=self.align).get("value", 0.0)
+    return self.to_displayed_value(val)
+
+
+def _flip_update_cb(self, context):
+    update_system_cb(self, context)
+
+    from ..solver import solve_system
+
+    solve_system(context, sketch=self.sketch)
 
 
 class SlvsDistance(DimensionalConstraint, PropertyGroup):
@@ -75,7 +88,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         self.align_store = alignment
         if self.entity1 is None or self.entity2 is None:
             return
-        self.value_store = _get_aligned_distance(self.entity1, self.entity2, alignment)
+        scene = getattr(self, "id_data", None)
+        uid = getattr(self, "constraint_uid", "")
+        if scene is not None and uid:
+            scene[f"slvs:c:{uid}"] = _get_aligned_distance(self.entity1, self.entity2, alignment)
 
     def _get_align(self) -> int:
         if not self.is_property_set("align_store"):
@@ -88,6 +104,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         subtype="DISTANCE",
         unit="LENGTH",
         precision=6,
+        options={"HIDDEN"},
     )
     align_store: EnumProperty(
         name="Align Storage",
@@ -98,11 +115,11 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         subtype="DISTANCE",
         unit="LENGTH",
         precision=6,
-        update=update_system_cb,
+        update=constraint_value_update_cb,
         get=_get_value,
         set=DimensionalConstraint._set_value,
     )
-    flip: BoolProperty(name="Flip", update=update_system_cb)
+    flip: BoolProperty(name="Flip", update=_flip_update_cb)
     align: EnumProperty(
         name="Align",
         items=align_items,
@@ -327,9 +344,25 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     def _get_init_value(self, alignment):
         e1, e2 = self.entity1, self.entity2
 
-        if e1 is None or e2 is None:
-            if self.is_property_set("value_store"):
-                return self.value_store
+        if e1 is None:
+            scene = getattr(self, "id_data", None)
+            uid = getattr(self, "constraint_uid", "")
+            if scene is not None and uid:
+                key = f"slvs:c:{uid}"
+                if key in scene:
+                    return float(scene[key])
+            return 0.0
+
+        if e2 is None:
+            if e1.is_line():
+                return _get_aligned_distance(e1.p1, e1.p2, alignment)
+
+            scene = getattr(self, "id_data", None)
+            uid = getattr(self, "constraint_uid", "")
+            if scene is not None and uid:
+                key = f"slvs:c:{uid}"
+                if key in scene:
+                    return float(scene[key])
             return 0.0
 
         if e1.is_3d():
