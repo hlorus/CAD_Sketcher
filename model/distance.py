@@ -69,6 +69,14 @@ def _get_value(self):
     return self.to_displayed_value(val)
 
 
+def _flip_update_cb(self, context):
+    update_system_cb(self, context)
+
+    from ..solver import solve_system
+
+    solve_system(context, sketch=self.sketch)
+
+
 class SlvsDistance(DimensionalConstraint, PropertyGroup):
     """Sets the distance between a point and some other entity (point/line/Workplane)."""
 
@@ -111,7 +119,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         get=_get_value,
         set=DimensionalConstraint._set_value,
     )
-    flip: BoolProperty(name="Flip", update=update_system_cb)
+    flip: BoolProperty(name="Flip", update=_flip_update_cb)
     align: EnumProperty(
         name="Align",
         items=align_items,
@@ -336,7 +344,19 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     def _get_init_value(self, alignment):
         e1, e2 = self.entity1, self.entity2
 
-        if e1 is None or e2 is None:
+        if e1 is None:
+            scene = getattr(self, "id_data", None)
+            uid = getattr(self, "constraint_uid", "")
+            if scene is not None and uid:
+                key = f"slvs:c:{uid}"
+                if key in scene:
+                    return float(scene[key])
+            return 0.0
+
+        if e2 is None:
+            if e1.is_line():
+                return _get_aligned_distance(e1.p1, e1.p2, alignment)
+
             scene = getattr(self, "id_data", None)
             uid = getattr(self, "constraint_uid", "")
             if scene is not None and uid:

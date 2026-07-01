@@ -141,10 +141,12 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
             if scene is not None and uid:
                 key = f"slvs:c:{uid}"
                 if key in scene:
-                    return math.degrees(float(scene[key]))
+                    angle = math.degrees(float(scene[key]))
+                    return 180.0 - angle if setting else angle
             return 0.0
         vec1, vec2 = e1.direction_vec(), e2.direction_vec()
-        return self._get_angle(vec1, vec2)
+        angle = self._get_angle(vec1, vec2)
+        return 180.0 - angle if setting else angle
 
     def init_props(self, **kwargs):
         """

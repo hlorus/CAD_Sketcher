@@ -112,7 +112,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
             value = kwargs["value"]
         else:
             value = self._get_init_value(setting)
-        return {"value": value, "setting": setting}
+        return {"setting": setting, "value": value}
 
     def matrix_basis(self):
         if self.sketch_i == -1:
