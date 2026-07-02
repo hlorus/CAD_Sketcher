@@ -54,6 +54,7 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
         if succeede:
             if self.has_coincident():
                 solve_system(context, sketch=self.sketch)
+            self.sketch.geometry_solved = False
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_point2d,))

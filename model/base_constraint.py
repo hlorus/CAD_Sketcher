@@ -32,6 +32,7 @@ class GenericConstraint:
 
         name: StringProperty(name="Name", get=_name_getter, set=_name_setter)
     failed: BoolProperty(name="Failed")
+    constraint_uid: StringProperty(name="Constraint UID", default="")
     visible: BoolProperty(name="Visible", default=True, update=update_cb)
     is_reference = False  # Only DimensionalConstraint can be reference
     signature = ()
@@ -254,19 +255,44 @@ class DimensionalConstraint(GenericConstraint):
             self._set_value_force(self.from_displayed_value(displayed_value))
 
     def _set_value_force(self, value: float):
-        self.value_store = value
+        scene = getattr(self, "id_data", None)
+        uid = getattr(self, "constraint_uid", "")
+        if scene is not None and uid:
+            scene[f"slvs:c:{uid}"] = value
 
     def _get_value(self):
         if self.is_reference:
             val = self.init_props()["value"]
             return self.to_displayed_value(val)
-        if not self.is_property_set("value_store"):
-            self.assign_init_props()
-        return self.to_displayed_value(self.value_store)
+        scene = getattr(self, "id_data", None)
+        uid = getattr(self, "constraint_uid", "")
+        if scene is not None and uid:
+            key = f"slvs:c:{uid}"
+            if key in scene:
+                return self.to_displayed_value(float(scene[key]))
+        val = self.init_props().get("value", 0.0)
+        return self.to_displayed_value(val)
 
     def assign_settings(self, **settings):
         for key, value in settings.items():
             if value is None:
+                continue
+
+            # "value" has a custom RNA getter that may call assign_init_props,
+            # so never read it back — just write unconditionally.
+            if key == "value":
+                setprop(self, key, value)
+                continue
+
+            # For all other keys (e.g. "setting", "flip", "align") skip the
+            # write when the value is unchanged so we don't fire update
+            # callbacks that would re-enter assign_init_props and recurse.
+            try:
+                current = getattr(self, key)
+            except Exception:
+                current = object()
+
+            if current == value:
                 continue
 
             setprop(self, key, value)
@@ -316,10 +342,14 @@ class DimensionalConstraint(GenericConstraint):
         sub.prop(self, "is_reference")
         if hasattr(self, "value"):
             col = sub.column()
-            # Could not find a way to have the property "readonly",
-            # so we disable user input instead
-            col.prop(self, "value")
             col.enabled = not self.is_reference
+            scene = getattr(self, "id_data", None)
+            uid = getattr(self, "constraint_uid", "")
+            key = None
+            if scene and uid:
+                key = scene.sketcher.get_constraint_value_endpoint(self)
+            if key:
+                col.prop(scene, f'["{key}"]')
         if hasattr(self, "setting"):
             row = sub.row()
             row.prop(self, "setting")

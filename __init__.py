@@ -8,7 +8,7 @@ from bpy.app import background
 bl_info = {
     "name": "CAD Sketcher",
     "author": "hlorus",
-    "version": (0, 27, 6),
+    "version": (0, 27, 7),
     "blender": (4, 0, 0),
     "location": "View3D > Toolbar",
     "description": "Parametric, constraint-based geometry sketcher",

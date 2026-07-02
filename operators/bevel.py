@@ -154,7 +154,10 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
                         target.invert_direction = True
 
         refresh(context)
-        solve_system(context)
+        sketch = context.scene.sketcher.active_sketch
+        if sketch:
+            sketch.geometry_solved = False
+        solve_system(context, sketch)
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_bevel,))

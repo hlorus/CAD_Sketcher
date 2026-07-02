@@ -64,7 +64,14 @@ def unregister_handlers():
 def on_depsgraph_update(scene, depsgraph):
     from . import global_data
 
+
+    if depsgraph.id_type_updated("SCENE"):
+        global_data.needs_solve = True
+
     if global_data.needs_solve:
+        if global_data.stateful_op_running:
+            return
+
         global_data.needs_solve = False
         from .curve_solver import solve_system
         from .model.sketch_ref import get_active_sketch

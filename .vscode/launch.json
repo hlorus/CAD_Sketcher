@@ -4,7 +4,7 @@
 
         {
             "name": "Pytest+debugger",
-            "type": "python",
+            "type": "debugpy",
             "request": "attach",
             "connect": {
                 "host": "localhost",
@@ -13,28 +13,27 @@
             "preLaunchTask": "Run Blender+testing",
             "pathMappings": [
                 {
-                    "localRoot": "${workspaceFolder}",
-                    "remoteRoot": "."
+                    "localRoot": "${config:cadSketcher.localRoot}",
+                    "remoteRoot": "${config:cadSketcher.remoteRoot}"
                 }
             ],
-            "justMyCode": true
+            "justMyCode": false
         },
         {
             "name": "Interactive+debugger",
-            "type": "python",
+            "type": "debugpy",
             "request": "attach",
             "connect": {
                 "host": "localhost",
                 "port": 5678
             },
-            "preLaunchTask": "Run Blender interactively",
             "pathMappings": [
                 {
-                    "localRoot": "${workspaceFolder}",
-                    "remoteRoot": "."
+                    "localRoot": "${config:cadSketcher.localRoot}",
+                    "remoteRoot": "${config:cadSketcher.remoteRoot}"
                 }
             ],
-            "justMyCode": true
+            "justMyCode": false
         }
     ]
 }

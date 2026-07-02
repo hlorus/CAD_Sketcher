@@ -3,6 +3,7 @@ from bpy.props import IntProperty, BoolProperty
 from bpy.types import Context, Event
 from mathutils import Vector
 
+from .. import global_data
 from .state_machine import _StateMachineMixin
 from .utilities.generic import to_list
 from .utilities.description import state_desc, stateful_op_desc
@@ -258,48 +259,59 @@ class StatefulOperatorLogic(_StateMachineMixin):
         return False
 
     def invoke(self, context: Context, event: Event):
+        global_data.stateful_op_running = True
+        entered_modal = False
         self._state_data.clear()
         self._numeric = NumericInput()
         self._state_snapshot = self.create_snapshot(context)
+        try:
+            if hasattr(self, "init"):
+                if not self.init(context, event):
+                    return self._end(context, False)
 
-        if hasattr(self, "init"):
-            if not self.init(context, event):
-                return self._end(context, False)
+            retval = {"RUNNING_MODAL"}
+            go_modal = True
 
-        retval = {"RUNNING_MODAL"}
-        go_modal = True
+            if is_numeric_input(event):
+                if self.init_numeric(True):
+                    self._numeric.evaluate_event(event)
+                    self.evaluate_state(context, event, False)
 
-        if is_numeric_input(event):
-            if self.init_numeric(True):
-                self._numeric.evaluate_event(event)
-                self.evaluate_state(context, event, False)
+            # wait_for_input=True: respect selection for prefill, but wait for LMB
+            elif self.wait_for_input:
+                retval = self.prefill_state_props(context)
+                if retval == {"FINISHED"}:
+                    go_modal = False
+                if not self.executed and self.check_props():
+                    self.run_op(context)
+                    self.executed = True
+                context.area.tag_redraw()
 
-        # wait_for_input=True: respect selection for prefill, but wait for LMB
-        elif self.wait_for_input:
-            retval = self.prefill_state_props(context)
-            if retval == {"FINISHED"}:
-                go_modal = False
-            if not self.executed and self.check_props():
-                self.run_op(context)
-                self.executed = True
-            context.area.tag_redraw()
+            self.set_status_text(context)
 
-        self.set_status_text(context)
+            if go_modal:
+                context.window.cursor_modal_set("CROSSHAIR")
+                context.window_manager.modal_handler_add(self)
+                entered_modal = True
+                return retval
 
-        if go_modal:
-            context.window.cursor_modal_set("CROSSHAIR")
-            context.window_manager.modal_handler_add(self)
-            return retval
-
-        succeede = retval == {"FINISHED"}
-        # NOTE: Pushing an undo step here causes duplicated constraints after redo.
-        return self._end(context, succeede)
+            succeede = retval == {"FINISHED"}
+            # NOTE: Pushing an undo step here causes duplicated constraints after redo.
+            return self._end(context, succeede)
+        finally:
+            if not entered_modal and global_data.stateful_op_running:
+                global_data.stateful_op_running = False
 
     def execute(self, context: Context):
-        self._numeric = NumericInput()
-        self.redo_states(context)
-        ok = self.main(context)
-        return self._end(context, ok, skip_undo=True)
+        global_data.stateful_op_running = True
+        try:
+            self._numeric = NumericInput()
+            self.redo_states(context)
+            ok = self.main(context)
+            return self._end(context, ok, skip_undo=True)
+        finally:
+            if global_data.stateful_op_running:
+                global_data.stateful_op_running = False
 
     def _handle_pass_through(self, context: Context, event: Event):
         if event.type in {"MIDDLEMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE", "MOUSEMOVE"}:
@@ -496,12 +508,15 @@ class StatefulOperatorLogic(_StateMachineMixin):
                     )
                     self.set_state_pointer(to_list(ret_values), index=i, implicit=True)
 
-    def _end(self, context, succeede, skip_undo=False):
+    def _end(self, context, succeede, skip_undo=False, keep_stateful_running=False):
         context.window.cursor_modal_restore()
         if hasattr(self, "fini"):
             self.fini(context, succeede)
         self.on_before_redo_states(context)
         context.workspace.status_text_set(None)
+
+        if not keep_stateful_running:
+            global_data.stateful_op_running = False
 
         if not succeede and not skip_undo:
             if self._state_snapshot is not None:
@@ -549,7 +564,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         The last pointer of the finished segment (e.g. a line endpoint)
         becomes the first pointer of the new segment, creating a chain.
         """
-        self._end(context, True)
+        self._end(context, True, keep_stateful_running=True)
         bpy.ops.ed.undo_push(message=self.bl_label)
 
         # Save the endpoint before _reset_op wipes state
