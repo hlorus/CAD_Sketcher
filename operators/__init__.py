@@ -27,6 +27,7 @@ modules = [
     "offset",
     "set_sketch",
     "delete_entity",
+    "delete_sketch",
     "delete_constraint",
     "constraint_visibility",
     "tweak_constraint",
@@ -40,6 +41,7 @@ modules = [
     "modifiers",
     "move",
     "duplicate",
+    "set_curve_flag",
     "test"
 ]
 

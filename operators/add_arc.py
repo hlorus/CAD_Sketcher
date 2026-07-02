@@ -7,8 +7,9 @@ from mathutils import Vector
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
-from ..solver import solve_system
+from ..curve_solver import solve_system
 from ..utilities.math import pol2cart
+from ..model.curve_ref import ArcRef
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
@@ -53,24 +54,41 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
     )
 
     def get_endpoint_pos(self, context: Context, coords):
-        mouse_pos = get_pos_2d(context, self.sketch.wp, coords)
+        mouse_pos = get_pos_2d(context, self._get_wp(), coords)
         if mouse_pos is None:
             return None
 
-        # Get angle to mouse pos
         ct = self.get_point(context, 0).co
-        x, y = Vector(mouse_pos) - ct
-        angle = math.atan2(y, x)
-
-        # Get radius from distance ct - p1
         p1 = self.get_point(context, 1).co
+
+        x, y = Vector(mouse_pos) - ct
+        mouse_angle = math.atan2(y, x)
+        start_angle = math.atan2((p1 - ct).y, (p1 - ct).x)
+
+        # Track cumulative angular displacement from start
+        if not hasattr(self, "_prev_mouse_angle"):
+            self._prev_mouse_angle = mouse_angle
+            self._cumulative_angle = 0.0
+
+        # Compute delta with wrap handling
+        delta = mouse_angle - self._prev_mouse_angle
+        if delta > math.pi:
+            delta -= 2 * math.pi
+        elif delta < -math.pi:
+            delta += 2 * math.pi
+        self._cumulative_angle += delta
+        self._prev_mouse_angle = mouse_angle
+
+        # Direction: negative cumulative = clockwise = invert
+        self._arc_invert = self._cumulative_angle < 0
+
+        # Snap endpoint to circle
         radius = (p1 - ct).length
-        pos = pol2cart(radius, angle) + ct
+        pos = pol2cart(radius, mouse_angle) + ct
         return pos
 
     def solve_state(self, context: Context, _event: Event):
-        sketch = context.scene.sketcher.active_sketch
-        solve_system(context, sketch=sketch)
+        solve_system(context, sketch=self.sketch)
         return True
 
     def main(self, context):
@@ -80,19 +98,13 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
             self.get_point(context, 2),
         )
         sketch = self.sketch
-        sse = context.scene.sketcher.entities
-        arc = sse.add_arc(sketch.wp.nm, ct, p1, p2, sketch)
+        construction = context.scene.sketcher.use_construction
 
-        center = ct.co
-        start = p1.co - center
-        end = p2.co - center
-        a = end.angle_signed(start)
-        arc.invert_direction = a < 0
+        invert = getattr(self, "_arc_invert", False)
+        start, end = (p2, p1) if invert else (p1, p2)
 
-        ignore_hover(arc)
-        self.target = arc
-        if context.scene.sketcher.use_construction:
-            self.target.construction = True
+        self.target = ArcRef.create(sketch, ct, start, end, construction=construction)
+        ignore_hover(self.target.curve_id)
         return True
 
     def fini(self, context: Context, succeede: bool):

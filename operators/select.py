@@ -38,15 +38,20 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
             deselect_all(context)
 
         if hit:
-            entity = context.scene.sketcher.entities.get(index)
+            # Work directly with global_data.selected — no entity lookup needed
+            is_selected = index in global_data.selected
 
-            value = True
             if mode == "SUBTRACT":
-                value = False
-            if mode == "TOGGLE":
-                value = not entity.selected
-
-            entity.selected = value
+                if is_selected:
+                    global_data.selected.remove(index)
+            elif mode == "TOGGLE":
+                if is_selected:
+                    global_data.selected.remove(index)
+                else:
+                    global_data.selected.append(index)
+            else:  # SET or EXTEND
+                if not is_selected:
+                    global_data.selected.append(index)
 
         context.area.tag_redraw()
         return {"FINISHED"}

@@ -1,9 +1,10 @@
 from bpy.types import Operator, Context
+from ..model.sketch_ref import get_active_sketch
 from bpy.props import BoolProperty
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
-from ..solver import Solver
+from ..curve_solver import Solver
 
 
 class View3D_OT_slvs_solve(Operator):
@@ -13,7 +14,7 @@ class View3D_OT_slvs_solve(Operator):
     all: BoolProperty(name="Solve All", options={"SKIP_SAVE"})
 
     def execute(self, context: Context):
-        sketch = context.scene.sketcher.active_sketch
+        sketch = get_active_sketch(context)
         solver = Solver(context, sketch, all=self.all)
         ok = solver.solve()
 

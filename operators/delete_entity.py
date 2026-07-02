@@ -1,122 +1,113 @@
 import logging
 
 from bpy.utils import register_classes_factory
-from bpy.props import IntProperty, BoolProperty
+from bpy.props import IntProperty
 from bpy.types import Operator, Context
 
-from ..model.types import SlvsSketch
+from .. import global_data
+from ..model.sketch_ref import get_active_sketch
 from ..utilities.view import refresh
+from ..utilities.curve_data import remove_native_curve_by_id
 from ..declarations import Operators
-from ..utilities.ui import show_ui_message_popup
-from ..utilities.data_handling import (
-    get_constraint_local_indices,
-    get_entity_deps,
-    get_sketch_deps_indicies,
-    is_entity_dependency,
-)
-from ..utilities.highlighting import HighlightElement
-from .utilities import activate_sketch
-from ..solver import solve_system
+from ..curve_solver import solve_system
 
 logger = logging.getLogger(__name__)
 
 
-class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
-    """Delete Entity by index or based on the selection if index isn't provided"""
+def _get_dependent_curve_ids(sketch, curve_id):
+    """Find curve_ids that reference this curve_id via relationship attributes."""
+    if not sketch or not sketch.target_object or not sketch.target_object.data:
+        return []
+
+    cd = sketch.target_object.data
+    n = len(cd.curves)
+    cid_attr = cd.attributes.get("curve_id")
+    sp_attr = cd.attributes.get("start_point_id")
+    ep_attr = cd.attributes.get("end_point_id")
+    cp_attr = cd.attributes.get("center_point_id")
+    if not cid_attr:
+        return []
+
+    deps = []
+    for i in range(n):
+        cid = cid_attr.data[i].value
+        if cid == curve_id:
+            continue
+        if sp_attr and sp_attr.data[i].value == curve_id:
+            deps.append(cid)
+        elif ep_attr and ep_attr.data[i].value == curve_id:
+            deps.append(cid)
+        elif cp_attr and cp_attr.data[i].value == curve_id:
+            deps.append(cid)
+    return deps
+
+
+def _get_constraint_indices_for_curve_id(curve_id, context):
+    """Find constraints that reference a curve_id."""
+    from ..model.sketch_ref import get_active_constraints
+    constraints = get_active_constraints(context)
+    if not constraints:
+        return []
+    ret_list = []
+
+    for data_coll in constraints.get_lists():
+        indices = []
+        for i, c in enumerate(data_coll):
+            if getattr(c, "curve_id_1", 0) == curve_id:
+                indices.append(i)
+            elif getattr(c, "curve_id_2", 0) == curve_id:
+                indices.append(i)
+            elif getattr(c, "curve_id_3", 0) == curve_id:
+                indices.append(i)
+        if indices:
+            ret_list.append((data_coll, indices))
+    return ret_list
+
+
+class View3D_OT_slvs_delete_entity(Operator):
+    """Delete selected sketch geometry"""
 
     bl_idname = Operators.DeleteEntity
     bl_label = "Delete Entity"
-    bl_description = (
-        "Delete Entity by index or based on the selection if index isn't provided"
-    )
     bl_options = {"UNDO"}
 
     index: IntProperty(default=-1)
-    do_report: BoolProperty(
-        name="Report", description="Report entities that prevent deletion", default=True
-    )
-
-    @staticmethod
-    def main(context: Context, index: int, operator: Operator):
-        entities = context.scene.sketcher.entities
-        entity = entities.get(index)
-
-        if not entity:
-            return {"CANCELLED"}
-
-        if isinstance(entity, SlvsSketch):
-            if context.scene.sketcher.active_sketch_i != -1:
-                activate_sketch(context, -1, operator)
-            entity.remove_objects()
-
-            deps = get_sketch_deps_indicies(entity, context)
-
-            for i in reversed(deps):
-                operator.delete(entities.get(i), context)
-
-        elif is_entity_dependency(entity, context):
-            if operator.do_report:
-                deps = list(get_entity_deps(entity, context))
-                msg_deps = "\n".join([f" - {d}" for d in deps])
-                message = f"Unable to delete {entity.name}, other entities depend on it:\n{msg_deps}"
-                show_ui_message_popup(message=message, icon="ERROR")
-
-                operator.report(
-                    {"WARNING"},
-                    "Cannot delete {}, other entities depend on it.".format(
-                        entity.name
-                    ),
-                )
-            return {"CANCELLED"}
-
-        operator.delete(entity, context)
-
-    @staticmethod
-    def delete(entity, context: Context):
-        entity.selected = False
-
-        # Delete constraints that depend on entity
-        constraints = context.scene.sketcher.constraints
-
-        for data_coll, indices in get_constraint_local_indices(entity, context):
-            if not indices:
-                continue
-            for i in reversed(indices):
-                logger.debug("Delete: {}, {}".format(data_coll, i))
-                data_coll.remove(i)
-
-        logger.debug("Delete: {}".format(entity))
-        entities = context.scene.sketcher.entities
-        entities.remove(entity.slvs_index)
 
     def execute(self, context: Context):
-        index = self.index
-        selected = context.scene.sketcher.entities.selected_active
+        sketch = get_active_sketch(context)
+        if not sketch:
+            return {"CANCELLED"}
 
-        if index != -1:
-            # Entity is specified via property
-            self.main(context, index, self)
-        elif len(selected) == 1:
-            # Treat single selection same as specified entity
-            self.main(context, selected[0].slvs_index, self)
+        to_delete = []
+        if self.index != -1:
+            to_delete.append(self.index)
         else:
-            # Batch deletion
-            indices = []
-            for e in selected:
-                indices.append(e.slvs_index)
+            to_delete.extend(list(global_data.selected))
 
-            indices.sort(reverse=True)
-            for i in indices:
-                e = context.scene.sketcher.entities.get(i)
+        if not to_delete:
+            return {"CANCELLED"}
 
-                # NOTE: this might be slow when a lot of entities are selected, improve!
-                if is_entity_dependency(e, context):
-                    continue
-                self.delete(e, context)
+        for cid in to_delete:
+            self._delete_curve(context, sketch, cid)
 
-        solve_system(context, context.scene.sketcher.active_sketch)
+        global_data.selected.clear()
+        global_data.hover = -1
+
+        solve_system(context, sketch=sketch)
         refresh(context)
         return {"FINISHED"}
+
+    def _delete_curve(self, context, sketch, curve_id):
+        deps = _get_dependent_curve_ids(sketch, curve_id)
+        if deps:
+            for dep_cid in deps:
+                self._delete_curve(context, sketch, dep_cid)
+
+        for data_coll, indices in _get_constraint_indices_for_curve_id(curve_id, context):
+            for i in reversed(indices):
+                data_coll.remove(i)
+
+        remove_native_curve_by_id(sketch, curve_id)
 
 
 register, unregister = register_classes_factory((View3D_OT_slvs_delete_entity,))

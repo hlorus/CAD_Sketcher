@@ -45,9 +45,8 @@ class View3D_OT_slvs_align_view(bpy.types.Operator):
     bl_description = "Align the viewport to a given sketch"
     bl_options = {'UNDO'}
 
-    sketch_index: bpy.props.IntProperty(name="Sketch Index", default=-1, description="Index of the sketch to align to, -1 for default view")
-    use_active: bpy.props.BoolProperty(name="Use Active Sketch", default=False, description="Use the active sketch instead of the index")
-    duration: bpy.props.FloatProperty(name="duration", default=0.3, min=0, max=2, description="Duration of the animation in seconds")
+    use_active: bpy.props.BoolProperty(name="Use Active Sketch", default=False)
+    duration: bpy.props.FloatProperty(name="duration", default=0.3, min=0, max=2)
 
 
     def execute(self, context):
@@ -65,11 +64,17 @@ class View3D_OT_slvs_align_view(bpy.types.Operator):
         START_LOCATION = REGION3D.view_location.copy()
         START_ROTATION = REGION3D.view_rotation.copy()
 
-        sketcher = context.scene.sketcher
-        sketch = sketcher.active_sketch if self.use_active else sketcher.entities.get(self.sketch_index)
+        from ..model.sketch_ref import get_active_sketch
+        sketch = get_active_sketch(context) if self.use_active else None
 
         if sketch:
-            TARGET_MATRIX = sketch.wp.matrix_basis
+            wp_obj = sketch.workplane_object
+            if not wp_obj and sketch.target_object and sketch.target_object.parent:
+                wp_obj = sketch.target_object.parent
+            if wp_obj:
+                TARGET_MATRIX = wp_obj.matrix_world.copy()
+            else:
+                TARGET_MATRIX = mathutils.Matrix.Identity(4)
             REGION3D.view_perspective = "ORTHO"
         else:
             # Restore the viewport to its default

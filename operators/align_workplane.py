@@ -1,9 +1,8 @@
 from bpy.utils import register_classes_factory
-from bpy.props import IntProperty
 from bpy.types import Operator, Context
 
-from ..model.types import SlvsWorkplane
 from ..declarations import Operators
+from ..model.sketch_ref import get_active_sketch
 
 
 class View3D_OT_slvs_align_workplane_cursor(Operator):
@@ -13,16 +12,17 @@ class View3D_OT_slvs_align_workplane_cursor(Operator):
     bl_label = "Align Workplane to 3D Cursor"
     bl_options = {"UNDO"}
 
-    index: IntProperty(default=-1)
-
     def execute(self, context: Context):
-        wp = context.scene.sketcher.entities.get(self.index)
-        if not wp or not isinstance(wp, SlvsWorkplane):
+        sketch = get_active_sketch(context)
+        if not sketch:
+            return {"CANCELLED"}
+
+        wp_obj = sketch.workplane_object
+        if not wp_obj:
             return {"CANCELLED"}
 
         cursor = context.scene.cursor
-        wp.nm.orientation = cursor.matrix.to_quaternion()
-        wp.p1.location = cursor.location
+        wp_obj.matrix_world = cursor.matrix
         return {"FINISHED"}
 
 

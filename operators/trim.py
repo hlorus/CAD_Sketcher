@@ -1,6 +1,7 @@
 import logging
 
 from bpy.types import Operator, Context
+from ..model.sketch_ref import get_active_sketch
 
 from ..model.categories import SEGMENT
 from ..declarations import Operators
@@ -38,7 +39,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
     # NOTE: That does not work if run with select -> action
     def pick_element_coords(self, context, coords):
         data = self.state_data
-        data["mouse_pos"] = get_pos_2d(context, self.sketch.wp, coords)
+        data["mouse_pos"] = get_pos_2d(context, self._get_wp(), coords)
         return super().pick_element(context, coords)
 
     def main(self, context: Context):
@@ -48,7 +49,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
         if not succeede:
             return False
 
-        sketch = context.scene.sketcher.active_sketch
+        sketch = get_active_sketch(context)
         segment = self.segment
 
         mouse_pos = self._state_data[0].get("mouse_pos")
@@ -70,8 +71,8 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
 
         # Find points that are connected to the segment through a coincident constraint
         for c in (
-            *context.scene.sketcher.constraints.coincident,
-            *context.scene.sketcher.constraints.midpoint,
+            *get_active_constraints(context).coincident,
+            *get_active_constraints(context).midpoint,
         ):
             ents = c.entities()
             if segment not in ents:

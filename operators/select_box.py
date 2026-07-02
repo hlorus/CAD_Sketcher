@@ -106,28 +106,29 @@ class View3D_OT_slvs_select_box(Operator):
         unique_pixels = []
         [unique_pixels.append(p[:-1]) for p in pixels if p[:-1] not in unique_pixels]
 
-        entities = []
+        curve_ids = []
         for pixel in unique_pixels:
             r, g, b = pixel
-
-            index = rgb_to_index(r, g, b)
-            entity = context.scene.sketcher.entities.get(index)
-            entities.append(entity)
+            cid = rgb_to_index(r, g, b)
+            if cid > 0:
+                curve_ids.append(cid)
 
         mode = self.mode
         if mode == "SET":
             deselect_all(context)
 
-        value = True
-        toggle = mode == "TOGGLE"
-        if mode == "SUBTRACT":
-            value = False
-
-        for e in entities:
-            if toggle:
-                e.selected = not e.selected
-                continue
-            e.selected = value
+        for cid in curve_ids:
+            if mode == "TOGGLE":
+                if cid in global_data.selected:
+                    global_data.selected.remove(cid)
+                else:
+                    global_data.selected.append(cid)
+            elif mode == "SUBTRACT":
+                if cid in global_data.selected:
+                    global_data.selected.remove(cid)
+            else:
+                if cid not in global_data.selected:
+                    global_data.selected.append(cid)
 
         refresh(context)
         return True

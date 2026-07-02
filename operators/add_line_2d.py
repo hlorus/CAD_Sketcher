@@ -9,7 +9,8 @@ from ..utilities.constants import HALF_TURN, QUARTER_TURN
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
-from ..solver import solve_system
+from ..curve_solver import solve_system
+from ..model.curve_ref import LineRef
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
@@ -46,29 +47,28 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
     )
 
     def main(self, context: Context):
-        wp = self.sketch.wp
         p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
+        sketch = self.sketch
+        construction = context.scene.sketcher.use_construction
 
-        self.target = context.scene.sketcher.entities.add_line_2d(p1, p2, self.sketch)
-        if context.scene.sketcher.use_construction:
-            self.target.construction = True
+        self.target = LineRef.create(sketch, p1, p2, construction=construction)
+        line_cid = self.target.curve_id
 
         # auto vertical/horizontal constraint
         self.has_alignment = False
-        constraints = context.scene.sketcher.constraints
         vec_dir = self.target.direction_vec()
         if vec_dir.length:
             angle = vec_dir.angle(Vector((1, 0)))
 
             threshold = 0.1
             if angle < threshold or angle > HALF_TURN - threshold:
-                constraints.add_horizontal(self.target, sketch=self.sketch)
+                sketch.constraints.add_horizontal(curve_id_1=line_cid)
                 self.has_alignment = True
             elif (QUARTER_TURN - threshold) < angle < (QUARTER_TURN + threshold):
-                constraints.add_vertical(self.target, sketch=self.sketch)
+                sketch.constraints.add_vertical(curve_id_1=line_cid)
                 self.has_alignment = True
 
-        ignore_hover(self.target)
+        ignore_hover(line_cid)
         return True
 
     def continue_draw(self):

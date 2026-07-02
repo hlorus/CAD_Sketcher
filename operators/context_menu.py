@@ -1,4 +1,5 @@
 import bpy
+from ..model.sketch_ref import get_active_constraints
 from bpy.utils import register_classes_factory
 from bpy.props import StringProperty, BoolProperty, IntProperty
 from bpy.types import Operator, Context, Event, PropertyGroup
@@ -46,19 +47,26 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
         # Constraints
         if self.properties.is_property_set("type"):
             constraint_index = self.index
-            constraints = context.scene.sketcher.constraints
+            constraints = get_active_constraints(context)
             element = constraints.get_from_type_index(self.type, self.index)
             is_entity = False
         else:
             # Entities
-            entity_index = (
+            hover = (
                 self.index
                 if self.properties.is_property_set("index")
                 else global_data.hover
             )
 
-            if entity_index != -1:
-                element = context.scene.sketcher.entities.get(entity_index)
+            if hover and hover > 0:
+                # Try as curve_id — show CurveRef info
+                from ..model.sketch_ref import get_active_sketch
+                sketch = get_active_sketch(context)
+                if sketch:
+                    from ..model.curve_ref import curve_ref
+                    ref = curve_ref(sketch, hover)
+                    if ref.valid:
+                        element = ref
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column()

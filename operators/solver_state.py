@@ -14,13 +14,14 @@ class View3D_OT_slvs_show_solver_state(Operator):
     index: IntProperty(default=-1)
 
     def execute(self, context: Context):
-        index = self.index
-        if index == -1:
+        from ..model.sketch_ref import get_active_sketch
+
+        sketch = get_active_sketch(context)
+        if not sketch:
             return {"CANCELLED"}
 
         def draw_item(self, context: Context):
             layout = self.layout
-            sketch = context.scene.sketcher.entities.get(index)
             state = sketch.get_solver_state()
 
             row = layout.row(align=True)

@@ -1,4 +1,5 @@
 import bpy
+from ..model.sketch_ref import get_active_constraints
 from bpy.utils import register_classes_factory
 from bpy.props import IntProperty, StringProperty
 from bpy.types import Operator, Context, Event
@@ -41,7 +42,7 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
 
         coords = event.mouse_region_x, event.mouse_region_y
 
-        constraints = context.scene.sketcher.constraints
+        constraints = get_active_constraints(context)
         constr = constraints.get_from_type_index(self.type, self.index)
 
         origin, end_point = get_picking_origin_end(context, coords)

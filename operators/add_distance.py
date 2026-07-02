@@ -7,12 +7,9 @@ from .base_constraint import GenericConstraintOp
 from ..model.distance import align_items
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
+from ..model.curve_ref import PointRef, LineRef
 
 from ..model.distance import SlvsDistance
-from ..model.line_2d import SlvsLine2D
-from ..model.point_2d import SlvsPoint2D
-from ..model.types import SlvsPoint3D
-from ..model.types import SlvsLine3D
 
 logger = logging.getLogger(__name__)
 
@@ -38,35 +35,36 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
     property_keys = ("value", "align", "flip")
 
     def main(self, context):
-        if isinstance(self.entity1, SlvsLine2D) and self.entity2 is None:
-            dependencies = self.entity1.dependencies()
-            if (isinstance(dependencies[0], SlvsPoint2D) and
-                    isinstance(dependencies[1], SlvsPoint2D)):
-                # for loop changes the values of self.entity1 and self.entity2
-                # from a line entity to its endpoints
-                for i in range(0, 2):
-                    state_data = self.get_state_data(i)
-                    state_data["hovered"] = -1
-                    state_data["type"] = type(dependencies[i])
-                    state_data["is_existing_entity"] = True
-                    state_data["entity_index"] = dependencies[i].slvs_index
-                self.next_state(context)  # end user selection, no need for second entity
+        e1, e2 = self.entity1, self.entity2
 
-        if (isinstance(self.entity1, (SlvsPoint3D, SlvsLine3D)) or
-                isinstance(self.entity2, (SlvsPoint3D, SlvsLine3D))):
-            max_constraints = 3
-        elif ((isinstance(self.entity1, SlvsLine2D) and self.entity2 is None) or
-                isinstance(self.entity1, SlvsPoint2D) and isinstance(self.entity2, SlvsPoint2D)):
+        # Line length: expand line to its endpoints
+        if isinstance(e1, LineRef) and e2 is None:
+            p1, p2 = e1.p1, e1.p2
+            if p1 and p2:
+                for i, pt in enumerate((p1, p2)):
+                    state_data = self.get_state_data(i)
+                    state_data["hovered"] = 0
+                    state_data["type"] = PointRef
+                    state_data["is_existing_entity"] = True
+                    state_data["curve_id"] = pt.curve_id
+                self.next_state(context)
+                e1, e2 = self.entity1, self.entity2
+
+        if isinstance(e1, LineRef) and e2 is None:
+            max_constraints = 2
+        elif isinstance(e1, PointRef) and isinstance(e2, PointRef):
             max_constraints = 2
         else:
             max_constraints = 1
 
+        cid1 = e1.curve_id if e1 else 0
+        cid2 = e2.curve_id if e2 else 0
+
         if not self.exists(context, SlvsDistance, max_constraints):
-            self.target = context.scene.sketcher.constraints.add_distance(
-                self.entity1,
-                self.entity2,
-                sketch=self.sketch,
+            self.target = self.sketch.constraints.add_distance(
                 init=not self.initialized,
+                curve_id_1=cid1,
+                curve_id_2=cid2,
                 **self.get_settings(),
             )
         return super().main(context)

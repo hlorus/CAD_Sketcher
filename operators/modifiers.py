@@ -36,7 +36,7 @@ class NodeOperator(Operator3d):
     def poll(cls, context):
         if not context.active_object:
             return False
-        # if context.scene.sketcher.active_sketch_i != -1:
+        # if context.scene.sketcher.active_sketch_object is not None:
         #     return False
         return True
 

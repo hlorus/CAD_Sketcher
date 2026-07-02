@@ -3,25 +3,17 @@ from bpy.props import BoolProperty
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
-from ..solver import Solver
-from ..converters import update_geometry
+from ..utilities.curve_data import refresh_curve_geometry
 
 
 class VIEW3D_OT_update(Operator):
-    bl_idname = "view3d.slvs_update"
-    bl_label = "Update"
-
     bl_idname = Operators.Update
     bl_label = "Force Update"
 
-    solve: BoolProperty(name="Solve", default=True, description="Solve the sketches before converting the geometry")
-
     def execute(self, context: Context):
-        if self.solve:
-            solver = Solver(context, None, all=True)
-            solver.solve()
-
-        update_geometry(context.scene, self)
+        from ..model.sketch_ref import get_sketches
+        for sketch in get_sketches(context):
+            refresh_curve_geometry(sketch)
         return {"FINISHED"}
 
 

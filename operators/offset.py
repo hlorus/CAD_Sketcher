@@ -168,7 +168,7 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         if not succeede:
             return
 
-        constraints = context.scene.sketcher.constraints
+        constraints = get_active_constraints(context)
 
         # Add parallel constraint
         # for entity, new_entity in zip(self.entities, self.new_path):

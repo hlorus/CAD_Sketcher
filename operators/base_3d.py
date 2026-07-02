@@ -10,7 +10,7 @@ from .utilities import ignore_hover
 class Operator3d(GenericEntityOp):
     @classmethod
     def poll(cls, context: Context):
-        return context.scene.sketcher.active_sketch_i == -1
+        return context.scene.sketcher.active_sketch_object is None
 
     def state_func(self, context: Context, coords):
         state = self.state

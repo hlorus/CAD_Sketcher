@@ -8,7 +8,7 @@ from ..model.types import SlvsLine2D
 from ..model.types import SlvsArc
 from ..utilities.constants import HALF_TURN
 from ..utilities.view import refresh
-from ..solver import solve_system
+from ..curve_solver import solve_system
 from ..utilities.data_handling import is_entity_referenced
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
@@ -131,7 +131,8 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         context.view_layer.update()
 
         # Add tangent constraints
-        ssc = context.scene.sketcher.constraints
+        from ..model.sketch_ref import get_active_constraints
+        ssc = get_active_constraints(context)
         ssc.add_tangent(self.arc, seg1, sketch)
         ssc.add_tangent(self.arc, seg2, sketch)
 

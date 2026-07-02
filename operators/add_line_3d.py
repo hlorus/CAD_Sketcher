@@ -6,7 +6,7 @@ from bpy.props import BoolProperty
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
-from ..solver import solve_system
+from ..curve_solver import solve_system
 from .base_3d import Operator3d
 from .constants import types_point_3d
 from .utilities import ignore_hover

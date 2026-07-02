@@ -7,8 +7,9 @@ from mathutils import Vector
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
-from ..solver import solve_system
+from ..curve_solver import solve_system
 from ..utilities.view import get_pos_2d
+from ..model.curve_ref import CircleRef
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
@@ -52,21 +53,19 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
     )
 
     def get_radius(self, context: Context, coords):
-        wp = self.sketch.wp
+        wp = self._get_wp()
         pos = get_pos_2d(context, wp, coords)
         delta = Vector(pos) - self.ct.co
         radius = delta.length
         return radius
 
     def main(self, context: Context):
-        wp = self.sketch.wp
         ct = self.get_point(context, 0)
-        self.target = context.scene.sketcher.entities.add_circle(
-            wp.nm, ct, self.radius, self.sketch
-        )
-        if context.scene.sketcher.use_construction:
-            self.target.construction = True
-        ignore_hover(self.target)
+        sketch = self.sketch
+        construction = context.scene.sketcher.use_construction
+
+        self.target = CircleRef.create(sketch, ct, self.radius, construction=construction)
+        ignore_hover(self.target.curve_id)
         return True
 
     def fini(self, context: Context, succeede: bool):

@@ -1,11 +1,13 @@
 import logging
+from ..model.sketch_ref import get_active_constraints
 from typing import List
 from bpy.types import Context
 from bpy.props import BoolProperty
 
 from ..utilities.bpy import setprop
 from ..model.types import SlvsConstraints
-from ..solver import solve_system
+from ..curve_solver import solve_system
+from ..utilities.curve_data import refresh_curve_geometry
 from ..stateful_operator.state import state_from_args
 from ..utilities.select import deselect_all
 from ..utilities.view import refresh
@@ -108,6 +110,8 @@ class GenericConstraintOp(Operator2d):
 
         deselect_all(context)
         solve_system(context, sketch=self.sketch)
+        if self.sketch:
+            refresh_curve_geometry(self.sketch)
         refresh(context)
         self.initialized = True
         return hasattr(self, "target") and bool(self.target)
@@ -127,15 +131,17 @@ class GenericConstraintOp(Operator2d):
             layout.prop(self, key)
 
     def exists(self, context, constraint_type=None, max_constraints=1) -> bool:
-        if hasattr(self, "entity2"):
-            new_dependencies = [i for i in [self.entity1, self.entity2, self.sketch] if i is not None]
-        else:
-            new_dependencies = [i for i in [self.entity1, self.sketch] if i is not None]
+        new_cids = set()
+        for name in self._entity_prop_names:
+            e = getattr(self, name, None)
+            if e and hasattr(e, "curve_id"):
+                new_cids.add(e.curve_id)
 
         constraint_counter = 0
-        for c in context.scene.sketcher.constraints.all:
+        for c in get_active_constraints(context).all:
             if isinstance(c, constraint_type):
-                if set(c.dependencies()) == set(new_dependencies):
+                c_cids = set(c.curve_id_placements())
+                if c_cids == new_cids:
                     constraint_counter += 1
                     if constraint_counter >= max_constraints:
                         return True
