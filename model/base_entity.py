@@ -183,9 +183,11 @@ class SlvsGenericEntity:
         if preferences.use_experimental("all_entities_selectable", False):
             return True
 
-        active_sketch = context.scene.sketcher.active_sketch
+        active_sketch = get_active_sketch(context)
         if active_sketch and hasattr(self, "sketch"):
-            # Allow to select entities that share the active sketch's wp
+            # Allow to select entities that share the active sketch's workplane
+            if active_sketch.workplane_object and self.sketch.workplane_object:
+                return active_sketch.workplane_object == self.sketch.workplane_object
             return active_sketch.wp == self.sketch.wp
         return self.is_active(active_sketch)
 
@@ -195,7 +197,8 @@ class SlvsGenericEntity:
     def color(self, context: Context):
         prefs = get_prefs()
         ts = prefs.theme_settings
-        active = self.is_active(context.scene.sketcher.active_sketch)
+        from .sketch_ref import get_active_sketch
+        active = self.is_active(get_active_sketch(context))
         highlight = self.is_highlight()
         fixed = self.fixed
         origin = self.origin
@@ -320,7 +323,7 @@ class SlvsGenericEntity:
 
         if hasattr(self, "target_object") and self.target_object:
             ob = self.target_object
-            if ob.sketch_index == index_old:
+            if hasattr(ob, "sketch_index") and ob.sketch_index == index_old:
                 ob.sketch_index = index_new
 
     def connection_points(self):
@@ -409,6 +412,18 @@ class Entity2D(SlvsGenericEntity):
     @property
     def wp(self):
         return self.sketch.wp
+
+    @property
+    def wp_matrix(self):
+        """Get the workplane transform matrix from any available source."""
+        if self.sketch.workplane_object:
+            return self.sketch.workplane_object.matrix_world
+        if self.sketch.target_object and self.sketch.target_object.parent:
+            return self.sketch.target_object.parent.matrix_world
+        if self.sketch.wp:
+            return self.sketch.wp.matrix_basis
+        from mathutils import Matrix
+        return Matrix.Identity(4)
 
     @classmethod
     def is_3d(cls):

@@ -1,4 +1,5 @@
 import logging
+from ..model.sketch_ref import get_active_constraints
 
 import bpy
 from bpy.types import Context
@@ -37,14 +38,15 @@ class Intersection:
         if self.is_constraint():
             return self.element.entities()[0]
         if self._point is None:
-            sketch = context.scene.sketcher.active_sketch
+            from ..model.sketch_ref import get_active_sketch
+            sketch = get_active_sketch(context)
             # Implicitly create point at co
             self._point = context.scene.sketcher.entities.add_point_2d(self.co, sketch)
 
             # Add coincident constraint
             if self.is_entity():  # and self.element.is_segment()
-                c = context.scene.sketcher.constraints.add_coincident(
-                    self._point, self.element, sketch=sketch
+                c = get_active_constraints(context).add_coincident(
+                    curve_id_1=0, curve_id_2=0,  # TODO: migrate trimming to curve_ids
                 )
 
         return self._point
@@ -136,7 +138,7 @@ class TrimSegment:
 
         # Get constraints
         constrs = {}
-        for c in context.scene.sketcher.constraints.all:
+        for c in get_active_constraints(context).all:
             entities = c.entities()
             if self.segment not in entities:
                 continue
@@ -198,7 +200,7 @@ class TrimSegment:
         for intr in self.obsolete_intersections:
             if intr.is_constraint():
                 c = intr.element
-                i = context.scene.sketcher.constraints.get_index(c)
+                i = get_active_constraints(context).get_index(c)
                 # TODO: Make this a class reference
                 bpy.ops.view3d.slvs_delete_constraint(type=c.type, index=i)
             if intr.is_entity():

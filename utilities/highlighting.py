@@ -1,4 +1,5 @@
 from bpy.props import BoolProperty
+from ..model.sketch_ref import get_active_constraints
 from bpy.types import PropertyGroup, Context, Event
 
 from .. import global_data
@@ -46,7 +47,7 @@ class HighlightElement:
 
         if hasattr(properties, "type") and properties.is_property_set("type"):
             type = properties.type
-            c = context.scene.sketcher.constraints.get_from_type_index(type, index)
+            c = get_active_constraints(context).get_from_type_index(type, index)
 
             global_data.highlight_constraint = c
             if members:
@@ -56,8 +57,9 @@ class HighlightElement:
             # Set hover so this could be used as selection
             global_data.hover = properties.index
             if members:
-                e = context.scene.sketcher.entities.get(index)
-                global_data.highlight_entities.extend(e.dependencies())
+                c = get_active_constraints(context).get_from_type_index(type, index) if type else None
+                if c:
+                    global_data.highlight_entities.extend(c.curve_id_placements())
 
         context.area.tag_redraw()
         return cls.__doc__

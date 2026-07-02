@@ -46,12 +46,28 @@ def get_placement_pos(context: Context, coords: Vector) -> Vector:
 
 
 def get_pos_2d(context: Context, wp, coords: Vector) -> Vector:
-    """Returns the coordinates on the workplane the mouse points at"""
+    """Returns the coordinates on the workplane the mouse points at.
+
+    wp can be a SlvsWorkplane entity or a Blender Object (empty).
+    """
     origin, end_point = get_picking_origin_end(context, coords)
-    pos = intersect_line_plane(origin, end_point, wp.p1.location, wp.normal)
+
+    # Support both entity workplanes and empty objects
+    if hasattr(wp, 'p1'):
+        # Entity workplane
+        wp_origin = wp.p1.location
+        wp_normal = wp.normal
+        mat = wp.matrix_basis
+    else:
+        # Empty object
+        mat = wp.matrix_world
+        wp_origin = mat.translation
+        wp_normal = Vector(mat.col[2][:3]).normalized()
+
+    pos = intersect_line_plane(origin, end_point, wp_origin, wp_normal)
     if pos is None:
         return None
-    pos = wp.matrix_basis.inverted() @ pos
+    pos = mat.inverted() @ pos
     return Vector(pos[:-1])
 
 

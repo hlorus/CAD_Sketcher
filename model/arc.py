@@ -1,5 +1,6 @@
 import logging
 from typing import List
+from .sketch_ref import get_active_sketch
 
 import bpy
 from bpy.types import PropertyGroup, Context
@@ -10,7 +11,7 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
+from ..curve_solver import Solver
 from .base_entity import SlvsGenericEntity, tag_update
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer
@@ -99,7 +100,7 @@ class SlvsArc(Entity2D, PropertyGroup):
             coords = coords_arc_2d(0, 0, radius, segments, angle=angle, offset=offset)
 
             mat_local = Matrix.Translation(self.ct.co.to_3d())
-            mat = self.wp.matrix_basis @ mat_local
+            mat = self.wp_matrix @ mat_local
             coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
         kwargs = {"pos": coords}
@@ -142,7 +143,7 @@ class SlvsArc(Entity2D, PropertyGroup):
     def placement(self):
         coords = self.ct.co + pol2cart(self.radius, self.start_angle + self.angle / 2)
 
-        return self.wp.matrix_basis @ coords.to_3d()
+        return self.wp_matrix @ coords.to_3d()
 
     def connection_points(self, direction: bool = False):
         points = [self.start, self.end]
@@ -361,7 +362,7 @@ class SlvsArc(Entity2D, PropertyGroup):
             self.p2 = p2
             return self
 
-        sketch = context.scene.sketcher.active_sketch
+        sketch = get_active_sketch(context)
         arc = context.scene.sketcher.entities.add_arc(
             sketch.wp.nm, self.ct, p1, p2, sketch
         )

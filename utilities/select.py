@@ -1,31 +1,32 @@
 import logging
 
 from bpy.props import EnumProperty
+from ..model.sketch_ref import get_active_sketch
 from bpy.types import Context
 
 from .. import global_data
-from ..utilities.data_handling import entities_3d
 
 logger = logging.getLogger(__name__)
 
 
 def select_all(context: Context):
-    sketch = context.scene.sketcher.active_sketch
-    if sketch:
-        logger.debug(
-            f"Selecting all sketcher entities in sketch : {sketch.name} (slvs_index: {sketch.slvs_index})"
-        )
-        generator = sketch.sketch_entities(context)
-    else:
-        logger.debug(f"Selecting all sketcher entities")
-        generator = entities_3d(context)
+    sketch = get_active_sketch(context)
+    if not sketch or not sketch.target_object or not sketch.target_object.data:
+        return
 
-    for e in generator:
-        if e.selected:
+    curve_data = sketch.target_object.data
+    n = len(curve_data.curves)
+    cid_attr = curve_data.attributes.get("curve_id")
+    vis_attr = curve_data.attributes.get("visible")
+    if not cid_attr:
+        return
+
+    for i in range(n):
+        if vis_attr and not vis_attr.data[i].value:
             continue
-        if not e.is_selectable(context):
-            continue
-        e.selected = True
+        cid = cid_attr.data[i].value
+        if cid and cid not in global_data.selected:
+            global_data.selected.append(cid)
 
 
 def deselect_all(context: Context):

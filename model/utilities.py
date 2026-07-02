@@ -159,14 +159,6 @@ def update_pointers(scene, index_old, index_new):
     # NOTE: this should go through all entity pointers and update them if necessary.
     # It might be possible to use the msgbus to notify and update the IntProperty pointers
 
-    if scene.sketcher.active_sketch_i == index_old:
-        logger.debug(
-            "Update reference {} of {} to {}: ".format(
-                "active_sketch", scene.sketcher, index_new
-            )
-        )
-        scene.sketcher.active_sketch_i = index_new
-
     for o in scene.sketcher.all:
         if not hasattr(o, "update_pointers"):
             continue

@@ -9,7 +9,7 @@ from mathutils import Matrix, Vector
 from bpy.utils import register_classes_factory
 
 from ..utilities.draw import draw_rect_2d
-from ..solver import Solver
+from ..curve_solver import Solver
 from .base_entity import SlvsGenericEntity, Entity2D, tag_update
 from .utilities import slvs_entity_pointer, make_coincident
 from .line_2d import SlvsLine2D
@@ -30,7 +30,7 @@ class Point2D(Entity2D):
         u, v = self.co
         mat_local = Matrix.Translation(Vector((u, v, 0)))
 
-        mat = self.wp.matrix_basis @ mat_local
+        mat = self.wp_matrix @ mat_local
         size = 0.1
         coords = draw_rect_2d(0, 0, size, size)
         coords = [(mat @ Vector(co))[:] for co in coords]
@@ -43,7 +43,12 @@ class Point2D(Entity2D):
     def location(self):
         u, v = self.co
         mat_local = Matrix.Translation(Vector((u, v, 0)))
-        mat = self.wp.matrix_basis @ mat_local
+        if self.wp:
+            mat = self.wp_matrix @ mat_local
+        elif self.sketch and self.sketch.workplane_object:
+            mat = self.sketch.workplane_object.matrix_world @ mat_local
+        else:
+            mat = mat_local
         return mat @ Vector((0, 0, 0))
 
     def placement(self):

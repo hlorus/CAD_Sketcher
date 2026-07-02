@@ -122,9 +122,9 @@ def setprop(data, key, value):
     """Set a property value, handling enum index conversion."""
     prop = data.rna_type.properties[key]
 
-    # Handle Enums which have to be set by the item's id rather than identifier
-    if prop.type == "ENUM":
-        value = prop.enum_items[value].value
+    # Handle Enums: convert int index to string identifier
+    if prop.type == "ENUM" and isinstance(value, int):
+        value = prop.enum_items[value].identifier
 
     setattr(data, key, value)
 

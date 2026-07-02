@@ -1,6 +1,7 @@
 import logging
 import math
 from typing import List
+from .sketch_ref import get_active_sketch
 
 import bpy
 from bpy.types import PropertyGroup
@@ -10,7 +11,7 @@ from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
+from ..curve_solver import Solver
 from ..utilities.math import range_2pi, pol2cart
 from .base_entity import SlvsGenericEntity, tag_update
 from .base_entity import Entity2D
@@ -73,7 +74,7 @@ class SlvsCircle(Entity2D, PropertyGroup):
         u, v = self.ct.co
 
         mat_local = Matrix.Translation(Vector((u, v, 0)))
-        mat = self.wp.matrix_basis @ mat_local
+        mat = self.wp_matrix @ mat_local
         coords = [(mat @ Vector((*co, 0)))[:] for co in coords]
 
         kwargs = {"pos": coords}
@@ -105,7 +106,7 @@ class SlvsCircle(Entity2D, PropertyGroup):
         return pol2cart(self.radius, angle) + self.ct.co
 
     def placement(self):
-        return self.wp.matrix_basis @ self.point_on_curve(45).to_3d()
+        return self.wp_matrix @ self.point_on_curve(45).to_3d()
 
     @classmethod
     def is_closed(cls):
@@ -204,7 +205,7 @@ class SlvsCircle(Entity2D, PropertyGroup):
             self.p2 = p2
             return self
 
-        sketch = context.scene.sketcher.active_sketch
+        sketch = get_active_sketch(context)
         arc = context.scene.sketcher.entities.add_arc(
             sketch.wp.nm, self.ct, p1, p2, sketch
         )

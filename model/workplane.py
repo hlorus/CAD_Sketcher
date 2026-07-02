@@ -13,7 +13,7 @@ from .. import global_data
 from ..utilities.draw import draw_rect_2d
 from ..shaders import Shaders
 from ..utilities import preferences
-from ..solver import Solver
+from ..curve_solver import Solver
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 

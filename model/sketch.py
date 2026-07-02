@@ -7,55 +7,37 @@ from bpy.props import EnumProperty, BoolProperty, IntProperty, PointerProperty
 from bpy.utils import register_classes_factory
 
 from .. import global_data
-from ..solver import Solver, solve_system
+from ..curve_solver import Solver, solve_system
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
 from ..utilities.bpy import bpyEnum
 
 logger = logging.getLogger(__name__)
 
-convert_items = [
-    ("NONE", "None", "", 1),
-    ("CURVE", "Curve", "Converts the sketch to the native curve type", 2),
-]
-
-
-# TODO: draw sketches and allow selecting
 class SlvsSketch(SlvsGenericEntity, PropertyGroup):
-    """A sketch groups 2 dimensional entities together and is used to later
-    convert geometry to native blender types.
+    """A sketch groups 2 dimensional entities together.
 
     Entities that belong to a sketch can only be edited as long as the sketch is active.
-
-    Arguments:
-        wp (SlvsWorkplane): The base workplane of the sketch
     """
 
-    def hide_sketch(self, context):
-        if self.convert_type != "NONE":
-            self.visible = False
-
-    convert_type: EnumProperty(
-        name="Convert Type",
-        items=convert_items,
-        description="Define how the sketch should be converted in order to be usable in native blender",
-        update=hide_sketch,
-    )
-    fill_shape: BoolProperty(
-        name="Fill Shape",
-        description="Fill the resulting shape if it's closed",
-        default=True,
-    )
     solver_state: EnumProperty(
         name="Solver Status", items=global_data.solver_state_items
     )
     dof: IntProperty(name="Degrees of Freedom", max=6)
-    target_curve: PointerProperty(type=bpy.types.Curve)
-    target_curve_object: PointerProperty(type=bpy.types.Object)
     target_mesh: PointerProperty(type=bpy.types.Mesh)
     target_object: PointerProperty(type=bpy.types.Object)
     curve_resolution: IntProperty(
         name="Mesh Curve Resolution", default=12, min=1, soft_max=25
+    )
+    next_curve_id: IntProperty(
+        name="Next Curve ID",
+        description="Counter for generating unique curve IDs within this sketch",
+        default=1,
+    )
+    workplane_object: PointerProperty(
+        type=bpy.types.Object,
+        name="Workplane Object",
+        description="Empty object whose transform defines the workplane",
     )
 
     def dependencies(self) -> List[SlvsGenericEntity]:
@@ -84,10 +66,8 @@ class SlvsSketch(SlvsGenericEntity, PropertyGroup):
         pass
 
     def remove_objects(self):
-        for ob in (self.target_object, self.target_curve_object):
-            if not ob:
-                continue
-            bpy.data.objects.remove(ob)
+        if self.target_object:
+            bpy.data.objects.remove(self.target_object)
 
     def is_visible(self, context):
         if context.scene.sketcher.active_sketch_i == self.slvs_index:

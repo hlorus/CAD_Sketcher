@@ -7,7 +7,7 @@ from bpy.utils import register_class, unregister_class
 from bpy.props import IntProperty, BoolProperty, PointerProperty, IntVectorProperty
 
 from .. import global_data
-from ..solver import solve_system
+from ..curve_solver import solve_system
 from .utilities import slvs_entity_pointer
 from .base_entity import SlvsGenericEntity
 from .group_entities import SlvsEntities
@@ -23,6 +23,12 @@ class SketcherProps(PropertyGroup):
     entities: PointerProperty(type=SlvsEntities)
     constraints: PointerProperty(type=SlvsConstraints)
     show_origin: BoolProperty(name="Show Origin Entities")
+
+    # Origin workplane empties
+    wp_xy: PointerProperty(type=bpy.types.Object, name="XY Workplane")
+    wp_xz: PointerProperty(type=bpy.types.Object, name="XZ Workplane")
+    wp_yz: PointerProperty(type=bpy.types.Object, name="YZ Workplane")
+
     use_construction: BoolProperty(
         name="Construction Mode",
         description="Draw all subsequent entities in construction mode",
@@ -40,6 +46,12 @@ class SketcherProps(PropertyGroup):
     version: IntVectorProperty(
         name="Extension Version",
         description="CAD Sketcher extension version this scene was saved with",
+    )
+
+    # Active sketch — the Curves object being edited
+    active_sketch_object: PointerProperty(
+        type=bpy.types.Object,
+        name="Active Sketch Object",
     )
 
     # This is needed for the sketches ui list
@@ -64,19 +76,11 @@ class SketcherProps(PropertyGroup):
             e.dirty = True
 
 
-slvs_entity_pointer(SketcherProps, "active_sketch", update=update_cb)
-
-
-# register, unregister = register_classes_factory((SketcherProps,))
-
-
 def register():
     register_class(SketcherProps)
     bpy.types.Scene.sketcher = PointerProperty(type=SketcherProps)
-    bpy.types.Object.sketch_index = IntProperty(name="Parent Sketch", default=-1)
 
 
 def unregister():
-    del bpy.types.Object.sketch_index
     del bpy.types.Scene.sketcher
     unregister_class(SketcherProps)

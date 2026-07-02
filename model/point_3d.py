@@ -7,7 +7,7 @@ from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
 
 from ..utilities.draw import draw_cube_3d
-from ..solver import Solver
+from ..curve_solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import tag_update
 
