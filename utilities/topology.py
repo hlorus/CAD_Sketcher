@@ -321,35 +321,79 @@ class SketchTopology:
     # -----------------------------------------------------------------------
 
     def walk_path(self, start_ref, exclude_construction=True):
-        """Walk connected segments starting from start_ref."""
-        visited = set()
+        """Walk connected segments in linear order from start_ref.
+
+        Walks in one direction first, then the other, producing a properly
+        ordered path suitable for offset/bevel operations.
+        """
+        if exclude_construction and start_ref.construction:
+            return PathResult()
+
+        visited = {start_ref.curve_id}
+
+        def _walk_direction(ref, from_point_id):
+            """Walk one direction, returning (segments, directions) in order."""
+            segs = []
+            dirs = []
+            current = ref
+            current_from = from_point_id
+
+            while True:
+                # Find the exit point (the point we didn't come from)
+                pts = _get_point_ids(current)
+                exit_pts = [p for p in pts if p != current_from]
+                if not exit_pts:
+                    break
+
+                exit_pid = exit_pts[0]
+
+                # Find next unvisited segment at exit point
+                next_seg = None
+                for next_ref, _ in self.get_connected_segments(exit_pid):
+                    if next_ref.curve_id in visited:
+                        continue
+                    if exclude_construction and next_ref.construction:
+                        continue
+                    next_seg = next_ref
+                    break
+
+                if not next_seg:
+                    break
+
+                visited.add(next_seg.curve_id)
+
+                # Determine direction: inverted if we enter from the end point
+                sp_id = next_seg._get_attr_value("start_point_id", 0)
+                inverted = (exit_pid != sp_id)
+                segs.append(next_seg)
+                dirs.append(inverted)
+
+                # Continue from the other end of next_seg
+                current = next_seg
+                current_from = exit_pid
+
+            return segs, dirs
+
+        # Start segment direction
+        sp_id = start_ref._get_attr_value("start_point_id", 0)
+        ep_id = start_ref._get_attr_value("end_point_id", 0)
+
+        # Walk forward (from end point)
+        fwd_segs, fwd_dirs = _walk_direction(start_ref, sp_id)
+
+        # Walk backward (from start point)
+        bwd_segs, bwd_dirs = _walk_direction(start_ref, ep_id)
+
+        # Combine: backward(reversed) + start + forward
+        bwd_segs.reverse()
+        bwd_dirs.reverse()
+        # Flip backward directions since we reversed the order
+        bwd_dirs = [not d for d in bwd_dirs]
+
         result = PathResult()
+        result.segments = bwd_segs + [start_ref] + fwd_segs
+        result.directions = bwd_dirs + [False] + fwd_dirs
 
-        def _walk(ref, from_point_id=None):
-            if ref.curve_id in visited:
-                return
-            if exclude_construction and ref.construction:
-                return
-
-            visited.add(ref.curve_id)
-            result.segments.append(ref)
-
-            # Determine direction
-            sp_id = ref._get_attr_value("start_point_id", 0)
-            inverted = (from_point_id is not None and from_point_id != sp_id)
-            result.directions.append(inverted)
-
-            # Find next segment
-            pts = _get_point_ids(ref)
-            for pid in pts:
-                if pid == from_point_id:
-                    continue
-                for next_ref, _ in self.get_connected_segments(pid):
-                    if next_ref.curve_id not in visited:
-                        if not exclude_construction or not next_ref.construction:
-                            _walk(next_ref, pid)
-
-        _walk(start_ref)
         return result
 
     def walk_all_paths(self, exclude_construction=True):
@@ -427,10 +471,16 @@ class SketchTopology:
         self.invalidate()
 
     def create_like(self, ref, p1, p2, construction=False):
-        """Create a new segment of the same type as ref, with new endpoints."""
+        """Create a new segment of the same type as ref, with new endpoints.
+
+        For circles, creates an arc using the circle's center point.
+        """
         if isinstance(ref, LineRef):
             return LineRef.create(self._sketch, p1, p2, construction=construction)
         elif isinstance(ref, ArcRef):
+            return ArcRef.create(self._sketch, ref.ct, p1, p2, construction=construction)
+        elif isinstance(ref, CircleRef):
+            # Circle trimmed to arc
             return ArcRef.create(self._sketch, ref.ct, p1, p2, construction=construction)
         return None
 
