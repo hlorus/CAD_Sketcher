@@ -1,9 +1,10 @@
 import logging
 
 from bpy.types import PropertyGroup
+from bpy.props import IntProperty
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
+from ..curve_solver import Solver
 from ..global_data import WpReq
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
@@ -18,6 +19,20 @@ class SlvsParallel(GenericConstraint, PropertyGroup):
     type = "PARALLEL"
     label = "Parallel"
     signature = ((SlvsLine2D,), (SlvsLine2D,))
+
+
+    curve_id_1: IntProperty(name="Curve ID 1", default=0)
+    curve_id_2: IntProperty(name="Curve ID 2", default=0)
+
+    def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
+        h1 = handle_map.get(self.curve_id_1)
+        h2 = handle_map.get(self.curve_id_2)
+        if h1 is None or h2 is None:
+            return None
+        kwargs = {}
+        if wp:
+            kwargs['workplane'] = wp
+        return solvesys.parallel(group, h1, h2, **kwargs)
 
     def needs_wp(self):
         return WpReq.NOT_FREE
@@ -36,7 +51,7 @@ class SlvsParallel(GenericConstraint, PropertyGroup):
         )
 
     def placements(self):
-        return (self.entity1, self.entity2)
+        return (self.ref(1), self.ref(2))
 
 
 slvs_entity_pointer(SlvsParallel, "entity1")

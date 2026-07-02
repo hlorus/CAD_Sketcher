@@ -1,9 +1,10 @@
 import logging
 
 from bpy.types import PropertyGroup
+from bpy.props import IntProperty
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
+from ..curve_solver import Solver
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
 from .categories import LINE, CURVE
@@ -32,12 +33,22 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
     def get_types(cls, index, entities):
         e = entities[1] if index == 0 else entities[0]
         if e:
-            if type(e) in (SlvsLine2D, SlvsArc):
+            if e.is_line() or e.is_arc():
                 return (SlvsLine2D, SlvsArc)
-            elif type(e) == SlvsCircle:
+            elif e.is_circle():
                 return CURVE
-            return (type(e),)
+            return cls.signature[index]
         return cls.signature[index]
+
+    def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
+        h1 = handle_map.get(self.curve_id_1)
+        h2 = handle_map.get(self.curve_id_2)
+        if h1 is None or h2 is None:
+            return None
+        kwargs = {}
+        if wp:
+            kwargs['workplane'] = wp
+        return solvesys.equal(group, h1, h2, **kwargs)
 
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         e1, e2 = self.entity1, self.entity2
@@ -50,7 +61,7 @@ class SlvsEqual(GenericConstraint, PropertyGroup):
         return solvesys.equal(group, e1.py_data, e2.py_data, **kwargs)
 
     def placements(self):
-        return (self.entity1, self.entity2)
+        return (self.ref(1), self.ref(2))
 
 
 slvs_entity_pointer(SlvsEqual, "entity1")

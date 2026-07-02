@@ -1,10 +1,10 @@
 import logging
 
 from bpy.types import PropertyGroup
-from bpy.props import FloatProperty
+from bpy.props import FloatProperty, IntProperty
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
+from ..curve_solver import Solver
 from ..global_data import WpReq
 from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
@@ -36,6 +36,19 @@ class SlvsRatio(DimensionalConstraint, PropertyGroup):
         LINE,
     )
 
+    curve_id_1: IntProperty(name="Curve ID 1", default=0)
+    curve_id_2: IntProperty(name="Curve ID 2", default=0)
+
+    def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
+        h1 = handle_map.get(self.curve_id_1)
+        h2 = handle_map.get(self.curve_id_2)
+        if h1 is None or h2 is None:
+            return None
+        kwargs = {}
+        if wp:
+            kwargs['workplane'] = wp
+        return solvesys.ratio(group, h1, h2, self.value, **kwargs)
+
     def needs_wp(self):
         if isinstance(self.entity1, SlvsLine2D) or isinstance(self.entity2, SlvsLine2D):
             return WpReq.NOT_FREE
@@ -58,15 +71,15 @@ class SlvsRatio(DimensionalConstraint, PropertyGroup):
         )
 
     def init_props(self, **kwargs):
-        line1, line2 = self.entity1, self.entity2
-        if line2.length == 0.0:
-            return {"value": 0.0}
-
-        value = line1.length / line2.length
-        return {"value": value}
+        r1, r2 = self.ref(1), self.ref(2)
+        if r1 and r2:
+            if r2.length == 0.0:
+                return {"value": 0.0}
+            return {"value": r1.length / r2.length}
+        return {"value": 0.0}
 
     def placements(self):
-        return (self.entity1, self.entity2)
+        return (self.ref(1), self.ref(2))
 
 
 slvs_entity_pointer(SlvsRatio, "entity1")

@@ -48,7 +48,7 @@ class GenericConstraint:
         needs_wp = self.needs_wp()
 
         workplane = None
-        if self.sketch_i != -1:
+        if self.sketch_i != -1 and self.sketch:
             workplane = self.sketch.wp
 
         if workplane and needs_wp != WpReq.FREE:
@@ -102,28 +102,56 @@ class GenericConstraint:
             return self.sketch.is_visible(context) and self.visible
         return self.visible
 
+    def is_orphan(self):
+        """Check if this constraint's sketch object has been deleted."""
+        import bpy
+        c_sketch_name = self.get("_sketch_object", "")
+        if c_sketch_name:
+            return bpy.data.objects.get(c_sketch_name) is None
+        return False
+
     def is_active(self, active_sketch):
+        if self.is_orphan():
+            return False
+
         if not hasattr(self, "sketch"):
             return not active_sketch
 
         show_inactive = not preferences.use_experimental(
             "hide_inactive_constraints", True
         )
-        if show_inactive:  # and self.is_visible(context)
+        if show_inactive:
             return True
 
+        # Compare by sketch object name (new) or entity pointer (legacy)
+        c_sketch_name = self.get("_sketch_object", "")
+        if c_sketch_name and active_sketch:
+            active_obj = active_sketch.target_object if hasattr(active_sketch, 'target_object') else active_sketch
+            if active_obj:
+                return c_sketch_name == active_obj.name
         return self.sketch == active_sketch
 
     def draw_plane(self):
-        if self.sketch_i != -1:
+        if self.sketch_i != -1 and self.sketch:
+            # Try workplane empty first
+            wp_obj = self.sketch.workplane_object
+            if not wp_obj and self.sketch.target_object:
+                wp_obj = self.sketch.target_object.parent
+            if wp_obj:
+                from mathutils import Vector
+                mat = wp_obj.matrix_world
+                return mat.translation.copy(), Vector(mat.col[2][:3]).normalized()
+            # Fallback to entity workplane
             wp = self.sketch.wp
-            return wp.p1.location, wp.normal
+            if wp:
+                return wp.p1.location, wp.normal
         # TODO: return drawing plane for constraints in 3d
         return None, None
 
     def copy(self, context, entities):
         # copy itself to another set of entities
-        c = context.scene.sketcher.constraints.new_from_type(self.type)
+        from .sketch_ref import get_active_constraints
+        c = get_active_constraints(context).new_from_type(self.type)
         if hasattr(self, "sketch"):
             c.sketch = self.sketch
         if hasattr(self, "setting"):
@@ -179,6 +207,32 @@ class GenericConstraint:
     def placements(self):
         """Return the entities where the constraint should be displayed"""
         return []
+
+    def curve_id_placements(self):
+        """Return curve_ids where the constraint should be displayed.
+
+        Default: returns curve_id_1 (and curve_id_2/3 if set).
+        Override for constraints with special placement logic.
+        """
+        ids = []
+        if getattr(self, 'curve_id_1', 0):
+            ids.append(self.curve_id_1)
+        if getattr(self, 'curve_id_2', 0):
+            ids.append(self.curve_id_2)
+        if getattr(self, 'curve_id_3', 0):
+            ids.append(self.curve_id_3)
+        return ids
+
+    def ref(self, n=1):
+        """Return a typed CurveRef for curve_id_N, or None if unset."""
+        cid = getattr(self, f"curve_id_{n}", 0)
+        if not cid:
+            return None
+        sketch = self.sketch if hasattr(self, "sketch") else None
+        if not sketch:
+            return None
+        from .curve_ref import curve_ref
+        return curve_ref(sketch, cid)
 
     def create_slvs_data(self, solvesys, **kwargs):
         raise NotImplementedError()

@@ -2,11 +2,11 @@ import logging
 
 import math
 from bpy.types import PropertyGroup
-from bpy.props import BoolProperty, FloatProperty
+from bpy.props import BoolProperty, FloatProperty, IntProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 
-from ..solver import Solver
+from ..curve_solver import Solver
 from ..global_data import WpReq
 from ..utilities.view import location_3d_to_region_2d
 from ..utilities.math import range_2pi, pol2cart
@@ -81,6 +81,14 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
             return value
         return value / 2
 
+    curve_id_1: IntProperty(name="Curve ID 1", default=0)
+
+    def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
+        h1 = handle_map.get(self.curve_id_1)
+        if h1 is None:
+            return None
+        return solvesys.diameter(group, h1, self.diameter)
+
     def needs_wp(self):
         return WpReq.OPTIONAL
 
@@ -88,7 +96,8 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         return solvesys.diameter(group, self.entity1.py_data, self.diameter)
 
     def _get_init_value(self, setting):
-        value = self.entity1.radius
+        r = self.ref(1)
+        value = r.radius
         if not setting:
             return value * 2
         return value
@@ -96,16 +105,15 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     def init_props(self, **kwargs):
         setting = kwargs.get("setting", self.setting)
         value = kwargs.get("value", self._get_init_value(setting))
-        return {"value": value, "setting": setting}
+        # setting must be set before value to avoid use_radius_setter halving it
+        return {"setting": setting, "value": value}
 
     def matrix_basis(self):
         if self.sketch_i == -1:
             return Matrix()
-        sketch = self.sketch
-        origin = self.entity1.ct.co
-        rotation = range_2pi(math.radians(self.leader_angle))
-        mat_local = Matrix.Translation(origin.to_3d())
-        return sketch.wp.matrix_basis @ mat_local
+        r = self.ref(1)
+        mat_local = Matrix.Translation(r.ct.co.to_3d())
+        return r.wp_matrix @ mat_local
 
     def text_inside(self):
         return self.draw_offset < self.radius

@@ -2,14 +2,14 @@ import logging
 
 import math
 from bpy.types import PropertyGroup, Context
-from bpy.props import BoolProperty, FloatProperty
+from bpy.props import BoolProperty, FloatProperty, IntProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 
 from ..utilities.math import pol2cart
 from ..utilities.constants import HALF_TURN, QUARTER_TURN
 from ..utilities.math import range_2pi
-from ..solver import Solver
+from ..curve_solver import Solver
 from ..global_data import WpReq
 from ..utilities.view import location_3d_to_region_2d
 from .base_constraint import DimensionalConstraint
@@ -33,13 +33,13 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
 
         super().assign_init_props(context)
 
-        line1, line2 = self.entity1, self.entity2
+        r1, r2 = self.ref(1), self.ref(2)
         origin = get_line_intersection(
-            *line_abc_form(line1.p1.co, line1.p2.co),
-            *line_abc_form(line2.p1.co, line2.p2.co),
+            *line_abc_form(r1.p1.co, r1.p2.co),
+            *line_abc_form(r2.p1.co, r2.p2.co),
         )
         dist = max(
-            (line1.midpoint() - origin).length, (line2.midpoint() - origin).length, 0.5
+            (r1.midpoint() - origin).length, (r2.midpoint() - origin).length, 0.5
         )
         self.draw_offset = dist if not self.setting else -dist
 
@@ -69,6 +69,16 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     signature = ((SlvsLine2D,), (SlvsLine2D,))
     props = ("value",)
 
+    curve_id_1: IntProperty(name="Curve ID 1", default=0)
+    curve_id_2: IntProperty(name="Curve ID 2", default=0)
+
+    def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
+        h1 = handle_map.get(self.curve_id_1)
+        h2 = handle_map.get(self.curve_id_2)
+        if h1 is None or h2 is None:
+            return None
+        return solvesys.angle(group, h1, h2, math.degrees(self.value), wp, self.setting)
+
     def needs_wp(self):
         return WpReq.NOT_FREE
 
@@ -94,24 +104,22 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         if self.sketch_i == -1:
             return Matrix()
 
-        sketch = self.sketch
-
-        line1 = self.entity1
-        line2 = self.entity2
-
+        r1, r2 = self.ref(1), self.ref(2)
         origin = get_line_intersection(
-            *line_abc_form(line1.p1.co, line1.p2.co),
-            *line_abc_form(line2.p1.co, line2.p2.co),
+            *line_abc_form(r1.p1.co, r1.p2.co),
+            *line_abc_form(r2.p1.co, r2.p2.co),
         )
-
-        rotation = range_2pi((self.orientation(line2) + self.orientation(line1)) / 2)
+        rotation = range_2pi(
+            (self.orientation(r2) + self.orientation(r1)) / 2
+        )
+        wp_mat = r1.wp_matrix
 
         if self.setting:
             rotation = rotation - QUARTER_TURN
 
         mat_rot = Matrix.Rotation(rotation, 2, "Z")
         mat_local = Matrix.Translation(origin.to_3d()) @ mat_rot.to_4x4()
-        return sketch.wp.matrix_basis @ mat_local
+        return wp_mat @ mat_local
 
     @staticmethod
     def orientation(line):
@@ -130,8 +138,8 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         return math.degrees(math.acos(x))
 
     def _get_init_value(self, setting):
-        vec1, vec2 = self.entity1.direction_vec(), self.entity2.direction_vec()
-        return self._get_angle(vec1, vec2)
+        r1, r2 = self.ref(1), self.ref(2)
+        return self._get_angle(r1.direction_vec(), r2.direction_vec())
 
     def init_props(self, **kwargs):
         """
