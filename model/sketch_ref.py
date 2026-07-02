@@ -41,6 +41,11 @@ class Sketch:
         return self._obj.data.sketch_constraints
 
     @property
+    def topology(self):
+        from ..utilities.topology import SketchTopology
+        return SketchTopology(self)
+
+    @property
     def name(self):
         return self._obj.name
 
