@@ -59,6 +59,14 @@ class Sketch:
         self._obj[_SOLVER_STATE] = value
 
     @property
+    def geometry_solved(self):
+        return self._obj.get("geometry_solved", True)
+
+    @geometry_solved.setter
+    def geometry_solved(self, value):
+        self._obj["geometry_solved"] = value
+
+    @property
     def dof(self):
         return self._obj.get(_DOF, 0)
 
