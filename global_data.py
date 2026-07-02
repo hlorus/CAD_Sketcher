@@ -25,6 +25,7 @@ highlight_entities = []
 
 needs_solve = False
 needs_redraw = False
+needs_curve_update = False
 
 Z_AXIS = Vector((0, 0, 1))
 

@@ -21,6 +21,7 @@ class GizmoGroups(str, Enum):
 
 class Operators(str, Enum):
     AddAngle = "view3d.slvs_add_angle"
+    SetCurveFlag = "view3d.slvs_set_curve_flag"
     AddArc2D = "view3d.slvs_add_arc2d"
     AddCircle2D = "view3d.slvs_add_circle2d"
     AddCoincident = "view3d.slvs_add_coincident"
@@ -51,6 +52,7 @@ class Operators(str, Enum):
     Copy = "view3d.slvs_copy"
     DeleteConstraint = "view3d.slvs_delete_constraint"
     DeleteEntity = "view3d.slvs_delete_entity"
+    DeleteSketch = "view3d.slvs_delete_sketch"
     InstallPackage = "view3d.slvs_install_package"
     Paste = "view3d.slvs_paste"
     Move = "view3d.slvs_move"

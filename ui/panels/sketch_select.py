@@ -2,6 +2,7 @@ from bpy.types import Context, UILayout
 
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
+from ...model.sketch_ref import get_active_sketch, get_sketches
 
 
 def sketch_selector(
@@ -10,7 +11,7 @@ def sketch_selector(
 ):
     row = layout.row(align=True)
     row.scale_y = 1.8
-    active_sketch = context.scene.sketcher.active_sketch
+    active_sketch = get_active_sketch(context)
 
     if not active_sketch:
         row.operator(
@@ -24,7 +25,7 @@ def sketch_selector(
             text="Leave: " + active_sketch.name,
             icon="BACK",
             depress=True,
-        ).index = -1
+        ).sketch_name = ""
         row.active = True
 
     row.operator(declarations.Operators.Update, icon="FILE_REFRESH", text="")
@@ -40,24 +41,19 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
         layout = self.layout
 
         sketch_selector(context, layout)
-        sketch = context.scene.sketcher.active_sketch
+        sketch = get_active_sketch(context)
         layout.use_property_split = True
         layout.use_property_decorate = False
 
         if sketch:
-            # Sketch is selected, show info about the sketch itself
+            # Sketch info
             row = layout.row()
             row.alignment = "CENTER"
             row.scale_y = 1.2
 
             if sketch.solver_state != "OKAY":
                 state = sketch.get_solver_state()
-                row.operator(
-                    declarations.Operators.ShowSolverState,
-                    text=state.name,
-                    icon=state.icon,
-                    emboss=False,
-                ).index = sketch.slvs_index
+                row.label(text=state.name, icon=state.icon)
             else:
                 dof = sketch.dof
                 dof_ok = dof <= 0
@@ -72,23 +68,34 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             layout.separator()
 
             row = layout.row()
-            row.prop(sketch, "name")
-            layout.prop(sketch, "convert_type")
-
-            layout.operator(
-                declarations.Operators.DeleteEntity,
-                text="Delete Sketch",
-                icon="X",
-            ).index = sketch.slvs_index
+            row.label(text=sketch.name)
 
         else:
-            # No active Sketch , show list of available sketches
-            layout.template_list(
-                "VIEW3D_UL_sketches",
-                "",
-                context.scene.sketcher.entities,
-                "sketches",
-                context.scene.sketcher,
-                "ui_active_sketch",
-                item_dyntip_propname="name",
-            )
+            # Sketch list
+            sketches = list(get_sketches(context))
+            if sketches:
+                col = layout.box().column(align=True)
+                for sk in sketches:
+                    row = col.row(align=True)
+
+                    # Edit sketch (left aligned)
+                    sub = row.row()
+                    sub.alignment = "LEFT"
+                    op = sub.operator(
+                        declarations.Operators.SetActiveSketch,
+                        text=sk.name,
+                        icon="OUTLINER_DATA_GP_LAYER",
+                        emboss=False,
+                    )
+                    op.sketch_name = sk.name
+
+                    # Delete sketch (right aligned)
+                    sub = row.row()
+                    sub.alignment = "RIGHT"
+                    op = sub.operator(
+                        declarations.Operators.DeleteSketch,
+                        text="",
+                        icon="X",
+                        emboss=False,
+                    )
+                    op.sketch_name = sk.name

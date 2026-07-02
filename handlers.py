@@ -66,10 +66,11 @@ def on_depsgraph_update(scene, depsgraph):
 
     if global_data.needs_solve:
         global_data.needs_solve = False
-        from .solver import solve_system
+        from .curve_solver import solve_system
+        from .model.sketch_ref import get_active_sketch
 
         context = bpy.context
-        sketch = scene.sketcher.active_sketch
+        sketch = get_active_sketch(context)
         solve_system(context, sketch=sketch)
 
     if global_data.needs_redraw:

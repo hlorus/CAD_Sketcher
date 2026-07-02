@@ -3,12 +3,20 @@ from bpy.types import Context
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
 
+from ...model.constants import SketchCurveType
+from ... import global_data
+
+
+_TYPE_NAMES = {
+    SketchCurveType.POINT: "Point",
+    SketchCurveType.LINE: "Line",
+    SketchCurveType.ARC: "Arc",
+    SketchCurveType.CIRCLE: "Circle",
+}
+
 
 class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
-    """
-    Entities Menu: List of entities in the sketch.
-    Interactive
-    """
+    """Entities Menu: List of curves in the active sketch."""
 
     bl_label = "Entities"
     bl_idname = declarations.Panels.SketcherEntities
@@ -20,37 +28,56 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
         col = box.column(align=True)
         col.scale_y = 0.8
 
-        sketch = context.scene.sketcher.active_sketch
-        for e in context.scene.sketcher.entities.all:
-            if not e.is_active(sketch):
+        from ...model.sketch_ref import get_active_sketch
+        sketch = get_active_sketch(context)
+        if not sketch or not sketch.target_object or not sketch.target_object.data:
+            col.label(text="No active sketch")
+            return
+
+        curve_data = sketch.target_object.data
+        n = len(curve_data.curves)
+        cid_attr = curve_data.attributes.get("curve_id")
+        type_attr = curve_data.attributes.get("sketch_type")
+        vis_attr = curve_data.attributes.get("visible")
+        if not cid_attr or not type_attr:
+            return
+
+        for i in range(n):
+            cid = cid_attr.data[i].value
+            if not cid:
                 continue
-            if e.is_sketch():
-                continue
+
+            ctype = type_attr.data[i].value
+            visible = vis_attr.data[i].value if vis_attr else True
+            selected = cid in global_data.selected
+            name = f"{_TYPE_NAMES.get(ctype, 'Curve')} {cid}"
 
             row = col.row()
-            row.alert = e.selected
+            row.alert = selected
 
-            # Select operator
+            # Select toggle
             props = row.operator(
                 declarations.Operators.Select,
                 text="",
                 emboss=False,
-                icon=("RADIOBUT_ON" if e.selected else "RADIOBUT_OFF"),
+                icon=("RADIOBUT_ON" if selected else "RADIOBUT_OFF"),
             )
             props.mode = "TOGGLE"
-            props.index = e.slvs_index
-            props.highlight_hover = True
+            props.index = cid
 
             # Visibility toggle
-            row.prop(
-                e,
-                "visible",
-                icon_only=True,
-                icon=("HIDE_OFF" if e.visible else "HIDE_ON"),
+            props = row.operator(
+                declarations.Operators.SetCurveFlag,
+                text="",
                 emboss=False,
+                icon=("HIDE_OFF" if visible else "HIDE_ON"),
             )
+            props.curve_id = cid
+            props.flag = "visible"
+            props.value = not visible
 
-            row.prop(e, "name", text="")
+            # Name label
+            row.label(text=name)
 
             # Context menu
             props = row.operator(
@@ -59,24 +86,13 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
                 icon="OUTLINER_DATA_GP_LAYER",
                 emboss=False,
             )
-            props.highlight_hover = True
-            props.highlight_active = True
-            props.index = e.slvs_index
+            props.index = cid
 
-            # Delete operator
+            # Delete
             props = row.operator(
                 declarations.Operators.DeleteEntity,
                 text="",
                 icon="X",
                 emboss=False,
             )
-            props.index = e.slvs_index
-            props.highlight_hover = True
-
-            # Props
-            if e.props:
-                row_props = col.row()
-                row_props.alignment = "RIGHT"
-                for entity_prop in e.props:
-                    row_props.prop(e, entity_prop, text="")
-                col.separator()
+            props.index = cid

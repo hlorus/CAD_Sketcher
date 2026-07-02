@@ -22,9 +22,10 @@ def draw_object_context_menu(self, context: Context):
 
     props = row.operator(declarations.Operators.SetActiveSketch, text="Edit Sketch")
 
-    if ob and ob.sketch_index != -1:
+    from ..model.sketch_ref import is_sketch_object
+    if ob and is_sketch_object(ob):
         row.enabled = True
-        props.index = ob.sketch_index
+        props.sketch_name = ob.name
     else:
         row.enabled = False
     layout.separator()

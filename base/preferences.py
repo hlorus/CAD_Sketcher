@@ -119,6 +119,11 @@ class Preferences(AddonPreferences):
         name="Make all Entities Selectable", update=update_cb
     )
     force_redraw: BoolProperty(name="Force Entity Redraw", default=True)
+    hide_legacy_drawing: BoolProperty(
+        name="Hide Legacy Drawing",
+        description="Hide entity-based drawing (shows only native curve overlay)",
+        default=False,
+    )
 
     decimal_precision: IntProperty(
         name="Decimal Precision",

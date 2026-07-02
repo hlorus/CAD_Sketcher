@@ -378,11 +378,11 @@ def register():
         kmi.properties.wait_for_input = True
         addon_keymaps.append((km, kmi))
 
-        # Leave Sketch
+        # Leave Sketch (same shortcut as add sketch)
         kmi = km.keymap_items.new(
-            Operators.SetActiveSketch, "X", "PRESS", ctrl=True, shift=True
+            Operators.SetActiveSketch, "A", "PRESS", ctrl=True, shift=True
         )
-        kmi.properties.index = -1
+        kmi.properties.sketch_name = ""
         addon_keymaps.append((km, kmi))
 
 
