@@ -57,9 +57,15 @@ def _get_value(self):
     if self.is_reference:
         val = self.init_props(align=self.align)["value"]
         return self.to_displayed_value(val)
-    if not self.is_property_set("value_store"):
-        self.assign_init_props()
-    return self.to_displayed_value(self.value_store)
+    import bpy
+    scene = bpy.context.scene
+    uid = getattr(self, "constraint_uid", "")
+    if scene is not None and uid:
+        key = f"slvs:c:{uid}"
+        if key in scene:
+            return self.to_displayed_value(float(scene[key]))
+    val = self.init_props(align=self.align).get("value", 0.0)
+    return self.to_displayed_value(val)
 
 
 class SlvsDistance(DimensionalConstraint, PropertyGroup):
@@ -73,10 +79,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             alignment = value
         else:
             alignment = bpyEnum(align_items, value).identifier
+        self.align_store = alignment
         r1, r2 = self.ref(1), self.ref(2)
         if r1 and r2:
-            self.value_store = _get_aligned_distance(r1, r2, alignment)
-        self.align_store = alignment
+            self._set_value_force(_get_aligned_distance(r1, r2, alignment))
 
     def _get_align(self) -> int:
         if not self.is_property_set("align_store"):
@@ -143,7 +149,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         if h1 is None or h2 is None:
             return None
 
-        sketch = bpy.get_active_sketch(context)
+        sketch = self._get_sketch()
         cd, idx1, _ = get_curve_data(sketch, self.curve_id_1)
         _, idx2, _ = get_curve_data(sketch, self.curve_id_2)
         if cd is None:

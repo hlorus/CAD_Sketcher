@@ -224,12 +224,27 @@ class GenericConstraint:
             ids.append(self.curve_id_3)
         return ids
 
+    def _get_sketch(self):
+        """Resolve the Sketch accessor for this constraint."""
+        sketch = self.sketch if hasattr(self, "sketch") and self.sketch else None
+        if sketch:
+            return sketch
+        # Resolve from Curves id_data (native curves path)
+        import bpy
+        id_data = getattr(self, "id_data", None)
+        if id_data and hasattr(id_data, "sketch_constraints"):
+            for obj in bpy.data.objects:
+                if obj.data is id_data:
+                    from .sketch_ref import Sketch
+                    return Sketch(obj)
+        return None
+
     def ref(self, n=1):
         """Return a typed CurveRef for curve_id_N, or None if unset."""
         cid = getattr(self, f"curve_id_{n}", 0)
         if not cid:
             return None
-        sketch = self.sketch if hasattr(self, "sketch") else None
+        sketch = self._get_sketch()
         if not sketch:
             return None
         from .curve_ref import curve_ref
@@ -254,8 +269,12 @@ class DimensionalConstraint(GenericConstraint):
         if not self.is_reference:
             self._set_value_force(self.from_displayed_value(displayed_value))
 
+    def _get_scene(self):
+        import bpy
+        return bpy.context.scene
+
     def _set_value_force(self, value: float):
-        scene = getattr(self, "id_data", None)
+        scene = self._get_scene()
         uid = getattr(self, "constraint_uid", "")
         if scene is not None and uid:
             scene[f"slvs:c:{uid}"] = value
@@ -264,7 +283,7 @@ class DimensionalConstraint(GenericConstraint):
         if self.is_reference:
             val = self.init_props()["value"]
             return self.to_displayed_value(val)
-        scene = getattr(self, "id_data", None)
+        scene = self._get_scene()
         uid = getattr(self, "constraint_uid", "")
         if scene is not None and uid:
             key = f"slvs:c:{uid}"

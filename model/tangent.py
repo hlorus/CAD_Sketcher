@@ -37,7 +37,7 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
         if h1 is None or h2 is None:
             return None
 
-        sketch = bpy.get_active_sketch(context)
+        sketch = self._get_sketch()
         cd1, idx1, _ = get_curve_data(sketch, self.curve_id_1)
         cd2, idx2, _ = get_curve_data(sketch, self.curve_id_2)
         if cd1 is None or cd2 is None:

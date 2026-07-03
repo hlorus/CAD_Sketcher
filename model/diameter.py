@@ -36,7 +36,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
             distance = self.value / 2
 
         if distance is not None:
-            self.value_store = distance
+            self._set_value_force(distance)
 
     @property
     def label(self):

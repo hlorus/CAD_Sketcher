@@ -75,7 +75,10 @@ class CurveSolver:
             origin_loc = self.sketch.wp.p1.location
             quat = self.sketch.wp.nm.orientation
         else:
-            return
+            # Default to XY plane at origin
+            from mathutils import Quaternion
+            origin_loc = (0.0, 0.0, 0.0)
+            quat = Quaternion()
 
         origin_handle = self.solvesys.add_point_3d(
             self.group_fixed, *origin_loc

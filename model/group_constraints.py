@@ -1,4 +1,5 @@
 import logging
+import secrets
 from typing import Union
 
 from bpy.types import PropertyGroup
@@ -71,6 +72,49 @@ class SlvsConstraints(PropertyGroup):
     def cls_from_type(cls, type: str):
         for constraint in cls._constraints:
             if type == constraint.type:
+                return constraint
+        return None
+
+    def _new_constraint_uid(self) -> str:
+        return secrets.token_hex(8)
+
+    def _ensure_unique_uid(self, uid: str) -> str:
+        if uid and self.get_by_uid(uid):
+            uid = ""
+        while not uid:
+            candidate = self._new_constraint_uid()
+            if not self.get_by_uid(candidate):
+                uid = candidate
+        return uid
+
+    def _init_constraint(self, constr: GenericConstraint) -> GenericConstraint:
+        uid = getattr(constr, "constraint_uid", "")
+        if not uid:
+            uid = self._ensure_unique_uid(uid)
+            constr.constraint_uid = uid
+        if hasattr(constr, "value"):
+            import bpy
+            scene = bpy.context.scene
+            if scene and hasattr(scene, "sketcher") and scene.sketcher:
+                try:
+                    scene.sketcher.create_constraint_value_endpoint(constr)
+                except (RuntimeError, AttributeError):
+                    pass
+        return constr
+
+    def ensure_constraint_uid(self, constr: GenericConstraint) -> str:
+        uid = getattr(constr, "constraint_uid", "")
+        if uid:
+            return uid
+        uid = self._ensure_unique_uid(uid)
+        constr.constraint_uid = uid
+        return uid
+
+    def get_by_uid(self, uid: str) -> GenericConstraint:
+        if not uid:
+            return None
+        for constraint in self.all:
+            if getattr(constraint, "constraint_uid", "") == uid:
                 return constraint
         return None
 
@@ -157,18 +201,19 @@ class SlvsConstraints(PropertyGroup):
         c = self.coincident.add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
-        return c
+        return self._init_constraint(c)
 
     def add_equal(self, curve_id_1=0, curve_id_2=0) -> SlvsEqual:
         c = self.equal.add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
-        return c
+        return self._init_constraint(c)
 
     def add_distance(self, init=False, curve_id_1=0, curve_id_2=0, **settings) -> SlvsDistance:
         c = self.distance.add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
+        self._init_constraint(c)
         if init:
             c.assign_init_props(**settings)
         else:
@@ -179,6 +224,7 @@ class SlvsConstraints(PropertyGroup):
         c = self.angle.add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
+        self._init_constraint(c)
         if init:
             c.assign_init_props(**settings)
         else:
@@ -188,6 +234,7 @@ class SlvsConstraints(PropertyGroup):
     def add_diameter(self, init=False, curve_id_1=0, **settings) -> SlvsDiameter:
         c = self.diameter.add()
         c.curve_id_1 = curve_id_1
+        self._init_constraint(c)
         if init:
             c.assign_init_props(**settings)
         else:
@@ -198,7 +245,7 @@ class SlvsConstraints(PropertyGroup):
         c = getattr(self, collection_name).add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
-        return c
+        return self._init_constraint(c)
 
     def add_parallel(self, curve_id_1=0, curve_id_2=0) -> SlvsParallel:
         return self._add_simple("parallel", curve_id_1, curve_id_2)
@@ -231,7 +278,7 @@ class SlvsConstraints(PropertyGroup):
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
         c.curve_id_3 = curve_id_3
-        return c
+        return self._init_constraint(c)
 
 
 import bpy
