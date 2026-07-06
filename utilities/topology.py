@@ -9,6 +9,8 @@ import math
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
+from .curve_data import get_str_attr
+
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 
@@ -44,8 +46,8 @@ class PathResult:
 def _get_point_ids(ref):
     """Get set of point curve_ids referenced by a segment."""
     ids = set()
-    sp = ref._get_attr_value("start_point_id", 0)
-    ep = ref._get_attr_value("end_point_id", 0)
+    sp = ref._get_attr_value("start_point_id", "")
+    ep = ref._get_attr_value("end_point_id", "")
     if sp: ids.add(sp)
     if ep: ids.add(ep)
     return ids
@@ -81,9 +83,9 @@ class SketchTopology:
             if ctype == SketchCurveType.POINT:
                 continue
 
-            cid = cid_attr.data[i].value
-            sp = sp_attr.data[i].value if sp_attr else 0
-            ep = ep_attr.data[i].value if ep_attr else 0
+            cid = get_str_attr(cid_attr, i)
+            sp = get_str_attr(sp_attr, i) if sp_attr else ""
+            ep = get_str_attr(ep_attr, i) if ep_attr else ""
 
             if sp:
                 self._connections.setdefault(sp, []).append((cid, "start"))
@@ -136,8 +138,8 @@ class SketchTopology:
         if isinstance(ref, CircleRef):
             return []
         pts = []
-        sp = ref._get_attr_value("start_point_id", 0)
-        ep = ref._get_attr_value("end_point_id", 0)
+        sp = ref._get_attr_value("start_point_id", "")
+        ep = ref._get_attr_value("end_point_id", "")
         if sp:
             pts.append(PointRef(self._sketch, sp))
         if ep:
@@ -154,7 +156,7 @@ class SketchTopology:
             p1, p2 = ref.p1, ref.p2
             if not p1 or not p2:
                 return Vector((1, 0))
-            sp_id = ref._get_attr_value("start_point_id", 0)
+            sp_id = ref._get_attr_value("start_point_id", "")
             if point_id == sp_id:
                 return (p2.co - p1.co).normalized()
             else:
@@ -169,7 +171,7 @@ class SketchTopology:
             angle = math.atan2(local.y, local.x)
 
             # Tangent is perpendicular to radius
-            sp_id = ref._get_attr_value("start_point_id", 0)
+            sp_id = ref._get_attr_value("start_point_id", "")
             if point_id == sp_id:
                 # At start: tangent in arc direction (CCW)
                 return Vector((-math.sin(angle), math.cos(angle)))
@@ -363,7 +365,7 @@ class SketchTopology:
                 visited.add(next_seg.curve_id)
 
                 # Determine direction: inverted if we enter from the end point
-                sp_id = next_seg._get_attr_value("start_point_id", 0)
+                sp_id = next_seg._get_attr_value("start_point_id", "")
                 inverted = (exit_pid != sp_id)
                 segs.append(next_seg)
                 dirs.append(inverted)
@@ -375,8 +377,8 @@ class SketchTopology:
             return segs, dirs
 
         # Start segment direction
-        sp_id = start_ref._get_attr_value("start_point_id", 0)
-        ep_id = start_ref._get_attr_value("end_point_id", 0)
+        sp_id = start_ref._get_attr_value("start_point_id", "")
+        ep_id = start_ref._get_attr_value("end_point_id", "")
 
         # Walk forward (from end point)
         fwd_segs, fwd_dirs = _walk_direction(start_ref, sp_id)
@@ -415,7 +417,7 @@ class SketchTopology:
             ctype = type_attr.data[i].value
             if ctype == SketchCurveType.POINT:
                 continue
-            cid = cid_attr.data[i].value
+            cid = get_str_attr(cid_attr, i)
             if cid in visited:
                 continue
 
@@ -462,7 +464,7 @@ class SketchTopology:
     def replace_point(self, ref, old_point_id, new_point_id):
         """Update a segment's relationship attribute to reference a new point."""
         for attr_name in ("start_point_id", "end_point_id", "center_point_id"):
-            val = ref._get_attr_value(attr_name, 0)
+            val = ref._get_attr_value(attr_name, "")
             if val == old_point_id:
                 ref._set_attr_value(attr_name, new_point_id)
 

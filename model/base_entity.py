@@ -155,7 +155,7 @@ class SlvsGenericEntity:
         if value:
             global_data.hover = self.slvs_index
         else:
-            global_data.hover = -1
+            global_data.hover = ""
 
     @property
     def selected(self):

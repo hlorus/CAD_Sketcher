@@ -21,7 +21,7 @@ class View3D_OT_slvs_tweak(Operator):
 
     def invoke(self, context: Context, event):
         curve_id = global_data.hover
-        if curve_id is None or curve_id <= 0:
+        if not curve_id:
             return {"PASS_THROUGH"}
 
         sketch = get_active_sketch(context)

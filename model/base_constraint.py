@@ -133,19 +133,23 @@ class GenericConstraint:
         return self.sketch == active_sketch
 
     def draw_plane(self):
-        if self.sketch_i != -1 and self.sketch:
-            # Try workplane empty first
-            wp_obj = self.sketch.workplane_object
-            if not wp_obj and self.sketch.target_object:
-                wp_obj = self.sketch.target_object.parent
+        from mathutils import Vector
+
+        sketch = self._get_sketch() if hasattr(self, '_get_sketch') else None
+        if not sketch and self.sketch_i != -1 and self.sketch:
+            sketch = self.sketch
+
+        if sketch:
+            wp_obj = getattr(sketch, 'workplane_object', None)
+            if not wp_obj and hasattr(sketch, 'target_object') and sketch.target_object:
+                wp_obj = sketch.target_object.parent
             if wp_obj:
-                from mathutils import Vector
                 mat = wp_obj.matrix_world
                 return mat.translation.copy(), Vector(mat.col[2][:3]).normalized()
-            # Fallback to entity workplane
-            wp = self.sketch.wp
+            wp = getattr(sketch, 'wp', None)
             if wp:
                 return wp.p1.location, wp.normal
+
         # TODO: return drawing plane for constraints in 3d
         return None, None
 
@@ -216,11 +220,11 @@ class GenericConstraint:
         Override for constraints with special placement logic.
         """
         ids = []
-        if getattr(self, 'curve_id_1', 0):
+        if getattr(self, 'curve_id_1', ""):
             ids.append(self.curve_id_1)
-        if getattr(self, 'curve_id_2', 0):
+        if getattr(self, 'curve_id_2', ""):
             ids.append(self.curve_id_2)
-        if getattr(self, 'curve_id_3', 0):
+        if getattr(self, 'curve_id_3', ""):
             ids.append(self.curve_id_3)
         return ids
 
@@ -237,11 +241,18 @@ class GenericConstraint:
                 if obj.data is id_data:
                     from .sketch_ref import Sketch
                     return Sketch(obj)
-        return None
+            # Fallback: match by name (evaluated data has different identity)
+            for obj in bpy.data.objects:
+                if obj.data and obj.data.name == id_data.name:
+                    from .sketch_ref import Sketch
+                    return Sketch(obj)
+        # Last resort: use active sketch from context
+        from .sketch_ref import get_active_sketch
+        return get_active_sketch(bpy.context)
 
     def ref(self, n=1):
         """Return a typed CurveRef for curve_id_N, or None if unset."""
-        cid = getattr(self, f"curve_id_{n}", 0)
+        cid = getattr(self, f"curve_id_{n}", "")
         if not cid:
             return None
         sketch = self._get_sketch()
@@ -362,13 +373,14 @@ class DimensionalConstraint(GenericConstraint):
         if hasattr(self, "value"):
             col = sub.column()
             col.enabled = not self.is_reference
-            scene = getattr(self, "id_data", None)
+            import bpy
+            scene = bpy.context.scene
             uid = getattr(self, "constraint_uid", "")
             key = None
             if scene and uid:
                 key = scene.sketcher.get_constraint_value_endpoint(self)
             if key:
-                col.prop(scene, f'["{key}"]')
+                col.prop(scene, f'["{key}"]', text="Value")
         if hasattr(self, "setting"):
             row = sub.row()
             row.prop(self, "setting")

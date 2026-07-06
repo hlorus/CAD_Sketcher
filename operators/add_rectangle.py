@@ -81,7 +81,7 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
                 input = data.get("numeric_input")
 
                 startpoint = getattr(self, self.get_states()[0].pointer)
-                sp_cid = startpoint.curve_id if hasattr(startpoint, 'curve_id') else 0
+                sp_cid = startpoint.curve_id if hasattr(startpoint, 'curve_id') else ""
                 for val, line_ref in zip(input, (self.lines[1], self.lines[2])):
                     if val is None:
                         continue

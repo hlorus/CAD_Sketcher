@@ -21,7 +21,8 @@ def _snapshot_curve(sketch, curve_id):
     attrs = {}
     for attr in cd.attributes:
         if attr.domain == 'CURVE':
-            attrs[attr.name] = attr.data[idx].value
+            v = attr.data[idx].value
+            attrs[attr.name] = v.decode() if isinstance(v, bytes) else v
         # Point-domain attrs stored per point
 
     n_points = curve_slice.points_length
@@ -139,15 +140,17 @@ class View3D_OT_slvs_paste(Operator):
                 curve_data.points[curve_slice.points[i].index].position = pos
 
             # Set curve-domain attributes
+            from ..utilities.curve_data import _STRING_ATTRS
             for name, value in snap["curve_attrs"].items():
                 attr = curve_data.attributes.get(name)
                 if not attr:
                     continue
                 if name == "curve_id":
-                    attr.data[curve_idx].value = new_cid
-                elif name in ("start_point_id", "end_point_id", "center_point_id"):
-                    # Remap relationship IDs
-                    attr.data[curve_idx].value = id_map.get(value, 0)
+                    v = new_cid.encode() if isinstance(new_cid, str) else new_cid
+                    attr.data[curve_idx].value = v
+                elif name in _STRING_ATTRS:
+                    v = id_map.get(value, "")
+                    attr.data[curve_idx].value = v.encode() if isinstance(v, str) else v
                 else:
                     attr.data[curve_idx].value = value
 

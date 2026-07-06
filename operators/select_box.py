@@ -109,8 +109,9 @@ class View3D_OT_slvs_select_box(Operator):
         curve_ids = []
         for pixel in unique_pixels:
             r, g, b = pixel
-            cid = rgb_to_index(r, g, b)
-            if cid > 0:
+            pick_idx = rgb_to_index(r, g, b)
+            if pick_idx > 0:
+                cid = global_data.pick_map.get(pick_idx, pick_idx)
                 curve_ids.append(cid)
 
         mode = self.mode

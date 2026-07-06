@@ -120,7 +120,7 @@ class SketcherProps(PropertyGroup):
             del scene[key]
 
     def purge_stale_data(self):
-        global_data.hover = -1
+        global_data.hover = ""
         global_data.selected.clear()
         global_data.batches.clear()
         for e in self.entities.all:

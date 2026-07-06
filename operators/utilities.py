@@ -84,7 +84,7 @@ def select_extend(context: Context):
     sketch = get_active_sketch(context)
     coincident = sketch.constraints.coincident if sketch else []
     for c in coincident:
-        c1, c2 = getattr(c, 'curve_id_1', 0), getattr(c, 'curve_id_2', 0)
+        c1, c2 = getattr(c, 'curve_id_1', ""), getattr(c, 'curve_id_2', "")
         if c1 in selected and c2:
             to_add.add(c2)
         if c2 in selected and c1:
@@ -106,7 +106,7 @@ def ignore_hover(ref_or_id):
     ignore_list = global_data.ignore_list
     if isinstance(ref_or_id, CurveRef):
         ignore_list.append(ref_or_id.curve_id)
-    elif isinstance(ref_or_id, int):
+    elif isinstance(ref_or_id, (int, str)):
         ignore_list.append(ref_or_id)
     else:
         # Legacy entity — use slvs_index
@@ -122,7 +122,7 @@ def get_hovered(context: Context, *types):
     from ..model.curve_ref import curve_ref, PointRef, LineRef, ArcRef, CircleRef
 
     hover_id = global_data.hover
-    if not hover_id or hover_id <= 0:
+    if not hover_id:
         return None
 
     sketch = get_active_sketch(context)

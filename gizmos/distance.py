@@ -101,6 +101,8 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
             points_local.append(Vector((x, y, 0.0)))
 
         # Pick the points based on their x location
+        if len(points_local) < 2:
+            return ((0,0,0),) * 4
         if points_local[0].x > points_local[1].x:
             point_right, point_left = points_local
         else:

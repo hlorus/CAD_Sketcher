@@ -1,6 +1,7 @@
 """Curve data access, curve_id system, and attribute helpers."""
 
 import logging
+import secrets
 
 import bpy
 import numpy as np
@@ -21,16 +22,44 @@ def ensure_attribute(attributes, name, type, domain):
     if not attr:
         attributes.new(name, type, domain)
         attr = attributes.get(name)
+        if type == "STRING" and attr:
+            for i in range(len(attr.data)):
+                attr.data[i].value = b""
     return attr
+
+
+_STRING_ATTRS = frozenset(("curve_id", "start_point_id", "end_point_id", "center_point_id"))
 
 
 def set_attribute(attributes, name: str, value, index: int = None):
     """Set an attribute value either for given index or for all."""
     attribute = attributes.get(name)
-    if index is None:
+    if name in _STRING_ATTRS:
+        val = value.encode() if isinstance(value, str) else value
+        if index is None:
+            for i in range(len(attribute.data)):
+                attribute.data[i].value = val
+        else:
+            attribute.data[index].value = val
+    elif index is None:
         attribute.data.foreach_set("value", (value,) * len(attribute.data))
     else:
         attribute.data[index].value = value
+
+
+def get_str_attr(attr, index):
+    """Read a STRING attribute value, decoding bytes to str."""
+    try:
+        v = attr.data[index].value
+        if isinstance(v, bytes):
+            try:
+                s = v.decode("ascii")
+            except (UnicodeDecodeError, ValueError):
+                return ""
+            return s.rstrip("\x00")
+        return v
+    except (ReferenceError, IndexError):
+        return ""
 
 
 def ensure_standard_attributes(curve_data):
@@ -48,10 +77,22 @@ def ensure_standard_attributes(curve_data):
     ensure_attribute(attributes, "hover", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "fixed", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "visible", "BOOLEAN", "CURVE")
-    ensure_attribute(attributes, "curve_id", "INT", "CURVE")
-    ensure_attribute(attributes, "start_point_id", "INT", "CURVE")
-    ensure_attribute(attributes, "end_point_id", "INT", "CURVE")
-    ensure_attribute(attributes, "center_point_id", "INT", "CURVE")
+    ensure_attribute(attributes, "curve_id", "STRING", "CURVE")
+    ensure_attribute(attributes, "start_point_id", "STRING", "CURVE")
+    ensure_attribute(attributes, "end_point_id", "STRING", "CURVE")
+    ensure_attribute(attributes, "center_point_id", "STRING", "CURVE")
+
+
+def init_string_attrs(curve_data, curve_idx):
+    """Initialize STRING attributes to empty for a curve index.
+
+    Blender doesn't zero-init STRING attribute memory, so new curves
+    may contain garbage bytes.
+    """
+    for name in _STRING_ATTRS:
+        attr = curve_data.attributes.get(name)
+        if attr:
+            attr.data[curve_idx].value = b""
 
 
 # ---------------------------------------------------------------------------
@@ -62,21 +103,17 @@ _curve_id_cache = {}
 
 
 def _allocate_curve_id(sketch):
-    """Allocate a unique curve_id by scanning existing IDs."""
-    cd = sketch.target_object.data if sketch.target_object else None
-    if not cd or len(cd.curves) == 0:
-        return 1
-    cid_attr = cd.attributes.get("curve_id")
-    if not cid_attr:
-        return 1
-    max_id = max(cid_attr.data[i].value for i in range(len(cd.curves)))
-    return max_id + 1
+    """Allocate a unique curve_id using UUID generation."""
+    return secrets.token_hex(16)
 
 
 def get_curve_index(sketch, curve_id):
     """Look up curve index by curve_id. Uses runtime cache, falls back to scan."""
-    sk_key = id(sketch.target_object.data) if sketch.target_object else None
-    if sk_key and sk_key in _curve_id_cache:
+    cd = _get_original_data(sketch)
+    if not cd:
+        return None
+    sk_key = id(cd)
+    if sk_key in _curve_id_cache:
         cache = _curve_id_cache[sk_key]
         if curve_id in cache:
             return cache[curve_id]
@@ -85,15 +122,15 @@ def get_curve_index(sketch, curve_id):
 
 def _rebuild_curve_id_cache(sketch, lookup_id=None):
     """Rebuild the curve_id -> curve_index cache for a sketch."""
-    if not sketch.target_object or not sketch.target_object.data:
+    curve_data = _get_original_data(sketch)
+    if not curve_data:
         return None
-    curve_data = sketch.target_object.data
     sk_key = id(curve_data)
     cache = {}
     cid_attr = curve_data.attributes.get("curve_id")
     if cid_attr:
         for i in range(len(curve_data.curves)):
-            cache[cid_attr.data[i].value] = i
+            cache[get_str_attr(cid_attr, i)] = i
     _curve_id_cache[sk_key] = cache
     return cache.get(lookup_id) if lookup_id is not None else None
 
@@ -111,15 +148,26 @@ def invalidate_curve_id_cache(sketch=None):
 # Curve data access
 # ---------------------------------------------------------------------------
 
+def _get_original_data(sketch):
+    """Get the original (non-evaluated) Curves data for a sketch."""
+    obj = sketch.target_object
+    if not obj or not obj.data:
+        return None
+    # Use .original to avoid evaluated depsgraph copies where STRING attrs are empty
+    if hasattr(obj, 'original') and obj.original and obj.original.data:
+        return obj.original.data
+    return obj.data
+
+
 def get_curve_data(sketch, curve_id):
     """Get curve slice and attributes for a curve_id.
 
     Returns:
         tuple: (curve_data, curve_index, curve_slice) or (None, None, None)
     """
-    if not sketch or not sketch.target_object or not sketch.target_object.data:
+    curve_data = _get_original_data(sketch)
+    if not curve_data:
         return None, None, None
-    curve_data = sketch.target_object.data
     idx = get_curve_index(sketch, curve_id)
     if idx is None or idx >= len(curve_data.curves):
         return None, None, None
@@ -214,9 +262,9 @@ def sync_curve_selection(scene):
             hov_attr = curve_data.attributes.new("hover", type="BOOLEAN", domain="CURVE")
 
         for curve_idx in range(n_curves):
-            cid = cid_attr.data[curve_idx].value
+            cid = get_str_attr(cid_attr, curve_idx)
             sel_attr.data[curve_idx].value = cid in global_data.selected
-            hov_attr.data[curve_idx].value = cid == global_data.hover
+            hov_attr.data[curve_idx].value = bool(cid) and cid == global_data.hover
 
 
 # ---------------------------------------------------------------------------
@@ -301,7 +349,7 @@ def remove_native_curve_by_id(sketch, curve_id):
 
     to_remove = []
     for curve_idx in range(n_curves):
-        if cid_attr.data[curve_idx].value == curve_id:
+        if get_str_attr(cid_attr, curve_idx) == curve_id:
             to_remove.append(curve_idx)
 
     if to_remove:
@@ -382,8 +430,8 @@ def rebuild_segments(sketch):
         curve_slice = cd.curves[i]
 
         if ctype == SketchCurveType.LINE:
-            sp_cid = sp_attr.data[i].value if sp_attr else 0
-            ep_cid = ep_attr.data[i].value if ep_attr else 0
+            sp_cid = get_str_attr(sp_attr, i) if sp_attr else ""
+            ep_cid = get_str_attr(ep_attr, i) if ep_attr else ""
             if sp_cid:
                 p1 = PointRef(sketch, sp_cid)
                 if p1.valid:
@@ -404,7 +452,7 @@ def rebuild_segments(sketch):
                     if hr: hr.data[curve_slice.points[1].index].vector = pos
 
         elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
-            cp_cid = cp_attr.data[i].value if cp_attr else 0
+            cp_cid = get_str_attr(cp_attr, i) if cp_attr else ""
             if not cp_cid:
                 continue
             ct = PointRef(sketch, cp_cid)
@@ -415,8 +463,8 @@ def rebuild_segments(sketch):
                 edge = Vector(cd.points[curve_slice.points[0].index].position[:2])
                 _build_arc_bezier(cd, i, ct.co, edge, edge, is_cyclic=True)
             else:
-                sp_cid = sp_attr.data[i].value if sp_attr else 0
-                ep_cid = ep_attr.data[i].value if ep_attr else 0
+                sp_cid = get_str_attr(sp_attr, i) if sp_attr else ""
+                ep_cid = get_str_attr(ep_attr, i) if ep_attr else ""
                 if sp_cid and ep_cid:
                     s = PointRef(sketch, sp_cid)
                     e = PointRef(sketch, ep_cid)
@@ -458,6 +506,8 @@ def refresh_curve_geometry(sketch):
         elif attr.data_type == 'FLOAT':
             data = np.zeros(domain_len, dtype=np.float32)
             attr.data.foreach_get("value", data)
+        elif attr.data_type == 'STRING':
+            data = [attr.data[i].value for i in range(domain_len)]
         else:
             continue
         saved_attrs[attr.name] = {
@@ -474,7 +524,10 @@ def refresh_curve_geometry(sketch):
         attr = curve_data.attributes.get(name)
         if not attr:
             attr = curve_data.attributes.new(name, type=info["type"], domain=info["domain"])
-        if info["type"] == 'FLOAT_VECTOR':
+        if info["type"] == 'STRING':
+            for i, v in enumerate(info["data"]):
+                attr.data[i].value = v
+        elif info["type"] == 'FLOAT_VECTOR':
             attr.data.foreach_set("vector", info["data"])
         else:
             attr.data.foreach_set("value", info["data"])

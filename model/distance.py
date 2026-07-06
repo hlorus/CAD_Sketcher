@@ -3,7 +3,7 @@ import math
 
 from bpy.types import PropertyGroup
 from .sketch_ref import get_active_sketch
-from bpy.props import BoolProperty, FloatProperty, EnumProperty, IntProperty
+from bpy.props import BoolProperty, FloatProperty, EnumProperty, IntProperty, StringProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 from mathutils.geometry import distance_point_to_plane, intersect_point_line
@@ -136,11 +136,11 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             return (POINT2D, (*POINT2D, SlvsLine2D))[index]
         return cls.signature[index]
 
-    curve_id_1: IntProperty(name="Curve ID 1", default=0)
-    curve_id_2: IntProperty(name="Curve ID 2", default=0)
+    curve_id_1: StringProperty(name="Curve ID 1", default="")
+    curve_id_2: StringProperty(name="Curve ID 2", default="")
 
     def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
-        from ..utilities.curve_data import get_curve_data, get_curve_position
+        from ..utilities.curve_data import get_curve_data, get_curve_position, get_str_attr
         from ..model.constants import SketchCurveType
         import bpy
 
@@ -166,14 +166,14 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
         # Line entity1 → use start point as e1
         if t1 == SketchCurveType.LINE:
-            sp_id = sp_attr.data[idx1].value if sp_attr else 0
+            sp_id = get_str_attr(sp_attr, idx1) if sp_attr else ""
             h1 = handle_map.get(sp_id)
             if h1 is None:
                 return None
 
         # Curve/arc entity1 → distance from center + radius offset
         if t1 in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
-            ct_id = cp_attr.data[idx1].value if cp_attr else 0
+            ct_id = get_str_attr(cp_attr, idx1) if cp_attr else ""
             ct_handle = handle_map.get(ct_id)
             ct_pos = get_curve_position(sketch, ct_id)
             if ct_handle and ct_pos:
@@ -311,11 +311,8 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         return func(group, e1.py_data, e2.py_data, value, *args)
 
     def matrix_basis(self):
-        if self.sketch_i == -1:
-            return Matrix()
-
         r1, r2 = self.ref(1), self.ref(2)
-        if not r1:
+        if not r1 or not r1.valid:
             return Matrix()
         return self._compute_matrix_basis(r1, r2, r1.wp_matrix)
 

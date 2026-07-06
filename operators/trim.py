@@ -9,6 +9,7 @@ from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from ..utilities.trimming import TrimSegment
+from ..utilities.curve_data import get_str_attr
 from .base_2d import Operator2d
 from ..utilities.view import refresh, get_pos_2d
 
@@ -76,9 +77,9 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
         for i in range(n):
             if type_attr and type_attr.data[i].value == SketchCurveType.POINT:
                 continue
-            if sp_attr: referenced.add(sp_attr.data[i].value)
-            if ep_attr: referenced.add(ep_attr.data[i].value)
-            if cp_attr: referenced.add(cp_attr.data[i].value)
+            if sp_attr: referenced.add(get_str_attr(sp_attr, i))
+            if ep_attr: referenced.add(get_str_attr(ep_attr, i))
+            if cp_attr: referenced.add(get_str_attr(cp_attr, i))
 
         for cid in endpoint_cids:
             if cid not in referenced:
@@ -117,7 +118,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
                 ctype = type_attr.data[i].value
                 if ctype == SketchCurveType.POINT:
                     continue
-                cid = cid_attr.data[i].value
+                cid = get_str_attr(cid_attr, i)
                 if cid == segment.curve_id:
                     continue
 
@@ -135,8 +136,8 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
             if not coll:
                 continue
             for j, c in enumerate(coll):
-                c1 = getattr(c, "curve_id_1", 0)
-                c2 = getattr(c, "curve_id_2", 0)
+                c1 = getattr(c, "curve_id_1", "")
+                c2 = getattr(c, "curve_id_2", "")
                 if segment.curve_id not in (c1, c2):
                     continue
                 # The other curve_id is the point

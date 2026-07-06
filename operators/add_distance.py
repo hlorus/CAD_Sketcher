@@ -57,8 +57,8 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
         else:
             max_constraints = 1
 
-        cid1 = e1.curve_id if e1 else 0
-        cid2 = e2.curve_id if e2 else 0
+        cid1 = e1.curve_id if e1 else ""
+        cid2 = e2.curve_id if e2 else ""
 
         if not self.exists(context, SlvsDistance, max_constraints):
             self.target = self.sketch.constraints.add_distance(

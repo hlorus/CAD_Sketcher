@@ -2,7 +2,7 @@ import logging
 
 from bpy.types import PropertyGroup
 from .sketch_ref import get_active_sketch
-from bpy.props import IntProperty
+from bpy.props import StringProperty
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver
@@ -24,11 +24,11 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
     label = "Tangent"
     signature = (CURVE, (SlvsLine2D, *CURVE))
 
-    curve_id_1: IntProperty(name="Curve ID 1", default=0)
-    curve_id_2: IntProperty(name="Curve ID 2", default=0)
+    curve_id_1: StringProperty(name="Curve ID 1", default="")
+    curve_id_2: StringProperty(name="Curve ID 2", default="")
 
     def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
-        from ..utilities.curve_data import get_curve_data, get_curve_position
+        from ..utilities.curve_data import get_curve_data, get_curve_position, get_str_attr
         from ..model.constants import SketchCurveType
         import bpy
 
@@ -57,10 +57,10 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
 
         if is_curve1 and is_line2:
             # Curve-line tangent
-            ct_id = cp_attr.data[idx1].value if cp_attr else 0
+            ct_id = get_str_attr(cp_attr, idx1) if cp_attr else ""
             ct_handle = handle_map.get(ct_id)
-            sp_id = sp_attr.data[idx2].value if sp_attr else 0
-            ep_id = ep_attr.data[idx2].value if ep_attr else 0
+            sp_id = get_str_attr(sp_attr, idx2) if sp_attr else ""
+            ep_id = get_str_attr(ep_attr, idx2) if ep_attr else ""
 
             ct_pos = get_curve_position(sketch, ct_id)
             sp_pos = get_curve_position(sketch, sp_id)
@@ -81,8 +81,8 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
 
         elif is_curve1 and is_curve2:
             # Curve-curve tangent
-            ct1_id = cp_attr.data[idx1].value if cp_attr else 0
-            ct2_id = cp_attr.data[idx2].value if cp_attr else 0
+            ct1_id = get_str_attr(cp_attr, idx1) if cp_attr else ""
+            ct2_id = get_str_attr(cp_attr, idx2) if cp_attr else ""
             ct1_handle = handle_map.get(ct1_id)
             ct2_handle = handle_map.get(ct2_id)
             ct1_pos = get_curve_position(sketch, ct1_id)

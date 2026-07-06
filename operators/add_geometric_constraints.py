@@ -129,7 +129,7 @@ class VIEW3D_OT_slvs_add_vertical(Operator, GenericConstraintOp):
             self.target = self.sketch.constraints.add_vertical(
                 
                 curve_id_1=self.entity1.curve_id,
-                curve_id_2=self.entity2.curve_id if self.entity2 else 0,
+                curve_id_2=self.entity2.curve_id if self.entity2 else "",
             )
 
         return super().main(context)
@@ -149,7 +149,7 @@ class VIEW3D_OT_slvs_add_horizontal(Operator, GenericConstraintOp):
             self.target = self.sketch.constraints.add_horizontal(
                 
                 curve_id_1=self.entity1.curve_id,
-                curve_id_2=self.entity2.curve_id if self.entity2 else 0,
+                curve_id_2=self.entity2.curve_id if self.entity2 else "",
             )
 
         return super().main(context)

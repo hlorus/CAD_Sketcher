@@ -73,6 +73,16 @@ class CurveRef:
     def is_curve(self):
         return False
 
+    @property
+    def location(self):
+        """Fallback location for unresolved refs."""
+        return Vector((0, 0, 0))
+
+    @property
+    def co(self):
+        """Fallback 2D position for unresolved refs."""
+        return Vector((0, 0))
+
     def is_arc(self):
         return False
 
@@ -98,7 +108,8 @@ class CurveRef:
         attr = self._curve_data.attributes.get(attr_name)
         if not attr:
             return default
-        return attr.data[self._idx].value
+        v = attr.data[self._idx].value
+        return v.decode() if isinstance(v, bytes) else v
 
     def _set_attr_value(self, attr_name, value):
         if not self._resolve():
@@ -107,7 +118,7 @@ class CurveRef:
         set_attribute(self._curve_data.attributes, attr_name, value, self._idx)
 
     def _get_related_ref(self, attr_name):
-        cid = self._get_attr_value(attr_name, 0)
+        cid = self._get_attr_value(attr_name, "")
         if not cid:
             return None
         return PointRef(self._sketch, cid)
@@ -233,10 +244,12 @@ def _allocate(sketch):
     return _allocate_curve_id(sketch)
 
 
-def _ensure_attrs(curve_data):
-    """Ensure all standard attributes exist."""
-    from ..utilities.curve_data import ensure_standard_attributes
+def _ensure_attrs(curve_data, curve_idx=None):
+    """Ensure all standard attributes exist. Optionally init STRING attrs for a curve."""
+    from ..utilities.curve_data import ensure_standard_attributes, init_string_attrs
     ensure_standard_attributes(curve_data)
+    if curve_idx is not None:
+        init_string_attrs(curve_data, curve_idx)
 
 
 def _invalidate(sketch):
@@ -394,7 +407,7 @@ class PointRef(CurveRef):
 
         cid = _allocate(sketch)
         curve_data.add_curves([1])
-        _ensure_attrs(curve_data)
+        _ensure_attrs(curve_data, len(curve_data.curves) - 1)
 
         curve_idx = len(curve_data.curves) - 1
         curve_slice = curve_data.curves[curve_idx]
@@ -488,7 +501,7 @@ class LineRef(CurveRef):
         cid = _allocate(sketch)
         curve_data.add_curves([2])
         curve_data.set_types(type="BEZIER")
-        _ensure_attrs(curve_data)
+        _ensure_attrs(curve_data, len(curve_data.curves) - 1)
 
         curve_idx = len(curve_data.curves) - 1
         curve_slice = curve_data.curves[curve_idx]
@@ -509,9 +522,9 @@ class LineRef(CurveRef):
         set_attribute(attrs, "curve_id", cid, curve_idx)
         set_attribute(attrs, "sketch_type", SketchCurveType.LINE, curve_idx)
         set_attribute(attrs, "start_point_id",
-                      p1.curve_id if isinstance(p1, CurveRef) else 0, curve_idx)
+                      p1.curve_id if isinstance(p1, CurveRef) else "", curve_idx)
         set_attribute(attrs, "end_point_id",
-                      p2.curve_id if isinstance(p2, CurveRef) else 0, curve_idx)
+                      p2.curve_id if isinstance(p2, CurveRef) else "", curve_idx)
         set_attribute(attrs, "construction", construction, curve_idx)
         set_attribute(attrs, "fixed", False, curve_idx)
         set_attribute(attrs, "visible", True, curve_idx)
@@ -630,7 +643,7 @@ class ArcRef(CurveRef):
         cid = _allocate(sketch)
         curve_data.add_curves([n_points])
         curve_data.set_types(type="BEZIER")
-        _ensure_attrs(curve_data)
+        _ensure_attrs(curve_data, len(curve_data.curves) - 1)
 
         curve_idx = len(curve_data.curves) - 1
         curve_slice = curve_data.curves[curve_idx]
@@ -723,7 +736,7 @@ class CircleRef(CurveRef):
         cid = _allocate(sketch)
         curve_data.add_curves([n_points])
         curve_data.set_types(type="BEZIER")
-        _ensure_attrs(curve_data)
+        _ensure_attrs(curve_data, len(curve_data.curves) - 1)
 
         curve_idx = len(curve_data.curves) - 1
         curve_slice = curve_data.curves[curve_idx]

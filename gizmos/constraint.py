@@ -81,7 +81,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                     gz.curve_id = ident
                 else:
                     gz.entity_index = ident
-                    gz.curve_id = getattr(c, 'curve_id_1', 0)
+                    gz.curve_id = getattr(c, 'curve_id_1', "")
 
                 ui_scale = context.preferences.system.ui_scale
                 scale = get_prefs().gizmo_scale * ui_scale

@@ -13,9 +13,10 @@ batches = {}
 offscreen = None
 redraw_selection_buffer = False
 
-hover = -1
+hover = ""
 ignore_list = []
 selected = []
+pick_map = {}  # {pick_index: curve_id} rebuilt each frame by ID buffer draw
 
 # Allows to highlight a constraint gizmo,
 # Value gets unset in the preselection gizmo

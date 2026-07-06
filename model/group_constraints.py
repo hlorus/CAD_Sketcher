@@ -197,19 +197,19 @@ class SlvsConstraints(PropertyGroup):
             for entity in entity_list:
                 yield entity
 
-    def add_coincident(self, curve_id_1=0, curve_id_2=0) -> SlvsCoincident:
+    def add_coincident(self, curve_id_1="", curve_id_2="") -> SlvsCoincident:
         c = self.coincident.add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
         return self._init_constraint(c)
 
-    def add_equal(self, curve_id_1=0, curve_id_2=0) -> SlvsEqual:
+    def add_equal(self, curve_id_1="", curve_id_2="") -> SlvsEqual:
         c = self.equal.add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
         return self._init_constraint(c)
 
-    def add_distance(self, init=False, curve_id_1=0, curve_id_2=0, **settings) -> SlvsDistance:
+    def add_distance(self, init=False, curve_id_1="", curve_id_2="", **settings) -> SlvsDistance:
         c = self.distance.add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
@@ -220,7 +220,7 @@ class SlvsConstraints(PropertyGroup):
             c.assign_settings(**settings)
         return c
 
-    def add_angle(self, init=False, curve_id_1=0, curve_id_2=0, **settings) -> SlvsAngle:
+    def add_angle(self, init=False, curve_id_1="", curve_id_2="", **settings) -> SlvsAngle:
         c = self.angle.add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
@@ -231,7 +231,7 @@ class SlvsConstraints(PropertyGroup):
             c.assign_settings(**settings)
         return c
 
-    def add_diameter(self, init=False, curve_id_1=0, **settings) -> SlvsDiameter:
+    def add_diameter(self, init=False, curve_id_1="", **settings) -> SlvsDiameter:
         c = self.diameter.add()
         c.curve_id_1 = curve_id_1
         self._init_constraint(c)
@@ -241,31 +241,31 @@ class SlvsConstraints(PropertyGroup):
             c.assign_settings(**settings)
         return c
 
-    def _add_simple(self, collection_name, curve_id_1=0, curve_id_2=0):
+    def _add_simple(self, collection_name, curve_id_1="", curve_id_2=""):
         c = getattr(self, collection_name).add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
         return self._init_constraint(c)
 
-    def add_parallel(self, curve_id_1=0, curve_id_2=0) -> SlvsParallel:
+    def add_parallel(self, curve_id_1="", curve_id_2="") -> SlvsParallel:
         return self._add_simple("parallel", curve_id_1, curve_id_2)
 
-    def add_horizontal(self, curve_id_1=0, curve_id_2=0) -> SlvsHorizontal:
+    def add_horizontal(self, curve_id_1="", curve_id_2="") -> SlvsHorizontal:
         return self._add_simple("horizontal", curve_id_1, curve_id_2)
 
-    def add_vertical(self, curve_id_1=0, curve_id_2=0) -> SlvsVertical:
+    def add_vertical(self, curve_id_1="", curve_id_2="") -> SlvsVertical:
         return self._add_simple("vertical", curve_id_1, curve_id_2)
 
-    def add_tangent(self, curve_id_1=0, curve_id_2=0) -> SlvsTangent:
+    def add_tangent(self, curve_id_1="", curve_id_2="") -> SlvsTangent:
         return self._add_simple("tangent", curve_id_1, curve_id_2)
 
-    def add_midpoint(self, curve_id_1=0, curve_id_2=0) -> SlvsMidpoint:
+    def add_midpoint(self, curve_id_1="", curve_id_2="") -> SlvsMidpoint:
         return self._add_simple("midpoint", curve_id_1, curve_id_2)
 
-    def add_perpendicular(self, curve_id_1=0, curve_id_2=0) -> SlvsPerpendicular:
+    def add_perpendicular(self, curve_id_1="", curve_id_2="") -> SlvsPerpendicular:
         return self._add_simple("perpendicular", curve_id_1, curve_id_2)
 
-    def add_ratio(self, init=False, curve_id_1=0, curve_id_2=0, **settings) -> SlvsRatio:
+    def add_ratio(self, init=False, curve_id_1="", curve_id_2="", **settings) -> SlvsRatio:
         c = self._add_simple("ratio", curve_id_1, curve_id_2)
         if init:
             c.assign_init_props(**settings)
@@ -273,7 +273,7 @@ class SlvsConstraints(PropertyGroup):
             c.assign_settings(**settings)
         return c
 
-    def add_symmetry(self, curve_id_1=0, curve_id_2=0, curve_id_3=0) -> SlvsSymmetry:
+    def add_symmetry(self, curve_id_1="", curve_id_2="", curve_id_3="") -> SlvsSymmetry:
         c = self.symmetry.add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2

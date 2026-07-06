@@ -1,7 +1,7 @@
 import logging
 
 from bpy.utils import register_classes_factory
-from bpy.props import IntProperty
+from bpy.props import StringProperty
 from bpy.types import Operator, Context
 
 from .. import global_data
@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 def _get_dependent_curve_ids(sketch, curve_id):
     """Find curve_ids that reference this curve_id via relationship attributes."""
+    from ..utilities.curve_data import get_str_attr
+
     if not sketch or not sketch.target_object or not sketch.target_object.data:
         return []
 
@@ -30,14 +32,14 @@ def _get_dependent_curve_ids(sketch, curve_id):
 
     deps = []
     for i in range(n):
-        cid = cid_attr.data[i].value
+        cid = get_str_attr(cid_attr, i)
         if cid == curve_id:
             continue
-        if sp_attr and sp_attr.data[i].value == curve_id:
+        if sp_attr and get_str_attr(sp_attr, i) == curve_id:
             deps.append(cid)
-        elif ep_attr and ep_attr.data[i].value == curve_id:
+        elif ep_attr and get_str_attr(ep_attr, i) == curve_id:
             deps.append(cid)
-        elif cp_attr and cp_attr.data[i].value == curve_id:
+        elif cp_attr and get_str_attr(cp_attr, i) == curve_id:
             deps.append(cid)
     return deps
 
@@ -53,11 +55,11 @@ def _get_constraint_indices_for_curve_id(curve_id, context):
     for data_coll in constraints.get_lists():
         indices = []
         for i, c in enumerate(data_coll):
-            if getattr(c, "curve_id_1", 0) == curve_id:
+            if getattr(c, "curve_id_1", "") == curve_id:
                 indices.append(i)
-            elif getattr(c, "curve_id_2", 0) == curve_id:
+            elif getattr(c, "curve_id_2", "") == curve_id:
                 indices.append(i)
-            elif getattr(c, "curve_id_3", 0) == curve_id:
+            elif getattr(c, "curve_id_3", "") == curve_id:
                 indices.append(i)
         if indices:
             ret_list.append((data_coll, indices))
@@ -71,7 +73,7 @@ class View3D_OT_slvs_delete_entity(Operator):
     bl_label = "Delete Entity"
     bl_options = {"UNDO"}
 
-    index: IntProperty(default=-1)
+    index: StringProperty(default="")
 
     def execute(self, context: Context):
         sketch = get_active_sketch(context)
@@ -79,7 +81,7 @@ class View3D_OT_slvs_delete_entity(Operator):
             return {"CANCELLED"}
 
         to_delete = []
-        if self.index != -1:
+        if self.index:
             to_delete.append(self.index)
         else:
             to_delete.extend(list(global_data.selected))
@@ -91,7 +93,7 @@ class View3D_OT_slvs_delete_entity(Operator):
             self._delete_curve(context, sketch, cid)
 
         global_data.selected.clear()
-        global_data.hover = -1
+        global_data.hover = ""
 
         solve_system(context, sketch=sketch)
         refresh(context)

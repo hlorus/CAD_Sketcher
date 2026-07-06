@@ -105,7 +105,7 @@ class Operator2d(GenericEntityOp):
             return sse.add_ref_vertex_2d(ob, v_index, sketch)
 
         # Return CurveRef using the stored type
-        cid = data.get("curve_id", 0)
+        cid = data.get("curve_id", "")
         if cid and dtype and issubclass(dtype, CurveRef):
             return dtype(sketch, cid)
         if cid:

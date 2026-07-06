@@ -32,7 +32,7 @@ class GenericEntityOp(StatefulOperator):
             hovered = None
 
         # Set the hovered curve_id for constraining if not directly used
-        hovered_cid = 0
+        hovered_cid = ""
         if not hovered and hasattr(self, "_check_constrain"):
             hover = global_data.hover
             if hover and self._check_constrain(context, hover):
@@ -43,10 +43,10 @@ class GenericEntityOp(StatefulOperator):
         return hovered.curve_id if hovered else None
 
     def add_coincident(self, context: Context, point, state, state_data):
-        hovered_cid = state_data.get("hovered", 0)
+        hovered_cid = state_data.get("hovered", "")
         if hovered_cid and hasattr(self, "sketch") and self.sketch:
             from ..model.curve_ref import CurveRef
-            point_cid = point.curve_id if isinstance(point, CurveRef) else state_data.get("curve_id", 0)
+            point_cid = point.curve_id if isinstance(point, CurveRef) else state_data.get("curve_id", "")
 
             state_data["coincident"] = self.sketch.constraints.add_coincident(
                 curve_id_1=point_cid, curve_id_2=hovered_cid,
@@ -141,7 +141,7 @@ class GenericEntityOp(StatefulOperator):
 
         from ..model.curve_ref import CurveRef
         if pointer_type is not None and issubclass(pointer_type, CurveRef):
-            cid = data.get("curve_id", 0)
+            cid = data.get("curve_id", "")
             if implicit:
                 return cid
             if not cid:
@@ -177,13 +177,13 @@ class GenericEntityOp(StatefulOperator):
         if issubclass(pointer_type, CurveRef):
             value = values[0] if values is not None else None
             if value is None:
-                cid = 0
+                cid = ""
             elif implicit:
                 cid = value
             elif isinstance(value, CurveRef):
                 cid = value.curve_id
             else:
-                cid = int(value)
+                cid = str(value)
             data["curve_id"] = cid
             return True
 
@@ -247,6 +247,9 @@ class GenericEntityOp(StatefulOperator):
             elif attr.data_type == 'FLOAT':
                 data = np.zeros(domain_len, dtype=np.float32)
                 attr.data.foreach_get("value", data)
+            elif attr.data_type == 'STRING':
+                from ..utilities.curve_data import get_str_attr
+                data = [get_str_attr(attr, i) for i in range(domain_len)]
             else:
                 continue
             attrs[attr.name] = {
@@ -283,6 +286,9 @@ class GenericEntityOp(StatefulOperator):
                 )
             if attr_info["type"] == 'FLOAT_VECTOR':
                 attr.data.foreach_set("vector", attr_info["data"])
+            elif attr_info["type"] == 'STRING':
+                for i, v in enumerate(attr_info["data"]):
+                    attr.data[i].value = v.encode() if isinstance(v, str) else v
             else:
                 attr.data.foreach_set("value", attr_info["data"])
 

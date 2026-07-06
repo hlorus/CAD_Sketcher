@@ -2,7 +2,7 @@ import logging
 
 import math
 from bpy.types import PropertyGroup
-from bpy.props import BoolProperty, FloatProperty, IntProperty
+from bpy.props import BoolProperty, FloatProperty, IntProperty, StringProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 
@@ -81,7 +81,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
             return value
         return value / 2
 
-    curve_id_1: IntProperty(name="Curve ID 1", default=0)
+    curve_id_1: StringProperty(name="Curve ID 1", default="")
 
     def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
         h1 = handle_map.get(self.curve_id_1)
@@ -109,9 +109,9 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         return {"setting": setting, "value": value}
 
     def matrix_basis(self):
-        if self.sketch_i == -1:
-            return Matrix()
         r = self.ref(1)
+        if not r or not r.is_curve():
+            return Matrix()
         mat_local = Matrix.Translation(r.ct.co.to_3d())
         return r.wp_matrix @ mat_local
 

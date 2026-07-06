@@ -4,6 +4,7 @@ import logging
 from mathutils import Vector
 
 from ..model.curve_ref import PointRef, LineRef, ArcRef, CircleRef, CurveRef, curve_ref
+from .curve_data import get_str_attr
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 class Intersection:
     """An intersection point on the segment being trimmed."""
 
-    def __init__(self, co, source_cid=0, is_endpoint=False, constraint_index=-1, constraint_type=""):
+    def __init__(self, co, source_cid="", is_endpoint=False, constraint_index=-1, constraint_type=""):
         self.co = Vector(co[:2])
         self.source_cid = source_cid  # curve_id of intersecting segment (0 if endpoint)
         self.is_endpoint = is_endpoint
@@ -53,7 +54,7 @@ class TrimSegment:
                 intr._point_ref = pt
                 self._intersections.append(intr)
 
-    def add(self, co, source_cid=0, constraint_index=-1, constraint_type=""):
+    def add(self, co, source_cid="", constraint_index=-1, constraint_type=""):
         """Add an intersection point."""
         intr = Intersection(co, source_cid, constraint_index=constraint_index,
                             constraint_type=constraint_type)
@@ -193,11 +194,11 @@ class TrimSegment:
             if ctype == SketchCurveType.POINT:
                 continue
             if sp_attr:
-                referenced.add(sp_attr.data[i].value)
+                referenced.add(get_str_attr(sp_attr, i))
             if ep_attr:
-                referenced.add(ep_attr.data[i].value)
+                referenced.add(get_str_attr(ep_attr, i))
             if cp_attr:
-                referenced.add(cp_attr.data[i].value)
+                referenced.add(get_str_attr(cp_attr, i))
 
         for cid in candidates:
             if cid not in referenced:
@@ -264,9 +265,9 @@ class TrimSegment:
             for data_coll in sc.get_lists():
                 to_remove = []
                 for j, c in enumerate(data_coll):
-                    if getattr(c, "curve_id_1", 0) == orig_cid:
+                    if getattr(c, "curve_id_1", "") == orig_cid:
                         to_remove.append(j)
-                    elif getattr(c, "curve_id_2", 0) == orig_cid:
+                    elif getattr(c, "curve_id_2", "") == orig_cid:
                         to_remove.append(j)
                 for j in reversed(to_remove):
                     data_coll.remove(j)
@@ -275,7 +276,7 @@ class TrimSegment:
 
         # Add coincident constraints between new points and intersecting segments
         for intr in relevant:
-            if intr.is_endpoint or intr.source_cid == 0:
+            if intr.is_endpoint or not intr.source_cid:
                 continue
             pt = intr.get_or_create_point(sketch)
             if pt:

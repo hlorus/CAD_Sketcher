@@ -1,7 +1,7 @@
 import logging
 
 from bpy.types import PropertyGroup
-from bpy.props import FloatProperty, IntProperty
+from bpy.props import FloatProperty, IntProperty, StringProperty
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver
@@ -36,8 +36,8 @@ class SlvsRatio(DimensionalConstraint, PropertyGroup):
         LINE,
     )
 
-    curve_id_1: IntProperty(name="Curve ID 1", default=0)
-    curve_id_2: IntProperty(name="Curve ID 2", default=0)
+    curve_id_1: StringProperty(name="Curve ID 1", default="")
+    curve_id_2: StringProperty(name="Curve ID 2", default="")
 
     def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
         h1 = handle_map.get(self.curve_id_1)

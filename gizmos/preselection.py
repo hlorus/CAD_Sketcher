@@ -65,15 +65,16 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             r, g, b, alpha = buffer[0][0]
 
             if alpha > 0:
-                index = rgb_to_index(r, g, b)
-                if index != global_data.hover:
-                    global_data.hover = index
+                pick_idx = rgb_to_index(r, g, b)
+                cid = global_data.pick_map.get(pick_idx, pick_idx)
+                if cid != global_data.hover:
+                    global_data.hover = cid
                     context.area.tag_redraw()
                 return -1
 
-        if global_data.hover != -1:
+        if global_data.hover:
             context.area.tag_redraw()
-            global_data.hover = -1
+            global_data.hover = ""
         return -1
 
 

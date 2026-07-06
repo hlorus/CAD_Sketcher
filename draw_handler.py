@@ -24,8 +24,13 @@ _wp_display_size = 1.0
 
 
 def _draw_curves_id_buffer(context: Context):
-    """Draw curve-based ID buffer using curve_id for picking."""
+    """Draw curve-based ID buffer using sequential pick indices for picking."""
     from .utilities.index import index_to_rgb
+    from .utilities.curve_data import get_str_attr
+
+    # Reset pick map each frame
+    global_data.pick_map = {}
+    pick_idx = 1  # Start at 1 (0 = background)
 
     from .model.sketch_ref import get_sketches
     for sketch in get_sketches(context):
@@ -51,16 +56,18 @@ def _draw_curves_id_buffer(context: Context):
             if vis_attr and not vis_attr.data[curve_idx].value:
                 continue
 
-            cid = cid_attr.data[curve_idx].value
-            if cid == 0:
+            cid = get_str_attr(cid_attr, curve_idx)
+            if not cid:
                 continue
             if cid in global_data.ignore_list:
                 continue
 
+            global_data.pick_map[pick_idx] = cid
             curve_slice = curve_data.curves[curve_idx]
             ctype = type_attr.data[curve_idx].value if type_attr else -1
             is_cyclic = cyc_attr.data[curve_idx].value if cyc_attr else False
-            color = (*index_to_rgb(cid), 1.0)
+            color = (*index_to_rgb(pick_idx), 1.0)
+            pick_idx += 1
 
             if ctype == SketchCurveType.POINT:
                 pt_idx = curve_slice.points[0].index
@@ -125,6 +132,7 @@ def _draw_workplane_empties_id(context: Context):
         if not wp_obj:
             continue
 
+        global_data.pick_map[wp_id] = wp_id
         mat = wp_obj.matrix_world
         color = (*index_to_rgb(wp_id), 1.0)
         shader.uniform_float("color", color)
@@ -283,6 +291,8 @@ def _draw_bezier_curve(shader, curve_data, curve_slice, mat, is_cyclic, steps=12
 
 def _draw_curves_overlay(context: Context):
     """Draw native curve geometry as an overlay."""
+    from .utilities.curve_data import get_str_attr
+
     if context.scene.sketcher.active_sketch_object is None:
         return
 
@@ -343,8 +353,8 @@ def _draw_curves_overlay(context: Context):
 
             elif ctype == SketchCurveType.LINE and sp_attr and ep_attr:
                 # Line — draw from point curves
-                sp_cid = sp_attr.data[curve_idx].value
-                ep_cid = ep_attr.data[curve_idx].value
+                sp_cid = get_str_attr(sp_attr, curve_idx)
+                ep_cid = get_str_attr(ep_attr, curve_idx)
                 _, _, sp_slice = _gcd(sketch, sp_cid)
                 _, _, ep_slice = _gcd(sketch, ep_cid)
                 if sp_slice and ep_slice:
@@ -374,7 +384,7 @@ def _draw_curves_overlay(context: Context):
 
             elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE) and cp_attr:
                 # Arc/circle — resolve from point curves and draw arc
-                cp_cid = cp_attr.data[curve_idx].value
+                cp_cid = get_str_attr(cp_attr, curve_idx)
                 _, _, cp_slice = _gcd(sketch, cp_cid)
                 if cp_slice:
                     center = Vector(curve_data.points[cp_slice.points[0].index].position[:2])
@@ -384,8 +394,8 @@ def _draw_curves_overlay(context: Context):
                         radius = (edge - center).length
                         arc_points = _arc_points(center, radius, 0, math.tau, 48, mat)
                     else:
-                        sp_cid = sp_attr.data[curve_idx].value if sp_attr else 0
-                        ep_cid = ep_attr.data[curve_idx].value if ep_attr else 0
+                        sp_cid = get_str_attr(sp_attr, curve_idx) if sp_attr else ""
+                        ep_cid = get_str_attr(ep_attr, curve_idx) if ep_attr else ""
                         _, _, s_slice = _gcd(sketch, sp_cid) if sp_cid else (None, None, None)
                         _, _, e_slice = _gcd(sketch, ep_cid) if ep_cid else (None, None, None)
                         if s_slice and e_slice:

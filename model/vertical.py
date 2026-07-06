@@ -1,7 +1,7 @@
 import logging
 
 from bpy.types import PropertyGroup
-from bpy.props import IntProperty
+from bpy.props import StringProperty
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver
@@ -23,8 +23,8 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
     label = "Vertical"
     signature = ((SlvsLine2D, SlvsPoint2D), (SlvsPoint2D,))
 
-    curve_id_1: IntProperty(name="Curve ID 1", default=0)
-    curve_id_2: IntProperty(name="Curve ID 2", default=0)
+    curve_id_1: StringProperty(name="Curve ID 1", default="")
+    curve_id_2: StringProperty(name="Curve ID 2", default="")
 
     @classmethod
     def get_types(cls, index, entities):
