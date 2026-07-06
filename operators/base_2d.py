@@ -25,6 +25,10 @@ class Operator2d(GenericEntityOp):
 
     @property
     def sketch(self):
+        if not self._active_sketch:
+            from ..model.sketch_ref import get_active_sketch
+            import bpy
+            self._active_sketch = get_active_sketch(bpy.context)
         return self._active_sketch
 
     def _get_wp(self):

@@ -53,7 +53,10 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         mapping = {}
         if not active_sketch:
             return
+        from ..model.base_constraint import DimensionalConstraint
         for c in active_sketch.constraints.all:
+            if isinstance(c, DimensionalConstraint):
+                continue
 
             # Try curve_id placements first
             cid_placements = c.curve_id_placements()

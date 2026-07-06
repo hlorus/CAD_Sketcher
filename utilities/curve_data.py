@@ -153,7 +153,6 @@ def _get_original_data(sketch):
     obj = sketch.target_object
     if not obj or not obj.data:
         return None
-    # Use .original to avoid evaluated depsgraph copies where STRING attrs are empty
     if hasattr(obj, 'original') and obj.original and obj.original.data:
         return obj.original.data
     return obj.data

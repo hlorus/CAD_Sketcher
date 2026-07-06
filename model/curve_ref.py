@@ -195,10 +195,6 @@ class CurveRef:
             op.flag = flag
             op.value = not val
 
-        layout.separator()
-        op = layout.operator(Operators.DeleteEntity, text="Delete", icon="X")
-        op.index = self._curve_id
-
     # -- Deletion --
 
     def remove(self):

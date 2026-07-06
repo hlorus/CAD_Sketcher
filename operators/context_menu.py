@@ -72,6 +72,17 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
             col = self.layout.column()
             element.draw_props(col)
 
+            col.separator()
+            row = col.row()
+            row.alert = True
+            if is_entity:
+                op = row.operator(Operators.DeleteEntity, text="Delete", icon="X")
+                op.index = element._curve_id
+            else:
+                op = row.operator(Operators.DeleteConstraint, text="Delete", icon="X")
+                op.type = element.type
+                op.index = element.index()
+
         if not element:
             bpy.ops.wm.call_menu(name="VIEW3D_MT_selected_menu")
             return {"FINISHED"}

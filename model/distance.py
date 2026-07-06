@@ -439,9 +439,8 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     def draw_props(self, layout):
         sub = super().draw_props(layout)
 
-        row = sub.row()
-        row.enabled = self.use_flipping()
-        row.prop(self, "flip")
+        if self.use_flipping():
+            sub.prop(self, "flip")
 
         sub.label(text="Alignment:")
         row = sub.row()

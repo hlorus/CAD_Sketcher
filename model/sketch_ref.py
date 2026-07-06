@@ -117,7 +117,10 @@ class Sketch:
         return f"Sketch({self._obj.name!r})"
 
     def __bool__(self):
-        return self._obj is not None
+        try:
+            return self._obj is not None and self._obj.name is not None
+        except ReferenceError:
+            return False
 
 
 # ---------------------------------------------------------------------------

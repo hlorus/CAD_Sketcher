@@ -192,15 +192,8 @@ class GenericConstraint:
 
         # Specific props
         layout.separator()
-        sub = layout.column()
 
-        # Delete
-        layout.separator()
-        props = layout.operator(Operators.DeleteConstraint, icon="X")
-        props.type = self.type
-        props.index = self.index()
-
-        return sub
+        return layout
 
     def index(self):
         """Return elements index inside its collection"""
