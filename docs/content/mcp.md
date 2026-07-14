@@ -77,3 +77,8 @@ Entity IDs are CAD Sketcher **global indices** (`slvs_index`). Constraint IDs ar
 - Requires a GUI Blender session (commands are scheduled on the main thread).
 - Modal View3D tools (trim, bevel, move, pick) are not exposed.
 - Convert / fill / extrude / screenshots are not in the first MVP.
+
+### Authoring tips for agents
+
+See [MCP sketch authoring](mcp_authoring.md) for units, stale pointers, and the
+point–line distance “holes outside the plate” pitfall.

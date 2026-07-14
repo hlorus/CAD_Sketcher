@@ -25,6 +25,7 @@ To further process the resulting geometry CAD Sketcher uses [Converters](integra
 to get native Blender geometry types which then allow further modifications with native tools.
 
 Agents and IDE assistants can drive sketches through the [MCP interface](mcp.md).
+When authoring geometry via MCP, follow [MCP sketch authoring](mcp_authoring.md).
 
 <!-- Check the [Workflow](solver.md#Workflow) section to see how it's intended to be used. -->
 

@@ -15,6 +15,7 @@ nav:
     - solver.md
     - integration.md
     - mcp.md
+    - mcp_authoring.md
     - interaction_system.md
     - advanced.md
     - code_docs.md
