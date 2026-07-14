@@ -24,6 +24,8 @@ a [Solver](solver.md) is needed.
 To further process the resulting geometry CAD Sketcher uses [Converters](integration.md)
 to get native Blender geometry types which then allow further modifications with native tools.
 
+Agents and IDE assistants can drive sketches through the [MCP interface](mcp.md).
+
 <!-- Check the [Workflow](solver.md#Workflow) section to see how it's intended to be used. -->
 
 ## Links

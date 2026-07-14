@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cad-sketcher-mcp"
+version = "0.1.0"
+description = "MCP server that controls CAD Sketcher inside a live Blender session"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+authors = [
+  { name = "CAD Sketcher contributors" }
+]
+dependencies = [
+  "mcp[cli]>=1.2.0",
+]
+
+[project.scripts]
+cad-sketcher-mcp = "cad_sketcher_mcp.server:main"

@@ -158,6 +158,24 @@ class Preferences(AddonPreferences):
         default=True,
     )
 
+    mcp_host: StringProperty(
+        name="MCP Host",
+        description="Host interface for the CAD Sketcher MCP TCP server",
+        default="localhost",
+    )
+    mcp_port: IntProperty(
+        name="MCP Port",
+        description="TCP port for CAD Sketcher MCP (default 9877; blender-mcp uses 9876)",
+        default=9877,
+        min=1,
+        max=65535,
+    )
+    mcp_auto_start: BoolProperty(
+        name="Auto-start MCP Server",
+        description="Start the CAD Sketcher MCP TCP server when the add-on loads",
+        default=False,
+    )
+
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
@@ -197,6 +215,13 @@ class Preferences(AddonPreferences):
         col.prop(self, "gizmo_scale")
         col.prop(self, "text_size")
         col.prop(self, "arrow_scale")
+
+        box = layout.box()
+        box.label(text="MCP Agent Interface")
+        col = box.column(align=True)
+        col.prop(self, "mcp_host")
+        col.prop(self, "mcp_port")
+        col.prop(self, "mcp_auto_start")
 
         box = layout.box()
         box.label(text="Units")
