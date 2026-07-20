@@ -78,6 +78,8 @@ class SketcherProps(PropertyGroup):
                 and constraint.is_property_set("value_store")
             ):
                 init_value = float(constraint.value_store)
+            elif hasattr(constraint, "value") and constraint.is_property_set("value"):
+                init_value = float(constraint.value)
             else:
                 init_value = 0.0
 
