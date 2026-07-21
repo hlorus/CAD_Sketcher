@@ -59,6 +59,11 @@ class SlvsCoincident(GenericConstraint, PropertyGroup):
     def placements(self):
         return (self.ref(1),)
 
+    def curve_id_placements(self):
+        # Show the marker only on the point (curve_id_1); drawing it on the
+        # coincident segment/point as well is redundant.
+        return [self.curve_id_1] if self.curve_id_1 else []
+
 
 slvs_entity_pointer(SlvsCoincident, "entity1")
 slvs_entity_pointer(SlvsCoincident, "entity2")

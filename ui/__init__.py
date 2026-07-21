@@ -70,12 +70,18 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
+    from .selected_menu import register_props
+    register_props()
+
     bpy.types.VIEW3D_MT_object_context_menu.prepend(draw_object_context_menu)
     bpy.types.VIEW3D_MT_add.append(draw_add_sketch_in_add_menu)
     bpy.types.VIEW3D_HT_header.append(draw_sketch_header)
 
 
 def unregister():
+    from .selected_menu import unregister_props
+    unregister_props()
+
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
