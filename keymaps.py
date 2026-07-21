@@ -411,18 +411,20 @@ def register():
         kmi.properties.sketch_name = ""
         addon_keymaps.append((km, kmi))
 
-        # Extrude
+        # Extrude: switch to the Extrude tool, then invoke the operator.
         kmi = km.keymap_items.new(
-            Operators.NodeExtrude, "E", "PRESS", ctrl=True, shift=True
+            StatefulOps.InvokeTool.value, "E", "PRESS", ctrl=True, shift=True
         )
-        kmi.properties.wait_for_input = True
+        kmi.properties.tool_name = WorkSpaceTools.Extrude.value
+        kmi.properties.operator = Operators.NodeExtrude.value
         addon_keymaps.append((km, kmi))
 
-        # Linear Array
+        # Linear Array: switch to the tool, then invoke the operator.
         kmi = km.keymap_items.new(
-            Operators.NodeArrayLinear, "D", "PRESS", ctrl=True, shift=True
+            StatefulOps.InvokeTool.value, "D", "PRESS", ctrl=True, shift=True
         )
-        kmi.properties.wait_for_input = True
+        kmi.properties.tool_name = WorkSpaceTools.ArrayLinear.value
+        kmi.properties.operator = Operators.NodeArrayLinear.value
         addon_keymaps.append((km, kmi))
 
 

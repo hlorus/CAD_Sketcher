@@ -1,7 +1,7 @@
 
 import bpy
 from bpy.types import Operator, Object, Context, MeshEdge, MeshPolygon
-from bpy.props import FloatProperty, IntProperty, FloatVectorProperty
+from bpy.props import BoolProperty, FloatProperty, IntProperty, FloatVectorProperty
 from mathutils import Vector
 
 from .base_3d import Operator3d
@@ -24,6 +24,11 @@ BASE_STATES = (
 )
 
 
+def is_2d_profile(obj):
+    """A sketch or curve object — a valid 2D profile to extrude (not a 3D mesh)."""
+    return obj is not None and obj.type in {"CURVE", "CURVES"}
+
+
 class NodeOperator(Operator3d):
     """Base class for all node-based operators"""
 
@@ -31,14 +36,44 @@ class NodeOperator(Operator3d):
 
     resources = ()
 
+    # Message shown when the resolved target fails is_valid_target().
+    invalid_target_msg = "Invalid target object"
+
     @classmethod
     def poll(cls, context):
         if not context.active_object:
             return False
         return True
 
+    def is_valid_target(self, obj):
+        """Whether ``obj`` may receive this node modifier. Override to restrict."""
+        return obj is not None
+
+    def gather_selection(self, context):
+        # Source for the framework's prefill-from-selection: the base Object
+        # state is filled from this list on invoke (wait_for_input paths). Put
+        # the active object first and drop invalid targets so, e.g., a mesh is
+        # never prefilled for a tool that only accepts sketches.
+        active = context.active_object
+        result = [active] if active and self.is_valid_target(active) else []
+        result.extend(
+            o for o in context.selected_objects
+            if o != active and self.is_valid_target(o)
+        )
+        return result
+
     def _check_constrain(self, context, index):
         return False
+
+    def invoke(self, context, event):
+        # Follow the stateful prefill-from-selection flow: if nothing valid is
+        # selected to prefill the base Object state, cancel instead of dropping
+        # into an object-pick (a sketch/curve isn't reliably pickable in the
+        # viewport). gather_selection already filters to valid targets.
+        if self.wait_for_input and not self.gather_selection(context):
+            self.report({"WARNING"}, self.invalid_target_msg)
+            return {"CANCELLED"}
+        return super().invoke(context, event)
 
     def init(self, context, event):
         for rType, rName in self.resources:
@@ -67,6 +102,10 @@ class NodeOperator(Operator3d):
         return True
 
     def main(self, context):
+        if not self.is_valid_target(self.object):
+            self.report({"WARNING"}, self.invalid_target_msg)
+            return False
+
         if not self._ensure_modifier(context):
             return False
 
@@ -104,7 +143,15 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
     resources = (("node_groups", "CAD Sketcher Extrude"),)
     NODEGROUP_NAME = "CAD Sketcher Extrude"
 
+    invalid_target_msg = "Select a sketch or curve to extrude (2D profile)"
+
+    def is_valid_target(self, obj):
+        return is_2d_profile(obj)
+
     offset: FloatProperty(name="Offset", subtype="DISTANCE", options={"SKIP_SAVE"})
+    mirror: BoolProperty(name="Mirror Extrude")
+    asymmetry: BoolProperty(name="Asymmetric")
+    asymmetry_distance: FloatProperty(name="Asymmetry Distance", subtype="DISTANCE")
 
     states = (
         *BASE_STATES,
@@ -127,10 +174,20 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
         return delta
 
     def set_props(self):
-        # Set offset
-        self.modifier["Input_2"] = self.offset
-
+        m = self.modifier
+        m["Input_2"] = self.offset               # Size
+        m["Input_3"] = self.mirror               # Mirror Extrude
+        m["Input_4"] = self.asymmetry            # Asymmetry Override
+        m["Input_5"] = self.asymmetry_distance   # Asymmetry Distance
         return True
+
+    def draw_settings(self, context):
+        layout = self.layout
+        layout.prop(self, "mirror")
+        layout.prop(self, "asymmetry")
+        sub = layout.column()
+        sub.enabled = self.asymmetry
+        sub.prop(self, "asymmetry_distance")
 
 
 class View3D_OT_node_array_linear(Operator, NodeOperator):
@@ -145,6 +202,16 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
     direction: FloatVectorProperty(name="Direction", size=3)
     distance: FloatProperty(name="Distance")
     count: IntProperty(name="Count", default=2, min=2)
+    flip: BoolProperty(name="Flip Direction")
+    use_total_distance: BoolProperty(
+        name="Use Total Distance",
+        description="Treat distance as the total span rather than per-item spacing",
+    )
+    align_rotation: BoolProperty(name="Align Rotation")
+    merge: BoolProperty(name="Merge by Distance")
+    merge_distance: FloatProperty(
+        name="Merge Distance", default=0.001, min=0.0, subtype="DISTANCE"
+    )
 
     states = (
         *BASE_STATES,
@@ -172,9 +239,12 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
     )
 
     def gather_selection(self, context):
-        selected = list(context.selected_objects)
-        selected.sort(key=lambda o: o.type == 'EMPTY')
-        return selected
+        # Active object is the array base; any other selected object feeds the
+        # Alignment state (empties last so a mesh wins the base if both picked).
+        active = context.active_object
+        others = [o for o in context.selected_objects if o != active]
+        others.sort(key=lambda o: o.type == 'EMPTY')
+        return ([active] if active else []) + others
 
     def get_count(self, context: Context, coords):
         retval = super().state_func(context, coords)
@@ -195,21 +265,29 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
             elif isinstance(self.alignment, Object) and self.alignment.type == 'EMPTY':
                 self.direction = self.alignment.matrix_world.to_3x3().col[2].normalized()
 
-        self.modifier["Input_21"][:] = self.direction
-
-        # Distance
-        self.modifier["Input_23"] = self.distance
-
-        # Count
-        self.modifier["Input_22"] = self.count
-
+        m = self.modifier
+        m["Input_21"][:] = self.direction        # Direction
+        m["Input_22"] = self.count               # Count
+        m["Input_23"] = self.distance            # Spacing / Total distance
+        m["Input_24"] = self.use_total_distance  # Use Total Distance
+        m["Input_25"] = self.align_rotation      # Align Rotation
+        m["Input_26"] = self.merge               # Merge by Distance
+        m["Input_29"] = self.merge_distance      # Merge Distance
+        m["Input_30"] = self.flip                # Flip Direction
         return True
 
     def draw_settings(self, context):
         layout = self.layout
 
-        # Add the direction property which is not displayed as part of the states
+        # Direction is resolved from the alignment pick, not a state property.
         layout.prop(self, "direction")
+        layout.prop(self, "flip")
+        layout.prop(self, "use_total_distance")
+        layout.prop(self, "align_rotation")
+        layout.prop(self, "merge")
+        sub = layout.column()
+        sub.enabled = self.merge
+        sub.prop(self, "merge_distance")
 
 
 
