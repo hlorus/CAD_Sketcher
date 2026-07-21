@@ -458,6 +458,7 @@ class CurveSolver:
 
         if self.ok:
             self._write_results()
+            self.sketch.geometry_solved = True
 
         return self.ok
 

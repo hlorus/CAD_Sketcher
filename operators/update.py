@@ -12,7 +12,9 @@ class VIEW3D_OT_update(Operator):
 
     def execute(self, context: Context):
         from ..model.sketch_ref import get_sketches
+        from ..curve_solver import solve_system
         for sketch in get_sketches(context):
+            solve_system(context, sketch=sketch)
             refresh_curve_geometry(sketch)
         return {"FINISHED"}
 
