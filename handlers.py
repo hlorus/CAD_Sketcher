@@ -64,6 +64,9 @@ def unregister_handlers():
 def on_depsgraph_update(scene, depsgraph):
     from . import global_data
 
+    # Keep face-anchored workplanes on their mesh face as geometry changes.
+    from .utilities.face_anchor import update_face_workplanes
+    update_face_workplanes(bpy.context, depsgraph)
 
     if depsgraph.id_type_updated("SCENE"):
         global_data.needs_solve = True

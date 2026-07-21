@@ -62,15 +62,22 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         return None
 
     def _create_wp_empty_from_face(self, context, ob, face_index):
-        """Create a workplane Empty aligned to a mesh face."""
+        """Create a workplane Empty anchored to a mesh face.
+
+        The empty is not parented to the mesh; instead it is anchored to the
+        face via a persistent id and the depsgraph handler re-derives its
+        transform from the evaluated mesh, so it follows edits and deformation
+        (see utilities/face_anchor).
+        """
+        from ..utilities.face_anchor import stamp_face_anchor
+
         empty = bpy.data.objects.new("Workplane", None)
         empty.empty_display_type = 'PLAIN_AXES'
         empty.empty_display_size = 0.5
         context.scene.collection.objects.link(empty)
 
         empty.matrix_world = face_workplane_matrix(context, ob, face_index)
-        empty.parent = ob
-        empty.matrix_parent_inverse = ob.matrix_world.inverted()
+        stamp_face_anchor(empty, ob, face_index)
         return empty
 
     def prepare_origin_elements(self, context):

@@ -29,6 +29,10 @@ needs_redraw = False
 needs_curve_update = False
 stateful_op_running = False
 
+# Guards re-entry while the depsgraph handler writes face-anchored workplane
+# matrices (setting matrix_world itself triggers depsgraph_update_post).
+updating_face_wp = False
+
 Z_AXIS = Vector((0, 0, 1))
 
 draw_handle = None

@@ -50,6 +50,8 @@ class Operators(str, Enum):
     AddSketch = "view3d.slvs_add_sketch"
     AddTangent = "view3d.slvs_add_tangent"
     AddVertical = "view3d.slvs_add_vertical"
+    MakeWorkplaneFree = "view3d.slvs_make_workplane_free"
+    ReattachWorkplane = "view3d.slvs_reattach_workplane"
     AddWorkPlane = "view3d.slvs_add_workplane"
     AddWorkPlaneFace = "view3d.slvs_add_workplane_face"
     AlignWorkplaneCursor = "view3d.slvs_align_workplane_cursor"

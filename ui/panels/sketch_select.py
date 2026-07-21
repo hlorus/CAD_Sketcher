@@ -6,6 +6,26 @@ from ...model.sketch_ref import get_active_sketch, get_sketches
 from ...stateful_operator.constants import Operators as StatefulOps
 
 
+def _draw_detached_warning(layout: UILayout, sketch):
+    """Warn when the sketch's workplane lost its anchoring mesh face."""
+    from ...utilities.face_anchor import KEY_DETACHED
+
+    wp = sketch.workplane_object
+    if not wp or not wp.get(KEY_DETACHED):
+        return
+
+    box = layout.box()
+    box.alert = True
+    box.label(text="Workplane detached from mesh face", icon="ERROR")
+    row = box.row(align=True)
+    row.operator(
+        declarations.Operators.ReattachWorkplane, text="Re-attach", icon="EYEDROPPER"
+    ).empty_name = wp.name
+    row.operator(
+        declarations.Operators.MakeWorkplaneFree, text="Make Free", icon="UNLINKED"
+    ).empty_name = wp.name
+
+
 def sketch_selector(
     context: Context,
     layout: UILayout,
@@ -72,6 +92,8 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 )
                 dof_icon = "CHECKMARK" if dof_ok else "ERROR"
                 row.label(text=dof_msg, icon=dof_icon)
+
+            _draw_detached_warning(layout, sketch)
 
             layout.separator()
 

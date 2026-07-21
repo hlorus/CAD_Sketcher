@@ -46,9 +46,8 @@ def face_bounds_in_plane(context, ob, face_index, mat):
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def get_face_orientation(mesh, face):
-    """Quaternion with Z along face normal and Y toward world Z when possible."""
-    normal = mathutils.geometry.normal([mesh.vertices[i].co for i in face.vertices])
+def orientation_from_normal(normal):
+    """Quaternion with Z along ``normal`` and Y toward world Z when possible."""
     z = normal.normalized()
     up = Vector((0, 0, 1))
     if abs(z.dot(up)) > 0.999:
@@ -57,6 +56,30 @@ def get_face_orientation(mesh, face):
     y = z.cross(x).normalized()
     mat = mathutils.Matrix((x, y, z)).transposed().to_3x3()
     return mat.to_quaternion()
+
+
+def orientation_from_normal_ref(normal, ref):
+    """Quaternion with Z along ``normal`` and X along ``ref`` (projected).
+
+    Unlike :func:`orientation_from_normal`, the in-plane axes come from a
+    caller-supplied reference direction instead of world-up, so the frame
+    stays rigid with the geometry as it rotates. Falls back to the world-up
+    heuristic if ``ref`` is parallel to the normal.
+    """
+    z = normal.normalized()
+    x = ref - z * ref.dot(z)  # project ref into the plane
+    if x.length < 1e-6:
+        return orientation_from_normal(normal)
+    x.normalize()
+    y = z.cross(x).normalized()
+    mat = mathutils.Matrix((x, y, z)).transposed().to_3x3()
+    return mat.to_quaternion()
+
+
+def get_face_orientation(mesh, face):
+    """Quaternion with Z along face normal and Y toward world Z when possible."""
+    normal = mathutils.geometry.normal([mesh.vertices[i].co for i in face.vertices])
+    return orientation_from_normal(normal)
 
 
 def get_face_midpoint(quat, ob, face):

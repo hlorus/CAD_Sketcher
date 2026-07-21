@@ -16,6 +16,7 @@ modules = [
     # "add_line_3d",
     "add_workplane",
     "add_sketch",
+    "workplane_anchor",
     "add_point_2d",
     "add_line_2d",
     "add_circle",
