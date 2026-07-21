@@ -28,9 +28,75 @@ def ensure_attribute(attributes, name, type, domain):
     return attr
 
 
-_STRING_ATTRS = frozenset(
-    ("curve_id", "start_point_id", "end_point_id", "center_point_id", "name")
-)
+# Only cosmetic text remains a STRING attribute. Blender drops CURVE-domain
+# STRING attributes entirely on curve removal, so identity is stored as ints.
+_STRING_ATTRS = frozenset(("name",))
+
+# ---------------------------------------------------------------------------
+# Curve identity: 128-bit UUIDs stored as 4x INT sub-attributes.
+#
+# Blender wipes STRING attributes on remove_curves(); INT attributes survive and
+# re-index correctly. Each identity field is stored across four hidden ("."-
+# prefixed) 32-bit INT attributes and exposed as a 32-char lowercase hex string,
+# so all higher-level code keeps using the same string ids it always has.
+# ---------------------------------------------------------------------------
+
+UUID_FIELDS = ("curve_id", "start_point_id", "end_point_id", "center_point_id")
+
+
+def _uuid_subnames(field):
+    return (f".{field}_0", f".{field}_1", f".{field}_2", f".{field}_3")
+
+
+def _i32(u):  # unsigned 32-bit -> signed (Blender INT is signed int32)
+    return u - 0x100000000 if u >= 0x80000000 else u
+
+
+def _u32(v):  # signed int32 -> unsigned
+    return v + 0x100000000 if v < 0 else v
+
+
+def _hex_to_ints(hexstr):
+    if not hexstr:
+        return (0, 0, 0, 0)
+    u = int(hexstr, 16)
+    return tuple(_i32((u >> (32 * k)) & 0xFFFFFFFF) for k in range(4))
+
+
+def _ints_to_hex(ints):
+    if not any(ints):
+        return ""
+    u = 0
+    for k, v in enumerate(ints):
+        u |= _u32(v) << (32 * k)
+    return f"{u:032x}"
+
+
+def has_uuid_field(curve_data, field):
+    """Presence proxy for an identity field (its first sub-attribute)."""
+    return curve_data.attributes.get(f".{field}_0")
+
+
+def get_uuid(curve_data, field, index):
+    """Read an identity field as a 32-char hex string ('' when unset)."""
+    ints = []
+    for name in _uuid_subnames(field):
+        a = curve_data.attributes.get(name)
+        ints.append(a.data[index].value if a else 0)
+    return _ints_to_hex(ints)
+
+
+def set_uuid(curve_data, field, index, value):
+    """Write a hex-string identity field into its 4 INT sub-attributes."""
+    for name, v in zip(_uuid_subnames(field), _hex_to_ints(value)):
+        a = curve_data.attributes.get(name)
+        if a:
+            a.data[index].value = v
+
+
+def new_uuid():
+    """Mint a fresh 128-bit identity as a 32-char hex string."""
+    return secrets.token_hex(16)
 
 
 def default_curve_name(curve_data, ctype):
@@ -55,6 +121,18 @@ def default_curve_name(curve_data, ctype):
 
 def set_attribute(attributes, name: str, value, index: int = None):
     """Set an attribute value either for given index or for all."""
+    if name in UUID_FIELDS:
+        # Identity fields are hex strings stored across 4 INT sub-attributes.
+        for sub, v in zip(_uuid_subnames(name), _hex_to_ints(value)):
+            a = attributes.get(sub)
+            if not a:
+                continue
+            if index is None:
+                for i in range(len(a.data)):
+                    a.data[i].value = v
+            else:
+                a.data[index].value = v
+        return
     attribute = attributes.get(name)
     if name in _STRING_ATTRS:
         val = value.encode() if isinstance(value, str) else value
@@ -99,18 +177,18 @@ def ensure_standard_attributes(curve_data):
     ensure_attribute(attributes, "hover", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "fixed", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "visible", "BOOLEAN", "CURVE")
-    ensure_attribute(attributes, "curve_id", "STRING", "CURVE")
-    ensure_attribute(attributes, "start_point_id", "STRING", "CURVE")
-    ensure_attribute(attributes, "end_point_id", "STRING", "CURVE")
-    ensure_attribute(attributes, "center_point_id", "STRING", "CURVE")
+    # Identity fields: 4x INT each (128-bit), hidden. INT survives remove_curves.
+    for field in UUID_FIELDS:
+        for sub in _uuid_subnames(field):
+            ensure_attribute(attributes, sub, "INT", "CURVE")
     ensure_attribute(attributes, "name", "STRING", "CURVE")
 
 
 def init_string_attrs(curve_data, curve_idx):
-    """Initialize STRING attributes to empty for a curve index.
+    """Initialize the STRING name attribute to empty for a curve index.
 
-    Blender doesn't zero-init STRING attribute memory, so new curves
-    may contain garbage bytes.
+    Blender doesn't zero-init STRING attribute memory, so new curves may
+    contain garbage bytes. (INT identity sub-attributes are zero-initialized.)
     """
     for name in _STRING_ATTRS:
         attr = curve_data.attributes.get(name)
@@ -150,10 +228,9 @@ def _rebuild_curve_id_cache(sketch, lookup_id=None):
         return None
     sk_key = id(curve_data)
     cache = {}
-    cid_attr = curve_data.attributes.get("curve_id")
-    if cid_attr:
+    if has_uuid_field(curve_data, "curve_id"):
         for i in range(len(curve_data.curves)):
-            cache[get_str_attr(cid_attr, i)] = i
+            cache[get_uuid(curve_data, "curve_id", i)] = i
     _curve_id_cache[sk_key] = cache
     return cache.get(lookup_id) if lookup_id is not None else None
 
@@ -234,17 +311,15 @@ def get_curve_placement(sketch, curve_id):
     ctype = type_attr.data[idx].value if type_attr else -1
     mat = sketch.target_object.matrix_world
 
-    if ctype == SketchCurveType.POINT:
-        pos = Vector(curve_data.points[curve_slice.points[0].index].position)
-        return mat @ pos
-    elif ctype == SketchCurveType.LINE:
+    if ctype == SketchCurveType.LINE and curve_slice.points_length >= 2:
         first = curve_slice.points[0].index
         p1 = Vector(curve_data.points[first].position)
         p2 = Vector(curve_data.points[first + 1].position)
         return mat @ ((p1 + p2) / 2)
-    else:
+    elif curve_slice.points_length >= 1:
         pos = Vector(curve_data.points[curve_slice.points[0].index].position)
         return mat @ pos
+    return None
 
 
 def get_curve_midpoints(curve_slice, is_cyclic):
@@ -273,10 +348,9 @@ def sync_curve_selection(scene):
         if n_curves == 0:
             continue
 
-        cid_attr = curve_data.attributes.get("curve_id")
         sel_attr = curve_data.attributes.get("selected")
         hov_attr = curve_data.attributes.get("hover")
-        if not cid_attr:
+        if not has_uuid_field(curve_data, "curve_id"):
             continue
         if not sel_attr:
             sel_attr = curve_data.attributes.new("selected", type="BOOLEAN", domain="CURVE")
@@ -284,7 +358,7 @@ def sync_curve_selection(scene):
             hov_attr = curve_data.attributes.new("hover", type="BOOLEAN", domain="CURVE")
 
         for curve_idx in range(n_curves):
-            cid = get_str_attr(cid_attr, curve_idx)
+            cid = get_uuid(curve_data, "curve_id", curve_idx)
             sel_attr.data[curve_idx].value = cid in global_data.selected
             hov_attr.data[curve_idx].value = bool(cid) and cid == global_data.hover
 
@@ -365,42 +439,34 @@ def remove_native_curve_by_id(sketch, curve_id):
     if n_curves == 0:
         return
 
-    cid_attr = curve_data.attributes.get("curve_id")
-    if not cid_attr:
+    if not has_uuid_field(curve_data, "curve_id"):
         return
 
     to_remove = []
     for curve_idx in range(n_curves):
-        if get_str_attr(cid_attr, curve_idx) == curve_id:
+        if get_uuid(curve_data, "curve_id", curve_idx) == curve_id:
             to_remove.append(curve_idx)
 
     if to_remove:
-        # remove_curves() corrupts CURVE-domain STRING attributes (curve_id,
-        # name, relationship ids) of the surviving curves, so snapshot them for
-        # the survivors (in order) and restore afterwards. Survivors keep their
-        # relative order, occupying new indices 0..m-1.
+        # INT identity attributes survive remove_curves() and re-index, but the
+        # STRING `name` attribute is dropped entirely, so snapshot the survivors'
+        # names (in order) and restore them afterwards.
         remove_set = set(to_remove)
         attrs = curve_data.attributes
-        survivors = []
-        for i in range(n_curves):
-            if i in remove_set:
-                continue
-            survivors.append({
-                name: attrs[name].data[i].value
-                for name in _STRING_ATTRS if attrs.get(name)
-            })
+        name_attr = attrs.get("name")
+        survivor_names = [
+            name_attr.data[i].value
+            for i in range(n_curves)
+            if i not in remove_set and name_attr
+        ]
 
         curve_data.remove_curves(indices=to_remove)
 
-        # remove_curves drops the CURVE-domain STRING attributes entirely;
-        # recreate them and restore the survivors' values (order preserved).
-        ensure_standard_attributes(curve_data)
-        attrs = curve_data.attributes
-        for new_idx, row in enumerate(survivors):
-            for name, val in row.items():
-                a = attrs.get(name)
-                if a:
-                    a.data[new_idx].value = val
+        ensure_standard_attributes(curve_data)  # recreate the dropped `name`
+        name_attr = curve_data.attributes.get("name")
+        if name_attr:
+            for new_idx, val in enumerate(survivor_names):
+                name_attr.data[new_idx].value = val
 
         invalidate_curve_id_cache(sketch)
         curve_data.update_tag()
@@ -464,9 +530,6 @@ def rebuild_segments(sketch):
         return
 
     type_attr = cd.attributes.get("sketch_type")
-    sp_attr = cd.attributes.get("start_point_id")
-    ep_attr = cd.attributes.get("end_point_id")
-    cp_attr = cd.attributes.get("center_point_id")
     if not type_attr:
         return
 
@@ -477,9 +540,16 @@ def rebuild_segments(sketch):
 
         curve_slice = cd.curves[i]
 
+        # A native edit can leave a segment with too few points (e.g. an
+        # endpoint deleted in Edit Mode). Skip such degenerate curves rather
+        # than indexing past their point count.
+        min_points = 2 if ctype == SketchCurveType.LINE else 1
+        if curve_slice.points_length < min_points:
+            continue
+
         if ctype == SketchCurveType.LINE:
-            sp_cid = get_str_attr(sp_attr, i) if sp_attr else ""
-            ep_cid = get_str_attr(ep_attr, i) if ep_attr else ""
+            sp_cid = get_uuid(cd, "start_point_id", i)
+            ep_cid = get_uuid(cd, "end_point_id", i)
             if sp_cid:
                 p1 = PointRef(sketch, sp_cid)
                 if p1.valid:
@@ -500,7 +570,7 @@ def rebuild_segments(sketch):
                     if hr: hr.data[curve_slice.points[1].index].vector = pos
 
         elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
-            cp_cid = get_str_attr(cp_attr, i) if cp_attr else ""
+            cp_cid = get_uuid(cd, "center_point_id", i)
             if not cp_cid:
                 continue
             ct = PointRef(sketch, cp_cid)
@@ -511,8 +581,8 @@ def rebuild_segments(sketch):
                 edge = Vector(cd.points[curve_slice.points[0].index].position[:2])
                 _build_arc_bezier(cd, i, ct.co, edge, edge, is_cyclic=True)
             else:
-                sp_cid = get_str_attr(sp_attr, i) if sp_attr else ""
-                ep_cid = get_str_attr(ep_attr, i) if ep_attr else ""
+                sp_cid = get_uuid(cd, "start_point_id", i)
+                ep_cid = get_uuid(cd, "end_point_id", i)
                 if sp_cid and ep_cid:
                     s = PointRef(sketch, sp_cid)
                     e = PointRef(sketch, ep_cid)

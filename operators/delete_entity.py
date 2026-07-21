@@ -16,30 +16,26 @@ logger = logging.getLogger(__name__)
 
 def _get_dependent_curve_ids(sketch, curve_id):
     """Find curve_ids that reference this curve_id via relationship attributes."""
-    from ..utilities.curve_data import get_str_attr
+    from ..utilities.curve_data import get_uuid, has_uuid_field
 
     if not sketch or not sketch.target_object or not sketch.target_object.data:
         return []
 
     cd = sketch.target_object.data
     n = len(cd.curves)
-    cid_attr = cd.attributes.get("curve_id")
-    sp_attr = cd.attributes.get("start_point_id")
-    ep_attr = cd.attributes.get("end_point_id")
-    cp_attr = cd.attributes.get("center_point_id")
-    if not cid_attr:
+    if not has_uuid_field(cd, "curve_id"):
         return []
 
     deps = []
     for i in range(n):
-        cid = get_str_attr(cid_attr, i)
+        cid = get_uuid(cd, "curve_id", i)
         if cid == curve_id:
             continue
-        if sp_attr and get_str_attr(sp_attr, i) == curve_id:
+        if get_uuid(cd, "start_point_id", i) == curve_id:
             deps.append(cid)
-        elif ep_attr and get_str_attr(ep_attr, i) == curve_id:
+        elif get_uuid(cd, "end_point_id", i) == curve_id:
             deps.append(cid)
-        elif cp_attr and get_str_attr(cp_attr, i) == curve_id:
+        elif get_uuid(cd, "center_point_id", i) == curve_id:
             deps.append(cid)
     return deps
 

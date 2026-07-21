@@ -5,7 +5,7 @@ from bpy.types import Context, Operator
 
 from .. import global_data
 from ..declarations import BLENDER_SELECT_TOOL, GizmoGroups, WorkSpaceTools
-from ..utilities.curve_data import refresh_curve_geometry
+from ..utilities.curve_data import refresh_curve_geometry, get_uuid, has_uuid_field
 from ..utilities.preferences import get_prefs
 from ..model.sketch_ref import get_active_sketch
 
@@ -19,12 +19,11 @@ def select_invert(context: Context):
 
     curve_data = sketch.target_object.data
     n = len(curve_data.curves)
-    cid_attr = curve_data.attributes.get("curve_id")
-    if not cid_attr:
+    if not has_uuid_field(curve_data, "curve_id"):
         return
 
     for i in range(n):
-        cid = cid_attr.data[i].value
+        cid = get_uuid(curve_data, "curve_id", i)
         if not cid:
             continue
         if cid in global_data.selected:
@@ -40,12 +39,8 @@ def select_extend(context: Context):
 
     cd = sketch.target_object.data
     n = len(cd.curves)
-    cid_attr = cd.attributes.get("curve_id")
     type_attr = cd.attributes.get("sketch_type")
-    sp_attr = cd.attributes.get("start_point_id")
-    ep_attr = cd.attributes.get("end_point_id")
-    cp_attr = cd.attributes.get("center_point_id")
-    if not cid_attr or not type_attr:
+    if not has_uuid_field(cd, "curve_id") or not type_attr:
         return False
 
     from ..model.constants import SketchCurveType
@@ -53,23 +48,23 @@ def select_extend(context: Context):
     to_add = set()
 
     for i in range(n):
-        cid = cid_attr.data[i].value
+        cid = get_uuid(cd, "curve_id", i)
         if not cid:
             continue
         ctype = type_attr.data[i].value
-        sp = sp_attr.data[i].value if sp_attr else 0
-        ep = ep_attr.data[i].value if ep_attr else 0
-        cp = cp_attr.data[i].value if cp_attr else 0
+        sp = get_uuid(cd, "start_point_id", i)
+        ep = get_uuid(cd, "end_point_id", i)
+        cp = get_uuid(cd, "center_point_id", i)
         rel_ids = {r for r in (sp, ep, cp) if r}
 
         if ctype == SketchCurveType.POINT:
             # Point selected → select segments referencing it
             if cid in selected:
                 for j in range(n):
-                    j_cid = cid_attr.data[j].value
-                    j_sp = sp_attr.data[j].value if sp_attr else 0
-                    j_ep = ep_attr.data[j].value if ep_attr else 0
-                    j_cp = cp_attr.data[j].value if cp_attr else 0
+                    j_cid = get_uuid(cd, "curve_id", j)
+                    j_sp = get_uuid(cd, "start_point_id", j)
+                    j_ep = get_uuid(cd, "end_point_id", j)
+                    j_cp = get_uuid(cd, "center_point_id", j)
                     if cid in (j_sp, j_ep, j_cp):
                         to_add.add(j_cid)
         else:

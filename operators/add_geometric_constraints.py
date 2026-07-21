@@ -32,17 +32,15 @@ def merge_points(context, duplicate, target):
         return
 
     cd = sketch.target_object.data
+    from ..utilities.curve_data import get_uuid, set_uuid
     dup_cid = duplicate.curve_id
     tgt_cid = target.curve_id
 
     # Remap relationship attributes
     for attr_name in ("start_point_id", "end_point_id", "center_point_id"):
-        attr = cd.attributes.get(attr_name)
-        if not attr:
-            continue
         for i in range(len(cd.curves)):
-            if attr.data[i].value == dup_cid:
-                attr.data[i].value = tgt_cid
+            if get_uuid(cd, attr_name, i) == dup_cid:
+                set_uuid(cd, attr_name, i, tgt_cid)
 
     # Remap constraint curve_ids
     for c in sketch.constraints.all:
@@ -101,15 +99,13 @@ class VIEW3D_OT_slvs_merge_points(Operator):
         # Delete collapsed lines (start == end after merge)
         collapsed = []
         cd = sketch.target_object.data
-        sp_attr = cd.attributes.get("start_point_id")
-        ep_attr = cd.attributes.get("end_point_id")
-        if sp_attr and ep_attr:
-            cid_attr = cd.attributes.get("curve_id")
+        from ..utilities.curve_data import get_uuid, has_uuid_field
+        if has_uuid_field(cd, "start_point_id") and has_uuid_field(cd, "end_point_id"):
             for i in range(len(cd.curves)):
-                sp = sp_attr.data[i].value
-                ep = ep_attr.data[i].value
+                sp = get_uuid(cd, "start_point_id", i)
+                ep = get_uuid(cd, "end_point_id", i)
                 if sp and ep and sp == ep:
-                    collapsed.append(cid_attr.data[i].value)
+                    collapsed.append(get_uuid(cd, "curve_id", i))
             for cid in collapsed:
                 curve_ref(sketch, cid).remove()
 

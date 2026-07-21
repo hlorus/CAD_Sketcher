@@ -9,7 +9,7 @@ import math
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
-from .curve_data import get_str_attr
+from .curve_data import get_uuid, has_uuid_field
 
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
@@ -70,12 +70,9 @@ class SketchTopology:
 
         cd = obj.data
         n = len(cd.curves)
-        cid_attr = cd.attributes.get("curve_id")
         type_attr = cd.attributes.get("sketch_type")
-        sp_attr = cd.attributes.get("start_point_id")
-        ep_attr = cd.attributes.get("end_point_id")
 
-        if not cid_attr or not type_attr:
+        if not has_uuid_field(cd, "curve_id") or not type_attr:
             return
 
         for i in range(n):
@@ -83,9 +80,9 @@ class SketchTopology:
             if ctype == SketchCurveType.POINT:
                 continue
 
-            cid = get_str_attr(cid_attr, i)
-            sp = get_str_attr(sp_attr, i) if sp_attr else ""
-            ep = get_str_attr(ep_attr, i) if ep_attr else ""
+            cid = get_uuid(cd, "curve_id", i)
+            sp = get_uuid(cd, "start_point_id", i)
+            ep = get_uuid(cd, "end_point_id", i)
 
             if sp:
                 self._connections.setdefault(sp, []).append((cid, "start"))
@@ -408,16 +405,15 @@ class SketchTopology:
             return paths
 
         cd = obj.data
-        cid_attr = cd.attributes.get("curve_id")
         type_attr = cd.attributes.get("sketch_type")
-        if not cid_attr or not type_attr:
+        if not has_uuid_field(cd, "curve_id") or not type_attr:
             return paths
 
         for i in range(len(cd.curves)):
             ctype = type_attr.data[i].value
             if ctype == SketchCurveType.POINT:
                 continue
-            cid = get_str_attr(cid_attr, i)
+            cid = get_uuid(cd, "curve_id", i)
             if cid in visited:
                 continue
 

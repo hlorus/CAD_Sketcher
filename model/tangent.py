@@ -28,7 +28,7 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
     curve_id_2: StringProperty(name="Curve ID 2", default="")
 
     def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
-        from ..utilities.curve_data import get_curve_data, get_curve_position, get_str_attr
+        from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
         from ..model.constants import SketchCurveType
         import bpy
 
@@ -44,9 +44,6 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
             return None
 
         type_attr = cd1.attributes.get("sketch_type")
-        sp_attr = cd1.attributes.get("start_point_id")
-        ep_attr = cd1.attributes.get("end_point_id")
-        cp_attr = cd1.attributes.get("center_point_id")
 
         t1 = type_attr.data[idx1].value
         t2 = type_attr.data[idx2].value
@@ -57,10 +54,10 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
 
         if is_curve1 and is_line2:
             # Curve-line tangent
-            ct_id = get_str_attr(cp_attr, idx1) if cp_attr else ""
+            ct_id = get_uuid(cd1, "center_point_id", idx1)
             ct_handle = handle_map.get(ct_id)
-            sp_id = get_str_attr(sp_attr, idx2) if sp_attr else ""
-            ep_id = get_str_attr(ep_attr, idx2) if ep_attr else ""
+            sp_id = get_uuid(cd2, "start_point_id", idx2)
+            ep_id = get_uuid(cd2, "end_point_id", idx2)
 
             ct_pos = get_curve_position(sketch, ct_id)
             sp_pos = get_curve_position(sketch, sp_id)
@@ -81,8 +78,8 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
 
         elif is_curve1 and is_curve2:
             # Curve-curve tangent
-            ct1_id = get_str_attr(cp_attr, idx1) if cp_attr else ""
-            ct2_id = get_str_attr(cp_attr, idx2) if cp_attr else ""
+            ct1_id = get_uuid(cd1, "center_point_id", idx1)
+            ct2_id = get_uuid(cd2, "center_point_id", idx2)
             ct1_handle = handle_map.get(ct1_id)
             ct2_handle = handle_map.get(ct2_id)
             ct1_pos = get_curve_position(sketch, ct1_id)

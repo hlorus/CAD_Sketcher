@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 def _draw_curves_id_buffer(context: Context):
     """Draw curve-based ID buffer using sequential pick indices for picking."""
     from .utilities.index import index_to_rgb
-    from .utilities.curve_data import get_str_attr
+    from .utilities.curve_data import get_uuid, has_uuid_field
 
     # Reset pick map each frame
     global_data.pick_map = {}
@@ -44,7 +44,7 @@ def _draw_curves_id_buffer(context: Context):
         if n_curves == 0:
             continue
 
-        cid_attr = curve_data.attributes.get("curve_id")
+        cid_attr = has_uuid_field(curve_data, "curve_id")
         vis_attr = curve_data.attributes.get("visible")
         type_attr = curve_data.attributes.get("sketch_type")
         cyc_attr = curve_data.attributes.get("cyclic")
@@ -58,7 +58,7 @@ def _draw_curves_id_buffer(context: Context):
             if vis_attr and not vis_attr.data[curve_idx].value:
                 continue
 
-            cid = get_str_attr(cid_attr, curve_idx)
+            cid = get_uuid(curve_data, "curve_id", curve_idx)
             if not cid:
                 continue
             if cid in global_data.ignore_list:
@@ -243,7 +243,7 @@ def _draw_bezier_curve(shader, curve_data, curve_slice, mat, is_cyclic, steps=12
 
 def _draw_curves_overlay(context: Context):
     """Draw native curve geometry as an overlay."""
-    from .utilities.curve_data import get_str_attr
+    from .utilities.curve_data import get_uuid, has_uuid_field
 
     if context.scene.sketcher.active_sketch_object is None:
         return
@@ -276,9 +276,9 @@ def _draw_curves_overlay(context: Context):
         vis_attr = curve_data.attributes.get("visible")
         cyc_attr = curve_data.attributes.get("cyclic")
         type_attr = curve_data.attributes.get("sketch_type")
-        sp_attr = curve_data.attributes.get("start_point_id")
-        ep_attr = curve_data.attributes.get("end_point_id")
-        cp_attr = curve_data.attributes.get("center_point_id")
+        sp_attr = has_uuid_field(curve_data, "start_point_id")
+        ep_attr = has_uuid_field(curve_data, "end_point_id")
+        cp_attr = has_uuid_field(curve_data, "center_point_id")
 
         mat = sketch.target_object.matrix_world
         point_coords = []
@@ -308,8 +308,8 @@ def _draw_curves_overlay(context: Context):
 
             elif ctype == SketchCurveType.LINE and sp_attr and ep_attr:
                 # Line — draw from point curves
-                sp_cid = get_str_attr(sp_attr, curve_idx)
-                ep_cid = get_str_attr(ep_attr, curve_idx)
+                sp_cid = get_uuid(curve_data, "start_point_id", curve_idx)
+                ep_cid = get_uuid(curve_data, "end_point_id", curve_idx)
                 _, _, sp_slice = _gcd(sketch, sp_cid)
                 _, _, ep_slice = _gcd(sketch, ep_cid)
                 if sp_slice and ep_slice:
@@ -339,7 +339,7 @@ def _draw_curves_overlay(context: Context):
 
             elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE) and cp_attr:
                 # Arc/circle — resolve from point curves and draw arc
-                cp_cid = get_str_attr(cp_attr, curve_idx)
+                cp_cid = get_uuid(curve_data, "center_point_id", curve_idx)
                 _, _, cp_slice = _gcd(sketch, cp_cid)
                 if cp_slice:
                     center = Vector(curve_data.points[cp_slice.points[0].index].position[:2])
@@ -349,8 +349,8 @@ def _draw_curves_overlay(context: Context):
                         radius = (edge - center).length
                         arc_points = _arc_points(center, radius, 0, math.tau, 48, mat)
                     else:
-                        sp_cid = get_str_attr(sp_attr, curve_idx) if sp_attr else ""
-                        ep_cid = get_str_attr(ep_attr, curve_idx) if ep_attr else ""
+                        sp_cid = get_uuid(curve_data, "start_point_id", curve_idx)
+                        ep_cid = get_uuid(curve_data, "end_point_id", curve_idx)
                         _, _, s_slice = _gcd(sketch, sp_cid) if sp_cid else (None, None, None)
                         _, _, e_slice = _gcd(sketch, ep_cid) if ep_cid else (None, None, None)
                         if s_slice and e_slice:

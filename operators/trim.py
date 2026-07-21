@@ -9,7 +9,7 @@ from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from ..utilities.trimming import TrimSegment
-from ..utilities.curve_data import get_str_attr
+from ..utilities.curve_data import get_uuid, has_uuid_field
 from .base_2d import Operator2d
 from ..utilities.view import refresh, get_pos_2d
 
@@ -68,18 +68,15 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
         if not cd:
             return
         n = len(cd.curves)
-        sp_attr = cd.attributes.get("start_point_id")
-        ep_attr = cd.attributes.get("end_point_id")
-        cp_attr = cd.attributes.get("center_point_id")
 
         referenced = set()
         type_attr = cd.attributes.get("sketch_type")
         for i in range(n):
             if type_attr and type_attr.data[i].value == SketchCurveType.POINT:
                 continue
-            if sp_attr: referenced.add(get_str_attr(sp_attr, i))
-            if ep_attr: referenced.add(get_str_attr(ep_attr, i))
-            if cp_attr: referenced.add(get_str_attr(cp_attr, i))
+            referenced.add(get_uuid(cd, "start_point_id", i))
+            referenced.add(get_uuid(cd, "end_point_id", i))
+            referenced.add(get_uuid(cd, "center_point_id", i))
 
         for cid in endpoint_cids:
             if cid not in referenced:
@@ -110,15 +107,14 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
         # Find intersections with all other segments
         from ..model.constants import SketchCurveType
         cd = sketch.data
-        cid_attr = cd.attributes.get("curve_id")
         type_attr = cd.attributes.get("sketch_type")
 
-        if cid_attr and type_attr:
+        if has_uuid_field(cd, "curve_id") and type_attr:
             for i in range(len(cd.curves)):
                 ctype = type_attr.data[i].value
                 if ctype == SketchCurveType.POINT:
                     continue
-                cid = get_str_attr(cid_attr, i)
+                cid = get_uuid(cd, "curve_id", i)
                 if cid == segment.curve_id:
                     continue
 

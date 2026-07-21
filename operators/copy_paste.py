@@ -9,7 +9,9 @@ from .. import global_data
 from ..declarations import Operators
 from ..model.curve_ref import curve_ref, PointRef, LineRef, ArcRef, CircleRef
 from ..model.constants import SketchCurveType
-from ..utilities.curve_data import get_curve_data, invalidate_curve_id_cache
+from ..utilities.curve_data import (
+    get_curve_data, get_uuid, invalidate_curve_id_cache, UUID_FIELDS,
+)
 
 
 def _snapshot_curve(sketch, curve_id):
@@ -18,12 +20,19 @@ def _snapshot_curve(sketch, curve_id):
     if cd is None:
         return None
 
+    # Non-identity curve-domain attributes (skip hidden "."-prefixed ones,
+    # which include the INT identity sub-attributes handled via rel_ids below).
     attrs = {}
     for attr in cd.attributes:
-        if attr.domain == 'CURVE':
+        if attr.domain == 'CURVE' and not attr.name.startswith('.'):
             v = attr.data[idx].value
             attrs[attr.name] = v.decode() if isinstance(v, bytes) else v
-        # Point-domain attrs stored per point
+
+    # Logical relationship ids (hex), remapped to new ids on paste.
+    rel_ids = {
+        field: get_uuid(cd, field, idx)
+        for field in UUID_FIELDS if field != "curve_id"
+    }
 
     n_points = curve_slice.points_length
     first = curve_slice.points[0].index
@@ -45,6 +54,7 @@ def _snapshot_curve(sketch, curve_id):
 
     return {
         "curve_id": curve_id,
+        "rel_ids": rel_ids,
         "positions": positions,
         "curve_attrs": attrs,
         "point_attrs": point_attrs,
@@ -139,18 +149,20 @@ class View3D_OT_slvs_paste(Operator):
             for i, pos in enumerate(snap["positions"]):
                 curve_data.points[curve_slice.points[i].index].position = pos
 
-            # Set curve-domain attributes
-            from ..utilities.curve_data import _STRING_ATTRS
+            # Identity: fresh curve_id + relationship ids remapped to the copies.
+            set_attribute(curve_data.attributes, "curve_id", new_cid, curve_idx)
+            for field, old_val in snap["rel_ids"].items():
+                set_attribute(
+                    curve_data.attributes, field, id_map.get(old_val, ""), curve_idx
+                )
+
+            # Other curve-domain attributes (name, sketch_type, flags, ...).
             for name, value in snap["curve_attrs"].items():
                 attr = curve_data.attributes.get(name)
                 if not attr:
                     continue
-                if name == "curve_id":
-                    v = new_cid.encode() if isinstance(new_cid, str) else new_cid
-                    attr.data[curve_idx].value = v
-                elif name in _STRING_ATTRS:
-                    v = id_map.get(value, "")
-                    attr.data[curve_idx].value = v.encode() if isinstance(v, str) else v
+                if isinstance(value, str):
+                    attr.data[curve_idx].value = value.encode()
                 else:
                     attr.data[curve_idx].value = value
 

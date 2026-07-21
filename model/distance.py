@@ -140,7 +140,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     curve_id_2: StringProperty(name="Curve ID 2", default="")
 
     def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
-        from ..utilities.curve_data import get_curve_data, get_curve_position, get_str_attr
+        from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
         from ..model.constants import SketchCurveType
         import bpy
 
@@ -156,8 +156,6 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             return None
 
         type_attr = cd.attributes.get("sketch_type")
-        sp_attr = cd.attributes.get("start_point_id")
-        cp_attr = cd.attributes.get("center_point_id")
 
         t1 = type_attr.data[idx1].value
         t2 = type_attr.data[idx2].value if idx2 is not None else -1
@@ -166,14 +164,14 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
         # Line entity1 → use start point as e1
         if t1 == SketchCurveType.LINE:
-            sp_id = get_str_attr(sp_attr, idx1) if sp_attr else ""
+            sp_id = get_uuid(cd, "start_point_id", idx1)
             h1 = handle_map.get(sp_id)
             if h1 is None:
                 return None
 
         # Curve/arc entity1 → distance from center + radius offset
         if t1 in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
-            ct_id = get_str_attr(cp_attr, idx1) if cp_attr else ""
+            ct_id = get_uuid(cd, "center_point_id", idx1)
             ct_handle = handle_map.get(ct_id)
             ct_pos = get_curve_position(sketch, ct_id)
             if ct_handle and ct_pos:

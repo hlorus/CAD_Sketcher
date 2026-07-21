@@ -5,6 +5,7 @@ from ..model.sketch_ref import get_active_sketch
 from bpy.types import Context
 
 from .. import global_data
+from .curve_data import get_uuid, has_uuid_field
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +17,14 @@ def select_all(context: Context):
 
     curve_data = sketch.target_object.data
     n = len(curve_data.curves)
-    cid_attr = curve_data.attributes.get("curve_id")
     vis_attr = curve_data.attributes.get("visible")
-    if not cid_attr:
+    if not has_uuid_field(curve_data, "curve_id"):
         return
 
     for i in range(n):
         if vis_attr and not vis_attr.data[i].value:
             continue
-        cid = cid_attr.data[i].value
+        cid = get_uuid(curve_data, "curve_id", i)
         if cid and cid not in global_data.selected:
             global_data.selected.append(cid)
 

@@ -5,7 +5,7 @@ from . import VIEW3D_PT_sketcher_base
 
 from ...model.constants import SketchCurveType
 from ...model.sketch_ref import get_active_sketch
-from ...utilities.curve_data import get_str_attr
+from ...utilities.curve_data import get_str_attr, get_uuid, has_uuid_field
 from ... import global_data
 
 
@@ -40,15 +40,14 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
 
         curve_data = sketch.target_object.data
         n = len(curve_data.curves)
-        cid_attr = curve_data.attributes.get("curve_id")
         type_attr = curve_data.attributes.get("sketch_type")
         vis_attr = curve_data.attributes.get("visible")
         name_attr = curve_data.attributes.get("name")
-        if not cid_attr or not type_attr:
+        if not has_uuid_field(curve_data, "curve_id") or not type_attr:
             return
 
         for i in range(n):
-            cid = get_str_attr(cid_attr, i)  # STRING attr stores bytes; decode
+            cid = get_uuid(curve_data, "curve_id", i)
             if not cid:
                 continue
 

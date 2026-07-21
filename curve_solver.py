@@ -13,7 +13,7 @@ from mathutils import Vector, Matrix as _Matrix
 import math
 
 from .model.constants import SketchCurveType
-from .utilities.curve_data import get_str_attr
+from .utilities.curve_data import get_uuid, has_uuid_field
 from .utilities.curve_data import (
     get_curve_index, get_curve_data,
     invalidate_curve_id_cache, get_curve_midpoints,
@@ -110,14 +110,9 @@ class CurveSolver:
         if n_curves == 0:
             return
 
-        cid_attr = curve_data.attributes.get("curve_id")
         type_attr = curve_data.attributes.get("sketch_type")
-        fix_attr = curve_data.attributes.get("fixed")
-        sp_attr = curve_data.attributes.get("start_point_id")
-        ep_attr = curve_data.attributes.get("end_point_id")
-        cp_attr = curve_data.attributes.get("center_point_id")
 
-        if not cid_attr or not type_attr:
+        if not has_uuid_field(curve_data, "curve_id") or not type_attr:
             return
 
         wp = self._wp_handle
@@ -130,7 +125,7 @@ class CurveSolver:
             if ctype != SketchCurveType.POINT:
                 continue
 
-            cid = get_str_attr(cid_attr, curve_idx)
+            cid = get_uuid(curve_data, "curve_id", curve_idx)
             fixed = _is_fixed(self.sketch, cid)
             group = self.group_fixed if fixed else self.group_sketch
 
@@ -145,11 +140,11 @@ class CurveSolver:
         # Second pass: create lines, arcs, circles
         for curve_idx in range(n_curves):
             ctype = type_attr.data[curve_idx].value
-            cid = get_str_attr(cid_attr, curve_idx)
+            cid = get_uuid(curve_data, "curve_id", curve_idx)
 
             if ctype == SketchCurveType.LINE:
-                sp_id = get_str_attr(sp_attr, curve_idx) if sp_attr else ""
-                ep_id = get_str_attr(ep_attr, curve_idx) if ep_attr else ""
+                sp_id = get_uuid(curve_data, "start_point_id", curve_idx)
+                ep_id = get_uuid(curve_data, "end_point_id", curve_idx)
 
                 p1_handle = self._point_handles.get(sp_id)
                 p2_handle = self._point_handles.get(ep_id)
@@ -160,7 +155,7 @@ class CurveSolver:
                     self._entity_handles[cid] = handle
 
             elif ctype == SketchCurveType.CIRCLE:
-                cp_id = get_str_attr(cp_attr, curve_idx) if cp_attr else ""
+                cp_id = get_uuid(curve_data, "center_point_id", curve_idx)
                 ct_handle = self._point_handles.get(cp_id)
                 if ct_handle:
                     # Get radius from curve geometry
@@ -182,9 +177,9 @@ class CurveSolver:
                     self._distance_params[cid] = dist_param
 
             elif ctype == SketchCurveType.ARC:
-                cp_id = get_str_attr(cp_attr, curve_idx) if cp_attr else ""
-                sp_id = get_str_attr(sp_attr, curve_idx) if sp_attr else ""
-                ep_id = get_str_attr(ep_attr, curve_idx) if ep_attr else ""
+                cp_id = get_uuid(curve_data, "center_point_id", curve_idx)
+                sp_id = get_uuid(curve_data, "start_point_id", curve_idx)
+                ep_id = get_uuid(curve_data, "end_point_id", curve_idx)
 
                 ct_handle = self._point_handles.get(cp_id)
                 p1_handle = self._point_handles.get(sp_id)
@@ -364,18 +359,14 @@ class CurveSolver:
 
         curve_data = sketch.target_object.data
         n_curves = len(curve_data.curves)
-        cid_attr = curve_data.attributes.get("curve_id")
         type_attr = curve_data.attributes.get("sketch_type")
-        if not cid_attr or not type_attr:
+        if not has_uuid_field(curve_data, "curve_id") or not type_attr:
             return
-        sp_attr = curve_data.attributes.get("start_point_id")
-        ep_attr = curve_data.attributes.get("end_point_id")
-        cp_attr = curve_data.attributes.get("center_point_id")
 
         # First pass: update all point positions
         for curve_idx in range(n_curves):
             ctype = type_attr.data[curve_idx].value
-            cid = get_str_attr(cid_attr, curve_idx)
+            cid = get_uuid(curve_data, "curve_id", curve_idx)
 
             if ctype == SketchCurveType.POINT:
                 pos = self._get_solved_point_position(cid)
@@ -386,13 +377,13 @@ class CurveSolver:
         # Second pass: update circle/arc edge positions from solved radius
         for curve_idx in range(n_curves):
             ctype = type_attr.data[curve_idx].value
-            cid = get_str_attr(cid_attr, curve_idx)
+            cid = get_uuid(curve_data, "curve_id", curve_idx)
 
             if ctype == SketchCurveType.CIRCLE and cid in self._distance_params:
                 dist_param = self._distance_params[cid]
                 param_h = dist_param.get('param', [0])[0]
                 solved_radius = self.solvesys.get_param_value(param_h) if param_h else None
-                cp_id = get_str_attr(cp_attr, curve_idx) if cp_attr else ""
+                cp_id = get_uuid(curve_data, "center_point_id", curve_idx)
                 if cp_id and solved_radius is not None:
                     ct_pos = self._get_solved_point_position(cp_id)
                     if ct_pos:
@@ -425,7 +416,7 @@ class CurveSolver:
                     pos = curve_data.points[pt_idx].position
                     entity.co = (pos[0], pos[1])
                 elif ctype == SketchCurveType.CIRCLE:
-                    dist = self._distance_params.get(get_str_attr(cid_attr, curve_idx))
+                    dist = self._distance_params.get(get_uuid(curve_data, "curve_id", curve_idx))
                     if dist and hasattr(entity, 'radius'):
                         entity.radius = self.solvesys.get_param_value(dist['param'][0])
 

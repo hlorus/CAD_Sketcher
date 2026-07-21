@@ -4,7 +4,7 @@ import logging
 from mathutils import Vector
 
 from ..model.curve_ref import PointRef, LineRef, ArcRef, CircleRef, CurveRef, curve_ref
-from .curve_data import get_str_attr
+from .curve_data import get_uuid, has_uuid_field
 
 logger = logging.getLogger(__name__)
 
@@ -179,12 +179,8 @@ class TrimSegment:
             return
 
         n = len(cd.curves)
-        cid_attr = cd.attributes.get("curve_id")
         type_attr = cd.attributes.get("sketch_type")
-        sp_attr = cd.attributes.get("start_point_id")
-        ep_attr = cd.attributes.get("end_point_id")
-        cp_attr = cd.attributes.get("center_point_id")
-        if not cid_attr or not type_attr:
+        if not has_uuid_field(cd, "curve_id") or not type_attr:
             return
 
         # Check which candidates are still referenced by any segment
@@ -193,12 +189,9 @@ class TrimSegment:
             ctype = type_attr.data[i].value
             if ctype == SketchCurveType.POINT:
                 continue
-            if sp_attr:
-                referenced.add(get_str_attr(sp_attr, i))
-            if ep_attr:
-                referenced.add(get_str_attr(ep_attr, i))
-            if cp_attr:
-                referenced.add(get_str_attr(cp_attr, i))
+            referenced.add(get_uuid(cd, "start_point_id", i))
+            referenced.add(get_uuid(cd, "end_point_id", i))
+            referenced.add(get_uuid(cd, "center_point_id", i))
 
         for cid in candidates:
             if cid not in referenced:

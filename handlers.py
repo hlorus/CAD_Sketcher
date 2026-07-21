@@ -64,7 +64,9 @@ def unregister_handlers():
 def on_load_post(*args):
     """Migrate legacy entity-based sketches to native curves on file load."""
     from .utilities.migrate import scene_needs_migration, migrate_scene
+    from .utilities.validate import reset_cache
 
+    reset_cache()
     context = bpy.context
     try:
         if scene_needs_migration(context):
@@ -80,6 +82,14 @@ def on_depsgraph_update(scene, depsgraph):
     # Keep face-anchored workplanes on their mesh face as geometry changes.
     from .utilities.face_anchor import update_face_workplanes
     update_face_workplanes(bpy.context, depsgraph)
+
+    # Repair invariants if a built-in tool edited our curve data outside the
+    # addon. Skip while one of our operators is mid-run (it owns the data and
+    # keeps invariants itself).
+    if not global_data.stateful_op_running:
+        from .utilities.validate import validate_all_sketches
+        if validate_all_sketches(scene):
+            global_data.needs_solve = True
 
     if depsgraph.id_type_updated("SCENE"):
         global_data.needs_solve = True

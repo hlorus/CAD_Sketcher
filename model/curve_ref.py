@@ -105,6 +105,11 @@ class CurveRef:
     def _get_attr_value(self, attr_name, default=None):
         if not self._resolve():
             return default
+        from ..utilities.curve_data import UUID_FIELDS, get_uuid, has_uuid_field
+        if attr_name in UUID_FIELDS:
+            if not has_uuid_field(self._curve_data, attr_name):
+                return default
+            return get_uuid(self._curve_data, attr_name, self._idx)
         attr = self._curve_data.attributes.get(attr_name)
         if not attr:
             return default
