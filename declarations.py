@@ -2,6 +2,11 @@
 from enum import Enum
 
 
+# Blender's built-in Select Box tool — the standard tool we return to when
+# leaving one of our tools (ESC / cancel).
+BLENDER_SELECT_TOOL = "builtin.select_box"
+
+
 class Gizmos(str, Enum):
     Angle = "VIEW3D_GT_slvs_angle"
     Constraint = "VIEW3D_GT_slvs_constraint"
@@ -9,6 +14,7 @@ class Gizmos(str, Enum):
     Diameter = "VIEW3D_GT_slvs_diameter"
     Distance = "VIEW3D_GT_slvs_distance"
     Preselection = "VIEW3D_GT_slvs_preselection"
+    Workplane = "VIEW3D_GT_slvs_workplane"
 
 
 class GizmoGroups(str, Enum):
@@ -17,6 +23,7 @@ class GizmoGroups(str, Enum):
     Diameter = "VIEW3D_GGT_slvs_diameter"
     Distance = "VIEW3D_GGT_slvs_distance"
     Preselection = "VIEW3D_GGT_slvs_preselection"
+    Workplane = "VIEW3D_GGT_slvs_workplane"
 
 
 class Operators(str, Enum):
@@ -118,6 +125,9 @@ class WorkSpaceTools(str, Enum):
     Select = "sketcher.slvs_select"
     Trim = "sketcher.slvs_trim"
     Bevel = "sketcher.slvs_bevel"
+    AddSketch = "sketcher.slvs_add_sketch"
+    Extrude = "sketcher.slvs_node_extrude"
+    ArrayLinear = "sketcher.slvs_node_array_linear"
 
 
 ConstraintOperators = (

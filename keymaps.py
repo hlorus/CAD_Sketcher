@@ -1,6 +1,7 @@
 import bpy
 
-from .declarations import Macros, Operators, WorkSpaceTools
+from .declarations import BLENDER_SELECT_TOOL, Macros, Operators, WorkSpaceTools
+from .stateful_operator.constants import Operators as StatefulOps
 from .stateful_operator.utilities.keymap import tool_invoke_kmi
 
 constraint_access = (
@@ -176,16 +177,30 @@ tool_access = (
         WorkSpaceTools.Offset,
         Operators.Offset
     ),
-    (
+    tool_invoke_kmi(
+        "S",
+        WorkSpaceTools.AddSketch,
         Operators.AddSketch,
-        {"type": "S", "value": "PRESS"},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
     ),
     *constraint_access,
+)
+
+node_access = (
+    tool_invoke_kmi(
+        "E",
+        WorkSpaceTools.Extrude,
+        Operators.NodeExtrude,
+    ),
+    tool_invoke_kmi(
+        "D",
+        WorkSpaceTools.ArrayLinear,
+        Operators.NodeArrayLinear,
+    ),
+    tool_invoke_kmi(
+        "S",
+        WorkSpaceTools.AddSketch,
+        Operators.AddSketch,
+    ),
 )
 
 disable_gizmos = (
@@ -238,12 +253,12 @@ tool_use_select = (
     (
         "wm.tool_set_by_id",
         {"type": "ESC", "value": "PRESS"},
-        {"properties": [("name", WorkSpaceTools.Select)]},
+        {"properties": [("name", BLENDER_SELECT_TOOL)]},
     ),
     (
         "wm.tool_set_by_id",
         {"type": "RIGHTMOUSE", "value": "PRESS"},
-        {"properties": [("name", WorkSpaceTools.Select)]},
+        {"properties": [("name", BLENDER_SELECT_TOOL)]},
     ),
 )
 tool_base_keymap = (
@@ -290,6 +305,10 @@ tool_generic = (
     use_construction,
     *tool_use_select,
     *tool_access,
+)
+
+tool_node = (
+    *node_access,
 )
 
 tool_select = (
@@ -373,14 +392,16 @@ def register():
 
         # Select
         kmi = km.keymap_items.new("wm.tool_set_by_id", "ESC", "PRESS", shift=True)
-        kmi.properties.name = WorkSpaceTools.Select
+        kmi.properties.name = BLENDER_SELECT_TOOL
         addon_keymaps.append((km, kmi))
 
-        # Add Sketch
+        # Add Sketch: switch to the Add Sketch tool (workplane gizmo), then
+        # invoke the operator (a pre-selected workplane creates immediately).
         kmi = km.keymap_items.new(
-            Operators.AddSketch, "A", "PRESS", ctrl=True, shift=True
+            StatefulOps.InvokeTool.value, "A", "PRESS", ctrl=True, shift=True
         )
-        kmi.properties.wait_for_input = True
+        kmi.properties.tool_name = WorkSpaceTools.AddSketch.value
+        kmi.properties.operator = Operators.AddSketch.value
         addon_keymaps.append((km, kmi))
 
         # Leave Sketch (same shortcut as add sketch)
@@ -389,6 +410,21 @@ def register():
         )
         kmi.properties.sketch_name = ""
         addon_keymaps.append((km, kmi))
+
+        # Extrude
+        kmi = km.keymap_items.new(
+            Operators.NodeExtrude, "E", "PRESS", ctrl=True, shift=True
+        )
+        kmi.properties.wait_for_input = True
+        addon_keymaps.append((km, kmi))
+
+        # Linear Array
+        kmi = km.keymap_items.new(
+            Operators.NodeArrayLinear, "D", "PRESS", ctrl=True, shift=True
+        )
+        kmi.properties.wait_for_input = True
+        addon_keymaps.append((km, kmi))
+
 
 
 def unregister():

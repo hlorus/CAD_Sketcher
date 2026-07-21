@@ -25,7 +25,7 @@ class SketcherProps(PropertyGroup):
 
     entities: PointerProperty(type=SlvsEntities)
     constraints: PointerProperty(type=SlvsConstraints)
-    show_origin: BoolProperty(name="Show Origin Entities")
+    show_origin: BoolProperty(name="Show Origin Workplanes", default=True)
 
     # Origin workplane empties
     wp_xy: PointerProperty(type=bpy.types.Object, name="XY Workplane")

@@ -478,5 +478,4 @@ def solve_system(context, sketch=None):
     if sketch and sketch.target_object and sketch.target_object.data:
         if len(sketch.target_object.data.curves) > 0:
             return solve_sketch_from_curves(context, sketch)
-    logger.warning("solve_system called without native curve data, skipping")
     return True

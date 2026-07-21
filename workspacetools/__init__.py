@@ -1,41 +1,41 @@
-import bpy
-from bpy.utils import register_tool, unregister_tool
+from .manager import ToolGroup, add
+from . import manager
 
+from .add_sketch import VIEW3D_T_slvs_add_sketch
 from .add_arc2d import VIEW3D_T_slvs_add_arc2d
 from .add_circle2d import VIEW3D_T_slvs_add_circle2d
 from .add_line2d import VIEW3D_T_slvs_add_line2d
 from .add_point2d import VIEW3D_T_slvs_add_point2d
 from .add_rectangle import VIEW3D_T_slvs_add_rectangle
+from .array_linear import VIEW3D_T_slvs_node_array_linear
 from .bevel import VIEW3D_T_slvs_bevel
+from .extrude import VIEW3D_T_slvs_node_extrude
 from .offset import VIEW3D_T_slvs_offset
 from .select import VIEW3D_T_slvs_select
 from .trim import VIEW3D_T_slvs_trim
 
+# Always visible
+add(VIEW3D_T_slvs_select, visibility=ToolGroup.SKETCH, separator=True, group=False)
 
-tools = (
-    (VIEW3D_T_slvs_select, {"separator": True, "group": False}),
-    (VIEW3D_T_slvs_add_point2d, {"separator": True, "group": False}),
-    (VIEW3D_T_slvs_add_line2d, {"separator": False, "group": False}),
-    (VIEW3D_T_slvs_add_circle2d, {"separator": False, "group": False}),
-    (VIEW3D_T_slvs_add_arc2d, {"separator": False, "group": False}),
-    (VIEW3D_T_slvs_add_rectangle, {"separator": False, "group": False}),
-    (VIEW3D_T_slvs_trim, {"separator": True, "group": False}),
-    (VIEW3D_T_slvs_bevel, {"separator": False, "group": False}),
-    (VIEW3D_T_slvs_offset, {"separator": False, "group": False}),
-)
+# Sketch-only tools (visible when a sketch is active)
+add(VIEW3D_T_slvs_add_point2d, visibility=ToolGroup.SKETCH, separator=True, group=False)
+add(VIEW3D_T_slvs_add_line2d, visibility=ToolGroup.SKETCH, separator=False, group=False)
+add(VIEW3D_T_slvs_add_circle2d, visibility=ToolGroup.SKETCH, separator=False, group=False)
+add(VIEW3D_T_slvs_add_arc2d, visibility=ToolGroup.SKETCH, separator=False, group=False)
+add(VIEW3D_T_slvs_add_rectangle, visibility=ToolGroup.SKETCH, separator=False, group=False)
+add(VIEW3D_T_slvs_trim, visibility=ToolGroup.SKETCH, separator=True, group=False)
+add(VIEW3D_T_slvs_bevel, visibility=ToolGroup.SKETCH, separator=False, group=False)
+add(VIEW3D_T_slvs_offset, visibility=ToolGroup.SKETCH, separator=False, group=False)
+
+# Non-sketch tools (visible when no sketch is active)
+add(VIEW3D_T_slvs_add_sketch, visibility=ToolGroup.NON_SKETCH, separator=True, group=False)
+add(VIEW3D_T_slvs_node_extrude, visibility=ToolGroup.NON_SKETCH, separator=True, group=False)
+add(VIEW3D_T_slvs_node_array_linear, visibility=ToolGroup.NON_SKETCH, separator=False, group=False)
 
 
 def register():
-    if bpy.app.background:
-        return
-
-    for tool in tools:
-        register_tool(tool[0], **tool[1])
+    manager.register()
 
 
 def unregister():
-    if bpy.app.background:
-        return
-
-    for tool in reversed(tools):
-        unregister_tool(tool[0])
+    manager.unregister()

@@ -6,10 +6,10 @@ from bpy.types import Operator, Context, Event
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
-from .. import global_data
 from .base_3d import Operator3d
-from .utilities import activate_sketch, switch_sketch_mode
-from ..utilities.workplane import ensure_origin_workplane_empties, get_workplane_empty_by_id
+from .utilities import activate_sketch
+from ..utilities.workplane import ensure_origin_workplane_empties, resolve_sketch_base
+from ..utilities.geometry import face_workplane_matrix
 from ..model.curve_ref import PointRef
 
 
@@ -25,7 +25,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
     bl_label = "Add Sketch"
     bl_options = {"UNDO"}
 
-    sketch_state1_doc = ["Workplane", "Pick a workplane as base for the sketch."]
+    sketch_state1_doc = ["Workplane", "Pick a workplane or mesh face as base for the sketch."]
 
     states = (
         state_from_args(
@@ -38,58 +38,71 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         ),
     )
 
+    def gather_selection(self, context):
+        return [o for o in context.selected_objects if o.type == 'EMPTY']
+
+    def _use_workplane(self, empty):
+        self.state_data["is_existing_entity"] = True
+        self.state_data["type"] = bpy.types.Object
+        return empty.name
+
     def pick_element(self, context, coords):
-        # Try native empty picking (screen-space projection)
-        result = super().pick_element(context, coords)
-        if result is not None:
-            return result
+        # Priority: workplane border > mesh face > workplane interior, so an
+        # outline is never obscured by a mesh (shared with the gizmo hover).
+        kind, a, b = resolve_sketch_base(context, coords)
 
-        # Try overlay ID buffer picking (for workplane rectangles)
-        from ..draw_handler import draw_selection_buffer
-        from ..utilities.index import rgb_to_index
-        import gpu
+        if kind in ("border", "interior"):
+            return self._use_workplane(b)
 
-        draw_selection_buffer(context)
-        offscreen = global_data.offscreen
-        if offscreen:
-            mx, my = int(coords.x), int(coords.y)
-            with offscreen.bind():
-                fb = gpu.state.active_framebuffer_get()
-                buffer = fb.read_color(mx, my, 1, 1, 4, 0, "FLOAT")
-            r, g, b, alpha = buffer[0][0]
-            if alpha > 0:
-                wp_empty = get_workplane_empty_by_id(rgb_to_index(r, g, b))
-                if wp_empty:
-                    self.state_data["is_existing_entity"] = True
-                    self.state_data["type"] = bpy.types.Object
-                    return wp_empty.name
+        if kind == "mesh":
+            empty = self._create_wp_empty_from_face(context, a, b)
+            if empty:
+                return self._use_workplane(empty)
+
         return None
+
+    def _create_wp_empty_from_face(self, context, ob, face_index):
+        """Create a workplane Empty aligned to a mesh face."""
+        empty = bpy.data.objects.new("Workplane", None)
+        empty.empty_display_type = 'PLAIN_AXES'
+        empty.empty_display_size = 0.5
+        context.scene.collection.objects.link(empty)
+
+        empty.matrix_world = face_workplane_matrix(context, ob, face_index)
+        empty.parent = ob
+        empty.matrix_parent_inverse = ob.matrix_world.inverted()
+        return empty
 
     def prepare_origin_elements(self, context):
         ensure_origin_workplane_empties(context)
         return True
 
-    def _set_wp_visibility(self, context, visible):
-        """Show/hide origin workplane empties."""
-        sketcher = context.scene.sketcher
-        for wp in (sketcher.wp_xy, sketcher.wp_xz, sketcher.wp_yz):
-            if wp:
-                wp.hide_viewport = not visible
+    def invoke(self, context: Context, event: Event):
+        # Entry points (Ctrl+Shift+A, panel, menu) switch to the tool and invoke
+        # with wait_for_input. With a preselected workplane empty we create the
+        # sketch right away; without one there's nothing to do here — the tool +
+        # gizmo let the user pick interactively — so just make sure the origin
+        # planes exist and end instead of sitting in a modal wait.
+        if self.wait_for_input and not self.gather_selection(context):
+            self.prepare_origin_elements(context)
+            return {"CANCELLED"}
+        return super().invoke(context, event)
 
     def init(self, context: Context, event: Event):
-        switch_sketch_mode(self, context, to_sketch_mode=True)
+        # Origin workplanes are drawn by the workplane gizmo while the tool is
+        # active; just make sure they exist. Sketch mode is entered later, once
+        # the sketch actually exists (see main() -> activate_sketch).
         self.prepare_origin_elements(context)
         bpy.ops.ed.undo_push(message="Ensure Origin Elements")
-        context.scene.sketcher.show_origin = True
-        self._set_wp_visibility(context, True)
         return True
 
     def main(self, context: Context):
         from ..model.sketch_ref import Sketch
         from ..utilities.curve_data import ensure_sketch_curve_object
 
-        wp_empty = self.wp  # Always an Object (empty)
-        if not wp_empty:
+        wp_empty = self.wp
+        if not wp_empty or wp_empty.type != 'EMPTY':
+            self.report({'WARNING'}, "Please select an Empty as workplane")
             return False
 
         # Create sketch as a Curves object (parent provides the transform)
@@ -127,13 +140,11 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         return True
 
     def fini(self, context: Context, succeed: bool):
-        context.scene.sketcher.show_origin = False
-        self._set_wp_visibility(context, False)
+        # NOTE: don't switch tools here — a cancel also happens when a click
+        # simply misses a valid target, and we want to stay on the Add Sketch
+        # tool then. Explicit ESC/RMB -> select is handled by the tool keymap.
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
-
-        if not succeed:
-            switch_sketch_mode(self, context, to_sketch_mode=False)
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_sketch,))

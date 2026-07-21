@@ -4,7 +4,7 @@ import bpy
 from bpy.types import Context, Operator
 
 from .. import global_data
-from ..declarations import GizmoGroups, WorkSpaceTools
+from ..declarations import BLENDER_SELECT_TOOL, GizmoGroups, WorkSpaceTools
 from ..utilities.curve_data import refresh_curve_geometry
 from ..utilities.preferences import get_prefs
 from ..model.sketch_ref import get_active_sketch
@@ -179,13 +179,17 @@ def align_view(rv3d, mat_start, mat_end):
 
 
 def switch_sketch_mode(self, context: Context, to_sketch_mode: bool):
+    from ..workspacetools.manager import enter_sketch_mode, leave_sketch_mode
+
     if to_sketch_mode:
+        enter_sketch_mode()
         tool = context.workspace.tools.from_space_view3d_mode(context.mode)
         if tool.widget != GizmoGroups.Preselection:
             bpy.ops.wm.tool_set_by_id(name=WorkSpaceTools.Select)
         return True
 
-    bpy.ops.wm.tool_set_by_index(index=0, expand=False)
+    bpy.ops.wm.tool_set_by_id(name=BLENDER_SELECT_TOOL)
+    leave_sketch_mode()
     return True
 
 

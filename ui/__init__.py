@@ -32,9 +32,27 @@ def draw_object_context_menu(self, context: Context):
 
 
 def draw_add_sketch_in_add_menu(self, context: Context):
+    from ..declarations import Operators, WorkSpaceTools
+    from ..stateful_operator.constants import Operators as StatefulOps
+
     self.layout.separator()
     self.layout.operator_context = "INVOKE_DEFAULT"
-    self.layout.operator("view3d.slvs_add_sketch", text="Sketch")
+    # Switch to the Add Sketch tool (workplane gizmo), then invoke the operator.
+    props = self.layout.operator(StatefulOps.InvokeTool.value, text="Sketch")
+    props.tool_name = WorkSpaceTools.AddSketch.value
+    props.operator = Operators.AddSketch.value
+
+
+def draw_sketch_header(self, context: Context):
+    from ..model.sketch_ref import get_active_sketch
+    sketch = get_active_sketch(context)
+    if not sketch:
+        return
+    layout = self.layout
+    row = layout.row(align=True)
+    row.separator()
+    row.label(text=sketch.target_object.name)
+    row.operator(declarations.Operators.SetActiveSketch, text="Leave Sketch", icon='BACK').sketch_name = ""
 
 
 classes = [
@@ -54,11 +72,13 @@ def register():
 
     bpy.types.VIEW3D_MT_object_context_menu.prepend(draw_object_context_menu)
     bpy.types.VIEW3D_MT_add.append(draw_add_sketch_in_add_menu)
+    bpy.types.VIEW3D_HT_header.append(draw_sketch_header)
 
 
 def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
+    bpy.types.VIEW3D_HT_header.remove(draw_sketch_header)
     bpy.types.VIEW3D_MT_object_context_menu.remove(draw_object_context_menu)
     bpy.types.VIEW3D_MT_add.remove(draw_add_sketch_in_add_menu)

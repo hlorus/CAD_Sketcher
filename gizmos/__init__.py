@@ -11,6 +11,10 @@ from .preselection import (
     VIEW3D_GGT_slvs_preselection,
     VIEW3D_GT_slvs_preselection,
 )
+from .workplane import (
+    VIEW3D_GGT_slvs_workplane,
+    VIEW3D_GT_slvs_workplane,
+)
 
 
 specific_constraint_types = ("angle", "diameter", "distance")
@@ -23,11 +27,13 @@ classes = (
     VIEW3D_GT_slvs_angle,
     VIEW3D_GT_slvs_diameter,
     VIEW3D_GT_slvs_constraint_value,
+    VIEW3D_GT_slvs_workplane,
     VIEW3D_GGT_slvs_preselection,
     VIEW3D_GGT_slvs_constraint,
     VIEW3D_GGT_slvs_distance,
     VIEW3D_GGT_slvs_angle,
     VIEW3D_GGT_slvs_diameter,
+    VIEW3D_GGT_slvs_workplane,
 )
 
 

@@ -3,6 +3,7 @@ from bpy.types import Context, UILayout
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
 from ...model.sketch_ref import get_active_sketch, get_sketches
+from ...stateful_operator.constants import Operators as StatefulOps
 
 
 def sketch_selector(
@@ -14,10 +15,16 @@ def sketch_selector(
     active_sketch = get_active_sketch(context)
 
     if not active_sketch:
-        row.operator(
-            declarations.Operators.AddSketch,
-            icon="ADD"
-        ).wait_for_input = True
+        # Switch to the Add Sketch tool (which shows the workplane gizmo) and
+        # invoke the operator; a pre-selected workplane empty creates the sketch
+        # immediately, otherwise the user picks one interactively.
+        props = row.operator(
+            StatefulOps.InvokeTool.value,
+            text="Add Sketch",
+            icon="ADD",
+        )
+        props.tool_name = declarations.WorkSpaceTools.AddSketch.value
+        props.operator = declarations.Operators.AddSketch.value
 
     else:
         row.operator(

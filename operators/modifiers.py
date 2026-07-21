@@ -11,7 +11,6 @@ from ..declarations import Operators
 from ..utilities.view import get_placement_pos
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
-from ..model.types import SlvsLine3D, SlvsLine2D, SlvsWorkplane
 
 
 BASE_STATES = (
@@ -36,9 +35,10 @@ class NodeOperator(Operator3d):
     def poll(cls, context):
         if not context.active_object:
             return False
-        # if context.scene.sketcher.active_sketch_object is not None:
-        #     return False
         return True
+
+    def _check_constrain(self, context, index):
+        return False
 
     def init(self, context, event):
         for rType, rName in self.resources:
@@ -49,20 +49,29 @@ class NodeOperator(Operator3d):
         bpy.ops.ed.undo_push(message=f'Load Asset "{rName}"')
         return True
 
-    def main(self, context):
+    def _ensure_modifier(self, context):
+        """Create the modifier once, reuse on subsequent calls."""
         ob = self.object.original
+        mod_name = f"CAD_Sketcher {self.bl_label}"
 
-        # Add a modifier to object
-        self.modifier = ob.modifiers.new(f"CAD_Sketcher {self.bl_label}", "NODES")
+        self.modifier = ob.modifiers.get(mod_name)
+        if self.modifier:
+            return True
 
-        # Add nodegroup to modifier
+        self.modifier = ob.modifiers.new(mod_name, "NODES")
         nodegroup = bpy.data.node_groups.get(self.NODEGROUP_NAME)
         if not nodegroup:
             self.report({"Error"}, f"Unable to load node group {self.NODEGROUP_NAME}")
+            return False
         self.modifier.node_group = nodegroup
+        return True
+
+    def main(self, context):
+        if not self._ensure_modifier(context):
+            return False
 
         retval = self.set_props()
-        ob.update_tag()
+        self.object.original.update_tag()
         return retval
 
     def set_props(self):
@@ -143,7 +152,7 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
             "Alignment",
             description="Direction of the linear array",
             pointer="alignment",
-            types=(SlvsLine2D, SlvsLine3D, SlvsWorkplane, MeshEdge, MeshPolygon),
+            types=(Object, MeshEdge, MeshPolygon),
             use_create=False,
         ),
         state_from_args(
@@ -162,30 +171,29 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         ),
     )
 
+    def gather_selection(self, context):
+        selected = list(context.selected_objects)
+        selected.sort(key=lambda o: o.type == 'EMPTY')
+        return selected
 
     def get_count(self, context: Context, coords):
         retval = super().state_func(context, coords)
         return abs(retval) + 2
 
-
     def set_props(self):
 
         # Direction
         if not self.properties.is_property_set("direction"):
-            # Note: Only update direction from alignment once, otherwise the direction
-            # property is overwritten when changed from the redo panel
-
-            if isinstance(self.alignment, (MeshPolygon, SlvsWorkplane)):
+            if isinstance(self.alignment, MeshPolygon):
                 self.direction = self.alignment.normal
-            if isinstance(self.alignment, MeshEdge):
+            elif isinstance(self.alignment, MeshEdge):
                 ob_name = self.get_state_data(0)["object_name"]
                 ob = bpy.data.objects[ob_name]
                 mat = ob.matrix_world.inverted()
                 verts = [mat @ ob.data.vertices[i].co for i in self.alignment.vertices]
                 self.direction = (verts[1] - verts[0]).normalized()
-
-            if isinstance(self.alignment, (SlvsLine3D, SlvsLine2D)):
-                self.direction = self.alignment.orientation()
+            elif isinstance(self.alignment, Object) and self.alignment.type == 'EMPTY':
+                self.direction = self.alignment.matrix_world.to_3x3().col[2].normalized()
 
         self.modifier["Input_21"][:] = self.direction
 
@@ -206,5 +214,5 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
 
 
 register, unregister = register_stateops_factory(
-    (View3D_OT_node_extrude, View3D_OT_node_fill, View3D_OT_node_array_linear)
+    (View3D_OT_node_extrude, View3D_OT_node_array_linear)
 )

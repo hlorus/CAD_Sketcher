@@ -19,9 +19,6 @@ from .declarations import Operators
 
 logger = logging.getLogger(__name__)
 
-# Shared workplane display size (updated each frame in draw_cb)
-_wp_display_size = 1.0
-
 
 def _draw_curves_id_buffer(context: Context):
     """Draw curve-based ID buffer using sequential pick indices for picking."""
@@ -98,64 +95,6 @@ def _draw_curves_id_buffer(context: Context):
                 gpu.state.line_width_set(1)
 
 
-def _get_wp_configs(context):
-    """Get workplane empty configs for drawing."""
-    from .utilities.workplane import WP_ID_XY, WP_ID_XZ, WP_ID_YZ
-    sketcher = context.scene.sketcher
-    return [
-        (sketcher.wp_xy, WP_ID_XY),
-        (sketcher.wp_xz, WP_ID_XZ),
-        (sketcher.wp_yz, WP_ID_YZ),
-    ]
-
-
-def _draw_workplane_empties_id(context: Context):
-    """Draw workplane empties to the ID buffer for picking."""
-    from .utilities.index import index_to_rgb
-
-    if not context.scene.sketcher.show_origin:
-        return
-
-    size = _wp_display_size
-    scale = preferences.get_scale()
-    shader = Shaders.id_line_3d()
-    shader.bind()
-    line_width = 20 * scale
-    gpu.state.line_width_set(line_width)
-    if app.version >= (4, 5):
-        shader.uniform_float("lineWidth", line_width)
-        shader.uniform_float(
-            "viewportSize", (context.region.width, context.region.height)
-        )
-
-    for wp_obj, wp_id in _get_wp_configs(context):
-        if not wp_obj:
-            continue
-
-        global_data.pick_map[wp_id] = wp_id
-        mat = wp_obj.matrix_world
-        color = (*index_to_rgb(wp_id), 1.0)
-        shader.uniform_float("color", color)
-
-        s = size * 0.2
-        corners = [
-            mat @ Vector((-s, -s, 0)),
-            mat @ Vector((s, -s, 0)),
-            mat @ Vector((s, s, 0)),
-            mat @ Vector((-s, s, 0)),
-        ]
-        lines = []
-        for i in range(4):
-            lines.append(corners[i][:])
-            lines.append(corners[(i + 1) % 4][:])
-
-        batch = batch_for_shader(shader, "LINES", {"pos": lines})
-        batch.draw(shader)
-
-    gpu.shader.unbind()
-    gpu.state.line_width_set(1)
-
-
 def draw_selection_buffer(context: Context):
     """Draw elements offscreen"""
     region = context.region
@@ -167,10 +106,15 @@ def draw_selection_buffer(context: Context):
     with offscreen.bind():
 
         fb = gpu.state.active_framebuffer_get()
-        fb.clear(color=(0.0, 0.0, 0.0, 0.0))
+        fb.clear(color=(0.0, 0.0, 0.0, 0.0), depth=1.0)
+
+        gpu.state.depth_test_set('LESS_EQUAL')
+        gpu.state.depth_mask_set(True)
 
         _draw_curves_id_buffer(context)
-        _draw_workplane_empties_id(context)
+
+        gpu.state.depth_test_set('NONE')
+        gpu.state.depth_mask_set(False)
 
 
 def ensure_selection_texture(context: Context):
@@ -466,65 +410,11 @@ def _draw_curves_overlay(context: Context):
             gpu.state.blend_set("NONE")
 
 
-def _draw_workplane_empties_visual(context: Context):
-    """Draw workplane rectangles from empties when show_origin is enabled."""
-    if not context.scene.sketcher.show_origin:
-        return
-
-    size = _wp_display_size
-    scale = preferences.get_scale()
-    ts = get_prefs().theme_settings.entity
-
-    shader = Shaders.polyline_color_3d()
-
-    for wp_obj, wp_id in _get_wp_configs(context):
-        if not wp_obj:
-            continue
-
-        mat = wp_obj.matrix_world
-        is_hovered = global_data.hover == wp_id
-
-        col = ts.highlight if is_hovered else (*ts.default[:3], 0.3)
-
-        s = size * 0.2
-        corners = [
-            mat @ Vector((-s, -s, 0)),
-            mat @ Vector((s, -s, 0)),
-            mat @ Vector((s, s, 0)),
-            mat @ Vector((-s, s, 0)),
-        ]
-        lines = []
-        for i in range(4):
-            lines.append(corners[i][:])
-            lines.append(corners[(i + 1) % 4][:])
-
-        shader.bind()
-        gpu.state.blend_set("ALPHA")
-        line_width = (3 if is_hovered else 1.5) * scale
-        gpu.state.line_width_set(line_width)
-        shader.uniform_float("color", col)
-        if app.version >= (4, 5):
-            shader.uniform_float("lineWidth", line_width)
-            shader.uniform_float(
-                "viewportSize", (context.region.width, context.region.height)
-            )
-        batch = batch_for_shader(shader, "LINES", {"pos": lines})
-        batch.draw(shader)
-        gpu.shader.unbind()
-        gpu.state.line_width_set(1)
-        gpu.state.blend_set("NONE")
-
-
 def draw_cb():
     context = bpy.context
 
-    global _wp_display_size
-    if context.region_data:
-        _wp_display_size = context.region_data.view_distance
-
     sync_curve_selection(context.scene)
     _draw_curves_overlay(context)
-    _draw_workplane_empties_visual(context)
 
     global_data.redraw_selection_buffer = True
 

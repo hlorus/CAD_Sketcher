@@ -64,11 +64,14 @@ def get_mesh_element(
 
     obj_eval = get_evaluated_obj(context, ob)
 
+    me = obj_eval.data
+    if not hasattr(me, "polygons"):
+        return None, None, None
+
     closest_type = ""
     closest_dist = None
 
     loc = obj_eval.matrix_world.inverted() @ loc
-    me = obj_eval.data
     polygon = me.polygons[face_index]
 
     def get_closest(deltas):
