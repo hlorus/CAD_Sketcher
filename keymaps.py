@@ -249,7 +249,25 @@ use_construction = (
     },
 )
 
+# ESC / RMB from a sketch drawing tool returns to the slvs Select tool. Only
+# used by tool_generic, whose tools are all sketch-mode, so slvs_select is
+# always registered here.
 tool_use_select = (
+    (
+        "wm.tool_set_by_id",
+        {"type": "ESC", "value": "PRESS"},
+        {"properties": [("name", WorkSpaceTools.Select)]},
+    ),
+    (
+        "wm.tool_set_by_id",
+        {"type": "RIGHTMOUSE", "value": "PRESS"},
+        {"properties": [("name", WorkSpaceTools.Select)]},
+    ),
+)
+
+# ESC/RMB -> Blender's builtin select, for non-sketch tools (the slvs_select
+# tool only exists in sketch mode; outside it, tool_set_by_id would no-op).
+tool_use_select_builtin = (
     (
         "wm.tool_set_by_id",
         {"type": "ESC", "value": "PRESS"},
@@ -309,6 +327,7 @@ tool_generic = (
 
 tool_node = (
     *node_access,
+    *tool_use_select_builtin,
 )
 
 tool_select = (

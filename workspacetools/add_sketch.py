@@ -1,7 +1,7 @@
 from bpy.types import WorkSpaceTool
 
 from ..declarations import GizmoGroups, Operators, WorkSpaceTools
-from ..keymaps import tool_node, tool_use_select
+from ..keymaps import tool_node
 from ..stateful_operator.tool import GenericStateTool
 from ..stateful_operator.utilities.keymap import operator_access
 
@@ -16,7 +16,6 @@ class VIEW3D_T_slvs_add_sketch(GenericStateTool, WorkSpaceTool):
     bl_widget = GizmoGroups.Workplane
     bl_keymap = (
         *tool_node,
-        *tool_use_select,
         *operator_access(Operators.AddSketch),
     )
 
