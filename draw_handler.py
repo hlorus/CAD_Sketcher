@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 def _draw_curves_id_buffer(context: Context):
     """Draw curve-based ID buffer using sequential pick indices for picking."""
     from .utilities.index import index_to_rgb
-    from .utilities.curve_data import get_uuid, has_uuid_field
+    from .utilities.curve_data import has_uuid_field, read_uuid_list
 
     # Reset pick map each frame
     global_data.pick_map = {}
@@ -53,12 +53,13 @@ def _draw_curves_id_buffer(context: Context):
 
         mat = sketch.target_object.matrix_world
         scale = preferences.get_scale()
+        curve_ids = read_uuid_list(curve_data, "curve_id")
 
         for curve_idx in range(n_curves):
             if vis_attr and not vis_attr.data[curve_idx].value:
                 continue
 
-            cid = get_uuid(curve_data, "curve_id", curve_idx)
+            cid = curve_ids[curve_idx]
             if not cid:
                 continue
             if cid in global_data.ignore_list:
@@ -104,9 +105,15 @@ def draw_selection_buffer(context: Context):
     """Draw elements offscreen"""
     region = context.region
 
-    # create offscreen
+    # Reuse the offscreen buffer across frames; only (re)allocate when its size
+    # changes. Allocating a new GPUOffScreen every hover test (which fires on
+    # every mouse move) leaks GPU memory and thrashes the driver.
     width, height = region.width, region.height
-    offscreen = global_data.offscreen = gpu.types.GPUOffScreen(width, height)
+    offscreen = global_data.offscreen
+    if offscreen is None or offscreen.width != width or offscreen.height != height:
+        if offscreen is not None:
+            offscreen.free()
+        offscreen = global_data.offscreen = gpu.types.GPUOffScreen(width, height)
 
     with offscreen.bind():
 
@@ -283,6 +290,9 @@ def _draw_curves_overlay(context: Context):
         mat = sketch.target_object.matrix_world
         point_coords = []
         point_colors = []
+        # (construction, color) -> flat list of LINE-segment endpoints. Batching
+        # lines/arcs by style turns O(curves) draw calls into a handful.
+        line_groups = {}
 
         for curve_idx in range(n_curves):
             curve_slice = curve_data.curves[curve_idx]
@@ -306,36 +316,16 @@ def _draw_curves_overlay(context: Context):
                 point_coords.append(world_pos[:])
                 point_colors.append(col)
 
-            elif ctype == SketchCurveType.LINE and sp_attr and ep_attr:
-                # Line — draw from point curves
-                sp_cid = get_uuid(curve_data, "start_point_id", curve_idx)
-                ep_cid = get_uuid(curve_data, "end_point_id", curve_idx)
-                _, _, sp_slice = _gcd(sketch, sp_cid)
-                _, _, ep_slice = _gcd(sketch, ep_cid)
-                if sp_slice and ep_slice:
-                    p1 = mat @ Vector(curve_data.points[sp_slice.points[0].index].position)
-                    p2 = mat @ Vector(curve_data.points[ep_slice.points[0].index].position)
-
-                    line_width = (1.5 if construction else 2) * scale
-                    shader = dashed_shader if construction else line_shader
-                    shader.bind()
-                    gpu.state.blend_set("ALPHA")
-                    shader.uniform_float("color", col)
-                    gpu.state.line_width_set(line_width)
-                    if construction:
-                        shader.uniform_bool("dashed", (True,))
-                        shader.uniform_float("dash_width", 0.05)
-                        shader.uniform_float("dash_factor", 0.3)
-                    elif app.version >= (4, 5):
-                        shader.uniform_float("lineWidth", line_width)
-                        shader.uniform_float(
-                            "viewportSize", (context.region.width, context.region.height)
-                        )
-                    batch = batch_for_shader(shader, "LINES", {"pos": (p1[:], p2[:])})
-                    batch.draw(shader)
-                    gpu.shader.unbind()
-                    gpu.state.line_width_set(1)
-                    gpu.state.blend_set("NONE")
+            elif ctype == SketchCurveType.LINE and curve_slice.points_length >= 2:
+                # Line — draw from the segment's own points, which the solver
+                # keeps synced to its endpoints. Accumulate into a per-style
+                # bucket so all lines draw in a few batches, not one draw each.
+                first = curve_slice.points[0].index
+                p1 = mat @ Vector(curve_data.points[first].position)
+                p2 = mat @ Vector(curve_data.points[first + 1].position)
+                seg = line_groups.setdefault((construction, tuple(col)), [])
+                seg.append(p1[:])
+                seg.append(p2[:])
 
             elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE) and cp_attr:
                 # Arc/circle — resolve from point curves and draw arc
@@ -367,37 +357,38 @@ def _draw_curves_overlay(context: Context):
                             arc_points = None
 
                     if arc_points and len(arc_points) >= 2:
-                        line_width = (1.5 if construction else 2) * scale
-                        shader = dashed_shader if construction else line_shader
-                        shader.bind()
-                        gpu.state.blend_set("ALPHA")
-                        shader.uniform_float("color", col)
-                        gpu.state.line_width_set(line_width)
-                        if construction:
-                            shader.uniform_bool("dashed", (True,))
-                            shader.uniform_float("dash_width", 0.05)
-                            shader.uniform_float("dash_factor", 0.3)
-                        elif app.version >= (4, 5):
-                            shader.uniform_float("lineWidth", line_width)
-                            shader.uniform_float(
-                                "viewportSize", (context.region.width, context.region.height)
-                            )
-                        lines = []
+                        seg = line_groups.setdefault((construction, tuple(col)), [])
                         for j in range(len(arc_points) - 1):
-                            lines.append(arc_points[j])
-                            lines.append(arc_points[j + 1])
+                            seg.append(arc_points[j])
+                            seg.append(arc_points[j + 1])
                         if is_cyclic and len(arc_points) > 1:
-                            lines.append(arc_points[-1])
-                            lines.append(arc_points[0])
-                        batch = batch_for_shader(shader, "LINES", {"pos": lines})
-                        batch.draw(shader)
-                        gpu.shader.unbind()
-                        gpu.state.line_width_set(1)
-                        gpu.state.blend_set("NONE")
+                            seg.append(arc_points[-1])
+                            seg.append(arc_points[0])
 
-                gpu.shader.unbind()
-                gpu.state.line_width_set(1)
-                gpu.state.blend_set("NONE")
+        # Draw all lines/arcs, one batch per (style, color) bucket.
+        for (construction, col), verts in line_groups.items():
+            if not verts:
+                continue
+            line_width = (1.5 if construction else 2) * scale
+            shader = dashed_shader if construction else line_shader
+            shader.bind()
+            gpu.state.blend_set("ALPHA")
+            shader.uniform_float("color", col)
+            gpu.state.line_width_set(line_width)
+            if construction:
+                shader.uniform_bool("dashed", (True,))
+                shader.uniform_float("dash_width", 0.05)
+                shader.uniform_float("dash_factor", 0.3)
+            elif app.version >= (4, 5):
+                shader.uniform_float("lineWidth", line_width)
+                shader.uniform_float(
+                    "viewportSize", (context.region.width, context.region.height)
+                )
+            batch = batch_for_shader(shader, "LINES", {"pos": verts})
+            batch.draw(shader)
+            gpu.shader.unbind()
+            gpu.state.line_width_set(1)
+            gpu.state.blend_set("NONE")
 
         # Draw all points (grouped by color for fewer draw calls)
         if point_coords:

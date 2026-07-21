@@ -132,17 +132,18 @@ class View3D_OT_slvs_paste(Operator):
         for snap in buffer:
             id_map[snap["curve_id"]] = _allocate_curve_id(sketch)
 
-        # Create curves
+        # Create all pasted curves in one shot — calling add_curves/set_types/
+        # ensure_standard_attributes per curve is O(curves²) as the sketch grows.
         global_data.selected.clear()
-        for snap in buffer:
+        base_idx = len(curve_data.curves)
+        curve_data.add_curves([snap["n_points"] for snap in buffer])
+        curve_data.set_types(type="BEZIER")
+        ensure_standard_attributes(curve_data)
+
+        for offset, snap in enumerate(buffer):
             new_cid = id_map[snap["curve_id"]]
-            n_points = snap["n_points"]
 
-            curve_data.add_curves([n_points])
-            curve_data.set_types(type="BEZIER")
-            ensure_standard_attributes(curve_data)
-
-            curve_idx = len(curve_data.curves) - 1
+            curve_idx = base_idx + offset
             curve_slice = curve_data.curves[curve_idx]
 
             # Set positions

@@ -268,14 +268,32 @@ class GenericEntityOp(StatefulOperator):
     @staticmethod
     def _restore_curve_data(curve_data, snapshot):
         """Restore a hair_curves object from a snapshot."""
-        if len(curve_data.curves) > 0:
-            curve_data.remove_curves()
-
         if snapshot["n_curves"] == 0:
+            if len(curve_data.curves) > 0:
+                curve_data.remove_curves()
             return
 
-        curve_data.add_curves(snapshot["point_counts"].tolist())
-        curve_data.set_types(type="BEZIER")
+        # Fast path: when the topology is unchanged (e.g. an interactive move,
+        # which only shifts point positions), skip the expensive
+        # remove_curves/add_curves rebuild and just overwrite the data in place.
+        # This runs every mouse-move, so the rebuild otherwise scales the whole
+        # sketch's geometry per frame.
+        counts = snapshot["point_counts"]
+        same_topology = (
+            len(curve_data.curves) == snapshot["n_curves"]
+            and len(curve_data.points) == int(counts.sum())
+        )
+        if same_topology:
+            cur_counts = np.zeros(len(curve_data.curves), dtype=np.int32)
+            curve_data.curves.foreach_get("points_length", cur_counts)
+            same_topology = np.array_equal(cur_counts, counts)
+
+        if not same_topology:
+            if len(curve_data.curves) > 0:
+                curve_data.remove_curves()
+            curve_data.add_curves(counts.tolist())
+            curve_data.set_types(type="BEZIER")
+
         curve_data.points.foreach_set("position", snapshot["positions"])
 
         for name, attr_info in snapshot["attributes"].items():

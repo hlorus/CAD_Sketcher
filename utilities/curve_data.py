@@ -99,6 +99,24 @@ def new_uuid():
     return secrets.token_hex(16)
 
 
+def read_uuid_list(curve_data, field):
+    """All curves' ids for a field as hex strings, read in bulk.
+
+    Uses foreach_get on the 4 INT sub-attributes — far cheaper than calling
+    get_uuid() per curve in hot loops (attribute lookup happens 4 times total
+    instead of 4 times per curve).
+    """
+    n = len(curve_data.curves)
+    subs = [curve_data.attributes.get(name) for name in _uuid_subnames(field)]
+    if n == 0 or not all(subs):
+        return [""] * n
+    cols = [np.zeros(n, dtype=np.int32) for _ in range(4)]
+    for a, c in zip(subs, cols):
+        a.data.foreach_get("value", c)
+    c0, c1, c2, c3 = cols
+    return [_ints_to_hex((int(c0[i]), int(c1[i]), int(c2[i]), int(c3[i]))) for i in range(n)]
+
+
 def default_curve_name(curve_data, ctype):
     """A per-type default name like 'Line 3' based on current curve counts."""
     from ..model.constants import SketchCurveType
@@ -227,10 +245,7 @@ def _rebuild_curve_id_cache(sketch, lookup_id=None):
     if not curve_data:
         return None
     sk_key = id(curve_data)
-    cache = {}
-    if has_uuid_field(curve_data, "curve_id"):
-        for i in range(len(curve_data.curves)):
-            cache[get_uuid(curve_data, "curve_id", i)] = i
+    cache = {cid: i for i, cid in enumerate(read_uuid_list(curve_data, "curve_id"))}
     _curve_id_cache[sk_key] = cache
     return cache.get(lookup_id) if lookup_id is not None else None
 
@@ -340,27 +355,39 @@ def sync_curve_selection(scene):
     from .. import global_data
 
     from ..model.sketch_ref import get_sketches
+
+    selected = set(global_data.selected)
+    hover = global_data.hover
     for sketch in get_sketches(scene):
         if not sketch.target_object or not sketch.target_object.data:
             continue
         curve_data = sketch.target_object.data
         n_curves = len(curve_data.curves)
-        if n_curves == 0:
+        if n_curves == 0 or not has_uuid_field(curve_data, "curve_id"):
             continue
 
         sel_attr = curve_data.attributes.get("selected")
         hov_attr = curve_data.attributes.get("hover")
-        if not has_uuid_field(curve_data, "curve_id"):
-            continue
         if not sel_attr:
             sel_attr = curve_data.attributes.new("selected", type="BOOLEAN", domain="CURVE")
         if not hov_attr:
             hov_attr = curve_data.attributes.new("hover", type="BOOLEAN", domain="CURVE")
 
-        for curve_idx in range(n_curves):
-            cid = get_uuid(curve_data, "curve_id", curve_idx)
-            sel_attr.data[curve_idx].value = cid in global_data.selected
-            hov_attr.data[curve_idx].value = bool(cid) and cid == global_data.hover
+        ids = read_uuid_list(curve_data, "curve_id")
+        want_sel = np.fromiter((c in selected for c in ids), dtype=bool, count=n_curves)
+        want_hov = np.fromiter((bool(c) and c == hover for c in ids), dtype=bool, count=n_curves)
+
+        # Only write when something actually changed. Writing attribute data
+        # every frame dirties the datablock and re-triggers the GN modifier +
+        # redraw, which would spin the CPU on a static selection.
+        cur_sel = np.empty(n_curves, dtype=bool)
+        cur_hov = np.empty(n_curves, dtype=bool)
+        sel_attr.data.foreach_get("value", cur_sel)
+        hov_attr.data.foreach_get("value", cur_hov)
+        if not np.array_equal(cur_sel, want_sel):
+            sel_attr.data.foreach_set("value", want_sel)
+        if not np.array_equal(cur_hov, want_hov):
+            hov_attr.data.foreach_set("value", want_hov)
 
 
 # ---------------------------------------------------------------------------
@@ -475,6 +502,18 @@ def remove_native_curve_by_id(sketch, curve_id):
 _batch_sketches = set()
 
 
+def _batch_key(sketch):
+    """Stable identity for batching, shared across Sketch wrapper instances.
+
+    Different code paths wrap the same sketch object in distinct Sketch
+    instances, so id(sketch) is NOT stable — keying on it makes is_batching()
+    miss and rebuild every segment per point write. The object's C pointer is
+    the same across all wrappers.
+    """
+    obj = sketch.target_object
+    return obj.as_pointer() if obj else id(sketch)
+
+
 class batch_update:
     """Context manager that defers rebuild_segments until exit.
 
@@ -483,21 +522,24 @@ class batch_update:
             for point in points:
                 point.co = new_pos  # no rebuild per write
         # rebuild_segments called once here
+
+    Pass ``point_ids`` to rebuild only the segments referencing those points.
     """
-    def __init__(self, sketch):
+    def __init__(self, sketch, point_ids=None):
         self.sketch = sketch
+        self.point_ids = point_ids
 
     def __enter__(self):
-        _batch_sketches.add(id(self.sketch))
+        _batch_sketches.add(_batch_key(self.sketch))
         return self
 
     def __exit__(self, *args):
-        _batch_sketches.discard(id(self.sketch))
-        rebuild_segments(self.sketch)
+        _batch_sketches.discard(_batch_key(self.sketch))
+        rebuild_segments(self.sketch, point_ids=self.point_ids)
 
 
 def is_batching(sketch):
-    return id(sketch) in _batch_sketches
+    return _batch_key(sketch) in _batch_sketches
 
 
 def is_fixed(sketch, curve_id):
@@ -509,13 +551,16 @@ def is_fixed(sketch, curve_id):
     return bool(fix_attr and fix_attr.data[idx].value)
 
 
-def rebuild_segments(sketch):
-    """Rebuild all segment curve positions from their referenced point curves.
+def rebuild_segments(sketch, point_ids=None):
+    """Rebuild segment curve positions from their referenced point curves.
 
     Lines: copy endpoint positions from point curves.
     Arcs/circles: recompute bezier geometry from center/start/end point curves.
 
-    Call after modifying point positions to keep segment data consistent.
+    Call after modifying point positions to keep segment data consistent. When
+    ``point_ids`` is given, only segments referencing one of those point ids are
+    rebuilt (e.g. during a move, where only the dragged points changed) — this
+    avoids re-resolving every segment in the sketch each frame.
     """
     from ..model.constants import SketchCurveType, BezierHandleType
     from ..model.curve_ref import _build_arc_bezier, PointRef
@@ -533,9 +578,23 @@ def rebuild_segments(sketch):
     if not type_attr:
         return
 
+    # Bulk-read the relationship ids once (get_uuid does 4 attribute lookups
+    # per call, so per-segment reads add up in this per-frame hot path).
+    sp_ids = read_uuid_list(cd, "start_point_id")
+    ep_ids = read_uuid_list(cd, "end_point_id")
+    cp_ids = read_uuid_list(cd, "center_point_id")
+
     for i in range(n):
         ctype = type_attr.data[i].value
         if ctype == SketchCurveType.POINT:
+            continue
+
+        # Scoped rebuild: skip segments that don't touch a changed point.
+        if point_ids is not None and not (
+            sp_ids[i] in point_ids
+            or ep_ids[i] in point_ids
+            or cp_ids[i] in point_ids
+        ):
             continue
 
         curve_slice = cd.curves[i]
@@ -548,8 +607,8 @@ def rebuild_segments(sketch):
             continue
 
         if ctype == SketchCurveType.LINE:
-            sp_cid = get_uuid(cd, "start_point_id", i)
-            ep_cid = get_uuid(cd, "end_point_id", i)
+            sp_cid = sp_ids[i]
+            ep_cid = ep_ids[i]
             if sp_cid:
                 p1 = PointRef(sketch, sp_cid)
                 if p1.valid:
@@ -570,7 +629,7 @@ def rebuild_segments(sketch):
                     if hr: hr.data[curve_slice.points[1].index].vector = pos
 
         elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
-            cp_cid = get_uuid(cd, "center_point_id", i)
+            cp_cid = cp_ids[i]
             if not cp_cid:
                 continue
             ct = PointRef(sketch, cp_cid)
@@ -581,8 +640,8 @@ def rebuild_segments(sketch):
                 edge = Vector(cd.points[curve_slice.points[0].index].position[:2])
                 _build_arc_bezier(cd, i, ct.co, edge, edge, is_cyclic=True)
             else:
-                sp_cid = get_uuid(cd, "start_point_id", i)
-                ep_cid = get_uuid(cd, "end_point_id", i)
+                sp_cid = sp_ids[i]
+                ep_cid = ep_ids[i]
                 if sp_cid and ep_cid:
                     s = PointRef(sketch, sp_cid)
                     e = PointRef(sketch, ep_cid)

@@ -1,3 +1,4 @@
+import numpy as np
 from bpy.types import Operator, Context, Event
 from ..model.sketch_ref import get_active_sketch
 from mathutils import Vector
@@ -60,6 +61,31 @@ class View3D_OT_slvs_move(Operator, Operator2d):
         ),
     )
 
+    # A move only shifts point positions, so override the base operator's
+    # full-scene snapshot (which rebuilds every sketch's curves + constraints
+    # each mouse-move) with a positions-only snapshot of the active sketch.
+    def create_snapshot(self, context: Context):
+        sketch = get_active_sketch(context)
+        if not sketch or not sketch.target_object or not sketch.target_object.data:
+            return {}
+        obj = sketch.target_object
+        positions = np.empty(len(obj.data.points) * 3, dtype=np.float32)
+        obj.data.points.foreach_get("position", positions)
+        return {"name": obj.name, "positions": positions}
+
+    def restore_snapshot(self, context: Context, snapshot):
+        if not snapshot:
+            return
+        import bpy
+        obj = bpy.data.objects.get(snapshot["name"])
+        if not obj or not obj.data:
+            return
+        positions = snapshot["positions"]
+        if len(obj.data.points) * 3 != len(positions):
+            return  # topology changed unexpectedly; leave as-is
+        obj.data.points.foreach_set("position", positions)
+        obj.data.update_tag()
+
     def invoke(self, context: Context, event: Event):
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
         retval = super().invoke(context, event)
@@ -77,7 +103,9 @@ class View3D_OT_slvs_move(Operator, Operator2d):
         sketch = self.sketch
         points = get_points(context)
 
-        with batch_update(self.sketch):
+        # Only the moved points changed, so scope the segment rebuild to them.
+        moved_ids = {p.curve_id for p in points}
+        with batch_update(self.sketch, point_ids=moved_ids):
             for point in points:
                 point.co = point.co + self.offset
         return {"FINISHED"}
