@@ -34,6 +34,10 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         super().assign_init_props(context)
 
         r1, r2 = self.ref(1), self.ref(2)
+        # Unresolved references (e.g. legacy files before migration) — skip the
+        # draw-offset computation rather than dereferencing None.
+        if r1 is None or r2 is None:
+            return
         origin = get_line_intersection(
             *line_abc_form(r1.p1.co, r1.p2.co),
             *line_abc_form(r2.p1.co, r2.p2.co),
@@ -138,6 +142,10 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
 
     def _get_init_value(self, setting):
         r1, r2 = self.ref(1), self.ref(2)
+        # Guard against unresolved references (e.g. legacy files before
+        # migration remaps entity pointers to curve ids).
+        if r1 is None or r2 is None:
+            return 0.0
         return self._get_angle(r1.direction_vec(), r2.direction_vec())
 
     def init_props(self, **kwargs):

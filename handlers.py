@@ -61,6 +61,19 @@ def unregister_handlers():
         logger.debug(msg)
 
 
+def on_load_post(*args):
+    """Migrate legacy entity-based sketches to native curves on file load."""
+    from .utilities.migrate import scene_needs_migration, migrate_scene
+
+    context = bpy.context
+    try:
+        if scene_needs_migration(context):
+            summary = migrate_scene(context)
+            logger.info("Migrated legacy sketches to curves: %s", summary)
+    except Exception:
+        logger.exception("Legacy sketch migration failed")
+
+
 def on_depsgraph_update(scene, depsgraph):
     from . import global_data
 
@@ -95,6 +108,7 @@ def _setup_builtin_handlers():
 
     add_builtin_handler("version_update", do_versioning)
     add_builtin_handler("save_pre", write_addon_version)
+    add_builtin_handler("load_post", on_load_post)
     add_builtin_handler("depsgraph_update_post", on_depsgraph_update)
 
 

@@ -97,6 +97,9 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
 
     def _get_init_value(self, setting):
         r = self.ref(1)
+        # Unresolved reference (e.g. legacy files before migration) — no measure.
+        if r is None or not r.valid:
+            return 0.0
         value = r.radius
         if not setting:
             return value * 2
