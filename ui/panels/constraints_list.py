@@ -54,25 +54,7 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
         if not sketch:
             return
 
-        layout.operator(
-            declarations.Operators.SetAllConstraintsVisibility,
-            text="",
-            icon="VIS_SEL_11",
-        ).visibility = "SHOW"
-        layout.operator(
-            declarations.Operators.SetAllConstraintsVisibility,
-            text="",
-            icon="VIS_SEL_01",
-        ).visibility = "HIDE"
-        layout.prop(
-            context.scene.sketcher,
-            "selectable_constraints",
-            text="",
-            icon_only=True,
-            icon="RESTRICT_SELECT_OFF",
-        )
-
-        row = layout.row()
+        row = layout.row(align=True)
         row.operator(
             declarations.Operators.SetAllConstraintsVisibility,
             text="Show All",
@@ -81,10 +63,12 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
             declarations.Operators.SetAllConstraintsVisibility,
             text="Hide All",
         ).visibility = "HIDE"
-        layout.prop(
+        row.prop(
             context.scene.sketcher,
             "selectable_constraints",
-            text="Selectable",
+            text="",
+            icon_only=True,
+            icon="RESTRICT_SELECT_OFF",
         )
 
         # Dimensional Constraints
