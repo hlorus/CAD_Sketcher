@@ -59,10 +59,13 @@ def detect_hover(context, coords, types):
 
     Precise mesh elements win over the object; returns one of
     ``("OBJECT", name, None)``, ``("VERTEX"|"EDGE"|"FACE", name, index)``, or
-    ``None``.
+    ``None``. ``types`` of None means idle (default to Object); an empty tuple
+    means the current state picks nothing (no hover).
     """
-    if not types:
+    if types is None:
         types = (Object,)
+    if not types:
+        return None
 
     want_vertex = MeshVertex in types
     want_edge = MeshEdge in types

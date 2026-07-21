@@ -41,6 +41,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
     _last_coords = Vector((0, 0))
     _undo = False
     _state_snapshot = None
+    # Global axis constraint (0=X, 1=Y, 2=Z, or None) for the current vector
+    # state, toggled with the X/Y/Z keys and applied by the state's state_func.
+    _axis_lock = None
+    # Formatted live value of the current state, shown in the status bar.
+    _status_value = None
 
     # -------------------------------------------------------------------------
     # Snapshot / undo hooks (override in subclasses)
@@ -72,10 +77,16 @@ class StatefulOperatorLogic(_StateMachineMixin):
     def set_state(self, context: Context, index: int):
         self.state_index = index
         self.init_numeric(False)
+        self._axis_lock = None
+        self._status_value = None
         self.set_status_text(context)
         # Publish the new state's accepted pick types so the hover gizmo
-        # highlights what this state will pick.
+        # highlights what this state will pick. Clear any existing hover when
+        # the new state picks nothing (a property/interactive state), since it
+        # consumes mouse-moves and the gizmo won't fire to clear it.
         global_data.hover_types = self.get_states()[index].types
+        if not global_data.hover_types:
+            global_data.hover_element = None
 
     def next_state(self, context: Context):
         self._undo = False
@@ -114,8 +125,27 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 msg += "    {}: {}".format(prop.subtype, display_str)
             elif prop.type == "INT":
                 msg += "    {}: {}".format(prop.subtype, self._numeric.current)
+        elif self._status_value:
+            # Live value while modifying a state (property or point placement).
+            msg += "    {}: {}".format(state.name, self._status_value)
+
+        if self._axis_lock is not None:
+            msg += "    [{} axis]".format("XYZ"[self._axis_lock])
 
         context.workspace.status_text_set(msg)
+
+    @staticmethod
+    def _format_values(values):
+        """Format resolved state values (vectors / floats / ints) for display."""
+        parts = []
+        for v in values:
+            if hasattr(v, "__len__") and not isinstance(v, str):
+                parts.append("(" + ", ".join("{:.3f}".format(x) for x in v) + ")")
+            elif isinstance(v, float):
+                parts.append("{:.3f}".format(v))
+            else:
+                parts.append(str(v))
+        return ", ".join(parts)
 
     def check_numeric(self):
         """Return True if the current state supports numeric text entry."""
@@ -342,6 +372,19 @@ class StatefulOperatorLogic(_StateMachineMixin):
         if event.type in {"RIGHTMOUSE", "ESC"}:
             return self._end(context, False)
 
+        # Global axis constraint (X/Y/Z), only for states that opt in and apply
+        # self._axis_lock in their state_func — toggle and re-run so the preview
+        # updates.
+        if (
+            event.value == "PRESS"
+            and event.type in ("X", "Y", "Z")
+            and getattr(state, "axis_lock", False)
+        ):
+            axis = "XYZ".index(event.type)
+            self._axis_lock = None if self._axis_lock == axis else axis
+            self.set_status_text(context)
+            return self.evaluate_state(context, event, False)
+
         # HACK: calling ops.ed.undo() inside a modal triggers a spurious MOUSEMOVE.
         # Check actual pixel movement to filter it out.
         mousemove_threshold = 0.1
@@ -441,6 +484,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
         is_picked, pointer_values = self._pick_hovered(context, coords, state, is_numeric)
         values, ok = self._resolve_values(context, coords, state, is_numeric, is_picked)
+
+        # Reflect the live value (property or point placement) in the status bar.
+        if not is_numeric:
+            self._status_value = self._format_values(values) if values else None
+            self.set_status_text(context)
 
         # Resolve state pointer
         if state.pointer:

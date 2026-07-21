@@ -1,14 +1,15 @@
 
 import bpy
-from bpy.types import Operator, Object, Context, MeshEdge, MeshPolygon
+from bpy.types import Operator, Object, Context
 from bpy.props import BoolProperty, FloatProperty, IntProperty, FloatVectorProperty
 from mathutils import Vector
+from mathutils.geometry import intersect_line_line, intersect_line_plane
 
 from .base_3d import Operator3d
 from ..assets_manager import load_asset
 from ..global_data import LIB_NAME
 from ..declarations import Operators
-from ..utilities.view import get_placement_pos
+from ..utilities.view import get_placement_pos, get_picking_origin_dir
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 
@@ -199,8 +200,11 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
     NODEGROUP_NAME = "CAD Sketcher Linear Array"
     resources = (("node_groups", "CAD Sketcher Linear Array"),)
 
-    direction: FloatVectorProperty(name="Direction", size=3)
-    distance: FloatProperty(name="Distance")
+    # Array offset in the object's local space (direction * spacing), captured
+    # by a single interactive drag; direction and distance derive from it.
+    offset: FloatVectorProperty(
+        name="Offset", subtype="TRANSLATION", size=3, options={"SKIP_SAVE"}
+    )
     count: IntProperty(name="Count", default=2, min=2)
     flip: BoolProperty(name="Flip Direction")
     use_total_distance: BoolProperty(
@@ -216,17 +220,12 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
     states = (
         *BASE_STATES,
         state_from_args(
-            "Alignment",
-            description="Direction of the linear array",
-            pointer="alignment",
-            types=(Object, MeshEdge, MeshPolygon),
-            use_create=False,
-        ),
-        state_from_args(
-            "Distance",
-            description="Distance between individual elements",
-            property="distance",
+            "Offset",
+            description="Drag to set the array direction and spacing",
+            property="offset",
+            state_func="get_offset",
             interactive=True,
+            axis_lock=True,
         ),
         state_from_args(
             "Count",
@@ -238,37 +237,50 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         ),
     )
 
-    def gather_selection(self, context):
-        # Active object is the array base; any other selected object feeds the
-        # Alignment state (empties last so a mesh wins the base if both picked).
-        active = context.active_object
-        others = [o for o in context.selected_objects if o != active]
-        others.sort(key=lambda o: o.type == 'EMPTY')
-        return ([active] if active else []) + others
+    def get_offset(self, context: Context, coords):
+        # The drag offset (origin -> cursor) in the object's local space; the
+        # local origin is (0,0,0), so the local hit point is the offset.
+        # Return a Vector (not a tuple) so it's set as one vector property value.
+        obj = self.object.original
+        origin = obj.matrix_world.translation
+        inv = obj.matrix_world.inverted()
+        ray_o, ray_dir = get_picking_origin_dir(context, coords)
+
+        # X/Y/Z lock: constrain to a global axis line through the origin, using
+        # the point on that line closest to the view ray (view-angle robust).
+        if self._axis_lock is not None:
+            axis = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))[self._axis_lock]
+            res = intersect_line_line(
+                origin, origin + Vector(axis), ray_o, ray_o + ray_dir
+            )
+            if res is None:
+                return Vector((0.0, 0.0, 0.0))
+            return inv @ res[0]
+
+        # Free drag: project onto the view-facing plane through the origin.
+        view_dir = context.region_data.view_rotation @ Vector((0.0, 0.0, -1.0))
+        hit = intersect_line_plane(ray_o, ray_o + ray_dir, origin, view_dir)
+        if hit is None:
+            return Vector((0.0, 0.0, 0.0))
+        return inv @ hit
 
     def get_count(self, context: Context, coords):
         retval = super().state_func(context, coords)
         return abs(retval) + 2
 
     def set_props(self):
-
-        # Direction
-        if not self.properties.is_property_set("direction"):
-            if isinstance(self.alignment, MeshPolygon):
-                self.direction = self.alignment.normal
-            elif isinstance(self.alignment, MeshEdge):
-                ob_name = self.get_state_data(0)["object_name"]
-                ob = bpy.data.objects[ob_name]
-                mat = ob.matrix_world.inverted()
-                verts = [mat @ ob.data.vertices[i].co for i in self.alignment.vertices]
-                self.direction = (verts[1] - verts[0]).normalized()
-            elif isinstance(self.alignment, Object) and self.alignment.type == 'EMPTY':
-                self.direction = self.alignment.matrix_world.to_3x3().col[2].normalized()
+        offset = Vector(self.offset)
+        if offset.length > 1e-6:
+            direction = offset.normalized()
+            distance = offset.length
+        else:
+            direction = Vector((1.0, 0.0, 0.0))
+            distance = 0.0
 
         m = self.modifier
-        m["Input_21"][:] = self.direction        # Direction
+        m["Input_21"][:] = direction             # Direction
         m["Input_22"] = self.count               # Count
-        m["Input_23"] = self.distance            # Spacing / Total distance
+        m["Input_23"] = distance                 # Spacing / Total distance
         m["Input_24"] = self.use_total_distance  # Use Total Distance
         m["Input_25"] = self.align_rotation      # Align Rotation
         m["Input_26"] = self.merge               # Merge by Distance
@@ -279,8 +291,7 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
     def draw_settings(self, context):
         layout = self.layout
 
-        # Direction is resolved from the alignment pick, not a state property.
-        layout.prop(self, "direction")
+        layout.prop(self, "offset")
         layout.prop(self, "flip")
         layout.prop(self, "use_total_distance")
         layout.prop(self, "align_rotation")

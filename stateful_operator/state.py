@@ -48,6 +48,10 @@ class OperatorState:
     # Operator can be run before this state's pointer/property is submitted
     optional: bool = False
 
+    # Allow X/Y/Z global-axis locking during this state. Only meaningful when
+    # the state's state_func applies self._axis_lock (e.g. the array offset).
+    axis_lock: bool = False
+
 
 def state_from_args(name: str, **kwargs) -> OperatorState:
     """Create an OperatorState, with all fields optional except name."""
