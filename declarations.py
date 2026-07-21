@@ -69,6 +69,7 @@ class Operators(str, Enum):
     NodeExtrude = "view3d.slvs_node_extrude"
     NodeArrayLinear = "view3d.slvs_node_array_linear"
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
+    RenameCurve = "view3d.slvs_rename_curve"
     Restore = "view3d.slvs_restore"
     Select = "view3d.slvs_select"
     SelectAll = "view3d.slvs_select_all"

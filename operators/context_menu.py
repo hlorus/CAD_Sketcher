@@ -17,6 +17,7 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
 
     type: StringProperty(name="Type", options={"SKIP_SAVE"})
     index: IntProperty(name="Index", default=-1, options={"SKIP_SAVE"})
+    curve_id: StringProperty(name="Curve ID", default="", options={"SKIP_SAVE"})
     delayed: BoolProperty(default=False)
 
     @classmethod
@@ -51,14 +52,14 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
             element = constraints.get_from_type_index(self.type, self.index)
             is_entity = False
         else:
-            # Entities
+            # Entities — keyed by curve id
             hover = (
-                self.index
-                if self.properties.is_property_set("index")
+                self.curve_id
+                if self.properties.is_property_set("curve_id")
                 else global_data.hover
             )
 
-            if hover and hover > 0:
+            if hover:
                 # Try as curve_id — show CurveRef info
                 from ..model.sketch_ref import get_active_sketch
                 sketch = get_active_sketch(context)

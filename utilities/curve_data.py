@@ -28,7 +28,29 @@ def ensure_attribute(attributes, name, type, domain):
     return attr
 
 
-_STRING_ATTRS = frozenset(("curve_id", "start_point_id", "end_point_id", "center_point_id"))
+_STRING_ATTRS = frozenset(
+    ("curve_id", "start_point_id", "end_point_id", "center_point_id", "name")
+)
+
+
+def default_curve_name(curve_data, ctype):
+    """A per-type default name like 'Line 3' based on current curve counts."""
+    from ..model.constants import SketchCurveType
+
+    labels = {
+        SketchCurveType.POINT: "Point",
+        SketchCurveType.LINE: "Line",
+        SketchCurveType.ARC: "Arc",
+        SketchCurveType.CIRCLE: "Circle",
+    }
+    label = labels.get(ctype, "Curve")
+    type_attr = curve_data.attributes.get("sketch_type")
+    n = 0
+    if type_attr:
+        for i in range(len(type_attr.data)):
+            if type_attr.data[i].value == ctype:
+                n += 1
+    return f"{label} {n}"
 
 
 def set_attribute(attributes, name: str, value, index: int = None):
@@ -81,6 +103,7 @@ def ensure_standard_attributes(curve_data):
     ensure_attribute(attributes, "start_point_id", "STRING", "CURVE")
     ensure_attribute(attributes, "end_point_id", "STRING", "CURVE")
     ensure_attribute(attributes, "center_point_id", "STRING", "CURVE")
+    ensure_attribute(attributes, "name", "STRING", "CURVE")
 
 
 def init_string_attrs(curve_data, curve_idx):
@@ -352,7 +375,33 @@ def remove_native_curve_by_id(sketch, curve_id):
             to_remove.append(curve_idx)
 
     if to_remove:
+        # remove_curves() corrupts CURVE-domain STRING attributes (curve_id,
+        # name, relationship ids) of the surviving curves, so snapshot them for
+        # the survivors (in order) and restore afterwards. Survivors keep their
+        # relative order, occupying new indices 0..m-1.
+        remove_set = set(to_remove)
+        attrs = curve_data.attributes
+        survivors = []
+        for i in range(n_curves):
+            if i in remove_set:
+                continue
+            survivors.append({
+                name: attrs[name].data[i].value
+                for name in _STRING_ATTRS if attrs.get(name)
+            })
+
         curve_data.remove_curves(indices=to_remove)
+
+        # remove_curves drops the CURVE-domain STRING attributes entirely;
+        # recreate them and restore the survivors' values (order preserved).
+        ensure_standard_attributes(curve_data)
+        attrs = curve_data.attributes
+        for new_idx, row in enumerate(survivors):
+            for name, val in row.items():
+                a = attrs.get(name)
+                if a:
+                    a.data[new_idx].value = val
+
         invalidate_curve_id_cache(sketch)
         curve_data.update_tag()
 

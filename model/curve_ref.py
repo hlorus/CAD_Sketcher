@@ -175,6 +175,15 @@ class CurveRef:
     def visible(self, value):
         self._set_attr_value("visible", bool(value))
 
+    @property
+    def name(self):
+        """User-facing name stored on the curve (falls back to the type)."""
+        return self._get_attr_value("name", "") or self._type_label
+
+    @name.setter
+    def name(self, value):
+        self._set_attr_value("name", value)
+
     # -- UI --
 
     def draw_props(self, layout):
@@ -382,7 +391,7 @@ class PointRef(CurveRef):
         return mat @ pos
 
     @staticmethod
-    def create(sketch, co, construction=False, fixed=False):
+    def create(sketch, co, construction=False, fixed=False, name=None):
         """Create a new point curve and return a PointRef.
 
         Args:
@@ -390,11 +399,12 @@ class PointRef(CurveRef):
             co: 2D coordinates (x, y).
             construction: Whether this is a construction point.
             fixed: Whether this point is fixed.
+            name: Optional display name; a default is generated when omitted.
 
         Returns:
             PointRef for the new curve.
         """
-        from ..utilities.curve_data import set_attribute
+        from ..utilities.curve_data import set_attribute, default_curve_name
         from ..model.constants import SketchCurveType
 
         curve_data = _ensure_curve_data(sketch)
@@ -415,6 +425,9 @@ class PointRef(CurveRef):
         set_attribute(attrs, "construction", construction, curve_idx)
         set_attribute(attrs, "fixed", fixed, curve_idx)
         set_attribute(attrs, "visible", True, curve_idx)
+        set_attribute(attrs, "name",
+                      name or default_curve_name(curve_data, SketchCurveType.POINT),
+                      curve_idx)
 
         _invalidate(sketch)
         curve_data.update_tag()
@@ -475,7 +488,7 @@ class LineRef(CurveRef):
         return Vector((-d.y, d.x))
 
     @staticmethod
-    def create(sketch, p1, p2, construction=False):
+    def create(sketch, p1, p2, construction=False, name=None):
         """Create a new line curve and return a LineRef.
 
         Args:
@@ -483,11 +496,12 @@ class LineRef(CurveRef):
             p1: PointRef for start point.
             p2: PointRef for end point.
             construction: Whether this is a construction line.
+            name: Optional display name; a default is generated when omitted.
 
         Returns:
             LineRef for the new curve.
         """
-        from ..utilities.curve_data import set_attribute
+        from ..utilities.curve_data import set_attribute, default_curve_name
         from ..model.constants import SketchCurveType, BezierHandleType
 
         curve_data = _ensure_curve_data(sketch)
@@ -524,6 +538,9 @@ class LineRef(CurveRef):
         set_attribute(attrs, "construction", construction, curve_idx)
         set_attribute(attrs, "fixed", False, curve_idx)
         set_attribute(attrs, "visible", True, curve_idx)
+        set_attribute(attrs, "name",
+                      name or default_curve_name(curve_data, SketchCurveType.LINE),
+                      curve_idx)
 
         _invalidate(sketch)
         curve_data.update_tag()
@@ -607,7 +624,7 @@ class ArcRef(CurveRef):
         return pol2cart(self.radius, start_angle + angle) + ct.co
 
     @staticmethod
-    def create(sketch, ct, start, end, construction=False):
+    def create(sketch, ct, start, end, construction=False, name=None):
         """Create a new arc curve and return an ArcRef.
 
         Args:
@@ -616,11 +633,12 @@ class ArcRef(CurveRef):
             start: PointRef for start point.
             end: PointRef for end point.
             construction: Whether this is a construction arc.
+            name: Optional display name; a default is generated when omitted.
 
         Returns:
             ArcRef for the new curve.
         """
-        from ..utilities.curve_data import set_attribute
+        from ..utilities.curve_data import set_attribute, default_curve_name
         from ..model.constants import SketchCurveType, BezierHandleType
         from ..utilities.constants import QUARTER_TURN
 
@@ -657,6 +675,9 @@ class ArcRef(CurveRef):
         set_attribute(attrs, "construction", construction, curve_idx)
         set_attribute(attrs, "fixed", False, curve_idx)
         set_attribute(attrs, "visible", True, curve_idx)
+        set_attribute(attrs, "name",
+                      name or default_curve_name(curve_data, SketchCurveType.ARC),
+                      curve_idx)
 
         # Compute bezier geometry
         _build_arc_bezier(curve_data, curve_idx, center, start.co, end.co)
@@ -708,7 +729,7 @@ class CircleRef(CurveRef):
         return pol2cart(self.radius, angle) + ct.co
 
     @staticmethod
-    def create(sketch, ct, radius, construction=False):
+    def create(sketch, ct, radius, construction=False, name=None):
         """Create a new circle curve and return a CircleRef.
 
         Args:
@@ -716,11 +737,12 @@ class CircleRef(CurveRef):
             ct: PointRef for center point.
             radius: Circle radius.
             construction: Whether this is a construction circle.
+            name: Optional display name; a default is generated when omitted.
 
         Returns:
             CircleRef for the new curve.
         """
-        from ..utilities.curve_data import set_attribute
+        from ..utilities.curve_data import set_attribute, default_curve_name
         from ..model.constants import SketchCurveType, BezierHandleType
 
         curve_data = _ensure_curve_data(sketch)
@@ -749,6 +771,9 @@ class CircleRef(CurveRef):
         set_attribute(attrs, "construction", construction, curve_idx)
         set_attribute(attrs, "fixed", False, curve_idx)
         set_attribute(attrs, "visible", True, curve_idx)
+        set_attribute(attrs, "name",
+                      name or default_curve_name(curve_data, SketchCurveType.CIRCLE),
+                      curve_idx)
 
         # Compute bezier geometry — use start point at (center.x + radius, center.y)
         center = ct.co
