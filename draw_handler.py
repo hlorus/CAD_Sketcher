@@ -29,8 +29,13 @@ def _draw_curves_id_buffer(context: Context):
     global_data.pick_map = {}
     pick_idx = 1  # Start at 1 (0 = background)
 
+    # Only the active sketch is pickable; other sketches are read-only reference.
+    active_obj = context.scene.sketcher.active_sketch_object
+
     from .model.sketch_ref import get_sketches
     for sketch in get_sketches(context):
+        if sketch.target_object != active_obj:
+            continue
         if not sketch.is_visible(context):
             continue
 
@@ -137,8 +142,11 @@ def _arc_points(center, radius, start_angle, arc_angle, segments, mat):
     return points
 
 
-def _curve_color(ts, selected, hover, fixed):
+def _curve_color(ts, selected, hover, fixed, active=True):
     """Resolve color from curve attributes and theme settings."""
+    if not active:
+        # Non-active sketches are drawn dimmed as read-only reference.
+        return ts.inactive_selected if selected else ts.inactive
     if selected:
         if hover:
             return ts.selected_highlight
@@ -248,10 +256,13 @@ def _draw_curves_overlay(context: Context):
     dashed_shader = Shaders.uniform_color_line_3d()
     point_shader = Shaders.point_color_3d()
 
+    active_obj = context.scene.sketcher.active_sketch_object
     from .model.sketch_ref import get_sketches
     for sketch in get_sketches(context):
         if not sketch.is_visible(context):
             continue
+
+        is_active = sketch.target_object == active_obj
 
         curve_data = sketch.data
         n_curves = len(curve_data.curves)
@@ -286,7 +297,7 @@ def _draw_curves_overlay(context: Context):
             is_cyclic = cyc_attr.data[curve_idx].value if cyc_attr else False
             ctype = type_attr.data[curve_idx].value if type_attr else -1
 
-            col = _curve_color(ts, selected, hover, fixed)
+            col = _curve_color(ts, selected, hover, fixed, active=is_active)
 
             if ctype == SketchCurveType.POINT:
                 # 1-point curve — collect for batch drawing
@@ -392,7 +403,8 @@ def _draw_curves_overlay(context: Context):
         if point_coords:
             point_shader.bind()
             gpu.state.blend_set("ALPHA")
-            gpu.state.point_size_set(5 * scale)
+            # Inactive sketches draw smaller (and dimmer) as reference.
+            gpu.state.point_size_set((5 if is_active else 3) * scale)
 
             # Group by color
             color_groups = {}
@@ -401,7 +413,8 @@ def _draw_curves_overlay(context: Context):
                 color_groups.setdefault(key, []).append(pos)
 
             for col, positions in color_groups.items():
-                point_shader.uniform_float("color", (*col[:3], 1.0))
+                # Keep the color's alpha so inactive-sketch points dim like lines.
+                point_shader.uniform_float("color", col)
                 batch = batch_for_shader(point_shader, "POINTS", {"pos": positions})
                 batch.draw(point_shader)
 
