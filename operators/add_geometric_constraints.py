@@ -9,6 +9,7 @@ from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
 from ..utilities.select import deselect_all
 from ..utilities.view import refresh
+from .. import global_data
 
 from ..model.coincident import SlvsCoincident
 from ..model.equal import SlvsEqual
@@ -54,6 +55,76 @@ def merge_points(context, duplicate, target):
 
     # Remove duplicate
     duplicate.remove()
+
+
+class VIEW3D_OT_slvs_merge_points(Operator):
+    """Merge selected points"""
+
+    bl_idname = Operators.MergePoints
+    bl_label = "Merge Points"
+    bl_options = {"UNDO", "REGISTER"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        from ..model.sketch_ref import get_active_sketch
+        return bool(get_active_sketch(context))
+
+    def execute(self, context: Context):
+        from ..model.sketch_ref import get_active_sketch
+        from ..model.curve_ref import curve_ref
+
+        sketch = get_active_sketch(context)
+        if not sketch:
+            return {"CANCELLED"}
+
+        points = [
+            curve_ref(sketch, cid)
+            for cid in global_data.selected
+            if curve_ref(sketch, cid).is_point()
+        ]
+
+        if len(points) < 2:
+            self.report({"WARNING"}, "Select at least two points to merge")
+            return {"CANCELLED"}
+
+        fixed_points = [p for p in points if p.fixed]
+        if len(fixed_points) > 1:
+            self.report({"WARNING"}, "Cannot merge multiple fixed points")
+            return {"CANCELLED"}
+
+        target = fixed_points[0] if fixed_points else points[-1]
+        duplicates = [p for p in points if p.curve_id != target.curve_id]
+
+        for dup in duplicates:
+            merge_points(context, dup, target)
+
+        # Delete collapsed lines (start == end after merge)
+        collapsed = []
+        cd = sketch.target_object.data
+        sp_attr = cd.attributes.get("start_point_id")
+        ep_attr = cd.attributes.get("end_point_id")
+        if sp_attr and ep_attr:
+            cid_attr = cd.attributes.get("curve_id")
+            for i in range(len(cd.curves)):
+                sp = sp_attr.data[i].value
+                ep = ep_attr.data[i].value
+                if sp and ep and sp == ep:
+                    collapsed.append(cid_attr.data[i].value)
+            for cid in collapsed:
+                curve_ref(sketch, cid).remove()
+
+        deselect_all(context)
+        global_data.selected.append(target.curve_id)
+
+        solve_system(context, sketch)
+        refresh(context)
+
+        n = len(duplicates)
+        if collapsed:
+            self.report({"INFO"}, f"Merged {n} point(s) and deleted {len(collapsed)} collapsed line(s)")
+        else:
+            self.report({"INFO"}, f"Merged {n} point(s)")
+        return {"FINISHED"}
 
 
 class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
@@ -288,6 +359,7 @@ class VIEW3D_OT_slvs_add_symmetry(Operator, GenericConstraintOp):
 
 constraint_operators = (
     VIEW3D_OT_slvs_add_coincident,
+    VIEW3D_OT_slvs_merge_points,
     VIEW3D_OT_slvs_add_equal,
     VIEW3D_OT_slvs_add_vertical,
     VIEW3D_OT_slvs_add_horizontal,
