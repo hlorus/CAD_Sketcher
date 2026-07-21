@@ -14,6 +14,13 @@ offscreen = None
 redraw_selection_buffer = False
 
 hover = ""
+# Typed hover element under the cursor for object/mesh-picking tools, published
+# by the hover gizmo and rendered by the draw handler. One of:
+#   ("OBJECT", name, None) | ("VERTEX"|"EDGE"|"FACE", name, index) | None
+hover_element = None
+# Accepted pick types of the current stateful-operator state (or None), so the
+# hover gizmo detects/highlights what this state will actually pick.
+hover_types = None
 ignore_list = []
 selected = []
 pick_map = {}  # {pick_index: curve_id} rebuilt each frame by ID buffer draw
@@ -36,6 +43,7 @@ updating_face_wp = False
 Z_AXIS = Vector((0, 0, 1))
 
 draw_handle = None
+hover_draw_handle = None
 
 COPY_BUFFER = {}
 

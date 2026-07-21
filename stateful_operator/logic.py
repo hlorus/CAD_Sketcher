@@ -73,6 +73,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         self.state_index = index
         self.init_numeric(False)
         self.set_status_text(context)
+        # Publish the new state's accepted pick types so the hover gizmo
+        # highlights what this state will pick.
+        global_data.hover_types = self.get_states()[index].types
 
     def next_state(self, context: Context):
         self._undo = False
@@ -262,6 +265,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         global_data.stateful_op_running = True
         entered_modal = False
         self._state_data.clear()
+        global_data.hover_types = self.get_states()[0].types
         self._numeric = NumericInput()
         self._state_snapshot = self.create_snapshot(context)
         try:
@@ -517,6 +521,10 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
         if not keep_stateful_running:
             global_data.stateful_op_running = False
+
+        # Stop publishing pick types so hover falls back to the idle default.
+        global_data.hover_types = None
+        global_data.hover_element = None
 
         if not succeede and not skip_undo:
             if self._state_snapshot is not None:

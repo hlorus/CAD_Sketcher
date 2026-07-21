@@ -13,6 +13,7 @@ class Gizmos(str, Enum):
     ConstraintValue = "VIEW3D_GT_slvs_constraint_value"
     Diameter = "VIEW3D_GT_slvs_diameter"
     Distance = "VIEW3D_GT_slvs_distance"
+    ObjectHover = "VIEW3D_GT_slvs_object_hover"
     Preselection = "VIEW3D_GT_slvs_preselection"
     Workplane = "VIEW3D_GT_slvs_workplane"
 
@@ -22,6 +23,7 @@ class GizmoGroups(str, Enum):
     Constraint = "VIEW3D_GGT_slvs_constraint"
     Diameter = "VIEW3D_GGT_slvs_diameter"
     Distance = "VIEW3D_GGT_slvs_distance"
+    ObjectHover = "VIEW3D_GGT_slvs_object_hover"
     Preselection = "VIEW3D_GGT_slvs_preselection"
     Workplane = "VIEW3D_GGT_slvs_workplane"
 
