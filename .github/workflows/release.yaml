@@ -1,0 +1,81 @@
+name: release
+
+# Build the extension zip and attach it to a GitHub Release when a version tag
+# is pushed. Tags with a pre-release suffix (e.g. v0.3.0-beta.1) are published
+# as GitHub pre-releases. Runs from whatever ref the tag points at, so the same
+# workflow serves both the stable (main) and the refactor (native-curves) lines.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: # manual runs build + validate only (no release)
+
+permissions:
+  contents: write # required to create the release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Addon
+        uses: actions/checkout@v4
+        with:
+          path: CAD_Sketcher
+
+      - name: Check tag matches version
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: ./CAD_Sketcher
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          tag="${TAG_NAME#v}"
+          manifest=$(grep -m1 '^version' blender_manifest.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "tag='$tag'  manifest='$manifest'"
+          if [ "$tag" != "$manifest" ]; then
+            echo "::error::Tag '$tag' does not match manifest version '$manifest'"
+            exit 1
+          fi
+          # Legacy bl_info (present on the stable line) must agree on X.Y.Z.
+          if grep -qE '"version"[[:space:]]*:[[:space:]]*\(' __init__.py; then
+            blinfo=$(grep -oE '"version"[[:space:]]*:[[:space:]]*\([0-9]+,[[:space:]]*[0-9]+,[[:space:]]*[0-9]+\)' __init__.py \
+              | head -1 | grep -oE '[0-9]+' | paste -sd.)
+            base="${manifest%%-*}"  # strip any pre-release suffix; bl_info is numeric-only
+            if [ -n "$blinfo" ] && [ "$blinfo" != "$base" ]; then
+              echo "::error::bl_info version '$blinfo' does not match manifest '$base'"
+              exit 1
+            fi
+            echo "bl_info='$blinfo' matches manifest"
+          fi
+
+      - uses: moguri/setup-blender@v1
+        with:
+          blender-version: "4.5"
+
+      - run: blender --version
+
+      - name: Validate Extension
+        run: blender --background --command extension validate
+        working-directory: ./CAD_Sketcher
+
+      - name: Build Extension
+        run: >-
+          blender --background --command extension build
+          --output-filepath "${{ github.workspace }}/CAD_Sketcher-${{ github.ref_name }}.zip"
+        working-directory: ./CAD_Sketcher
+
+      - name: Detect pre-release
+        id: pre
+        run: |
+          if [[ "${{ github.ref_name }}" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: CAD_Sketcher-${{ github.ref_name }}.zip
+          prerelease: ${{ steps.pre.outputs.prerelease }}
+          generate_release_notes: true
