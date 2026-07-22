@@ -41,3 +41,34 @@ wheels = [
 [permissions]
 files = "Used to load CAD Sketcher assets"
 network = "Used to install the solver module from PiPy"
+
+[build]
+# Ship only the runtime add-on. Everything below is dev tooling, docs, tests,
+# or local build cruft that must not end up in the released extension.
+paths_exclude_pattern = [
+    "__pycache__/",
+    "*.pyc",
+    "/.git/",
+    "/*.zip",
+    "/.github/",
+    "/.vscode/",
+    "/.ropeproject/",
+    "/.ruff_cache/",
+    "/.blender_ext/",
+    "/.claude/",
+    "/.gitignore",
+    "/testing/",
+    "/docs/",
+    "/site/",
+    "/scripts/",
+    "/experiments/",
+    "/notes/",
+    "/notes.md",
+    "/lib/",
+    "/test_imports/",
+    "/CAD_Sketcher/",
+    "/run_tests.sh",
+    "/run_tests.bat",
+    "/run_tests_interactive.sh",
+    "/run_tests_interactive.bat",
+]
