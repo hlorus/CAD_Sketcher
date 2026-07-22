@@ -53,8 +53,11 @@ def load_asset(library, asset_type, asset):
     if asset in [a.name for a in getattr(bpy.data, asset_type)]:
         return True
 
-    prefs = bpy.context.preferences
-    fp = prefs.filepaths.asset_libraries[library].path
+    # Load straight from the bundled resources folder rather than the registered
+    # "CAD Sketcher Assets" library: that registration is deferred (and never
+    # happens in headless/background), so relying on it makes asset loading fail
+    # before the user-facing library exists. get_path() always resolves here.
+    fp = (Path(get_path()) / "resources").as_posix()
 
     for file in glob.glob(fp + "/*.blend"):
         with bpy.data.libraries.load(file, assets_only=True) as (data_from, data_to):
