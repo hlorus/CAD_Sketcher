@@ -244,6 +244,9 @@ class GenericEntityOp(StatefulOperator):
             elif attr.data_type in ('INT', 'INT8'):
                 data = np.zeros(domain_len, dtype=np.int32)
                 attr.data.foreach_get("value", data)
+            elif attr.data_type in ('INT32_2D', 'INT16_2D'):
+                data = np.zeros(domain_len * 2, dtype=np.int32)
+                attr.data.foreach_get("value", data)
             elif attr.data_type == 'FLOAT':
                 data = np.zeros(domain_len, dtype=np.float32)
                 attr.data.foreach_get("value", data)

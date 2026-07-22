@@ -33,22 +33,24 @@ def ensure_attribute(attributes, name, type, domain):
 _STRING_ATTRS = frozenset(("name",))
 
 # ---------------------------------------------------------------------------
-# Curve identity: 128-bit UUIDs stored as 4x INT sub-attributes.
+# Curve identity: 128-bit UUIDs stored as 2x INT32_2D sub-attributes.
 #
-# Blender wipes STRING attributes on remove_curves(); INT attributes survive and
-# re-index correctly. Each identity field is stored across four hidden ("."-
-# prefixed) 32-bit INT attributes and exposed as a 32-char lowercase hex string,
-# so all higher-level code keeps using the same string ids it always has.
+# Blender wipes STRING attributes on remove_curves(); integer attributes survive
+# and re-index correctly. Each identity field is stored as two hidden ("."-
+# prefixed) INT32_2D attributes — the low and high 64-bit halves, each a pair of
+# int32 — and exposed as a 32-char lowercase hex string, so all higher-level code
+# keeps using the same string ids it always has.
 # ---------------------------------------------------------------------------
 
 UUID_FIELDS = ("curve_id", "start_point_id", "end_point_id", "center_point_id")
 
 
 def _uuid_subnames(field):
-    return (f".{field}_0", f".{field}_1", f".{field}_2", f".{field}_3")
+    # 128-bit id = low and high 64-bit halves, each an INT32_2D (2x int32).
+    return (f".{field}_lo", f".{field}_hi")
 
 
-def _i32(u):  # unsigned 32-bit -> signed (Blender INT is signed int32)
+def _i32(u):  # unsigned 32-bit -> signed (Blender int32 is signed)
     return u - 0x100000000 if u >= 0x80000000 else u
 
 
@@ -56,42 +58,47 @@ def _u32(v):  # signed int32 -> unsigned
     return v + 0x100000000 if v < 0 else v
 
 
-def _hex_to_ints(hexstr):
-    if not hexstr:
-        return (0, 0, 0, 0)
-    u = int(hexstr, 16)
-    return tuple(_i32((u >> (32 * k)) & 0xFFFFFFFF) for k in range(4))
+def _hex_to_pairs(hexstr):
+    """Hex id -> (lo_pair, hi_pair), each a signed-int32 2-tuple for INT32_2D."""
+    u = int(hexstr, 16) if hexstr else 0
+    w = [_i32((u >> (32 * k)) & 0xFFFFFFFF) for k in range(4)]
+    return (w[0], w[1]), (w[2], w[3])
 
 
-def _ints_to_hex(ints):
-    if not any(ints):
+def _pairs_to_hex(lo, hi):
+    """(lo_pair, hi_pair) -> 32-char hex id ('' when all-zero / unset)."""
+    words = (lo[0], lo[1], hi[0], hi[1])
+    if not any(words):
         return ""
     u = 0
-    for k, v in enumerate(ints):
+    for k, v in enumerate(words):
         u |= _u32(v) << (32 * k)
     return f"{u:032x}"
 
 
 def has_uuid_field(curve_data, field):
-    """Presence proxy for an identity field (its first sub-attribute)."""
-    return curve_data.attributes.get(f".{field}_0")
+    """Presence proxy for an identity field (its low sub-attribute)."""
+    return curve_data.attributes.get(f".{field}_lo")
 
 
 def get_uuid(curve_data, field, index):
     """Read an identity field as a 32-char hex string ('' when unset)."""
-    ints = []
-    for name in _uuid_subnames(field):
-        a = curve_data.attributes.get(name)
-        ints.append(a.data[index].value if a else 0)
-    return _ints_to_hex(ints)
+    lo = curve_data.attributes.get(f".{field}_lo")
+    hi = curve_data.attributes.get(f".{field}_hi")
+    lo_v = tuple(lo.data[index].value) if lo else (0, 0)
+    hi_v = tuple(hi.data[index].value) if hi else (0, 0)
+    return _pairs_to_hex(lo_v, hi_v)
 
 
 def set_uuid(curve_data, field, index, value):
-    """Write a hex-string identity field into its 4 INT sub-attributes."""
-    for name, v in zip(_uuid_subnames(field), _hex_to_ints(value)):
-        a = curve_data.attributes.get(name)
-        if a:
-            a.data[index].value = v
+    """Write a hex-string identity field into its 2 INT32_2D sub-attributes."""
+    lo_pair, hi_pair = _hex_to_pairs(value)
+    lo = curve_data.attributes.get(f".{field}_lo")
+    hi = curve_data.attributes.get(f".{field}_hi")
+    if lo:
+        lo.data[index].value = lo_pair
+    if hi:
+        hi.data[index].value = hi_pair
 
 
 def new_uuid():
@@ -102,19 +109,24 @@ def new_uuid():
 def read_uuid_list(curve_data, field):
     """All curves' ids for a field as hex strings, read in bulk.
 
-    Uses foreach_get on the 4 INT sub-attributes — far cheaper than calling
-    get_uuid() per curve in hot loops (attribute lookup happens 4 times total
-    instead of 4 times per curve).
+    Uses foreach_get on the 2 INT32_2D sub-attributes — far cheaper than calling
+    get_uuid() per curve in hot loops (attribute lookup happens twice total
+    instead of twice per curve).
     """
     n = len(curve_data.curves)
-    subs = [curve_data.attributes.get(name) for name in _uuid_subnames(field)]
-    if n == 0 or not all(subs):
+    lo = curve_data.attributes.get(f".{field}_lo")
+    hi = curve_data.attributes.get(f".{field}_hi")
+    if n == 0 or not lo or not hi:
         return [""] * n
-    cols = [np.zeros(n, dtype=np.int32) for _ in range(4)]
-    for a, c in zip(subs, cols):
-        a.data.foreach_get("value", c)
-    c0, c1, c2, c3 = cols
-    return [_ints_to_hex((int(c0[i]), int(c1[i]), int(c2[i]), int(c3[i]))) for i in range(n)]
+    lob = np.zeros(n * 2, dtype=np.int32)
+    hib = np.zeros(n * 2, dtype=np.int32)
+    lo.data.foreach_get("value", lob)
+    hi.data.foreach_get("value", hib)
+    return [
+        _pairs_to_hex((int(lob[2 * i]), int(lob[2 * i + 1])),
+                      (int(hib[2 * i]), int(hib[2 * i + 1])))
+        for i in range(n)
+    ]
 
 
 def default_curve_name(curve_data, ctype):
@@ -140,16 +152,17 @@ def default_curve_name(curve_data, ctype):
 def set_attribute(attributes, name: str, value, index: int = None):
     """Set an attribute value either for given index or for all."""
     if name in UUID_FIELDS:
-        # Identity fields are hex strings stored across 4 INT sub-attributes.
-        for sub, v in zip(_uuid_subnames(name), _hex_to_ints(value)):
+        # Identity fields are hex ids stored as 2x INT32_2D (low/high halves).
+        lo_pair, hi_pair = _hex_to_pairs(value)
+        for sub, pair in ((f".{name}_lo", lo_pair), (f".{name}_hi", hi_pair)):
             a = attributes.get(sub)
             if not a:
                 continue
             if index is None:
                 for i in range(len(a.data)):
-                    a.data[i].value = v
+                    a.data[i].value = pair
             else:
-                a.data[index].value = v
+                a.data[index].value = pair
         return
     attribute = attributes.get(name)
     if name in _STRING_ATTRS:
@@ -195,10 +208,11 @@ def ensure_standard_attributes(curve_data):
     ensure_attribute(attributes, "hover", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "fixed", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "visible", "BOOLEAN", "CURVE")
-    # Identity fields: 4x INT each (128-bit), hidden. INT survives remove_curves.
+    # Identity fields: 2x INT32_2D each (128-bit), hidden. Integer attributes
+    # survive remove_curves() (STRING attributes don't).
     for field in UUID_FIELDS:
         for sub in _uuid_subnames(field):
-            ensure_attribute(attributes, sub, "INT", "CURVE")
+            ensure_attribute(attributes, sub, "INT32_2D", "CURVE")
     ensure_attribute(attributes, "name", "STRING", "CURVE")
 
 
@@ -679,6 +693,9 @@ def refresh_curve_geometry(sketch):
             attr.data.foreach_get("value", data)
         elif attr.data_type in ('INT', 'INT8'):
             data = np.zeros(domain_len, dtype=np.int32)
+            attr.data.foreach_get("value", data)
+        elif attr.data_type in ('INT32_2D', 'INT16_2D'):
+            data = np.zeros(domain_len * 2, dtype=np.int32)
             attr.data.foreach_get("value", data)
         elif attr.data_type == 'FLOAT':
             data = np.zeros(domain_len, dtype=np.float32)
