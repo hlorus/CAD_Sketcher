@@ -9,6 +9,7 @@ handler's timing).
 
 import bmesh
 import bpy
+from mathutils import Matrix
 
 from .utils import BgsTestCase
 from ..utilities import face_anchor as fa
@@ -27,6 +28,17 @@ class TestFaceAnchor(BgsTestCase):
 
         self.empty = bpy.data.objects.new("WP", None)
         self.scene.collection.objects.link(self.empty)
+        # Give the empty a valid frame for the -X face before stamping:
+        # Z = -X (face normal), X = +Z (a genuine in-plane axis). stamp_face_anchor
+        # records the frame's X as the in-plane reference, so an identity frame
+        # would store an axis parallel to the normal — degenerate, and the
+        # recomputed frame could never stay rigid with the mesh.
+        self.empty.matrix_world = Matrix((
+            (0.0, 0.0, -1.0, -1.0),
+            (0.0, 1.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0, 0.0),
+            (0.0, 0.0, 0.0, 1.0),
+        ))
         fa.stamp_face_anchor(self.empty, self.ob, 0)
         self.face_id = self.empty[fa.KEY_FACE_ID]
 
@@ -54,7 +66,11 @@ class TestFaceAnchor(BgsTestCase):
         return matrix
 
     def _count_id_faces(self):
-        attr = self.ob.data.attributes[fa.FACE_ID_ATTR]
+        # clear_face_id removes the attribute once no face carries the id, so a
+        # missing attribute legitimately means zero.
+        attr = self.ob.data.attributes.get(fa.FACE_ID_ATTR)
+        if attr is None:
+            return 0
         return sum(1 for p in self.ob.data.polygons
                    if attr.data[p.index].value == self.face_id)
 
