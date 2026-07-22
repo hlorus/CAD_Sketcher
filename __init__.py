@@ -5,19 +5,11 @@ import addon_utils
 from bpy.app import background
 
 
-bl_info = {
-    "name": "CAD Sketcher",
-    "author": "hlorus",
-    "version": (0, 27, 7),
-    "blender": (4, 0, 0),
-    "location": "View3D > Toolbar",
-    "description": "Parametric, constraint-based geometry sketcher",
-    "warning": "Experimental",
-    "category": "3D View",
-    "doc_url": "https://hlorus.github.io/CAD_Sketcher",
-    "tracker_url": "https://github.com/hlorus/CAD_Sketcher/discussions/categories/announcements",
-}
-
+# This add-on ships as a Blender extension (Blender 4.3+); blender_manifest.toml
+# is the source of truth for name/version/etc. A literal bl_info is only needed
+# for legacy (<4.2) add-on installs, which this build doesn't support — for an
+# installed extension addon_utils.module_bl_info() is synthesized from the
+# manifest, so the version helpers below still resolve correctly.
 
 
 def get_addon_version_tuple() -> tuple:

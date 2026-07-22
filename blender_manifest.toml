@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "CAD_Sketcher"
-version = "0.30.0"
+version = "0.3.0-dev"
 name = "CAD Sketcher"
 tagline = "Parametric, constraint-based geometry sketcher"
 maintainer = "hlorus <dave19924@gmail.com>"
