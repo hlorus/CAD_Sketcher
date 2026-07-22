@@ -32,5 +32,9 @@ jobs:
         working-directory: ./CAD_Sketcher
 
       - name: Run Tests
-        run: blender --background --addons CAD_Sketcher --python-expr "import bpy; bpy.context.preferences.view.show_splash=False; bpy.ops.view3d.slvs_test()"
+        # Runs the FULL suite against the installed extension and fails the job
+        # on any test failure (the old slvs_test invocation swallowed both).
+        env:
+          CAD_SKETCHER_SRC: ${{ github.workspace }}/CAD_Sketcher
+        run: blender --background --python ./scripts/ci_run_tests.py
         working-directory: ./CAD_Sketcher
