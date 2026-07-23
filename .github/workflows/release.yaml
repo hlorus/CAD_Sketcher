@@ -87,7 +87,7 @@ jobs:
 
   # Regenerate the extension-repository listing (index.json) for the released
   # channel and push it to the hlorus/CAD_Sketcher-extensions repo, so users get
-  # in-app updates. Stable tags -> stable/index.json, pre-releases -> beta/.
+  # in-app updates. Stable tags -> stable/index.json, pre-releases -> latest/.
   # The zips themselves stay as GitHub release assets (archive_url points there).
   publish-listing:
     needs: release
@@ -104,7 +104,7 @@ jobs:
         id: ch
         run: |
           if [[ "${{ github.ref_name }}" == *-* ]]; then
-            echo "channel=beta"     >> "$GITHUB_OUTPUT"
+            echo "channel=latest"   >> "$GITHUB_OUTPUT"
             echo "prerelease=true"  >> "$GITHUB_OUTPUT"
           else
             echo "channel=stable"   >> "$GITHUB_OUTPUT"
