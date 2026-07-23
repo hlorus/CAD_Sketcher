@@ -85,10 +85,12 @@ jobs:
           prerelease: ${{ steps.pre.outputs.prerelease }}
           generate_release_notes: true
 
-  # Regenerate the extension-repository listing (index.json) for the released
-  # channel and push it to the hlorus/CAD_Sketcher-extensions repo, so users get
-  # in-app updates. Stable tags -> stable/index.json, pre-releases -> latest/.
-  # The zips themselves stay as GitHub release assets (archive_url points there).
+  # Regenerate the extension-repository listings and push them to the
+  # hlorus/CAD_Sketcher-extensions repo, so users get in-app updates. Two
+  # channels, both rebuilt from the full release list on every run:
+  #   latest/index.json - every release (newest wins, includes pre-releases)
+  #   stable/index.json - non-pre-release versions only
+  # The zips stay as GitHub release assets (archive_url points there).
   publish-listing:
     needs: release
     if: >-
@@ -100,74 +102,82 @@ jobs:
         with:
           blender-version: "4.5"
 
-      - name: Determine channel
-        id: ch
-        run: |
-          if [[ "${{ github.ref_name }}" == *-* ]]; then
-            echo "channel=latest"   >> "$GITHUB_OUTPUT"
-            echo "prerelease=true"  >> "$GITHUB_OUTPUT"
-          else
-            echo "channel=stable"   >> "$GITHUB_OUTPUT"
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Download this channel's release zips
+      - name: Download all release zips
         env:
           GH_TOKEN: ${{ github.token }}
-          PRE: ${{ steps.ch.outputs.prerelease }}
         run: |
           mkdir -p zips
+          # tag <tab> isPrerelease, for every release.
           gh release list --repo "${{ github.repository }}" --limit 200 \
             --json tagName,isPrerelease \
-            --jq '.[] | [.tagName, (.isPrerelease|tostring)] | @tsv' > all.tsv
+            --jq '.[] | [.tagName, (.isPrerelease|tostring)] | @tsv' > releases.tsv
           while IFS=$'\t' read -r tag pre; do
-            [ "$pre" = "$PRE" ] || continue
+            [ -z "$tag" ] && continue
             gh release download "$tag" --repo "${{ github.repository }}" \
               --pattern '*.zip' --dir zips --skip-existing || true
-          done < all.tsv
-          echo "Zips for channel:"; ls -la zips
+          done < releases.tsv
+          echo "Releases:"; cat releases.tsv; echo "Zips:"; ls -la zips
 
       - name: Generate listing
         run: blender --background --command extension server-generate --repo-dir zips
 
-      - name: Point archive URLs at the release assets
+      - name: Build stable + latest indexes
+        # latest = every release; stable = non-pre-release only. archive_url is
+        # rewritten to point at the GitHub release assets (hash/size stay valid).
         env:
           REPO: ${{ github.repository }}
         run: |
           python3 - <<'PY'
           import json, os, re
           repo = os.environ["REPO"]
-          path = "zips/index.json"
-          data = json.load(open(path))
-          for e in data.get("data", []):
-              fn = os.path.basename(e["archive_url"])
+          prerelease = {
+              ln.split("\t")[0]
+              for ln in open("releases.tsv")
+              if ln.rstrip("\n").endswith("\ttrue")
+          }
+          def tag_of(entry):
+              fn = os.path.basename(entry["archive_url"])
               m = re.match(r"CAD_Sketcher-(.+)\.zip$", fn)
               if not m:
                   raise SystemExit(f"unexpected asset name: {fn}")
-              tag = m.group(1)
-              e["archive_url"] = f"https://github.com/{repo}/releases/download/{tag}/{fn}"
-          json.dump(data, open(path, "w"), indent=2)
-          for e in data["data"]:
-              print(e["version"], "->", e["archive_url"])
+              return m.group(1)
+
+          data = json.load(open("zips/index.json"))
+          for e in data.get("data", []):
+              t = tag_of(e)
+              e["archive_url"] = (
+                  f"https://github.com/{repo}/releases/download/{t}/CAD_Sketcher-{t}.zip"
+              )
+
+          os.makedirs("out", exist_ok=True)
+          # latest: all entries
+          json.dump(data, open("out/latest.json", "w"), indent=2)
+          # stable: drop pre-release entries
+          stable = dict(data)
+          stable["data"] = [e for e in data["data"] if tag_of(e) not in prerelease]
+          json.dump(stable, open("out/stable.json", "w"), indent=2)
+
+          print("latest:", [e["version"] for e in data["data"]])
+          print("stable:", [e["version"] for e in stable["data"]])
           PY
 
-      - name: Publish index.json to the listing repo
+      - name: Publish indexes to the listing repo
         env:
           TOKEN: ${{ secrets.EXTENSIONS_REPO_TOKEN }}
-          CHANNEL: ${{ steps.ch.outputs.channel }}
         run: |
           git clone "https://x-access-token:${TOKEN}@github.com/hlorus/CAD_Sketcher-extensions.git" listing
           cd listing
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B main            # handles the initially-empty repo
-          mkdir -p "$CHANNEL"
-          cp ../zips/index.json "$CHANNEL/index.json"
+          mkdir -p stable latest
+          cp ../out/stable.json stable/index.json
+          cp ../out/latest.json latest/index.json
           touch .nojekyll                 # serve JSON verbatim (no Jekyll)
-          git add "$CHANNEL/index.json" .nojekyll
+          git add stable/index.json latest/index.json .nojekyll
           if git diff --cached --quiet; then
-            echo "Listing unchanged."
+            echo "Listings unchanged."
           else
-            git commit -m "Update $CHANNEL listing for ${{ github.ref_name }}"
+            git commit -m "Update extension listings for ${{ github.ref_name }}"
             git push origin main
           fi
