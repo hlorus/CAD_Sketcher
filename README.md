@@ -29,8 +29,22 @@ Minimum version: Blender 4.2
 
 ## Extension installation
 
+### Recommended: add the extension repository (auto-updates)
+
+Adding CAD Sketcher as a remote repository lets Blender install and **update** it in-app:
+
+1. In Blender go to `Edit > Preferences > Get Extensions`.
+2. Open the repositories drop-down (arrow in the top-right corner) and choose **Add Remote Repository**.
+3. Paste the URL below, tick **Check for Updates on Startup**, and confirm:
+   ```
+   https://hlorus.github.io/CAD_Sketcher-extensions/stable/index.json
+   ```
+4. CAD Sketcher now appears in the extensions list — press **Install**.
+
+### Alternative: install a release ZIP manually
+
 - [Gumroad](https://gumroad.com/a/891069555) Download (This way we can update you about big updates and ask your opinion on big changes)
-- Download the [ZIP archive](https://github.com/hlorus/CAD-Sketcher/archive/refs/heads/main.zip) (do not unpack it after downloading)
+- Download the latest [release ZIP](https://github.com/hlorus/CAD_Sketcher/releases/latest) (do not unpack it after downloading)
  <br><b>:warning:Mac users be careful your OS can auto-unpack extension's which will make them break!</b>
 - Open Blender and go to: Edit > Preferences > Get Extensions > Extension Settings (Arrow in the top right corner) > Press "Install from Disk..." button
 - Browse to the location of the ZIP and select it, then press "Install from Disk"
