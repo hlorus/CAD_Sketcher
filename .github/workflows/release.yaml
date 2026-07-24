@@ -163,6 +163,59 @@ jobs:
             done
           fi
 
+  # After a final (non-pre-release) tag, open the next dev cycle on main:
+  # bump the manifest base (and legacy bl_info) to the next patch, so 'latest'
+  # builds advertise as pre-releases of the upcoming version.
+  bump-version:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: bump-version
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Bump base to next patch on main
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag="${TAG_NAME#v}"
+          IFS='.' read -r MA MI PA <<< "${tag%%-*}"
+          next="${MA}.${MI}.$((PA + 1))"
+          echo "Released $tag; next dev base -> $next"
+
+          # Idempotent: only advance if main still sits at the released base, so a
+          # manual forward bump (e.g. to a minor/major) is never clobbered.
+          cur=$(grep -m1 '^version' blender_manifest.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          cur="${cur%%-*}"
+          if [ "$cur" != "$tag" ]; then
+            echo "main base is '$cur', not '$tag' — already moved on, skipping."
+            exit 0
+          fi
+
+          sed -i -E "s|^version = \".*\"|version = \"$next\"|" blender_manifest.toml
+          # Keep legacy bl_info in sync when present (stable line only).
+          if grep -qE '"version"[[:space:]]*:[[:space:]]*\(' __init__.py; then
+            sed -i -E "s|(\"version\"[[:space:]]*:[[:space:]]*\()[0-9]+,[[:space:]]*[0-9]+,[[:space:]]*[0-9]+(\))|\1${MA}, ${MI}, $((PA + 1))\2|" __init__.py
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add blender_manifest.toml __init__.py
+          if git diff --cached --quiet; then
+            echo "nothing to bump."
+            exit 0
+          fi
+          git commit -m "Open development of $next"
+          for i in 1 2 3; do
+            git push origin main && break
+            sleep 3; git fetch origin main && git rebase origin/main
+          done
+
   # === Latest channel: every main commit -> rolling build ===
   latest:
     if: >-
