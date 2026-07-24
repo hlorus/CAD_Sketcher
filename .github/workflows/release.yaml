@@ -2,21 +2,21 @@ name: release
 
 # Two extension channels, published to hlorus/CAD_Sketcher-extensions:
 #   stable/index.json  - curated releases, cut by pushing a version tag (v*)
-#   latest/index.json  - rolling nightly, rebuilt on every push to main
-# Stable zips are normal GitHub release assets; the nightly zip is a single
-# rolling pre-release ("nightly") whose asset is overwritten each commit.
+#   latest/index.json  - rolling build, rebuilt on every push to main
+# Stable zips are normal GitHub release assets; the latest zip is a single
+# rolling pre-release ("latest") whose asset is overwritten each commit.
 on:
   push:
     branches: [main]
     tags: ["v*"]
-    paths-ignore: # docs/workflow-only commits don't need a nightly build
+    paths-ignore: # docs/workflow-only commits don't need a latest build
       - "**.md"
       - "docs/**"
       - ".github/**"
   workflow_dispatch:
     inputs:
-      run_nightly:
-        description: "Build a nightly and publish it to the 'latest' channel"
+      run_latest:
+        description: "Build and publish to the 'latest' channel"
         type: boolean
         default: false
 
@@ -163,11 +163,11 @@ jobs:
             done
           fi
 
-  # === Latest channel: every main commit -> rolling nightly build ===
-  nightly:
+  # === Latest channel: every main commit -> rolling build ===
+  latest:
     if: >-
       github.ref == 'refs/heads/main' ||
-      (github.event_name == 'workflow_dispatch' && inputs.run_nightly)
+      (github.event_name == 'workflow_dispatch' && inputs.run_latest)
     runs-on: ubuntu-latest
     concurrency:
       group: extension-listing
@@ -182,7 +182,7 @@ jobs:
         with:
           blender-version: "4.5"
 
-      - name: Stamp nightly version
+      - name: Stamp latest version
         # <base>-latest.<run_number>: monotonic, sorts below the eventual stable.
         working-directory: ./CAD_Sketcher
         run: |
@@ -190,30 +190,37 @@ jobs:
           base="${base%%-*}"          # strip any existing pre-release suffix
           ver="${base}-latest.${{ github.run_number }}"
           sed -i -E "s|^version = \".*\"|version = \"$ver\"|" blender_manifest.toml
-          echo "NIGHTLY_VERSION=$ver" >> "$GITHUB_ENV"
-          echo "Nightly version: $ver"
+          echo "LATEST_VERSION=$ver" >> "$GITHUB_ENV"
+          echo "Latest version: $ver"
 
       - name: Validate Extension
         run: blender --background --command extension validate
         working-directory: ./CAD_Sketcher
 
-      - name: Build nightly
+      - name: Build latest
         run: >-
           blender --background --command extension build
           --output-filepath "${{ github.workspace }}/CAD_Sketcher-latest.zip"
         working-directory: ./CAD_Sketcher
 
-      - name: Update rolling nightly release
+      - name: Update rolling latest release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view nightly --repo "${{ github.repository }}" >/dev/null 2>&1 || \
-            gh release create nightly --repo "${{ github.repository }}" --prerelease \
-              --title "Nightly (latest main)" \
+          gh release view latest --repo "${{ github.repository }}" >/dev/null 2>&1 || \
+            gh release create latest --repo "${{ github.repository }}" --prerelease \
+              --title "Latest (main)" \
               --notes "Rolling build of the newest main commit. Subscribe via the 'latest' extension channel." \
               --target "${{ github.sha }}"
-          gh release upload nightly "${{ github.workspace }}/CAD_Sketcher-latest.zip" \
+          gh release upload latest "${{ github.workspace }}/CAD_Sketcher-latest.zip" \
             --repo "${{ github.repository }}" --clobber
+
+      - name: Move the latest tag to this commit
+        # --clobber only replaces the asset; force-move the ref so the tag and
+        # the release re-anchor to the newest built commit.
+        run: |
+          git -C CAD_Sketcher tag -f latest "${{ github.sha }}"
+          git -C CAD_Sketcher push -f origin latest
 
       - name: Generate latest listing
         run: |
@@ -221,7 +228,7 @@ jobs:
           cp "${{ github.workspace }}/CAD_Sketcher-latest.zip" zips/
           blender --background --command extension server-generate --repo-dir zips
 
-      - name: Point archive URL at the nightly asset
+      - name: Point archive URL at the latest asset
         env:
           REPO: ${{ github.repository }}
         run: |
@@ -231,7 +238,7 @@ jobs:
           d = json.load(open("zips/index.json"))
           for e in d.get("data", []):
               e["archive_url"] = (
-                  f"https://github.com/{repo}/releases/download/nightly/CAD_Sketcher-latest.zip"
+                  f"https://github.com/{repo}/releases/download/latest/CAD_Sketcher-latest.zip"
               )
           json.dump(d, open("zips/index.json", "w"), indent=2)
           print("latest:", [e["version"] for e in d["data"]])
@@ -253,7 +260,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "latest listing unchanged."
           else
-            git commit -m "Nightly: latest -> ${NIGHTLY_VERSION}"
+            git commit -m "Latest -> ${LATEST_VERSION}"
             for i in 1 2 3; do
               git push origin main && break
               sleep 3; git fetch origin main && git rebase origin/main
