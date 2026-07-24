@@ -62,13 +62,22 @@ def get_mesh_element(
     if not result:
         return None, None, None
 
+    # Object-only pick: the raycast hit is all we need — return it without
+    # requiring mesh polygons, so non-mesh hits (e.g. a Curves sketch, whose
+    # evaluated data has no polygons) can still be picked.
+    if not (vertex or edge or face):
+        return ob, Object, None
+
     obj_eval = get_evaluated_obj(context, ob)
+
+    me = obj_eval.data
+    if not hasattr(me, "polygons"):
+        return None, None, None
 
     closest_type = ""
     closest_dist = None
 
     loc = obj_eval.matrix_world.inverted() @ loc
-    me = obj_eval.data
     polygon = me.polygons[face_index]
 
     def get_closest(deltas):

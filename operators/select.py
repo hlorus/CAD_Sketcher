@@ -1,5 +1,5 @@
 from bpy.types import Operator, Context
-from bpy.props import IntProperty, BoolProperty
+from bpy.props import IntProperty, BoolProperty, StringProperty
 from bpy.utils import register_classes_factory
 
 from .utilities import select_extend, select_invert
@@ -22,7 +22,9 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
     bl_idname = Operators.Select
     bl_label = "Select Sketch Entities"
 
-    index: IntProperty(name="Index", default=-1)
+    # Selection keys are curve ids (see global_data.selected); when unset the
+    # currently hovered curve id is used.
+    index: StringProperty(name="Curve ID", default="")
     mode: mode_property
 
     def execute(self, context: Context):
@@ -31,24 +33,30 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
             if self.properties.is_property_set("index")
             else global_data.hover
         )
-        hit = index != -1
+        hit = bool(index)
         mode = self.mode
 
         if mode == "SET" or not hit:
             deselect_all(context)
 
         if hit:
-            entity = context.scene.sketcher.entities.get(index)
+            # Work directly with global_data.selected — no entity lookup needed
+            is_selected = index in global_data.selected
 
-            value = True
             if mode == "SUBTRACT":
-                value = False
-            if mode == "TOGGLE":
-                value = not entity.selected
+                if is_selected:
+                    global_data.selected.remove(index)
+            elif mode == "TOGGLE":
+                if is_selected:
+                    global_data.selected.remove(index)
+                else:
+                    global_data.selected.append(index)
+            else:  # SET or EXTEND
+                if not is_selected:
+                    global_data.selected.append(index)
 
-            entity.selected = value
-
-        context.area.tag_redraw()
+        if context.area:
+            context.area.tag_redraw()
         return {"FINISHED"}
 
 

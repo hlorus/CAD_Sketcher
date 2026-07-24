@@ -51,7 +51,10 @@ def get_collective_dependencies(
 
 
 def get_scene_constraints(scene: Scene):
-    return scene.sketcher.constraints.all
+    # Legacy: returns constraints from all sketches
+    from ..model.sketch_ref import get_sketches
+    for sketch in get_sketches(scene):
+        yield from sketch.constraints.all
 
 
 def get_scene_entities(scene: Scene):
@@ -68,7 +71,7 @@ def get_entity_deps(
 
 
 def _is_referenced_by_constraint(entity, context):
-    for c in context.scene.sketcher.constraints.all:
+    for c in get_scene_constraints(context.scene):
         if entity in c.dependencies():
             return True
     return False
@@ -107,15 +110,16 @@ def get_sketch_deps_indicies(sketch: SlvsSketch, context: Context):
 def get_constraint_local_indices(
     entity: SlvsGenericEntity, context: Context
 ) -> Deque[int]:
-    constraints = context.scene.sketcher.constraints
+    # Legacy: searches all sketches for constraints referencing this entity
+    from ..model.sketch_ref import get_sketches
     ret_list = deque()
-
-    for data_coll in constraints.get_lists():
-        indices = deque()
-        for c in data_coll:
-            if entity in c.dependencies():
-                indices.append(constraints.get_index(c))
-        ret_list.append((data_coll, indices))
+    for sketch in get_sketches(context):
+        for data_coll in sketch.constraints.get_lists():
+            indices = deque()
+            for c in data_coll:
+                if entity in c.dependencies():
+                    indices.append(sketch.constraints.get_index(c))
+            ret_list.append((data_coll, indices))
     return ret_list
 
 
@@ -125,7 +129,7 @@ def get_scoped_constraints(
     """Return a list of constraints that are in the scope of a set of entities"""
 
     constraints = []
-    for constraint in context.scene.sketcher.constraints.all:
+    for constraint in get_scene_constraints(context.scene):
         if not all([e in entities for e in constraint.entities()]):
             continue
         constraints.append(constraint)

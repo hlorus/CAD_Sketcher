@@ -56,24 +56,37 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         offscreen = global_data.offscreen
         if not offscreen:
             return -1
-        # TODO: Read buffer only once
+
         PICK_SIZE = 10
+        # Read the whole pick region ONCE, then sample it on the CPU. A per-pixel
+        # GPU readback (bind + read_color) stalls the pipeline; with the spiral
+        # this fired dozens of times per mouse move.
+        w, h = offscreen.width, offscreen.height
+        bx = max(0, min(mouse_x - PICK_SIZE, w - 1))
+        by = max(0, min(mouse_y - PICK_SIZE, h - 1))
+        bw = max(1, min(mouse_x + PICK_SIZE + 1, w) - bx)
+        bh = max(1, min(mouse_y + PICK_SIZE + 1, h) - by)
+        with offscreen.bind():
+            fb = gpu.state.active_framebuffer_get()
+            block = fb.read_color(bx, by, bw, bh, 4, 0, "FLOAT")
+
         for x, y in get_spiral_coords(mouse_x, mouse_y, context.area.width, context.area.height, PICK_SIZE):
-            with offscreen.bind():
-                fb = gpu.state.active_framebuffer_get()
-                buffer = fb.read_color(x, y, 1, 1, 4, 0, "FLOAT")
-            r, g, b, alpha = buffer[0][0]
+            col, row = x - bx, y - by
+            if not (0 <= col < bw and 0 <= row < bh):
+                continue
+            r, g, b, alpha = block[row][col]
 
             if alpha > 0:
-                index = rgb_to_index(r, g, b)
-                if index != global_data.hover:
-                    global_data.hover = index
+                pick_idx = rgb_to_index(r, g, b)
+                cid = global_data.pick_map.get(pick_idx, pick_idx)
+                if cid != global_data.hover:
+                    global_data.hover = cid
                     context.area.tag_redraw()
                 return -1
 
-        if global_data.hover != -1:
+        if global_data.hover:
             context.area.tag_redraw()
-            global_data.hover = -1
+            global_data.hover = ""
         return -1
 
 

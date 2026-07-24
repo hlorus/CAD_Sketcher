@@ -1,4 +1,5 @@
 from bpy.utils import register_classes_factory
+from ..model.sketch_ref import get_active_constraints
 from bpy.props import EnumProperty
 from bpy.types import Operator, Context
 
@@ -35,7 +36,7 @@ class View3D_OT_slvs_set_all_constraints_visibility(Operator, HighlightElement):
         return None
 
     def execute(self, context: Context):
-        constraint_lists = context.scene.sketcher.constraints.get_lists()
+        constraint_lists = get_active_constraints(context).get_lists()
         for constraint_list in constraint_lists:
             for constraint in constraint_list:
                 if not hasattr(constraint, "visible"):

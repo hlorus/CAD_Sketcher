@@ -3,13 +3,83 @@ from statistics import mean
 from typing import Tuple
 
 import mathutils
-from mathutils import Vector
+from mathutils import Matrix, Vector
+
+
+def face_workplane_matrix(context, ob, face_index):
+    """World matrix of the workplane a mesh face would produce.
+
+    Shared by the Add Sketch operator (creating the empty) and the workplane
+    gizmo (previewing it on hover) so both agree exactly.
+    """
+    from ..stateful_operator.utilities.geometry import get_evaluated_obj
+
+    eval_ob = get_evaluated_obj(context, ob)
+    mesh = eval_ob.data
+    face = mesh.polygons[face_index]
+
+    quat = get_face_orientation(mesh, face)
+    quat.rotate(ob.matrix_world)
+    pos = ob.matrix_world @ face.center
+    return Matrix.LocRotScale(pos, quat, None)
+
+
+def face_bounds_in_plane(context, ob, face_index, mat):
+    """2D bounding box of a mesh face in a workplane's local frame.
+
+    ``mat`` is the plane's world matrix (see :func:`face_workplane_matrix`).
+    Returns (min_x, min_y, max_x, max_y).
+    """
+    from ..stateful_operator.utilities.geometry import get_evaluated_obj
+
+    eval_ob = get_evaluated_obj(context, ob)
+    mesh = eval_ob.data
+    face = mesh.polygons[face_index]
+
+    inv = mat.inverted()
+    mw = ob.matrix_world
+    xs, ys = [], []
+    for vi in face.vertices:
+        local = inv @ (mw @ mesh.vertices[vi].co)
+        xs.append(local.x)
+        ys.append(local.y)
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def orientation_from_normal(normal):
+    """Quaternion with Z along ``normal`` and Y toward world Z when possible."""
+    z = normal.normalized()
+    up = Vector((0, 0, 1))
+    if abs(z.dot(up)) > 0.999:
+        up = Vector((0, 1, 0))
+    x = up.cross(z).normalized()
+    y = z.cross(x).normalized()
+    mat = mathutils.Matrix((x, y, z)).transposed().to_3x3()
+    return mat.to_quaternion()
+
+
+def orientation_from_normal_ref(normal, ref):
+    """Quaternion with Z along ``normal`` and X along ``ref`` (projected).
+
+    Unlike :func:`orientation_from_normal`, the in-plane axes come from a
+    caller-supplied reference direction instead of world-up, so the frame
+    stays rigid with the geometry as it rotates. Falls back to the world-up
+    heuristic if ``ref`` is parallel to the normal.
+    """
+    z = normal.normalized()
+    x = ref - z * ref.dot(z)  # project ref into the plane
+    if x.length < 1e-6:
+        return orientation_from_normal(normal)
+    x.normalize()
+    y = z.cross(x).normalized()
+    mat = mathutils.Matrix((x, y, z)).transposed().to_3x3()
+    return mat.to_quaternion()
 
 
 def get_face_orientation(mesh, face):
-    # returns quaternion describing the face orientation in objectspace
+    """Quaternion with Z along face normal and Y toward world Z when possible."""
     normal = mathutils.geometry.normal([mesh.vertices[i].co for i in face.vertices])
-    return normal.to_track_quat("Z", "X")
+    return orientation_from_normal(normal)
 
 
 def get_face_midpoint(quat, ob, face):

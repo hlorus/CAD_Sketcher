@@ -2,7 +2,6 @@ from bpy.types import Context
 
 from .. import declarations
 from .. import icon_manager
-from ...utilities.preferences import is_experimental
 from . import VIEW3D_PT_sketcher_base
 
 
@@ -34,9 +33,8 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         layout.prop(context.scene.sketcher, "use_construction")
 
         # Node modifier operators
-        if is_experimental():
-            layout.label(text="Node Tools:")
-            col = layout.column(align=True)
-            #col.operator(declarations.Operators.NodeFill)
-            col.operator(declarations.Operators.NodeExtrude)
-            col.operator(declarations.Operators.NodeArrayLinear)
+        layout.label(text="Node Tools:")
+        col = layout.column(align=True)
+        col.operator(declarations.Operators.NodeExtrude)
+        col.operator(declarations.Operators.NodeArrayLinear)
+

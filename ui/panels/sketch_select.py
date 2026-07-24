@@ -2,6 +2,28 @@ from bpy.types import Context, UILayout
 
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
+from ...model.sketch_ref import get_active_sketch, get_sketches
+from ...stateful_operator.constants import Operators as StatefulOps
+
+
+def _draw_detached_warning(layout: UILayout, sketch):
+    """Warn when the sketch's workplane lost its anchoring mesh face."""
+    from ...utilities.face_anchor import KEY_DETACHED
+
+    wp = sketch.workplane_object
+    if not wp or not wp.get(KEY_DETACHED):
+        return
+
+    box = layout.box()
+    box.alert = True
+    box.label(text="Workplane detached from mesh face", icon="ERROR")
+    row = box.row(align=True)
+    row.operator(
+        declarations.Operators.ReattachWorkplane, text="Re-attach", icon="EYEDROPPER"
+    ).empty_name = wp.name
+    row.operator(
+        declarations.Operators.MakeWorkplaneFree, text="Make Free", icon="UNLINKED"
+    ).empty_name = wp.name
 
 
 def sketch_selector(
@@ -10,13 +32,19 @@ def sketch_selector(
 ):
     row = layout.row(align=True)
     row.scale_y = 1.8
-    active_sketch = context.scene.sketcher.active_sketch
+    active_sketch = get_active_sketch(context)
 
     if not active_sketch:
-        row.operator(
-            declarations.Operators.AddSketch,
-            icon="ADD"
-        ).wait_for_input = True
+        # Switch to the Add Sketch tool (which shows the workplane gizmo) and
+        # invoke the operator; a pre-selected workplane empty creates the sketch
+        # immediately, otherwise the user picks one interactively.
+        props = row.operator(
+            StatefulOps.InvokeTool.value,
+            text="Add Sketch",
+            icon="ADD",
+        )
+        props.tool_name = declarations.WorkSpaceTools.AddSketch.value
+        props.operator = declarations.Operators.AddSketch.value
 
     else:
         row.operator(
@@ -24,7 +52,7 @@ def sketch_selector(
             text="Leave: " + active_sketch.name,
             icon="BACK",
             depress=True,
-        ).index = -1
+        ).sketch_name = ""
         row.active = True
 
     row.alert = bool(active_sketch and not active_sketch.geometry_solved)
@@ -41,24 +69,19 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
         layout = self.layout
 
         sketch_selector(context, layout)
-        sketch = context.scene.sketcher.active_sketch
+        sketch = get_active_sketch(context)
         layout.use_property_split = True
         layout.use_property_decorate = False
 
         if sketch:
-            # Sketch is selected, show info about the sketch itself
+            # Sketch info
             row = layout.row()
             row.alignment = "CENTER"
             row.scale_y = 1.2
 
             if sketch.solver_state != "OKAY":
                 state = sketch.get_solver_state()
-                row.operator(
-                    declarations.Operators.ShowSolverState,
-                    text=state.name,
-                    icon=state.icon,
-                    emboss=False,
-                ).index = sketch.slvs_index
+                row.label(text=state.name, icon=state.icon)
             else:
                 dof = sketch.dof
                 dof_ok = dof <= 0
@@ -70,31 +93,39 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 dof_icon = "CHECKMARK" if dof_ok else "ERROR"
                 row.label(text=dof_msg, icon=dof_icon)
 
+            _draw_detached_warning(layout, sketch)
+
             layout.separator()
 
             row = layout.row()
-            row.prop(sketch, "name")
-            layout.prop(sketch, "convert_type")
-
-            if sketch.convert_type == "MESH":
-                layout.prop(sketch, "curve_resolution")
-            if sketch.convert_type != "NONE":
-                layout.prop(sketch, "fill_shape")
-
-            layout.operator(
-                declarations.Operators.DeleteEntity,
-                text="Delete Sketch",
-                icon="X",
-            ).index = sketch.slvs_index
+            row.label(text=sketch.name)
 
         else:
-            # No active Sketch , show list of available sketches
-            layout.template_list(
-                "VIEW3D_UL_sketches",
-                "",
-                context.scene.sketcher.entities,
-                "sketches",
-                context.scene.sketcher,
-                "ui_active_sketch",
-                item_dyntip_propname="name",
-            )
+            # Sketch list
+            sketches = list(get_sketches(context))
+            if sketches:
+                col = layout.box().column(align=True)
+                for sk in sketches:
+                    row = col.row(align=True)
+
+                    # Edit sketch (left aligned)
+                    sub = row.row()
+                    sub.alignment = "LEFT"
+                    op = sub.operator(
+                        declarations.Operators.SetActiveSketch,
+                        text=sk.name,
+                        icon="OUTLINER_DATA_GP_LAYER",
+                        emboss=False,
+                    )
+                    op.sketch_name = sk.name
+
+                    # Delete sketch (right aligned)
+                    sub = row.row()
+                    sub.alignment = "RIGHT"
+                    op = sub.operator(
+                        declarations.Operators.DeleteSketch,
+                        text="",
+                        icon="X",
+                        emboss=False,
+                    )
+                    op.sketch_name = sk.name

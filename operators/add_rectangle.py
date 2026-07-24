@@ -2,11 +2,11 @@ import logging
 
 from bpy.types import Operator, Context
 
-from ..model.types import SlvsPoint2D
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
-from ..solver import solve_system
+from ..curve_solver import solve_system
+from ..model.curve_ref import PointRef, LineRef
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
@@ -43,57 +43,52 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
 
     def main(self, context: Context):
         sketch = self.sketch
-        sse = context.scene.sketcher.entities
+        construction = context.scene.sketcher.use_construction
 
-        p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
-        p_lb, p_rt = p1, p2
+        p_lb, p_rt = self.get_point(context, 0), self.get_point(context, 1)
 
-        p_rb = sse.add_point_2d((p_rt.co.x, p_lb.co.y), sketch)
-        p_lt = sse.add_point_2d((p_lb.co.x, p_rt.co.y), sketch)
+        # Create the two extra corner points
+        p_rb = PointRef.create(sketch, (p_rt.co.x, p_lb.co.y), construction=construction)
+        p_lt = PointRef.create(sketch, (p_lb.co.x, p_rt.co.y), construction=construction)
 
-        if context.scene.sketcher.use_construction:
+        if construction:
             p_lb.construction = True
-            p_rb.construction = True
             p_rt.construction = True
-            p_lt.construction = True
 
-        lines = []
+        # Create 4 lines
         points = (p_lb, p_rb, p_rt, p_lt)
+        lines = []
         for i, start in enumerate(points):
-            end = points[i + 1 if i < len(points) - 1 else 0]
-
-            line = sse.add_line_2d(start, end, sketch)
-            if context.scene.sketcher.use_construction:
-                line.construction = True
+            end = points[(i + 1) % 4]
+            line = LineRef.create(sketch, start, end, construction=construction)
             lines.append(line)
 
         self.lines = lines
 
-        for e in (*points, *lines):
-            ignore_hover(e)
+        for ref in (*points, *lines):
+            ignore_hover(ref.curve_id)
         return True
 
     def fini(self, context: Context, succeede: bool):
         if hasattr(self, "lines") and self.lines:
-            ssc = context.scene.sketcher.constraints
-            for i, line in enumerate(self.lines):
-                func = ssc.add_horizontal if (i % 2) == 0 else ssc.add_vertical
-                func(line, sketch=self.sketch)
+            sc = self.sketch.constraints
+            for i, line_ref in enumerate(self.lines):
+                func = sc.add_horizontal if (i % 2) == 0 else sc.add_vertical
+                func(curve_id_1=line_ref.curve_id)
 
             data = self._state_data.get(1)
             if data.get("is_numeric_edit", False):
                 input = data.get("numeric_input")
 
-                # constrain distance
                 startpoint = getattr(self, self.get_states()[0].pointer)
-                for val, line in zip(input, (self.lines[1], self.lines[2])):
+                sp_cid = startpoint.curve_id if hasattr(startpoint, 'curve_id') else ""
+                for val, line_ref in zip(input, (self.lines[1], self.lines[2])):
                     if val is None:
                         continue
-                    ssc.add_distance(
-                        startpoint,
-                        line,
-                        sketch=self.sketch,
+                    sc.add_distance(
                         init=True,
+                        curve_id_1=sp_cid,
+                        curve_id_2=line_ref.curve_id,
                     )
 
         if succeede:
@@ -115,15 +110,16 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
                     continue
                 value[i] = orig[i] + val
 
-        sse = context.scene.sketcher.entities
-        point = sse.add_point_2d(value, self.sketch)
-        ignore_hover(point)
-        if context.scene.sketcher.use_construction:
-            point.construction = True
+        construction = context.scene.sketcher.use_construction
 
-        self.add_coincident(context, point, state, state_data)
-        state_data["type"] = SlvsPoint2D
-        return point.slvs_index
+        ref = PointRef.create(self.sketch, value, construction=construction)
+        cid = ref.curve_id
+        state_data["curve_id"] = cid
+        ignore_hover(cid)
+
+        self.add_coincident(context, ref, state, state_data)
+        state_data["type"] = PointRef
+        return cid
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_rectangle,))

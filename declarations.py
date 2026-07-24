@@ -2,13 +2,20 @@
 from enum import Enum
 
 
+# Blender's built-in Select Box tool — the standard tool we return to when
+# leaving one of our tools (ESC / cancel).
+BLENDER_SELECT_TOOL = "builtin.select_box"
+
+
 class Gizmos(str, Enum):
     Angle = "VIEW3D_GT_slvs_angle"
     Constraint = "VIEW3D_GT_slvs_constraint"
     ConstraintValue = "VIEW3D_GT_slvs_constraint_value"
     Diameter = "VIEW3D_GT_slvs_diameter"
     Distance = "VIEW3D_GT_slvs_distance"
+    ObjectHover = "VIEW3D_GT_slvs_object_hover"
     Preselection = "VIEW3D_GT_slvs_preselection"
+    Workplane = "VIEW3D_GT_slvs_workplane"
 
 
 class GizmoGroups(str, Enum):
@@ -16,11 +23,14 @@ class GizmoGroups(str, Enum):
     Constraint = "VIEW3D_GGT_slvs_constraint"
     Diameter = "VIEW3D_GGT_slvs_diameter"
     Distance = "VIEW3D_GGT_slvs_distance"
+    ObjectHover = "VIEW3D_GGT_slvs_object_hover"
     Preselection = "VIEW3D_GGT_slvs_preselection"
+    Workplane = "VIEW3D_GGT_slvs_workplane"
 
 
 class Operators(str, Enum):
     AddAngle = "view3d.slvs_add_angle"
+    SetCurveFlag = "view3d.slvs_set_curve_flag"
     AddArc2D = "view3d.slvs_add_arc2d"
     AddCircle2D = "view3d.slvs_add_circle2d"
     AddCoincident = "view3d.slvs_add_coincident"
@@ -29,12 +39,10 @@ class Operators(str, Enum):
     AddEqual = "view3d.slvs_add_equal"
     AddHorizontal = "view3d.slvs_add_horizontal"
     AddLine2D = "view3d.slvs_add_line2d"
-    AddLine3D = "view3d.slvs_add_line3d"
     AddMidPoint = "view3d.slvs_add_midpoint"
     AddParallel = "view3d.slvs_add_parallel"
     AddPerpendicular = "view3d.slvs_add_perpendicular"
     AddPoint2D = "view3d.slvs_add_point2d"
-    AddPoint3D = "view3d.slvs_add_point3d"
     AddPresetTheme = "bgs.theme_preset_add"
     AddRatio = "view3d.slvs_add_ratio"
     AddSymmetry = "view3d.slvs_add_symmetry"
@@ -42,8 +50,8 @@ class Operators(str, Enum):
     AddSketch = "view3d.slvs_add_sketch"
     AddTangent = "view3d.slvs_add_tangent"
     AddVertical = "view3d.slvs_add_vertical"
-    AddWorkPlane = "view3d.slvs_add_workplane"
-    AddWorkPlaneFace = "view3d.slvs_add_workplane_face"
+    MakeWorkplaneFree = "view3d.slvs_make_workplane_free"
+    ReattachWorkplane = "view3d.slvs_reattach_workplane"
     AlignWorkplaneCursor = "view3d.slvs_align_workplane_cursor"
     AlignView = "view3d.slvs_align_view"
     BatchSet = "view3d.slvs_batch_set"
@@ -51,6 +59,7 @@ class Operators(str, Enum):
     Copy = "view3d.slvs_copy"
     DeleteConstraint = "view3d.slvs_delete_constraint"
     DeleteEntity = "view3d.slvs_delete_entity"
+    DeleteSketch = "view3d.slvs_delete_sketch"
     InstallPackage = "view3d.slvs_install_package"
     MergePoints = "view3d.slvs_merge_points"
     Paste = "view3d.slvs_paste"
@@ -60,6 +69,7 @@ class Operators(str, Enum):
     NodeExtrude = "view3d.slvs_node_extrude"
     NodeArrayLinear = "view3d.slvs_node_array_linear"
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
+    RenameCurve = "view3d.slvs_rename_curve"
     Restore = "view3d.slvs_restore"
     Select = "view3d.slvs_select"
     SelectAll = "view3d.slvs_select_all"
@@ -106,16 +116,15 @@ class WorkSpaceTools(str, Enum):
     AddArc2D = "sketcher.slvs_add_arc2d"
     AddCircle2D = "sketcher.slvs_add_circle2d"
     AddLine2D = "sketcher.slvs_add_line2d"
-    AddLine3D = "sketcher.slvs_add_line3d"
     AddPoint2D = "sketcher.slvs_add_point2d"
-    AddPoint3D = "sketcher.slvs_add_point3d"
     AddRectangle = "sketcher.slvs_add_rectangle"
-    AddWorkplane = "sketcher.slvs_add_workplane"
-    AddWorkplaneFace = "sketcher.slvs_add_workplane_face"
     Offset = "sketcher.slvs_offset"
     Select = "sketcher.slvs_select"
     Trim = "sketcher.slvs_trim"
     Bevel = "sketcher.slvs_bevel"
+    AddSketch = "sketcher.slvs_add_sketch"
+    Extrude = "sketcher.slvs_node_extrude"
+    ArrayLinear = "sketcher.slvs_node_array_linear"
 
 
 ConstraintOperators = (

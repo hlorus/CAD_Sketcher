@@ -32,6 +32,7 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
         layout.prop(prefs, "hide_inactive_constraints")
         layout.prop(prefs, "all_entities_selectable")
         layout.prop(prefs, "force_redraw")
+        layout.prop(prefs, "hide_legacy_drawing")
         layout.prop(context.scene.sketcher, "selectable_constraints")
         layout.prop(prefs, "use_align_view")
 

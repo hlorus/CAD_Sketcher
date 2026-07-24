@@ -38,7 +38,9 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
         ui_scale = context.preferences.system.ui_scale
         dist = constr.value / 2 / ui_scale
         offset = self.target_get_value("offset")
-        entity1, entity2 = constr.entity1, constr.entity2
+        entity1, entity2 = constr.ref(1), constr.ref(2)
+        if entity1 is None or entity2 is None:
+            return ((0,0,0),) * 4
         if entity1.is_line():
             entity1, entity2 = entity1.p1, entity1.p2
 
@@ -99,6 +101,8 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
             points_local.append(Vector((x, y, 0.0)))
 
         # Pick the points based on their x location
+        if len(points_local) < 2:
+            return ((0,0,0),) * 4
         if points_local[0].x > points_local[1].x:
             point_right, point_left = points_local
         else:

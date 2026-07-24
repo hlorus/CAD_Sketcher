@@ -3,13 +3,13 @@ import logging
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 from mathutils import Vector
-from mathutils.geometry import intersect_point_line
 
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
-from ..solver import solve_system
-from ..utilities.view import get_blender_snap_info, get_pos_2d
+from ..curve_solver import solve_system
+from ..utilities.view import get_pos_2d
+from ..model.curve_ref import CircleRef
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
@@ -53,35 +53,19 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
     )
 
     def get_radius(self, context: Context, coords):
-        wp = self.sketch.wp
-        snap_data = get_blender_snap_info(context, coords)
-        pos = get_pos_2d(context, wp, coords, respect_snapping=True)
-        if snap_data and snap_data["type"] in {"EDGE", "EDGE_MIDPOINT"}:
-            world_edge = snap_data.get("world_edge")
-            if world_edge:
-                edge_start, edge_end = [
-                    Vector((wp.matrix_basis.inverted() @ point)[:-1])
-                    for point in world_edge
-                ]
-                pos, factor = intersect_point_line(self.ct.co, edge_start, edge_end)
-                factor = min(max(factor, 0.0), 1.0)
-                pos = edge_start.lerp(edge_end, factor)
-        elif snap_data and snap_data["type"] == "VERTEX":
-            pos = Vector((wp.matrix_basis.inverted() @ snap_data["world_point"])[:-1])
-
+        wp = self._get_wp()
+        pos = get_pos_2d(context, wp, coords)
         delta = Vector(pos) - self.ct.co
         radius = delta.length
         return radius
 
     def main(self, context: Context):
-        wp = self.sketch.wp
         ct = self.get_point(context, 0)
-        self.target = context.scene.sketcher.entities.add_circle(
-            wp.nm, ct, self.radius, self.sketch
-        )
-        if context.scene.sketcher.use_construction:
-            self.target.construction = True
-        ignore_hover(self.target)
+        sketch = self.sketch
+        construction = context.scene.sketcher.use_construction
+
+        self.target = CircleRef.create(sketch, ct, self.radius, construction=construction)
+        ignore_hover(self.target.curve_id)
         return True
 
     def fini(self, context: Context, succeede: bool):
@@ -91,7 +75,6 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
         if succeede:
             if self.has_coincident():
                 solve_system(context, sketch=self.sketch)
-            self.sketch.geometry_solved = False
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_circle2d,))

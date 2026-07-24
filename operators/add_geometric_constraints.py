@@ -3,13 +3,13 @@ import logging
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 
-from ..solver import solve_system
+from ..curve_solver import solve_system
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
 from ..utilities.select import deselect_all
 from ..utilities.view import refresh
-from ..utilities.merge import delete_collapsed_lines, merge_point_indices
+from .. import global_data
 
 from ..model.coincident import SlvsCoincident
 from ..model.equal import SlvsEqual
@@ -24,38 +24,35 @@ from ..model.ratio import SlvsRatio
 logger = logging.getLogger(__name__)
 
 
-class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
-    """Add a coincident constraint"""
+def merge_points(context, duplicate, target):
+    """Merge two point curves: remap all references from duplicate to target, then delete duplicate."""
+    from ..model.sketch_ref import get_active_sketch
+    sketch = get_active_sketch(context)
+    if not sketch or not sketch.target_object or not sketch.target_object.data:
+        return
 
-    bl_idname = Operators.AddCoincident
-    bl_label = "Coincident"
-    bl_options = {"UNDO", "REGISTER"}
+    cd = sketch.target_object.data
+    from ..utilities.curve_data import get_uuid, set_uuid
+    dup_cid = duplicate.curve_id
+    tgt_cid = target.curve_id
 
-    type = "COINCIDENT"
+    # Remap relationship attributes
+    for attr_name in ("start_point_id", "end_point_id", "center_point_id"):
+        for i in range(len(cd.curves)):
+            if get_uuid(cd, attr_name, i) == dup_cid:
+                set_uuid(cd, attr_name, i, tgt_cid)
 
-    def _is_restricted_point_pair(self):
-        points = self.entity1, self.entity2
+    # Remap constraint curve_ids
+    for c in sketch.constraints.all:
+        if getattr(c, "curve_id_1", 0) == dup_cid:
+            c.curve_id_1 = tgt_cid
+        if getattr(c, "curve_id_2", 0) == dup_cid:
+            c.curve_id_2 = tgt_cid
+        if getattr(c, "curve_id_3", 0) == dup_cid:
+            c.curve_id_3 = tgt_cid
 
-        if not all(point.is_point() for point in points):
-            return False
-
-        return all(point.fixed for point in points)
-
-    def main(self, context: Context):
-        if self._is_restricted_point_pair():
-            self.report(
-                {"WARNING"},
-                "Cannot add coincident between two fixed points",
-            )
-            return False
-
-        if not self.exists(context, SlvsCoincident):
-            self.target = context.scene.sketcher.constraints.add_coincident(
-                self.entity1,
-                self.entity2,
-                sketch=self.sketch,
-            )
-        return super().main(context)
+    # Remove duplicate
+    duplicate.remove()
 
 
 class VIEW3D_OT_slvs_merge_points(Operator):
@@ -67,76 +64,102 @@ class VIEW3D_OT_slvs_merge_points(Operator):
 
     @classmethod
     def poll(cls, context: Context):
-        return context.scene.sketcher.active_sketch_i != -1
-
-    def _selected_points(self, context: Context):
-        entities = context.scene.sketcher.entities
-        return [entity for entity in entities.selected if entity.is_point()]
-
-    def _resolve_target(self, points):
-        origin_points = [point for point in points if point.origin]
-        fixed_points = [point for point in points if point.fixed and not point.origin]
-
-        if len(origin_points) > 1:
-            return None, "Multiple origin points selected"
-
-        if origin_points:
-            if fixed_points:
-                return None, "Cannot merge with origin and fixed points selected"
-            return origin_points[0], None
-
-        if len(fixed_points) > 1:
-            return None, "Cannot merge multiple fixed points"
-
-        if fixed_points:
-            return fixed_points[0], None
-
-        return points[-1], None
+        from ..model.sketch_ref import get_active_sketch
+        return bool(get_active_sketch(context))
 
     def execute(self, context: Context):
-        points = self._selected_points(context)
+        from ..model.sketch_ref import get_active_sketch
+        from ..model.curve_ref import curve_ref
+
+        sketch = get_active_sketch(context)
+        if not sketch:
+            return {"CANCELLED"}
+
+        points = [
+            curve_ref(sketch, cid)
+            for cid in global_data.selected
+            if curve_ref(sketch, cid).is_point()
+        ]
+
         if len(points) < 2:
             self.report({"WARNING"}, "Select at least two points to merge")
             return {"CANCELLED"}
 
-        target, error = self._resolve_target(points)
-        if error:
-            level = {"WARNING"} if error == "Cannot merge multiple fixed points" else {"ERROR"}
-            self.report(level, error)
+        fixed_points = [p for p in points if p.fixed]
+        if len(fixed_points) > 1:
+            self.report({"WARNING"}, "Cannot merge multiple fixed points")
             return {"CANCELLED"}
 
-        duplicates = list(points)
-        duplicates.remove(target)
-        duplicate_indices = sorted(
-            (point.slvs_index for point in duplicates),
-            reverse=True,
-        )
-        target_index = target.slvs_index
-        target_index = merge_point_indices(context, target_index, duplicate_indices)
+        target = fixed_points[0] if fixed_points else points[-1]
+        duplicates = [p for p in points if p.curve_id != target.curve_id]
 
-        target = context.scene.sketcher.entities.get(target_index)
-        if target is None:
-            self.report({"ERROR"}, "Merge target became invalid")
-            return {"CANCELLED"}
+        for dup in duplicates:
+            merge_points(context, dup, target)
+
+        # Delete collapsed lines (start == end after merge)
+        collapsed = []
+        cd = sketch.target_object.data
+        from ..utilities.curve_data import get_uuid, has_uuid_field
+        if has_uuid_field(cd, "start_point_id") and has_uuid_field(cd, "end_point_id"):
+            for i in range(len(cd.curves)):
+                sp = get_uuid(cd, "start_point_id", i)
+                ep = get_uuid(cd, "end_point_id", i)
+                if sp and ep and sp == ep:
+                    collapsed.append(get_uuid(cd, "curve_id", i))
+            for cid in collapsed:
+                curve_ref(sketch, cid).remove()
 
         deselect_all(context)
-        target.selected = True
+        global_data.selected.append(target.curve_id)
 
-        deleted_lines = delete_collapsed_lines(context, point_indices={target_index})
-
-        active_sketch = context.scene.sketcher.active_sketch
-        if active_sketch:
-            active_sketch.geometry_solved = False
-        solve_system(context, context.scene.sketcher.active_sketch)
+        solve_system(context, sketch)
         refresh(context)
-        if deleted_lines:
-            self.report(
-                {"INFO"},
-                f"Merged {len(duplicates)} point(s) and deleted {deleted_lines} collapsed line(s)",
-            )
+
+        n = len(duplicates)
+        if collapsed:
+            self.report({"INFO"}, f"Merged {n} point(s) and deleted {len(collapsed)} collapsed line(s)")
         else:
-            self.report({"INFO"}, f"Merged {len(duplicates)} point(s)")
+            self.report({"INFO"}, f"Merged {n} point(s)")
         return {"FINISHED"}
+
+
+class VIEW3D_OT_slvs_add_coincident(Operator, GenericConstraintOp):
+    """Add a coincident constraint"""
+
+    bl_idname = Operators.AddCoincident
+    bl_label = "Coincident"
+    bl_options = {"UNDO", "REGISTER"}
+
+    type = "COINCIDENT"
+
+    def handle_merge(self, context):
+        points = self.entity1, self.entity2
+
+        if not all([e.is_point() for e in points]):
+            return False
+
+        for p1, p2 in (points, reversed(points)):
+            if p1.fixed:
+                continue
+
+            merge_points(context, p1, p2)
+            from ..model.sketch_ref import get_active_sketch
+            solve_system(context, get_active_sketch(context))
+            break
+        return True
+
+    def main(self, context: Context):
+        # Implicitly merge points
+        if self.handle_merge(context):
+            return True
+
+        if not self.exists(context, SlvsCoincident):
+            self.target = self.sketch.constraints.add_coincident(
+                
+                curve_id_1=self.entity1.curve_id,
+                curve_id_2=self.entity2.curve_id,
+            )
+        return super().main(context)
 
 
 class VIEW3D_OT_slvs_add_equal(Operator, GenericConstraintOp):
@@ -150,10 +173,10 @@ class VIEW3D_OT_slvs_add_equal(Operator, GenericConstraintOp):
 
     def main(self, context):
         if not self.exists(context, SlvsEqual):
-            self.target = context.scene.sketcher.constraints.add_equal(
-                self.entity1,
-                self.entity2,
-                sketch=self.sketch,
+            self.target = self.sketch.constraints.add_equal(
+                
+                curve_id_1=self.entity1.curve_id,
+                curve_id_2=self.entity2.curve_id,
             )
 
         return super().main(context)
@@ -170,10 +193,10 @@ class VIEW3D_OT_slvs_add_vertical(Operator, GenericConstraintOp):
 
     def main(self, context):
         if not self.exists(context, SlvsVertical):
-            self.target = context.scene.sketcher.constraints.add_vertical(
-                self.entity1,
-                entity2=self.entity2,
-                sketch=self.sketch,
+            self.target = self.sketch.constraints.add_vertical(
+                
+                curve_id_1=self.entity1.curve_id,
+                curve_id_2=self.entity2.curve_id if self.entity2 else "",
             )
 
         return super().main(context)
@@ -190,10 +213,10 @@ class VIEW3D_OT_slvs_add_horizontal(Operator, GenericConstraintOp):
 
     def main(self, context):
         if not self.exists(context, SlvsHorizontal):
-            self.target = context.scene.sketcher.constraints.add_horizontal(
-                self.entity1,
-                entity2=self.entity2,
-                sketch=self.sketch,
+            self.target = self.sketch.constraints.add_horizontal(
+                
+                curve_id_1=self.entity1.curve_id,
+                curve_id_2=self.entity2.curve_id if self.entity2 else "",
             )
 
         return super().main(context)
@@ -210,10 +233,10 @@ class VIEW3D_OT_slvs_add_parallel(Operator, GenericConstraintOp):
 
     def main(self, context):
         if not self.exists(context, SlvsParallel):
-            self.target = context.scene.sketcher.constraints.add_parallel(
-                self.entity1,
-                self.entity2,
-                sketch=self.sketch,
+            self.target = self.sketch.constraints.add_parallel(
+                
+                curve_id_1=self.entity1.curve_id,
+                curve_id_2=self.entity2.curve_id,
             )
 
         return super().main(context)
@@ -230,10 +253,10 @@ class VIEW3D_OT_slvs_add_perpendicular(Operator, GenericConstraintOp):
 
     def main(self, context):
         if not self.exists(context, SlvsPerpendicular):
-            self.target = context.scene.sketcher.constraints.add_perpendicular(
-                self.entity1,
-                self.entity2,
-                sketch=self.sketch,
+            self.target = self.sketch.constraints.add_perpendicular(
+                
+                curve_id_1=self.entity1.curve_id,
+                curve_id_2=self.entity2.curve_id,
             )
 
         return super().main(context)
@@ -250,10 +273,10 @@ class VIEW3D_OT_slvs_add_tangent(Operator, GenericConstraintOp):
 
     def main(self, context):
         if not self.exists(context, SlvsTangent):
-            self.target = context.scene.sketcher.constraints.add_tangent(
-                self.entity1,
-                self.entity2,
-                sketch=self.sketch,
+            self.target = self.sketch.constraints.add_tangent(
+                
+                curve_id_1=self.entity1.curve_id,
+                curve_id_2=self.entity2.curve_id,
             )
 
         return super().main(context)
@@ -270,10 +293,10 @@ class VIEW3D_OT_slvs_add_midpoint(Operator, GenericConstraintOp):
 
     def main(self, context):
         if not self.exists(context, SlvsMidpoint):
-            self.target = context.scene.sketcher.constraints.add_midpoint(
-                self.entity1,
-                self.entity2,
-                sketch=self.sketch,
+            self.target = self.sketch.constraints.add_midpoint(
+                
+                curve_id_1=self.entity1.curve_id,
+                curve_id_2=self.entity2.curve_id,
             )
 
         return super().main(context)
@@ -298,11 +321,11 @@ class VIEW3D_OT_slvs_add_ratio(Operator, GenericConstraintOp):
 
     def main(self, context):
         if not self.exists(context, SlvsRatio):
-            self.target = context.scene.sketcher.constraints.add_ratio(
-                self.entity1,
-                self.entity2,
-                sketch=self.sketch,
+            self.target = self.sketch.constraints.add_ratio(
+                
                 init=not self.initialized,
+                curve_id_1=self.entity1.curve_id,
+                curve_id_2=self.entity2.curve_id,
                 **self.get_settings(),
             )
 
@@ -320,11 +343,11 @@ class VIEW3D_OT_slvs_add_symmetry(Operator, GenericConstraintOp):
 
     def main(self, context):
         if not self.exists(context, SlvsRatio):
-            self.target = context.scene.sketcher.constraints.add_symmetry(
-                self.entity1,
-                self.entity2,
-                self.entity3,
-                sketch=self.sketch,
+            self.target = self.sketch.constraints.add_symmetry(
+                
+                curve_id_1=self.entity1.curve_id,
+                curve_id_2=self.entity2.curve_id,
+                curve_id_3=self.entity3.curve_id,
             )
 
         return super().main(context)

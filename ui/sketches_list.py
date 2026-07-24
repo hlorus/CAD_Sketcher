@@ -45,12 +45,13 @@ class VIEW3D_UL_sketches(UIList):
                         ),
                     ).index = item.slvs_index
 
-                row.operator(
+                op = row.operator(
                     Operators.SetActiveSketch,
                     icon="OUTLINER_DATA_GP_LAYER",
                     text="",
                     emboss=False,
-                ).index = item.slvs_index
+                )
+                op.sketch_name = item.target_object.name if item.target_object else ""
 
                 if active:
                     row.operator(

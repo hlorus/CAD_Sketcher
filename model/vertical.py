@@ -1,9 +1,10 @@
 import logging
 
 from bpy.types import PropertyGroup
+from bpy.props import StringProperty
 from bpy.utils import register_classes_factory
 
-from ..solver import Solver
+from ..curve_solver import Solver
 from ..global_data import WpReq
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
@@ -21,6 +22,9 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
     type = "VERTICAL"
     label = "Vertical"
     signature = ((SlvsLine2D, SlvsPoint2D), (SlvsPoint2D,))
+
+    curve_id_1: StringProperty(name="Curve ID 1", default="")
+    curve_id_2: StringProperty(name="Curve ID 2", default="")
 
     @classmethod
     def get_types(cls, index, entities):
@@ -43,8 +47,22 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
 
         return solvesys.vertical(group, self.entity1.py_data, wp, **kwargs)
 
+    def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
+        """Create solvespace constraint from curve_id handles."""
+        h1 = handle_map.get(self.curve_id_1)
+        if h1 is None:
+            return None
+
+        kwargs = {}
+        if self.curve_id_2:
+            h2 = handle_map.get(self.curve_id_2)
+            if h2:
+                kwargs['entityB'] = h2
+
+        return solvesys.vertical(group, h1, wp, **kwargs)
+
     def placements(self):
-        return (self.entity1,)
+        return (self.ref(1),)
 
 
 slvs_entity_pointer(SlvsVertical, "entity1")

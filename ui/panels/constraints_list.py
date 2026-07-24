@@ -3,16 +3,16 @@ from bpy.types import Context, UILayout
 from .. import declarations
 from .. import types
 from . import VIEW3D_PT_sketcher_base
+from ...model.sketch_ref import get_active_sketch
 
 
 def draw_constraint_listitem(
     context: Context, layout: UILayout, constraint: types.GenericConstraint
 ):
-    """
-    Creates a single row inside the ``layout`` describing
-    the ``constraint``.
-    """
-    index = context.scene.sketcher.constraints.get_index(constraint)
+    sketch = get_active_sketch(context)
+    if not sketch:
+        return
+    index = sketch.constraints.get_index(constraint)
     row = layout.row()
 
     # Visible/Hidden property
@@ -23,46 +23,13 @@ def draw_constraint_listitem(
         icon=("HIDE_OFF" if constraint.visible else "HIDE_ON"),
         emboss=False,
     )
+    row.label(text=str(constraint))
 
-    # Failed hint
-    row.label(
-        text="",
-        icon=("ERROR" if constraint.failed else "CHECKMARK"),
-    )
+    # Failed indicator
+    if constraint.failed:
+        row.label(text="", icon="ERROR")
 
-    # Label
-    row.prop(constraint, "name", text="")
-
-    # Constraint Values
-    middle_sub = row.row()
-
-    for constraint_prop in constraint.props:
-        if constraint_prop == "value":
-            uid = getattr(constraint, "constraint_uid", "")
-            key = None
-            if uid:
-                key = context.scene.sketcher.get_constraint_value_endpoint(
-                    constraint
-                )
-            if key:
-                middle_sub.prop(context.scene, f'["{key}"]', text="")
-                continue
-        middle_sub.prop(constraint, constraint_prop, text="")
-
-    # Context menu, shows constraint name
-    props = row.operator(
-        declarations.Operators.ContextMenu,
-        text="",
-        icon="OUTLINER_DATA_GP_LAYER",
-        emboss=False,
-    )
-    props.type = constraint.type
-    props.index = index
-    props.highlight_hover = True
-    props.highlight_active = True
-    props.highlight_members = True
-
-    # Delete operator
+    # Delete button
     props = row.operator(
         declarations.Operators.DeleteConstraint,
         text="",
@@ -71,28 +38,37 @@ def draw_constraint_listitem(
     )
     props.type = constraint.type
     props.index = index
-    props.highlight_hover = True
-    props.highlight_members = True
 
 
 class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
-    """
-    Constraints Menu: List of entities in the sketch.
-    Interactive
-    """
-
     bl_label = "Constraints"
     bl_idname = declarations.Panels.SketcherConstraints
-    bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(cls, context):
+        return get_active_sketch(context) is not None
 
     def draw(self, context: Context):
         layout = self.layout
+        sketch = get_active_sketch(context)
+        if not sketch:
+            return
 
-        # Visibility Operators
-        col = layout.column(align=True)
-        col.operator_enum(
+        row = layout.row(align=True)
+        row.operator(
             declarations.Operators.SetAllConstraintsVisibility,
-            "visibility",
+            text="Show All",
+        ).visibility = "SHOW"
+        row.operator(
+            declarations.Operators.SetAllConstraintsVisibility,
+            text="Hide All",
+        ).visibility = "HIDE"
+        row.prop(
+            context.scene.sketcher,
+            "selectable_constraints",
+            text="",
+            icon_only=True,
+            icon="RESTRICT_SELECT_OFF",
         )
 
         # Dimensional Constraints
@@ -101,10 +77,7 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
         col = box.column(align=True)
         col.scale_y = 0.8
 
-        sketch = context.scene.sketcher.active_sketch
-        for c in context.scene.sketcher.constraints.dimensional:
-            if not c.is_active(sketch):
-                continue
+        for c in sketch.constraints.dimensional:
             draw_constraint_listitem(context, col, c)
 
         # Geometric Constraints
@@ -113,8 +86,5 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
         col = box.column(align=True)
         col.scale_y = 0.8
 
-        sketch = context.scene.sketcher.active_sketch
-        for c in context.scene.sketcher.constraints.geometric:
-            if not c.is_active(sketch):
-                continue
+        for c in sketch.constraints.geometric:
             draw_constraint_listitem(context, col, c)

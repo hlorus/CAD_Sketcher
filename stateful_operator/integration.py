@@ -220,6 +220,9 @@ class StatefulOperator(StatefulOperatorLogic):
 
         ob, type, index = get_mesh_element(context, coords, **types, object=global_ob)
 
+        # NOTE: scene.ray_cast() cannot pick empties (no geometry).
+        # Empties are picked via custom ID buffer or selection prefill.
+
         if not ob:
             return None
 
@@ -263,10 +266,9 @@ class StatefulOperator(StatefulOperatorLogic):
         data = self.get_state_data(index)
 
         if state.pointer:
-            # TODO: Discard if too many entities are selected?
             types = state.types
             for i, e in enumerate(selected):
-                if type(e) in types:
+                if self._matches_types(e, types):
                     result = selected.pop(i)
                     break
 
@@ -275,6 +277,31 @@ class StatefulOperator(StatefulOperatorLogic):
             self.set_state_pointer(to_list(result), index=index)
             self.state_data["is_existing_entity"] = True
             return True
+
+    @staticmethod
+    def _matches_types(element, types):
+        """Check if element matches accepted types (supports both entities and CurveRefs)."""
+        if type(element) in types:
+            return True
+
+        # Map CurveRef types to legacy entity types
+        from bl_ext.blend.CAD_Sketcher.model.curve_ref import (
+            CurveRef, PointRef, LineRef, ArcRef, CircleRef,
+        )
+        if not isinstance(element, CurveRef):
+            return False
+
+        from bl_ext.blend.CAD_Sketcher.model.types import (
+            SlvsPoint2D, SlvsLine2D, SlvsArc, SlvsCircle,
+        )
+        _map = {
+            PointRef: SlvsPoint2D,
+            LineRef: SlvsLine2D,
+            ArcRef: SlvsArc,
+            CircleRef: SlvsCircle,
+        }
+        mapped = _map.get(type(element))
+        return mapped in types if mapped else False
 
     def draw(self, context):
         layout = self.layout

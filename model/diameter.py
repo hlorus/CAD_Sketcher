@@ -2,18 +2,18 @@ import logging
 
 import math
 from bpy.types import PropertyGroup
-from bpy.props import BoolProperty, FloatProperty
+from bpy.props import BoolProperty, FloatProperty, IntProperty, StringProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 
-from ..solver import Solver
+from ..curve_solver import Solver
 from ..global_data import WpReq
 from ..utilities.view import location_3d_to_region_2d
 from ..utilities.math import range_2pi, pol2cart
 from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import CURVE
-from ..utilities.solver import update_system_cb, constraint_value_update_cb
+from ..utilities.solver import update_system_cb
 
 
 logger = logging.getLogger(__name__)
@@ -36,10 +36,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
             distance = self.value / 2
 
         if distance is not None:
-            scene = getattr(self, "id_data", None)
-            uid = getattr(self, "constraint_uid", "")
-            if scene is not None and uid:
-                scene[f"slvs:c:{uid}"] = distance
+            self._set_value_force(distance)
 
     @property
     def label(self):
@@ -50,7 +47,6 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         subtype="DISTANCE",
         unit="LENGTH",
         precision=6,
-        options={"HIDDEN"},
     )
     value: FloatProperty(
         name="Size",
@@ -59,7 +55,7 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         precision=6,
         get=DimensionalConstraint._get_value,
         set=DimensionalConstraint._set_value,
-        update=constraint_value_update_cb,
+        update=update_system_cb,
     )
     setting_store: BoolProperty(name="Use Radius Storage", default=False)
     setting: BoolProperty(
@@ -85,6 +81,14 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
             return value
         return value / 2
 
+    curve_id_1: StringProperty(name="Curve ID 1", default="")
+
+    def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
+        h1 = handle_map.get(self.curve_id_1)
+        if h1 is None:
+            return None
+        return solvesys.diameter(group, h1, self.diameter)
+
     def needs_wp(self):
         return WpReq.OPTIONAL
 
@@ -92,36 +96,27 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
         return solvesys.diameter(group, self.entity1.py_data, self.diameter)
 
     def _get_init_value(self, setting):
-        entity = self.entity1
-        if entity is None:
-            scene = getattr(self, "id_data", None)
-            uid = getattr(self, "constraint_uid", "")
-            if scene is not None and uid:
-                key = f"slvs:c:{uid}"
-                if key in scene:
-                    return float(scene[key])
+        r = self.ref(1)
+        # Unresolved reference (e.g. legacy files before migration) — no measure.
+        if r is None or not r.valid:
             return 0.0
-        value = entity.radius
+        value = r.radius
         if not setting:
             return value * 2
         return value
 
     def init_props(self, **kwargs):
         setting = kwargs.get("setting", self.setting)
-        if "value" in kwargs:
-            value = kwargs["value"]
-        else:
-            value = self._get_init_value(setting)
+        value = kwargs.get("value", self._get_init_value(setting))
+        # setting must be set before value to avoid use_radius_setter halving it
         return {"setting": setting, "value": value}
 
     def matrix_basis(self):
-        if self.sketch_i == -1:
+        r = self.ref(1)
+        if not r or not r.is_curve():
             return Matrix()
-        sketch = self.sketch
-        origin = self.entity1.ct.co
-        rotation = range_2pi(math.radians(self.leader_angle))
-        mat_local = Matrix.Translation(origin.to_3d())
-        return sketch.wp.matrix_basis @ mat_local
+        mat_local = Matrix.Translation(r.ct.co.to_3d())
+        return r.wp_matrix @ mat_local
 
     def text_inside(self):
         return self.draw_offset < self.radius

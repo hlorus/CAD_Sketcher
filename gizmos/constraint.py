@@ -45,34 +45,46 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         return True
 
     def setup(self, context):
+        from ..model.sketch_ref import get_active_sketch
+        active_sketch = get_active_sketch(context)
+
+        # Build mapping: placement_key → [constraints]
+        # Uses curve_ids when available, falls back to entity objects
         mapping = {}
-        for c in context.scene.sketcher.constraints.all:
-            if not hasattr(c, "placements"):
+        if not active_sketch:
+            return
+        from ..model.base_constraint import DimensionalConstraint
+        for c in active_sketch.constraints.all:
+            if isinstance(c, DimensionalConstraint):
                 continue
 
-            for e in c.placements():
-                if not mapping.get(e):
-                    mapping[e] = [
-                        c,
-                    ]
-                else:
-                    mapping[e].append(c)
+            # Try curve_id placements first
+            cid_placements = c.curve_id_placements()
+            if cid_placements:
+                for cid in cid_placements:
+                    key = ("curve_id", cid)
+                    mapping.setdefault(key, []).append(c)
+            elif hasattr(c, "placements"):
+                # Fallback to entity placements
+                for e in c.placements():
+                    if e and hasattr(e, "placement") and e.is_visible(context):
+                        key = ("entity", e.slvs_index)
+                        mapping.setdefault(key, []).append(c)
 
-        for e, constrs in mapping.items():
-            if not hasattr(e, "placement"):
-                continue
-            if not e.is_visible(context):
-                continue
+        for key, constrs in mapping.items():
+            kind, ident = key
 
-            active_sketch = context.scene.sketcher.active_sketch
             for i, c in enumerate(constrs):
-                if not c.is_active(active_sketch):
-                    continue
                 gz = self.gizmos.new(VIEW3D_GT_slvs_constraint.bl_idname)
                 gz.type = c.type
-                gz.index = context.scene.sketcher.constraints.get_index(c)
+                gz.index = active_sketch.constraints.get_index(c)
 
-                gz.entity_index = e.slvs_index
+                if kind == "curve_id":
+                    gz.entity_index = -1
+                    gz.curve_id = ident
+                else:
+                    gz.entity_index = ident
+                    gz.curve_id = getattr(c, 'curve_id_1', "")
 
                 ui_scale = context.preferences.system.ui_scale
                 scale = get_prefs().gizmo_scale * ui_scale
@@ -95,12 +107,9 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 props.highlight_members = True
 
         # Add value gizmos for dimensional constraints
-        for c in context.scene.sketcher.constraints.dimensional:
-            if not c.is_active(context.scene.sketcher.active_sketch):
-                continue
-
+        for c in active_sketch.constraints.dimensional:
             gz = self.gizmos.new(VIEW3D_GT_slvs_constraint_value.bl_idname)
-            index = context.scene.sketcher.constraints.get_index(c)
+            index = active_sketch.constraints.get_index(c)
             gz.type = c.type
             gz.index = index
 
@@ -127,12 +136,18 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
 
     def _update_matrix_basis(self, context, constr):
         pos = None
-        if hasattr(self, "entity_index"):
-            entity = context.scene.sketcher.entities.get(self.entity_index)
-            if not entity or not hasattr(entity, "placement"):
+        if hasattr(self, "curve_id") and self.curve_id:
+            from ..model.sketch_ref import get_active_sketch
+            sketch = get_active_sketch(context)
+            if sketch:
+                from ..utilities.curve_data import get_curve_placement
+                world_pos = get_curve_placement(sketch, self.curve_id)
+            else:
                 return
 
-            pos = get_2d_coords(context, entity.placement())
+            if world_pos is None:
+                return
+            pos = get_2d_coords(context, world_pos)
             if not pos:
                 return
 

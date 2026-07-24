@@ -3,34 +3,47 @@ import math
 
 from bpy.types import Operator, Context
 from bpy.props import FloatProperty
+from mathutils import Vector
 
-from ..model.categories import SEGMENT
-from ..model.identifiers import is_line, is_circle
+from ..model.curve_ref import CurveRef, PointRef, LineRef, ArcRef, CircleRef
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from ..utilities.view import refresh
-from ..utilities.walker import EntityWalker
-from ..utilities.intersect import get_offset_elements, get_intersections
-from ..model.utilities import get_connection_point
+from ..utilities.intersect import get_intersections, ElementTypes
 from .base_2d import Operator2d
 from .utilities import ignore_hover
-
 
 logger = logging.getLogger(__name__)
 
 
-def _get_offset_co(point, normal, distance):
-    # For start or endpoint: get point translated by distance along normal
-    return point.co + normal * distance
+def _get_offset_co(point_co, normal, distance):
+    return Vector(point_co[:2]) + normal * distance
 
 
 def _bool_to_signed_int(invert):
     return -1 if invert else 1
 
+
 def _inverted_dist(invert, distance):
     sign = _bool_to_signed_int(invert) * _bool_to_signed_int(distance < 0)
     return math.copysign(distance, sign)
+
+
+def _get_offset_elements(topo, ref, offset):
+    """Get offset geometry description for intersection calculations."""
+    if isinstance(ref, LineRef):
+        normal = topo.normal_at(ref)
+        offset_vec = normal * offset
+        return (ElementTypes.Line, (ref.p1.co + offset_vec, ref.p2.co + offset_vec))
+    elif isinstance(ref, (ArcRef, CircleRef)):
+        return (ElementTypes.Sphere, (ref.ct.co, ref.radius + offset))
+    return None
+
+
+# State types: accept any segment CurveRef or legacy entity type
+from ..model.categories import SEGMENT
+_segment_types = SEGMENT
 
 
 class View3D_OT_slvs_add_offset(Operator, Operator2d):
@@ -48,7 +61,7 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             description="Base entity to get path from",
             pointer="entity",
             use_create=False,
-            types=SEGMENT,
+            types=_segment_types,
         ),
         state_from_args(
             "Distance",
@@ -62,122 +75,106 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         sketch = self.sketch
         entity = self.entity
         distance = self.distance
-        sse = context.scene.sketcher.entities
 
-        ignore_hover(entity)
+        if not entity or not isinstance(entity, CurveRef):
+            return False
 
-        if is_circle(entity):
-            c_new = entity.new(context, radius=entity.radius + distance)
-            ignore_hover(c_new)
+        ignore_hover(entity.curve_id)
 
+        # Circle: just create a new circle with adjusted radius
+        if isinstance(entity, CircleRef):
+            new_ct = entity.ct
+            new_circle = CircleRef.create(sketch, new_ct, entity.radius + distance)
+            if new_circle:
+                ignore_hover(new_circle.curve_id)
             refresh(context)
             return True
 
+        # Build topology and walk path
+        topo = sketch.topology
+        path = topo.walk_path(entity)
 
-        walker = EntityWalker(context.scene, sketch, entity=entity)
-        path = walker.main_path()
-        is_cyclic = walker.is_cyclic_path(path[0])
-
-        if path is None:
+        if not path.segments:
             return False
 
-        # Get intersections and create points
-        points = []
-        entities, directions = path
-        self.entities = entities
+        segments = path.segments
+        directions = path.directions
+        is_cyclic = path.is_cyclic
 
-        intersection_count = len(entities) if is_cyclic else len(entities) - 1
+        # Get intersections and create points
+        intersection_count = len(segments) if is_cyclic else len(segments) - 1
         point_coords = []
+
         for i in range(intersection_count):
-            entity = entities[i]
-            entity_dir = directions[i]
-            neighbour_i = (i + 1) % len(entities)
-            neighbour = entities[neighbour_i]
+            seg = segments[i]
+            seg_dir = directions[i]
+            neighbour_i = (i + 1) % len(segments)
+            neighbour = segments[neighbour_i]
             neighbour_dir = directions[neighbour_i]
-            point = get_connection_point(entity, neighbour)
+
+            conn_pt = topo.get_connection_point(seg, neighbour)
+            if not conn_pt:
+                return False
+
+            offset_a = _get_offset_elements(topo, seg, _inverted_dist(seg_dir, distance))
+            offset_b = _get_offset_elements(topo, neighbour, _inverted_dist(neighbour_dir, distance))
+
+            if not offset_a or not offset_b:
+                return False
 
             intersections = sorted(
-                get_intersections(
-                    get_offset_elements(entity, _inverted_dist(entity_dir, distance)),
-                    get_offset_elements(neighbour, _inverted_dist(neighbour_dir, distance)),
-                ),
-                key=lambda i: (i - point.co).length,
+                get_intersections(offset_a, offset_b),
+                key=lambda pt: (pt - conn_pt.co).length,
             )
 
             if not intersections:
                 return False
 
-            intr = intersections[0]
             point_coords.append(intersections[0])
 
-        points = [
-            sse.add_point_2d(co, sketch, index_reference=True) for co in point_coords
-        ]
+        # Create points
+        points = [PointRef.create(sketch, co) for co in point_coords]
 
         # Add start/endpoint if not cyclic
         if not is_cyclic:
+            limits = topo.get_limit_points(path)
+            if limits:
+                start_pt, end_pt = limits
+                start_co = _get_offset_co(
+                    start_pt.co,
+                    topo.normal_at(segments[0], start_pt.co),
+                    _inverted_dist(directions[0], distance),
+                )
+                end_co = _get_offset_co(
+                    end_pt.co,
+                    topo.normal_at(segments[-1], end_pt.co),
+                    _inverted_dist(directions[-1], distance),
+                )
+                points.insert(0, PointRef.create(sketch, start_co))
+                points.append(PointRef.create(sketch, end_co))
 
-            start, end = walker.get_limitpoints(path)
-            start_co = _get_offset_co(
-                start,
-                entities[0].normal(position=start.co),
-                _inverted_dist(directions[0], distance),
-            )
-            end_co = _get_offset_co(
-                end,
-                entities[-1].normal(position=end.co),
-                _inverted_dist(directions[-1], distance),
-            )
-
-            points.insert(0, sse.add_point_2d(start_co, sketch, index_reference=True))
-            points.append(sse.add_point_2d(end_co, sketch, index_reference=True))
-
-        # Exclude created points from selection
-        [ignore_hover(p) for p in points]
+        for p in points:
+            ignore_hover(p.curve_id)
 
         # Create segments
-        self.new_path = []
-        for i, entity in enumerate(entities):
-            direction = directions[i]
-
-            i_start = (i - 1 if is_cyclic else i) % len(entities)
+        use_construction = context.scene.sketcher.use_construction
+        self._new_path = []
+        for i, seg in enumerate(segments):
+            i_start = (i - 1 if is_cyclic else i) % len(segments)
             i_end = (i_start + 1) % len(points)
             p1 = points[i_start]
             p2 = points[i_end]
 
-            use_construction = context.scene.sketcher.use_construction
-            new_entity = entity.new(
-                context,
-                p1=p1,
-                p2=p2,
-                sketch=sketch,
-                **(
-                    {"invert": direction} if hasattr(entity, "invert_direction") else {}
-                ),
-                construction=use_construction,
-                index_reference=True,
-            )
-            ignore_hover(new_entity)
-
-            self.new_path.append(new_entity)
+            new_seg = topo.create_like(seg, p1, p2, construction=use_construction)
+            if new_seg:
+                ignore_hover(new_seg.curve_id)
+                self._new_path.append(new_seg)
 
         refresh(context)
         return True
 
     def fini(self, context: Context, succeede: bool):
-        if not succeede:
-            return
-
-        if self.sketch:
-            self.sketch.geometry_solved = False
-
-        constraints = context.scene.sketcher.constraints
-
-        # Add parallel constraint
-        # for entity, new_entity in zip(self.entities, self.new_path):
-        #     if not is_line(entity):
-        #         continue
-        #     constraints.add_parallel(entity, new_entity, sketch=self.sketch)
+        pass
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_offset,))

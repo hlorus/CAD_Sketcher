@@ -5,7 +5,7 @@ from bpy.props import FloatVectorProperty
 from bpy.utils import register_classes_factory
 from mathutils import Euler
 
-from ..solver import Solver
+from ..curve_solver import Solver
 from .base_entity import SlvsGenericEntity, tag_update
 
 

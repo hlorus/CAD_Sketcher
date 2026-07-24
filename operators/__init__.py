@@ -12,10 +12,8 @@ modules = [
     "tweak",
     "save_offscreen",
     "copy_paste",
-    "add_point_3d",
-    "add_line_3d",
-    "add_workplane",
     "add_sketch",
+    "workplane_anchor",
     "add_point_2d",
     "add_line_2d",
     "add_circle",
@@ -27,6 +25,7 @@ modules = [
     "offset",
     "set_sketch",
     "delete_entity",
+    "delete_sketch",
     "delete_constraint",
     "constraint_visibility",
     "tweak_constraint",
@@ -40,6 +39,7 @@ modules = [
     "modifiers",
     "move",
     "duplicate",
+    "set_curve_flag",
     "test"
 ]
 

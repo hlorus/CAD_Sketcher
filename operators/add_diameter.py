@@ -33,10 +33,9 @@ class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
 
     def main(self, context):
         if not self.exists(context, SlvsDiameter):
-            self.target = context.scene.sketcher.constraints.add_diameter(
-                self.entity1,
-                sketch=self.sketch,
+            self.target = self.sketch.constraints.add_diameter(
                 init=not self.initialized,
+                curve_id_1=self.entity1.curve_id,
                 **self.get_settings(),
             )
 

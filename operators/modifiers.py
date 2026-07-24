@@ -1,17 +1,17 @@
 
 import bpy
-from bpy.types import Operator, Object, Context, MeshEdge, MeshPolygon
-from bpy.props import FloatProperty, IntProperty, FloatVectorProperty
+from bpy.types import Operator, Object, Context
+from bpy.props import BoolProperty, FloatProperty, IntProperty, FloatVectorProperty
 from mathutils import Vector
+from mathutils.geometry import intersect_line_line, intersect_line_plane
 
 from .base_3d import Operator3d
 from ..assets_manager import load_asset
 from ..global_data import LIB_NAME
 from ..declarations import Operators
-from ..utilities.view import get_placement_pos
+from ..utilities.view import get_placement_pos, get_picking_origin_dir
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
-from ..model.types import SlvsLine3D, SlvsLine2D, SlvsWorkplane
 
 
 BASE_STATES = (
@@ -25,6 +25,11 @@ BASE_STATES = (
 )
 
 
+def is_2d_profile(obj):
+    """A sketch or curve object — a valid 2D profile to extrude (not a 3D mesh)."""
+    return obj is not None and obj.type in {"CURVE", "CURVES"}
+
+
 class NodeOperator(Operator3d):
     """Base class for all node-based operators"""
 
@@ -32,13 +37,44 @@ class NodeOperator(Operator3d):
 
     resources = ()
 
+    # Message shown when the resolved target fails is_valid_target().
+    invalid_target_msg = "Invalid target object"
+
     @classmethod
     def poll(cls, context):
         if not context.active_object:
             return False
-        # if context.scene.sketcher.active_sketch_i != -1:
-        #     return False
         return True
+
+    def is_valid_target(self, obj):
+        """Whether ``obj`` may receive this node modifier. Override to restrict."""
+        return obj is not None
+
+    def gather_selection(self, context):
+        # Source for the framework's prefill-from-selection: the base Object
+        # state is filled from this list on invoke (wait_for_input paths). Put
+        # the active object first and drop invalid targets so, e.g., a mesh is
+        # never prefilled for a tool that only accepts sketches.
+        active = context.active_object
+        result = [active] if active and self.is_valid_target(active) else []
+        result.extend(
+            o for o in context.selected_objects
+            if o != active and self.is_valid_target(o)
+        )
+        return result
+
+    def _check_constrain(self, context, index):
+        return False
+
+    def invoke(self, context, event):
+        # Follow the stateful prefill-from-selection flow: if nothing valid is
+        # selected to prefill the base Object state, cancel instead of dropping
+        # into an object-pick (a sketch/curve isn't reliably pickable in the
+        # viewport). gather_selection already filters to valid targets.
+        if self.wait_for_input and not self.gather_selection(context):
+            self.report({"WARNING"}, self.invalid_target_msg)
+            return {"CANCELLED"}
+        return super().invoke(context, event)
 
     def init(self, context, event):
         for rType, rName in self.resources:
@@ -49,20 +85,33 @@ class NodeOperator(Operator3d):
         bpy.ops.ed.undo_push(message=f'Load Asset "{rName}"')
         return True
 
-    def main(self, context):
+    def _ensure_modifier(self, context):
+        """Create the modifier once, reuse on subsequent calls."""
         ob = self.object.original
+        mod_name = f"CAD_Sketcher {self.bl_label}"
 
-        # Add a modifier to object
-        self.modifier = ob.modifiers.new(f"CAD_Sketcher {self.bl_label}", "NODES")
+        self.modifier = ob.modifiers.get(mod_name)
+        if self.modifier:
+            return True
 
-        # Add nodegroup to modifier
+        self.modifier = ob.modifiers.new(mod_name, "NODES")
         nodegroup = bpy.data.node_groups.get(self.NODEGROUP_NAME)
         if not nodegroup:
             self.report({"Error"}, f"Unable to load node group {self.NODEGROUP_NAME}")
+            return False
         self.modifier.node_group = nodegroup
+        return True
+
+    def main(self, context):
+        if not self.is_valid_target(self.object):
+            self.report({"WARNING"}, self.invalid_target_msg)
+            return False
+
+        if not self._ensure_modifier(context):
+            return False
 
         retval = self.set_props()
-        ob.update_tag()
+        self.object.original.update_tag()
         return retval
 
     def set_props(self):
@@ -95,7 +144,15 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
     resources = (("node_groups", "CAD Sketcher Extrude"),)
     NODEGROUP_NAME = "CAD Sketcher Extrude"
 
+    invalid_target_msg = "Select a sketch or curve to extrude (2D profile)"
+
+    def is_valid_target(self, obj):
+        return is_2d_profile(obj)
+
     offset: FloatProperty(name="Offset", subtype="DISTANCE", options={"SKIP_SAVE"})
+    mirror: BoolProperty(name="Mirror Extrude")
+    asymmetry: BoolProperty(name="Asymmetric")
+    asymmetry_distance: FloatProperty(name="Asymmetry Distance", subtype="DISTANCE")
 
     states = (
         *BASE_STATES,
@@ -118,10 +175,20 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
         return delta
 
     def set_props(self):
-        # Set offset
-        self.modifier["Input_2"] = self.offset
-
+        m = self.modifier
+        m["Input_2"] = self.offset               # Size
+        m["Input_3"] = self.mirror               # Mirror Extrude
+        m["Input_4"] = self.asymmetry            # Asymmetry Override
+        m["Input_5"] = self.asymmetry_distance   # Asymmetry Distance
         return True
+
+    def draw_settings(self, context):
+        layout = self.layout
+        layout.prop(self, "mirror")
+        layout.prop(self, "asymmetry")
+        sub = layout.column()
+        sub.enabled = self.asymmetry
+        sub.prop(self, "asymmetry_distance")
 
 
 class View3D_OT_node_array_linear(Operator, NodeOperator):
@@ -133,24 +200,32 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
     NODEGROUP_NAME = "CAD Sketcher Linear Array"
     resources = (("node_groups", "CAD Sketcher Linear Array"),)
 
-    direction: FloatVectorProperty(name="Direction", size=3)
-    distance: FloatProperty(name="Distance")
+    # Array offset in the object's local space (direction * spacing), captured
+    # by a single interactive drag; direction and distance derive from it.
+    offset: FloatVectorProperty(
+        name="Offset", subtype="TRANSLATION", size=3, options={"SKIP_SAVE"}
+    )
     count: IntProperty(name="Count", default=2, min=2)
+    flip: BoolProperty(name="Flip Direction")
+    use_total_distance: BoolProperty(
+        name="Use Total Distance",
+        description="Treat distance as the total span rather than per-item spacing",
+    )
+    align_rotation: BoolProperty(name="Align Rotation")
+    merge: BoolProperty(name="Merge by Distance")
+    merge_distance: FloatProperty(
+        name="Merge Distance", default=0.001, min=0.0, subtype="DISTANCE"
+    )
 
     states = (
         *BASE_STATES,
         state_from_args(
-            "Alignment",
-            description="Direction of the linear array",
-            pointer="alignment",
-            types=(SlvsLine2D, SlvsLine3D, SlvsWorkplane, MeshEdge, MeshPolygon),
-            use_create=False,
-        ),
-        state_from_args(
-            "Distance",
-            description="Distance between individual elements",
-            property="distance",
+            "Offset",
+            description="Drag to set the array direction and spacing",
+            property="offset",
+            state_func="get_offset",
             interactive=True,
+            axis_lock=True,
         ),
         state_from_args(
             "Count",
@@ -162,49 +237,71 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         ),
     )
 
+    def get_offset(self, context: Context, coords):
+        # The drag offset (origin -> cursor) in the object's local space; the
+        # local origin is (0,0,0), so the local hit point is the offset.
+        # Return a Vector (not a tuple) so it's set as one vector property value.
+        obj = self.object.original
+        origin = obj.matrix_world.translation
+        inv = obj.matrix_world.inverted()
+        ray_o, ray_dir = get_picking_origin_dir(context, coords)
+
+        # X/Y/Z lock: constrain to a global axis line through the origin, using
+        # the point on that line closest to the view ray (view-angle robust).
+        if self._axis_lock is not None:
+            axis = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))[self._axis_lock]
+            res = intersect_line_line(
+                origin, origin + Vector(axis), ray_o, ray_o + ray_dir
+            )
+            if res is None:
+                return Vector((0.0, 0.0, 0.0))
+            return inv @ res[0]
+
+        # Free drag: project onto the view-facing plane through the origin.
+        view_dir = context.region_data.view_rotation @ Vector((0.0, 0.0, -1.0))
+        hit = intersect_line_plane(ray_o, ray_o + ray_dir, origin, view_dir)
+        if hit is None:
+            return Vector((0.0, 0.0, 0.0))
+        return inv @ hit
 
     def get_count(self, context: Context, coords):
         retval = super().state_func(context, coords)
         return abs(retval) + 2
 
-
     def set_props(self):
+        offset = Vector(self.offset)
+        if offset.length > 1e-6:
+            direction = offset.normalized()
+            distance = offset.length
+        else:
+            direction = Vector((1.0, 0.0, 0.0))
+            distance = 0.0
 
-        # Direction
-        if not self.properties.is_property_set("direction"):
-            # Note: Only update direction from alignment once, otherwise the direction
-            # property is overwritten when changed from the redo panel
-
-            if isinstance(self.alignment, (MeshPolygon, SlvsWorkplane)):
-                self.direction = self.alignment.normal
-            if isinstance(self.alignment, MeshEdge):
-                ob_name = self.get_state_data(0)["object_name"]
-                ob = bpy.data.objects[ob_name]
-                mat = ob.matrix_world.inverted()
-                verts = [mat @ ob.data.vertices[i].co for i in self.alignment.vertices]
-                self.direction = (verts[1] - verts[0]).normalized()
-
-            if isinstance(self.alignment, (SlvsLine3D, SlvsLine2D)):
-                self.direction = self.alignment.orientation()
-
-        self.modifier["Input_21"][:] = self.direction
-
-        # Distance
-        self.modifier["Input_23"] = self.distance
-
-        # Count
-        self.modifier["Input_22"] = self.count
-
+        m = self.modifier
+        m["Input_21"][:] = direction             # Direction
+        m["Input_22"] = self.count               # Count
+        m["Input_23"] = distance                 # Spacing / Total distance
+        m["Input_24"] = self.use_total_distance  # Use Total Distance
+        m["Input_25"] = self.align_rotation      # Align Rotation
+        m["Input_26"] = self.merge               # Merge by Distance
+        m["Input_29"] = self.merge_distance      # Merge Distance
+        m["Input_30"] = self.flip                # Flip Direction
         return True
 
     def draw_settings(self, context):
         layout = self.layout
 
-        # Add the direction property which is not displayed as part of the states
-        layout.prop(self, "direction")
+        layout.prop(self, "offset")
+        layout.prop(self, "flip")
+        layout.prop(self, "use_total_distance")
+        layout.prop(self, "align_rotation")
+        layout.prop(self, "merge")
+        sub = layout.column()
+        sub.enabled = self.merge
+        sub.prop(self, "merge_distance")
 
 
 
 register, unregister = register_stateops_factory(
-    (View3D_OT_node_extrude, View3D_OT_node_fill, View3D_OT_node_array_linear)
+    (View3D_OT_node_extrude, View3D_OT_node_array_linear)
 )

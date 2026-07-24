@@ -43,7 +43,7 @@ class BgsTestCase(TestCase):
             entity.update()
 
     def solve(self):
-        from ..solver import solve_system
+        from ..curve_solver import solve_system
 
         self.assertTrue(solve_system(self.context))
 
@@ -52,7 +52,29 @@ class Sketch2dTestCase(BgsTestCase):
     def new_sketch(self):
         self.entities.ensure_origin_elements(self.context)
         wp = self.entities.origin_plane_XY
-        return self.entities.add_sketch(wp)
+        entity_sketch = self.entities.add_sketch(wp)
+        from ..utilities.curve_data import ensure_sketch_curve_object
+        ensure_sketch_curve_object(entity_sketch)
+        # Wrap as Sketch accessor
+        from ..model.sketch_ref import Sketch, stamp_sketch_props
+        stamp_sketch_props(entity_sketch.target_object)
+        return Sketch(entity_sketch.target_object)
+
+    def add_point(self, co, **kwargs):
+        from ..model.curve_ref import PointRef
+        return PointRef.create(self.sketch, co, **kwargs)
+
+    def add_line(self, p1, p2, **kwargs):
+        from ..model.curve_ref import LineRef
+        return LineRef.create(self.sketch, p1, p2, **kwargs)
+
+    def add_arc(self, ct, start, end, **kwargs):
+        from ..model.curve_ref import ArcRef
+        return ArcRef.create(self.sketch, ct, start, end, **kwargs)
+
+    def add_circle(self, ct, radius, **kwargs):
+        from ..model.curve_ref import CircleRef
+        return CircleRef.create(self.sketch, ct, radius, **kwargs)
 
     @classmethod
     def setUpClass(cls):
@@ -70,11 +92,14 @@ class Sketch2dTestCase(BgsTestCase):
     def setUp(self) -> None:
         self.sketch = self.new_sketch()
         self.sketch.name = self._testMethodName
-        self.context.scene.sketcher.active_sketch = self.sketch
+        from ..model.sketch_ref import set_active_sketch, Sketch
+        if hasattr(self.sketch, 'target_object'):
+            set_active_sketch(self.context, self.sketch.target_object)
         return super().setUp()
 
     def tearDown(self) -> None:
-        self.context.scene.sketcher.active_sketch = None
+        from ..model.sketch_ref import set_active_sketch
+        set_active_sketch(self.context, None)
         return super().tearDown()
 
     def solve(self):

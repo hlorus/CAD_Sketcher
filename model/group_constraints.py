@@ -93,7 +93,8 @@ class SlvsConstraints(PropertyGroup):
             uid = self._ensure_unique_uid(uid)
             constr.constraint_uid = uid
         if hasattr(constr, "value"):
-            scene = getattr(self, "id_data", None)
+            import bpy
+            scene = bpy.context.scene
             if scene and hasattr(scene, "sketcher") and scene.sketcher:
                 try:
                     scene.sketcher.create_constraint_value_endpoint(constr)
@@ -125,7 +126,7 @@ class SlvsConstraints(PropertyGroup):
         """
         name = type.lower()
         constraint_list = getattr(self, name)
-        return self._init_constraint(constraint_list.add())
+        return constraint_list.add()
 
     def get_lists(self):
         lists = []
@@ -175,11 +176,6 @@ class SlvsConstraints(PropertyGroup):
         Arguments:
             constr: Constraint to be removed.
         """
-        uid = getattr(constr, "constraint_uid", "")
-        if uid:
-            scene = getattr(self, "id_data", None)
-            if scene and hasattr(scene, "sketcher"):
-                scene.sketcher.remove_constraint_value_endpoint(uid)
         i = self.get_index(constr)
         self.get_list(constr.type).remove(i)
 
@@ -201,79 +197,22 @@ class SlvsConstraints(PropertyGroup):
             for entity in entity_list:
                 yield entity
 
-    def add_coincident(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: SlvsGenericEntity,
-        sketch: SlvsSketch = None,
-    ) -> SlvsCoincident:
-        """Add a coincident constraint.
-
-        Arguments:
-            entity1: -
-            entity2: -
-            sketch: The sketch this constraint belongs to.
-
-        Returns:
-            SlvsCoincident: The created constraint.
-        """
-
+    def add_coincident(self, curve_id_1="", curve_id_2="") -> SlvsCoincident:
         c = self.coincident.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        if sketch:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+        c.curve_id_1 = curve_id_1
+        c.curve_id_2 = curve_id_2
         return self._init_constraint(c)
 
-    def add_equal(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: SlvsGenericEntity,
-        sketch: Union[SlvsSketch, None] = None,
-    ) -> SlvsEqual:
-        """Add an equal constraint.
-
-        Arguments:
-            entity1: -
-            entity2: -
-            sketch: The sketch this constraint belongs to.
-
-        Returns:
-            SlvsEqual: The created constraint.
-        """
+    def add_equal(self, curve_id_1="", curve_id_2="") -> SlvsEqual:
         c = self.equal.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+        c.curve_id_1 = curve_id_1
+        c.curve_id_2 = curve_id_2
         return self._init_constraint(c)
 
-    def add_distance(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: Union[None, SlvsGenericEntity],
-        sketch: Union[SlvsSketch, None] = None,
-        init: bool = False,
-        **settings,
-    ) -> SlvsDistance:
-        """Add a distance constraint.
-
-        Arguments:
-            entity1: -
-            entity2: -
-            sketch: The sketch this constraint belongs to.
-            init: Initialize the constraint based on the given entities.
-
-        Returns:
-            SlvsDistance: The created constraint.
-        """
+    def add_distance(self, init=False, curve_id_1="", curve_id_2="", **settings) -> SlvsDistance:
         c = self.distance.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-
-        if entity2 is not None:
-            c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+        c.curve_id_1 = curve_id_1
+        c.curve_id_2 = curve_id_2
         self._init_constraint(c)
         if init:
             c.assign_init_props(**settings)
@@ -281,30 +220,10 @@ class SlvsConstraints(PropertyGroup):
             c.assign_settings(**settings)
         return c
 
-    def add_angle(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: SlvsGenericEntity,
-        sketch: SlvsSketch = None,
-        init: bool = False,
-        **settings,
-    ) -> SlvsAngle:
-        """Add an angle constraint.
-
-        Arguments:
-            entity1: -
-            entity2: -
-            sketch: The sketch this constraint belongs to.
-            init: Initialize the constraint based on the given entities.
-
-        Returns:
-            SlvsAngle: The created constraint.
-        """
+    def add_angle(self, init=False, curve_id_1="", curve_id_2="", **settings) -> SlvsAngle:
         c = self.angle.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+        c.curve_id_1 = curve_id_1
+        c.curve_id_2 = curve_id_2
         self._init_constraint(c)
         if init:
             c.assign_init_props(**settings)
@@ -312,27 +231,9 @@ class SlvsConstraints(PropertyGroup):
             c.assign_settings(**settings)
         return c
 
-    def add_diameter(
-        self,
-        entity1: SlvsGenericEntity,
-        sketch: SlvsSketch = None,
-        init: bool = False,
-        **settings,
-    ) -> SlvsDiameter:
-        """Add a diameter constraint.
-
-        Arguments:
-            entity1: -
-            sketch: The sketch this constraint belongs to.
-            init: Initialize the constraint based on the given entities.
-
-        Returns:
-            SlvsDiameter: The created constraint.
-        """
+    def add_diameter(self, init=False, curve_id_1="", **settings) -> SlvsDiameter:
         c = self.diameter.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        if sketch:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+        c.curve_id_1 = curve_id_1
         self._init_constraint(c)
         if init:
             c.assign_init_props(**settings)
@@ -340,200 +241,57 @@ class SlvsConstraints(PropertyGroup):
             c.assign_settings(**settings)
         return c
 
-    def add_parallel(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: SlvsGenericEntity,
-        sketch: Union[SlvsSketch, None] = None,
-    ) -> SlvsParallel:
-        """Add a parallel constraint.
-
-        Arguments:
-            entity1: -
-            entity2: -
-            sketch: The sketch this constraint belongs to.
-
-        Returns:
-            SlvsParallel: The created constraint.
-        """
-        c = self.parallel.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+    def _add_simple(self, collection_name, curve_id_1="", curve_id_2=""):
+        c = getattr(self, collection_name).add()
+        c.curve_id_1 = curve_id_1
+        c.curve_id_2 = curve_id_2
         return self._init_constraint(c)
 
-    def add_horizontal(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: SlvsGenericEntity = None,
-        sketch: Union[SlvsSketch, None] = None,
-    ) -> SlvsHorizontal:
-        """Add a horizontal constraint.
+    def add_parallel(self, curve_id_1="", curve_id_2="") -> SlvsParallel:
+        return self._add_simple("parallel", curve_id_1, curve_id_2)
 
-        Arguments:
-            entity1: -
-            sketch: The sketch this constraint belongs to.
+    def add_horizontal(self, curve_id_1="", curve_id_2="") -> SlvsHorizontal:
+        return self._add_simple("horizontal", curve_id_1, curve_id_2)
 
-        Returns:
-            SlvsHorizontal: The created constraint.
-        """
-        c = self.horizontal.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        if entity2 is not None:
-            c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return self._init_constraint(c)
+    def add_vertical(self, curve_id_1="", curve_id_2="") -> SlvsVertical:
+        return self._add_simple("vertical", curve_id_1, curve_id_2)
 
-    def add_vertical(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: SlvsGenericEntity = None,
-        sketch: Union[SlvsSketch, None] = None,
-    ) -> SlvsVertical:
-        """Add a vertical constraint.
+    def add_tangent(self, curve_id_1="", curve_id_2="") -> SlvsTangent:
+        return self._add_simple("tangent", curve_id_1, curve_id_2)
 
-        Arguments:
-            entity1: -
-            sketch: The sketch this constraint belongs to.
+    def add_midpoint(self, curve_id_1="", curve_id_2="") -> SlvsMidpoint:
+        return self._add_simple("midpoint", curve_id_1, curve_id_2)
 
-        Returns:
-            SlvsVertical: The created constraint.
-        """
-        c = self.vertical.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        if entity2 is not None:
-            c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return self._init_constraint(c)
+    def add_perpendicular(self, curve_id_1="", curve_id_2="") -> SlvsPerpendicular:
+        return self._add_simple("perpendicular", curve_id_1, curve_id_2)
 
-    def add_tangent(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: SlvsGenericEntity,
-        sketch: Union[SlvsSketch, None] = None,
-    ) -> SlvsTangent:
-        """Add a tangent constraint.
-
-        Arguments:
-            entity1: -
-            entity2: -
-            sketch: The sketch this constraint belongs to.
-
-        Returns:
-            SlvsTangent: The created constraint.
-        """
-        c = self.tangent.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return self._init_constraint(c)
-
-    def add_midpoint(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: SlvsGenericEntity,
-        sketch: Union[SlvsSketch, None] = None,
-    ) -> SlvsMidpoint:
-        """Add a midpoint constraint.
-
-        Arguments:
-            entity1: -
-            entity2: -
-            sketch: The sketch this constraint belongs to.
-
-        Returns:
-            SlvsMidpoint: The created constraint.
-        """
-        c = self.midpoint.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return self._init_constraint(c)
-
-    def add_perpendicular(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: SlvsGenericEntity,
-        sketch: Union[SlvsSketch, None] = None,
-    ) -> SlvsPerpendicular:
-        """Add a perpendicular constraint.
-
-        Arguments:
-            entity1: -
-            entity2: -
-            sketch: The sketch this constraint belongs to.
-
-        Returns:
-            SlvsPerpendicular: The created constraint.
-        """
-        c = self.perpendicular.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        return self._init_constraint(c)
-
-    def add_ratio(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: SlvsGenericEntity,
-        sketch: Union[SlvsSketch, None] = None,
-        init: bool = False,
-        **settings,
-    ) -> SlvsRatio:
-        """Add a ratio constraint.
-
-        Arguments:
-            entity1: -
-            entity2: -
-            sketch: The sketch this constraint belongs to.
-            init: Initialize the constraint based on the given entities.
-
-        Returns:
-            SlvsRatio: The created constraint.
-        """
-        c = self.ratio.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
-        self._init_constraint(c)
+    def add_ratio(self, init=False, curve_id_1="", curve_id_2="", **settings) -> SlvsRatio:
+        c = self._add_simple("ratio", curve_id_1, curve_id_2)
         if init:
             c.assign_init_props(**settings)
         else:
             c.assign_settings(**settings)
         return c
 
-    def add_symmetry(
-        self,
-        entity1: SlvsGenericEntity,
-        entity2: SlvsGenericEntity,
-        entity3: SlvsGenericEntity,
-        sketch: Union[SlvsSketch, None] = None,
-    ) -> SlvsSymmetry:
-        """Add a symmetry constraint.
-
-        Arguments:
-            entity1: First point entity
-            entity2: Second point entity
-            entity3: Line or workplane to be symmetric about
-            sketch: The sketch this constraint belongs to.
-
-        Returns:
-            SlvsSymmetry: The created constraint.
-        """
+    def add_symmetry(self, curve_id_1="", curve_id_2="", curve_id_3="") -> SlvsSymmetry:
         c = self.symmetry.add()
-        c.entity1_i = entity1 if isinstance(entity1, int) else entity1.slvs_index
-        c.entity2_i = entity2 if isinstance(entity2, int) else entity2.slvs_index
-        c.entity3_i = entity3 if isinstance(entity3, int) else entity3.slvs_index
-        if sketch is not None:
-            c.sketch_i = sketch if isinstance(sketch, int) else sketch.slvs_index
+        c.curve_id_1 = curve_id_1
+        c.curve_id_2 = curve_id_2
+        c.curve_id_3 = curve_id_3
         return self._init_constraint(c)
 
 
-register, unregister = register_classes_factory((SlvsConstraints,))
+import bpy
+from bpy.props import PointerProperty
+
+_register_classes, _unregister_classes = register_classes_factory((SlvsConstraints,))
+
+
+def register():
+    _register_classes()
+    bpy.types.Curves.sketch_constraints = PointerProperty(type=SlvsConstraints)
+
+
+def unregister():
+    del bpy.types.Curves.sketch_constraints
+    _unregister_classes()

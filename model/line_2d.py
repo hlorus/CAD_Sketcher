@@ -1,6 +1,7 @@
 import logging
 import math
 from typing import List, Tuple
+from .sketch_ref import get_active_sketch
 
 import bpy
 from bpy.types import PropertyGroup, Context
@@ -9,7 +10,7 @@ from bpy.utils import register_classes_factory
 from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_line_line, intersect_line_line_2d
 
-from ..solver import Solver
+from ..curve_solver import Solver
 from .base_entity import SlvsGenericEntity
 from .base_entity import Entity2D
 from .utilities import slvs_entity_pointer, get_connection_point, round_v
@@ -49,6 +50,11 @@ class SlvsLine2D(Entity2D, PropertyGroup):
 
     def update(self):
         if bpy.app.background:
+            return
+
+        if self.p1 is None or self.p2 is None:
+            return
+        if not hasattr(self.p1, "location") or not hasattr(self.p2, "location"):
             return
 
         p1, p2 = self.p1.location, self.p2.location
@@ -133,11 +139,17 @@ class SlvsLine2D(Entity2D, PropertyGroup):
             locations.reverse()
 
         if set_startpoint:
-            startpoint.co = locations[0]
-        endpoint.co = locations[1]
+            startpoint.position = locations[0]
+        endpoint.position = locations[1]
 
-        startpoint.handle_right = locations[0]
-        endpoint.handle_left = locations[1]
+        # For lines, set handles to be exactly at the points
+        attributes = spline.id_data.attributes
+
+        attributes["handle_right"].data[startpoint.index].vector = locations[0]
+        attributes["handle_left"].data[startpoint.index].vector = locations[0]
+
+        attributes["handle_right"].data[endpoint.index].vector = locations[1]
+        attributes["handle_left"].data[endpoint.index].vector = locations[1]
 
         return endpoint
 
@@ -209,7 +221,7 @@ class SlvsLine2D(Entity2D, PropertyGroup):
             return self
 
         sse = context.scene.sketcher.entities
-        sketch = context.scene.sketcher.active_sketch
+        sketch = get_active_sketch(context)
         line = sse.add_line_2d(
             p1,
             p2,

@@ -49,7 +49,7 @@ class GenericConstraint:
         needs_wp = self.needs_wp()
 
         workplane = None
-        if self.sketch_i != -1:
+        if self.sketch_i != -1 and self.sketch:
             workplane = self.sketch.wp
 
         if workplane and needs_wp != WpReq.FREE:
@@ -103,28 +103,60 @@ class GenericConstraint:
             return self.sketch.is_visible(context) and self.visible
         return self.visible
 
+    def is_orphan(self):
+        """Check if this constraint's sketch object has been deleted."""
+        import bpy
+        c_sketch_name = self.get("_sketch_object", "")
+        if c_sketch_name:
+            return bpy.data.objects.get(c_sketch_name) is None
+        return False
+
     def is_active(self, active_sketch):
+        if self.is_orphan():
+            return False
+
         if not hasattr(self, "sketch"):
             return not active_sketch
 
         show_inactive = not preferences.use_experimental(
             "hide_inactive_constraints", True
         )
-        if show_inactive:  # and self.is_visible(context)
+        if show_inactive:
             return True
 
+        # Compare by sketch object name (new) or entity pointer (legacy)
+        c_sketch_name = self.get("_sketch_object", "")
+        if c_sketch_name and active_sketch:
+            active_obj = active_sketch.target_object if hasattr(active_sketch, 'target_object') else active_sketch
+            if active_obj:
+                return c_sketch_name == active_obj.name
         return self.sketch == active_sketch
 
     def draw_plane(self):
-        if self.sketch_i != -1:
-            wp = self.sketch.wp
-            return wp.p1.location, wp.normal
+        from mathutils import Vector
+
+        sketch = self._get_sketch() if hasattr(self, '_get_sketch') else None
+        if not sketch and self.sketch_i != -1 and self.sketch:
+            sketch = self.sketch
+
+        if sketch:
+            wp_obj = getattr(sketch, 'workplane_object', None)
+            if not wp_obj and hasattr(sketch, 'target_object') and sketch.target_object:
+                wp_obj = sketch.target_object.parent
+            if wp_obj:
+                mat = wp_obj.matrix_world
+                return mat.translation.copy(), Vector(mat.col[2][:3]).normalized()
+            wp = getattr(sketch, 'wp', None)
+            if wp:
+                return wp.p1.location, wp.normal
+
         # TODO: return drawing plane for constraints in 3d
         return None, None
 
     def copy(self, context, entities):
         # copy itself to another set of entities
-        c = context.scene.sketcher.constraints.new_from_type(self.type)
+        from .sketch_ref import get_active_constraints
+        c = get_active_constraints(context).new_from_type(self.type)
         if hasattr(self, "sketch"):
             c.sketch = self.sketch
         if hasattr(self, "setting"):
@@ -160,15 +192,8 @@ class GenericConstraint:
 
         # Specific props
         layout.separator()
-        sub = layout.column()
 
-        # Delete
-        layout.separator()
-        props = layout.operator(Operators.DeleteConstraint, icon="X")
-        props.type = self.type
-        props.index = self.index()
-
-        return sub
+        return layout
 
     def index(self):
         """Return elements index inside its collection"""
@@ -180,6 +205,54 @@ class GenericConstraint:
     def placements(self):
         """Return the entities where the constraint should be displayed"""
         return []
+
+    def curve_id_placements(self):
+        """Return curve_ids where the constraint should be displayed.
+
+        Default: returns curve_id_1 (and curve_id_2/3 if set).
+        Override for constraints with special placement logic.
+        """
+        ids = []
+        if getattr(self, 'curve_id_1', ""):
+            ids.append(self.curve_id_1)
+        if getattr(self, 'curve_id_2', ""):
+            ids.append(self.curve_id_2)
+        if getattr(self, 'curve_id_3', ""):
+            ids.append(self.curve_id_3)
+        return ids
+
+    def _get_sketch(self):
+        """Resolve the Sketch accessor for this constraint."""
+        sketch = self.sketch if hasattr(self, "sketch") and self.sketch else None
+        if sketch:
+            return sketch
+        # Resolve from Curves id_data (native curves path)
+        import bpy
+        id_data = getattr(self, "id_data", None)
+        if id_data and hasattr(id_data, "sketch_constraints"):
+            for obj in bpy.data.objects:
+                if obj.data is id_data:
+                    from .sketch_ref import Sketch
+                    return Sketch(obj)
+            # Fallback: match by name (evaluated data has different identity)
+            for obj in bpy.data.objects:
+                if obj.data and obj.data.name == id_data.name:
+                    from .sketch_ref import Sketch
+                    return Sketch(obj)
+        # Last resort: use active sketch from context
+        from .sketch_ref import get_active_sketch
+        return get_active_sketch(bpy.context)
+
+    def ref(self, n=1):
+        """Return a typed CurveRef for curve_id_N, or None if unset."""
+        cid = getattr(self, f"curve_id_{n}", "")
+        if not cid:
+            return None
+        sketch = self._get_sketch()
+        if not sketch:
+            return None
+        from .curve_ref import curve_ref
+        return curve_ref(sketch, cid)
 
     def create_slvs_data(self, solvesys, **kwargs):
         raise NotImplementedError()
@@ -200,8 +273,12 @@ class DimensionalConstraint(GenericConstraint):
         if not self.is_reference:
             self._set_value_force(self.from_displayed_value(displayed_value))
 
+    def _get_scene(self):
+        import bpy
+        return bpy.context.scene
+
     def _set_value_force(self, value: float):
-        scene = getattr(self, "id_data", None)
+        scene = self._get_scene()
         uid = getattr(self, "constraint_uid", "")
         if scene is not None and uid:
             scene[f"slvs:c:{uid}"] = value
@@ -210,7 +287,7 @@ class DimensionalConstraint(GenericConstraint):
         if self.is_reference:
             val = self.init_props()["value"]
             return self.to_displayed_value(val)
-        scene = getattr(self, "id_data", None)
+        scene = self._get_scene()
         uid = getattr(self, "constraint_uid", "")
         if scene is not None and uid:
             key = f"slvs:c:{uid}"
@@ -289,13 +366,14 @@ class DimensionalConstraint(GenericConstraint):
         if hasattr(self, "value"):
             col = sub.column()
             col.enabled = not self.is_reference
-            scene = getattr(self, "id_data", None)
+            import bpy
+            scene = bpy.context.scene
             uid = getattr(self, "constraint_uid", "")
             key = None
             if scene and uid:
                 key = scene.sketcher.get_constraint_value_endpoint(self)
             if key:
-                col.prop(scene, f'["{key}"]')
+                col.prop(scene, f'["{key}"]', text="Value")
         if hasattr(self, "setting"):
             row = sub.row()
             row.prop(self, "setting")

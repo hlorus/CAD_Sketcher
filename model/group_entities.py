@@ -1,6 +1,7 @@
 import logging
 import math
 from typing import Tuple, Type, Union
+from .sketch_ref import get_active_sketch
 
 import bpy
 from bpy.props import CollectionProperty
@@ -270,7 +271,7 @@ class SlvsEntities(PropertyGroup):
 
     def add_sketch(
         self,
-        wp: SlvsWorkplane,
+        wp=None,
         fixed: bool = False,
         construction: bool = False,
         index_reference: bool = False,
@@ -278,13 +279,15 @@ class SlvsEntities(PropertyGroup):
         """Add a Sketch.
 
         Arguments:
-            wp: Sketch's workplane.
+            wp: Sketch's workplane entity (optional, can be None for
+                sketches using workplane_object empty).
 
         Returns:
             SlvsSketch: The created sketch.
         """
         sketch = self.sketches.add()
-        sketch.wp_i = wp if isinstance(wp, int) else wp.slvs_index
+        if wp is not None:
+            sketch.wp_i = wp if isinstance(wp, int) else wp.slvs_index
 
         retval = self._init_entity(sketch, fixed, construction, index_reference)
         index = retval if index_reference else retval.slvs_index
@@ -461,7 +464,7 @@ class SlvsEntities(PropertyGroup):
     def selected_active(self):
         """Returns all selected and active entities"""
         context = bpy.context
-        active_sketch = context.scene.sketcher.active_sketch
+        active_sketch = get_active_sketch(context)
         return [e for e in self.selected if e.is_active(active_sketch)]
 
     def ensure_origin_elements(self, context):

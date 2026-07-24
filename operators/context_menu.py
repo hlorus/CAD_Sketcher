@@ -1,4 +1,5 @@
 import bpy
+from ..model.sketch_ref import get_active_constraints
 from bpy.utils import register_classes_factory
 from bpy.props import StringProperty, BoolProperty, IntProperty
 from bpy.types import Operator, Context, Event, PropertyGroup
@@ -16,6 +17,7 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
 
     type: StringProperty(name="Type", options={"SKIP_SAVE"})
     index: IntProperty(name="Index", default=-1, options={"SKIP_SAVE"})
+    curve_id: StringProperty(name="Curve ID", default="", options={"SKIP_SAVE"})
     delayed: BoolProperty(default=False)
 
     @classmethod
@@ -46,23 +48,41 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
         # Constraints
         if self.properties.is_property_set("type"):
             constraint_index = self.index
-            constraints = context.scene.sketcher.constraints
+            constraints = get_active_constraints(context)
             element = constraints.get_from_type_index(self.type, self.index)
             is_entity = False
         else:
-            # Entities
-            entity_index = (
-                self.index
-                if self.properties.is_property_set("index")
+            # Entities — keyed by curve id
+            hover = (
+                self.curve_id
+                if self.properties.is_property_set("curve_id")
                 else global_data.hover
             )
 
-            if entity_index != -1:
-                element = context.scene.sketcher.entities.get(entity_index)
+            if hover:
+                # Try as curve_id — show CurveRef info
+                from ..model.sketch_ref import get_active_sketch
+                sketch = get_active_sketch(context)
+                if sketch:
+                    from ..model.curve_ref import curve_ref
+                    ref = curve_ref(sketch, hover)
+                    if ref.valid:
+                        element = ref
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column()
             element.draw_props(col)
+
+            col.separator()
+            row = col.row()
+            row.alert = True
+            if is_entity:
+                op = row.operator(Operators.DeleteEntity, text="Delete", icon="X")
+                op.index = element._curve_id
+            else:
+                op = row.operator(Operators.DeleteConstraint, text="Delete", icon="X")
+                op.type = element.type
+                op.index = element.index()
 
         if not element:
             bpy.ops.wm.call_menu(name="VIEW3D_MT_selected_menu")

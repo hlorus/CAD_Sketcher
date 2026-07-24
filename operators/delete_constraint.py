@@ -1,11 +1,12 @@
 import logging
+from ..model.sketch_ref import get_active_constraints
 
 from bpy.utils import register_classes_factory
 from bpy.props import IntProperty, StringProperty
 from bpy.types import Operator, Context
 
 from ..utilities.view import refresh
-from ..solver import solve_system
+from ..curve_solver import solve_system
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement
 
@@ -32,7 +33,7 @@ class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
         return ""
 
     def execute(self, context: Context):
-        constraints = context.scene.sketcher.constraints
+        constraints = get_active_constraints(context)
 
         # NOTE: It's not really necessary to first get the
         # constraint from its index before deleting
@@ -42,10 +43,8 @@ class View3D_OT_slvs_delete_constraint(Operator, HighlightElement):
 
         constraints.remove(constr)
 
-        sketch = context.scene.sketcher.active_sketch
-        if sketch:
-            sketch.geometry_solved = False
-        solve_system(context, sketch=sketch)
+        from ..model.sketch_ref import get_active_sketch
+        solve_system(context, sketch=get_active_sketch(context))
         refresh(context)
         return {"FINISHED"}
 
