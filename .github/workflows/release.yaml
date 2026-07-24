@@ -1,25 +1,32 @@
 name: release
 
-# Build the extension zip and attach it to a GitHub Release when a version tag
-# is pushed. Tags with a pre-release suffix (e.g. v0.3.0-beta.1) are published
-# as GitHub pre-releases. Runs from whatever ref the tag points at, so the same
-# workflow serves both the stable (main) and the refactor (native-curves) lines.
+# Two extension channels, published to hlorus/CAD_Sketcher-extensions:
+#   stable/index.json  - curated releases, cut by pushing a version tag (v*)
+#   latest/index.json  - rolling build, rebuilt on every push to main
+# Stable zips are normal GitHub release assets; the latest zip is a single
+# rolling pre-release ("latest") whose asset is overwritten each commit.
 on:
   push:
-    tags:
-      - "v*"
-  workflow_dispatch: # manual runs build + validate only (no release)
+    branches: [main]
+    tags: ["v*"]
+    paths-ignore: # docs/workflow-only commits don't need a latest build
+      - "**.md"
+      - "docs/**"
+      - ".github/**"
+  workflow_dispatch:
     inputs:
-      publish_listing:
-        description: "Rebuild + publish the extension listing (index.json) from existing releases"
+      run_latest:
+        description: "Build and publish to the 'latest' channel"
         type: boolean
         default: false
 
 permissions:
-  contents: write # required to create the release
+  contents: write
 
 jobs:
+  # === Stable channel: version tag -> GitHub Release ===
   release:
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Addon
@@ -28,7 +35,6 @@ jobs:
           path: CAD_Sketcher
 
       - name: Check tag matches version
-        if: startsWith(github.ref, 'refs/tags/')
         working-directory: ./CAD_Sketcher
         env:
           TAG_NAME: ${{ github.ref_name }}
@@ -44,7 +50,7 @@ jobs:
           if grep -qE '"version"[[:space:]]*:[[:space:]]*\(' __init__.py; then
             blinfo=$(grep -oE '"version"[[:space:]]*:[[:space:]]*\([0-9]+,[[:space:]]*[0-9]+,[[:space:]]*[0-9]+\)' __init__.py \
               | head -1 | grep -oE '[0-9]+' | paste -sd.)
-            base="${manifest%%-*}"  # strip any pre-release suffix; bl_info is numeric-only
+            base="${manifest%%-*}"
             if [ -n "$blinfo" ] && [ "$blinfo" != "$base" ]; then
               echo "::error::bl_info version '$blinfo' does not match manifest '$base'"
               exit 1
@@ -78,90 +84,63 @@ jobs:
           fi
 
       - name: Publish Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: CAD_Sketcher-${{ github.ref_name }}.zip
           prerelease: ${{ steps.pre.outputs.prerelease }}
           generate_release_notes: true
 
-  # Regenerate the extension-repository listings and push them to the
-  # hlorus/CAD_Sketcher-extensions repo, so users get in-app updates. Two
-  # channels, both rebuilt from the full release list on every run:
-  #   latest/index.json - every release (newest wins, includes pre-releases)
-  #   stable/index.json - non-pre-release versions only
-  # The zips stay as GitHub release assets (archive_url points there).
-  publish-listing:
+  # Rebuild stable/index.json from the tagged (non-pre-release) releases.
+  publish-stable:
     needs: release
-    if: >-
-      startsWith(github.ref, 'refs/tags/') ||
-      (github.event_name == 'workflow_dispatch' && inputs.publish_listing)
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    concurrency:
+      group: extension-listing
+      cancel-in-progress: false
     steps:
       - uses: moguri/setup-blender@v1
         with:
           blender-version: "4.5"
 
-      - name: Download all release zips
+      - name: Download stable release zips
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p zips
-          # tag <tab> isPrerelease, for every release.
           gh release list --repo "${{ github.repository }}" --limit 200 \
             --json tagName,isPrerelease \
-            --jq '.[] | [.tagName, (.isPrerelease|tostring)] | @tsv' > releases.tsv
-          while IFS=$'\t' read -r tag pre; do
+            --jq '.[] | select(.isPrerelease == false) | .tagName' > tags.txt
+          while read -r tag; do
             [ -z "$tag" ] && continue
             gh release download "$tag" --repo "${{ github.repository }}" \
               --pattern '*.zip' --dir zips --skip-existing || true
-          done < releases.tsv
-          echo "Releases:"; cat releases.tsv; echo "Zips:"; ls -la zips
+          done < tags.txt
+          echo "Stable zips:"; ls -la zips
 
-      - name: Generate listing
+      - name: Generate stable listing
         run: blender --background --command extension server-generate --repo-dir zips
 
-      - name: Build stable + latest indexes
-        # latest = every release; stable = non-pre-release only. archive_url is
-        # rewritten to point at the GitHub release assets (hash/size stay valid).
+      - name: Point archive URLs at the release assets
         env:
           REPO: ${{ github.repository }}
         run: |
           python3 - <<'PY'
           import json, os, re
           repo = os.environ["REPO"]
-          prerelease = {
-              ln.split("\t")[0]
-              for ln in open("releases.tsv")
-              if ln.rstrip("\n").endswith("\ttrue")
-          }
-          def tag_of(entry):
-              fn = os.path.basename(entry["archive_url"])
+          d = json.load(open("zips/index.json"))
+          for e in d.get("data", []):
+              fn = os.path.basename(e["archive_url"])
               m = re.match(r"CAD_Sketcher-(.+)\.zip$", fn)
               if not m:
                   raise SystemExit(f"unexpected asset name: {fn}")
-              return m.group(1)
-
-          data = json.load(open("zips/index.json"))
-          for e in data.get("data", []):
-              t = tag_of(e)
-              e["archive_url"] = (
-                  f"https://github.com/{repo}/releases/download/{t}/CAD_Sketcher-{t}.zip"
-              )
-
-          os.makedirs("out", exist_ok=True)
-          # latest: all entries
-          json.dump(data, open("out/latest.json", "w"), indent=2)
-          # stable: drop pre-release entries
-          stable = dict(data)
-          stable["data"] = [e for e in data["data"] if tag_of(e) not in prerelease]
-          json.dump(stable, open("out/stable.json", "w"), indent=2)
-
-          print("latest:", [e["version"] for e in data["data"]])
-          print("stable:", [e["version"] for e in stable["data"]])
+              t = m.group(1)
+              e["archive_url"] = f"https://github.com/{repo}/releases/download/{t}/{fn}"
+          json.dump(d, open("zips/index.json", "w"), indent=2)
+          print("stable:", [e["version"] for e in d["data"]])
           PY
 
-      - name: Publish indexes to the listing repo
+      - name: Publish stable/index.json
         env:
           TOKEN: ${{ secrets.EXTENSIONS_REPO_TOKEN }}
         run: |
@@ -169,15 +148,174 @@ jobs:
           cd listing
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B main            # handles the initially-empty repo
-          mkdir -p stable latest
-          cp ../out/stable.json stable/index.json
-          cp ../out/latest.json latest/index.json
-          touch .nojekyll                 # serve JSON verbatim (no Jekyll)
-          git add stable/index.json latest/index.json .nojekyll
+          git checkout -B main
+          mkdir -p stable
+          cp ../zips/index.json stable/index.json
+          touch .nojekyll
+          git add stable/index.json .nojekyll
           if git diff --cached --quiet; then
-            echo "Listings unchanged."
+            echo "stable listing unchanged."
           else
-            git commit -m "Update extension listings for ${{ github.ref_name }}"
-            git push origin main
+            git commit -m "Update stable listing for ${{ github.ref_name }}"
+            for i in 1 2 3; do
+              git push origin main && break
+              sleep 3; git fetch origin main && git rebase origin/main
+            done
+          fi
+
+  # After a final (non-pre-release) tag, open the next dev cycle on main:
+  # bump the manifest base (and legacy bl_info) to the next patch, so 'latest'
+  # builds advertise as pre-releases of the upcoming version.
+  bump-version:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: bump-version
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Bump base to next patch on main
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag="${TAG_NAME#v}"
+          IFS='.' read -r MA MI PA <<< "${tag%%-*}"
+          next="${MA}.${MI}.$((PA + 1))"
+          echo "Released $tag; next dev base -> $next"
+
+          # Idempotent: only advance if main still sits at the released base, so a
+          # manual forward bump (e.g. to a minor/major) is never clobbered.
+          cur=$(grep -m1 '^version' blender_manifest.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          cur="${cur%%-*}"
+          if [ "$cur" != "$tag" ]; then
+            echo "main base is '$cur', not '$tag' — already moved on, skipping."
+            exit 0
+          fi
+
+          sed -i -E "s|^version = \".*\"|version = \"$next\"|" blender_manifest.toml
+          # Keep legacy bl_info in sync when present (stable line only).
+          if grep -qE '"version"[[:space:]]*:[[:space:]]*\(' __init__.py; then
+            sed -i -E "s|(\"version\"[[:space:]]*:[[:space:]]*\()[0-9]+,[[:space:]]*[0-9]+,[[:space:]]*[0-9]+(\))|\1${MA}, ${MI}, $((PA + 1))\2|" __init__.py
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add blender_manifest.toml __init__.py
+          if git diff --cached --quiet; then
+            echo "nothing to bump."
+            exit 0
+          fi
+          git commit -m "Open development of $next"
+          for i in 1 2 3; do
+            git push origin main && break
+            sleep 3; git fetch origin main && git rebase origin/main
+          done
+
+  # === Latest channel: every main commit -> rolling build ===
+  latest:
+    if: >-
+      github.ref == 'refs/heads/main' ||
+      (github.event_name == 'workflow_dispatch' && inputs.run_latest)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: extension-listing
+      cancel-in-progress: false
+    steps:
+      - name: Checkout Addon
+        uses: actions/checkout@v4
+        with:
+          path: CAD_Sketcher
+
+      - uses: moguri/setup-blender@v1
+        with:
+          blender-version: "4.5"
+
+      - name: Stamp latest version
+        # <base>-latest.<run_number>: monotonic, sorts below the eventual stable.
+        working-directory: ./CAD_Sketcher
+        run: |
+          base=$(grep -m1 '^version' blender_manifest.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          base="${base%%-*}"          # strip any existing pre-release suffix
+          ver="${base}-latest.${{ github.run_number }}"
+          sed -i -E "s|^version = \".*\"|version = \"$ver\"|" blender_manifest.toml
+          echo "LATEST_VERSION=$ver" >> "$GITHUB_ENV"
+          echo "Latest version: $ver"
+
+      - name: Validate Extension
+        run: blender --background --command extension validate
+        working-directory: ./CAD_Sketcher
+
+      - name: Build latest
+        run: >-
+          blender --background --command extension build
+          --output-filepath "${{ github.workspace }}/CAD_Sketcher-latest.zip"
+        working-directory: ./CAD_Sketcher
+
+      - name: Update rolling latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view latest --repo "${{ github.repository }}" >/dev/null 2>&1 || \
+            gh release create latest --repo "${{ github.repository }}" --prerelease \
+              --title "Latest (main)" \
+              --notes "Rolling build of the newest main commit. Subscribe via the 'latest' extension channel." \
+              --target "${{ github.sha }}"
+          gh release upload latest "${{ github.workspace }}/CAD_Sketcher-latest.zip" \
+            --repo "${{ github.repository }}" --clobber
+
+      - name: Move the latest tag to this commit
+        # --clobber only replaces the asset; force-move the ref so the tag and
+        # the release re-anchor to the newest built commit.
+        run: |
+          git -C CAD_Sketcher tag -f latest "${{ github.sha }}"
+          git -C CAD_Sketcher push -f origin latest
+
+      - name: Generate latest listing
+        run: |
+          mkdir -p zips
+          cp "${{ github.workspace }}/CAD_Sketcher-latest.zip" zips/
+          blender --background --command extension server-generate --repo-dir zips
+
+      - name: Point archive URL at the latest asset
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          repo = os.environ["REPO"]
+          d = json.load(open("zips/index.json"))
+          for e in d.get("data", []):
+              e["archive_url"] = (
+                  f"https://github.com/{repo}/releases/download/latest/CAD_Sketcher-latest.zip"
+              )
+          json.dump(d, open("zips/index.json", "w"), indent=2)
+          print("latest:", [e["version"] for e in d["data"]])
+          PY
+
+      - name: Publish latest/index.json
+        env:
+          TOKEN: ${{ secrets.EXTENSIONS_REPO_TOKEN }}
+        run: |
+          git clone "https://x-access-token:${TOKEN}@github.com/hlorus/CAD_Sketcher-extensions.git" listing
+          cd listing
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B main
+          mkdir -p latest
+          cp ../zips/index.json latest/index.json
+          touch .nojekyll
+          git add latest/index.json .nojekyll
+          if git diff --cached --quiet; then
+            echo "latest listing unchanged."
+          else
+            git commit -m "Latest -> ${LATEST_VERSION}"
+            for i in 1 2 3; do
+              git push origin main && break
+              sleep 3; git fetch origin main && git rebase origin/main
+            done
           fi
