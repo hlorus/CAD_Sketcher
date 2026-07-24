@@ -285,13 +285,13 @@ class StatefulOperator(StatefulOperatorLogic):
             return True
 
         # Map CurveRef types to legacy entity types
-        from bl_ext.blend.CAD_Sketcher.model.curve_ref import (
+        from ..model.curve_ref import (
             CurveRef, PointRef, LineRef, ArcRef, CircleRef,
         )
         if not isinstance(element, CurveRef):
             return False
 
-        from bl_ext.blend.CAD_Sketcher.model.types import (
+        from ..model.types import (
             SlvsPoint2D, SlvsLine2D, SlvsArc, SlvsCircle,
         )
         _map = {
