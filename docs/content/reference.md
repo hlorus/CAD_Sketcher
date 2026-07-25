@@ -11,43 +11,23 @@ The active accessors for sketch geometry. A reference is a lightweight
 `(sketch, curve_id)` view that resolves live curve attributes on each access.
 
 ::: CAD_Sketcher.model.sketch_ref.Sketch
-    rendering:
-      show_root_heading: true
 
 ::: CAD_Sketcher.model.curve_ref.curve_ref
-    rendering:
-      show_root_heading: true
 
 ::: CAD_Sketcher.model.curve_ref.CurveRef
-    rendering:
-      show_root_heading: true
 
 ::: CAD_Sketcher.model.curve_ref.PointRef
-    rendering:
-      show_root_heading: true
 
 ::: CAD_Sketcher.model.curve_ref.LineRef
-    rendering:
-      show_root_heading: true
 
 ::: CAD_Sketcher.model.curve_ref.ArcRef
-    rendering:
-      show_root_heading: true
 
 ::: CAD_Sketcher.model.curve_ref.CircleRef
-    rendering:
-      show_root_heading: true
 
 ## Entity model (legacy layer)
 
 ::: CAD_Sketcher.model.types.SketcherProps
-    rendering:
-      show_root_heading: true
 
 ::: CAD_Sketcher.model.types.SlvsEntities
-    rendering:
-      show_root_heading: true
 
 ::: CAD_Sketcher.model.types.SlvsConstraints
-    rendering:
-      show_root_heading: true

@@ -26,9 +26,8 @@ plugins:
   - mkdocstrings:
         handlers:
           python:
-            selection:
+            options:
               members: false
-            rendering:
               show_source: false
               show_root_heading: true
               show_bases: false

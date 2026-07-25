@@ -1,7 +1,14 @@
-mkdocs
-markdown <= 3.3.7
-mkdocs-material
-mkdocstrings
-mkdocs-autorefs
-lightgallery
-mkdocstrings-python
+# Pinned to a verified-working set. The mkdocstrings config in mkdocs.yml uses the
+# `options:` schema (mkdocstrings >= 0.19); leaving these unpinned previously let CI
+# pull versions where the old `rendering:` keys were ignored, re-enabling source
+# highlighting and crashing the build. Bump deliberately, then rebuild to verify.
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+mkdocstrings==0.25.2
+mkdocstrings-python==1.10.9
+mkdocs-autorefs==1.4.4
+griffe==2.1.0
+Pygments==2.20.0
+pymdown-extensions==10.4
+markdown==3.3.7
+lightgallery==0.5
