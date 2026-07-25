@@ -1,181 +1,187 @@
 # Code Documentation
-## Core
-At the base of the extension there's the properties structure. The [model subpackage](https://github.com/hlorus/CAD_Sketcher/tree/main/model) defines
-a set of blender [PropertyGroups](https://docs.blender.org/api/current/bpy.types.PropertyGroup.html). This is needed so that values are stored to disk on file save. These PropertyGroups have to be registered
-and then be pointed to from somewhere by a PointerProperty.
 
-Additionally to pure properties PropertyGroups can also hold methods and attributes,
-the extension makes heavy use of that as it leads to a convenient way of working with the data.
+CAD Sketcher stores its data in **two coexisting layers**. Knowing which layer
+owns what is the key to reading the codebase.
 
-The root of the extension's data structure is SketcherProps which is registered on blender's
-Scene type and can therefore be accessed as follows:
+| Layer | Owns | Identity | Accessors |
+|-------|------|----------|-----------|
+| **Native curves** | 2D sketch geometry (points, lines, arcs, circles) | `curve_id` (128-bit UUID) | `CurveRef` and subclasses |
+| **Entity PropertyGroups** | origin elements, 3D entities, workplanes, sketches, and the type tokens used for state matching | `slvs_index` (int) | `SlvsEntities.get(index)` |
+
+The native-curve layer is the **source of truth for everything drawn inside a
+sketch**. The entity layer is the older Solvespace-style data model; it is still
+live for the pieces that were not moved onto curves (origins, 3D, workplanes,
+sketches) and for the `SlvsPoint2D` / `SlvsLine2D` / `SlvsArc` / `SlvsCircle`
+classes, which now serve mainly as **type tokens** (e.g. a state declares
+`types=(SlvsPoint2D,)` and a `PointRef` is matched against it).
+
+## Native Curve Model
+
+A sketch is backed by a Blender **Curves** data-block (`bpy.types.Curves`). Each
+sketch entity is one curve in that object, and its metadata lives in **curve
+attributes** rather than in a PropertyGroup:
+
+- `sketch_type` — what the curve represents (point, line, arc, circle).
+- `curve_id` — the entity's stable identity (see below).
+- relationship attributes — `start_point_id`, `end_point_id`, `center_point_id`
+  link a segment to its defining points (by their `curve_id`).
+
+Because Blender re-indexes curves whenever one is removed, **positional indices
+are not stable** — always refer to an entity by its `curve_id`.
+
+### curve_id (UUID identity)
+
+`curve_id` is a 128-bit UUID. On disk it is stored as hidden `INT32_2D`
+sub-attributes (`curve_id_lo` / `curve_id_hi`, and likewise for the
+`*_point_id` relationship fields) so it survives Blender's native
+delete/duplicate. In Python it is handled as a 32-character lowercase hex
+string, which is what appears in `global_data.selected`, `global_data.pick_map`,
+and the constraint `curve_id_N` properties.
+
+Helpers live in `utilities/curve_data.py`:
+
+- `new_uuid()` — mint a fresh id.
+- `get_uuid(cd, field, i)` / `set_uuid(...)` — read/write a single field.
+- `read_uuid_list(cd, field)` — **bulk** read via `foreach_get`; use this in
+  draw/hot loops, never `get_uuid` per curve.
+
+### CurveRef accessors
+
+Rather than manipulate raw attributes, code works through lightweight accessor
+objects in `model/curve_ref.py`:
+
+- `curve_ref(sketch, curve_id)` — factory returning the right typed accessor.
+- `PointRef`, `LineRef`, `ArcRef`, `CircleRef` — typed views exposing `.co`,
+  `.p1` / `.p2`, `.ct`, `.radius`, etc., and a `.create(...)` classmethod.
+
+An accessor is just `(sketch, curve_id)`; it resolves live data on each access,
+so it stays valid across re-indexing as long as the `curve_id` exists.
+
+### Workplanes as empties
+
+A workplane can be any Blender Object: its `matrix_world` is the workplane
+transform, and the sketch's Curves object is parented to it. `Entity2D.wp_matrix`
+resolves the workplane from the empty / parent / entity.
+
+### Self-healing
+
+Native edit-mode operations (delete/duplicate in the curves object) can leave
+geometry in an inconsistent state. `utilities/validate.py`, run from the
+depsgraph handler (gated by a signature check, skipped in Edit Mode), mints ids
+for empty/duplicate curves, removes degenerate segments, and prunes constraints
+that reference no existing curve. Because `curve_id`s survive native operations,
+no fingerprint/backup is needed.
+
+## Entity Model (legacy layer)
+
+The root of the entity data lives in `SketcherProps`, registered on the Scene:
+
 ```
 bpy.context.scene.sketcher
+  - entities      (SlvsEntities)
+      - points3D, lines3D, workplanes, sketches, ...
+  - constraints   (SlvsConstraints)
 ```
 
-From there the structure looks as follows:
+Entities inherit from `SlvsGenericEntity` and are identified by a unique
+`entity.slvs_index`, assigned by the `add_*` methods on `SlvsEntities`. Pointers
+are stored as an `IntProperty` (via `slvs_entity_pointer`, which adds
+getter/setters that resolve `entities.get(index)`).
 
-sketcher
-  - entities
-    - points3D (CollectionProperty of 3D Points)
-    - lines3D (CollectionProperty of 3D Lines)
-    - sketches
-    - ...
+This layer is still used for:
 
-  - constraints
-    - coincident (CollectionProperty of coincident constraints)
-    - equal
-    - ...
-
->**Note:** The nesting of PropertyGroups is done by defining PointerProperties inside
-of a PropertyGroup.
-
-## Entities
-Entities always inherit from the SlvsGenericEntity class which implements the basic
-properties (like properties to store if an entity is visible, construction, origin etc.)
-and logic (like the draw method which draws itself based on its geometry batch) entities have.
-
-### Index system
-As an entity can depend on other entities there has to be a way to point to an entity.
-This is done by storing an unique index on each entity (entity.slvs_index) which is
-set when an entity is created through its "add_*" method on the SlvsEntities class.
-
-Pointing to an entity is done by storing the entity's index in a IntProperty, the
-entity itself can then be looked up by:
-```
-entity = bpy.context.scene.sketcher.entities.get(index)
-```
-
-For convenience there's the slvs_entity_pointer function which registers the IntProperty
-with a "_i" prefix and adds getter/setter methods to directly get the entity without
-having to deal with the index itself.
-
-### Drawing
-Entities are drawn in the viewport by utilizing blenders [GPU Module](https://docs.blender.org/api/current/gpu.html).
-Every entity type has an update function which is responsible for creating the geometry
-batch that is used for drawing. As this can be expensive to compute the batches are stored
-based on the entity's index in global_data.batches. There's an initial tagging system in place
-to tag entities as dirty however this is currently still disabled by default.
-
-> **NOTE:** In order to draw anything a draw handler has to be registered on the viewport type.
-This usually happens from an operator that the user invokes. As this is rather bad UX the
-extension registers the handler when the extension is registered. More precisely, as the
-the context at register time is limited, a [Application Timer](https://docs.blender.org/api/current/bpy.app.timers.html) is used to register
-the draw handler shortly after the extension has been registered.
-
-### Selection
-Entity selection is done by simply drawing entities a second time in an [Offscreen Texture](https://docs.blender.org/api/current/gpu.html#generate-a-texture-using-offscreen-rendering). The color however is used
-to identify the entity. The two functions index_to_rgb() and rgb_to_index() inside functions.py
-are used to convert between the entity's "slvs_index" and the color value that is written to the texture.
-
-This concept is explained [here](http://www.opengl-tutorial.org/miscellaneous/clicking-on-objects/picking-with-an-opengl-hack/).
-
-> **NOTE:** There's the "Write Selection Texture" operator in the debug panel which
-can be used to write the current selection texture to an image data-block in order
-to inspect it.
-
-### Preselection
-The extension makes great use of preselection highlighting. To achieve that the
-VIEW3D_GT_slvs_preselection gizmo is used which looks up the currently hovered pixel and writes
-the index to global_data.hover whenever the "test_select" method is called.
-
-> **NOTE:** The [test_select](https://docs.blender.org/api/current/bpy.types.Gizmo.html#bpy.types.Gizmo.test_select) method of gizmos is used as it
-receives the cursor location and is called whenever the cursor moves.
+- **Origin elements** — `ensure_origin_elements` creates the origin point, axes
+  and the XY/XZ/YZ origin planes as entities.
+- **3D entities** — `SlvsPoint3D`, `SlvsLine3D`, `SlvsNormal3D`.
+- **Workplanes and sketches** — created via `add_workplane` / `add_sketch`.
+- **Type identity** — the 2D entity classes are matched against state `types`.
 
 ## Constraints
-Constraints always inherit from the GenericConstraint class which implements the basic
-properties (like properties to store if a constraint is visible or has failed to solve etc.)
-and some basic logic that constraints have.
 
-Unlike entities the constraints are not implemented completely from scratch but rather
-make use of the [Gizmo API](https://docs.blender.org/api/current/bpy.types.Gizmo.html) to display themselves and handle other interactions like selection.
+Constraints inherit from `GenericConstraint` and, unlike entities, render and
+handle selection through Blender's [Gizmo API](https://docs.blender.org/api/current/bpy.types.Gizmo.html)
+rather than a custom draw batch.
 
-## Interaction
-There's a set of operators defined in operators.py which are used to create the
-interaction between the user and the extension. Note that the extension also has to define
-operators for basic interactions like selection or calling the context menu due to
-the fact that entities are implemented from scratch.
+A sketch's constraints are stored on the Curves data-block
+(`sketch_constraints`). Each constraint references its operands by their curve
+ids through `curve_id_1` / `curve_id_2` / `curve_id_3` `StringProperty`s — note
+that PropertyGroups are **not** affected by the string-attribute drop that
+native curve removal causes, so these references are safe.
 
-Most of the viewport operators inherit from the StatefulOperator class which is a
-framework to allow defining complex tools in a declarative fashion. Besides the
-base class itself which implements logic for native blender types there's also
-the GenericEntityOp which adds support for extension specific types. Have a look at
-the [interaction chapter](interaction_system.md) in the docs.
+## Drawing
 
-The extension also makes heavy use of workspacetools. Note that they depend on some
-functionality defined in the StatefulOperator class to display the correct description
-and get the tools shortcuts.
+Geometry is drawn in the viewport with the [GPU Module](https://docs.blender.org/api/current/gpu.html).
+The draw handler must be registered on the viewport type; because the context at
+registration time is limited, the extension defers this with an
+[Application Timer](https://docs.blender.org/api/current/bpy.app.timers.html)
+shortly after the addon registers.
 
-> **NOTE:** Tools that need to be able to select entities have to use the preselection gizmo
-in order to get updated selection.
+> **NOTE:** In-place edits of curve point positions do **not** trigger a Geometry
+> Nodes re-evaluation — call `refresh_curve_geometry()` after changing positions
+> directly.
+
+## Selection
+
+Selection uses the classic
+[offscreen id-buffer](http://www.opengl-tutorial.org/miscellaneous/clicking-on-objects/picking-with-an-opengl-hack/)
+technique, but keyed to curves rather than `slvs_index`:
+
+- `_draw_curves_id_buffer` (in `draw_handler.py`) draws every visible curve into
+  an offscreen buffer, coloring it by a per-frame **pick index** via
+  `index_to_rgb`, and records `global_data.pick_map[pick_index] = curve_id`.
+- The `VIEW3D_GT_slvs_preselection` gizmo reads the pixel under the cursor and
+  writes the resolved `curve_id` to `global_data.hover`.
+- `global_data.selected` holds the list of selected `curve_id` hex strings.
 
 ## Solver
-The extension uses the [Python Binding](https://pypi.org/project/py-slvs/) of [Solvespace](https://solvespace.com/index.pl). As the solver module isn't well documented it's best to inspect it through
-the an interactive python interpreter. This can be done inside blender's python console
-when the solver module has been installed, something like this:
-```
+
+The extension uses the [Python binding](https://pypi.org/project/py-slvs/) of
+[Solvespace](https://solvespace.com/index.pl). Solver data is not persistent: a
+fresh `slvs.System` is built on every solve.
+
+For sketch geometry this is driven by **`CurveSolver`** (`curve_solver.py`),
+which reads the curve attributes directly (`sketch_type`, positions, relationship
+ids) and adds the corresponding Solvespace entities — see
+`create_slvs_data_from_curves` / `solve_sketch_from_curves`. Constraints add
+themselves to the system. On success the solved positions are written back to the
+curve data. (3D entities still implement their own `create_slvs_data` /
+`update_from_slvs`.)
+
+You can explore the solver interactively from Blender's Python console:
+
+```python
 import slvs
 sys = slvs.System()
 ```
 
-On the system object you'll find all the methods to add entities and constraints.
-You can use the inspect module to get more info like the signature of a function:
-```
-import inspect
-inspect.signature(sys.addEqual)
-```
+## Interaction
 
-The solver data isn't persistent, so whenever the solver is triggered it will create a
-new "py_slvs.slvs.System" object.Then the solver will go through the relevant entities and
-call their create_slvs_data method and pass the system object to it. Same applies
-to the constraints.
+Most viewport tools are **stateful operators** — a declarative framework for
+multi-step tools (pick/place points, enter values). The behavior is documented
+in the [interaction chapter](interaction_system.md); the code lives in
+`stateful_operator/` with extension-specific types added by `GenericEntityOp`
+(`operators/base_stateful.py`) and 2D specifics in `Operator2d`
+(`operators/base_2d.py`). See the [development guide](development.md) for how to
+drive and test these without a modal region.
 
-The create_slvs_data has to return the solver handles of the elements it adds to
-the solver. This is later used to check which constraints have failed to solve.
+## Gotchas
 
-When the solver was successful it will again go through all the entities and call their
-update_from_slvs methods to update the blender data from the solver system.
+### `remove_curves` drops STRING attributes
 
-## Converter
-Currently there is only one native converter implemented, namely the BezierConverter
-defined in converters.py. When converting to mesh the target bezier object is simply
-converted again with blenders to_mesh function. This is a design choice to workaround
-the problem of finding the area to fill for a given shape.
+Removing curves (including native edit-mode delete) drops **all STRING**
+attributes on the Curves data-block, on both domains. `INT` / `BOOL` / `FLOAT`
+attributes survive and re-index. This is why identity lives in `INT32_2D`
+sub-attributes, not strings, and why the only remaining STRING attribute
+(`name`, cosmetic) is snapshotted and restored around removal.
 
-As a bezier spline is defined by a list of bezier control-points entities we have to
-create a list of connected entities. This is done by the BezierConverter.walker() method.
-After that we cam simply loop through these connected entities and call their to_bezier() method.
+### Stale attribute wrappers
 
+After `remove_curves`, **re-fetch** the attribute wrapper via
+`curve_data.attributes.get(...)` — a wrapper obtained before the removal reads
+stale data.
 
-## FAQ
-### What happens when a button is pressed?
-In blender every user interaction happens through an operator. You can enable python
-tooltips to find the corresponding operator from a button. Check [blenders API Docs](https://docs.blender.org/api/current/info_quickstart.html) for more information.
+### Don't resolve ids in hot loops
 
-
-## Gotcha's
-### Entity pointers loose their assigned values
-> AttributeError: 'NoneType' object has no attribute "slvs_index"
-
-As described [here](https://docs.blender.org/api/current/info_gotcha.html#stale-data) data might not directly update after edit. This usually isn't a problem for interactive operators however it can be the case with operators, scripts or tests which add multiple entities/constraints at once.
-This can be solved by calling context.view_layer.update() before adding an element that depends on an element that was just created. Just be aware that this might have a negative performance impact.
-A better approach is to use the "index_reference" mode of the entity "add_" methods. If set to True the method will return the index of the entity rather than the object itself. All "add_" methods will allow passing entities by index, additionally they also accept passing parameters.
-
-```
-entities = context.scene.sketcher.entities
-
-p1 = entities.add_point_3d((0, 0, 0), index_reference=True)
-p2 = entities.add_point_3d((1, 1, 0), index_reference=True)
-line = entities.add_line_3d(p1, p2, construction=True, index_reference=True)
-
-assert type(p1) == int
-```
-
-### Propertie's update callbacks
-
-Some properties of entities or constraints have an update callback assigned which will be triggered whenever the property is changed, it's mainly used to trigger the solver or update the view. Example of this are the point entity's location property or the value property of dimensional constraints which will both trigger the solver when the property is changed.
-This behaiviour is not always welcome. When writing a tool it's almost always better to avoid triggering these callbacks and manually solving the system, updating the view etc.
-
-To avoid it, either set all properties in the "add_*" methods or change the value of properties like so:
-
-> entity["some_prop"] = value
+`get_uuid` performs two `attributes.get()` calls per invocation. Never call it
+per curve inside a draw or id-buffer loop; use `read_uuid_list` for a single bulk
+read instead.

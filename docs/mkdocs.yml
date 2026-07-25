@@ -17,6 +17,8 @@ nav:
     - interaction_system.md
     - advanced.md
     - code_docs.md
+    - development.md
+    - reference.md
 
 plugins:
   - search

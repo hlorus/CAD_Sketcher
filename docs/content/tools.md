@@ -103,10 +103,6 @@ The basic tool interaction is consistent between tools.
 
 > **INFO:** Chain selection works with coincident constraints too
 
-::: CAD_Sketcher.operators.add_point_3d.View3D_OT_slvs_add_point3d
-
-::: CAD_Sketcher.operators.add_line_3d.View3D_OT_slvs_add_line3d
-
 ::: CAD_Sketcher.operators.add_point_2d.View3D_OT_slvs_add_point2d
 
 ::: CAD_Sketcher.operators.add_line_2d.View3D_OT_slvs_add_line2d
@@ -117,8 +113,15 @@ The basic tool interaction is consistent between tools.
 
 ::: CAD_Sketcher.operators.add_rectangle.View3D_OT_slvs_add_rectangle
 
-::: CAD_Sketcher.operators.add_workplane.View3D_OT_slvs_add_workplane
-
-::: CAD_Sketcher.operators.add_workplane.View3D_OT_slvs_add_workplane_face
-
 ::: CAD_Sketcher.operators.trim.View3D_OT_slvs_trim
+
+### Workplane tools
+A workplane is any Blender object whose transform defines the sketch plane (see
+[code documentation](code_docs.md)). These operators manage the workplane an
+active sketch is anchored to.
+
+::: CAD_Sketcher.operators.align_workplane.View3D_OT_slvs_align_workplane_cursor
+
+::: CAD_Sketcher.operators.workplane_anchor.View3D_OT_slvs_make_workplane_free
+
+::: CAD_Sketcher.operators.workplane_anchor.View3D_OT_slvs_reattach_workplane
