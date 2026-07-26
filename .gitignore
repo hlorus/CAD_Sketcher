@@ -137,3 +137,4 @@ utils/*
 .blender_ext/
 /notes
 nul
+.claude/settings.local.json

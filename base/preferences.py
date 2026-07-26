@@ -1,26 +1,25 @@
+import logging
 import sys
 from pathlib import Path
-import logging
 
 import bpy
-from bpy.types import AddonPreferences, Panel, Menu
 from bl_ui.utils import PresetPanel
 from bpy.props import (
-    PointerProperty,
     BoolProperty,
-    StringProperty,
     EnumProperty,
-    IntProperty,
     FloatProperty,
+    IntProperty,
+    PointerProperty,
+    StringProperty,
 )
+from bpy.types import AddonPreferences, Menu, Panel
 
-from . import theme
 from .. import global_data, units
 from ..declarations import Operators
-from ..utilities.register import get_path, get_name
-from ..utilities.view import update_cb
 from ..utilities.install import check_module
-
+from ..utilities.register import get_name, get_path
+from ..utilities.view import update_cb
+from . import theme
 
 log_levels = [
     ("CRITICAL", "Critical", "", 0),
@@ -162,9 +161,45 @@ class Preferences(AddonPreferences):
         description="Automatically align view to workplane when activating a sketch.",
         default=True,
     )
+    show_whats_new: BoolProperty(
+        name="Show What's New on Update",
+        description="Show a summary of the changes after CAD Sketcher is updated",
+        default=True,
+    )
 
     def draw(self, context):
         layout = self.layout
+
+        # Quick links in two columns of three (learn/code | feedback/community).
+        # Kept clear of info already in Blender's manifest header above.
+        # Centered, with a fixed block width so the buttons keep a sensible
+        # minimum size instead of stretching or shrinking with the panel.
+        outer = layout.row()
+        outer.alignment = "CENTER"
+        cols = outer.row()
+        cols.ui_units_x = 32  # fixed width for the two-column block
+        left = cols.column(align=True)
+        left.operator("view3d.slvs_whats_new", text="What's New", icon="INFO")
+        left.operator(
+            "wm.url_open", text="Documentation", icon="HELP"
+        ).url = "https://hlorus.github.io/CAD_Sketcher/"
+        left.operator(
+            "wm.url_open", text="Source Code", icon="FILE_SCRIPT"
+        ).url = "https://github.com/hlorus/CAD_Sketcher"
+        cols.separator(factor=0.25)  # thin gap between the two columns
+        right = cols.column(align=True)
+        right.operator(
+            "wm.url_open", text="Report a Bug", icon="ERROR"
+        ).url = (
+            "https://github.com/hlorus/CAD_Sketcher/issues/new?template=bug-report.yml"
+        )
+        right.operator(
+            "wm.url_open", text="Request a Feature", icon="OUTLINER_OB_LIGHT"
+        ).url = "https://github.com/hlorus/CAD_Sketcher/discussions/106"
+        right.operator(
+            "wm.url_open", text="Discord", icon="COMMUNITY"
+        ).url = "https://discord.gg/GzpJsShgxa"
+
         layout.use_property_split = True
 
         box = layout.box()
@@ -213,6 +248,7 @@ class Preferences(AddonPreferences):
         box = layout.box()
         box.label(text="Advanced")
         col = box.column(align=True)
+        col.prop(self, "show_whats_new")
         col.prop(self, "show_debug_settings")
         col.prop(self, "logging_level")
 
@@ -261,6 +297,11 @@ class Preferences(AddonPreferences):
                         row.prop(base, prop_name)
 
             list_props_recursiv(self.theme_settings)
+
+        from . import whats_new
+
+        layout.separator()
+        whats_new.draw_donation(layout)
 
 
 classes = (

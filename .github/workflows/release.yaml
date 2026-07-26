@@ -83,12 +83,33 @@ jobs:
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Prepend the matching CHANGELOG.md section to the auto-generated notes.
+      # A stable tag with no entry is a hard error, so it can't be forgotten.
+      - name: Prepare changelog notes
+        working-directory: ./CAD_Sketcher
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          version="${TAG_NAME#v}"
+          notes="${{ github.workspace }}/notes.md"
+          if python3 changelog.py "$version" CHANGELOG.md > "$notes"; then
+            echo "Prepending CHANGELOG.md entry for $version."
+          else
+            : > "$notes"
+            if [[ "$version" != *-* ]]; then
+              echo "::error::No CHANGELOG.md entry for stable release $version. Add a '## $version' section before tagging."
+              exit 1
+            fi
+            echo "No changelog entry for pre-release $version; using auto-generated notes only."
+          fi
+
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
           files: CAD_Sketcher-${{ github.ref_name }}.zip
           prerelease: ${{ steps.pre.outputs.prerelease }}
           generate_release_notes: true
+          body_path: ${{ github.workspace }}/notes.md
 
   # Rebuild stable/index.json from the tagged (non-pre-release) releases.
   publish-stable:

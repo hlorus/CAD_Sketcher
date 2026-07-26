@@ -21,7 +21,7 @@ Minimum version: Blender 4.2
  - [Github Roadmap](https://github.com/users/hlorus/projects/1)
  - [Documentation](https://hlorus.github.io/CAD_Sketcher/)
  - [Installation](https://hlorus.github.io/CAD_Sketcher/installation)
- - [Discord](https://discord.gg/EyRjypztmf)
+ - [Discord](https://discord.gg/GzpJsShgxa)
  - [Report A Bug](https://github.com/hlorus/CAD_Sketcher/discussions/107)
  - [Feature Request](https://github.com/hlorus/CAD_Sketcher/discussions/106)
  - [Contribute](https://hlorus.github.io/CAD_Sketcher/advanced/#contribute)
@@ -60,6 +60,6 @@ The project accepts donations through Open Collective.
 
 Alternatively individual developers can link their donation links here:
 
-<a href="https://www.paypal.com/donate/?business=4A9SCSHAU3ZP6&no_recurring=0&currency_code=CHF">
+<a href="https://github.com/sponsors/hlorus">
 hlorus - Lead Dev
 </a>
