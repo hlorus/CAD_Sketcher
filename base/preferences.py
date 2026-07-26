@@ -224,7 +224,7 @@ class Preferences(AddonPreferences):
             row.operator(
                 Operators.InstallPackage,
                 text="Install from PIP",
-            ).package = "py-slvs"
+            ).package = "slvs"
 
         box = layout.box()
         box.label(text="General")
