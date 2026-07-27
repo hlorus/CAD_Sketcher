@@ -428,9 +428,16 @@ class GenericEntityOp(StatefulOperator):
 
     def create_snapshot(self, context: Context) -> Any:
         """Create a complete snapshot of all sketcher state using serialization"""
+        scene = context.scene
         return {
-            "scene": scene_to_dict(context.scene),
+            "scene": scene_to_dict(scene),
             "curves": self._snapshot_all_curves(context),
+            # Dimensional constraint values live in scene["slvs:c:{uid}"] custom
+            # properties, which the property-group serialization above does not
+            # capture. Snapshot them explicitly so restore can put them back.
+            "constraint_values": {
+                k: scene[k] for k in scene.keys() if str(k).startswith("slvs:c:")
+            },
         }
 
     def restore_snapshot(self, context: Context, snapshot: Any) -> None:
@@ -438,5 +445,13 @@ class GenericEntityOp(StatefulOperator):
         if not snapshot:
             return
 
-        scene_from_dict(context.scene, snapshot["scene"])
+        scene = context.scene
+        scene_from_dict(scene, snapshot["scene"])
         self._restore_all_curves(context, snapshot.get("curves"))
+
+        # Re-apply dimensional values LAST. Restoring the constraints fires the
+        # `is_reference` update callback (assign_init_props), which re-measures
+        # the constraint with not-yet-resolved geometry refs and clobbers the
+        # stored value with 0. Overwriting from the snapshot repairs that. (#564)
+        for key, value in snapshot.get("constraint_values", {}).items():
+            scene[key] = value
