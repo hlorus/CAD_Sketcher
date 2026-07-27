@@ -36,4 +36,34 @@ class View3D_OT_slvs_set_active_sketch(Operator):
         return {"CANCELLED"}
 
 
-register, unregister = register_classes_factory((View3D_OT_slvs_set_active_sketch,))
+class View3D_OT_slvs_set_sketch_visibility(Operator):
+    """Show or hide a sketch in the viewport"""
+
+    bl_idname = Operators.SetSketchVisibility
+    bl_label = "Toggle Sketch Visibility"
+
+    sketch_name: StringProperty(name="Sketch Name", default="")
+
+    @classmethod
+    def description(cls, context, properties):
+        ob = bpy.data.objects.get(properties.sketch_name)
+        if ob and ob.hide_viewport:
+            return "Show this sketch in the viewport"
+        return "Hide this sketch in the viewport"
+
+    def execute(self, context: Context):
+        ob = bpy.data.objects.get(self.sketch_name)
+        if not ob:
+            return {"CANCELLED"}
+        ob.hide_viewport = not ob.hide_viewport
+        if context.area:
+            context.area.tag_redraw()
+        return {"FINISHED"}
+
+
+register, unregister = register_classes_factory(
+    (
+        View3D_OT_slvs_set_active_sketch,
+        View3D_OT_slvs_set_sketch_visibility,
+    )
+)

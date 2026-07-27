@@ -98,34 +98,18 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             layout.separator()
 
             row = layout.row()
-            row.label(text=sketch.name)
+            row.prop(sketch.target_object, "name", text="Name")
 
         else:
-            # Sketch list
-            sketches = list(get_sketches(context))
-            if sketches:
-                col = layout.box().column(align=True)
-                for sk in sketches:
-                    row = col.row(align=True)
-
-                    # Edit sketch (left aligned)
-                    sub = row.row()
-                    sub.alignment = "LEFT"
-                    op = sub.operator(
-                        declarations.Operators.SetActiveSketch,
-                        text=sk.name,
-                        icon="OUTLINER_DATA_GP_LAYER",
-                        emboss=False,
-                    )
-                    op.sketch_name = sk.name
-
-                    # Delete sketch (right aligned)
-                    sub = row.row()
-                    sub.alignment = "RIGHT"
-                    op = sub.operator(
-                        declarations.Operators.DeleteSketch,
-                        text="",
-                        icon="X",
-                        emboss=False,
-                    )
-                    op.sketch_name = sk.name
+            # Sketch list — a scrollable UIList over scene.objects, filtered to
+            # sketch objects (see VIEW3D_UL_sketches.filter_items).
+            if any(True for _ in get_sketches(context)):
+                layout.template_list(
+                    "VIEW3D_UL_sketches",
+                    "",
+                    context.scene,
+                    "objects",
+                    context.scene.sketcher,
+                    "ui_active_sketch",
+                    rows=3,
+                )
