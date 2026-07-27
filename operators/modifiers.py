@@ -18,14 +18,18 @@ def set_modifier_input(modifier, identifier, value):
     """Set a Geometry-Nodes modifier input by socket identifier.
 
     Blender <= 5.1 stores modifier inputs as ID-properties on the modifier
-    itself (``modifier["Input_2"]``). Blender 5.2 moved them onto
-    ``modifier.properties`` and dropped ID-property support from the modifier,
-    so the old access raises "id properties not supported for this type". Route
-    through ``modifier.properties`` when it exists.
+    itself (``modifier["Input_2"] = value``). Blender 5.2 dropped ID-property
+    support from the modifier and exposes inputs through an RNA interface at
+    ``modifier.properties.inputs.<identifier>.value`` instead; the old access
+    now raises "id properties not supported for this type". Note attribute
+    access on ``.inputs`` returns the typed wrapper with a writable ``value``,
+    whereas subscripting it returns the raw ID-property group (no ``value``).
     """
     props = getattr(modifier, "properties", None)
-    target = modifier if props is None else props
-    target[identifier] = value
+    if props is not None and hasattr(props, "inputs"):
+        getattr(props.inputs, identifier).value = value   # Blender 5.2+
+    else:
+        modifier[identifier] = value                       # Blender <= 5.1
 
 
 BASE_STATES = (
