@@ -38,6 +38,9 @@ def draw_constraint_listitem(
     )
     props.type = constraint.type
     props.index = index
+    # Highlight the constraint and the geometry it acts on while hovering.
+    props.highlight_hover = True
+    props.highlight_members = True
 
 
 class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):

@@ -66,7 +66,8 @@ class HighlightElement:
             if isinstance(cid, str) and cid:
                 global_data.highlight_curve_ids = [cid]
 
-        context.area.tag_redraw()
+        if context.area:
+            context.area.tag_redraw()
         return cls.__doc__
 
     def handle_highlight_active(self, context: Context):

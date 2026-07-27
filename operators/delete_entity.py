@@ -10,6 +10,7 @@ from ..utilities.view import refresh
 from ..utilities.curve_data import remove_native_curve_by_id
 from ..declarations import Operators
 from ..curve_solver import solve_system
+from ..utilities.highlighting import HighlightElement
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ def _get_constraint_indices_for_curve_id(curve_id, context):
     return ret_list
 
 
-class View3D_OT_slvs_delete_entity(Operator):
+class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
     """Delete selected sketch geometry"""
 
     bl_idname = Operators.DeleteEntity
@@ -70,6 +71,11 @@ class View3D_OT_slvs_delete_entity(Operator):
     bl_options = {"UNDO"}
 
     index: StringProperty(default="")
+
+    @classmethod
+    def description(cls, context, properties):
+        cls.handle_highlight_hover(context, properties)
+        return cls.__doc__
 
     def execute(self, context: Context):
         sketch = get_active_sketch(context)

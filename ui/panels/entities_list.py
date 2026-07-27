@@ -97,6 +97,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
                 emboss=False,
             )
             props.curve_id = cid
+            props.highlight_hover = True
 
             # Delete
             props = row.operator(
@@ -106,3 +107,4 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
                 emboss=False,
             )
             props.index = cid
+            props.highlight_hover = True
