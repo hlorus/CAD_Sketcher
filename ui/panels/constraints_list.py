@@ -23,7 +23,22 @@ def draw_constraint_listitem(
         icon=("HIDE_OFF" if constraint.visible else "HIDE_ON"),
         emboss=False,
     )
-    row.label(text=str(constraint))
+
+    # Editable name
+    row.prop(constraint, "name", text="")
+
+    # Editable value(s). Dimensional constraints store their value in a scene
+    # custom property (scene["slvs:c:{uid}"]); draw that endpoint so it stays
+    # editable and driver-friendly. Other props fall back to a direct field.
+    value_sub = row.row()
+    for constraint_prop in constraint.props:
+        key = None
+        if constraint_prop == "value" and getattr(constraint, "constraint_uid", ""):
+            key = context.scene.sketcher.get_constraint_value_endpoint(constraint)
+        if key:
+            value_sub.prop(context.scene, f'["{key}"]', text="")
+        else:
+            value_sub.prop(constraint, constraint_prop, text="")
 
     # Failed indicator
     if constraint.failed:
