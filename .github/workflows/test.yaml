@@ -7,10 +7,18 @@ on:
 jobs:
   test-extension:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # "4.3" is blender_version_min from blender_manifest.toml — the minimal
+        # supported version. "4.5" is the current stable release we develop
+        # against. Keep "4.3" in sync with blender_version_min.
+        blender-version: ["4.3", "4.5"]
+    name: test-extension (blender ${{ matrix.blender-version }})
     steps:
       - uses: moguri/setup-blender@v1
         with:
-          blender-version: "4.5"
+          blender-version: ${{ matrix.blender-version }}
 
       - run: blender --version
 
