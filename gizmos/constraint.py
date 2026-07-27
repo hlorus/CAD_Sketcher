@@ -102,6 +102,10 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                 props = gz.target_set_operator(op)
                 props.type = c.type
                 props.index = gz.index
+                # Defer opening the menu until the mouse is released, otherwise
+                # the click's RELEASE falls through and triggers the entry under
+                # the cursor (often "Delete"). Matches the right-click keymap.
+                props.delayed = True
 
                 props.highlight_hover = True
                 props.highlight_members = True
