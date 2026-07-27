@@ -5,12 +5,45 @@ on:
     branches: [main]
 
 jobs:
-  test-extension:
+  versions:
+    # Derive the Blender versions to test from the manifest so the minimal
+    # supported version stays the single source of truth (no CI drift).
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: detect
+        name: Detect Blender versions to test
+        run: |
+          # Lower bound: minimal supported version, read from
+          # blender_manifest.toml. Strip the patch component ("4.3.0" -> "4.3")
+          # so setup-blender resolves it to the newest available 4.3.x.
+          min=$(grep -oP 'blender_version_min\s*=\s*"\K[0-9]+\.[0-9]+' blender_manifest.toml)
+          if [ -z "$min" ]; then
+            echo "::error::Could not parse blender_version_min from blender_manifest.toml" >&2
+            exit 1
+          fi
+          # Upper bound: the literal "latest", which setup-blender resolves to
+          # the newest non-beta release on the Blender mirror at install time.
+          # Nothing is hardcoded — min tracks the manifest, max tracks releases.
+          matrix="[\"$min\", \"latest\"]"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "Testing Blender versions: $matrix"
+
+  test-extension:
+    needs: versions
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        blender-version: ${{ fromJSON(needs.versions.outputs.matrix) }}
+    name: test-extension (blender ${{ matrix.blender-version }})
     steps:
       - uses: moguri/setup-blender@v1
         with:
-          blender-version: "4.5"
+          blender-version: ${{ matrix.blender-version }}
 
       - run: blender --version
 

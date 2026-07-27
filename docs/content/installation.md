@@ -46,11 +46,11 @@
 ## Dependency installation
 CAD Sketcher heavily depends on the [solvespace python module](https://pypi.org/project/slvs/) and won't be functional without it. When installed as an Extension the module ships bundled as a wheel, so there's usually nothing to do here.
 
-> **Python version compatibility:** the bundled solver provides wheels for Python **3.11, 3.12 and 3.13** — the versions embedded in official [blender.org](https://www.blender.org/download/) builds. If Blender reports something like *"This Python version (3.14) isn't compatible with (3.11)"* on install, it's running a **newer system Python** (common with distribution-packaged Blender on rolling distros such as Arch/CachyOS). Fix it by using an official build from [blender.org](https://www.blender.org/download/) — the **4.5 LTS** is a safe choice — instead of your distribution's package. Python 3.14 is not yet supported (waiting on an upstream `slvs` release).
+> **Python version compatibility:** the bundled solver provides wheels for Python **3.11, 3.12 and 3.13** — the versions embedded in official [blender.org](https://www.blender.org/download/) builds. If Blender reports something like *"This Python version (3.14) isn't compatible with (3.11)"* on install, it's running a **newer system Python** (common with distribution-packaged Blender on rolling distros such as Arch/CachyOS). Fix it by using an official build from [blender.org](https://www.blender.org/download/) — the **5.2 LTS** is a safe choice — instead of your distribution's package. Python 3.14 is not yet supported (waiting on an upstream `slvs` release).
 
 Once the 3D View CAD Sketcher plugin is installed check its preferences for the "Solver Module" tab to see if the module is already available, otherwise follow one of the guides below.
 
-=== "Blender 4.2 Extension"
+=== "Blender 5.0 Extension"
     - If you install CAD Sketcher as a Blender Extension you can skip this step
 
 === "Install from PIP"
