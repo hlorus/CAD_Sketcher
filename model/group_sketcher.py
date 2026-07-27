@@ -46,13 +46,6 @@ class SketcherProps(PropertyGroup):
         options={"SKIP_SAVE"},
         update=update_cb,
     )
-    selectable_constraints: BoolProperty(
-        name="Constraints Selectability",
-        default=True,
-        options={"SKIP_SAVE"},
-        update=update_cb,
-    )
-
     version: IntVectorProperty(
         name="Extension Version",
         description="CAD Sketcher extension version this scene was saved with",

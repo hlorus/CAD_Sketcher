@@ -49,9 +49,6 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
     # track changes for that value
     # if not hasattr(self, "custom_shape"):
     def draw_select(self, context, select_id):
-        if not context.scene.sketcher.selectable_constraints:
-            return
-
         constr = self._get_constraint(context)
         if not constr.visible:
             return

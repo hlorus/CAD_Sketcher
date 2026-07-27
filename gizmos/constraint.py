@@ -159,9 +159,6 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
             self.matrix_basis = mat
 
     def test_select(self, context, location):
-        if not context.scene.sketcher.selectable_constraints:
-            return -1
-
         location = Vector(location).to_3d()
         location -= self.matrix_basis.translation
         location *= 1.0 / self.scale_basis
@@ -195,9 +192,6 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
     __slots__ = ("type", "index", "width", "height")
 
     def test_select(self, context, location):
-        if not context.scene.sketcher.selectable_constraints:
-            return -1
-
         coords = Vector(location) - self.matrix_basis.translation.to_2d()
 
         width, height = self.width, self.height

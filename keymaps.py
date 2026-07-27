@@ -203,42 +203,6 @@ node_access = (
     ),
 )
 
-disable_gizmos = (
-    # Disabling gizmos when pressing ctrl + shift
-    # Add two entries so it doesn't matter which key is pressed first
-    # NOTE: This cannot be done as a normal modifier key to selection since it has to toggle a global property
-    (
-        "wm.context_set_boolean",
-        {"type": "LEFT_SHIFT", "value": "PRESS", "ctrl": True},
-        {
-            "properties": [
-                ("data_path", "scene.sketcher.selectable_constraints"),
-                ("value", False),
-            ]
-        },
-    ),
-    (
-        "wm.context_set_boolean",
-        {"type": "LEFT_CTRL", "value": "PRESS", "shift": True},
-        {
-            "properties": [
-                ("data_path", "scene.sketcher.selectable_constraints"),
-                ("value", False),
-            ]
-        },
-    ),
-    (
-        "wm.context_set_boolean",
-        {"type": "LEFT_SHIFT", "value": "RELEASE", "any": True},
-        {
-            "properties": [
-                ("data_path", "scene.sketcher.selectable_constraints"),
-                ("value", True),
-            ]
-        },
-    ),
-)
-
 use_construction = (
     "wm.context_toggle",
     {"type": "C", "value": "PRESS", "alt": True, "shift": True},
@@ -319,7 +283,6 @@ tool_base_keymap = (
 
 tool_generic = (
     *tool_base_keymap,
-    *disable_gizmos,
     use_construction,
     *tool_use_select,
     *tool_access,
@@ -332,7 +295,6 @@ tool_node = (
 
 tool_select = (
     *tool_base_keymap,
-    *disable_gizmos,
     *tool_access,
     (
         Operators.SelectAll,

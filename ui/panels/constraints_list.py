@@ -63,13 +63,6 @@ class VIEW3D_PT_sketcher_constraints(VIEW3D_PT_sketcher_base):
             declarations.Operators.SetAllConstraintsVisibility,
             text="Hide All",
         ).visibility = "HIDE"
-        row.prop(
-            context.scene.sketcher,
-            "selectable_constraints",
-            text="",
-            icon_only=True,
-            icon="RESTRICT_SELECT_OFF",
-        )
 
         # Dimensional Constraints
         layout.label(text="Dimensional:")
