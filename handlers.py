@@ -120,6 +120,29 @@ def on_depsgraph_update(scene, depsgraph):
             context.space_data.show_gizmo = True
 
 
+def on_frame_change(scene, depsgraph=None):
+    """Re-solve on frame changes so animated/driven dimensions update.
+
+    Dimensional values are stored in ``scene["slvs:c:{uid}"]`` custom properties
+    specifically so they can be driven/animated (issue #544). A driver writes
+    that value during depsgraph evaluation, which does not reliably re-flag the
+    scene for ``depsgraph_update_post``; ``frame_change_post`` does fire, so we
+    re-solve here. Covers timeline scrubbing and playback.
+    """
+    from . import global_data
+    if global_data.stateful_op_running:
+        return
+
+    from .curve_solver import solve_system
+    from .utilities.curve_data import refresh_curve_geometry
+    from .model.sketch_ref import get_sketches
+
+    context = bpy.context
+    for sketch in get_sketches(scene):
+        if solve_system(context, sketch=sketch):
+            refresh_curve_geometry(sketch)
+
+
 def _setup_builtin_handlers():
     from .versioning import do_versioning, write_addon_version
 
@@ -127,6 +150,7 @@ def _setup_builtin_handlers():
     add_builtin_handler("save_pre", write_addon_version)
     add_builtin_handler("load_post", on_load_post)
     add_builtin_handler("depsgraph_update_post", on_depsgraph_update)
+    add_builtin_handler("frame_change_post", on_frame_change)
 
 
 def register():
