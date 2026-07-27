@@ -10,7 +10,7 @@ Constraint-based sketcher extension for [Blender](https://www.blender.org/) that
 
 > :warning: **Experimental extension:** This is still work in progress, don't use it on production files without a backup.
 
-Minimum version: Blender 4.2
+Minimum version: Blender 5.0
 
 ## More than just an extension learn more: [CADsketcher.com](http://cadsketcher.com/)
 
