@@ -15,6 +15,7 @@ into Blender, better stability and performance.
 - Workplanes on mesh faces now follow geometry edits and object transforms
 - Sketch-mode specific tools are now only visible when a sketch is active
 - Added auto-constraints toggle to add horizontal, vertical and coincident constraints while drawing; hold Shift to skip
+- Snap sketch points to existing 3D geometry (vertices, edges, midpoints, face center); this is a static snap at placement time and does not track the underlying geometry afterwards
 - Added Workspacetools for parametric Extrude and Linear Array
 - Added extension auto-update via the extension repository
 - New "What's New" dialog surfaces changes after each update

@@ -16,9 +16,12 @@ class GenericEntityOp(StatefulOperator):
     """Extend StatefulOperator with extension specific types"""
 
     def check_event(self, event):
-        # Holding Shift when confirming a placement bypasses inferred
-        # auto-constraints for that state. Captured at the confirm click (not
-        # sticky) so releasing Shift restores normal behaviour.
+        # Shift = "place it raw": bypass both geometry snapping and inferred
+        # auto-constraints.
+        #  - Snapping is a live preview, so track Shift on every event.
+        #  - Auto-constraints are applied at the confirm click, so capture Shift
+        #    there (not sticky) — releasing Shift restores normal behaviour.
+        global_data.snap_bypass = bool(event.shift)
         if event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER") and event.value == "PRESS":
             self.state_data["skip_auto_constraints"] = bool(event.shift)
         return super().check_event(event)

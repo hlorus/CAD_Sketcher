@@ -35,6 +35,8 @@ needs_solve = False
 needs_redraw = False
 needs_curve_update = False
 stateful_op_running = False
+# True while Shift is held during a draw modal -> bypass geometry snapping live.
+snap_bypass = False
 
 # Guards re-entry while the depsgraph handler writes face-anchored workplane
 # matrices (setting matrix_world itself triggers depsgraph_update_post).

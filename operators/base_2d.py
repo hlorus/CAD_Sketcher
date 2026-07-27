@@ -43,7 +43,7 @@ class Operator2d(GenericEntityOp):
     def state_func(self, context: Context, coords):
         state = self.state
         wp = self._get_wp()
-        pos = get_pos_2d(context, wp, coords)
+        pos = get_pos_2d(context, wp, coords, respect_snapping=True)
 
         # Handle implicit properties based on state.types
         if SlvsPoint2D in state.types:

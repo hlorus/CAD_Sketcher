@@ -9,11 +9,12 @@ from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 from ..curve_solver import solve_system
 from ..utilities.math import pol2cart
+from ..utilities.geometry import intersect_line_sphere_2d
 from ..model.curve_ref import ArcRef
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
-from ..utilities.view import get_pos_2d
+from ..utilities.view import get_blender_snap_info, get_pos_2d, get_wp_matrix
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +55,37 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
     )
 
     def get_endpoint_pos(self, context: Context, coords):
-        mouse_pos = get_pos_2d(context, self._get_wp(), coords)
+        wp = self._get_wp()
+        snap_data = get_blender_snap_info(context, coords)
+        mouse_pos = get_pos_2d(context, wp, coords, respect_snapping=True)
         if mouse_pos is None:
             return None
 
         ct = self.get_point(context, 0).co
         p1 = self.get_point(context, 1).co
+        radius = (p1 - ct).length
+
+        # Snap the endpoint onto the arc's circle where a nearby edge crosses it,
+        # or to a vertex lying on the circle (visual only, no constraint).
+        if snap_data and snap_data["type"] in {"EDGE", "EDGE_MIDPOINT"}:
+            world_edge = snap_data.get("world_edge")
+            if world_edge:
+                mat_inv = get_wp_matrix(wp).inverted()
+                e0, e1 = [Vector((mat_inv @ point)[:-1]) for point in world_edge]
+                intersections = intersect_line_sphere_2d(e0, e1, ct, radius)
+                if intersections:
+                    mouse_pos = Vector(
+                        min(
+                            intersections,
+                            key=lambda point: (Vector(point) - mouse_pos).length,
+                        )
+                    )
+        elif snap_data and snap_data["type"] in {"VERTEX", "FACE_MIDPOINT"}:
+            vertex_pos = Vector(
+                (get_wp_matrix(wp).inverted() @ snap_data["world_point"])[:-1]
+            )
+            if abs((vertex_pos - ct).length - radius) < 1e-5:
+                mouse_pos = vertex_pos
 
         x, y = Vector(mouse_pos) - ct
         mouse_angle = math.atan2(y, x)
@@ -83,7 +109,6 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
         self._arc_invert = self._cumulative_angle < 0
 
         # Snap endpoint to circle
-        radius = (p1 - ct).length
         pos = pol2cart(radius, mouse_angle) + ct
         return pos
 

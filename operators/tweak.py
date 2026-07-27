@@ -1,14 +1,12 @@
 from bpy.types import Operator, Context, Event
 from ..model.sketch_ref import get_active_sketch
 from bpy.utils import register_classes_factory
-from mathutils.geometry import intersect_line_plane
 
 from .. import global_data
 from ..declarations import Operators
 from ..curve_solver import CurveSolver
-from ..utilities.view import get_picking_origin_dir
+from ..utilities.view import get_picking_origin_dir, get_pos_2d, get_wp_matrix
 from ..utilities.curve_data import get_curve_data, get_curve_type, refresh_curve_geometry
-from ..utilities.workplane import get_workplane_origin_normal
 from ..model.constants import SketchCurveType
 
 
@@ -18,6 +16,23 @@ class View3D_OT_slvs_tweak(Operator):
     bl_idname = Operators.Tweak
     bl_label = "Tweak Solvespace Entities"
     bl_options = {"UNDO"}
+
+    def _get_wp(self):
+        """The sketch's workplane object (same resolution as the solver uses)."""
+        wp = self.sketch.workplane_object if self.sketch else None
+        if not wp and self.sketch.target_object and self.sketch.target_object.parent:
+            wp = self.sketch.target_object.parent
+        return wp
+
+    def _get_tweak_pos(self, context: Context, coords):
+        """World-space picking position, honoring Blender's snapping."""
+        wp = self._get_wp()
+        if wp is None:
+            return None
+        pos_2d = get_pos_2d(context, wp, coords, respect_snapping=True)
+        if pos_2d is None:
+            return None
+        return get_wp_matrix(wp) @ pos_2d.to_3d()
 
     def invoke(self, context: Context, event):
         curve_id = global_data.hover
@@ -36,16 +51,11 @@ class View3D_OT_slvs_tweak(Operator):
         if curve_data is None:
             return {"PASS_THROUGH"}
 
-        # Get picking position from workplane intersection
+        # Get picking position on the workplane (honoring Blender's snapping)
         coords = (event.mouse_region_x, event.mouse_region_y)
-        origin, view_vector = get_picking_origin_dir(context, coords)
+        origin, _view_vector = get_picking_origin_dir(context, coords)
 
-        wp_origin, wp_normal = get_workplane_origin_normal(sketch)
-        if wp_origin is None:
-            return {"PASS_THROUGH"}
-        end_point = view_vector * context.space_data.clip_end + origin
-        pos = intersect_line_plane(origin, end_point, wp_origin, wp_normal)
-
+        pos = self._get_tweak_pos(context, coords)
         if pos is None:
             return {"PASS_THROUGH"}
 
@@ -66,14 +76,8 @@ class View3D_OT_slvs_tweak(Operator):
         if event.type == "MOUSEMOVE":
             coords = (event.mouse_region_x, event.mouse_region_y)
 
-            origin, dir = get_picking_origin_dir(context, coords)
-
-            wp_origin, wp_normal = get_workplane_origin_normal(self.sketch)
-            if wp_origin is None:
-                return {"RUNNING_MODAL"}
-            end_point = dir * context.space_data.clip_end + origin
-            pos = intersect_line_plane(origin, end_point, wp_origin, wp_normal)
-
+            global_data.snap_bypass = bool(event.shift)  # Shift bypasses snapping
+            pos = self._get_tweak_pos(context, coords)
             if pos is None:
                 return {"RUNNING_MODAL"}
 
