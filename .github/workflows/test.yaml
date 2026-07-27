@@ -17,22 +17,18 @@ jobs:
       - id: detect
         name: Detect Blender versions to test
         run: |
-          # Minimal supported version, read from blender_manifest.toml.
-          # Strip the patch component: "4.3.0" -> "4.3" so setup-blender
-          # resolves it to the latest available 4.3.x.
+          # Lower bound: minimal supported version, read from
+          # blender_manifest.toml. Strip the patch component ("4.3.0" -> "4.3")
+          # so setup-blender resolves it to the newest available 4.3.x.
           min=$(grep -oP 'blender_version_min\s*=\s*"\K[0-9]+\.[0-9]+' blender_manifest.toml)
           if [ -z "$min" ]; then
             echo "::error::Could not parse blender_version_min from blender_manifest.toml" >&2
             exit 1
           fi
-          # Current stable release we actively develop against.
-          stable="4.5"
-          # De-duplicated JSON array (minimal version first).
-          if [ "$min" = "$stable" ]; then
-            matrix="[\"$min\"]"
-          else
-            matrix="[\"$min\", \"$stable\"]"
-          fi
+          # Upper bound: the literal "latest", which setup-blender resolves to
+          # the newest non-beta release on the Blender mirror at install time.
+          # Nothing is hardcoded — min tracks the manifest, max tracks releases.
+          matrix="[\"$min\", \"latest\"]"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "Testing Blender versions: $matrix"
 
