@@ -135,6 +135,34 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
     def placements(self):
         return (self.ref(1), self.ref(2))
 
+    def curve_id_placements(self):
+        """Show a single tangent marker at the tangent point.
+
+        The default would draw an icon on every referenced curve (line *and*
+        arc), giving two markers. Place it once at the curved side, whose
+        placement is its start point -- the tangent point when the two share a
+        coincident endpoint.
+        """
+        from ..utilities.curve_data import get_curve_type
+        from .constants import SketchCurveType
+
+        ids = [
+            cid for cid in (getattr(self, "curve_id_1", ""),
+                            getattr(self, "curve_id_2", ""),
+                            getattr(self, "curve_id_3", "")) if cid
+        ]
+        if not ids:
+            return []
+        sketch = self._get_sketch()
+        if sketch:
+            for cid in ids:
+                if get_curve_type(sketch, cid) in (
+                    SketchCurveType.ARC,
+                    SketchCurveType.CIRCLE,
+                ):
+                    return [cid]
+        return ids[:1]
+
 
 slvs_entity_pointer(SlvsTangent, "entity1")
 slvs_entity_pointer(SlvsTangent, "entity2")
