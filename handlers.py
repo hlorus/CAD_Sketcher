@@ -101,10 +101,17 @@ def on_depsgraph_update(scene, depsgraph):
         global_data.needs_solve = False
         from .curve_solver import solve_system
         from .model.sketch_ref import get_active_sketch
+        from .utilities.curve_data import refresh_curve_geometry
 
         context = bpy.context
         sketch = get_active_sketch(context)
-        solve_system(context, sketch=sketch)
+        if solve_system(context, sketch=sketch) and sketch:
+            # The solver writes point positions in place, which does not make
+            # the Geometry Nodes modifier re-evaluate; force a topology rebuild
+            # so the generated mesh matches the solved geometry (operators that
+            # solve do this themselves; this covers the depsgraph-driven path,
+            # e.g. editing a dimension value).
+            refresh_curve_geometry(sketch)
 
     if global_data.needs_redraw:
         global_data.needs_redraw = False
