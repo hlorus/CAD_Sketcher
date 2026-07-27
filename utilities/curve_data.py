@@ -372,6 +372,7 @@ def sync_curve_selection(scene):
 
     selected = set(global_data.selected)
     hover = global_data.hover
+    highlighted = set(global_data.highlight_curve_ids)
     for sketch in get_sketches(scene):
         if not sketch.target_object or not sketch.target_object.data:
             continue
@@ -389,7 +390,11 @@ def sync_curve_selection(scene):
 
         ids = read_uuid_list(curve_data, "curve_id")
         want_sel = np.fromiter((c in selected for c in ids), dtype=bool, count=n_curves)
-        want_hov = np.fromiter((bool(c) and c == hover for c in ids), dtype=bool, count=n_curves)
+        want_hov = np.fromiter(
+            (bool(c) and (c == hover or c in highlighted) for c in ids),
+            dtype=bool,
+            count=n_curves,
+        )
 
         # Only write when something actually changed. Writing attribute data
         # every frame dirties the datablock and re-triggers the GN modifier +

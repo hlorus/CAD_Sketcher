@@ -35,31 +35,36 @@ class HighlightElement:
 
     @classmethod
     def _do_highlight(cls, context: Context, properties: PropertyGroup):
-        if not properties.is_property_set("index"):
+        has_index = properties.is_property_set("index")
+        has_curve_id = (
+            hasattr(properties, "curve_id") and properties.is_property_set("curve_id")
+        )
+        if not has_index and not has_curve_id:
             return cls.__doc__
 
         # Clear previous highlights
         global_data.highlight_constraint = None
         global_data.highlight_entities = []
+        global_data.highlight_curve_ids = []
 
-        index = properties.index
         members = properties.highlight_members
 
         if hasattr(properties, "type") and properties.is_property_set("type"):
-            type = properties.type
-            c = get_active_constraints(context).get_from_type_index(type, index)
-
-            global_data.highlight_constraint = c
-            if members:
-                global_data.highlight_entities.extend(c.entities())
-
+            # Constraint: highlight the gizmo and, optionally, the geometry it
+            # acts on (curve highlighting is driven by curve_ids now, not
+            # entity objects).
+            c = get_active_constraints(context).get_from_type_index(
+                properties.type, properties.index
+            )
+            if c:
+                global_data.highlight_constraint = c
+                if members:
+                    global_data.highlight_curve_ids = c.curve_id_placements()
         else:
-            # Set hover so this could be used as selection
-            global_data.hover = properties.index
-            if members:
-                c = get_active_constraints(context).get_from_type_index(type, index) if type else None
-                if c:
-                    global_data.highlight_entities.extend(c.curve_id_placements())
+            # Entity operator: highlight the referenced curve.
+            cid = properties.curve_id if has_curve_id else properties.index
+            if isinstance(cid, str) and cid:
+                global_data.highlight_curve_ids = [cid]
 
         context.area.tag_redraw()
         return cls.__doc__

@@ -46,6 +46,10 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             global_data.highlight_entities.clear()
             context.area.tag_redraw()
 
+        if global_data.highlight_curve_ids:
+            global_data.highlight_curve_ids = []
+            context.area.tag_redraw()
+
         # ensure selection texture is up to date
         # TODO: avoid dependency on operators module?
         ensure_selection_texture(context)

@@ -31,6 +31,11 @@ highlight_constraint = None
 
 highlight_entities = []
 
+# curve_ids to highlight (e.g. the geometry a hovered constraint acts on).
+# Folded into the per-curve "hover" highlight by sync_curve_selection; cleared
+# in the preselection gizmo.
+highlight_curve_ids = []
+
 needs_solve = False
 needs_redraw = False
 needs_curve_update = False
