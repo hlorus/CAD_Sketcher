@@ -57,7 +57,7 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
         # auto vertical/horizontal constraint
         self.has_alignment = False
         vec_dir = self.target.direction_vec()
-        if vec_dir.length:
+        if vec_dir.length and self.use_auto_constraints(context):
             angle = vec_dir.angle(Vector((1, 0)))
 
             threshold = 0.1

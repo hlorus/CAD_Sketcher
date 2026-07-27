@@ -72,9 +72,12 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
     def fini(self, context: Context, succeede: bool):
         if hasattr(self, "lines") and self.lines:
             sc = self.sketch.constraints
-            for i, line_ref in enumerate(self.lines):
-                func = sc.add_horizontal if (i % 2) == 0 else sc.add_vertical
-                func(curve_id_1=line_ref.curve_id)
+            # Auto axis-alignment constraints (inferred) respect the toggle and
+            # Shift bypass; the numeric distance constraints below are explicit.
+            if self.use_auto_constraints(context):
+                for i, line_ref in enumerate(self.lines):
+                    func = sc.add_horizontal if (i % 2) == 0 else sc.add_vertical
+                    func(curve_id_1=line_ref.curve_id)
 
             data = self._state_data.get(1)
             if data.get("is_numeric_edit", False):

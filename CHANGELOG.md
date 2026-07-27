@@ -14,6 +14,7 @@ into Blender, better stability and performance.
 - Workplanes are now empties, so native Blender tools can be used to define sketch placement
 - Workplanes on mesh faces now follow geometry edits and object transforms
 - Sketch-mode specific tools are now only visible when a sketch is active
+- Added auto-constraints toggle to add horizontal, vertical and coincident constraints while drawing; hold Shift to skip
 - Added Workspacetools for parametric Extrude and Linear Array
 - Added extension auto-update via the extension repository
 - New "What's New" dialog surfaces changes after each update

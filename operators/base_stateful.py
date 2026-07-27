@@ -16,7 +16,25 @@ class GenericEntityOp(StatefulOperator):
     """Extend StatefulOperator with extension specific types"""
 
     def check_event(self, event):
+        # Holding Shift when confirming a placement bypasses inferred
+        # auto-constraints for that state. Captured at the confirm click (not
+        # sticky) so releasing Shift restores normal behaviour.
+        if event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER") and event.value == "PRESS":
+            self.state_data["skip_auto_constraints"] = bool(event.shift)
         return super().check_event(event)
+
+    def use_auto_constraints(self, context: Context, state_data=None) -> bool:
+        """Whether inferred constraints should be added for this state.
+
+        Combines the persistent "Auto Constraints" toggle with the per-state
+        Shift bypass set in ``check_event``.
+        """
+        if state_data is None:
+            state_data = self.state_data
+        return (
+            context.scene.sketcher.auto_axis_constraints
+            and not state_data.get("skip_auto_constraints", False)
+        )
 
     def pick_element(self, context, coords):
         retval = super().pick_element(context, coords)
@@ -43,6 +61,8 @@ class GenericEntityOp(StatefulOperator):
         return hovered.curve_id if hovered else None
 
     def add_coincident(self, context: Context, point, state, state_data):
+        if not self.use_auto_constraints(context, state_data):
+            return
         hovered_cid = state_data.get("hovered", "")
         if hovered_cid and hasattr(self, "sketch") and self.sketch:
             from ..model.curve_ref import CurveRef

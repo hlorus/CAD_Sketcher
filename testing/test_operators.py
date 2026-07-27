@@ -44,6 +44,7 @@ class TestCreateOperators(Sketch2dTestCase):
         from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
         from ..model.horizontal import SlvsHorizontal
 
+        self.context.scene.sketcher.auto_axis_constraints = True
         h = self._harness(View3D_OT_slvs_add_line2d)
         h.place_point((0.0, 0.0)).place_point((5.0, 0.0))  # horizontal
         h.finish()
@@ -55,6 +56,68 @@ class TestCreateOperators(Sketch2dTestCase):
             if isinstance(c, SlvsHorizontal) and line_cid in c.curve_id_placements()
         ]
         self.assertEqual(len(horiz), 1, "expected exactly one auto horizontal constraint")
+
+    def test_auto_constraints_toggle_off_suppresses_alignment(self):
+        """With Auto Constraints disabled, an axis-aligned line gets no constraint."""
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+        from ..model.horizontal import SlvsHorizontal
+
+        self.context.scene.sketcher.auto_axis_constraints = False
+        try:
+            h = self._harness(View3D_OT_slvs_add_line2d)
+            h.place_point((0.0, 0.0)).place_point((5.0, 0.0))  # horizontal
+            h.finish()
+
+            self.assertFalse(h.op.has_alignment, "toggle off must suppress auto alignment")
+            line_cid = h.op.target.curve_id
+            horiz = [
+                c for c in self.sketch.constraints.all
+                if isinstance(c, SlvsHorizontal) and line_cid in c.curve_id_placements()
+            ]
+            self.assertEqual(len(horiz), 0, "no auto constraint should be added when disabled")
+        finally:
+            self.context.scene.sketcher.auto_axis_constraints = True
+
+    def test_shift_bypass_suppresses_alignment(self):
+        """Shift on a segment (skip_auto_constraints) bypasses auto alignment
+        even with the toggle enabled."""
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+        from ..model.horizontal import SlvsHorizontal
+
+        self.context.scene.sketcher.auto_axis_constraints = True
+        h = self._harness(View3D_OT_slvs_add_line2d)
+        h.place_point((0.0, 0.0)).place_point((5.0, 0.0))  # horizontal
+        # Mimic Shift held during the segment (what check_event records).
+        h.op.get_state_data(h.op.state_index)["skip_auto_constraints"] = True
+        h.finish()
+
+        self.assertFalse(h.op.has_alignment, "Shift bypass must suppress auto alignment")
+        line_cid = h.op.target.curve_id
+        horiz = [
+            c for c in self.sketch.constraints.all
+            if isinstance(c, SlvsHorizontal) and line_cid in c.curve_id_placements()
+        ]
+        self.assertEqual(len(horiz), 0, "no auto constraint should be added under Shift bypass")
+
+    def test_shift_bypass_is_not_sticky(self):
+        """A confirm with Shift sets the bypass; a later confirm without Shift
+        clears it (regression: the bypass used to hang after Shift release)."""
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+
+        class _Event:
+            def __init__(self, shift):
+                self.type = "LEFTMOUSE"
+                self.value = "PRESS"
+                self.shift = shift
+
+        op = self._harness(View3D_OT_slvs_add_line2d).op
+        op.check_event(_Event(shift=True))
+        self.assertTrue(op.state_data.get("skip_auto_constraints"), "Shift confirm sets bypass")
+        op.check_event(_Event(shift=False))
+        self.assertFalse(
+            op.state_data.get("skip_auto_constraints"),
+            "confirm without Shift must clear the bypass (not sticky)",
+        )
 
     def test_diagonal_line_gets_no_alignment_constraint(self):
         from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
