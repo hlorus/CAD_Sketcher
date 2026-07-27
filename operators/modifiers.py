@@ -14,6 +14,20 @@ from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
 
 
+def set_modifier_input(modifier, identifier, value):
+    """Set a Geometry-Nodes modifier input by socket identifier.
+
+    Blender <= 5.1 stores modifier inputs as ID-properties on the modifier
+    itself (``modifier["Input_2"]``). Blender 5.2 moved them onto
+    ``modifier.properties`` and dropped ID-property support from the modifier,
+    so the old access raises "id properties not supported for this type". Route
+    through ``modifier.properties`` when it exists.
+    """
+    props = getattr(modifier, "properties", None)
+    target = modifier if props is None else props
+    target[identifier] = value
+
+
 BASE_STATES = (
     state_from_args(
         "Object",
@@ -176,10 +190,10 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
 
     def set_props(self):
         m = self.modifier
-        m["Input_2"] = self.offset               # Size
-        m["Input_3"] = self.mirror               # Mirror Extrude
-        m["Input_4"] = self.asymmetry            # Asymmetry Override
-        m["Input_5"] = self.asymmetry_distance   # Asymmetry Distance
+        set_modifier_input(m, "Input_2", self.offset)              # Size
+        set_modifier_input(m, "Input_3", self.mirror)              # Mirror Extrude
+        set_modifier_input(m, "Input_4", self.asymmetry)           # Asymmetry Override
+        set_modifier_input(m, "Input_5", self.asymmetry_distance)  # Asymmetry Distance
         return True
 
     def draw_settings(self, context):
@@ -278,14 +292,14 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
             distance = 0.0
 
         m = self.modifier
-        m["Input_21"][:] = direction             # Direction
-        m["Input_22"] = self.count               # Count
-        m["Input_23"] = distance                 # Spacing / Total distance
-        m["Input_24"] = self.use_total_distance  # Use Total Distance
-        m["Input_25"] = self.align_rotation      # Align Rotation
-        m["Input_26"] = self.merge               # Merge by Distance
-        m["Input_29"] = self.merge_distance      # Merge Distance
-        m["Input_30"] = self.flip                # Flip Direction
+        set_modifier_input(m, "Input_21", tuple(direction))         # Direction
+        set_modifier_input(m, "Input_22", self.count)               # Count
+        set_modifier_input(m, "Input_23", distance)                 # Spacing / Total distance
+        set_modifier_input(m, "Input_24", self.use_total_distance)  # Use Total Distance
+        set_modifier_input(m, "Input_25", self.align_rotation)      # Align Rotation
+        set_modifier_input(m, "Input_26", self.merge)               # Merge by Distance
+        set_modifier_input(m, "Input_29", self.merge_distance)      # Merge Distance
+        set_modifier_input(m, "Input_30", self.flip)                # Flip Direction
         return True
 
     def draw_settings(self, context):

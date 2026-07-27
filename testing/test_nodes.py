@@ -13,6 +13,7 @@ from .. import assets_manager as am
 from ..global_data import LIB_NAME
 from ..operators.modifiers import (
     is_2d_profile,
+    set_modifier_input,
     View3D_OT_node_extrude,
     View3D_OT_node_array_linear,
 )
@@ -109,7 +110,7 @@ class TestNodeTools(BgsTestCase):
         ob = self._plane()
         z0 = self._extent(self._eval_mesh(ob), "z")
         mod = self._add_node_mod(ob, EXTRUDE)
-        mod["Input_2"] = 1.5  # Size (as the operator's set_props sets it)
+        set_modifier_input(mod, "Input_2", 1.5)  # Size (as the operator's set_props sets it)
         z1 = self._extent(self._eval_mesh(ob), "z")
         self.assertGreater(z1, z0 + 0.5)
 
@@ -119,9 +120,9 @@ class TestNodeTools(BgsTestCase):
         base = self._eval_mesh(ob)
         x0, n0 = self._extent(base, "x"), len(base.vertices)
         mod = self._add_node_mod(ob, ARRAY)
-        mod["Input_21"][:] = (1.0, 0.0, 0.0)  # Direction
-        mod["Input_23"] = 3.0  # Spacing
-        mod["Input_22"] = 3  # Count
+        set_modifier_input(mod, "Input_21", (1.0, 0.0, 0.0))  # Direction
+        set_modifier_input(mod, "Input_23", 3.0)  # Spacing
+        set_modifier_input(mod, "Input_22", 3)  # Count
         me = self._eval_mesh(ob)
         self.assertGreater(len(me.vertices), n0)
         self.assertGreater(self._extent(me, "x"), x0 + 2.0)
@@ -131,10 +132,10 @@ class TestNodeTools(BgsTestCase):
         self.assertTrue(am.load_asset(LIB_NAME, "node_groups", EXTRUDE))
         ob = self._plane()
         mod = self._add_node_mod(ob, EXTRUDE)
-        mod["Input_2"] = 1.0
-        mod["Input_3"] = False
+        set_modifier_input(mod, "Input_2", 1.0)
+        set_modifier_input(mod, "Input_3", False)
         z1 = self._extent(self._eval_mesh(ob), "z")
-        mod["Input_3"] = True
+        set_modifier_input(mod, "Input_3", True)
         z2 = self._extent(self._eval_mesh(ob), "z")
         self.assertGreater(z2, z1 * 1.6)
 
@@ -143,11 +144,11 @@ class TestNodeTools(BgsTestCase):
         self.assertTrue(am.load_asset(LIB_NAME, "node_groups", ARRAY))
         ob = self._cube()
         mod = self._add_node_mod(ob, ARRAY)
-        mod["Input_21"][:] = (1.0, 0.0, 0.0)
-        mod["Input_22"] = 4
-        mod["Input_23"] = 6.0
-        mod["Input_24"] = False
+        set_modifier_input(mod, "Input_21", (1.0, 0.0, 0.0))
+        set_modifier_input(mod, "Input_22", 4)
+        set_modifier_input(mod, "Input_23", 6.0)
+        set_modifier_input(mod, "Input_24", False)
         x_spacing = self._extent(self._eval_mesh(ob), "x")
-        mod["Input_24"] = True
+        set_modifier_input(mod, "Input_24", True)
         x_total = self._extent(self._eval_mesh(ob), "x")
         self.assertLess(x_total, x_spacing - 2.0)
