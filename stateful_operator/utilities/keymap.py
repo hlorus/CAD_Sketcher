@@ -56,12 +56,20 @@ def get_key_map_desc(context: Context, id_name: str) -> str:
     Looks through keymaps in addon keyconfig.
     """
 
+    def _targets_operator(kmi):
+        # Some InvokeTool keymap items have no "operator" property set; guard
+        # the lookup so building the shortcut hint doesn't raise KeyError.
+        try:
+            return kmi.properties["operator"] == id_name
+        except (KeyError, TypeError):
+            return False
+
     km_items = _get_matching_kmi(context, id_name)
     km_items.extend(
         _get_matching_kmi(
             context,
             Operators.InvokeTool,
-            filter_func=lambda kmi: kmi.properties["operator"] == id_name,
+            filter_func=_targets_operator,
         )
     )
 
