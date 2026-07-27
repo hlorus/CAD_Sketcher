@@ -1,13 +1,11 @@
 from bpy.types import Context
 
-from .. import declarations
-from . import VIEW3D_PT_sketcher_base
-
+from ... import global_data
 from ...model.constants import SketchCurveType
 from ...model.sketch_ref import get_active_sketch
 from ...utilities.curve_data import get_str_attr, get_uuid, has_uuid_field
-from ... import global_data
-
+from .. import declarations
+from . import VIEW3D_PT_sketcher_base
 
 _TYPE_NAMES = {
     SketchCurveType.POINT: "Point",
@@ -55,14 +53,18 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             visible = vis_attr.data[i].value if vis_attr else True
             selected = cid in global_data.selected
             # Stored name (set at creation), falling back to the type label.
-            name = (get_str_attr(name_attr, i) if name_attr else "") \
-                or _TYPE_NAMES.get(ctype, "Curve")
+            name = (get_str_attr(name_attr, i) if name_attr else "") or _TYPE_NAMES.get(
+                ctype, "Curve"
+            )
 
             row = col.row()
             row.alert = selected
 
+            # Leading toggles, grouped so they sit flush together
+            lead = row.row(align=True)
+
             # Select toggle
-            props = row.operator(
+            props = lead.operator(
                 declarations.Operators.Select,
                 text="",
                 emboss=False,
@@ -72,7 +74,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             props.index = cid
 
             # Visibility toggle
-            props = row.operator(
+            props = lead.operator(
                 declarations.Operators.SetCurveFlag,
                 text="",
                 emboss=False,
@@ -82,15 +84,22 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             props.flag = "visible"
             props.value = not visible
 
-            # Name — click to rename
-            props = row.operator(
+            # Name — click to rename (left-aligned, hugging the leading icons)
+            name_row = row.row()
+            name_row.alignment = "LEFT"
+            props = name_row.operator(
                 declarations.Operators.RenameCurve, text=name, emboss=False
             )
             props.curve_id = cid
             props.new_name = name
 
+            # Trailing actions, grouped so they sit flush together. The
+            # left-aligned name row above expands to fill, pushing these right.
+            trail = row.row(align=True)
+            trail.alignment = "RIGHT"
+
             # Context menu
-            props = row.operator(
+            props = trail.operator(
                 declarations.Operators.ContextMenu,
                 text="",
                 icon="OUTLINER_DATA_GP_LAYER",
@@ -100,7 +109,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             props.highlight_hover = True
 
             # Delete
-            props = row.operator(
+            props = trail.operator(
                 declarations.Operators.DeleteEntity,
                 text="",
                 icon="X",
