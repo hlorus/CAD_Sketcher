@@ -6,6 +6,7 @@ from bpy.types import Context
 from bpy.props import FloatVectorProperty
 
 from .. import global_data
+from ..drawing import selection
 from ..stateful_operator.integration import StatefulOperator
 from ..model.types import SlvsGenericEntity, SlvsPoint3D, SlvsPoint2D, SlvsNormal3D
 from .utilities import get_hovered
@@ -55,7 +56,7 @@ class GenericEntityOp(StatefulOperator):
         # Set the hovered curve_id for constraining if not directly used
         hovered_cid = ""
         if not hovered and hasattr(self, "_check_constrain"):
-            hover = global_data.hover
+            hover = selection.hover
             if hover and self._check_constrain(context, hover):
                 hovered_cid = hover
 
@@ -227,16 +228,16 @@ class GenericEntityOp(StatefulOperator):
 
         from ..model.sketch_ref import get_active_sketch
         sketch = get_active_sketch(context)
-        if sketch and global_data.selected:
+        if sketch and selection.selected:
             from ..model.curve_ref import curve_ref
-            for cid in global_data.selected:
+            for cid in selection.selected:
                 ref = curve_ref(sketch, cid)
                 if ref.valid:
                     selected.append(ref)
         return selected
 
     def on_before_redo_states(self, context: Context):
-        global_data.ignore_list.clear()
+        selection.ignore_list.clear()
 
     @staticmethod
     def _snapshot_curve_data(curve_data):

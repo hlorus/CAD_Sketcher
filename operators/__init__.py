@@ -10,7 +10,6 @@ modules = [
     "solve",
     "update",
     "tweak",
-    "save_offscreen",
     "copy_paste",
     "add_sketch",
     "workplane_anchor",

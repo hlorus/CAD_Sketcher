@@ -9,7 +9,7 @@ from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
 from ..utilities.select import deselect_all
 from ..utilities.view import refresh
-from .. import global_data
+from ..drawing import selection
 
 from ..model.coincident import SlvsCoincident
 from ..model.equal import SlvsEqual
@@ -77,7 +77,7 @@ class VIEW3D_OT_slvs_merge_points(Operator):
 
         points = [
             curve_ref(sketch, cid)
-            for cid in global_data.selected
+            for cid in selection.selected
             if curve_ref(sketch, cid).is_point()
         ]
 
@@ -110,7 +110,7 @@ class VIEW3D_OT_slvs_merge_points(Operator):
                 curve_ref(sketch, cid).remove()
 
         deselect_all(context)
-        global_data.selected.append(target.curve_id)
+        selection.selected.append(target.curve_id)
 
         solve_system(context, sketch)
         refresh(context)

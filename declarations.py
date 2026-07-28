@@ -89,7 +89,6 @@ class Operators(str, Enum):
     Tweak = "view3d.slvs_tweak"
     TweakConstraintValuePos = "view3d.slvs_tweak_constraint_value_pos"
     UnregisterDrawCB = "view3d.slvs_unregister_draw_cb"
-    WriteSelectionTexture = "view3d.slvs_write_selection_texture"
 
 
 class Macros(str, Enum):

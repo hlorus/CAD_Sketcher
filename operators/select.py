@@ -4,7 +4,7 @@ from bpy.utils import register_classes_factory
 
 from .utilities import select_extend, select_invert
 from ..utilities.select import select_all, deselect_all
-from .. import global_data
+from ..drawing import selection
 from ..declarations import Operators
 from ..utilities.highlighting import HighlightElement
 from ..utilities.select import mode_property
@@ -22,7 +22,7 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
     bl_idname = Operators.Select
     bl_label = "Select Sketch Entities"
 
-    # Selection keys are curve ids (see global_data.selected); when unset the
+    # Selection keys are curve ids (see selection.selected); when unset the
     # currently hovered curve id is used.
     index: StringProperty(name="Curve ID", default="")
     mode: mode_property
@@ -31,7 +31,7 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
         index = (
             self.index
             if self.properties.is_property_set("index")
-            else global_data.hover
+            else selection.hover
         )
         hit = bool(index)
         mode = self.mode
@@ -40,20 +40,20 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
             deselect_all(context)
 
         if hit:
-            # Work directly with global_data.selected — no entity lookup needed
-            is_selected = index in global_data.selected
+            # Work directly with selection.selected — no entity lookup needed
+            is_selected = index in selection.selected
 
             if mode == "SUBTRACT":
                 if is_selected:
-                    global_data.selected.remove(index)
+                    selection.selected.remove(index)
             elif mode == "TOGGLE":
                 if is_selected:
-                    global_data.selected.remove(index)
+                    selection.selected.remove(index)
                 else:
-                    global_data.selected.append(index)
+                    selection.selected.append(index)
             else:  # SET or EXTEND
                 if not is_selected:
-                    global_data.selected.append(index)
+                    selection.selected.append(index)
 
         if context.area:
             context.area.tag_redraw()

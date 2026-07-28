@@ -1,4 +1,4 @@
-from .. import global_data
+from ..drawing import selection
 from ..declarations import Operators
 from ..model.types import GenericConstraint
 from .utilities import get_color, get_constraint_color_type, set_gizmo_colors
@@ -14,7 +14,7 @@ class ConstraintGizmo:
 
     def get_constraint_color(self, constraint: GenericConstraint):
         is_highlight = (
-            constraint == global_data.highlight_constraint or self.is_highlight
+            constraint == selection.highlight_constraint or self.is_highlight
         )
         col = get_constraint_color_type(constraint)
         return get_color(col, is_highlight)

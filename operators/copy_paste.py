@@ -6,6 +6,7 @@ from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
 from .. import global_data
+from ..drawing import selection
 from ..declarations import Operators
 from ..model.curve_ref import curve_ref, PointRef, LineRef, ArcRef, CircleRef
 from ..model.constants import SketchCurveType
@@ -75,11 +76,11 @@ class View3D_OT_slvs_copy(Operator):
             self.report({"INFO"}, "Copying is not supported in 3d space")
             return {"CANCELLED"}
 
-        if not global_data.selected:
+        if not selection.selected:
             return {"CANCELLED"}
 
         # Collect selected curve_ids and their point dependencies
-        all_cids = set(global_data.selected)
+        all_cids = set(selection.selected)
         for cid in list(all_cids):
             ref = curve_ref(sketch, cid)
             if not ref.valid:
@@ -134,7 +135,7 @@ class View3D_OT_slvs_paste(Operator):
 
         # Create all pasted curves in one shot — calling add_curves/set_types/
         # ensure_standard_attributes per curve is O(curves²) as the sketch grows.
-        global_data.selected.clear()
+        selection.selected.clear()
         base_idx = len(curve_data.curves)
         curve_data.add_curves([snap["n_points"] for snap in buffer])
         curve_data.set_types(type="BEZIER")
@@ -182,7 +183,7 @@ class View3D_OT_slvs_paste(Operator):
             # Select pasted curves (skip points)
             ctype = snap["curve_attrs"].get("sketch_type", -1)
             if ctype != SketchCurveType.POINT:
-                global_data.selected.append(new_cid)
+                selection.selected.append(new_cid)
 
         invalidate_curve_id_cache(sketch)
         curve_data.update_tag()

@@ -2,7 +2,7 @@ from bpy.props import BoolProperty
 from ..model.sketch_ref import get_active_constraints
 from bpy.types import PropertyGroup, Context, Event
 
-from .. import global_data
+from ..drawing import selection
 
 
 class HighlightElement:
@@ -43,9 +43,9 @@ class HighlightElement:
             return cls.__doc__
 
         # Clear previous highlights
-        global_data.highlight_constraint = None
-        global_data.highlight_entities = []
-        global_data.highlight_curve_ids = []
+        selection.highlight_constraint = None
+        selection.highlight_entities = []
+        selection.highlight_curve_ids = []
 
         members = properties.highlight_members
 
@@ -57,14 +57,14 @@ class HighlightElement:
                 properties.type, properties.index
             )
             if c:
-                global_data.highlight_constraint = c
+                selection.highlight_constraint = c
                 if members:
-                    global_data.highlight_curve_ids = c.curve_id_placements()
+                    selection.highlight_curve_ids = c.curve_id_placements()
         else:
             # Entity operator: highlight the referenced curve.
             cid = properties.curve_id if has_curve_id else properties.index
             if isinstance(cid, str) and cid:
-                global_data.highlight_curve_ids = [cid]
+                selection.highlight_curve_ids = [cid]
 
         if context.area:
             context.area.tag_redraw()

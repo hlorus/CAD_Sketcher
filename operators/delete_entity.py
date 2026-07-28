@@ -4,7 +4,7 @@ from bpy.utils import register_classes_factory
 from bpy.props import StringProperty
 from bpy.types import Operator, Context
 
-from .. import global_data
+from ..drawing import selection
 from ..model.sketch_ref import get_active_sketch
 from ..utilities.view import refresh
 from ..utilities.curve_data import remove_native_curve_by_id
@@ -86,7 +86,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         if self.index:
             to_delete.append(self.index)
         else:
-            to_delete.extend(list(global_data.selected))
+            to_delete.extend(list(selection.selected))
 
         if not to_delete:
             return {"CANCELLED"}
@@ -94,8 +94,8 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         for cid in to_delete:
             self._delete_curve(context, sketch, cid)
 
-        global_data.selected.clear()
-        global_data.hover = ""
+        selection.selected.clear()
+        selection.hover = ""
 
         solve_system(context, sketch=sketch)
         refresh(context)

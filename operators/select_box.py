@@ -4,9 +4,8 @@ from bpy.utils import register_classes_factory
 from mathutils import Vector
 from gpu_extras.batch import batch_for_shader
 
-from .. import global_data
+from ..drawing import selection
 from ..declarations import Operators
-from ..utilities.index import rgb_to_index
 from ..utilities.view import refresh
 from ..utilities.select import mode_property, deselect_all
 from ..shaders import Shaders
@@ -83,36 +82,11 @@ class View3D_OT_slvs_select_box(Operator):
         return {"RUNNING_MODAL"}
 
     def main(self, context: Context):
-
-        start_x, width = get_start_dist(self.start_coords.x, self.end_coords.x)
-        start_y, height = get_start_dist(self.start_coords.y, self.end_coords.y)
-
-        offscreen = global_data.offscreen
-        if not offscreen:
-            return False
-        with offscreen.bind():
-            fb = gpu.state.active_framebuffer_get()
-            buffer = fb.read_color(start_x, start_y, width, height, 4, 0, "FLOAT")
-
-        if not width or not height:
+        if self.start_coords == self.end_coords:
             return False
 
-        buffer.dimensions = (width * height, 4)
-
-        # Filter out empty pixels
-        pixels = [p for p in buffer if p[3] > 0]
-
-        # Remove duplicates
-        unique_pixels = []
-        [unique_pixels.append(p[:-1]) for p in pixels if p[:-1] not in unique_pixels]
-
-        curve_ids = []
-        for pixel in unique_pixels:
-            r, g, b = pixel
-            pick_idx = rgb_to_index(r, g, b)
-            if pick_idx > 0:
-                cid = global_data.pick_map.get(pick_idx, pick_idx)
-                curve_ids.append(cid)
+        from ..drawing import picking
+        curve_ids = picking.pick_box(context, self.start_coords, self.end_coords)
 
         mode = self.mode
         if mode == "SET":
@@ -120,16 +94,16 @@ class View3D_OT_slvs_select_box(Operator):
 
         for cid in curve_ids:
             if mode == "TOGGLE":
-                if cid in global_data.selected:
-                    global_data.selected.remove(cid)
+                if cid in selection.selected:
+                    selection.selected.remove(cid)
                 else:
-                    global_data.selected.append(cid)
+                    selection.selected.append(cid)
             elif mode == "SUBTRACT":
-                if cid in global_data.selected:
-                    global_data.selected.remove(cid)
+                if cid in selection.selected:
+                    selection.selected.remove(cid)
             else:
-                if cid not in global_data.selected:
-                    global_data.selected.append(cid)
+                if cid not in selection.selected:
+                    selection.selected.append(cid)
 
         refresh(context)
         return True

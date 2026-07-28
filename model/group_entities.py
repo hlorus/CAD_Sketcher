@@ -9,7 +9,7 @@ from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 from mathutils import Euler, Quaternion, Vector
 
-from .. import global_data
+from ..drawing import selection
 from ..utilities.constants import QUARTER_TURN
 from ..utilities.index import assemble_index, breakdown_index
 from .arc import SlvsArc
@@ -439,7 +439,7 @@ class SlvsEntities(PropertyGroup):
         """Return all selected entities, might include inactive entities"""
         context = bpy.context
         items = []
-        for index in global_data.selected:
+        for index in selection.selected:
             if index is None:
                 continue
             entity = self.get(index)
@@ -452,7 +452,7 @@ class SlvsEntities(PropertyGroup):
         """Return all selected entities, might include invisible entities"""
         context = bpy.context
         items = []
-        for index in global_data.selected:
+        for index in selection.selected:
             if index is None:
                 continue
             entity = self.get(index)

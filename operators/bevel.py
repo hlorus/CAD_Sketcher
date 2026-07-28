@@ -4,7 +4,7 @@ from bpy.types import Operator, Context
 from bpy.props import FloatProperty
 from mathutils import Vector
 
-from .. import global_data
+from ..drawing import selection
 from ..model.curve_ref import PointRef, LineRef, ArcRef, CircleRef, CurveRef, curve_ref
 from ..utilities.view import refresh
 from ..curve_solver import solve_system
@@ -38,7 +38,7 @@ def _get_bevel_points(sketch, topo):
     """
     candidates = set()
 
-    for cid in global_data.selected:
+    for cid in selection.selected:
         ref = curve_ref(sketch, cid)
         if not ref.valid:
             continue

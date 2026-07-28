@@ -1,6 +1,6 @@
 from bpy.types import Context
 
-from ... import global_data
+from ...drawing import selection
 from ...model.constants import SketchCurveType
 from ...model.sketch_ref import get_active_sketch
 from ...utilities.curve_data import get_str_attr, get_uuid, has_uuid_field
@@ -51,7 +51,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
 
             ctype = type_attr.data[i].value
             visible = vis_attr.data[i].value if vis_attr else True
-            selected = cid in global_data.selected
+            selected = cid in selection.selected
             # Stored name (set at creation), falling back to the type label.
             name = (get_str_attr(name_attr, i) if name_attr else "") or _TYPE_NAMES.get(
                 ctype, "Curve"

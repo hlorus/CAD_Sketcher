@@ -3,7 +3,7 @@ from bpy.types import Menu
 from bpy.props import BoolProperty
 
 from ..declarations import Operators, Menus
-from .. import global_data
+from ..drawing import selection
 
 
 def _selected_refs(context):
@@ -14,7 +14,7 @@ def _selected_refs(context):
     sketch = get_active_sketch(context)
     if not sketch:
         return []
-    refs = [curve_ref(sketch, cid) for cid in global_data.selected]
+    refs = [curve_ref(sketch, cid) for cid in selection.selected]
     return [r for r in refs if r.valid]
 
 

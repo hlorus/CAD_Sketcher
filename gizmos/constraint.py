@@ -5,7 +5,7 @@ import gpu
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector, Matrix
 
-from .. import icon_manager, units
+from .. import units
 from ..declarations import Gizmos, GizmoGroups, Operators
 from ..utilities.preferences import get_prefs
 from ..utilities.view import get_2d_coords
@@ -188,14 +188,11 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         constraint = self._get_constraint(context)
         if not constraint.visible:
             return
-        col = self._set_colors(context, constraint)
+        # Keep colors + matrix_basis current so test_select stays accurate; the
+        # icon itself is rendered in one batched pass (drawing.constraint_icons)
+        # to avoid a textured draw per constraint (Vulkan descriptor pressure).
+        self._set_colors(context, constraint)
         self._update_matrix_basis(context, constraint)
-
-        with gpu.matrix.push_pop():
-            gpu.matrix.load_matrix(self.matrix_basis)
-            scale = self.scale_basis
-            gpu.matrix.scale(Vector((scale, scale)))
-            icon_manager.draw(self.type, col)
 
     def setup(self):
         pass

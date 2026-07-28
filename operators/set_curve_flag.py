@@ -4,6 +4,7 @@ from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from ..model.curve_ref import curve_ref
+from ..drawing import selection
 
 
 class View3D_OT_slvs_set_curve_flag(Operator):
@@ -19,14 +20,13 @@ class View3D_OT_slvs_set_curve_flag(Operator):
 
     def execute(self, context: Context):
         from ..model.sketch_ref import get_active_sketch
-        from .. import global_data
         sketch = get_active_sketch(context)
         if not sketch:
             return {"CANCELLED"}
 
         # A specific curve_id targets one curve; otherwise apply to the whole
         # current selection (used by the selected-elements context menu).
-        curve_ids = [self.curve_id] if self.curve_id else list(global_data.selected)
+        curve_ids = [self.curve_id] if self.curve_id else list(selection.selected)
         changed = False
         for cid in curve_ids:
             ref = curve_ref(sketch, cid)

@@ -4,7 +4,7 @@ from bpy.utils import register_classes_factory
 from bpy.props import StringProperty, BoolProperty, IntProperty
 from bpy.types import Operator, Context, Event, PropertyGroup
 
-from .. import global_data
+from ..drawing import selection
 from ..utilities.highlighting import HighlightElement
 from ..declarations import Operators
 
@@ -56,7 +56,7 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
             hover = (
                 self.curve_id
                 if self.properties.is_property_set("curve_id")
-                else global_data.hover
+                else selection.hover
             )
 
             if hover:

@@ -67,6 +67,9 @@ def on_load_post(*args):
     from .utilities.validate import reset_cache
 
     reset_cache()
+    from .drawing import overlay, selection
+    overlay.invalidate()
+    selection.clear()
     context = bpy.context
     try:
         if scene_needs_migration(context):

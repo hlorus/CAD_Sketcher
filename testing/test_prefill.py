@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest import TestCase
 
 from .utils import Sketch2dTestCase, OpHarness
-from .. import global_data
+from ..drawing import selection
 
 
 class TestSelectionPrefill(Sketch2dTestCase):
@@ -24,8 +24,8 @@ class TestSelectionPrefill(Sketch2dTestCase):
         return OpHarness(real_cls, self.sketch, self.context)
 
     def _select_only(self, ref):
-        global_data.selected.clear()
-        global_data.selected.append(ref.curve_id)
+        selection.selected.clear()
+        selection.selected.append(ref.curve_id)
 
     def _a_point(self):
         return self.add_point((3.0, 4.0))
@@ -112,9 +112,9 @@ class TestSelectionPrefill(Sketch2dTestCase):
 
         p_start = self.add_point((0.0, 0.0))
         p_end = self.add_point((4.0, 0.0))
-        global_data.selected.clear()
-        global_data.selected.append(p_start.curve_id)
-        global_data.selected.append(p_end.curve_id)
+        selection.selected.clear()
+        selection.selected.append(p_start.curve_id)
+        selection.selected.append(p_end.curve_id)
 
         h = self._harness(View3D_OT_slvs_add_line2d)
         h.prefill()
@@ -145,7 +145,7 @@ class TestSelectionPrefill(Sketch2dTestCase):
         self.assertFalse(h.state_curve_id(0), "no curve should be bound to the center")
 
     def tearDown(self):
-        global_data.selected.clear()
+        selection.selected.clear()
         return super().tearDown()
 
 

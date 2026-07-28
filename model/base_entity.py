@@ -12,6 +12,7 @@ from bpy.props import BoolProperty, IntProperty, StringProperty
 from bpy.types import Context
 
 from .. import global_data
+from ..drawing import selection
 from ..declarations import Operators
 from ..shaders import Shaders
 from ..utilities import preferences
@@ -148,23 +149,23 @@ class SlvsGenericEntity:
 
     @property
     def hover(self):
-        return global_data.hover == self.slvs_index
+        return selection.hover == self.slvs_index
 
     @hover.setter
     def hover(self, value):
         if value:
-            global_data.hover = self.slvs_index
+            selection.hover = self.slvs_index
         else:
-            global_data.hover = ""
+            selection.hover = ""
 
     @property
     def selected(self):
-        return self.slvs_index in global_data.selected
+        return self.slvs_index in selection.selected
 
     @selected.setter
     def selected(self, value):
         slvs_index = self.slvs_index
-        list = global_data.selected
+        list = selection.selected
         if slvs_index in list:
             i = list.index(slvs_index)
             if not value:
@@ -194,7 +195,7 @@ class SlvsGenericEntity:
         return self.is_active(active_sketch)
 
     def is_highlight(self):
-        return self.hover or self in global_data.highlight_entities
+        return self.hover or self in selection.highlight_entities
 
     def color(self, context: Context):
         prefs = get_prefs()

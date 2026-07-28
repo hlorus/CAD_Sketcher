@@ -1,17 +1,20 @@
 from pathlib import Path
-from functools import cache
 
 import gpu
 import bpy
 import bpy.utils.previews
-from gpu_extras.batch import batch_for_shader
+import numpy as np
 from bpy.app import background
 
 from .declarations import Operators
-from .shaders import Shaders
 
-icons = {}
 preview_icons = None
+
+# Single texture atlas holding every constraint icon, so all icons render in one
+# batched draw (one sampler bind) instead of one textured draw per constraint.
+_atlas = None            # GPUTexture
+_atlas_uvs = {}          # type -> (u0, v0, u1, v1)
+_ATLAS_CELL = 128        # each icon is resized into a CELL x CELL cell
 _operator_types = {
     Operators.AddDistance: "DISTANCE",
     Operators.AddDiameter: "DIAMETER",
@@ -28,16 +31,6 @@ _operator_types = {
     Operators.AddSymmetry: "SYMMETRY",
 }
 
-@cache
-def _get_shader():
-    return Shaders.uniform_color_image_2d()
-
-@cache
-def _get_batch():
-    return batch_for_shader(_get_shader(), "TRI_FAN", {
-    "pos": ((-.5, -.5), (.5, -.5), (.5, .5), (-.5, .5)),
-    "texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
-})
 
 def get_folder_path():
     return Path(__file__).parent / "resources" / "icons"
@@ -47,11 +40,49 @@ def get_icon(name: str):
     return str(get_folder_path() / name)
 
 
-def load_icon(type, icon):
-    size, pixels = icon.icon_size, icon.icon_pixels_float
-    buffer = gpu.types.Buffer('FLOAT', (1, len(pixels)), [pixels])
-    texture = gpu.types.GPUTexture(size=size, data=buffer)
-    icons[type] = texture
+def _resize_nearest(pixels, w, h, cell):
+    """Nearest-neighbour resize an (h, w, 4) icon to (cell, cell, 4)."""
+    img = np.asarray(pixels, dtype=np.float32).reshape(h, w, 4)
+    ys = (np.arange(cell) * h // cell).clip(0, h - 1)
+    xs = (np.arange(cell) * w // cell).clip(0, w - 1)
+    return img[ys][:, xs]
+
+
+def _build_atlas():
+    """Composite every icon into one horizontal-strip texture + record UVs."""
+    global _atlas, _atlas_uvs
+
+    cells = []
+    valid_types = []
+    for operator, type in _operator_types.items():
+        icon = preview_icons.get(operator)
+        if not icon:
+            continue
+        w, h = icon.icon_size
+        if w == 0 or h == 0:
+            continue
+        cells.append(_resize_nearest(icon.icon_pixels_float, w, h, _ATLAS_CELL))
+        valid_types.append(type)
+
+    if not cells:
+        return
+
+    # Horizontal strip: (CELL, CELL * n, 4). Rows preserved so the atlas matches
+    # the per-icon draw's pixel order.
+    strip = np.concatenate(cells, axis=1)
+    n = len(cells)
+    _atlas_uvs = {
+        type: (i / n, 0.0, (i + 1) / n, 1.0) for i, type in enumerate(valid_types)
+    }
+
+    height, width = strip.shape[0], strip.shape[1]
+    buffer = gpu.types.Buffer("FLOAT", width * height * 4, strip.ravel().tolist())
+    _atlas = gpu.types.GPUTexture(size=(width, height), data=buffer)
+
+
+def get_atlas():
+    """(atlas_texture, {type: uv_rect}) or (None, {}) when unavailable."""
+    return _atlas, _atlas_uvs
 
 
 def load():
@@ -64,15 +95,14 @@ def load():
         return
 
     load_preview_icons()
-
-    for operator, icon in preview_icons.items():
-        load_icon(_operator_types[operator], icon)
+    _build_atlas()
 
 
 def unload():
-    global icons
+    global _atlas, _atlas_uvs
     unload_preview_icons()
-    icons = {}
+    _atlas = None
+    _atlas_uvs = {}
 
 
 def load_preview_icons():
@@ -113,20 +143,3 @@ def get_constraint_icon(operator: str):
         return -1
 
     return icon.icon_id
-
-
-def draw(type, color):
-    texture = icons.get(type)
-
-    if not texture:
-        return
-
-    gpu.state.blend_set("ALPHA")
-
-    shader, batch = _get_shader(), _get_batch()
-    shader.bind()
-    shader.uniform_float("color", color)
-    shader.uniform_sampler("image", texture)
-    batch.draw(shader)
-
-    gpu.state.blend_set("NONE")

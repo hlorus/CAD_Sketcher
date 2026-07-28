@@ -5,7 +5,7 @@ from bpy.types import Gizmo, GizmoGroup
 from gpu_extras.batch import batch_for_shader
 from mathutils import Vector
 
-from .. import global_data
+from ..drawing import selection
 from ..declarations import GizmoGroups, Gizmos
 from ..shaders import Shaders
 from ..utilities import preferences
@@ -59,7 +59,7 @@ class VIEW3D_GT_slvs_workplane(Gizmo):
     """Single gizmo that renders all workplane rectangles and tracks hover.
 
     ``test_select`` never claims the click (returns -1) — like the preselection
-    gizmo it only publishes the hovered empty via ``global_data.hover`` so the
+    gizmo it only publishes the hovered empty via ``selection.hover`` so the
     Add Sketch operator's ``pick_element`` can resolve it. This keeps the
     operator's state machine and its mesh-face fallback intact.
 
@@ -145,7 +145,7 @@ class VIEW3D_GT_slvs_workplane(Gizmo):
         ts = get_prefs().theme_settings.entity
 
         for wp_obj, pick_id in iter_wp_empties(context):
-            is_hovered = global_data.hover == pick_id
+            is_hovered = selection.hover == pick_id
             col = self._plane_color(pick_id, is_hovered, ts)
             bounds = wp_plane_bounds(context, pick_id)
             self._draw_rect(context, wp_obj.matrix_world, bounds, scale, col, is_hovered)
@@ -180,8 +180,8 @@ class VIEW3D_GT_slvs_workplane(Gizmo):
             new_hover, preview = "", None
 
         changed = False
-        if new_hover != global_data.hover:
-            global_data.hover = new_hover
+        if new_hover != selection.hover:
+            selection.hover = new_hover
             changed = True
         if preview != getattr(self, "mesh_preview", None):
             self.mesh_preview = preview

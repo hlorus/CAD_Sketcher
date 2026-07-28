@@ -9,7 +9,7 @@ slots and ``main`` creates the constraint referencing them.
 """
 
 from .utils import Sketch2dTestCase, OpHarness
-from .. import global_data
+from ..drawing import selection
 
 
 class TestConstraintOperators(Sketch2dTestCase):
@@ -20,9 +20,9 @@ class TestConstraintOperators(Sketch2dTestCase):
         return self.add_line(self.add_point(p1), self.add_point(p2))
 
     def _select(self, *refs):
-        global_data.selected.clear()
+        selection.selected.clear()
         for r in refs:
-            global_data.selected.append(r.curve_id)
+            selection.selected.append(r.curve_id)
 
     # -- two selected lines -> parallel constraint ---------------------------
     def test_parallel_from_two_selected_lines(self):
@@ -83,5 +83,5 @@ class TestConstraintOperators(Sketch2dTestCase):
         )
 
     def tearDown(self):
-        global_data.selected.clear()
+        selection.selected.clear()
         return super().tearDown()

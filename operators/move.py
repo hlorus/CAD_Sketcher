@@ -4,7 +4,7 @@ from ..model.sketch_ref import get_active_sketch
 from mathutils import Vector
 from bpy.props import FloatVectorProperty
 
-from .. import global_data
+from ..drawing import selection
 from ..declarations import Operators
 from ..model.curve_ref import curve_ref, PointRef
 from .base_2d import Operator2d
@@ -23,7 +23,7 @@ def get_points(context: Context):
 
     point_cids = set()
 
-    for cid in global_data.selected:
+    for cid in selection.selected:
         ref = curve_ref(sketch, cid)
         if not ref.valid:
             continue

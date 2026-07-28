@@ -14,7 +14,6 @@ class VIEW3D_PT_sketcher_debug(VIEW3D_PT_sketcher_base):
         layout = self.layout
 
         prefs = preferences.get_prefs()
-        layout.operator(declarations.Operators.WriteSelectionTexture)
         layout.operator(declarations.Operators.Solve)
         layout.operator(
             declarations.Operators.Solve,

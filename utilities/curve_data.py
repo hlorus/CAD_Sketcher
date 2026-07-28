@@ -204,8 +204,6 @@ def ensure_standard_attributes(curve_data):
     ensure_attribute(attributes, "handle_right", "FLOAT_VECTOR", "POINT")
     ensure_attribute(attributes, "resolution", "INT", "CURVE")
     ensure_attribute(attributes, "construction", "BOOLEAN", "CURVE")
-    ensure_attribute(attributes, "selected", "BOOLEAN", "CURVE")
-    ensure_attribute(attributes, "hover", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "fixed", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "visible", "BOOLEAN", "CURVE")
     # Identity fields: 2x INT32_2D each (128-bit), hidden. Integer attributes
@@ -358,55 +356,6 @@ def get_curve_midpoints(curve_slice, is_cyclic):
     if is_cyclic:
         return [curve_slice.points[i] for i in range(1, len(curve_slice.points))]
     return [curve_slice.points[i] for i in range(1, len(curve_slice.points) - 1)]
-
-
-# ---------------------------------------------------------------------------
-# Selection sync
-# ---------------------------------------------------------------------------
-
-def sync_curve_selection(scene):
-    """Sync selection and hover state from global_data to curve attributes."""
-    from .. import global_data
-
-    from ..model.sketch_ref import get_sketches
-
-    selected = set(global_data.selected)
-    hover = global_data.hover
-    highlighted = set(global_data.highlight_curve_ids)
-    for sketch in get_sketches(scene):
-        if not sketch.target_object or not sketch.target_object.data:
-            continue
-        curve_data = sketch.target_object.data
-        n_curves = len(curve_data.curves)
-        if n_curves == 0 or not has_uuid_field(curve_data, "curve_id"):
-            continue
-
-        sel_attr = curve_data.attributes.get("selected")
-        hov_attr = curve_data.attributes.get("hover")
-        if not sel_attr:
-            sel_attr = curve_data.attributes.new("selected", type="BOOLEAN", domain="CURVE")
-        if not hov_attr:
-            hov_attr = curve_data.attributes.new("hover", type="BOOLEAN", domain="CURVE")
-
-        ids = read_uuid_list(curve_data, "curve_id")
-        want_sel = np.fromiter((c in selected for c in ids), dtype=bool, count=n_curves)
-        want_hov = np.fromiter(
-            (bool(c) and (c == hover or c in highlighted) for c in ids),
-            dtype=bool,
-            count=n_curves,
-        )
-
-        # Only write when something actually changed. Writing attribute data
-        # every frame dirties the datablock and re-triggers the GN modifier +
-        # redraw, which would spin the CPU on a static selection.
-        cur_sel = np.empty(n_curves, dtype=bool)
-        cur_hov = np.empty(n_curves, dtype=bool)
-        sel_attr.data.foreach_get("value", cur_sel)
-        hov_attr.data.foreach_get("value", cur_hov)
-        if not np.array_equal(cur_sel, want_sel):
-            sel_attr.data.foreach_set("value", want_sel)
-        if not np.array_equal(cur_hov, want_hov):
-            hov_attr.data.foreach_set("value", want_hov)
 
 
 # ---------------------------------------------------------------------------

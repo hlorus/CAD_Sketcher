@@ -3,7 +3,7 @@ import logging
 from bpy.types import Operator, Context
 from bpy.props import FloatVectorProperty
 
-from .. import global_data
+from ..drawing import selection
 from ..declarations import Operators
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
@@ -40,7 +40,7 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
         self.target = PointRef.create(sketch, self.coordinates, construction=construction)
 
         # Store hovered curve_id for auto-coincident
-        hovered = global_data.hover
+        hovered = selection.hover
         if hovered and self._check_constrain(context, hovered):
             self.state_data["hovered"] = hovered
 

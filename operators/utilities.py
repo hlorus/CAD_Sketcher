@@ -3,7 +3,7 @@ import logging
 import bpy
 from bpy.types import Context, Operator
 
-from .. import global_data
+from ..drawing import selection
 from ..declarations import BLENDER_SELECT_TOOL, GizmoGroups, WorkSpaceTools
 from ..utilities.curve_data import refresh_curve_geometry, get_uuid, has_uuid_field
 from ..utilities.preferences import get_prefs
@@ -26,10 +26,10 @@ def select_invert(context: Context):
         cid = get_uuid(curve_data, "curve_id", i)
         if not cid:
             continue
-        if cid in global_data.selected:
-            global_data.selected.remove(cid)
+        if cid in selection.selected:
+            selection.selected.remove(cid)
         else:
-            global_data.selected.append(cid)
+            selection.selected.append(cid)
 
 
 def select_extend(context: Context):
@@ -44,7 +44,7 @@ def select_extend(context: Context):
         return False
 
     from ..model.constants import SketchCurveType
-    selected = set(global_data.selected)
+    selected = set(selection.selected)
     to_add = set()
 
     for i in range(n):
@@ -87,7 +87,7 @@ def select_extend(context: Context):
 
     new = to_add - selected
     for cid in new:
-        global_data.selected.append(cid)
+        selection.selected.append(cid)
     return len(new) > 0
 
 
@@ -98,7 +98,7 @@ def select_extend(context: Context):
 def ignore_hover(ref_or_id):
     """Add a curve_id to the ignore list. Accepts CurveRef, curve_id int, or entity."""
     from ..model.curve_ref import CurveRef
-    ignore_list = global_data.ignore_list
+    ignore_list = selection.ignore_list
     if isinstance(ref_or_id, CurveRef):
         ignore_list.append(ref_or_id.curve_id)
     elif isinstance(ref_or_id, (int, str)):
@@ -116,7 +116,7 @@ def get_hovered(context: Context, *types):
     """
     from ..model.curve_ref import curve_ref, PointRef, LineRef, ArcRef, CircleRef
 
-    hover_id = global_data.hover
+    hover_id = selection.hover
     if not hover_id:
         return None
 

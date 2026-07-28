@@ -3,6 +3,7 @@ from ..model.sketch_ref import get_active_sketch
 from bpy.utils import register_classes_factory
 
 from .. import global_data
+from ..drawing import selection
 from ..declarations import Operators
 from ..curve_solver import CurveSolver
 from ..utilities.view import get_picking_origin_dir, get_pos_2d, get_wp_matrix
@@ -35,7 +36,7 @@ class View3D_OT_slvs_tweak(Operator):
         return get_wp_matrix(wp) @ pos_2d.to_3d()
 
     def invoke(self, context: Context, event):
-        curve_id = global_data.hover
+        curve_id = selection.hover
         if not curve_id:
             return {"PASS_THROUGH"}
 

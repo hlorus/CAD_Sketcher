@@ -4,7 +4,7 @@ from bpy.props import EnumProperty
 from ..model.sketch_ref import get_active_sketch
 from bpy.types import Context
 
-from .. import global_data
+from ..drawing import selection
 from .curve_data import get_uuid, has_uuid_field
 
 logger = logging.getLogger(__name__)
@@ -25,13 +25,13 @@ def select_all(context: Context):
         if vis_attr and not vis_attr.data[i].value:
             continue
         cid = get_uuid(curve_data, "curve_id", i)
-        if cid and cid not in global_data.selected:
-            global_data.selected.append(cid)
+        if cid and cid not in selection.selected:
+            selection.selected.append(cid)
 
 
 def deselect_all(context: Context):
     logger.debug("Deselecting all sketcher entities")
-    global_data.selected.clear()
+    selection.selected.clear()
 
 
 mode_property = EnumProperty(

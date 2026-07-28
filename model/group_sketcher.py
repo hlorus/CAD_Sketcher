@@ -7,6 +7,7 @@ from bpy.utils import register_class, unregister_class
 from bpy.props import IntProperty, BoolProperty, PointerProperty, IntVectorProperty
 
 from .. import global_data
+from ..drawing import selection
 from ..curve_solver import solve_system
 from .utilities import slvs_entity_pointer
 from .base_entity import SlvsGenericEntity
@@ -115,8 +116,8 @@ class SketcherProps(PropertyGroup):
             del scene[key]
 
     def purge_stale_data(self):
-        global_data.hover = ""
-        global_data.selected.clear()
+        selection.hover = ""
+        selection.selected.clear()
         global_data.batches.clear()
         for e in self.entities.all:
             e.dirty = True
