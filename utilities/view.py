@@ -298,6 +298,30 @@ def _curve_snap_candidates(context: Context, obj, coords: Vector, elements):
                 {"type": "VERTEX", "world_point": Vector(world[i])},
             ))
 
+    if "FACE_MIDPOINT" in elements:
+        # A face only exists for a closed region. Cheaply: the centroid of each
+        # cyclic curve (a circle, or a shape drawn as one closed curve). Regions
+        # formed by several separate coincident lines are the GN fill's loop
+        # detection, which can't be replicated per frame, so they're skipped.
+        cyc_attr = cd.attributes.get("cyclic")
+        thr2 = threshold * threshold
+        for ci, curve in enumerate(cd.curves):
+            if not (cyc_attr.data[ci].value if cyc_attr else False):
+                continue
+            idx = [p.index for p in curve.points]
+            if not idx:
+                continue
+            center_world = world[idx].mean(axis=0)
+            cs, cv = _project_points_to_region(center_world[None, :], region, rv3d)
+            if not cv[0]:
+                continue
+            dc = (cur[0] - cs[0, 0]) ** 2 + (cur[1] - cs[0, 1]) ** 2
+            if dc <= thr2:
+                candidates.append((
+                    3, float(dc ** 0.5), Vector((cs[0, 0], cs[0, 1])),
+                    {"type": "FACE_MIDPOINT", "world_point": Vector(center_world)},
+                ))
+
     if "EDGE" in elements or "EDGE_MIDPOINT" in elements:
         thr2 = threshold * threshold
         for curve in cd.curves:
