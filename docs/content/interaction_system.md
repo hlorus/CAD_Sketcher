@@ -55,3 +55,33 @@ selection is given.
 >Note that the execution is only triggered when a tool is invoked by its shortcut.
 
 ![!Immediate Execution](images/immediate_execution.gif){style="width:100%;height:200px;object-fit:cover;"}
+
+## Snapping
+
+When placing a sketch point you can snap it to existing 3D geometry in the scene.
+Snapping reuses Blender's native snap settings, so it's controlled from the
+snap dropdown in the 3D viewport header (**Snap** magnet toggle and the **Snap
+To** elements) rather than a separate setting.
+
+Enable the **Snap** toggle and pick one or more snap elements; the extension
+reacts to:
+
+- **Vertex** — mesh vertices and sketch points
+- **Edge** — the closest point along a mesh edge or sketch segment
+- **Edge Center** — the midpoint of an edge or segment
+- **Face Center** — the center of a mesh face, or the centroid of a closed
+  sketch shape (a circle or a shape drawn as a single closed curve)
+
+Only the object directly under the cursor is considered, which keeps snapping
+responsive even in dense scenes. Snapping works both for other objects (meshes)
+and for other CAD Sketcher sketches.
+
+> **Static snap:** the snapped location is captured when the point is placed. It
+> does *not* create a constraint and does *not* track the target afterwards, so
+> moving the snapped geometry later will not move the sketch point.
+
+Hold **Shift** while placing or tweaking a point to temporarily bypass snapping.
+
+> Face-center snapping to a shape built from several separate lines (rather than
+> one closed curve) is not supported — that region only exists in the generated
+> mesh, which can't be inspected while sketching.
