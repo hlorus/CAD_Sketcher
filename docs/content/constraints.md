@@ -43,3 +43,17 @@ will be colored red, additionally the failed sketch will be marked.
 ::: CAD_Sketcher.model.types.SlvsDiameter
 
 ::: CAD_Sketcher.model.types.SlvsAngle
+
+## Driven & Animated Dimensions
+The value of a dimensional constraint (distance, diameter or angle) is stored as
+a regular scene property and shown as an editable field in the **Constraints**
+panel. Because it's an ordinary Blender property you can **right-click it** and
+**Add Driver** or **Insert Keyframe**, just like any other value.
+
+The sketch re-solves whenever the value changes — including on frame changes — so
+the geometry follows a driven or animated dimension across the timeline. This
+lets you, for example, drive one dimension from another property or animate a
+dimension to create parametric motion.
+
+> Reference dimensions (measurements) only report the current value and can't be
+> driven or keyframed.

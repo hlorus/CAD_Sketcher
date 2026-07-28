@@ -85,3 +85,20 @@ Hold **Shift** while placing or tweaking a point to temporarily bypass snapping.
 > Face-center snapping to a shape built from several separate lines (rather than
 > one closed curve) is not supported — that region only exists in the generated
 > mesh, which can't be inspected while sketching.
+
+## Auto Constraints
+
+While drawing geometry the extension can infer and add obvious constraints for
+you automatically, so you don't have to place them by hand:
+
+- **Auto axis alignment** — a segment drawn close to horizontal or vertical gets
+  a **Horizontal** / **Vertical** constraint.
+- **Auto coincident** — a new point placed on an existing point gets a
+  **Coincident** constraint.
+
+This is controlled by the **Auto Constraints** toggle in the tool settings bar
+(top of the viewport) of the sketch tools — *Add Line*, *Rectangle*, *Circle*,
+*Arc* and *Point*. It's enabled by default.
+
+Hold **Shift** while placing or confirming a point to skip the auto constraints
+for that step only, without having to change the toggle.
