@@ -233,13 +233,41 @@ def _screen_snap_candidates(
     return candidates
 
 
+def _project_points_to_region(world, region, rv3d):
+    """Project an (N, 3) array of world points to region-space pixels in one
+    numpy op (mirrors location_3d_to_region_2d, but batched). Returns an (N, 2)
+    float array and a boolean (N,) validity mask (points in front of the view).
+    """
+    import numpy as np
+
+    n = len(world)
+    homog = np.empty((n, 4), dtype=np.float64)
+    homog[:, :3] = world
+    homog[:, 3] = 1.0
+    clip = homog @ np.array(rv3d.perspective_matrix, dtype=np.float64).T
+    w = clip[:, 3]
+    valid = w > 1e-8
+    w_safe = np.where(valid, w, 1.0)
+    ndc = clip[:, :2] / w_safe[:, None]
+    screen = np.empty((n, 2), dtype=np.float64)
+    screen[:, 0] = (region.width * 0.5) * (1.0 + ndc[:, 0])
+    screen[:, 1] = (region.height * 0.5) * (1.0 + ndc[:, 1])
+    return screen, valid
+
+
 def _curve_snap_candidates(context: Context, obj, coords: Vector, elements):
     """Snap candidates from a curve object's control points and segments.
 
     Curve objects (CAD Sketcher sketches) don't expose a readable evaluated
     mesh, so snap to their points directly: each control point as a vertex, and
     consecutive points within a curve as edges.
+
+    All points are transformed and projected with numpy in bulk (not one
+    Python call per point), and matched entirely in screen space, so hovering a
+    dense sketch stays cheap on every mouse move.
     """
+    import numpy as np
+
     cd = getattr(obj, "data", None)
     if cd is None or not hasattr(cd, "points") or len(cd.points) == 0:
         return []
@@ -247,60 +275,73 @@ def _curve_snap_candidates(context: Context, obj, coords: Vector, elements):
     threshold = _snap_screen_threshold(context)
     region = context.region
     rv3d = context.region_data
-    matrix = obj.matrix_world
 
     n = len(cd.points)
-    world = [matrix @ Vector(cd.points[i].position) for i in range(n)]
-    screen = [location_3d_to_region_2d(region, rv3d, w) for w in world]
+    local = np.empty(n * 3, dtype=np.float64)
+    cd.points.foreach_get("position", local)
+    local = local.reshape(n, 3)
+
+    # world = matrix @ local (batched)
+    mat = np.array(obj.matrix_world, dtype=np.float64)
+    world = local @ mat[:3, :3].T + mat[:3, 3]
+
+    screen, valid = _project_points_to_region(world, region, rv3d)
+    cur = np.array((coords[0], coords[1]), dtype=np.float64)
 
     candidates = []
 
-    def add_candidate(priority, region_point, snap_data):
-        if region_point is None:
-            return
-        distance = (coords - region_point).length
-        if distance > threshold:
-            return
-        candidates.append((priority, distance, region_point, snap_data))
-
     if "VERTEX" in elements:
-        for i in range(n):
-            add_candidate(0, screen[i], {"type": "VERTEX", "world_point": world[i]})
+        d = np.hypot(screen[:, 0] - cur[0], screen[:, 1] - cur[1])
+        for i in np.nonzero(valid & (d <= threshold))[0]:
+            candidates.append((
+                0, float(d[i]), Vector((screen[i, 0], screen[i, 1])),
+                {"type": "VERTEX", "world_point": Vector(world[i])},
+            ))
 
     if "EDGE" in elements or "EDGE_MIDPOINT" in elements:
+        thr2 = threshold * threshold
         for curve in cd.curves:
             indices = [p.index for p in curve.points]
             for a, b in zip(indices, indices[1:]):
-                world_start, world_end = world[a], world[b]
-                start, end = screen[a], screen[b]
+                if not (valid[a] and valid[b]):
+                    continue
+                sa = screen[a]
+                sb = screen[b]
 
-                if "EDGE_MIDPOINT" in elements and start is not None and end is not None:
-                    add_candidate(
-                        1,
-                        (start + end) / 2,
-                        {
-                            "type": "EDGE_MIDPOINT",
-                            "world_point": (world_start + world_end) / 2,
-                            "world_edge": (world_start, world_end),
-                        },
-                    )
+                if "EDGE_MIDPOINT" in elements:
+                    mid = (sa + sb) * 0.5
+                    dm = (cur[0] - mid[0]) ** 2 + (cur[1] - mid[1]) ** 2
+                    if dm <= thr2:
+                        candidates.append((
+                            1, float(dm ** 0.5), Vector((mid[0], mid[1])),
+                            {
+                                "type": "EDGE_MIDPOINT",
+                                "world_point": Vector((world[a] + world[b]) * 0.5),
+                                "world_edge": (Vector(world[a]), Vector(world[b])),
+                            },
+                        ))
 
                 if "EDGE" in elements:
-                    world_closest = _closest_segment_point_world(
-                        coords, world_start, world_end, region, rv3d
-                    )
-                    if world_closest is None:
+                    # Closest point on the screen-space segment to the cursor.
+                    seg = sb - sa
+                    seg_len2 = seg[0] * seg[0] + seg[1] * seg[1]
+                    if seg_len2 < 1e-9:
                         continue
-                    region_point = location_3d_to_region_2d(region, rv3d, world_closest)
-                    add_candidate(
-                        2,
-                        region_point,
-                        {
-                            "type": "EDGE",
-                            "world_point": world_closest,
-                            "world_edge": (world_start, world_end),
-                        },
-                    )
+                    t = ((cur[0] - sa[0]) * seg[0] + (cur[1] - sa[1]) * seg[1]) / seg_len2
+                    t = min(1.0, max(0.0, t))
+                    cx = sa[0] + t * seg[0]
+                    cy = sa[1] + t * seg[1]
+                    de = (cur[0] - cx) ** 2 + (cur[1] - cy) ** 2
+                    if de <= thr2:
+                        world_closest = Vector(world[a]).lerp(Vector(world[b]), t)
+                        candidates.append((
+                            2, float(de ** 0.5), Vector((cx, cy)),
+                            {
+                                "type": "EDGE",
+                                "world_point": world_closest,
+                                "world_edge": (Vector(world[a]), Vector(world[b])),
+                            },
+                        ))
 
     return candidates
 
