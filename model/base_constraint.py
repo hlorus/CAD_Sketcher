@@ -221,6 +221,15 @@ class GenericConstraint:
             ids.append(self.curve_id_3)
         return ids
 
+    def marker_position(self, sketch):
+        """World position for a single constraint marker, or None.
+
+        Override to place the gizmo icon at a computed point (e.g. a tangent
+        point) instead of a curve's default placement. Returning None makes the
+        gizmo fall back to ``curve_id_placements``.
+        """
+        return None
+
     def _get_sketch(self):
         """Resolve the Sketch accessor for this constraint."""
         sketch = self.sketch if hasattr(self, "sketch") and self.sketch else None

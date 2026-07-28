@@ -163,6 +163,46 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
                     return [cid]
         return ids[:1]
 
+    def marker_position(self, sketch):
+        """Tangent point of a line + arc/circle: the foot of the perpendicular
+        from the curved element's center onto the line (drawing-direction
+        independent). Returns None for other combinations."""
+        from mathutils import Vector
+
+        r1, r2 = self.ref(1), self.ref(2)
+        if not r1 or not r2:
+            return None
+
+        # The curved element (arc/circle) exposes a center point as `ct`; the
+        # line does not. Arc refs also alias p1/p2, so identify the line by the
+        # *absence* of a center.
+        curved = next(
+            (r for r in (r1, r2) if getattr(r, "ct", None) is not None), None
+        )
+        line = next(
+            (r for r in (r1, r2)
+             if r is not curved
+             and getattr(r, "ct", None) is None
+             and getattr(r, "p1", None) is not None),
+            None,
+        )
+        if curved is None or line is None:
+            return None
+
+        p1, p2, center = line.p1, line.p2, curved.ct
+        if p1 is None or p2 is None or center is None:
+            return None
+
+        a = Vector(p1.co[:2])
+        b = Vector(p2.co[:2])
+        c = Vector(center.co[:2])
+        ab = b - a
+        if ab.length_squared < 1e-12:
+            return None
+        t = (c - a).dot(ab) / ab.length_squared
+        foot = a + t * ab  # perpendicular foot on the (infinite) line = tangent point
+        return sketch.target_object.matrix_world @ foot.to_3d()
+
 
 slvs_entity_pointer(SlvsTangent, "entity1")
 slvs_entity_pointer(SlvsTangent, "entity2")

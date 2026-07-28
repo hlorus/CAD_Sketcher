@@ -86,6 +86,15 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                     gz.entity_index = ident
                     gz.curve_id = getattr(c, 'curve_id_1', "")
 
+                # A constraint may pin the marker to a computed point (e.g. a
+                # tangent point) instead of the curve's default placement.
+                gz.placement_pos = None
+                if hasattr(c, "marker_position"):
+                    try:
+                        gz.placement_pos = c.marker_position(active_sketch)
+                    except Exception:
+                        gz.placement_pos = None
+
                 ui_scale = context.preferences.system.ui_scale
                 scale = get_prefs().gizmo_scale * ui_scale
                 offset_base = Vector((scale * 1.0, 0.0))
@@ -136,11 +145,16 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         "index",
         "entity_index",
         "offset",
+        "placement_pos",
     )
 
     def _update_matrix_basis(self, context, constr):
         pos = None
-        if hasattr(self, "curve_id") and self.curve_id:
+
+        # A constraint may supply a computed world position (e.g. a tangent
+        # point); otherwise fall back to the referenced curve's placement.
+        world_pos = getattr(self, "placement_pos", None)
+        if world_pos is None and hasattr(self, "curve_id") and self.curve_id:
             from ..model.sketch_ref import get_active_sketch
             sketch = get_active_sketch(context)
             if sketch:
@@ -149,8 +163,7 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
             else:
                 return
 
-            if world_pos is None:
-                return
+        if world_pos is not None:
             pos = get_2d_coords(context, world_pos)
             if not pos:
                 return
