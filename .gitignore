@@ -138,3 +138,6 @@ utils/*
 /notes
 nul
 .claude/settings.local.json
+
+# Blender auto-backup files
+*.blend1
