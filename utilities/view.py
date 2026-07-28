@@ -233,6 +233,78 @@ def _screen_snap_candidates(
     return candidates
 
 
+def _curve_snap_candidates(context: Context, obj, coords: Vector, elements):
+    """Snap candidates from a curve object's control points and segments.
+
+    Curve objects (CAD Sketcher sketches) don't expose a readable evaluated
+    mesh, so snap to their points directly: each control point as a vertex, and
+    consecutive points within a curve as edges.
+    """
+    cd = getattr(obj, "data", None)
+    if cd is None or not hasattr(cd, "points") or len(cd.points) == 0:
+        return []
+
+    threshold = _snap_screen_threshold(context)
+    region = context.region
+    rv3d = context.region_data
+    matrix = obj.matrix_world
+
+    n = len(cd.points)
+    world = [matrix @ Vector(cd.points[i].position) for i in range(n)]
+    screen = [location_3d_to_region_2d(region, rv3d, w) for w in world]
+
+    candidates = []
+
+    def add_candidate(priority, region_point, snap_data):
+        if region_point is None:
+            return
+        distance = (coords - region_point).length
+        if distance > threshold:
+            return
+        candidates.append((priority, distance, region_point, snap_data))
+
+    if "VERTEX" in elements:
+        for i in range(n):
+            add_candidate(0, screen[i], {"type": "VERTEX", "world_point": world[i]})
+
+    if "EDGE" in elements or "EDGE_MIDPOINT" in elements:
+        for curve in cd.curves:
+            indices = [p.index for p in curve.points]
+            for a, b in zip(indices, indices[1:]):
+                world_start, world_end = world[a], world[b]
+                start, end = screen[a], screen[b]
+
+                if "EDGE_MIDPOINT" in elements and start is not None and end is not None:
+                    add_candidate(
+                        1,
+                        (start + end) / 2,
+                        {
+                            "type": "EDGE_MIDPOINT",
+                            "world_point": (world_start + world_end) / 2,
+                            "world_edge": (world_start, world_end),
+                        },
+                    )
+
+                if "EDGE" in elements:
+                    world_closest = _closest_segment_point_world(
+                        coords, world_start, world_end, region, rv3d
+                    )
+                    if world_closest is None:
+                        continue
+                    region_point = location_3d_to_region_2d(region, rv3d, world_closest)
+                    add_candidate(
+                        2,
+                        region_point,
+                        {
+                            "type": "EDGE",
+                            "world_point": world_closest,
+                            "world_edge": (world_start, world_end),
+                        },
+                    )
+
+    return candidates
+
+
 def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
     from .. import global_data
 
@@ -255,11 +327,11 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
     result, location, _normal, face_index, ob, _matrix = context.scene.ray_cast(
         depsgraph, origin, view_vector
     )
-    hit_object = ob.evaluated_get(depsgraph) if result and ob is not None and ob.type == "MESH" else None
-    if hit_object is None:
-        # Nothing under the cursor -> nothing to snap to. Only the mesh directly
-        # hit by the ray is considered, so a mouse-move over empty space is free
-        # instead of scanning every visible mesh (the drawing-lag path).
+    if not result or ob is None:
+        # Nothing under the cursor -> nothing to snap to. Only the object
+        # directly hit by the ray is considered, so a mouse-move over empty
+        # space is free instead of scanning every visible object (the
+        # drawing-lag path).
         #
         # NOTE: snapping deliberately does NOT use the viewport x-ray shading to
         # decide scope. The "Auto Fade Objects" feature turns x-ray on in sketch
@@ -267,10 +339,19 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
         # every frame.
         return None
 
-    # Restrict to the hit face's vertices/edges for a cheap, local search.
-    candidates = _screen_snap_candidates(
-        context, coords, hit_object, elements, face_index=face_index
-    )
+    if ob.type == "MESH":
+        # Restrict to the hit face's vertices/edges for a cheap, local search.
+        candidates = _screen_snap_candidates(
+            context, coords, ob.evaluated_get(depsgraph), elements, face_index=face_index
+        )
+    elif ob.type == "CURVES":
+        # CAD Sketcher sketches (and other curve objects) are Curves objects; the
+        # generated mesh can't be read back, but their control points can, so
+        # snap to the curve's points and segments directly.
+        candidates = _curve_snap_candidates(context, ob.original, coords, elements)
+    else:
+        return None
+
     if not candidates:
         return None
 

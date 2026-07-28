@@ -28,6 +28,7 @@ class TestSnappingApiPresent(TestCase):
             "get_wp_matrix",
             "_snap_elements",
             "_screen_snap_candidates",
+            "_curve_snap_candidates",
             "_closest_segment_point_world",
         ):
             self.assertTrue(callable(getattr(view, name, None)), f"missing view.{name}")
