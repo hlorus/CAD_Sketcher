@@ -255,7 +255,7 @@ def _project_points_to_region(world, region, rv3d):
     return screen, valid
 
 
-def _curve_snap_candidates(context: Context, obj, coords: Vector, elements):
+def _curve_snap_candidates(context: Context, obj, coords: Vector, elements, threshold=None):
     """Snap candidates from a curve object's control points and segments.
 
     Curve objects (CAD Sketcher sketches) don't expose a readable evaluated
@@ -264,7 +264,9 @@ def _curve_snap_candidates(context: Context, obj, coords: Vector, elements):
 
     All points are transformed and projected with numpy in bulk (not one
     Python call per point), and matched entirely in screen space, so hovering a
-    dense sketch stays cheap on every mouse move.
+    dense sketch stays cheap on every mouse move. ``threshold`` overrides the
+    default snap pixel radius (callers picking rather than snapping want a more
+    forgiving radius).
     """
     import numpy as np
 
@@ -272,7 +274,8 @@ def _curve_snap_candidates(context: Context, obj, coords: Vector, elements):
     if cd is None or not hasattr(cd, "points") or len(cd.points) == 0:
         return []
 
-    threshold = _snap_screen_threshold(context)
+    if threshold is None:
+        threshold = _snap_screen_threshold(context)
     region = context.region
     rv3d = context.region_data
 
@@ -368,6 +371,62 @@ def _curve_snap_candidates(context: Context, obj, coords: Vector, elements):
                         ))
 
     return candidates
+
+
+def _dist2_point_segment(px, py, a, b):
+    abx, aby = b[0] - a[0], b[1] - a[1]
+    seg2 = abx * abx + aby * aby
+    if seg2 < 1e-9:
+        return (px - a[0]) ** 2 + (py - a[1]) ** 2
+    t = ((px - a[0]) * abx + (py - a[1]) * aby) / seg2
+    t = min(1.0, max(0.0, t))
+    cx, cy = a[0] + t * abx, a[1] + t * aby
+    return (px - cx) ** 2 + (py - cy) ** 2
+
+
+def curve_segment_under_cursor(context: Context, coords, threshold_px):
+    """Nearest curve/sketch segment under the cursor -> (obj, point_index) or None.
+
+    Curves have no raycastable geometry, so pick them in screen space (same bulk
+    numpy projection the snapping uses). ``point_index`` is the segment's first
+    control point; the segment is points [i, i+1] within one curve, so it
+    resolves back to endpoints via ``cd.points[i]`` / ``cd.points[i + 1]``. Used
+    by both the hover gizmo (highlight) and pointer picks so they agree.
+    """
+    import numpy as np
+
+    region = context.region
+    rv3d = context.region_data
+    if region is None or rv3d is None:
+        return None
+    cx, cy = float(coords[0]), float(coords[1])
+    thr2 = threshold_px * threshold_px
+    best = None
+    for ob in context.visible_objects:
+        if ob.type not in {"CURVE", "CURVES"}:
+            continue
+        cd = getattr(ob.original, "data", None)
+        if cd is None or not hasattr(cd, "points") or len(cd.points) == 0 \
+                or not hasattr(cd, "curves"):
+            continue
+        n = len(cd.points)
+        local = np.empty(n * 3, dtype=np.float64)
+        cd.points.foreach_get("position", local)
+        local = local.reshape(n, 3)
+        mat = np.array(ob.matrix_world, dtype=np.float64)
+        world = local @ mat[:3, :3].T + mat[:3, 3]
+        screen, valid = _project_points_to_region(world, region, rv3d)
+        for curve in cd.curves:
+            indices = [p.index for p in curve.points]
+            for a, b in zip(indices, indices[1:]):
+                if not (valid[a] and valid[b]):
+                    continue
+                d2 = _dist2_point_segment(cx, cy, screen[a], screen[b])
+                if d2 <= thr2 and (best is None or d2 < best[0]):
+                    best = (d2, ob, a)
+    if best is None:
+        return None
+    return best[1], best[2]
 
 
 def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:

@@ -10,6 +10,7 @@ from .add_rectangle import VIEW3D_T_slvs_add_rectangle
 from .array_linear import VIEW3D_T_slvs_node_array_linear
 from .bevel import VIEW3D_T_slvs_bevel
 from .extrude import VIEW3D_T_slvs_node_extrude
+from .revolve import VIEW3D_T_slvs_node_revolve
 from .offset import VIEW3D_T_slvs_offset
 from .select import VIEW3D_T_slvs_select
 from .trim import VIEW3D_T_slvs_trim
@@ -30,6 +31,7 @@ add(VIEW3D_T_slvs_offset, visibility=ToolGroup.SKETCH, separator=False, group=Fa
 # Non-sketch tools (visible when no sketch is active)
 add(VIEW3D_T_slvs_add_sketch, visibility=ToolGroup.NON_SKETCH, separator=True, group=False)
 add(VIEW3D_T_slvs_node_extrude, visibility=ToolGroup.NON_SKETCH, separator=True, group=False)
+add(VIEW3D_T_slvs_node_revolve, visibility=ToolGroup.NON_SKETCH, separator=False, group=False)
 add(VIEW3D_T_slvs_node_array_linear, visibility=ToolGroup.NON_SKETCH, separator=False, group=False)
 
 

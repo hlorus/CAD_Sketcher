@@ -78,6 +78,14 @@ def detect_hover(context, coords, types):
         if ob is not None and elem_type in ("VERTEX", "EDGE", "FACE"):
             return (elem_type, ob.name, index)
 
+        # Curves aren't raycastable -> screen-space segment pick for edge states.
+        if want_edge:
+            from ..utilities.view import curve_segment_under_cursor
+            radius = 12.0 * context.preferences.system.ui_scale
+            hit = curve_segment_under_cursor(context, coords, radius)
+            if hit is not None:
+                return ("EDGE", hit[0].name, hit[1])
+
     if Object in types:
         ob = object_under_cursor(context, coords)
         if ob is not None:

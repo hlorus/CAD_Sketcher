@@ -192,6 +192,11 @@ node_access = (
         Operators.NodeExtrude,
     ),
     tool_invoke_kmi(
+        "R",
+        WorkSpaceTools.Revolve,
+        Operators.NodeRevolve,
+    ),
+    tool_invoke_kmi(
         "D",
         WorkSpaceTools.ArrayLinear,
         Operators.NodeArrayLinear,
@@ -398,6 +403,14 @@ def register():
         )
         kmi.properties.tool_name = WorkSpaceTools.Extrude.value
         kmi.properties.operator = Operators.NodeExtrude.value
+        addon_keymaps.append((km, kmi))
+
+        # Revolve: switch to the Revolve tool, then invoke the operator.
+        kmi = km.keymap_items.new(
+            StatefulOps.InvokeTool.value, "R", "PRESS", ctrl=True, shift=True
+        )
+        kmi.properties.tool_name = WorkSpaceTools.Revolve.value
+        kmi.properties.operator = Operators.NodeRevolve.value
         addon_keymaps.append((km, kmi))
 
         # Linear Array: switch to the tool, then invoke the operator.

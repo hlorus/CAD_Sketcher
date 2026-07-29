@@ -1,17 +1,24 @@
+import math
 
 import bpy
-from bpy.types import Operator, Object, Context
-from bpy.props import BoolProperty, FloatProperty, IntProperty, FloatVectorProperty
+from bpy.props import (
+    BoolProperty,
+    FloatProperty,
+    FloatVectorProperty,
+    IntProperty,
+    StringProperty,
+)
+from bpy.types import Context, MeshEdge, Object, Operator
 from mathutils import Vector
 from mathutils.geometry import intersect_line_line, intersect_line_plane
 
-from .base_3d import Operator3d
 from ..assets_manager import load_asset
-from ..global_data import LIB_NAME
 from ..declarations import Operators
-from ..utilities.view import get_placement_pos, get_picking_origin_dir
-from ..stateful_operator.utilities.register import register_stateops_factory
+from ..global_data import LIB_NAME
 from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.view import get_picking_origin_dir, get_placement_pos
+from .base_3d import Operator3d
 
 
 def set_modifier_input(modifier, identifier, value):
@@ -27,9 +34,21 @@ def set_modifier_input(modifier, identifier, value):
     """
     props = getattr(modifier, "properties", None)
     if props is not None and hasattr(props, "inputs"):
-        getattr(props.inputs, identifier).value = value   # Blender 5.2+
+        getattr(props.inputs, identifier).value = value  # Blender 5.2+
     else:
-        modifier[identifier] = value                       # Blender <= 5.1
+        modifier[identifier] = value  # Blender <= 5.1
+
+
+def get_modifier_input(modifier, identifier):
+    """Read a Geometry-Nodes modifier input by socket identifier.
+
+    Version-aware counterpart to ``set_modifier_input`` (see it for the 5.1 vs
+    5.2 access split).
+    """
+    props = getattr(modifier, "properties", None)
+    if props is not None and hasattr(props, "inputs"):
+        return getattr(props.inputs, identifier).value  # Blender 5.2+
+    return modifier[identifier]  # Blender <= 5.1
 
 
 BASE_STATES = (
@@ -58,11 +77,34 @@ class NodeOperator(Operator3d):
     # Message shown when the resolved target fails is_valid_target().
     invalid_target_msg = "Invalid target object"
 
+    # Persisted target so the redo panel (which re-runs execute() on a fresh
+    # instance, losing the transient pointer state) can re-resolve the object
+    # and edit the existing modifier instead of failing. Not SKIP_SAVE: it must
+    # survive redo; main() overwrites it every run so a stale value is harmless.
+    target_name: StringProperty(options={"HIDDEN"})
+
     @classmethod
     def poll(cls, context):
         if not context.active_object:
             return False
         return True
+
+    def state_property(self, state_index):
+        # Native Object/MeshEdge pointer states have no editable fallback
+        # property; don't advertise the "" placeholder GenericEntityOp returns
+        # for non-entity pointers (it breaks the redo panel and redo_states).
+        return None
+
+    def resolved_object(self):
+        """The object to operate on: the live pointer, else the persisted name.
+
+        On the interactive path the base Object state resolves ``self.object``;
+        on the redo path that pointer is gone, so fall back to ``target_name``.
+        """
+        ob = self.object
+        if ob is None and self.target_name:
+            ob = bpy.data.objects.get(self.target_name)
+        return ob
 
     def is_valid_target(self, obj):
         """Whether ``obj`` may receive this node modifier. Override to restrict."""
@@ -76,7 +118,8 @@ class NodeOperator(Operator3d):
         active = context.active_object
         result = [active] if active and self.is_valid_target(active) else []
         result.extend(
-            o for o in context.selected_objects
+            o
+            for o in context.selected_objects
             if o != active and self.is_valid_target(o)
         )
         return result
@@ -84,14 +127,37 @@ class NodeOperator(Operator3d):
     def _check_constrain(self, context, index):
         return False
 
+    def read_props(self, modifier):
+        """Seed operator properties from an existing modifier's inputs.
+
+        Called on invoke when the target already carries this tool's modifier,
+        so re-invoking edits from the current values instead of snapping back to
+        the defaults. Override to pull the relevant sockets; base is a no-op.
+        """
+        pass
+
     def invoke(self, context, event):
         # Follow the stateful prefill-from-selection flow: if nothing valid is
         # selected to prefill the base Object state, cancel instead of dropping
         # into an object-pick (a sketch/curve isn't reliably pickable in the
         # viewport). gather_selection already filters to valid targets.
-        if self.wait_for_input and not self.gather_selection(context):
+        selection = self.gather_selection(context)
+        if self.wait_for_input and not selection:
             self.report({"WARNING"}, self.invalid_target_msg)
             return {"CANCELLED"}
+
+        # If the prefill target already carries this tool's modifier, seed the
+        # operator from its current values. Convenience only -- never let a
+        # readback mishap (e.g. a changed node group) block the tool.
+        target = selection[0] if selection else None
+        if isinstance(target, Object):
+            mod = target.modifiers.get(f"CAD_Sketcher {self.bl_label}")
+            if mod and mod.node_group:
+                try:
+                    self.read_props(mod)
+                except Exception:
+                    pass
+
         return super().invoke(context, event)
 
     def init(self, context, event):
@@ -105,7 +171,7 @@ class NodeOperator(Operator3d):
 
     def _ensure_modifier(self, context):
         """Create the modifier once, reuse on subsequent calls."""
-        ob = self.object.original
+        ob = self._obj.original
         mod_name = f"CAD_Sketcher {self.bl_label}"
 
         self.modifier = ob.modifiers.get(mod_name)
@@ -121,15 +187,22 @@ class NodeOperator(Operator3d):
         return True
 
     def main(self, context):
-        if not self.is_valid_target(self.object):
+        ob = self.resolved_object()
+        if not self.is_valid_target(ob):
             self.report({"WARNING"}, self.invalid_target_msg)
             return False
+
+        # Persist the target and keep a resolved reference for this run so
+        # _ensure_modifier / set_props work on both the interactive and redo
+        # paths without going through the (redo-transient) pointer state.
+        self.target_name = ob.name
+        self._obj = ob
 
         if not self._ensure_modifier(context):
             return False
 
         retval = self.set_props()
-        self.object.original.update_tag()
+        ob.original.update_tag()
         return retval
 
     def set_props(self):
@@ -142,9 +215,7 @@ class View3D_OT_node_fill(Operator, NodeOperator):
     bl_idname = Operators.NodeFill
     bl_label = "Fill Profile"
 
-    resources = (
-        ("node_groups", "Fill Mesh and Curve"),
-    )
+    resources = (("node_groups", "Fill Mesh and Curve"),)
 
     states = BASE_STATES
 
@@ -194,9 +265,9 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
 
     def set_props(self):
         m = self.modifier
-        set_modifier_input(m, "Input_2", self.offset)              # Size
-        set_modifier_input(m, "Input_3", self.mirror)              # Mirror Extrude
-        set_modifier_input(m, "Input_4", self.asymmetry)           # Asymmetry Override
+        set_modifier_input(m, "Input_2", self.offset)  # Size
+        set_modifier_input(m, "Input_3", self.mirror)  # Mirror Extrude
+        set_modifier_input(m, "Input_4", self.asymmetry)  # Asymmetry Override
         set_modifier_input(m, "Input_5", self.asymmetry_distance)  # Asymmetry Distance
         return True
 
@@ -296,14 +367,14 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
             distance = 0.0
 
         m = self.modifier
-        set_modifier_input(m, "Input_21", tuple(direction))         # Direction
-        set_modifier_input(m, "Input_22", self.count)               # Count
-        set_modifier_input(m, "Input_23", distance)                 # Spacing / Total distance
+        set_modifier_input(m, "Input_21", tuple(direction))  # Direction
+        set_modifier_input(m, "Input_22", self.count)  # Count
+        set_modifier_input(m, "Input_23", distance)  # Spacing / Total distance
         set_modifier_input(m, "Input_24", self.use_total_distance)  # Use Total Distance
-        set_modifier_input(m, "Input_25", self.align_rotation)      # Align Rotation
-        set_modifier_input(m, "Input_26", self.merge)               # Merge by Distance
-        set_modifier_input(m, "Input_29", self.merge_distance)      # Merge Distance
-        set_modifier_input(m, "Input_30", self.flip)                # Flip Direction
+        set_modifier_input(m, "Input_25", self.align_rotation)  # Align Rotation
+        set_modifier_input(m, "Input_26", self.merge)  # Merge by Distance
+        set_modifier_input(m, "Input_29", self.merge_distance)  # Merge Distance
+        set_modifier_input(m, "Input_30", self.flip)  # Flip Direction
         return True
 
     def draw_settings(self, context):
@@ -319,7 +390,166 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         sub.prop(self, "merge_distance")
 
 
+class View3D_OT_node_revolve(Operator, NodeOperator):
+    """Revolve a 2D profile around a picked axis"""
+
+    bl_idname = Operators.NodeRevolve
+    bl_label = "Revolve"
+
+    NODEGROUP_NAME = "CAD Sketcher Revolve"
+    resources = (("node_groups", "CAD Sketcher Revolve"),)
+
+    invalid_target_msg = "Select a sketch, curve or mesh profile to revolve"
+
+    angle: FloatProperty(
+        name="Angle",
+        subtype="ANGLE",
+        default=math.tau,
+        min=-math.tau,
+        max=math.tau,
+        options={"SKIP_SAVE"},
+    )
+    angular_resolution: FloatProperty(
+        name="Angular Resolution",
+        description="Maximum angle per segment; the step count adapts to the "
+        "revolve angle to keep a consistent smoothness",
+        subtype="ANGLE",
+        default=math.radians(2),
+        min=math.radians(0.5),
+        soft_max=math.radians(90),
+    )
+    flip: BoolProperty(name="Flip Direction")
+
+    # Raw picked axis (object space, un-flipped), persisted so the redo panel
+    # can re-apply the revolve without the transient axis pointer. Not
+    # SKIP_SAVE: must survive redo; a fresh invoke re-picks before main() runs.
+    axis_origin: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
+    axis_direction: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
+
+    states = (
+        *BASE_STATES,
+        state_from_args(
+            "Axis",
+            description="Click a mesh edge or curve/sketch line to revolve around",
+            pointer="axis",
+            types=(MeshEdge,),
+            use_create=False,
+        ),
+    )
+
+    def is_valid_target(self, obj):
+        # Curves and sketches, plus mesh profiles (edge paths) -- the node group
+        # converts mesh edges to a curve, so a poly-line/silhouette mesh works
+        # too, matching Blender's Screw modifier.
+        return obj is not None and obj.type in {"CURVE", "CURVES", "MESH"}
+
+    def get_point(self, context, index):
+        # The axis is a picked edge, resolved to endpoints in set_props; there
+        # is no entity to return here.
+        return None
+
+    def pick_element(self, context, coords):
+        # Mesh edges pick through the framework (object-agnostic now). Curves
+        # aren't ray-castable, so fall back to the shared screen-space
+        # curve-segment pick -- the same one the hover gizmo uses, so the
+        # highlight and the pick agree.
+        result = super().pick_element(context, coords)
+        if result is not None:
+            return result
+        from ..utilities.view import curve_segment_under_cursor
+
+        radius = 12.0 * context.preferences.system.ui_scale
+        hit = curve_segment_under_cursor(context, coords, radius)
+        if hit is not None:
+            obj, point_index = hit
+            self.state_data["type"] = MeshEdge
+            return obj.name, point_index
+        return None
+
+    def _axis_endpoints(self):
+        """World endpoints of the picked axis edge (mesh or curve), or None."""
+        try:
+            ob_name, index = self.get_state_pointer(index=1, implicit=True)
+        except Exception:
+            return None
+        ob = bpy.data.objects.get(ob_name)
+        if ob is None:
+            return None
+        if ob.type in {"CURVE", "CURVES"}:
+            pts = getattr(ob.data, "points", None)
+            if pts is None or index + 1 >= len(pts):
+                return None
+            mw = ob.matrix_world
+            return mw @ Vector(pts[index].position), mw @ Vector(
+                pts[index + 1].position
+            )
+        eob = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        me = eob.data
+        if not hasattr(me, "edges") or index >= len(me.edges):
+            return None
+        i0, i1 = me.edges[index].vertices
+        mw = eob.matrix_world
+        return mw @ Vector(me.vertices[i0].co), mw @ Vector(me.vertices[i1].co)
+
+    def read_props(self, modifier):
+        # Seed the angle/resolution from the existing revolve so re-invoking on
+        # the same object continues from its current sweep. The axis is re-picked
+        # each run (and flip isn't stored in the modifier), so neither is read.
+        self.angle = get_modifier_input(modifier, "Socket_3")
+        self.angular_resolution = get_modifier_input(modifier, "Socket_4")
+
+    def _has_stored_axis(self):
+        return Vector(self.axis_direction).length > 1e-9
+
+    def main(self, context):
+        # Need an axis: either freshly picked (interactive) or persisted from a
+        # previous run (redo). Without one the modifier would sit on the node
+        # group's default axis and generate a bogus revolve.
+        if self._axis_endpoints() is None and not self._has_stored_axis():
+            return False
+        return super().main(context)
+
+    def set_props(self):
+        ends = self._axis_endpoints()
+        if ends is not None:
+            # Fresh pick: derive the raw axis in object space and persist it so a
+            # later redo can reuse it without the (now-gone) axis pointer.
+            w0, w1 = ends
+            inv = self._obj.original.matrix_world.inverted()
+            origin = inv @ w0
+            direction = (inv @ w1) - origin
+            if direction.length < 1e-9:
+                return False
+            direction.normalize()
+            self.axis_origin = origin
+            self.axis_direction = direction
+        elif self._has_stored_axis():
+            # Redo path: reuse the persisted axis.
+            origin = Vector(self.axis_origin)
+            direction = Vector(self.axis_direction)
+        else:
+            self.report({"WARNING"}, "Pick a revolve axis (an edge or line)")
+            return False
+
+        # Apply flip at write time (not baked into the stored axis) so toggling
+        # it in the redo panel works.
+        final_dir = -direction if self.flip else direction
+
+        m = self.modifier
+        set_modifier_input(m, "Socket_1", tuple(origin))  # Axis Origin
+        set_modifier_input(m, "Socket_2", tuple(final_dir))  # Axis Direction
+        set_modifier_input(m, "Socket_3", self.angle)  # Angle
+        set_modifier_input(m, "Socket_4", self.angular_resolution)  # Angular Resolution
+        return True
+
+    def draw_settings(self, context):
+        layout = self.layout
+        row = layout.row(align=True)
+        row.prop(self, "angle")
+        row.prop(self, "flip", text="", icon="ARROW_LEFTRIGHT")
+        layout.prop(self, "angular_resolution")
+
 
 register, unregister = register_stateops_factory(
-    (View3D_OT_node_extrude, View3D_OT_node_array_linear)
+    (View3D_OT_node_extrude, View3D_OT_node_array_linear, View3D_OT_node_revolve)
 )
