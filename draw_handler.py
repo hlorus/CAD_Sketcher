@@ -63,6 +63,21 @@ def _draw_bbox_hover(ob, col, scale):
 
 
 def _draw_edge_hover(context, ob, index, col, scale):
+    # Curves have no evaluated mesh edges; the index is a control-point index
+    # (segment = points [i, i+1]), resolved from the original curve data.
+    if ob.type in {"CURVE", "CURVES"}:
+        cd = ob.original.data
+        pts = getattr(cd, "points", None)
+        if pts is None or index + 1 >= len(pts):
+            return
+        mw = ob.matrix_world
+        lines = [
+            (mw @ Vector(pts[index].position))[:],
+            (mw @ Vector(pts[index + 1].position))[:],
+        ]
+        _draw_lines_hover(lines, col, scale, width=3)
+        return
+
     eval_ob = ob.evaluated_get(context.evaluated_depsgraph_get())
     me = eval_ob.data
     if not hasattr(me, "edges") or index >= len(me.edges):
