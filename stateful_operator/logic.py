@@ -1,3 +1,5 @@
+import math
+
 import bpy
 from bpy.props import IntProperty, BoolProperty
 from bpy.types import Context, Event
@@ -134,15 +136,26 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
         context.workspace.status_text_set(msg)
 
-    @staticmethod
-    def _format_values(values):
-        """Format resolved state values (vectors / floats / ints) for display."""
+    def _format_values(self, values):
+        """Format resolved state values (vectors / floats / ints) for display.
+
+        Angle-subtype properties are shown in degrees to match how Blender
+        presents them everywhere else.
+        """
+        props = self.get_property() or []
         parts = []
-        for v in values:
+        for i, v in enumerate(values):
+            subtype = None
+            if i < len(props):
+                prop = self.rna_type.properties.get(props[i])
+                subtype = prop.subtype if prop else None
             if hasattr(v, "__len__") and not isinstance(v, str):
                 parts.append("(" + ", ".join("{:.3f}".format(x) for x in v) + ")")
             elif isinstance(v, float):
-                parts.append("{:.3f}".format(v))
+                if subtype == "ANGLE":
+                    parts.append("{:.1f}°".format(math.degrees(v)))
+                else:
+                    parts.append("{:.3f}".format(v))
             else:
                 parts.append(str(v))
         return ", ".join(parts)
@@ -551,7 +564,12 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 break
             if state.pointer:
                 data = self._state_data.get(i, {})
-                is_existing_entity = data["is_existing_entity"]
+                # The redo/execute path runs on a fresh operator instance, so
+                # the transient per-state data may be gone. Treat a missing
+                # entry as "existing" (nothing to recreate) rather than crash;
+                # operators that need to re-resolve a pointer on redo persist it
+                # in a real property instead (see NodeOperator.target_name).
+                is_existing_entity = data.get("is_existing_entity", True)
                 props = self.get_property(index=i)
                 if props and not is_existing_entity:
                     create = self.get_func(state, "create_element")

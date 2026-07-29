@@ -28,26 +28,9 @@ class StatefulOperator(StatefulOperatorLogic):
     """Extends logic class with native blender integration"""
 
     @classmethod
-    def _has_global_object(cls):
-        states = cls.get_states_definition()
-        return any([s.pointer == "object" for s in states])
-
-    @classmethod
-    def _get_global_object_index(cls):
-        states = cls.get_states_definition()
-        object_in_list = [s.pointer == "object" for s in states]
-        if not any(object_in_list):
-            return None
-        return object_in_list.index(True)
-
-    @classmethod
     def register_properties(cls):
         states = cls.get_states_definition()
         annotations = cls.__annotations__.copy()
-
-        # Have some specific logic: pointer name "object" is used as global object
-        # otherwise define ob_name for each element
-        # has_global_object = cls._has_global_object()
 
         for i, s in enumerate(states):
             pointer_name = s.pointer
@@ -98,11 +81,7 @@ class StatefulOperator(StatefulOperatorLogic):
             return None
 
         if pointer_type in (bpy.types.Object, *mesh_element_types):
-            if self._has_global_object():
-                global_ob_index = self._get_global_object_index()
-                obj_name = self._state_data[global_ob_index]["object_name"]
-            else:
-                obj_name = data["object_name"]
+            obj_name = data["object_name"]
             blender_obj = bpy.data.objects.get(obj_name)
             if blender_obj is None:
                 return None
@@ -124,7 +103,15 @@ class StatefulOperator(StatefulOperatorLogic):
         elif pointer_type == bpy.types.MeshEdge:
             if implicit:
                 return obj_name, index
-            return obj.data.edges[index]
+            edges = getattr(obj.data, "edges", None)
+            if edges is None:
+                # A curve/sketch edge has no mesh edge to return; hand back the
+                # object so the pointer still reads as "set" (the picker resolves
+                # the actual endpoints from the stored index).
+                return obj
+            if index >= len(edges):
+                return None
+            return edges[index]
 
         elif pointer_type == bpy.types.MeshPolygon:
             if implicit:
@@ -159,13 +146,7 @@ class StatefulOperator(StatefulOperatorLogic):
 
         elif pointer_type in mesh_element_types:
             obj_name = get_value(0) if implicit else get_value(0).name
-            if self._has_global_object():
-                self._state_data[self._get_global_object_index()][
-                    "object_name"
-                ] = obj_name
-            else:
-                data["object_name"] = obj_name
-
+            data["object_name"] = obj_name
             data["mesh_index"] = get_value(1) if implicit else get_value(1).index
             return True
 
@@ -210,15 +191,7 @@ class StatefulOperator(StatefulOperatorLogic):
         if not do_object and not do_mesh_elem:
             return
 
-        global_ob = None
-        if self._has_global_object():
-            global_ob_name = self._state_data[self._get_global_object_index()].get(
-                "object_name"
-            )
-            if global_ob_name:
-                global_ob = bpy.data.objects.get(global_ob_name)
-
-        ob, type, index = get_mesh_element(context, coords, **types, object=global_ob)
+        ob, type, index = get_mesh_element(context, coords, **types)
 
         # NOTE: scene.ray_cast() cannot pick empties (no geometry).
         # Empties are picked via custom ID buffer or selection prefill.
@@ -230,12 +203,18 @@ class StatefulOperator(StatefulOperatorLogic):
             data["type"] = bpy.types.Object
             return ob.name
 
-        # maybe have type as return value
-        data["type"] = {
+        # get_mesh_element returns the Object sentinel when the ray hit an
+        # object but no vertex/edge/face landed within threshold. For a
+        # mesh-element state that's a miss -- return None so callers can fall
+        # back (e.g. the curve-edge pick for a revolve axis).
+        type_map = {
             "VERTEX": bpy.types.MeshVertex,
             "EDGE": bpy.types.MeshEdge,
             "FACE": bpy.types.MeshPolygon,
-        }[type]
+        }
+        if type not in type_map:
+            return None
+        data["type"] = type_map[type]
 
         return ob.name, index
 
