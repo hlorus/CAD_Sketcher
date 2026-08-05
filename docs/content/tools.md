@@ -26,14 +26,16 @@ Whenever one of the extension's tools is active the tool access keymap allows to
 
 |Key|Modifier|Action|
 |:---:|---|---|
-|ESC|-   |Activate Tool: Select|
+|Esc / Rmb|-   |Activate Tool: Select|
 |P|-   |Invoke Tool: Add Point 2D|
 |L|-   |Invoke Tool: Add Line 2D|
 |C|-   |Invoke Tool: Add Circle|
 |A|-   |Invoke Tool: Add Arc|
 |R|-   |Invoke Tool: Add Rectangle|
-|S|-   |Invoke Tool: Add Sketch|
 |Y|-   |Invoke Tool: Trim|
+|B|-   |Invoke Tool: Bevel|
+|O|-   |Invoke Tool: Offset|
+|S|-   |Invoke Tool: Add Sketch|
 
 **Dimensional Constraints:**
 
@@ -54,11 +56,35 @@ Whenever one of the extension's tools is active the tool access keymap allows to
 |V|Shift   |Vertical|
 |H|Shift   |Horizontal|
 |E|Shift   |Equal|
-|P|Shift   |Parallel|
-|N|Shift   |Perpendicular|
+|A|Shift   |Parallel|
+|P|Shift   |Perpendicular|
 |T|Shift   |Tangent|
 |M|Shift   |Midpoint|
 |R|Shift   |Ratio|
+
+### Editing Keymap
+Available while any of the extension's tools is active.
+
+|Key|Modifier|Action|
+|:---:|---|---|
+|X / Del|-|Delete selected entities|
+|C|Ctrl|Copy|
+|V|Ctrl|Paste|
+|D|Shift|Duplicate & move|
+|G|-|Move|
+|V|-|Align view to the active entity|
+|M|Alt|Merge points|
+|C|Alt+Shift|Toggle construction mode|
+
+### Global Shortcuts
+Available in Object Mode regardless of the active tool.
+
+|Key|Modifier|Action|
+|:---:|---|---|
+|A|Ctrl+Shift|Add sketch / leave the active sketch|
+|E|Ctrl+Shift|Extrude the active sketch|
+|D|Ctrl+Shift|Linear array of the active sketch|
+|Esc|Shift|Switch to Blender's Select tool|
 
 ### Basic Tool Keymap
 The basic tool interaction is consistent between tools.
@@ -93,11 +119,18 @@ The basic tool interaction is consistent between tools.
 
 |Key|Modifier|Action|
 |---|---|---|
-|LMB|-   |Toggle Select|
-|ESC|-   |Deselect All|
-|I|Ctrl |Inverse selection|
+|LMB (click)|-   |Toggle select|
+|LMB (click)|Shift|Extend selection|
+|LMB (click)|Ctrl|Subtract from selection|
+|LMB (drag)|-|Box select, or tweak the hovered entity|
+|LMB (drag)|Shift|Box select (extend)|
+|LMB (drag)|Ctrl|Box select (subtract)|
+|A|Ctrl|Select all|
+|Esc|-   |Deselect all|
+|I|Ctrl |Invert selection|
 |E|Ctrl |Extend selection in chain|
 |E|Ctrl+Shift   |Select full chain|
+|Rmb|-|Open the context menu|
 
 > **INFO:** LMB in empty space will also deselect all.
 
