@@ -241,7 +241,13 @@ class StatefulOperator(StatefulOperatorLogic):
         result = None
         if index is None:
             index = self.state_index
-        state = self.get_states_definition()[index]
+        # Use the operator-aware state list so per-state ``get_types`` narrowing
+        # (e.g. an EQUAL slot restricted once the other slot is picked) applies
+        # during selection prefill, exactly as it does for interactive picking.
+        # ``get_states_definition()`` builds states with ``operator=None`` and
+        # therefore skips that narrowing, which would let an incompatible
+        # preselection through.
+        state = self.get_states()[index]
         data = self.get_state_data(index)
 
         if state.pointer:

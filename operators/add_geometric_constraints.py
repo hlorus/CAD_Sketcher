@@ -174,7 +174,6 @@ class VIEW3D_OT_slvs_add_equal(Operator, GenericConstraintOp):
     def main(self, context):
         if not self.exists(context, SlvsEqual):
             self.target = self.sketch.constraints.add_equal(
-                
                 curve_id_1=self.entity1.curve_id,
                 curve_id_2=self.entity2.curve_id,
             )
