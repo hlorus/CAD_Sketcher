@@ -519,6 +519,126 @@ def is_fixed(sketch, curve_id):
     return bool(fix_attr and fix_attr.data[idx].value)
 
 
+# Angular dead-band (as a fraction of a quarter turn) applied when deciding an
+# arc's segment count, so an arc whose sweep sits right on a 90 degree boundary
+# doesn't add/drop a segment on every solve.
+_ARC_SEG_HYSTERESIS = 0.05
+
+
+def _target_arc_segments(angle, current):
+    """Segment count for an arc of the given sweep angle, with hysteresis.
+
+    Each cubic bezier segment approximates at most ~90 degrees of arc; beyond
+    that the approximation degrades. The count is recomputed as the arc's sweep
+    changes (e.g. an endpoint is dragged) so accuracy is maintained, but a dead
+    band around each 90 degree boundary keeps it from thrashing.
+    """
+    import math
+    from .constants import QUARTER_TURN
+
+    raw = angle / QUARTER_TURN
+    if raw > current + _ARC_SEG_HYSTERESIS:
+        return max(1, math.ceil(raw))
+    if current > 1 and raw < (current - 1) - _ARC_SEG_HYSTERESIS:
+        return max(1, math.ceil(raw))
+    return current
+
+
+def _resegment_arcs(sketch, cd, point_ids=None):
+    """Resize arcs whose control-point count no longer fits their sweep angle.
+
+    Arc bezier points carry no identity (center/start/end live in separate point
+    curves), so the count is free to change. ``resize_curves`` reindexes the
+    point domain, so this must run before any per-point data is read.
+
+    Returns True if any arc was resized.
+    """
+    import math
+    from ..model.constants import SketchCurveType, BezierHandleType
+    from .math import range_2pi
+
+    ob = sketch.target_object
+    # Never resize geometry the user is editing by hand.
+    if ob is None or getattr(ob, "mode", "OBJECT") == "EDIT":
+        return False
+
+    type_attr = cd.attributes.get("sketch_type")
+    if not type_attr:
+        return False
+
+    n = len(cd.curves)
+    types = np.empty(n, dtype=np.int32)
+    type_attr.data.foreach_get("value", types)
+    if not (types == SketchCurveType.ARC).any():
+        return False
+
+    cp_ids = read_uuid_list(cd, "center_point_id")
+    sp_ids = read_uuid_list(cd, "start_point_id")
+    ep_ids = read_uuid_list(cd, "end_point_id")
+
+    # Arcs to consider (all, or only those touching a changed point).
+    arc_indices = [
+        i for i in range(n)
+        if types[i] == SketchCurveType.ARC and (
+            point_ids is None
+            or sp_ids[i] in point_ids
+            or ep_ids[i] in point_ids
+            or cp_ids[i] in point_ids
+        )
+    ]
+    if not arc_indices:
+        return False
+
+    # id -> 2D position, built only for the point curves those arcs reference.
+    needed = set()
+    for i in arc_indices:
+        needed.update((cp_ids[i], sp_ids[i], ep_ids[i]))
+    curve_ids = read_uuid_list(cd, "curve_id")
+    pos_map = {}
+    for i in range(n):
+        if types[i] == SketchCurveType.POINT and curve_ids[i] in needed:
+            p = cd.points[cd.curves[i].points[0].index].position
+            pos_map[curve_ids[i]] = Vector((p[0], p[1]))
+
+    sizes = None
+    changed = []
+    for i in arc_indices:
+        ct = pos_map.get(cp_ids[i])
+        s = pos_map.get(sp_ids[i])
+        e = pos_map.get(ep_ids[i])
+        if ct is None or s is None or e is None:
+            continue
+
+        sv, ev = s - ct, e - ct
+        angle = range_2pi(math.atan2(ev[1], ev[0]) - math.atan2(sv[1], sv[0]))
+        current = cd.curves[i].points_length - 1
+        target = _target_arc_segments(angle, current)
+        if target != current:
+            if sizes is None:
+                sizes = [cv.points_length for cv in cd.curves]
+            sizes[i] = target + 1
+            changed.append(i)
+
+    if sizes is None:
+        return False
+
+    cd.resize_curves(sizes)
+
+    # New points come in zero-initialized; give them free bezier handles so
+    # _build_arc_bezier's handle vectors take effect. (Positions/handles for the
+    # whole arc are rewritten by the rebuild pass that follows.)
+    attrs = cd.attributes
+    hlt = attrs.get("handle_type_left")
+    hrt = attrs.get("handle_type_right")
+    for i in changed:
+        for pt in cd.curves[i].points:
+            if hlt:
+                hlt.data[pt.index].value = BezierHandleType.FREE
+            if hrt:
+                hrt.data[pt.index].value = BezierHandleType.FREE
+    return True
+
+
 def rebuild_segments(sketch, point_ids=None):
     """Rebuild segment curve positions from their referenced point curves.
 
@@ -541,6 +661,11 @@ def rebuild_segments(sketch, point_ids=None):
     n = len(cd.curves)
     if n == 0:
         return
+
+    # Adapt arc control-point counts to their current sweep angle. This may
+    # resize_curves (reindexing the point domain), so it must run before any
+    # per-point data below is read.
+    _resegment_arcs(sketch, cd, point_ids)
 
     type_attr = cd.attributes.get("sketch_type")
     if not type_attr:
