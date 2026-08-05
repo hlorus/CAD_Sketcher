@@ -60,7 +60,7 @@ jobs:
 
       - uses: moguri/setup-blender@v1
         with:
-          blender-version: "4.5"
+          blender-version: "5.0"
 
       - run: blender --version
 
@@ -122,7 +122,7 @@ jobs:
     steps:
       - uses: moguri/setup-blender@v1
         with:
-          blender-version: "4.5"
+          blender-version: "5.0"
 
       - name: Download stable release zips
         env:
@@ -254,7 +254,7 @@ jobs:
 
       - uses: moguri/setup-blender@v1
         with:
-          blender-version: "4.5"
+          blender-version: "5.0"
 
       - name: Stamp latest version
         # <base>-latest.<run_number>: monotonic, sorts below the eventual stable.
