@@ -14,6 +14,7 @@ straight through — the solver treats them as tweaks on the next solve.
 """
 
 import logging
+import secrets
 
 from ..model.constants import SketchCurveType
 from .curve_data import (
@@ -172,6 +173,44 @@ def validate_sketch(sketch):
     return changed
 
 
+def _dedup_constraint_uids(scene):
+    """Give duplicated sketches independent constraint uids.
+
+    Dimensional values live in ``scene["slvs:c:<uid>"]``, so two sketches sharing
+    a constraint uid (e.g. after duplicating a sketch object) share the value.
+    Keep each uid's first occurrence; re-mint later ones and copy their current
+    value across so the copy stays independent.
+    """
+    from ..model.sketch_ref import get_sketches
+
+    seen = set()
+    changed = False
+    for sketch in get_sketches(scene):
+        try:
+            constraints = sketch.constraints
+        except Exception:
+            continue
+        for c in constraints.all:
+            uid = getattr(c, "constraint_uid", "")
+            if uid and uid not in seen:
+                seen.add(uid)
+                continue
+
+            new = secrets.token_hex(8)
+            while new in seen:
+                new = secrets.token_hex(8)
+            c.constraint_uid = new
+            # Carry the stored value over so the copy keeps its current value
+            # (dimensional constraints only; geometric ones store nothing).
+            old_key = f"slvs:c:{uid}" if uid else None
+            new_key = f"slvs:c:{new}"
+            if old_key and old_key in scene and new_key not in scene:
+                scene[new_key] = scene[old_key]
+            seen.add(new)
+            changed = True
+    return changed
+
+
 def validate_all_sketches(scene):
     """Validate every sketch in the scene. Returns True if anything changed."""
     from ..model.sketch_ref import get_sketches
@@ -183,4 +222,11 @@ def validate_all_sketches(scene):
                 any_changed = True
         except Exception:
             logger.exception("Sketch validation failed for '%s'", sketch.name)
+
+    try:
+        if _dedup_constraint_uids(scene):
+            any_changed = True
+    except Exception:
+        logger.exception("Constraint uid dedup failed")
+
     return any_changed
