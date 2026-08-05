@@ -1,0 +1,26 @@
+# Ruff configuration.
+#
+# CI lints only the files a pull request changes (see .github/workflows/lint.yml),
+# so these rules apply to new and edited code without flagging the untouched
+# legacy tree. Run locally before pushing:
+#
+#   ruff format .          # format
+#   ruff check --fix .     # lint + autofix
+#
+# The formatter is Black-compatible (the project's previous formatter), so
+# reformatting a file stays minimal.
+
+line-length = 88
+target-version = "py311"
+
+[lint]
+# High-signal, mostly auto-fixable rules:
+#   F  - pyflakes (unused/undefined names, unused imports)
+#   I  - import sorting
+#   E9 - syntax errors
+# Line length is owned by the formatter, so E501 is intentionally not enforced.
+select = ["F", "I", "E9"]
+
+[lint.per-file-ignores]
+# Package __init__ files intentionally re-export symbols.
+"**/__init__.py" = ["F401"]
