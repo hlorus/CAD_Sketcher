@@ -1,0 +1,40 @@
+name: lint
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install ruff
+        run: pipx install ruff
+
+      - name: Determine changed Python files
+        id: changed
+        run: |
+          # Lint only what this PR changed, against its merge-base with the base
+          # branch. Ruff config lives in ruff.toml; a clean legacy tree is not a
+          # prerequisite (see CONTRIBUTING.md).
+          base='${{ github.event.pull_request.base.sha }}'
+          files=$(git diff --name-only --diff-filter=ACMR "$base"...HEAD -- '*.py')
+          {
+            echo "files<<EOF"
+            echo "$files"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "Changed Python files:"
+          echo "$files"
+
+      - name: Ruff format check
+        if: steps.changed.outputs.files != ''
+        run: echo "${{ steps.changed.outputs.files }}" | xargs --no-run-if-empty ruff format --check
+
+      - name: Ruff lint
+        if: steps.changed.outputs.files != ''
+        run: echo "${{ steps.changed.outputs.files }}" | xargs --no-run-if-empty ruff check

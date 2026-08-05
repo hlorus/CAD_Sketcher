@@ -68,6 +68,10 @@ currently lies.
 
 **Code Style**
 
-The project uses the [Black Formatter](https://github.com/psf/black), make sure to enable it in your code editor before pushing pull requests.
+The project uses [Ruff](https://docs.astral.sh/ruff/) for formatting and linting.
+Run `ruff format .` and `ruff check --fix .` on your changes before pushing; CI
+checks only the files a pull request touches. See
+[CONTRIBUTING.md](https://github.com/hlorus/CAD_Sketcher/blob/main/CONTRIBUTING.md)
+for details.
 
 <!-- ### Donate -->
