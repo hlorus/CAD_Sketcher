@@ -135,7 +135,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
     bl_label = "Sketch Bevel"
     bl_options = {"REGISTER", "UNDO"}
 
-    radius: FloatProperty(name="Radius")
+    radius: FloatProperty(name="Radius", subtype="DISTANCE", unit="LENGTH")
 
     states = (
         state_from_args(
