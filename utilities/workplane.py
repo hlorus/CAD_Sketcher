@@ -220,28 +220,64 @@ def ensure_workplane_empty(sketch):
     return empty
 
 
-def ensure_origin_workplane_empties(context):
-    """Create the three origin workplane empties (XY, XZ, YZ) if they don't exist."""
+# (prop_name, object_name, local rotation, pick id) for the three origin planes.
+_ORIGIN_WP_CONFIGS = (
+    ("wp_xy", "WP_XY", (0.0, 0.0, 0.0), WP_ID_XY),
+    ("wp_xz", "WP_XZ", (math.pi / 2, 0.0, 0.0), WP_ID_XZ),
+    ("wp_yz", "WP_YZ", (math.pi / 2, 0.0, math.pi / 2), WP_ID_YZ),
+)
+
+
+def _matrix_differs(a, b, eps=1e-6):
+    return any(abs(a[i][j] - b[i][j]) > eps for i in range(4) for j in range(4))
+
+
+def _target_matrix(euler_tuple):
     from mathutils import Euler
+    return Euler(euler_tuple).to_matrix().to_4x4()
 
+
+def _enforce_origin_empty(empty, euler_tuple):
+    """Re-assert an origin empty's fixed transform and hidden state.
+
+    Undo/redo can leave these at identity (all three then stack flat -> the
+    mushy overlap of #571); they must never drift, so re-apply rather than
+    trust the stored state. Only writes when it actually differs to avoid
+    churning the depsgraph.
+    """
+    target = _target_matrix(euler_tuple)
+    if _matrix_differs(empty.matrix_world, target):
+        empty.matrix_world = target
+    if not empty.hide_viewport:
+        empty.hide_viewport = True
+
+
+def repair_origin_workplanes(context):
+    """Fix the transform/visibility of existing origin empties (no creation)."""
     sketcher = context.scene.sketcher
-    scene = context.scene
-
-    configs = [
-        ("wp_xy", "WP_XY", Euler((0, 0, 0)), WP_ID_XY),
-        ("wp_xz", "WP_XZ", Euler((1.5707963, 0, 0)), WP_ID_XZ),
-        ("wp_yz", "WP_YZ", Euler((1.5707963, 0, 1.5707963)), WP_ID_YZ),
-    ]
-
-    for prop_name, name, euler, wp_id in configs:
+    for prop_name, _name, euler_tuple, wp_id in _ORIGIN_WP_CONFIGS:
         existing = getattr(sketcher, prop_name)
         if existing:
             WP_ID_MAP[wp_id] = existing
+            _enforce_origin_empty(existing, euler_tuple)
+
+
+def ensure_origin_workplane_empties(context):
+    """Create the three origin workplane empties (XY, XZ, YZ) if missing, and
+    re-assert their fixed transform/hidden state if they already exist."""
+    sketcher = context.scene.sketcher
+    scene = context.scene
+
+    for prop_name, name, euler_tuple, wp_id in _ORIGIN_WP_CONFIGS:
+        existing = getattr(sketcher, prop_name)
+        if existing:
+            WP_ID_MAP[wp_id] = existing
+            _enforce_origin_empty(existing, euler_tuple)
             continue
 
         empty = bpy.data.objects.new(name, None)
         empty.empty_display_type = 'SINGLE_ARROW'
-        empty.matrix_world = euler.to_matrix().to_4x4()
+        empty.matrix_world = _target_matrix(euler_tuple)
         empty.hide_viewport = True
         empty.lock_location = (True, True, True)
         empty.lock_rotation = (True, True, True)
