@@ -79,7 +79,11 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     )
     setting: BoolProperty(
         name="Measure supplementary angle",
-        update=DimensionalConstraint.assign_init_props,
+        # Just re-solve: the stored angle is unchanged, to_displayed_value flips
+        # the shown number to the supplementary, and the solver keeps the current
+        # geometry. Re-initialising here would rewrite the value through the
+        # supplementary conversion and deform the sketch.
+        update=update_system_cb,
     )
     draw_offset: FloatProperty(name="Draw Offset", default=1)
     draw_outset: FloatProperty(name="Draw Outset", default=0)
