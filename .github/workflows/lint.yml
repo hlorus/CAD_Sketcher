@@ -37,4 +37,6 @@ jobs:
 
       - name: Ruff lint
         if: steps.changed.outputs.files != ''
-        run: echo "${{ steps.changed.outputs.files }}" | xargs --no-run-if-empty ruff check
+        # --output-format=github emits workflow commands so violations show as
+        # inline annotations on the PR diff, not just log text.
+        run: echo "${{ steps.changed.outputs.files }}" | xargs --no-run-if-empty ruff check --output-format=github
