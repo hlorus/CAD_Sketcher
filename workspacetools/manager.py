@@ -60,6 +60,27 @@ def leave_sketch_mode():
     _register_tools({ToolGroup.NON_SKETCH})
 
 
+def is_sketch_mode():
+    """True while the sketch sub-tools are the registered set."""
+    return _sketch_active
+
+
+def sync_sketch_mode(is_active_sketch: bool):
+    """Reconcile the registered tool set with whether a sketch is active.
+
+    Sketch mode is Python-global state (which tools are registered) that
+    Blender's undo does not track, so it can desync from the undo-tracked
+    active_sketch_object. Undoing sketch creation, for instance, removes the
+    sketch but leaves sketch mode on -- a dead end where you can neither add a
+    sketch (the Add Sketch tool is unregistered) nor leave one (there is no
+    active sketch to leave). Force them back in step.
+    """
+    if is_active_sketch:
+        enter_sketch_mode()
+    else:
+        leave_sketch_mode()
+
+
 def register():
     if bpy.app.background:
         return

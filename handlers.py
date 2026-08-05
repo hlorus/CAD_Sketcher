@@ -152,6 +152,20 @@ def on_frame_change(scene, depsgraph=None):
             refresh_curve_geometry(sketch)
 
 
+def on_undo_redo(scene, *args):
+    """Reconcile sketch mode with the active sketch after undo/redo.
+
+    The sketch-mode flag and its registered tool set are Python state that
+    Blender's undo cannot revert, while ``active_sketch_object`` is undo-tracked.
+    Undoing sketch creation nulls the pointer but leaves sketch mode on -- a dead
+    end where you can neither add nor leave a sketch. Re-sync them here.
+    """
+    from .model.sketch_ref import get_active_sketch
+    from .workspacetools.manager import sync_sketch_mode
+
+    sync_sketch_mode(get_active_sketch(bpy.context) is not None)
+
+
 def _setup_builtin_handlers():
     from .versioning import do_versioning, write_addon_version
 
@@ -160,6 +174,8 @@ def _setup_builtin_handlers():
     add_builtin_handler("load_post", on_load_post)
     add_builtin_handler("depsgraph_update_post", on_depsgraph_update)
     add_builtin_handler("frame_change_post", on_frame_change)
+    add_builtin_handler("undo_post", on_undo_redo)
+    add_builtin_handler("redo_post", on_undo_redo)
 
 
 def register():
