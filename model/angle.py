@@ -47,6 +47,20 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         )
         self.draw_offset = dist if not self.setting else -dist
 
+    def _on_reference_checked(self, context: Context = None):
+        # Toggling reference mode re-inits props (recomputing draw_offset from
+        # geometry), which would discard the label position the user placed by
+        # hand. Preserve the placement across the toggle.
+        saved = self.draw_offset, self.draw_outset
+        DimensionalConstraint.on_reference_checked(self, context)
+        self.draw_offset, self.draw_outset = saved
+
+    is_reference: BoolProperty(
+        name="Only measure",
+        default=False,
+        update=_on_reference_checked,
+    )
+
     label = "Angle"
     value_store: FloatProperty(
         name="Angle Storage",

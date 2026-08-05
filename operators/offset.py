@@ -53,7 +53,7 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
     bl_label = "Offset"
     bl_options = {"REGISTER", "UNDO"}
 
-    distance: FloatProperty(name="Distance")
+    distance: FloatProperty(name="Distance", subtype="DISTANCE", unit="LENGTH")
 
     states = (
         state_from_args(
