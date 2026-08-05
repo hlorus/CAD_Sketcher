@@ -94,6 +94,12 @@ def on_depsgraph_update(scene, depsgraph):
         if validate_all_sketches(scene):
             global_data.needs_solve = True
 
+        # Undo/redo can flatten the origin workplane empties to identity (they
+        # then stack into a mushy overlap, #571); re-assert their transforms.
+        # Only rewrites when drifted, so this settles in one pass.
+        from .utilities.workplane import repair_origin_workplanes
+        repair_origin_workplanes(bpy.context)
+
     if depsgraph.id_type_updated("SCENE"):
         global_data.needs_solve = True
 

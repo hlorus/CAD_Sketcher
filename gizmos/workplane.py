@@ -52,6 +52,10 @@ class VIEW3D_GGT_slvs_workplane(GizmoGroup):
         return context_mode_check(context, cls.bl_idname)
 
     def setup(self, context):
+        # Re-assert the origin planes when the tool activates, so a drifted or
+        # missing plane (#571) is restored without needing a depsgraph tick.
+        from ..utilities.workplane import repair_origin_workplanes
+        repair_origin_workplanes(context)
         self.gizmo = self.gizmos.new(VIEW3D_GT_slvs_workplane.bl_idname)
 
 
