@@ -1,8 +1,10 @@
 from bpy.types import Gizmo, GizmoGroup
+from mathutils import Vector
 
-from ..drawing import selection
-from ..declarations import Gizmos, GizmoGroups
-from ..drawing import picking
+from ..declarations import GizmoGroups, Gizmos
+from ..drawing import picking, selection
+from ..drawing.snap import draw_snap_marker
+from ..utilities.view import get_blender_snap_info
 from .utilities import context_mode_check
 
 
@@ -29,10 +31,13 @@ class VIEW3D_GGT_slvs_preselection(GizmoGroup):
 class VIEW3D_GT_slvs_preselection(Gizmo):
     bl_idname = Gizmos.Preselection
 
-    __slots__ = ()
+    # ``_snap``: current geometry snap target (dict or None); ``_snap_key``: a
+    # cheap comparison key so we only redraw when the snap actually changes.
+    __slots__ = ("_snap", "_snap_key")
 
     def draw(self, context):
-        pass
+        # Same marker the draw operator uses; shown while the tool is idle.
+        draw_snap_marker(self, context)
 
     def test_select(self, context, location):
         # reset gizmo highlight
@@ -52,5 +57,14 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
         cid = picking.pick(context, location)
         if cid != selection.hover:
             selection.hover = cid
+            context.area.tag_redraw()
+
+        # Snap to external geometry, mirroring the operator's live snapping, and
+        # redraw only when the snapped point/type changes.
+        snap = get_blender_snap_info(context, Vector(location))
+        key = (snap.get("type"), tuple(snap["world_point"])) if snap else None
+        if key != getattr(self, "_snap_key", None):
+            self._snap = snap
+            self._snap_key = key
             context.area.tag_redraw()
         return -1
