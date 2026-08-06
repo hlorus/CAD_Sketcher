@@ -1,12 +1,25 @@
 """Trimming logic for splitting segments at intersection points."""
 
 import logging
+
 from mathutils import Vector
 
-from ..model.curve_ref import PointRef, LineRef, ArcRef, CircleRef, CurveRef, curve_ref
+from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef
 from .curve_data import get_uuid, has_uuid_field
 
 logger = logging.getLogger(__name__)
+
+# Two trim points closer than this (sketch units) are treated as the same
+# location, so a piece bounded by them is a fully-trimmed (degenerate) segment.
+COINCIDENT_EPS = 1e-4
+
+
+def _points_coincident(p1, p2) -> bool:
+    if p1 is None or p2 is None:
+        return True
+    if getattr(p1, "curve_id", None) and p1.curve_id == getattr(p2, "curve_id", None):
+        return True
+    return (Vector(p1.co) - Vector(p2.co)).length < COINCIDENT_EPS
 
 
 class Intersection:
@@ -220,6 +233,13 @@ class TrimSegment:
             intr_2 = relevant[i * 2 + 1]
             p1 = intr_1.get_or_create_point(sketch)
             p2 = intr_2.get_or_create_point(sketch)
+
+            # A piece whose two boundaries collapse onto the same location is
+            # fully trimmed away -- creating a segment there yields a zero-length
+            # line or a zero-sweep arc (whose bezier degenerates into a stray
+            # sliver). Skip it; its now-orphan points are cleaned up below.
+            if _points_coincident(p1, p2):
+                continue
 
             if i == 0 and not self._is_closed:
                 # Reuse original segment for first piece
