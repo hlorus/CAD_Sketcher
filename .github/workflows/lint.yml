@@ -18,25 +18,31 @@ jobs:
       - name: Determine changed Python files
         id: changed
         run: |
-          # Lint only what this PR changed, against its merge-base with the base
-          # branch. Ruff config lives in ruff.toml; a clean legacy tree is not a
-          # prerequisite (see CONTRIBUTING.md).
+          # Scope checks to what this PR changed, against its merge-base with the
+          # base branch. A clean legacy tree is not a prerequisite; see
+          # CONTRIBUTING.md. Ruff config lives in ruff.toml.
+          #
+          # - lint runs on added AND modified files (real issues, mostly
+          #   autofixable, low churn).
+          # - format-check runs on ADDED files only, so editing a legacy file
+          #   never forces a whole-file reformat (the friction that got the old
+          #   style checker removed, #345).
           base='${{ github.event.pull_request.base.sha }}'
-          files=$(git diff --name-only --diff-filter=ACMR "$base"...HEAD -- '*.py')
+          changed=$(git diff --name-only --diff-filter=ACMR "$base"...HEAD -- '*.py')
+          added=$(git diff --name-only --diff-filter=A "$base"...HEAD -- '*.py')
           {
-            echo "files<<EOF"
-            echo "$files"
-            echo "EOF"
+            echo "changed<<EOF"; echo "$changed"; echo "EOF"
+            echo "added<<EOF"; echo "$added"; echo "EOF"
           } >> "$GITHUB_OUTPUT"
-          echo "Changed Python files:"
-          echo "$files"
+          echo "Changed:"; echo "$changed"
+          echo "Added:"; echo "$added"
 
-      - name: Ruff format check
-        if: steps.changed.outputs.files != ''
-        run: echo "${{ steps.changed.outputs.files }}" | xargs --no-run-if-empty ruff format --check
+      - name: Ruff format check (added files only)
+        if: steps.changed.outputs.added != ''
+        run: echo "${{ steps.changed.outputs.added }}" | xargs --no-run-if-empty ruff format --check
 
-      - name: Ruff lint
-        if: steps.changed.outputs.files != ''
+      - name: Ruff lint (changed files)
+        if: steps.changed.outputs.changed != ''
         # --output-format=github emits workflow commands so violations show as
         # inline annotations on the PR diff, not just log text.
-        run: echo "${{ steps.changed.outputs.files }}" | xargs --no-run-if-empty ruff check --output-format=github
+        run: echo "${{ steps.changed.outputs.changed }}" | xargs --no-run-if-empty ruff check --output-format=github
