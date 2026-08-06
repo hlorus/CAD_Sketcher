@@ -14,6 +14,7 @@ straight through — the solver treats them as tweaks on the next solve.
 """
 
 import logging
+import math
 import secrets
 
 from ..model.constants import SketchCurveType
@@ -31,6 +32,9 @@ from .curve_data import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Start/end points closer than this (sketch units) make an arc zero-sweep.
+_DEGEN_ARC_EPS = 1e-4
 
 # object.name -> signature of the last validated state
 _validated = {}
@@ -64,6 +68,7 @@ def _signature(curve_data):
 def _other_sketch_ids(obj):
     """Curve ids belonging to every *other* sketch (cross-sketch references)."""
     import bpy
+
     from ..model.sketch_ref import get_sketches
 
     ids = set()
@@ -101,6 +106,23 @@ def _prune_dangling_constraints(sketch, valid_ids):
                 coll.remove(i)
                 removed = True
     return removed
+
+
+def _remove_orphan_points(sketch, candidate_ids):
+    """Remove point curves in ``candidate_ids`` no segment still references."""
+    cd = sketch.target_object.data
+    type_attr = cd.attributes.get("sketch_type")
+    if not type_attr:
+        return
+    referenced = set()
+    for i in range(len(cd.curves)):
+        if type_attr.data[i].value == SketchCurveType.POINT:
+            continue
+        for field in ("start_point_id", "end_point_id", "center_point_id"):
+            referenced.add(get_uuid(cd, field, i))
+    for cid in candidate_ids:
+        if cid and cid not in referenced:
+            remove_native_curve_by_id(sketch, cid)
 
 
 def validate_sketch(sketch):
@@ -159,6 +181,40 @@ def validate_sketch(sketch):
             if cid:
                 remove_native_curve_by_id(sketch, cid)
                 changed = True
+
+    # 3b. Remove degenerate arcs whose start and end points coincide (zero
+    #     sweep). Trimming a circle down to nothing can leave these; their
+    #     bezier degenerates into a stray sliver (the "trim leftover" lens).
+    #     Drop the arc and any points it orphans.
+    if type_attr:
+        pos_by_id = {
+            get_uuid(cd, "curve_id", i): tuple(
+                cd.points[cd.curves[i].points[0].index].position[:2]
+            )
+            for i in range(len(cd.curves))
+            if type_attr.data[i].value == SketchCurveType.POINT
+        }
+        degenerate_arcs = []
+        orphaned = set()
+        for i in range(len(cd.curves)):
+            if type_attr.data[i].value != SketchCurveType.ARC:
+                continue
+            sp = get_uuid(cd, "start_point_id", i)
+            ep = get_uuid(cd, "end_point_id", i)
+            a, b = pos_by_id.get(sp), pos_by_id.get(ep)
+            coincident = sp and (
+                sp == ep
+                or (a and b and math.hypot(a[0] - b[0], a[1] - b[1]) < _DEGEN_ARC_EPS)
+            )
+            if coincident:
+                degenerate_arcs.append(get_uuid(cd, "curve_id", i))
+                orphaned.update((sp, ep, get_uuid(cd, "center_point_id", i)))
+        for cid in degenerate_arcs:
+            if cid:
+                remove_native_curve_by_id(sketch, cid)
+                changed = True
+        if degenerate_arcs:
+            _remove_orphan_points(sketch, orphaned)
 
     # 4. Prune constraints referencing a curve that exists in no sketch.
     valid_ids = {get_uuid(cd, "curve_id", i) for i in range(len(cd.curves))}
