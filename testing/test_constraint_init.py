@@ -41,6 +41,28 @@ class TestConstraintAdd(Sketch2dTestCase):
         self.solve()
         self.assertAlmostEqual(p2.co.x, 0.0)
 
+    # -- solver safety net (issue #342) --------------------------------------
+    # An old/corrupt file can carry a point-based horizontal/vertical whose
+    # partner point didn't survive versioning. Feeding that single point to the
+    # solver's line form makes solvespace treat a point as a line and hard-abort
+    # (crashes Blender). It must be skipped and marked failed, never reach the
+    # solver.
+    def test_horizontal_point_without_partner_does_not_crash(self):
+        sc = self.sketch.constraints
+
+        p0 = self.add_point((0, 0), fixed=True)
+        c = sc.add_horizontal(curve_id_1=p0.curve_id)  # no curve_id_2
+        self.solve()
+        self.assertTrue(c.failed)
+
+    def test_vertical_point_without_partner_does_not_crash(self):
+        sc = self.sketch.constraints
+
+        p0 = self.add_point((0, 0), fixed=True)
+        c = sc.add_vertical(curve_id_1=p0.curve_id)  # no curve_id_2
+        self.solve()
+        self.assertTrue(c.failed)
+
     def test_tangent(self):
         sc = self.sketch.constraints
 

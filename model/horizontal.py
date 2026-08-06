@@ -1,15 +1,15 @@
 import logging
 
-from bpy.types import PropertyGroup
 from bpy.props import StringProperty
+from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver
 from ..global_data import WpReq
 from .base_constraint import GenericConstraint
-from .utilities import slvs_entity_pointer
-from .point_2d import SlvsPoint2D
 from .line_2d import SlvsLine2D
+from .point_2d import SlvsPoint2D
+from .utilities import slvs_entity_pointer
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class SlvsHorizontal(GenericConstraint, PropertyGroup):
 
         kwargs = {}
         if self.entity1.is_point():
-            kwargs['entityB'] = self.entity2.py_data
+            kwargs["entityB"] = self.entity2.py_data
 
         return solvesys.horizontal(group, self.entity1.py_data, wp, **kwargs)
 
@@ -54,11 +54,25 @@ class SlvsHorizontal(GenericConstraint, PropertyGroup):
         if h1 is None:
             return None
 
+        # The solver form depends on the first entity's *type*, not merely on
+        # whether a second curve id is stored: a line is constrained on its own,
+        # a point needs a valid partner point. Old/corrupt files can leave a
+        # point-based constraint without a resolvable partner -- feeding that to
+        # the single-line form makes solvespace treat a point as a line and
+        # crash Blender (issue #342), so skip anything we can't build cleanly.
+        ref1 = self.ref(1)
         kwargs = {}
-        if self.curve_id_2:
-            h2 = handle_map.get(self.curve_id_2)
-            if h2:
-                kwargs['entityB'] = h2
+        if ref1 and ref1.is_line():
+            pass  # single-line form
+        elif ref1 and ref1.is_point():
+            h2 = handle_map.get(self.curve_id_2) if self.curve_id_2 else None
+            if h2 is None:
+                self.failed = True
+                return None
+            kwargs["entityB"] = h2
+        else:
+            self.failed = True
+            return None
 
         return solvesys.horizontal(group, h1, wp, **kwargs)
 
