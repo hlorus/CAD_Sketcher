@@ -1,0 +1,2321 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../user_interface/">
+      
+      
+        <link rel="next" href="../entities/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Tools - CAD Sketcher</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#generic-tools" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="CAD Sketcher" class="md-header__button md-logo" aria-label="CAD Sketcher" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            CAD Sketcher
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Tools
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="CAD Sketcher" class="md-nav__button md-logo" aria-label="CAD Sketcher" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    CAD Sketcher
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_interface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#generic-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generic Tools
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_sketch.View3D_OT_slvs_add_sketch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_sketch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.delete_entity.View3D_OT_slvs_delete_entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_delete_entity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.delete_constraint.View3D_OT_slvs_delete_constraint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_delete_constraint
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workspacetools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workspacetools
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Workspacetools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workspacetool-access-keymap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workspacetool Access Keymap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#editing-keymap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing Keymap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#global-shortcuts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Shortcuts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#basic-tool-keymap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic Tool Keymap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selection-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selection tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.select.View3D_OT_slvs_select" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_select
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.select.View3D_OT_slvs_select_all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_select_all
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.select.View3D_OT_slvs_select_invert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_select_invert
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.select.View3D_OT_slvs_select_extend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_select_extend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.select.View3D_OT_slvs_select_extend_all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_select_extend_all
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_point_2d.View3D_OT_slvs_add_point2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_point2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_line_2d.View3D_OT_slvs_add_line2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_line2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_circle.View3D_OT_slvs_add_circle2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_circle2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_arc.View3D_OT_slvs_add_arc2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_arc2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_rectangle.View3D_OT_slvs_add_rectangle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_rectangle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.trim.View3D_OT_slvs_trim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_trim
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="View3D_OT_slvs_trim">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workplane-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workplane tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.align_workplane.View3D_OT_slvs_align_workplane_cursor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_align_workplane_cursor
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.workplane_anchor.View3D_OT_slvs_make_workplane_free" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_make_workplane_free
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.workplane_anchor.View3D_OT_slvs_reattach_workplane" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_reattach_workplane
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../constraints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constraints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../solver/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solver
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interaction_system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interaction system
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code_docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#generic-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generic Tools
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_sketch.View3D_OT_slvs_add_sketch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_sketch
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.delete_entity.View3D_OT_slvs_delete_entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_delete_entity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.delete_constraint.View3D_OT_slvs_delete_constraint" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_delete_constraint
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workspacetools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workspacetools
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Workspacetools">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workspacetool-access-keymap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workspacetool Access Keymap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#editing-keymap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing Keymap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#global-shortcuts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Shortcuts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#basic-tool-keymap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic Tool Keymap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#selection-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selection tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.select.View3D_OT_slvs_select" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_select
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.select.View3D_OT_slvs_select_all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_select_all
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.select.View3D_OT_slvs_select_invert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_select_invert
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.select.View3D_OT_slvs_select_extend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_select_extend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.select.View3D_OT_slvs_select_extend_all" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_select_extend_all
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_point_2d.View3D_OT_slvs_add_point2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_point2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_line_2d.View3D_OT_slvs_add_line2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_line2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_circle.View3D_OT_slvs_add_circle2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_circle2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_arc.View3D_OT_slvs_add_arc2d" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_arc2d
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.add_rectangle.View3D_OT_slvs_add_rectangle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_add_rectangle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.trim.View3D_OT_slvs_trim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_trim
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="View3D_OT_slvs_trim">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#workplane-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workplane tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.align_workplane.View3D_OT_slvs_align_workplane_cursor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_align_workplane_cursor
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.workplane_anchor.View3D_OT_slvs_make_workplane_free" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_make_workplane_free
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#CAD_Sketcher.operators.workplane_anchor.View3D_OT_slvs_reattach_workplane" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View3D_OT_slvs_reattach_workplane
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+  <h1>Tools</h1>
+
+<p>Tools in CAD Sketcher are either exposed as a workspacetool or as an operator. Note however
+that either of those use the same <a href="../interaction_system/">interaction system</a>.</p>
+<h2 id="generic-tools">Generic Tools</h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.add_sketch.View3D_OT_slvs_add_sketch" class="doc doc-heading">
+            <code>View3D_OT_slvs_add_sketch</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Add a sketch</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.delete_entity.View3D_OT_slvs_delete_entity" class="doc doc-heading">
+            <code>View3D_OT_slvs_delete_entity</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Delete selected sketch geometry</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.delete_constraint.View3D_OT_slvs_delete_constraint" class="doc doc-heading">
+            <code>View3D_OT_slvs_delete_constraint</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Delete constraint by type and index</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="workspacetools">Workspacetools</h2>
+<p><div class="lightgallery"><a data-sub-html="Workspacetools" href="../images/workspacetools.png"><img align="right" alt="Workspacetools" src="../images/workspacetools.png" style="height:160px; width:60px; object-fit:cover;" /></a></div></p>
+<p>Workspacetools are used to interactively create entities. You can access them from
+the viewport's "T"-panel. Check the <a href="./">tools section</a> to get familiar with
+the behavior of CAD Sketcher tools.</p>
+<blockquote>
+<p><strong>INFO:</strong> Interaction with extension geometry is only possible when one of the
+extension tools is active.</p>
+</blockquote>
+<h3 id="workspacetool-access-keymap">Workspacetool Access Keymap</h3>
+<p>Whenever one of the extension's tools is active the tool access keymap allows to quickly switch between the different tools.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Key</th>
+<th>Modifier</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">Esc / Rmb</td>
+<td>-</td>
+<td>Activate Tool: Select</td>
+</tr>
+<tr>
+<td align="center">P</td>
+<td>-</td>
+<td>Invoke Tool: Add Point 2D</td>
+</tr>
+<tr>
+<td align="center">L</td>
+<td>-</td>
+<td>Invoke Tool: Add Line 2D</td>
+</tr>
+<tr>
+<td align="center">C</td>
+<td>-</td>
+<td>Invoke Tool: Add Circle</td>
+</tr>
+<tr>
+<td align="center">A</td>
+<td>-</td>
+<td>Invoke Tool: Add Arc</td>
+</tr>
+<tr>
+<td align="center">R</td>
+<td>-</td>
+<td>Invoke Tool: Add Rectangle</td>
+</tr>
+<tr>
+<td align="center">Y</td>
+<td>-</td>
+<td>Invoke Tool: Trim</td>
+</tr>
+<tr>
+<td align="center">B</td>
+<td>-</td>
+<td>Invoke Tool: Bevel</td>
+</tr>
+<tr>
+<td align="center">O</td>
+<td>-</td>
+<td>Invoke Tool: Offset</td>
+</tr>
+<tr>
+<td align="center">S</td>
+<td>-</td>
+<td>Invoke Tool: Add Sketch</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Dimensional Constraints:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Modifier</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D</td>
+<td>Alt</td>
+<td>Distance</td>
+</tr>
+<tr>
+<td>V</td>
+<td>Alt</td>
+<td>Vertical Distance</td>
+</tr>
+<tr>
+<td>H</td>
+<td>Alt</td>
+<td>Horizontal Distance</td>
+</tr>
+<tr>
+<td>A</td>
+<td>Alt</td>
+<td>Angle</td>
+</tr>
+<tr>
+<td>O</td>
+<td>Alt</td>
+<td>Diameter</td>
+</tr>
+<tr>
+<td>R</td>
+<td>Alt</td>
+<td>Radius</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Geometric Constraints:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Modifier</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C</td>
+<td>Shift</td>
+<td>Coincident</td>
+</tr>
+<tr>
+<td>V</td>
+<td>Shift</td>
+<td>Vertical</td>
+</tr>
+<tr>
+<td>H</td>
+<td>Shift</td>
+<td>Horizontal</td>
+</tr>
+<tr>
+<td>E</td>
+<td>Shift</td>
+<td>Equal</td>
+</tr>
+<tr>
+<td>A</td>
+<td>Shift</td>
+<td>Parallel</td>
+</tr>
+<tr>
+<td>P</td>
+<td>Shift</td>
+<td>Perpendicular</td>
+</tr>
+<tr>
+<td>T</td>
+<td>Shift</td>
+<td>Tangent</td>
+</tr>
+<tr>
+<td>M</td>
+<td>Shift</td>
+<td>Midpoint</td>
+</tr>
+<tr>
+<td>R</td>
+<td>Shift</td>
+<td>Ratio</td>
+</tr>
+</tbody>
+</table>
+<h3 id="editing-keymap">Editing Keymap</h3>
+<p>Available while any of the extension's tools is active.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Key</th>
+<th>Modifier</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">X / Del</td>
+<td>-</td>
+<td>Delete selected entities</td>
+</tr>
+<tr>
+<td align="center">C</td>
+<td>Ctrl</td>
+<td>Copy</td>
+</tr>
+<tr>
+<td align="center">V</td>
+<td>Ctrl</td>
+<td>Paste</td>
+</tr>
+<tr>
+<td align="center">D</td>
+<td>Shift</td>
+<td>Duplicate &amp; move</td>
+</tr>
+<tr>
+<td align="center">G</td>
+<td>-</td>
+<td>Move</td>
+</tr>
+<tr>
+<td align="center">V</td>
+<td>-</td>
+<td>Align view to the active entity</td>
+</tr>
+<tr>
+<td align="center">M</td>
+<td>Alt</td>
+<td>Merge points</td>
+</tr>
+<tr>
+<td align="center">C</td>
+<td>Alt+Shift</td>
+<td>Toggle construction mode</td>
+</tr>
+</tbody>
+</table>
+<h3 id="global-shortcuts">Global Shortcuts</h3>
+<p>Available in Object Mode regardless of the active tool.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Key</th>
+<th>Modifier</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">A</td>
+<td>Ctrl+Shift</td>
+<td>Add sketch / leave the active sketch</td>
+</tr>
+<tr>
+<td align="center">E</td>
+<td>Ctrl+Shift</td>
+<td>Extrude the active sketch</td>
+</tr>
+<tr>
+<td align="center">D</td>
+<td>Ctrl+Shift</td>
+<td>Linear array of the active sketch</td>
+</tr>
+<tr>
+<td align="center">Esc</td>
+<td>Shift</td>
+<td>Switch to Blender's Select tool</td>
+</tr>
+</tbody>
+</table>
+<h3 id="basic-tool-keymap">Basic Tool Keymap</h3>
+<p>The basic tool interaction is consistent between tools.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Key</th>
+<th>Modifier</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">Tab</td>
+<td>-</td>
+<td>Jump to next tool state or property substate when in numerical edit</td>
+</tr>
+<tr>
+<td align="center">0-9 / (-)</td>
+<td>-</td>
+<td>Activate numeric edit</td>
+</tr>
+<tr>
+<td align="center">Enter / Lmb</td>
+<td>-</td>
+<td>Verify the operation</td>
+</tr>
+<tr>
+<td align="center">Esc / Rmb</td>
+<td>-</td>
+<td>Cancel the operation</td>
+</tr>
+</tbody>
+</table>
+<p><strong>While numeric edit is active</strong></p>
+<table>
+<thead>
+<tr>
+<th align="center">Key</th>
+<th>Modifier</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="center">Tab</td>
+<td>-</td>
+<td>Jump to next tool property substate</td>
+</tr>
+<tr>
+<td align="center">0-9</td>
+<td>-</td>
+<td>Activate numeric edit</td>
+</tr>
+<tr>
+<td align="center">Minus(-)</td>
+<td>-</td>
+<td>Toggle between positive and negative values</td>
+</tr>
+</tbody>
+</table>
+<h3 id="selection-tools">Selection tools</h3>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.select.View3D_OT_slvs_select" class="doc doc-heading">
+            <code>View3D_OT_slvs_select</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Select an entity</p>
+<p>Either the entity specified by the index property or the hovered index
+if the index property is not set</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.select.View3D_OT_slvs_select_all" class="doc doc-heading">
+            <code>View3D_OT_slvs_select_all</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Select / Deselect all entities</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.select.View3D_OT_slvs_select_invert" class="doc doc-heading">
+            <code>View3D_OT_slvs_select_invert</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Invert entities selection</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.select.View3D_OT_slvs_select_extend" class="doc doc-heading">
+            <code>View3D_OT_slvs_select_extend</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Select neighbour entities</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.select.View3D_OT_slvs_select_extend_all" class="doc doc-heading">
+            <code>View3D_OT_slvs_select_extend_all</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Select neighbour entities</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><p><strong>Keymap:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Modifier</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LMB (click)</td>
+<td>-</td>
+<td>Toggle select</td>
+</tr>
+<tr>
+<td>LMB (click)</td>
+<td>Shift</td>
+<td>Extend selection</td>
+</tr>
+<tr>
+<td>LMB (click)</td>
+<td>Ctrl</td>
+<td>Subtract from selection</td>
+</tr>
+<tr>
+<td>LMB (drag)</td>
+<td>-</td>
+<td>Box select, or tweak the hovered entity</td>
+</tr>
+<tr>
+<td>LMB (drag)</td>
+<td>Shift</td>
+<td>Box select (extend)</td>
+</tr>
+<tr>
+<td>LMB (drag)</td>
+<td>Ctrl</td>
+<td>Box select (subtract)</td>
+</tr>
+<tr>
+<td>A</td>
+<td>Ctrl</td>
+<td>Select all</td>
+</tr>
+<tr>
+<td>Esc</td>
+<td>-</td>
+<td>Deselect all</td>
+</tr>
+<tr>
+<td>I</td>
+<td>Ctrl</td>
+<td>Invert selection</td>
+</tr>
+<tr>
+<td>E</td>
+<td>Ctrl</td>
+<td>Extend selection in chain</td>
+</tr>
+<tr>
+<td>E</td>
+<td>Ctrl+Shift</td>
+<td>Select full chain</td>
+</tr>
+<tr>
+<td>Rmb</td>
+<td>-</td>
+<td>Open the context menu</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>INFO:</strong> LMB in empty space will also deselect all.</p>
+<p><strong>INFO:</strong> Chain selection works with coincident constraints too</p>
+</blockquote>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.add_point_2d.View3D_OT_slvs_add_point2d" class="doc doc-heading">
+            <code>View3D_OT_slvs_add_point2d</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Add a point to the active sketch</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.add_line_2d.View3D_OT_slvs_add_line2d" class="doc doc-heading">
+            <code>View3D_OT_slvs_add_line2d</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Add a line to the active sketch</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.add_circle.View3D_OT_slvs_add_circle2d" class="doc doc-heading">
+            <code>View3D_OT_slvs_add_circle2d</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Add a circle to the active sketch</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.add_arc.View3D_OT_slvs_add_arc2d" class="doc doc-heading">
+            <code>View3D_OT_slvs_add_arc2d</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Add an arc to the active sketch</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.add_rectangle.View3D_OT_slvs_add_rectangle" class="doc doc-heading">
+            <code>View3D_OT_slvs_add_rectangle</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Add a rectangle to the active sketch</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.trim.View3D_OT_slvs_trim" class="doc doc-heading">
+            <code>View3D_OT_slvs_trim</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Trim segment to its closest intersections</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h3 id="workplane-tools">Workplane tools</h3>
+<p>A workplane is any Blender object whose transform defines the sketch plane (see
+<a href="../code_docs/">code documentation</a>). These operators manage the workplane an
+active sketch is anchored to.</p>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.align_workplane.View3D_OT_slvs_align_workplane_cursor" class="doc doc-heading">
+            <code>View3D_OT_slvs_align_workplane_cursor</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Align workplane to the 3D Cursor</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.workplane_anchor.View3D_OT_slvs_make_workplane_free" class="doc doc-heading">
+            <code>View3D_OT_slvs_make_workplane_free</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Detach this workplane from its mesh face and keep it where it is</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="CAD_Sketcher.operators.workplane_anchor.View3D_OT_slvs_reattach_workplane" class="doc doc-heading">
+            <code>View3D_OT_slvs_reattach_workplane</code>
+
+
+</h2>
+
+
+    <div class="doc doc-contents first">
+
+
+      <p>Click a mesh face to re-anchor this workplane to it</p>
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
