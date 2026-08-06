@@ -1,16 +1,16 @@
 import logging
 
-from bpy.types import Operator, Context
 from bpy.props import FloatProperty
+from bpy.types import Context, Operator
 from mathutils import Vector
 from mathutils.geometry import intersect_point_line
 
-from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
-from ..stateful_operator.state import state_from_args
 from ..curve_solver import solve_system
-from ..utilities.view import get_blender_snap_info, get_pos_2d, get_wp_matrix
+from ..declarations import Operators
 from ..model.curve_ref import CircleRef
+from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.view import get_blender_snap_info, get_pos_2d, get_wp_matrix
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
@@ -56,6 +56,7 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
     def get_radius(self, context: Context, coords):
         wp = self._get_wp()
         snap_data = get_blender_snap_info(context, coords)
+        self._snap = snap_data
         pos = get_pos_2d(context, wp, coords, respect_snapping=True)
 
         # Snap the radius so the circle is tangent to an edge or coincident with

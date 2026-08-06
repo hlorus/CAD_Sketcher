@@ -1,20 +1,20 @@
 import logging
 import math
 
-from bpy.types import Operator, Context, Event
+from bpy.types import Context, Event, Operator
 from mathutils import Vector
 
-from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
-from ..stateful_operator.state import state_from_args
 from ..curve_solver import solve_system
-from ..utilities.math import pol2cart
-from ..utilities.geometry import intersect_line_sphere_2d
+from ..declarations import Operators
 from ..model.curve_ref import ArcRef
+from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.geometry import intersect_line_sphere_2d
+from ..utilities.math import pol2cart
+from ..utilities.view import get_blender_snap_info, get_pos_2d, get_wp_matrix
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
-from ..utilities.view import get_blender_snap_info, get_pos_2d, get_wp_matrix
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,7 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
     def get_endpoint_pos(self, context: Context, coords):
         wp = self._get_wp()
         snap_data = get_blender_snap_info(context, coords)
+        self._snap = snap_data
         mouse_pos = get_pos_2d(context, wp, coords, respect_snapping=True)
         if mouse_pos is None:
             return None
@@ -89,7 +90,6 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
 
         x, y = Vector(mouse_pos) - ct
         mouse_angle = math.atan2(y, x)
-        start_angle = math.atan2((p1 - ct).y, (p1 - ct).x)
 
         # Track cumulative angular displacement from start
         if not hasattr(self, "_prev_mouse_angle"):

@@ -1,22 +1,42 @@
-import math
 from typing import Any, List
 
 import bpy
 from bpy.types import Context, Event
-from mathutils import Vector
 
-from ..model.types import SlvsPoint2D
-from ..model.types import SlvsLine2D, SlvsCircle, SlvsArc
 from ..model.curve_ref import CurveRef, PointRef, curve_ref
+from ..model.types import SlvsPoint2D
+from ..utilities.view import get_blender_snap_info, get_pos_2d, get_scale_from_pos
 from .base_stateful import GenericEntityOp
 from .utilities import ignore_hover
-from ..utilities.view import get_pos_2d, get_scale_from_pos
 
 
 class Operator2d(GenericEntityOp):
+    # Current geometry snap target (dict from get_blender_snap_info) or None,
+    # updated as the cursor moves and drawn by the snap-marker handler.
+    _snap = None
+    _snap_handle = None
+
     @classmethod
     def poll(cls, context: Context):
         return context.scene.sketcher.active_sketch_object is not None
+
+    def invoke(self, context: Context, event: Event):
+        # Own a POST_PIXEL marker for the current snap target for the lifetime of
+        # the modal (removed in _end), so it can never linger past the draw.
+        from ..drawing.snap import draw_snap_marker
+
+        self._snap = None
+        self._snap_handle = bpy.types.SpaceView3D.draw_handler_add(
+            draw_snap_marker, (self, context), "WINDOW", "POST_PIXEL"
+        )
+        return super().invoke(context, event)
+
+    def _end(self, context: Context, succeede, *args, **kwargs):
+        handle = getattr(self, "_snap_handle", None)
+        if handle is not None:
+            bpy.types.SpaceView3D.draw_handler_remove(handle, "WINDOW")
+            self._snap_handle = None
+        return super()._end(context, succeede, *args, **kwargs)
 
     def init(self, context: Context, event: Event):
         from ..model.sketch_ref import get_active_sketch
@@ -26,8 +46,9 @@ class Operator2d(GenericEntityOp):
     @property
     def sketch(self):
         if not self._active_sketch:
-            from ..model.sketch_ref import get_active_sketch
             import bpy
+
+            from ..model.sketch_ref import get_active_sketch
             self._active_sketch = get_active_sketch(bpy.context)
         return self._active_sketch
 
@@ -43,6 +64,7 @@ class Operator2d(GenericEntityOp):
     def state_func(self, context: Context, coords):
         state = self.state
         wp = self._get_wp()
+        self._snap = get_blender_snap_info(context, coords)
         pos = get_pos_2d(context, wp, coords, respect_snapping=True)
 
         # Handle implicit properties based on state.types
@@ -88,7 +110,7 @@ class Operator2d(GenericEntityOp):
 
     def _check_constrain(self, context: Context, curve_id: int):
         """Check if a hovered curve_id is a constrainable type (line/arc/circle)."""
-        from ..model.curve_ref import LineRef, ArcRef, CircleRef
+        from ..model.curve_ref import ArcRef, CircleRef, LineRef
         sketch = self.sketch
         if not sketch:
             return False
