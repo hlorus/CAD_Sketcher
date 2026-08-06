@@ -23,7 +23,7 @@ from ..shaders import Shaders
 from ..utilities.preferences import get_prefs, get_scale
 
 # Half-extent of the marker in pixels, before UI scaling.
-_SIZE = 7.0
+_SIZE = 5.0
 
 
 def _glyph(snap_type: str, center, s: float):

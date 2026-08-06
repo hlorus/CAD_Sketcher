@@ -1,11 +1,23 @@
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Vector
 
-from ..declarations import GizmoGroups, Gizmos
+from ..declarations import GizmoGroups, Gizmos, WorkSpaceTools
 from ..drawing import picking, selection
 from ..drawing.snap import draw_snap_marker
 from ..utilities.view import get_blender_snap_info
 from .utilities import context_mode_check
+
+# Tools that place a point by snapping — the only ones that show a snap marker.
+# Edit tools (select/trim/offset/bevel) act on picked curves, not snap points.
+_SNAP_TOOLS = frozenset(
+    (
+        WorkSpaceTools.AddPoint2D,
+        WorkSpaceTools.AddLine2D,
+        WorkSpaceTools.AddRectangle,
+        WorkSpaceTools.AddCircle2D,
+        WorkSpaceTools.AddArc2D,
+    )
+)
 
 
 class VIEW3D_GGT_slvs_preselection(GizmoGroup):
@@ -60,8 +72,12 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             context.area.tag_redraw()
 
         # Snap to external geometry, mirroring the operator's live snapping, and
-        # redraw only when the snapped point/type changes.
-        snap = get_blender_snap_info(context, Vector(location))
+        # redraw only when the snapped point/type changes. Skip on edit tools
+        # (select/trim/…) — they act on picked curves, so a snap marker is noise.
+        snap = None
+        tool = context.workspace.tools.from_space_view3d_mode(context.mode)
+        if tool and tool.idname in _SNAP_TOOLS:
+            snap = get_blender_snap_info(context, Vector(location))
         key = (snap.get("type"), tuple(snap["world_point"])) if snap else None
         if key != getattr(self, "_snap_key", None):
             self._snap = snap
