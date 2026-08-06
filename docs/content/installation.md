@@ -13,6 +13,10 @@
 
     > For rolling per-commit builds use the `latest` channel instead:
     > `https://hlorus.github.io/CAD_Sketcher-extensions/latest/index.json`
+    >
+    > To test builds that bundle **open pull requests** (not yet merged), see the
+    > community-maintained [CAD_SketcherPR](https://github.com/falken10vdl/CAD_SketcherPR)
+    > project (tracked in issue [#551](https://github.com/hlorus/CAD_Sketcher/issues/551)).
 === "Extension ZIP File"
     - Download the [ZIP archive](https://github.com/hlorus/CAD_Sketcher/archive/refs/heads/main.zip) from github (ensure it's a ZIP Archive, on Mac you might have to repack as it gets unzipped automatically)
     - Open Blender and go to: Edit > Preferences > Get Extensions > Extension Settings (Arrow in the top right corner) > Press "Install from Disk..." button
