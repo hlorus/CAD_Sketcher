@@ -1,15 +1,15 @@
 import logging
 
-from bpy.types import PropertyGroup
 from bpy.props import StringProperty
+from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver
 from ..global_data import WpReq
 from .base_constraint import GenericConstraint
-from .utilities import slvs_entity_pointer
-from .point_2d import SlvsPoint2D
 from .line_2d import SlvsLine2D
+from .point_2d import SlvsPoint2D
+from .utilities import slvs_entity_pointer
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
         kwargs = {}
 
         if self.entity1.is_point():
-            kwargs['entityB'] = self.entity2.py_data
+            kwargs["entityB"] = self.entity2.py_data
 
         return solvesys.vertical(group, self.entity1.py_data, wp, **kwargs)
 
@@ -53,11 +53,23 @@ class SlvsVertical(GenericConstraint, PropertyGroup):
         if h1 is None:
             return None
 
+        # See SlvsHorizontal: pick the solver form from the first entity's type,
+        # not from the presence of a second curve id. A point-based constraint
+        # with no resolvable partner would otherwise be passed as the single-line
+        # form and crash the solver on old/corrupt files (issue #342).
+        ref1 = self.ref(1)
         kwargs = {}
-        if self.curve_id_2:
-            h2 = handle_map.get(self.curve_id_2)
-            if h2:
-                kwargs['entityB'] = h2
+        if ref1 and ref1.is_line():
+            pass  # single-line form
+        elif ref1 and ref1.is_point():
+            h2 = handle_map.get(self.curve_id_2) if self.curve_id_2 else None
+            if h2 is None:
+                self.failed = True
+                return None
+            kwargs["entityB"] = h2
+        else:
+            self.failed = True
+            return None
 
         return solvesys.vertical(group, h1, wp, **kwargs)
 
