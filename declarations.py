@@ -61,6 +61,8 @@ class Operators(str, Enum):
     DeleteEntity = "view3d.slvs_delete_entity"
     DeleteSketch = "view3d.slvs_delete_sketch"
     InstallPackage = "view3d.slvs_install_package"
+    McpStart = "view3d.slvs_mcp_start"
+    McpStop = "view3d.slvs_mcp_stop"
     MergePoints = "view3d.slvs_merge_points"
     Paste = "view3d.slvs_paste"
     Move = "view3d.slvs_move"
@@ -106,6 +108,7 @@ class Panels(str, Enum):
     SketcherTools = "VIEW3D_PT_sketcher_tools"
     SketcherConstraints = "VIEW3D_PT_sketcher_constraints"
     SketcherEntities = "VIEW3D_PT_sketcher_entities"
+    SketcherMcp = "VIEW3D_PT_sketcher_mcp"
 
 
 class VisibilityTypes(str, Enum):

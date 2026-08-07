@@ -13,6 +13,7 @@ core_modules = [
     "workspacetools",
     "ui",
     "draw_handler",
+    "mcp",
     # Register this as last module
     "registration_delayed",
 ]
