@@ -1,5 +1,4 @@
 import math
-from unittest import skip
 
 from .utils import Sketch2dTestCase
 
