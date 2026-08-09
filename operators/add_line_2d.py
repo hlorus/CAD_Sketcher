@@ -1,16 +1,15 @@
 import logging
 
-from bpy.types import Operator, Context
 from bpy.props import BoolProperty
+from bpy.types import Context, Operator
 from mathutils import Vector
 
-from ..utilities.constants import HALF_TURN, QUARTER_TURN
-
-from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
-from ..stateful_operator.state import state_from_args
 from ..curve_solver import solve_system
+from ..declarations import Operators
 from ..model.curve_ref import LineRef
+from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.constants import HALF_TURN, QUARTER_TURN
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
@@ -54,10 +53,13 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
         self.target = LineRef.create(sketch, p1, p2, construction=construction)
         line_cid = self.target.curve_id
 
-        # auto vertical/horizontal constraint
+        # auto vertical/horizontal constraint. Skip it when both endpoints are
+        # anchored (e.g. both snapped to external geometry): the alignment can't
+        # move either point, so adding it would just make the sketch inconsistent.
         self.has_alignment = False
+        both_fixed = self.target.p1.fixed and self.target.p2.fixed
         vec_dir = self.target.direction_vec()
-        if vec_dir.length and self.use_auto_constraints(context):
+        if vec_dir.length and self.use_auto_constraints(context) and not both_fixed:
             angle = vec_dir.angle(Vector((1, 0)))
 
             threshold = 0.1
