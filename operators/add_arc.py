@@ -58,6 +58,8 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
         wp = self._get_wp()
         snap_data = get_blender_snap_info(context, coords)
         self._snap = snap_data
+        # Anchor the endpoint if it landed on external geometry (see base_2d).
+        self.state_data["snapped"] = snap_data is not None
         mouse_pos = get_pos_2d(context, wp, coords, respect_snapping=True)
         if mouse_pos is None:
             return None

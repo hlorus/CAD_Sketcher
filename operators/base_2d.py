@@ -67,6 +67,11 @@ class Operator2d(GenericEntityOp):
         self._snap = get_blender_snap_info(context, coords)
         pos = get_pos_2d(context, wp, coords, respect_snapping=True)
 
+        # Remember whether this point landed on an external-geometry snap, so its
+        # deferred creation can anchor it (fixed) — otherwise an inferred
+        # constraint would drag the snapped point off target (see create_element).
+        self.state_data["snapped"] = self._snap is not None
+
         # Handle implicit properties based on state.types
         if SlvsPoint2D in state.types:
             return pos
@@ -98,7 +103,12 @@ class Operator2d(GenericEntityOp):
         sketch = self.sketch
         loc = values[0]
 
-        ref = PointRef.create(sketch, loc)
+        # A point snapped to external geometry is a deliberate placement: fix it
+        # so the solver keeps it there. Points snapped onto a sketch entity are
+        # pinned by the coincident constraint below instead, so skip those.
+        fixed = state_data.get("snapped", False) and not state_data.get("hovered")
+
+        ref = PointRef.create(sketch, loc, fixed=fixed)
         cid = ref.curve_id
 
         self.add_coincident(context, ref, state, state_data)

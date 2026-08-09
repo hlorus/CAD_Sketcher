@@ -15,8 +15,8 @@ import re
 from pathlib import Path
 from unittest import TestCase
 
-from .utils import Sketch2dTestCase, OpHarness
 from ..drawing import selection
+from .utils import OpHarness, Sketch2dTestCase
 
 
 class TestSelectionPrefill(Sketch2dTestCase):
@@ -35,9 +35,9 @@ class TestSelectionPrefill(Sketch2dTestCase):
 
     # -- a selected point fills the first (point) pointer state ---------------
     def test_selected_point_prefills_first_state(self):
-        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
-        from ..operators.add_circle import View3D_OT_slvs_add_circle2d
         from ..operators.add_arc import View3D_OT_slvs_add_arc2d
+        from ..operators.add_circle import View3D_OT_slvs_add_circle2d
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
         from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
 
         point_ops = (
@@ -64,9 +64,9 @@ class TestSelectionPrefill(Sketch2dTestCase):
 
     # -- a selected segment fills the first (segment) pointer state -----------
     def test_selected_segment_prefills_first_state(self):
+        from ..operators.bevel import View3D_OT_slvs_bevel
         from ..operators.offset import View3D_OT_slvs_add_offset
         from ..operators.trim import View3D_OT_slvs_trim
-        from ..operators.bevel import View3D_OT_slvs_bevel
 
         segment_ops = (
             View3D_OT_slvs_add_offset,  # entity
@@ -103,6 +103,39 @@ class TestSelectionPrefill(Sketch2dTestCase):
         self.assertEqual(line.p1.curve_id, pt.curve_id)
         # The endpoint is a freshly created point, not the selected one.
         self.assertNotEqual(line.p2.curve_id, pt.curve_id)
+
+    # -- a point placed on an external snap is anchored (issue #106) -----------
+    def test_external_snap_creates_fixed_point(self):
+        """A point placed on an external-geometry snap is created fixed, so a
+        later inferred constraint (e.g. auto vertical/horizontal) adjusts the
+        free endpoint instead of dragging the snapped one off its target."""
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+
+        h = self._harness(View3D_OT_slvs_add_line2d)
+        h.place_point((0.0, 0.0))                 # start point (a click)
+        h.op.get_state_data(0)["snapped"] = True  # simulate an external snap
+        h.place_point((3.0, 1.0))                 # endpoint, not snapped
+        h.finish()
+
+        line = h.op.target
+        self.assertTrue(line.p1.fixed)            # snapped start -> anchored
+        self.assertFalse(line.p2.fixed)           # free endpoint stays free
+
+    def test_both_ends_snapped_skips_inferred_alignment(self):
+        """When both endpoints are snapped (fixed), the inferred vertical/
+        horizontal is skipped -- it could only over-constrain two pinned points
+        and flip the sketch to inconsistent."""
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+
+        h = self._harness(View3D_OT_slvs_add_line2d)
+        h.place_point((0.0, 0.0))
+        h.op.get_state_data(0)["snapped"] = True
+        h.place_point((0.05, 3.0))                # almost vertical, both snapped
+        h.op.get_state_data(1)["snapped"] = True
+        h.finish()
+
+        self.assertFalse(h.op.has_alignment)      # no inferred constraint added
+        self.assertNotEqual(self.sketch.solver_state, "INCONSISTENT")
 
     # -- immediate execution: a full selection fills every state at once ------
     def test_two_selected_points_complete_line_immediately(self):
