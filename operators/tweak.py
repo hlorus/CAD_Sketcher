@@ -7,9 +7,12 @@ from ..curve_solver import CurveSolver
 from ..declarations import Operators
 from ..drawing import selection
 from ..drawing.snap import draw_snap_marker
+from ..model.constants import SketchCurveType
+from ..model.curve_ref import PointRef
 from ..model.sketch_ref import get_active_sketch
 from ..utilities.curve_data import (
     get_curve_data,
+    get_curve_type,
     refresh_curve_geometry,
 )
 from ..utilities.view import (
@@ -96,6 +99,14 @@ class View3D_OT_slvs_tweak(Operator):
 
     def modal(self, context: Context, event: Event):
         if event.type == "LEFTMOUSE" and event.value == "RELEASE":
+            # Dragging a point onto an external-geometry snap anchors it there,
+            # matching placement snapping (issue #106) — otherwise a later solve
+            # could pull the point back off the snapped location.
+            if (
+                self._snap is not None
+                and get_curve_type(self.sketch, self.curve_id) == SketchCurveType.POINT
+            ):
+                PointRef(self.sketch, self.curve_id).fixed = True
             # Topology rebuild to trigger GN modifier refresh
             refresh_curve_geometry(self.sketch)
             self._remove_snap_marker()
