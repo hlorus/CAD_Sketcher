@@ -8,18 +8,19 @@ Structural entities (workplane, normal) still come from the entity system.
 Constraints still come from PropertyGroups (referencing entities for now).
 """
 import logging
-from mathutils import Vector, Matrix as _Matrix
-
 import math
 
+from mathutils import Matrix as _Matrix
+from mathutils import Vector
+
 from .model.constants import SketchCurveType
-from .utilities.curve_data import get_uuid, has_uuid_field
+from .utilities.constants import FULL_TURN, HALF_TURN
 from .utilities.curve_data import (
-    get_curve_index, get_curve_data,
-    invalidate_curve_id_cache, get_curve_midpoints,
+    get_curve_index,
+    get_uuid,
+    has_uuid_field,
 )
 from .utilities.workplane import ensure_workplane_empty
-from .utilities.constants import FULL_TURN, HALF_TURN
 
 logger = logging.getLogger(__name__)
 
@@ -421,7 +422,29 @@ class CurveSolver:
                         entity.radius = self.solvesys.get_param_value(dist['param'][0])
 
     def solve(self):
-        """Run the solver on curve data."""
+        """Run the solver on curve data.
+
+        A drag can over-constrain an already-determined sketch: a fully defined
+        (0-DOF) sketch is pinned, so pulling a point to the cursor contradicts
+        the existing constraints and solvespace reports it 'Inconsistent'.
+        Dragging a fully constrained sketch should be a no-op, so on that failure
+        we drop the drag and re-solve, keeping the sketch's valid, constrained
+        state instead of flipping it to inconsistent (issue #584).
+        """
+        self._solve_once()
+        if not self.ok and self._tweak_curve_id is not None:
+            self._tweak_curve_id = None
+            self._tweak_pos = None
+            self._solve_once()
+        return self.ok
+
+    def _solve_once(self):
+        """Build and solve the system once from the current curve/tweak state."""
+        self.solvesys.clear_sketch()
+        self._point_handles.clear()
+        self._entity_handles.clear()
+        self._distance_params.clear()
+
         self._init_workplane()
         self._init_geometry()
         self._init_constraints()
