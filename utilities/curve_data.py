@@ -378,16 +378,28 @@ def _ensure_convert_modifier(ob):
         assert modifier is not None, "Failed to create GN modifier"
 
     if modifier and not modifier.node_group:
-        from .. import global_data
-        from ..assets_manager import load_asset
-        load_asset(global_data.LIB_NAME, "node_groups", "CAD Sketcher Convert")
-        ng = bpy.data.node_groups.get("CAD Sketcher Convert")
+        ng = _get_convert_node_group()
         if ng:
             modifier.node_group = ng
         else:
-            logger.warning("Could not load 'CAD Sketcher Convert' node group")
+            logger.warning("Could not obtain 'CAD Sketcher Convert' node group")
 
     return modifier
+
+
+def _get_convert_node_group():
+    """The convert node group: identity-weld build on Blender 5.2+, else the
+    shipped merge-by-distance asset (which is all older Blender can express)."""
+    if bpy.app.version >= (5, 2, 0):
+        from .convert_nodes import build_convert_node_group
+
+        return build_convert_node_group()
+
+    from .. import global_data
+    from ..assets_manager import load_asset
+
+    load_asset(global_data.LIB_NAME, "node_groups", "CAD Sketcher Convert")
+    return bpy.data.node_groups.get("CAD Sketcher Convert")
 
 
 def ensure_sketch_curve_object(sketch):
@@ -812,6 +824,10 @@ def refresh_curve_geometry(sketch):
     n_curves = len(curve_data.curves)
     if n_curves == 0:
         return
+
+    # Refresh weld ids before the rebuild so they're saved/restored current; this
+    # is the sync point right before the GN convert re-evaluates.
+    compute_merge_ids(sketch)
 
     n_points = len(curve_data.points)
     point_counts = np.zeros(n_curves, dtype=np.int32)
