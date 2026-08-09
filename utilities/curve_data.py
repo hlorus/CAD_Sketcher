@@ -206,6 +206,9 @@ def ensure_standard_attributes(curve_data):
     ensure_attribute(attributes, "construction", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "fixed", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "visible", "BOOLEAN", "CURVE")
+    # Per-point weld identity for the Blender 5.2 "Merge Points" fill path:
+    # segment endpoints sharing a junction get the same id (see compute_merge_ids).
+    ensure_attribute(attributes, "merge_id", "INT", "POINT")
     # Identity fields: 2x INT32_2D each (128-bit), hidden. Integer attributes
     # survive remove_curves() (STRING attributes don't).
     for field in UUID_FIELDS:
@@ -375,9 +378,9 @@ def _ensure_convert_modifier(ob):
         assert modifier is not None, "Failed to create GN modifier"
 
     if modifier and not modifier.node_group:
-        from ..assets_manager import load_asset
         from .. import global_data
-        loaded = load_asset(global_data.LIB_NAME, "node_groups", "CAD Sketcher Convert")
+        from ..assets_manager import load_asset
+        load_asset(global_data.LIB_NAME, "node_groups", "CAD Sketcher Convert")
         ng = bpy.data.node_groups.get("CAD Sketcher Convert")
         if ng:
             modifier.node_group = ng
@@ -534,6 +537,7 @@ def _target_arc_segments(angle, current):
     band around each 90 degree boundary keeps it from thrashing.
     """
     import math
+
     from .constants import QUARTER_TURN
 
     raw = angle / QUARTER_TURN
@@ -554,7 +558,8 @@ def _resegment_arcs(sketch, cd, point_ids=None):
     Returns True if any arc was resized.
     """
     import math
-    from ..model.constants import SketchCurveType, BezierHandleType
+
+    from ..model.constants import BezierHandleType, SketchCurveType
     from .math import range_2pi
 
     ob = sketch.target_object
@@ -639,6 +644,56 @@ def _resegment_arcs(sketch, cd, point_ids=None):
     return True
 
 
+def compute_merge_ids(sketch):
+    """Assign each curve point a weld id derived from segment connectivity.
+
+    A segment endpoint gets a dense id for the point curve it references
+    (``start_point_id`` / ``end_point_id``), so both endpoints meeting at a
+    junction share one id. The 5.2 convert node group welds mesh vertices by this
+    id -- gated to true endpoints via vertex valence -- closing loops by identity
+    instead of by proximity: tolerance-free and independent of sketch scale.
+
+    Interior, point and circle vertices keep id 0; they are never welded (their
+    valence is not 1), so their id is irrelevant. Returns True if anything ran.
+    """
+    if not sketch or not sketch.target_object or not sketch.target_object.data:
+        return False
+    cd = sketch.target_object.data
+    n_points = len(cd.points)
+    type_attr = cd.attributes.get("sketch_type")
+    if n_points == 0 or not type_attr:
+        return False
+
+    sp_ids = read_uuid_list(cd, "start_point_id")
+    ep_ids = read_uuid_list(cd, "end_point_id")
+
+    ids = np.zeros(n_points, dtype=np.int32)
+    dense = {}
+
+    def junction(u):
+        # 1-based so 0 stays the "no weld" default for interior/point/circle.
+        return dense.setdefault(u, len(dense) + 1)
+
+    for i in range(len(cd.curves)):
+        t = type_attr.data[i].value
+        if t not in (SketchCurveType.LINE, SketchCurveType.ARC):
+            continue
+        cv = cd.curves[i]
+        npt = cv.points_length
+        if npt < 2:
+            continue
+        if sp_ids[i]:
+            ids[cv.points[0].index] = junction(sp_ids[i])
+        if ep_ids[i]:
+            ids[cv.points[npt - 1].index] = junction(ep_ids[i])
+
+    attr = cd.attributes.get("merge_id")
+    if attr is None:
+        attr = cd.attributes.new("merge_id", "INT", "POINT")
+    attr.data.foreach_set("value", ids)
+    return True
+
+
 def rebuild_segments(sketch, point_ids=None):
     """Rebuild segment curve positions from their referenced point curves.
 
@@ -650,9 +705,10 @@ def rebuild_segments(sketch, point_ids=None):
     rebuilt (e.g. during a move, where only the dragged points changed) — this
     avoids re-resolving every segment in the sketch each frame.
     """
-    from ..model.constants import SketchCurveType, BezierHandleType
-    from ..model.curve_ref import _build_arc_bezier, PointRef
     from mathutils import Vector
+
+    from ..model.constants import SketchCurveType
+    from ..model.curve_ref import PointRef, _build_arc_bezier
 
     if not sketch or not sketch.target_object or not sketch.target_object.data:
         return
@@ -740,6 +796,11 @@ def rebuild_segments(sketch, point_ids=None):
                     e = PointRef(sketch, ep_cid)
                     if s.valid and e.valid:
                         _build_arc_bezier(cd, i, ct.co, s.co, e.co)
+
+    # Weld ids depend on connectivity (start/end_point_id), not positions, so
+    # only recompute on a full rebuild -- a scoped move leaves topology intact.
+    if point_ids is None:
+        compute_merge_ids(sketch)
 
 
 def refresh_curve_geometry(sketch):
