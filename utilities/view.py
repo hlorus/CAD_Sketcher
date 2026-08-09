@@ -12,10 +12,8 @@ from mathutils.geometry import intersect_line_line, intersect_line_plane
 
 
 def get_picking_origin_dir(context: Context, coords: Vector) -> Tuple[Vector, Vector]:
-    scene = context.scene
     region = context.region
     rv3d = context.region_data
-    viewlayer = context.view_layer
 
     # get the ray from the viewport and mouse
     view_vector = region_2d_to_vector_3d(region, rv3d, coords)
@@ -24,10 +22,8 @@ def get_picking_origin_dir(context: Context, coords: Vector) -> Tuple[Vector, Ve
 
 
 def get_picking_origin_end(context: Context, coords: Vector) -> Tuple[Vector, Vector]:
-    scene = context.scene
     region = context.region
     rv3d = context.region_data
-    viewlayer = context.view_layer
 
     # get the ray from the viewport and mouse
     view_vector = region_2d_to_vector_3d(region, rv3d, coords)
@@ -512,9 +508,14 @@ def get_pos_2d(
     if respect_snapping:
         snap_info = get_blender_snap_info(context, coords)
         if snap_info and "world_point" in snap_info:
-            # Project the snapped 3D point onto the workplane along the view ray.
+            # Drop the snapped 3D point straight onto the workplane -- its
+            # orthogonal projection (foot of the perpendicular), not where the
+            # view ray happens to cross the plane. So an edge floating above the
+            # ground snaps to its footprint on the workplane, independent of the
+            # viewing angle.
+            wp_point = snap_info["world_point"]
             closest_point = intersect_line_plane(
-                snap_info["world_point"], origin, wp_origin, wp_normal
+                wp_point, wp_point + wp_normal, wp_origin, wp_normal
             )
             if closest_point is None:
                 return None

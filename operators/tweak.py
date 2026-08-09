@@ -1,14 +1,26 @@
-from bpy.types import Operator, Context, Event
-from ..model.sketch_ref import get_active_sketch
+import bpy
+from bpy.types import Context, Event, Operator
 from bpy.utils import register_classes_factory
 
 from .. import global_data
-from ..drawing import selection
-from ..declarations import Operators
 from ..curve_solver import CurveSolver
-from ..utilities.view import get_picking_origin_dir, get_pos_2d, get_wp_matrix
-from ..utilities.curve_data import get_curve_data, get_curve_type, refresh_curve_geometry
+from ..declarations import Operators
+from ..drawing import selection
+from ..drawing.snap import draw_snap_marker
 from ..model.constants import SketchCurveType
+from ..model.curve_ref import PointRef
+from ..model.sketch_ref import get_active_sketch
+from ..utilities.curve_data import (
+    get_curve_data,
+    get_curve_type,
+    refresh_curve_geometry,
+)
+from ..utilities.view import (
+    get_blender_snap_info,
+    get_picking_origin_dir,
+    get_pos_2d,
+    get_wp_matrix,
+)
 
 
 class View3D_OT_slvs_tweak(Operator):
@@ -17,6 +29,25 @@ class View3D_OT_slvs_tweak(Operator):
     bl_idname = Operators.Tweak
     bl_label = "Tweak Solvespace Entities"
     bl_options = {"UNDO"}
+
+    # Current geometry snap target for the marker (dict from get_blender_snap_info
+    # or None), and the POST_PIXEL draw handle that renders it while dragging.
+    _snap = None
+    _snap_handle = None
+
+    def _register_snap_marker(self, context: Context):
+        """Show the same snap marker the draw tools use, for the drag's lifetime."""
+        self._snap = None
+        self._snap_handle = bpy.types.SpaceView3D.draw_handler_add(
+            draw_snap_marker, (self, context), "WINDOW", "POST_PIXEL"
+        )
+
+    def _remove_snap_marker(self):
+        handle = getattr(self, "_snap_handle", None)
+        if handle is not None:
+            bpy.types.SpaceView3D.draw_handler_remove(handle, "WINDOW")
+            self._snap_handle = None
+        self._snap = None
 
     def _get_wp(self):
         """The sketch's workplane object (same resolution as the solver uses)."""
@@ -62,13 +93,23 @@ class View3D_OT_slvs_tweak(Operator):
 
         self.depth = (pos - origin).length
 
+        self._register_snap_marker(context)
         context.window_manager.modal_handler_add(self)
         return {"RUNNING_MODAL"}
 
     def modal(self, context: Context, event: Event):
         if event.type == "LEFTMOUSE" and event.value == "RELEASE":
+            # Dragging a point onto an external-geometry snap anchors it there,
+            # matching placement snapping (issue #106) — otherwise a later solve
+            # could pull the point back off the snapped location.
+            if (
+                self._snap is not None
+                and get_curve_type(self.sketch, self.curve_id) == SketchCurveType.POINT
+            ):
+                PointRef(self.sketch, self.curve_id).fixed = True
             # Topology rebuild to trigger GN modifier refresh
             refresh_curve_geometry(self.sketch)
+            self._remove_snap_marker()
             context.window.cursor_modal_restore()
             return {"FINISHED"}
 
@@ -78,6 +119,9 @@ class View3D_OT_slvs_tweak(Operator):
             coords = (event.mouse_region_x, event.mouse_region_y)
 
             global_data.snap_bypass = bool(event.shift)  # Shift bypasses snapping
+            # Same snap target the position uses, surfaced as a marker while
+            # dragging (issue #106).
+            self._snap = get_blender_snap_info(context, coords)
             pos = self._get_tweak_pos(context, coords)
             if pos is None:
                 return {"RUNNING_MODAL"}
