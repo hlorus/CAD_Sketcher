@@ -102,6 +102,12 @@ def _refresh_fill_pipeline(context):
         return
     for sketch in get_sketches(scene):
         compute_merge_ids(sketch)
+        # Tag the curve data so the GN modifier re-evaluates and the viewport
+        # shows the (now closable) fill -- setting attributes alone doesn't
+        # trigger a redraw, so without this the fill only appears on a later edit.
+        obj = sketch.target_object
+        if obj and obj.data:
+            obj.data.update_tag()
 
 
 def on_depsgraph_update(scene, depsgraph):
