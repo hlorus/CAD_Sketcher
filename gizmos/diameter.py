@@ -1,6 +1,6 @@
 from bpy.types import Gizmo, GizmoGroup
 
-from ..declarations import Gizmos, GizmoGroups
+from ..declarations import GizmoGroups, Gizmos
 from ..model.types import SlvsDiameter
 from ..utilities.constants import HALF_TURN
 from ..utilities.math import pol2cart
@@ -30,6 +30,7 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
     __slots__ = (
         "custom_shape",
         "index",
+        "_shape_sig",
     )
 
     def _create_shape(self, context, constr, select=False):
