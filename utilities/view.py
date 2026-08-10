@@ -469,10 +469,13 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
         # every frame.
         if not hit or hit_ob is None:
             return None
-        if active_obj is None or hit_ob.original != active_obj:
+        # Skip the sketch being drawn in (#591) and any hidden object -- ray_cast
+        # hits geometry regardless of viewport visibility, so without this you
+        # could snap to an invisible mesh. Advance past and keep looking behind.
+        is_active = active_obj is not None and hit_ob.original == active_obj
+        if not is_active and hit_ob.visible_get():
             ob, face_index = hit_ob, hit_face
             break
-        # Advance just past this hit to see what's behind the active sketch.
         ray_origin = Vector(location) + view_vector * 1e-4
     else:
         return None

@@ -5,8 +5,8 @@ the Sketch wrapper class and helpers for discovery and activation.
 """
 
 import bpy
-from .. import global_data
 
+from .. import global_data
 
 # Custom property keys on the Curves object
 _TAG = "is_cad_sketch"
@@ -85,7 +85,10 @@ class Sketch:
         active = get_active_sketch(context)
         if active and active._obj == self._obj:
             return True
-        return not self._obj.hide_viewport
+        # visible_get() covers the eye-icon hide and collection visibility, not
+        # just hide_viewport (the monitor icon) -- so an eye-hidden sketch isn't
+        # drawn or pickable, matching the workplane overlay behaviour.
+        return self._obj.visible_get()
 
     # -- Solver --
 

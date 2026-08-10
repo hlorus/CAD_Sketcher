@@ -1,12 +1,12 @@
+from typing import Optional
+
 from bpy.types import Context, Object, RegionView3D
 from bpy_extras import view3d_utils
-from mathutils import Vector
 from bpy_extras.view3d_utils import region_2d_to_location_3d, region_2d_to_vector_3d
+from mathutils import Vector
 
 # TODO: Move into StateOps
 from ..utilities.generic import bvhtree_from_object
-
-from typing import Optional
 
 
 def get_placement_pos(context: Context, coords: Vector) -> Vector:
@@ -50,6 +50,10 @@ def get_mesh_element(
         result, loc, _normal, face_index, ob, _matrix = scene.ray_cast(
             depsgraph, ray_origin, view_vector
         )
+        # ray_cast hits geometry regardless of viewport visibility; don't pick a
+        # face on an object hidden with the eye/monitor icon or via its collection.
+        if result and ob is not None and not ob.visible_get():
+            return None, None, None
     else:
         # Alternatively do a object raycast if we know the object already
         tree = bvhtree_from_object(object)
