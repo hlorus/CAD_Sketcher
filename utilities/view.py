@@ -444,11 +444,21 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
     origin, view_vector = get_picking_origin_dir(context, coords)
     depsgraph = context.evaluated_depsgraph_get()
 
-    result, location, _normal, face_index, ob, _matrix = context.scene.ray_cast(
-        depsgraph, origin, view_vector
-    )
-    if not result or ob is None:
-        # Nothing under the cursor -> nothing to snap to. Only the object
+    # Don't snap to the sketch being drawn in: its own generated geometry would
+    # otherwise capture the cursor (issue #591). Skip past it and keep looking for
+    # real reference geometry behind it.
+    from ..model.sketch_ref import get_active_sketch
+    active = get_active_sketch(context)
+    active_obj = active.target_object if active else None
+
+    ray_origin = Vector(origin)
+    ob = None
+    face_index = -1
+    for _ in range(16):
+        hit, location, _normal, hit_face, hit_ob, _matrix = context.scene.ray_cast(
+            depsgraph, ray_origin, view_vector
+        )
+        # Nothing (more) under the cursor -> nothing to snap to. Only the object
         # directly hit by the ray is considered, so a mouse-move over empty
         # space is free instead of scanning every visible object (the
         # drawing-lag path).
@@ -457,6 +467,14 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
         # decide scope. The "Auto Fade Objects" feature turns x-ray on in sketch
         # mode, which would otherwise force the expensive all-geometry scan on
         # every frame.
+        if not hit or hit_ob is None:
+            return None
+        if active_obj is None or hit_ob.original != active_obj:
+            ob, face_index = hit_ob, hit_face
+            break
+        # Advance just past this hit to see what's behind the active sketch.
+        ray_origin = Vector(location) + view_vector * 1e-4
+    else:
         return None
 
     if ob.type == "MESH":
