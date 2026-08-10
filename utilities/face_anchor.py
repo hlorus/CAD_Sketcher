@@ -58,8 +58,16 @@ def stamp_face_anchor(empty, source_ob, face_index):
     ``empty.matrix_world`` must already hold the intended frame; its X axis is
     stored in source-local space as the in-plane reference so the recomputed
     orientation stays rigid with the mesh as the object rotates.
+
+    Returns True if the face was anchored. ``face_index`` comes from a ray_cast
+    against the *evaluated* mesh; the persistent id lives on the *original* mesh,
+    so an index past the original face count (a modifier-generated face) can't be
+    anchored -- return False rather than raise (issue: IndexError on Solidify/
+    Bevel meshes). The caller leaves the empty as a plain fixed workplane.
     """
     mesh = source_ob.data
+    if not hasattr(mesh, "polygons") or not (0 <= face_index < len(mesh.polygons)):
+        return False
     attr = mesh.attributes.get(FACE_ID_ATTR)
     if attr is None:
         attr = mesh.attributes.new(FACE_ID_ATTR, "INT", "FACE")
@@ -76,6 +84,7 @@ def stamp_face_anchor(empty, source_ob, face_index):
     empty[KEY_DETACHED] = False
     empty[KEY_LAST_CO] = list(mesh.polygons[face_index].center)
     empty[KEY_REF] = list(ref_local)
+    return True
 
 
 # ---------------------------------------------------------------------------
