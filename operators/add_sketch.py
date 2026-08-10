@@ -1,17 +1,16 @@
 import logging
 
 import bpy
-from bpy.types import Operator, Context, Event
+from bpy.types import Context, Event, Operator
 
 from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
+from ..model.curve_ref import PointRef
 from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.geometry import face_workplane_matrix
+from ..utilities.workplane import ensure_origin_workplane_empties, resolve_sketch_base
 from .base_3d import Operator3d
 from .utilities import activate_sketch
-from ..utilities.workplane import ensure_origin_workplane_empties, resolve_sketch_base
-from ..utilities.geometry import face_workplane_matrix
-from ..model.curve_ref import PointRef
-
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +68,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         transform from the evaluated mesh, so it follows edits and deformation
         (see utilities/face_anchor).
         """
+        from ..stateful_operator.utilities.geometry import get_evaluated_obj
         from ..utilities.face_anchor import stamp_face_anchor
 
         empty = bpy.data.objects.new("Workplane", None)
@@ -77,7 +77,20 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         context.scene.collection.objects.link(empty)
 
         empty.matrix_world = face_workplane_matrix(context, ob, face_index)
-        stamp_face_anchor(empty, ob, face_index)
+
+        # face_index is an evaluated-mesh index; it only maps to an original face
+        # (which the anchor stamps a persistent id on) when no modifier changed
+        # the topology. When it doesn't line up (Solidify/Bevel/etc.), leave the
+        # empty as a plain fixed workplane rather than anchor the wrong face or
+        # index out of range (issue #342-adjacent crash on box.blend meshes).
+        orig = ob.data
+        eval_mesh = get_evaluated_obj(context, ob).data
+        if (
+            hasattr(orig, "polygons")
+            and hasattr(eval_mesh, "polygons")
+            and len(eval_mesh.polygons) == len(orig.polygons)
+        ):
+            stamp_face_anchor(empty, ob, face_index)
         return empty
 
     def prepare_origin_elements(self, context):
@@ -105,7 +118,6 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
 
     def main(self, context: Context):
         from ..model.sketch_ref import Sketch
-        from ..utilities.curve_data import ensure_sketch_curve_object
 
         wp_empty = self.wp
         if not wp_empty or wp_empty.type != 'EMPTY':
