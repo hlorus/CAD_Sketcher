@@ -234,6 +234,28 @@ def init_string_attrs(curve_data, curve_idx):
 # ---------------------------------------------------------------------------
 
 _curve_id_cache = {}
+# id(curve_data) -> ordered list of curve_id hex strings. Curve ids are immutable
+# after creation, so the only thing that changes this list is add/remove -- which
+# already calls invalidate_curve_id_cache. Caching it keeps the per-frame draw and
+# picking paths from re-deriving every hex id from its int attributes each frame.
+_curve_id_list_cache = {}
+
+
+def read_curve_id_list(curve_data):
+    """Cached ordered list of curve_id hex strings for ``curve_data``.
+
+    Same result as ``read_uuid_list(curve_data, "curve_id")`` but memoized on the
+    add/remove lifetime, avoiding the pure-Python int->hex conversion on every
+    draw/pick. The length guard rebuilds if the curve count changed without an
+    explicit invalidation.
+    """
+    key = id(curve_data)
+    lst = _curve_id_list_cache.get(key)
+    if lst is not None and len(lst) == len(curve_data.curves):
+        return lst
+    lst = read_uuid_list(curve_data, "curve_id")
+    _curve_id_list_cache[key] = lst
+    return lst
 
 
 def _allocate_curve_id(sketch):
@@ -266,12 +288,14 @@ def _rebuild_curve_id_cache(sketch, lookup_id=None):
 
 
 def invalidate_curve_id_cache(sketch=None):
-    """Invalidate the curve_id cache. Call after add/remove curves."""
+    """Invalidate the curve_id caches. Call after add/remove curves."""
     if sketch and sketch.target_object:
         sk_key = id(sketch.target_object.data)
         _curve_id_cache.pop(sk_key, None)
+        _curve_id_list_cache.pop(sk_key, None)
     else:
         _curve_id_cache.clear()
+        _curve_id_list_cache.clear()
 
 
 # ---------------------------------------------------------------------------

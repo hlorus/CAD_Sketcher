@@ -17,7 +17,12 @@ import numpy as np
 from mathutils import Vector
 
 from ..model.constants import SketchCurveType
-from ..utilities.curve_data import get_uuid, has_uuid_field, get_curve_data, read_uuid_list
+from ..utilities.curve_data import (
+    get_curve_data,
+    get_uuid,
+    has_uuid_field,
+    read_curve_id_list,
+)
 from ..utilities.math import range_2pi
 from . import selection
 
@@ -131,7 +136,7 @@ def build(sketch, ts, is_active):
     vis = _bulk_bool(cd.attributes.get("visible"), n_curves) if cd.attributes.get("visible") else np.ones(n_curves, bool)
     cyc = _bulk_bool(cd.attributes.get("cyclic"), n_curves)
     types = _bulk_int(type_attr, n_curves)
-    cids = read_uuid_list(cd, "curve_id")
+    cids = read_curve_id_list(cd)
 
     # Selection/hover are transient runtime state (not persisted attributes).
     selected_set = set(selection.selected)

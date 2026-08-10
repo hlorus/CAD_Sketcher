@@ -8,8 +8,8 @@ geometry resolved to the origin.
 
 import bpy
 
-from .utils import BgsTestCase, Sketch2dTestCase
 from ..utilities import curve_data as cd
+from .utils import BgsTestCase, Sketch2dTestCase
 
 
 class TestCurveIdCodec(BgsTestCase):
@@ -70,3 +70,28 @@ class TestCurveIdSurvival(Sketch2dTestCase):
         # endpoints still resolve to their real positions, not the origin
         self.assertEqual(tuple(round(v, 1) for v in line.p1.co), (3.0, 4.0))
         self.assertEqual(tuple(round(v, 1) for v in line.p2.co), (5.0, 6.0))
+
+    def test_curve_id_list_cache_tracks_add_remove(self):
+        """The cached hex-id list (per-frame draw/pick fast path) must stay in
+        sync as curves are added and removed, not serve a stale list."""
+        data = self.sketch.target_object.data
+
+        p0 = self.add_point((0.0, 0.0))
+        p1 = self.add_point((1.0, 0.0))
+        line = self.add_line(p0, p1)
+        cached = cd.read_curve_id_list(data)
+        self.assertEqual(cached, cd.read_uuid_list(data, "curve_id"))
+        self.assertIn(line.curve_id, cached)
+
+        # add -> cache must include the new curve
+        p2 = self.add_point((2.0, 0.0))
+        line2 = self.add_line(p1, p2)
+        cached = cd.read_curve_id_list(data)
+        self.assertEqual(cached, cd.read_uuid_list(data, "curve_id"))
+        self.assertIn(line2.curve_id, cached)
+
+        # remove -> cache must drop it
+        line2.remove()
+        cached = cd.read_curve_id_list(data)
+        self.assertEqual(cached, cd.read_uuid_list(data, "curve_id"))
+        self.assertNotIn(line2.curve_id, cached)
