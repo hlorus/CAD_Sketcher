@@ -93,13 +93,25 @@ def overlay_signature(sketch, is_active, theme_sig):
     Reading the flat attribute arrays with ``foreach_get`` is far cheaper than
     rebuilding GPU batches, so the overlay computes this every frame and only
     rebuilds when it changes.
+
+    Hover and highlight are set only by picking, which is active-only, so they
+    never reference an inactive sketch's curves. Folding them into every sketch's
+    signature made unrelated visible sketches rebuild their batches on every
+    hover change (each mouse-move). Inactive sketches therefore track only their
+    geometry and the selection set (which can still contain their curves after an
+    active-sketch switch); the per-frame hover/highlight go to the active sketch
+    alone.
     """
     if len(sketch.data.points) == 0:
         return (0, 0, is_active, theme_sig)
 
+    if not is_active:
+        return (geometry_signature(sketch), False, theme_sig,
+                frozenset(selection.selected))
+
     return (
         geometry_signature(sketch),
-        is_active,
+        True,
         theme_sig,
         frozenset(selection.selected),
         selection.hover,

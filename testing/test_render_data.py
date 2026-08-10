@@ -6,10 +6,10 @@ extracted into the right buckets and that the change-signature both stays stable
 and detects the changes that must invalidate cached batches.
 """
 
-from .utils import Sketch2dTestCase
 from ..drawing import render_data, selection
-from ..utilities.curve_data import refresh_curve_geometry, read_uuid_list
+from ..utilities.curve_data import read_uuid_list, refresh_curve_geometry
 from ..utilities.preferences import get_prefs
+from .utils import Sketch2dTestCase
 
 
 class TestRenderData(Sketch2dTestCase):
@@ -63,3 +63,25 @@ class TestRenderData(Sketch2dTestCase):
 
         # Active/inactive must change the signature (colors differ).
         self.assertNotEqual(base, render_data.overlay_signature(self.sketch, False, ()))
+
+    def test_inactive_signature_ignores_hover(self):
+        """Hover is active-only, so it must not invalidate an inactive sketch's
+        signature (which would rebuild its batches on every mouse-move)."""
+        self._build_point_line_circle()
+        selection.clear()
+        try:
+            inactive = render_data.overlay_signature(self.sketch, False, ())
+            selection.hover = "abc123"
+            self.assertEqual(
+                inactive,
+                render_data.overlay_signature(self.sketch, False, ()),
+                "hover changed an inactive sketch's signature",
+            )
+            # The active sketch, by contrast, must react to hover.
+            active = render_data.overlay_signature(self.sketch, True, ())
+            selection.hover = "def456"
+            self.assertNotEqual(
+                active, render_data.overlay_signature(self.sketch, True, ())
+            )
+        finally:
+            selection.clear()
