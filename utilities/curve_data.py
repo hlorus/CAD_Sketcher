@@ -747,7 +747,7 @@ def rebuild_segments(sketch, point_ids=None):
     from mathutils import Vector
 
     from ..model.constants import SketchCurveType
-    from ..model.curve_ref import PointRef, _build_arc_bezier
+    from ..model.curve_ref import _build_arc_bezier
 
     if not sketch or not sketch.target_object or not sketch.target_object.data:
         return
@@ -772,6 +772,18 @@ def rebuild_segments(sketch, point_ids=None):
     ep_ids = read_uuid_list(cd, "end_point_id")
     cp_ids = read_uuid_list(cd, "center_point_id")
 
+    # Map point curve_id -> local 2D position once, so segment endpoints resolve
+    # by dict lookup instead of a PointRef per endpoint (each of which re-resolved
+    # curve data twice). This is the bulk of solve's per-edit cost (issue #342).
+    cid_list = read_uuid_list(cd, "curve_id")
+    point_co = {}
+    for i in range(n):
+        if type_attr.data[i].value == SketchCurveType.POINT:
+            cs = cd.curves[i]
+            if cs.points_length:
+                p = cd.points[cs.points[0].index].position
+                point_co[cid_list[i]] = Vector((p[0], p[1]))
+
     for i in range(n):
         ctype = type_attr.data[i].value
         if ctype == SketchCurveType.POINT:
@@ -795,46 +807,36 @@ def rebuild_segments(sketch, point_ids=None):
             continue
 
         if ctype == SketchCurveType.LINE:
-            sp_cid = sp_ids[i]
-            ep_cid = ep_ids[i]
-            if sp_cid:
-                p1 = PointRef(sketch, sp_cid)
-                if p1.valid:
-                    pos = (*p1.co, 0.0)
-                    cd.points[curve_slice.points[0].index].position = pos
-                    hl = cd.attributes.get("handle_left")
-                    hr = cd.attributes.get("handle_right")
-                    if hl: hl.data[curve_slice.points[0].index].vector = pos
-                    if hr: hr.data[curve_slice.points[0].index].vector = pos
-            if ep_cid:
-                p2 = PointRef(sketch, ep_cid)
-                if p2.valid:
-                    pos = (*p2.co, 0.0)
-                    cd.points[curve_slice.points[1].index].position = pos
-                    hl = cd.attributes.get("handle_left")
-                    hr = cd.attributes.get("handle_right")
-                    if hl: hl.data[curve_slice.points[1].index].vector = pos
-                    if hr: hr.data[curve_slice.points[1].index].vector = pos
+            sp_co = point_co.get(sp_ids[i])
+            ep_co = point_co.get(ep_ids[i])
+            hl = cd.attributes.get("handle_left")
+            hr = cd.attributes.get("handle_right")
+            if sp_co is not None:
+                pos = (sp_co.x, sp_co.y, 0.0)
+                idx = curve_slice.points[0].index
+                cd.points[idx].position = pos
+                if hl: hl.data[idx].vector = pos
+                if hr: hr.data[idx].vector = pos
+            if ep_co is not None:
+                pos = (ep_co.x, ep_co.y, 0.0)
+                idx = curve_slice.points[1].index
+                cd.points[idx].position = pos
+                if hl: hl.data[idx].vector = pos
+                if hr: hr.data[idx].vector = pos
 
         elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
-            cp_cid = cp_ids[i]
-            if not cp_cid:
-                continue
-            ct = PointRef(sketch, cp_cid)
-            if not ct.valid:
+            ct_co = point_co.get(cp_ids[i])
+            if ct_co is None:
                 continue
             is_cyclic = ctype == SketchCurveType.CIRCLE
             if is_cyclic:
                 edge = Vector(cd.points[curve_slice.points[0].index].position[:2])
-                _build_arc_bezier(cd, i, ct.co, edge, edge, is_cyclic=True)
+                _build_arc_bezier(cd, i, ct_co, edge, edge, is_cyclic=True)
             else:
-                sp_cid = sp_ids[i]
-                ep_cid = ep_ids[i]
-                if sp_cid and ep_cid:
-                    s = PointRef(sketch, sp_cid)
-                    e = PointRef(sketch, ep_cid)
-                    if s.valid and e.valid:
-                        _build_arc_bezier(cd, i, ct.co, s.co, e.co)
+                s_co = point_co.get(sp_ids[i])
+                e_co = point_co.get(ep_ids[i])
+                if s_co is not None and e_co is not None:
+                    _build_arc_bezier(cd, i, ct_co, s_co, e_co)
 
     # Weld ids depend on connectivity (start/end_point_id), not positions, so
     # only recompute on a full rebuild -- a scoped move leaves topology intact.
