@@ -5,8 +5,8 @@ from bpy.types import Gizmo, GizmoGroup
 from gpu_extras.batch import batch_for_shader
 from mathutils import Vector
 
-from ..drawing import selection
 from ..declarations import GizmoGroups, Gizmos
+from ..drawing import selection
 from ..shaders import Shaders
 from ..utilities import preferences
 from ..utilities.geometry import face_bounds_in_plane, face_workplane_matrix
@@ -20,7 +20,6 @@ from ..utilities.workplane import (
     wp_plane_bounds,
 )
 from .utilities import context_mode_check
-
 
 # Blender-style axis colors used to tint the origin planes by their normal
 # (XY -> Z/blue, XZ -> Y/green, YZ -> X/red).
@@ -52,10 +51,13 @@ class VIEW3D_GGT_slvs_workplane(GizmoGroup):
         return context_mode_check(context, cls.bl_idname)
 
     def setup(self, context):
-        # Re-assert the origin planes when the tool activates, so a drifted or
-        # missing plane (#571) is restored without needing a depsgraph tick.
-        from ..utilities.workplane import repair_origin_workplanes
-        repair_origin_workplanes(context)
+        # NOTE: don't repair the origin planes here. A GizmoGroup.setup runs in a
+        # restricted context where writing to ID data (Object.matrix_world) is
+        # disallowed -- doing so raised "Writing to ID classes in this context is
+        # not allowed" and broke the whole gizmo group, leaving geometry invisible
+        # and blocking new sketches (#595). The depsgraph handler already repairs
+        # drifted/flattened planes (#571) in a safe context, so nothing is needed
+        # here beyond creating the gizmo.
         self.gizmo = self.gizmos.new(VIEW3D_GT_slvs_workplane.bl_idname)
 
 
