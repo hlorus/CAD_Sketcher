@@ -5,7 +5,6 @@ import math
 import bpy
 from mathutils import Vector
 
-
 # ---------------------------------------------------------------------------
 # Workplane empty IDs for picking
 # ---------------------------------------------------------------------------
@@ -66,7 +65,10 @@ def iter_wp_empties(context):
 
     pick_id = _EMPTY_PICK_START
     for obj in context.scene.objects:
-        if obj.type != 'EMPTY' or obj.name in origin_names or obj.hide_viewport:
+        # visible_get() covers the eye-icon hide and collection visibility too,
+        # not just hide_viewport (the monitor icon) -- an empty hidden with the
+        # eye was still getting its workplane overlay drawn.
+        if obj.type != 'EMPTY' or obj.name in origin_names or not obj.visible_get():
             continue
         yield obj, pick_id
         pick_id += 1
@@ -117,7 +119,7 @@ def hit_test_workplane(context, coords, border_only=False):
     rectangle outline count (used to give the border pick priority over meshes);
     otherwise any hit inside the rectangle counts.
     """
-    from .view import get_pos_2d, get_picking_origin_dir
+    from .view import get_picking_origin_dir, get_pos_2d
 
     half = wp_display_half_size(context)
     border_width = half * WP_BORDER_FRACTION
