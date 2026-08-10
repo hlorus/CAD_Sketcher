@@ -11,11 +11,10 @@ curves in ``selection.ignore_list`` are skipped, matching the old behavior.
 
 import numpy as np
 
-from . import selection
 from ..model.sketch_ref import get_active_sketch
 from ..utilities.preferences import get_prefs, get_scale
 from ..utilities.view import _project_points_to_region
-from . import render_data
+from . import render_data, selection
 
 # Pick radius in pixels (scaled by UI scale). Points grab a bit wider than edges
 # and take priority, so a vertex is easy to hit even when it sits on a line.
@@ -23,12 +22,28 @@ _POINT_RADIUS = 11.0
 _EDGE_RADIUS = 8.0
 
 
+# (sketch object name) -> (geometry_signature, point_ids, segment_ids). Picking
+# only needs the projected points/segments, which depend on geometry, not on the
+# hover/selection state that changes every mouse-move -- so we rebuild the
+# extraction only when the geometry actually changes, not on every hover.
+_pick_cache = {}
+
+
 def _active_data(context):
     sketch = get_active_sketch(context)
     if not sketch or not sketch.is_visible(context):
         return None
+
+    obj = sketch.target_object
+    sig = render_data.geometry_signature(sketch)
+    cached = _pick_cache.get(obj.name)
+    if cached is not None and cached[0] == sig:
+        return cached[1]
+
     ts = get_prefs().theme_settings.entity
-    return render_data.build(sketch, ts, is_active=True)
+    data = render_data.build(sketch, ts, is_active=True)
+    _pick_cache[obj.name] = (sig, data)
+    return data
 
 
 def _points_screen(items, region, rv3d):

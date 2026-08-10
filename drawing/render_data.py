@@ -62,6 +62,31 @@ def curve_color(ts, selected, hover, fixed, active=True):
     return ts.default
 
 
+def geometry_signature(sketch):
+    """Fingerprint of the geometry that determines pickable positions.
+
+    Positions + the persistent curve attributes (type/construction/visible/...),
+    plus counts. Excludes transient selection/hover -- those change colours (the
+    overlay), not the projected points/segments (picking), so picking can cache
+    its extraction against this and skip rebuilding while the cursor just hovers.
+    """
+    cd = sketch.data
+    n_curves = len(cd.curves)
+    n_points = len(cd.points)
+    if n_points == 0:
+        return (0, 0, 0)
+
+    pos = np.empty(n_points * 3, dtype=np.float32)
+    cd.points.foreach_get("position", pos)
+
+    parts = [pos.tobytes()]
+    for name in ("construction", "fixed", "visible", "cyclic"):
+        parts.append(_bulk_bool(cd.attributes.get(name), n_curves).tobytes())
+    parts.append(_bulk_int(cd.attributes.get("sketch_type"), n_curves).tobytes())
+
+    return (n_curves, n_points, hash(b"".join(parts)))
+
+
 def overlay_signature(sketch, is_active, theme_sig):
     """Cheap, hashable fingerprint of everything that affects the overlay.
 
@@ -69,26 +94,13 @@ def overlay_signature(sketch, is_active, theme_sig):
     rebuilding GPU batches, so the overlay computes this every frame and only
     rebuilds when it changes.
     """
-    cd = sketch.data
-    n_curves = len(cd.curves)
-    n_points = len(cd.points)
-    if n_points == 0:
+    if len(sketch.data.points) == 0:
         return (0, 0, is_active, theme_sig)
 
-    pos = np.empty(n_points * 3, dtype=np.float32)
-    cd.points.foreach_get("position", pos)
-
-    # Geometry + persistent attributes (positions/construction/visible/...). The
-    # transient selected/hover state lives in the selection module, not on the
-    # datablock, so it's folded into the signature separately below.
-    parts = [pos.tobytes()]
-    for name in ("construction", "fixed", "visible", "cyclic"):
-        parts.append(_bulk_bool(cd.attributes.get(name), n_curves).tobytes())
-    parts.append(_bulk_int(cd.attributes.get("sketch_type"), n_curves).tobytes())
-
     return (
-        n_curves, n_points, is_active, theme_sig,
-        hash(b"".join(parts)),
+        geometry_signature(sketch),
+        is_active,
+        theme_sig,
         frozenset(selection.selected),
         selection.hover,
         frozenset(selection.highlight_curve_ids),
