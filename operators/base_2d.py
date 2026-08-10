@@ -20,6 +20,54 @@ class Operator2d(GenericEntityOp):
     def poll(cls, context: Context):
         return context.scene.sketcher.active_sketch_object is not None
 
+    # A 2D draw operator only ever modifies the active sketch's curve data and
+    # constraints -- not the entity system (structural workplane/normal/origin
+    # entities). The base snapshot re-serialized and restored the whole scene
+    # (137 entities in the #342 file) plus every sketch's curves on each
+    # mouse-move (~15ms), the draw-time lag. Scope it to the active sketch's curve
+    # data + constraints, skipping the scene serialization entirely.
+    def create_snapshot(self, context: Context):
+        from ..model.sketch_ref import get_active_sketch
+
+        scene = context.scene
+        sketch = get_active_sketch(context)
+        obj = sketch.target_object if sketch else None
+        snap = {
+            "active_name": obj.name if obj else None,
+            "constraint_values": {
+                k: scene[k] for k in scene.keys() if str(k).startswith("slvs:c:")
+            },
+        }
+        if obj and obj.data:
+            snap["curve_data"] = self._snapshot_curve_data(obj.data)
+            snap["constraints"] = self._snapshot_constraints(obj.data)
+        return snap
+
+    def restore_snapshot(self, context: Context, snapshot):
+        if not snapshot:
+            return
+        from ..utilities.curve_data import invalidate_curve_id_cache
+
+        scene = context.scene
+        invalidate_curve_id_cache()
+
+        name = snapshot.get("active_name")
+        obj = bpy.data.objects.get(name) if name else None
+        if obj and obj.data and "curve_data" in snapshot:
+            self._restore_curve_data(obj.data, snapshot["curve_data"])
+            # Clear then restore: an empty constraints snapshot means "the sketch
+            # had none", and _restore_constraints early-returns on empty -- so a
+            # constraint added during the preview must be removed here, or it
+            # would survive the undo (the pre-draw state had zero constraints).
+            for coll in obj.data.sketch_constraints.get_lists():
+                while len(coll) > 0:
+                    coll.remove(0)
+            self._restore_constraints(obj.data, snapshot.get("constraints", {}))
+
+        # Re-apply dimensional values last (see base restore_snapshot / #564).
+        for key, value in snapshot.get("constraint_values", {}).items():
+            scene[key] = value
+
     def invoke(self, context: Context, event: Event):
         # Own a POST_PIXEL marker for the current snap target for the lifetime of
         # the modal (removed in _end), so it can never linger past the draw.
