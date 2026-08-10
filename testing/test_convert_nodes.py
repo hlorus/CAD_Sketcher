@@ -43,3 +43,40 @@ class TestConvertNodeGroup(TestCase):
             self.assertIs(a, b)
         finally:
             bpy.data.node_groups.remove(a)
+
+    def test_excludes_zero_id(self):
+        """The weld must AND valence with merge_id != 0, so a not-yet-computed
+        id (0) can't collapse every endpoint into one point (draw-time glitch)."""
+        from ..utilities.convert_nodes import (
+            CONVERT_VERSION,
+            build_convert_node_group,
+        )
+
+        ng = build_convert_node_group("test_convert_zero")
+        try:
+            self.assertEqual(ng.get("cad_convert_version"), CONVERT_VERSION)
+            ands = [
+                n
+                for n in ng.nodes
+                if n.bl_idname == "FunctionNodeBooleanMath" and n.operation == "AND"
+            ]
+            self.assertTrue(ands, "weld selection does not exclude merge_id 0")
+        finally:
+            bpy.data.node_groups.remove(ng)
+
+    def test_version_marker_rebuilds_stale(self):
+        """A group with an old version marker is rebuilt in place (so modifiers
+        bound to it upgrade without rebinding)."""
+        from ..utilities.convert_nodes import (
+            CONVERT_VERSION,
+            build_convert_node_group,
+        )
+
+        ng = build_convert_node_group("test_convert_stale")
+        try:
+            ng["cad_convert_version"] = 0
+            again = build_convert_node_group("test_convert_stale")
+            self.assertIs(again, ng)
+            self.assertEqual(ng.get("cad_convert_version"), CONVERT_VERSION)
+        finally:
+            bpy.data.node_groups.remove(ng)

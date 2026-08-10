@@ -17,6 +17,10 @@ import bpy
 
 CONVERT_NODE_GROUP = "CAD Sketcher Convert"
 
+# Bump whenever the built node tree changes, so groups baked into existing files
+# (or a stale merge-by-distance asset of the same name) are rebuilt on load.
+CONVERT_VERSION = 2
+
 
 def _int_compare(nodes, links, operation, value):
     """A Compare node on integers: returns (node, a_socket) with B set to value."""
@@ -43,7 +47,7 @@ def build_convert_node_group(name: str = CONVERT_NODE_GROUP):
     """
     ng = bpy.data.node_groups.get(name)
     if ng is not None:
-        if _is_identity_group(ng):
+        if ng.get("cad_convert_version") == CONVERT_VERSION:
             return ng
         ng.nodes.clear()
         ng.links.clear()
@@ -96,10 +100,19 @@ def build_convert_node_group(name: str = CONVERT_NODE_GROUP):
     is_end, end_a = _int_compare(nodes, links, "EQUAL", 1)
     links.new(neighbors.outputs["Vertex Count"], end_a)
 
+    # id 0 means "no weld". Exclude it so a not-yet-computed merge_id (e.g. a
+    # transient frame mid-draw) can't collapse every endpoint into one point.
+    nonzero, nz_a = _int_compare(nodes, links, "NOT_EQUAL", 0)
+    links.new(merge_id.outputs["Attribute"], nz_a)
+    weld = nodes.new("FunctionNodeBooleanMath")
+    weld.operation = "AND"
+    links.new(is_end.outputs["Result"], weld.inputs[0])
+    links.new(nonzero.outputs["Result"], weld.inputs[1])
+
     merge = nodes.new("GeometryNodeMergePoints")
     links.new(to_mesh.outputs["Mesh"], merge.inputs["Geometry"])
     links.new(merge_id.outputs["Attribute"], merge.inputs["Merge ID"])
-    links.new(is_end.outputs["Result"], merge.inputs["Selection"])
+    links.new(weld.outputs["Boolean"], merge.inputs["Selection"])
 
     # 4. Back to curves; fill closed loops, or output the wire when Fill is off.
     to_curve = nodes.new("GeometryNodeMeshToCurve")
@@ -115,4 +128,5 @@ def build_convert_node_group(name: str = CONVERT_NODE_GROUP):
     links.new(fill_curve.outputs["Mesh"], switch.inputs["True"])
     links.new(switch.outputs["Output"], go.inputs["Geometry"])
 
+    ng["cad_convert_version"] = CONVERT_VERSION
     return ng

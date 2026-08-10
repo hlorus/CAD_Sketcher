@@ -829,6 +829,13 @@ def refresh_curve_geometry(sketch):
     # is the sync point right before the GN convert re-evaluates.
     compute_merge_ids(sketch)
 
+    # Keep the 5.2 identity-weld convert group current (rebuilds a stale version
+    # in place, so groups baked into existing files upgrade on the first edit).
+    if bpy.app.version >= (5, 2, 0):
+        from .convert_nodes import build_convert_node_group
+
+        build_convert_node_group()
+
     n_points = len(curve_data.points)
     point_counts = np.zeros(n_curves, dtype=np.int32)
     curve_data.curves.foreach_get("points_length", point_counts)
