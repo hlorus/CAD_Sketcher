@@ -90,6 +90,14 @@ def get_uuid(curve_data, field, index):
     return _pairs_to_hex(lo_v, hi_v)
 
 
+# (id(curve_data), field) -> list of hex ids. Identity fields are immutable after
+# creation, so this is invalidated only by set_uuid (a value write) and by
+# add/remove via invalidate_curve_id_cache. Serves the hot read paths (solver,
+# segment rebuild, draw/pick) without re-deriving every hex id from its int
+# attributes on each call -- the dominant cost in solve and draw (issue #342).
+_uuid_list_cache = {}
+
+
 def set_uuid(curve_data, field, index, value):
     """Write a hex-string identity field into its 2 INT32_2D sub-attributes."""
     lo_pair, hi_pair = _hex_to_pairs(value)
@@ -99,6 +107,7 @@ def set_uuid(curve_data, field, index, value):
         lo.data[index].value = lo_pair
     if hi:
         hi.data[index].value = hi_pair
+    _uuid_list_cache.pop((id(curve_data), field), None)
 
 
 def new_uuid():
@@ -107,13 +116,21 @@ def new_uuid():
 
 
 def read_uuid_list(curve_data, field):
-    """All curves' ids for a field as hex strings, read in bulk.
+    """All curves' ids for a field as hex strings, read in bulk (cached).
 
     Uses foreach_get on the 2 INT32_2D sub-attributes — far cheaper than calling
-    get_uuid() per curve in hot loops (attribute lookup happens twice total
-    instead of twice per curve).
+    get_uuid() per curve in hot loops. Memoized per (curve_data, field): identity
+    fields don't change except through set_uuid / add / remove, all of which
+    invalidate the entry, so repeated reads within a solve or across frames are
+    free. The length guard rebuilds if the curve count changed without an
+    explicit invalidation.
     """
     n = len(curve_data.curves)
+    key = (id(curve_data), field)
+    cached = _uuid_list_cache.get(key)
+    if cached is not None and len(cached) == n:
+        return cached
+
     lo = curve_data.attributes.get(f".{field}_lo")
     hi = curve_data.attributes.get(f".{field}_hi")
     if n == 0 or not lo or not hi:
@@ -122,11 +139,13 @@ def read_uuid_list(curve_data, field):
     hib = np.zeros(n * 2, dtype=np.int32)
     lo.data.foreach_get("value", lob)
     hi.data.foreach_get("value", hib)
-    return [
+    result = [
         _pairs_to_hex((int(lob[2 * i]), int(lob[2 * i + 1])),
                       (int(hib[2 * i]), int(hib[2 * i + 1])))
         for i in range(n)
     ]
+    _uuid_list_cache[key] = result
+    return result
 
 
 def default_curve_name(curve_data, ctype):
@@ -234,28 +253,11 @@ def init_string_attrs(curve_data, curve_idx):
 # ---------------------------------------------------------------------------
 
 _curve_id_cache = {}
-# id(curve_data) -> ordered list of curve_id hex strings. Curve ids are immutable
-# after creation, so the only thing that changes this list is add/remove -- which
-# already calls invalidate_curve_id_cache. Caching it keeps the per-frame draw and
-# picking paths from re-deriving every hex id from its int attributes each frame.
-_curve_id_list_cache = {}
 
 
 def read_curve_id_list(curve_data):
-    """Cached ordered list of curve_id hex strings for ``curve_data``.
-
-    Same result as ``read_uuid_list(curve_data, "curve_id")`` but memoized on the
-    add/remove lifetime, avoiding the pure-Python int->hex conversion on every
-    draw/pick. The length guard rebuilds if the curve count changed without an
-    explicit invalidation.
-    """
-    key = id(curve_data)
-    lst = _curve_id_list_cache.get(key)
-    if lst is not None and len(lst) == len(curve_data.curves):
-        return lst
-    lst = read_uuid_list(curve_data, "curve_id")
-    _curve_id_list_cache[key] = lst
-    return lst
+    """Cached ordered list of curve_id hex strings (see read_uuid_list)."""
+    return read_uuid_list(curve_data, "curve_id")
 
 
 def _allocate_curve_id(sketch):
@@ -292,10 +294,11 @@ def invalidate_curve_id_cache(sketch=None):
     if sketch and sketch.target_object:
         sk_key = id(sketch.target_object.data)
         _curve_id_cache.pop(sk_key, None)
-        _curve_id_list_cache.pop(sk_key, None)
+        for field in UUID_FIELDS:
+            _uuid_list_cache.pop((sk_key, field), None)
     else:
         _curve_id_cache.clear()
-        _curve_id_list_cache.clear()
+        _uuid_list_cache.clear()
 
 
 # ---------------------------------------------------------------------------

@@ -95,3 +95,19 @@ class TestCurveIdSurvival(Sketch2dTestCase):
         cached = cd.read_curve_id_list(data)
         self.assertEqual(cached, cd.read_uuid_list(data, "curve_id"))
         self.assertNotIn(line2.curve_id, cached)
+
+    def test_uuid_list_cache_invalidated_on_set_uuid(self):
+        """Writing an id via set_uuid must not leave a stale cached list."""
+        p0 = self.add_point((0.0, 0.0))
+        p1 = self.add_point((1.0, 0.0))
+        line = self.add_line(p0, p1)
+        data = self.sketch.target_object.data
+
+        idx = cd.get_curve_index(self.sketch, line.curve_id)
+        cd.read_uuid_list(data, "curve_id")  # populate cache
+        new = cd.new_uuid()
+        cd.set_uuid(data, "curve_id", idx, new)
+
+        refreshed = cd.read_uuid_list(data, "curve_id")
+        self.assertIn(new, refreshed)
+        self.assertNotIn(line.curve_id, refreshed)
