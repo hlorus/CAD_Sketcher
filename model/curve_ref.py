@@ -12,8 +12,7 @@ import math
 
 from mathutils import Matrix, Vector
 
-from ..utilities.math import range_2pi, pol2cart
-
+from ..utilities.math import pol2cart, range_2pi
 
 # ---------------------------------------------------------------------------
 # Base
@@ -213,7 +212,9 @@ class CurveRef:
 
     def remove(self):
         """Remove this curve from the sketch."""
-        from ..utilities.curve_data import remove_native_curve_by_id, invalidate_curve_id_cache
+        from ..utilities.curve_data import (
+            remove_native_curve_by_id,
+        )
         remove_native_curve_by_id(self._sketch, self._curve_id)
         self._curve_data = None
         self._idx = None
@@ -263,8 +264,18 @@ def _ensure_attrs(curve_data, curve_idx=None):
 
 
 def _invalidate(sketch):
-    from ..utilities.curve_data import invalidate_curve_id_cache
+    from ..utilities.curve_data import (
+        compute_merge_ids,
+        invalidate_curve_id_cache,
+        is_batching,
+    )
+
     invalidate_curve_id_cache(sketch)
+    # A newly created segment changes connectivity, so refresh the derived weld
+    # ids (before update_tag, so the live GN fill closes the same frame). Under a
+    # batch this is deferred to rebuild_segments on the batch's exit.
+    if not is_batching(sketch):
+        compute_merge_ids(sketch)
 
 
 def _build_arc_bezier(curve_data, curve_idx, center, start_co, end_co, is_cyclic=False):
@@ -409,8 +420,8 @@ class PointRef(CurveRef):
         Returns:
             PointRef for the new curve.
         """
-        from ..utilities.curve_data import set_attribute, default_curve_name
         from ..model.constants import SketchCurveType
+        from ..utilities.curve_data import default_curve_name, set_attribute
 
         curve_data = _ensure_curve_data(sketch)
         if curve_data is None:
@@ -506,8 +517,8 @@ class LineRef(CurveRef):
         Returns:
             LineRef for the new curve.
         """
-        from ..utilities.curve_data import set_attribute, default_curve_name
-        from ..model.constants import SketchCurveType, BezierHandleType
+        from ..model.constants import BezierHandleType, SketchCurveType
+        from ..utilities.curve_data import default_curve_name, set_attribute
 
         curve_data = _ensure_curve_data(sketch)
         if curve_data is None:
@@ -643,9 +654,9 @@ class ArcRef(CurveRef):
         Returns:
             ArcRef for the new curve.
         """
-        from ..utilities.curve_data import set_attribute, default_curve_name
-        from ..model.constants import SketchCurveType, BezierHandleType
+        from ..model.constants import BezierHandleType, SketchCurveType
         from ..utilities.constants import QUARTER_TURN
+        from ..utilities.curve_data import default_curve_name, set_attribute
 
         curve_data = _ensure_curve_data(sketch)
         if curve_data is None:
@@ -747,8 +758,8 @@ class CircleRef(CurveRef):
         Returns:
             CircleRef for the new curve.
         """
-        from ..utilities.curve_data import set_attribute, default_curve_name
-        from ..model.constants import SketchCurveType, BezierHandleType
+        from ..model.constants import BezierHandleType, SketchCurveType
+        from ..utilities.curve_data import default_curve_name, set_attribute
 
         curve_data = _ensure_curve_data(sketch)
         if curve_data is None:
@@ -800,8 +811,8 @@ def curve_ref(sketch, curve_id):
     Returns PointRef, LineRef, ArcRef, or CircleRef based on the
     sketch_type attribute, or a base CurveRef if the type is unknown.
     """
-    from ..utilities.curve_data import get_curve_type
     from ..model.constants import SketchCurveType
+    from ..utilities.curve_data import get_curve_type
 
     ctype = get_curve_type(sketch, curve_id)
     if ctype == SketchCurveType.POINT:

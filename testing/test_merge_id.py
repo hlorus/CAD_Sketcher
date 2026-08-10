@@ -8,7 +8,7 @@ node-group weld is verified separately (and in the viewport on 5.2).
 """
 
 from ..model.constants import SketchCurveType
-from ..utilities.curve_data import compute_merge_ids, get_uuid
+from ..utilities.curve_data import get_uuid
 from .utils import Sketch2dTestCase
 
 
@@ -41,8 +41,6 @@ class TestMergeIds(Sketch2dTestCase):
         self.add_line(a, b)
         self.add_line(b, c)
         self.add_line(c, a)
-        compute_merge_ids(self.sketch)
-
         seen = self._endpoint_ids()
         # each junction point resolves to exactly one weld id ...
         for pid, ids in seen.items():
@@ -60,8 +58,6 @@ class TestMergeIds(Sketch2dTestCase):
         c = self.add_point((5, 0))
         d = self.add_point((6, 0))
         self.add_line(c, d)
-        compute_merge_ids(self.sketch)
-
         junctions = {next(iter(ids)) for ids in self._endpoint_ids().values()}
         self.assertEqual(len(junctions), 4)
 
@@ -71,8 +67,6 @@ class TestMergeIds(Sketch2dTestCase):
         p1 = self.add_point((3, 0))
         p2 = self.add_point((0, 3))
         self.add_arc(p0, p1, p2)  # p0 is the arc center -> id 0
-        compute_merge_ids(self.sketch)
-
         cd = self.sketch.target_object.data
         ta = cd.attributes.get("sketch_type")
         mid = cd.attributes.get("merge_id")
