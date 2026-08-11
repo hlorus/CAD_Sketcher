@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # Attribute helpers
 # ---------------------------------------------------------------------------
 
+
 def ensure_attribute(attributes, name, type, domain):
     """Ensure an attribute exists or create it if missing."""
     attr = attributes.get(name)
@@ -96,6 +97,9 @@ def get_uuid(curve_data, field, index):
 # segment rebuild, draw/pick) without re-deriving every hex id from its int
 # attributes on each call -- the dominant cost in solve and draw (issue #342).
 _uuid_list_cache = {}
+# Parallel cache of the same ids in raw-int-tuple form (read_uuid_raw_list),
+# invalidated in lockstep with _uuid_list_cache.
+_uuid_raw_cache = {}
 
 
 def set_uuid(curve_data, field, index, value):
@@ -108,6 +112,7 @@ def set_uuid(curve_data, field, index, value):
     if hi:
         hi.data[index].value = hi_pair
     _uuid_list_cache.pop((id(curve_data), field), None)
+    _uuid_raw_cache.pop((id(curve_data), field), None)
 
 
 def new_uuid():
@@ -140,11 +145,44 @@ def read_uuid_list(curve_data, field):
     lo.data.foreach_get("value", lob)
     hi.data.foreach_get("value", hib)
     result = [
-        _pairs_to_hex((int(lob[2 * i]), int(lob[2 * i + 1])),
-                      (int(hib[2 * i]), int(hib[2 * i + 1])))
+        _pairs_to_hex(
+            (int(lob[2 * i]), int(lob[2 * i + 1])),
+            (int(hib[2 * i]), int(hib[2 * i + 1])),
+        )
         for i in range(n)
     ]
     _uuid_list_cache[key] = result
+    return result
+
+
+def read_uuid_raw_list(curve_data, field):
+    """All curves' ids for a field as raw ``(lo0, lo1, hi0, hi1)`` int tuples.
+
+    Like ``read_uuid_list`` but without the hex formatting: callers that only
+    compare ids for equality (e.g. grouping segment endpoints that share a
+    junction) don't need the string form, and building 4-int tuples is far
+    cheaper than ``_pairs_to_hex`` per curve. An all-zero tuple is the unset id
+    (falsy via ``any``).
+    """
+    n = len(curve_data.curves)
+    key = (id(curve_data), field)
+    cached = _uuid_raw_cache.get(key)
+    if cached is not None and len(cached) == n:
+        return cached
+
+    lo = curve_data.attributes.get(f".{field}_lo")
+    hi = curve_data.attributes.get(f".{field}_hi")
+    if n == 0 or not lo or not hi:
+        return [(0, 0, 0, 0)] * n
+    lob = np.zeros(n * 2, dtype=np.int32)
+    hib = np.zeros(n * 2, dtype=np.int32)
+    lo.data.foreach_get("value", lob)
+    hi.data.foreach_get("value", hib)
+    result = [
+        (int(lob[2 * i]), int(lob[2 * i + 1]), int(hib[2 * i]), int(hib[2 * i + 1]))
+        for i in range(n)
+    ]
+    _uuid_raw_cache[key] = result
     return result
 
 
@@ -296,21 +334,24 @@ def invalidate_curve_id_cache(sketch=None):
         _curve_id_cache.pop(sk_key, None)
         for field in UUID_FIELDS:
             _uuid_list_cache.pop((sk_key, field), None)
+            _uuid_raw_cache.pop((sk_key, field), None)
     else:
         _curve_id_cache.clear()
         _uuid_list_cache.clear()
+        _uuid_raw_cache.clear()
 
 
 # ---------------------------------------------------------------------------
 # Curve data access
 # ---------------------------------------------------------------------------
 
+
 def _get_original_data(sketch):
     """Get the original (non-evaluated) Curves data for a sketch."""
     obj = sketch.target_object
     if not obj or not obj.data:
         return None
-    if hasattr(obj, 'original') and obj.original and obj.original.data:
+    if hasattr(obj, "original") and obj.original and obj.original.data:
         return obj.original.data
     return obj.data
 
@@ -434,7 +475,7 @@ def ensure_sketch_curve_object(sketch):
     assert sketch is not None, "ensure_sketch_curve_object: sketch is None"
 
     wp_obj = sketch.workplane_object
-    if not wp_obj and hasattr(sketch, 'wp') and not sketch.wp:
+    if not wp_obj and hasattr(sketch, "wp") and not sketch.wp:
         logger.warning("ensure_sketch_curve_object: no workplane empty or entity")
         return None
 
@@ -448,7 +489,7 @@ def ensure_sketch_curve_object(sketch):
 
         if wp_obj:
             ob.matrix_world = wp_obj.matrix_world
-        elif hasattr(sketch, 'wp') and sketch.wp:
+        elif hasattr(sketch, "wp") and sketch.wp:
             ob.matrix_world = sketch.wp.matrix_basis
 
         scene = bpy.context.scene
@@ -460,6 +501,7 @@ def ensure_sketch_curve_object(sketch):
 
         # Stamp sketch custom properties
         from ..model.sketch_ref import stamp_sketch_props
+
         stamp_sketch_props(ob)
 
     assert sketch.target_object is not None, "target_object should exist after ensure"
@@ -535,6 +577,7 @@ class batch_update:
 
     Pass ``point_ids`` to rebuild only the segments referencing those points.
     """
+
     def __init__(self, sketch, point_ids=None):
         self.sketch = sketch
         self.point_ids = point_ids
@@ -622,8 +665,10 @@ def _resegment_arcs(sketch, cd, point_ids=None):
 
     # Arcs to consider (all, or only those touching a changed point).
     arc_indices = [
-        i for i in range(n)
-        if types[i] == SketchCurveType.ARC and (
+        i
+        for i in range(n)
+        if types[i] == SketchCurveType.ARC
+        and (
             point_ids is None
             or sp_ids[i] in point_ids
             or ep_ids[i] in point_ids
@@ -703,8 +748,10 @@ def compute_merge_ids(sketch):
     if n_points == 0 or not type_attr:
         return False
 
-    sp_ids = read_uuid_list(cd, "start_point_id")
-    ep_ids = read_uuid_list(cd, "end_point_id")
+    # Only equality of endpoint ids matters here (shared junction -> shared weld
+    # id), so read the raw id tuples and skip the per-curve hex formatting.
+    sp_ids = read_uuid_raw_list(cd, "start_point_id")
+    ep_ids = read_uuid_raw_list(cd, "end_point_id")
 
     ids = np.zeros(n_points, dtype=np.int32)
     dense = {}
@@ -721,9 +768,9 @@ def compute_merge_ids(sketch):
         npt = cv.points_length
         if npt < 2:
             continue
-        if sp_ids[i]:
+        if any(sp_ids[i]):
             ids[cv.points[0].index] = junction(sp_ids[i])
-        if ep_ids[i]:
+        if any(ep_ids[i]):
             ids[cv.points[npt - 1].index] = junction(ep_ids[i])
 
     attr = cd.attributes.get("merge_id")
@@ -784,6 +831,11 @@ def rebuild_segments(sketch, point_ids=None):
                 p = cd.points[cs.points[0].index].position
                 point_co[cid_list[i]] = Vector((p[0], p[1]))
 
+    # Handle attributes are the same collection for every segment; fetch once
+    # rather than re-resolving them by name inside the per-segment loop below.
+    handle_left = cd.attributes.get("handle_left")
+    handle_right = cd.attributes.get("handle_right")
+
     for i in range(n):
         ctype = type_attr.data[i].value
         if ctype == SketchCurveType.POINT:
@@ -791,9 +843,7 @@ def rebuild_segments(sketch, point_ids=None):
 
         # Scoped rebuild: skip segments that don't touch a changed point.
         if point_ids is not None and not (
-            sp_ids[i] in point_ids
-            or ep_ids[i] in point_ids
-            or cp_ids[i] in point_ids
+            sp_ids[i] in point_ids or ep_ids[i] in point_ids or cp_ids[i] in point_ids
         ):
             continue
 
@@ -809,20 +859,24 @@ def rebuild_segments(sketch, point_ids=None):
         if ctype == SketchCurveType.LINE:
             sp_co = point_co.get(sp_ids[i])
             ep_co = point_co.get(ep_ids[i])
-            hl = cd.attributes.get("handle_left")
-            hr = cd.attributes.get("handle_right")
+            hl = handle_left
+            hr = handle_right
             if sp_co is not None:
                 pos = (sp_co.x, sp_co.y, 0.0)
                 idx = curve_slice.points[0].index
                 cd.points[idx].position = pos
-                if hl: hl.data[idx].vector = pos
-                if hr: hr.data[idx].vector = pos
+                if hl:
+                    hl.data[idx].vector = pos
+                if hr:
+                    hr.data[idx].vector = pos
             if ep_co is not None:
                 pos = (ep_co.x, ep_co.y, 0.0)
                 idx = curve_slice.points[1].index
                 cd.points[idx].position = pos
-                if hl: hl.data[idx].vector = pos
-                if hr: hr.data[idx].vector = pos
+                if hl:
+                    hl.data[idx].vector = pos
+                if hr:
+                    hr.data[idx].vector = pos
 
         elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
             ct_co = point_co.get(cp_ids[i])
@@ -876,28 +930,30 @@ def refresh_curve_geometry(sketch):
     for attr in curve_data.attributes:
         if attr.name == "position":
             continue
-        domain_len = n_points if attr.domain == 'POINT' else n_curves
-        if attr.data_type == 'FLOAT_VECTOR':
+        domain_len = n_points if attr.domain == "POINT" else n_curves
+        if attr.data_type == "FLOAT_VECTOR":
             data = np.zeros(domain_len * 3, dtype=np.float32)
             attr.data.foreach_get("vector", data)
-        elif attr.data_type == 'BOOLEAN':
+        elif attr.data_type == "BOOLEAN":
             data = np.zeros(domain_len, dtype=np.bool_)
             attr.data.foreach_get("value", data)
-        elif attr.data_type in ('INT', 'INT8'):
+        elif attr.data_type in ("INT", "INT8"):
             data = np.zeros(domain_len, dtype=np.int32)
             attr.data.foreach_get("value", data)
-        elif attr.data_type in ('INT32_2D', 'INT16_2D'):
+        elif attr.data_type in ("INT32_2D", "INT16_2D"):
             data = np.zeros(domain_len * 2, dtype=np.int32)
             attr.data.foreach_get("value", data)
-        elif attr.data_type == 'FLOAT':
+        elif attr.data_type == "FLOAT":
             data = np.zeros(domain_len, dtype=np.float32)
             attr.data.foreach_get("value", data)
-        elif attr.data_type == 'STRING':
+        elif attr.data_type == "STRING":
             data = [attr.data[i].value for i in range(domain_len)]
         else:
             continue
         saved_attrs[attr.name] = {
-            "data": data, "type": attr.data_type, "domain": attr.domain,
+            "data": data,
+            "type": attr.data_type,
+            "domain": attr.domain,
         }
 
     curve_data.remove_curves()
@@ -909,11 +965,13 @@ def refresh_curve_geometry(sketch):
     for name, info in saved_attrs.items():
         attr = curve_data.attributes.get(name)
         if not attr:
-            attr = curve_data.attributes.new(name, type=info["type"], domain=info["domain"])
-        if info["type"] == 'STRING':
+            attr = curve_data.attributes.new(
+                name, type=info["type"], domain=info["domain"]
+            )
+        if info["type"] == "STRING":
             for i, v in enumerate(info["data"]):
                 attr.data[i].value = v
-        elif info["type"] == 'FLOAT_VECTOR':
+        elif info["type"] == "FLOAT_VECTOR":
             attr.data.foreach_set("vector", info["data"])
         else:
             attr.data.foreach_set("value", info["data"])
