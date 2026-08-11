@@ -17,6 +17,33 @@ from .circle import SlvsCircle
 logger = logging.getLogger(__name__)
 
 
+def _curve_curve_tangent_seed(center1, center2, radius1, radius2):
+    """Return the closest current axial contact point for two circles/arcs.
+
+    The solver's auxiliary point may converge to either the external or the
+    internal tangent branch.  Seeding it at the midpoint of the two centres
+    biases unequal-radius curves toward a large jump.  Instead, compare the
+    two radial points on each curve that lie on the centre line and seed from
+    the pair that is already closest in the current geometry.
+    """
+    from mathutils import Vector
+
+    c1 = Vector(center1[:2])
+    c2 = Vector(center2[:2])
+    axis = c2 - c1
+    if axis.length_squared < 1e-12:
+        return (c1 + c2) / 2
+
+    direction = axis.normalized()
+    points1 = (c1 + direction * radius1, c1 - direction * radius1)
+    points2 = (c2 + direction * radius2, c2 - direction * radius2)
+    p1, p2 = min(
+        ((a, b) for a in points1 for b in points2),
+        key=lambda pair: (pair[0] - pair[1]).length_squared,
+    )
+    return (p1 + p2) / 2
+
+
 class SlvsTangent(GenericConstraint, PropertyGroup):
     """Forces two curves (arc/circle) or a curve and a line to be tangent."""
 
@@ -88,7 +115,15 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
                 return None
 
             from mathutils import Vector
-            coords = (Vector(ct1_pos[:2]) + Vector(ct2_pos[:2])) / 2
+            curve1 = cd1.curves[idx1]
+            curve2 = cd2.curves[idx2]
+            edge1 = Vector(cd1.points[curve1.points[0].index].position[:2])
+            edge2 = Vector(cd2.points[curve2.points[0].index].position[:2])
+            radius1 = (edge1 - Vector(ct1_pos[:2])).length
+            radius2 = (edge2 - Vector(ct2_pos[:2])).length
+            coords = _curve_curve_tangent_seed(
+                ct1_pos, ct2_pos, radius1, radius2
+            )
             p = solvesys.add_point_2d(group, coords.x, coords.y, wp)
             line = solvesys.add_line_2d(group, ct1_handle, ct2_handle, wp)
             return (
