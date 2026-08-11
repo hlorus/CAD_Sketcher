@@ -1,18 +1,17 @@
 import logging
-from ..model.sketch_ref import get_active_constraints
-from typing import List
-from bpy.types import Context
-from bpy.props import BoolProperty
 
-from ..utilities.bpy import setprop
-from ..model.types import SlvsConstraints
+from bpy.props import BoolProperty
+from bpy.types import Context
+
 from ..curve_solver import solve_system
-from ..utilities.curve_data import refresh_curve_geometry
+from ..model.sketch_ref import get_active_constraints
+from ..model.types import SlvsConstraints
 from ..stateful_operator.state import state_from_args
+from ..utilities.bpy import setprop
+from ..utilities.curve_data import refresh_curve_geometry
 from ..utilities.select import deselect_all
 from ..utilities.view import refresh
 from .base_2d import Operator2d
-
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +22,7 @@ class GenericConstraintOp(Operator2d):
     initialized: BoolProperty(default=False, options={"SKIP_SAVE", "HIDDEN"})
     _entity_prop_names = ("entity1", "entity2", "entity3", "entity4")
     property_keys = ()
+    has_value_state = False
 
     @classmethod
     def poll(cls, context):
@@ -70,7 +70,23 @@ class GenericConstraintOp(Operator2d):
                     use_create=False,
                 )
             )
+
+        if cls.has_value_state:
+            states.append(
+                state_from_args(
+                    "Value",
+                    description="Type a value or confirm the measured value.",
+                    property="value",
+                    state_func="_current_constraint_value",
+                    allow_prefill=False,
+                    optional=True,
+                )
+            )
+
         return states
+
+    def _current_constraint_value(self, _context, _coords):
+        return self.value
 
     def get_settings(self) -> dict:
         """Return a dictionary with settings that are already set"""

@@ -1,15 +1,13 @@
 import logging
 
-from bpy.types import Operator, Context
-from bpy.props import FloatProperty, BoolProperty
-
-from ..utilities.constants import HALF_TURN
+from bpy.props import BoolProperty, FloatProperty
+from bpy.types import Context, Operator
 
 from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
-from .base_constraint import GenericConstraintOp
-
 from ..model.angle import SlvsAngle
+from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.constants import HALF_TURN
+from .base_constraint import GenericConstraintOp
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +47,7 @@ class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
     )
     type = "ANGLE"
     property_keys = ("value", "setting")
+    has_value_state = True
 
     def main(self, context):
         if not self.exists(context, SlvsAngle):
@@ -56,7 +55,7 @@ class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
                 init=not self.initialized,
                 curve_id_1=self.entity1.curve_id,
                 curve_id_2=self.entity2.curve_id,
-                **self.get_settings()
+                **self.get_settings(),
             )
 
         return super().main(context)
