@@ -7,15 +7,14 @@ from .utilities import get_color, get_constraint_color_type, set_gizmo_colors
 class ConstraintGizmo:
     def _get_constraint(self, context):
         from ..model.sketch_ref import get_active_sketch
+
         sketch = get_active_sketch(context)
         if not sketch:
             return None
         return sketch.constraints.get_from_type_index(self.type, self.index)
 
     def get_constraint_color(self, constraint: GenericConstraint):
-        is_highlight = (
-            constraint == selection.highlight_constraint or self.is_highlight
-        )
+        is_highlight = constraint == selection.highlight_constraint or self.is_highlight
         col = get_constraint_color_type(constraint)
         return get_color(col, is_highlight)
 
@@ -39,8 +38,11 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
         rebuilt only when this changes, so a static viewport -- including every
         redraw during a modal drag -- doesn't re-upload a GPU batch per gizmo."""
         rv3d = context.region_data
-        persp = tuple(rv3d.perspective_matrix[i][j] for i in range(4) for j in range(4)) \
-            if rv3d else None
+        persp = (
+            tuple(rv3d.perspective_matrix[i][j] for i in range(4) for j in range(4))
+            if rv3d
+            else None
+        )
         mw = self.matrix_world
         try:
             offset = float(self.target_get_value("offset"))
@@ -60,7 +62,7 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
 
     def draw(self, context):
         constr = self._get_constraint(context)
-        if not constr.visible:
+        if not constr or not constr.visible:
             return
         self._set_colors(context, constr)
         self._update_matrix_basis(constr)
@@ -69,14 +71,17 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
         # placement, or view), not on every redraw -- the per-frame GPU churn that
         # made constraint-heavy sketches laggy.
         sig = self._shape_signature(context, constr)
-        if getattr(self, "_shape_sig", None) != sig or getattr(self, "custom_shape", None) is None:
+        if (
+            getattr(self, "_shape_sig", None) != sig
+            or getattr(self, "custom_shape", None) is None
+        ):
             self._create_shape(context, constr)
             self._shape_sig = sig
         self.draw_custom_shape(self.custom_shape)
 
     def draw_select(self, context, select_id):
         constr = self._get_constraint(context)
-        if not constr.visible:
+        if not constr or not constr.visible:
             return
         # The select shape (no helplines) overwrites custom_shape, so invalidate
         # the display cache to force draw() to rebuild the real shape next time.
@@ -92,6 +97,7 @@ class ConstraintGenericGGT:
 
     def setup(self, context):
         from ..model.sketch_ref import get_active_sketch
+
         active_sketch = get_active_sketch(context)
         if not active_sketch:
             return
