@@ -1,18 +1,17 @@
 import logging
 
-from bpy.types import PropertyGroup
-from .sketch_ref import get_active_sketch
 from bpy.props import StringProperty
+from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver
 from ..global_data import WpReq
-from .base_constraint import GenericConstraint
-from .utilities import slvs_entity_pointer, make_coincident, get_connection_point
-from .categories import CURVE
-from .line_2d import SlvsLine2D
 from .arc import SlvsArc
+from .base_constraint import GenericConstraint
+from .categories import CURVE
 from .circle import SlvsCircle
+from .line_2d import SlvsLine2D
+from .utilities import make_coincident, slvs_entity_pointer
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +54,9 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
     curve_id_2: StringProperty(name="Curve ID 2", default="")
 
     def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
-        from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
+
         from ..model.constants import SketchCurveType
-        import bpy
+        from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
 
         h1 = handle_map.get(self.curve_id_1)
         h2 = handle_map.get(self.curve_id_2)
@@ -93,8 +92,11 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
                 return None
 
             from mathutils import Vector
+
             orig = Vector(sp_pos[:2])
-            coords = (Vector(ct_pos[:2]) - orig).project(Vector(ep_pos[:2]) - orig) + orig
+            coords = (Vector(ct_pos[:2]) - orig).project(
+                Vector(ep_pos[:2]) - orig
+            ) + orig
             p = solvesys.add_point_2d(group, coords.x, coords.y, wp)
             line = solvesys.add_line_2d(group, ct_handle, p, wp)
             return (
@@ -115,15 +117,14 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
                 return None
 
             from mathutils import Vector
+
             curve1 = cd1.curves[idx1]
             curve2 = cd2.curves[idx2]
             edge1 = Vector(cd1.points[curve1.points[0].index].position[:2])
             edge2 = Vector(cd2.points[curve2.points[0].index].position[:2])
             radius1 = (edge1 - Vector(ct1_pos[:2])).length
             radius2 = (edge2 - Vector(ct2_pos[:2])).length
-            coords = _curve_curve_tangent_seed(
-                ct1_pos, ct2_pos, radius1, radius2
-            )
+            coords = _curve_curve_tangent_seed(ct1_pos, ct2_pos, radius1, radius2)
             p = solvesys.add_point_2d(group, coords.x, coords.y, wp)
             line = solvesys.add_line_2d(group, ct1_handle, ct2_handle, wp)
             return (
@@ -161,11 +162,10 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
             return (
                 make_coincident(solvesys, p, e1, wp, group),
                 make_coincident(solvesys, p, e2, wp, group),
-                solvesys.coincident(group, p, line, wp)
+                solvesys.coincident(group, p, line, wp),
             )
 
         return solvesys.tangent(group, e2.py_data, e1.py_data, wp)
-
 
     def placements(self):
         return (self.ref(1), self.ref(2))
@@ -182,9 +182,13 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
         from .constants import SketchCurveType
 
         ids = [
-            cid for cid in (getattr(self, "curve_id_1", ""),
-                            getattr(self, "curve_id_2", ""),
-                            getattr(self, "curve_id_3", "")) if cid
+            cid
+            for cid in (
+                getattr(self, "curve_id_1", ""),
+                getattr(self, "curve_id_2", ""),
+                getattr(self, "curve_id_3", ""),
+            )
+            if cid
         ]
         if not ids:
             return []
@@ -211,14 +215,15 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
         # The curved element (arc/circle) exposes a center point as `ct`; the
         # line does not. Arc refs also alias p1/p2, so identify the line by the
         # *absence* of a center.
-        curved = next(
-            (r for r in (r1, r2) if getattr(r, "ct", None) is not None), None
-        )
+        curved = next((r for r in (r1, r2) if getattr(r, "ct", None) is not None), None)
         line = next(
-            (r for r in (r1, r2)
-             if r is not curved
-             and getattr(r, "ct", None) is None
-             and getattr(r, "p1", None) is not None),
+            (
+                r
+                for r in (r1, r2)
+                if r is not curved
+                and getattr(r, "ct", None) is None
+                and getattr(r, "p1", None) is not None
+            ),
             None,
         )
         if curved is None or line is None:
