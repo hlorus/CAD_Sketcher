@@ -1,13 +1,12 @@
 import logging
 
+from bpy.props import BoolProperty, FloatProperty
 from bpy.types import Operator
-from bpy.props import FloatProperty, BoolProperty
 
 from ..declarations import Operators
+from ..model.diameter import SlvsDiameter
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
-
-from ..model.diameter import SlvsDiameter
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +29,7 @@ class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
     setting: BoolProperty(name="Use Radius")
     type = "DIAMETER"
     property_keys = ("value", "setting")
+    has_value_state = True
 
     def main(self, context):
         if not self.exists(context, SlvsDiameter):

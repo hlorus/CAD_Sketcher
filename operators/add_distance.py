@@ -1,15 +1,13 @@
 import logging
 
-from bpy.types import Operator, Context
-from bpy.props import BoolProperty, FloatProperty, EnumProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty
+from bpy.types import Context, Operator
 
-from .base_constraint import GenericConstraintOp
-from ..model.distance import align_items
 from ..declarations import Operators
+from ..model.curve_ref import LineRef, PointRef
+from ..model.distance import SlvsDistance, align_items
 from ..stateful_operator.utilities.register import register_stateops_factory
-from ..model.curve_ref import PointRef, LineRef
-
-from ..model.distance import SlvsDistance
+from .base_constraint import GenericConstraintOp
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +31,7 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
     flip: BoolProperty(name="Flip")
     type = "DISTANCE"
     property_keys = ("value", "align", "flip")
+    has_value_state = True
 
     def main(self, context):
         e1, e2 = self.entity1, self.entity2
