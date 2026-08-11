@@ -7,6 +7,7 @@ back to curve points. No Slvs* entity read/write needed for geometry.
 Structural entities (workplane, normal) still come from the entity system.
 Constraints still come from PropertyGroups (referencing entities for now).
 """
+
 import logging
 import math
 
@@ -36,6 +37,7 @@ class CurveSolver:
         self.sketch = sketch
 
         import slvs
+
         slvs.clear_sketch()
         self.solvesys = slvs
 
@@ -66,25 +68,28 @@ class CurveSolver:
         wp_obj = ensure_workplane_empty(self.sketch)
 
         # Fallback: curve object's parent
-        if not wp_obj and self.sketch.target_object and self.sketch.target_object.parent:
+        if (
+            not wp_obj
+            and self.sketch.target_object
+            and self.sketch.target_object.parent
+        ):
             wp_obj = self.sketch.target_object.parent
 
         if wp_obj:
             mat = wp_obj.matrix_world
             origin_loc = mat.translation
             quat = mat.to_quaternion()
-        elif hasattr(self.sketch, 'wp') and self.sketch.wp:
+        elif hasattr(self.sketch, "wp") and self.sketch.wp:
             origin_loc = self.sketch.wp.p1.location
             quat = self.sketch.wp.nm.orientation
         else:
             # Default to XY plane at origin
             from mathutils import Quaternion
+
             origin_loc = (0.0, 0.0, 0.0)
             quat = Quaternion()
 
-        origin_handle = self.solvesys.add_point_3d(
-            self.group_fixed, *origin_loc
-        )
+        origin_handle = self.solvesys.add_point_3d(self.group_fixed, *origin_loc)
         normal_handle = self.solvesys.add_normal_3d(
             self.group_fixed, quat.w, quat.x, quat.y, quat.z
         )
@@ -92,7 +97,7 @@ class CurveSolver:
             self.group_fixed, origin_handle, normal_handle
         )
 
-        if hasattr(self.sketch, 'wp') and self.sketch.wp:
+        if hasattr(self.sketch, "wp") and self.sketch.wp:
             self.sketch.wp.p1.py_data = origin_handle
             self.sketch.wp.nm.py_data = normal_handle
             self.sketch.wp.py_data = wp_handle
@@ -170,9 +175,13 @@ class CurveSolver:
                 ct_handle = self._point_handles.get(cp_id)
                 if ct_handle:
                     # Get radius from curve geometry
-                    ct_pos = Vector(curve_data.points[
-                        curve_data.curves[get_curve_index(sketch, cp_id)].points[0].index
-                    ].position)
+                    ct_pos = Vector(
+                        curve_data.points[
+                            curve_data.curves[get_curve_index(sketch, cp_id)]
+                            .points[0]
+                            .index
+                        ].position
+                    )
                     first_pt = curve_data.curves[curve_idx].points[0].index
                     edge_pos = Vector(curve_data.points[first_pt].position)
                     radius = (edge_pos - ct_pos).length
@@ -181,8 +190,11 @@ class CurveSolver:
                         self.group_sketch, radius, wp
                     )
                     handle = self.solvesys.add_circle(
-                        self.group_sketch, self._normal_handle,
-                        ct_handle, dist_param, wp
+                        self.group_sketch,
+                        self._normal_handle,
+                        ct_handle,
+                        dist_param,
+                        wp,
                     )
                     self._entity_handles[cid] = handle
                     self._distance_params[cid] = dist_param
@@ -197,8 +209,12 @@ class CurveSolver:
                 p2_handle = self._point_handles.get(ep_id)
                 if ct_handle and p1_handle and p2_handle:
                     handle = self.solvesys.add_arc(
-                        self.group_sketch, self._normal_handle,
-                        ct_handle, p1_handle, p2_handle, wp
+                        self.group_sketch,
+                        self._normal_handle,
+                        ct_handle,
+                        p1_handle,
+                        p2_handle,
+                        wp,
                     )
                     self._entity_handles[cid] = handle
 
@@ -213,22 +229,21 @@ class CurveSolver:
                     wp_mat = wp_obj.matrix_world
                 else:
                     from mathutils import Matrix
+
                     wp_mat = Matrix.Identity(4)
                 tw_u, tw_v, _ = wp_mat.inverted() @ self._tweak_pos
-                drag_pt = self.solvesys.add_point_2d(
-                    self.group_sketch, tw_u, tw_v, wp
-                )
+                drag_pt = self.solvesys.add_point_2d(self.group_sketch, tw_u, tw_v, wp)
                 # For points: coincident point-to-point
                 # For lines/arcs/circles: coincident point-on-entity
-                self.solvesys.coincident(
-                    self.group_sketch, drag_pt, tweak_handle, wp
-                )
+                self.solvesys.coincident(self.group_sketch, drag_pt, tweak_handle, wp)
                 self.solvesys.dragged(self.group_sketch, drag_pt, wp)
 
     def _init_constraints(self):
         """Initialize constraints using curve_id handles."""
         sketch = self.sketch
-        sketch_obj = sketch.target_object if hasattr(sketch, 'target_object') else sketch
+        sketch_obj = (
+            sketch.target_object if hasattr(sketch, "target_object") else sketch
+        )
         wp = self._wp_handle
 
         # Iterate constraints from the sketch's own data
@@ -236,19 +251,34 @@ class CurveSolver:
             return
         sketch_constraints = sketch_obj.data.sketch_constraints
 
+        # solvespace constraint handle -> the SlvsConstraint that produced it, so
+        # a failed-constraint report from the solver can be mapped back to the
+        # user's constraints (a single constraint may add several handles).
+        self._constraint_by_handle = {}
+
         for c in sketch_constraints.all:
             group = self.group_sketch
             c.failed = False
 
-            if not getattr(c, 'curve_id_1', ""):
+            if not getattr(c, "curve_id_1", ""):
                 continue
 
             try:
-                c.create_slvs_data_from_curves(
+                handles = c.create_slvs_data_from_curves(
                     self.solvesys, self._entity_handles, wp, group
                 )
             except Exception as e:
                 logger.debug(f"Constraint init failed: {c}, {e}")
+                continue
+
+            if handles is None:
+                continue
+            # A constraint add returns the solvespace constraint as a dict (its
+            # handle under 'h'); a few constraints add several, returning a list.
+            for item in handles if isinstance(handles, (list, tuple)) else (handles,):
+                h = item.get("h") if isinstance(item, dict) else item
+                if h:
+                    self._constraint_by_handle[h] = c
 
     def _rebuild_arc_bezier(self, curve_data, curve_idx, center_pos, is_cyclic):
         """Rebuild arc/circle bezier handles from solved point positions.
@@ -279,8 +309,10 @@ class CurveSolver:
             start_vec = positions[0] - center
             end_vec = positions[-1] - center
             from .utilities.math import range_2pi
+
             total_angle = range_2pi(
-                math.atan2(end_vec[1], end_vec[0]) - math.atan2(start_vec[1], start_vec[0])
+                math.atan2(end_vec[1], end_vec[0])
+                - math.atan2(start_vec[1], start_vec[0])
             )
             segment_count = n_points - 1
             if segment_count == 0:
@@ -299,7 +331,9 @@ class CurveSolver:
             start_angle = math.atan2(start_vec[1], start_vec[0])
             for i in range(1, segment_count):
                 a = start_angle + angle_per_segment * i
-                positions[i] = center + Vector((radius * math.cos(a), radius * math.sin(a)))
+                positions[i] = center + Vector(
+                    (radius * math.cos(a), radius * math.sin(a))
+                )
 
         # Build locations list
         locations = list(positions)
@@ -358,8 +392,8 @@ class CurveSolver:
         handle = self._point_handles.get(curve_id)
         if not handle:
             return None
-        u = self.solvesys.get_param_value(handle['param'][0])
-        v = self.solvesys.get_param_value(handle['param'][1])
+        u = self.solvesys.get_param_value(handle["param"][0])
+        v = self.solvesys.get_param_value(handle["param"][1])
         return (u, v, 0.0)
 
     def _write_results(self):
@@ -398,8 +432,10 @@ class CurveSolver:
 
             if ctype == SketchCurveType.CIRCLE and cid in self._distance_params:
                 dist_param = self._distance_params[cid]
-                param_h = dist_param.get('param', [0])[0]
-                solved_radius = self.solvesys.get_param_value(param_h) if param_h else None
+                param_h = dist_param.get("param", [0])[0]
+                solved_radius = (
+                    self.solvesys.get_param_value(param_h) if param_h else None
+                )
                 cp_id = cp_list[curve_idx]
                 if cp_id and solved_radius is not None:
                     ct_pos = self._get_solved_point_position(cp_id)
@@ -408,11 +444,14 @@ class CurveSolver:
                         curve_slice = curve_data.curves[curve_idx]
                         first = curve_slice.points[0].index
                         curve_data.points[first].position = (
-                            ct_pos[0] + solved_radius, ct_pos[1], ct_pos[2]
+                            ct_pos[0] + solved_radius,
+                            ct_pos[1],
+                            ct_pos[2],
                         )
 
         # Third pass: rebuild segments from updated point positions
         from .utilities.curve_data import rebuild_segments
+
         rebuild_segments(sketch)
 
         # Sync entity.co from solved curve positions (bridge for gizmo positioning)
@@ -428,14 +467,16 @@ class CurveSolver:
                 if entity is None:
                     continue
                 ctype = type_attr.data[curve_idx].value
-                if ctype == SketchCurveType.POINT and hasattr(entity, 'co'):
+                if ctype == SketchCurveType.POINT and hasattr(entity, "co"):
                     pt_idx = curve_data.curves[curve_idx].points[0].index
                     pos = curve_data.points[pt_idx].position
                     entity.co = (pos[0], pos[1])
                 elif ctype == SketchCurveType.CIRCLE:
-                    dist = self._distance_params.get(get_uuid(curve_data, "curve_id", curve_idx))
-                    if dist and hasattr(entity, 'radius'):
-                        entity.radius = self.solvesys.get_param_value(dist['param'][0])
+                    dist = self._distance_params.get(
+                        get_uuid(curve_data, "curve_id", curve_idx)
+                    )
+                    if dist and hasattr(entity, "radius"):
+                        entity.radius = self.solvesys.get_param_value(dist["param"][0])
 
     def solve(self):
         """Run the solver on curve data.
@@ -460,6 +501,7 @@ class CurveSolver:
         self._point_handles.clear()
         self._entity_handles.clear()
         self._distance_params.clear()
+        self._constraint_by_handle = {}
 
         self._init_workplane()
         self._init_geometry()
@@ -467,16 +509,30 @@ class CurveSolver:
 
         result = self.solvesys.solve_sketch(self.group_sketch, True)
 
+        # solve_sketch returns either the result dict or (result, failed_handles),
+        # where failed_handles lists the constraints solvespace couldn't satisfy.
+        failed_handles = []
         if isinstance(result, dict):
             retval = result
         else:
-            retval, *_ = result
+            retval, *rest = result
+            if rest and isinstance(rest[0], (list, tuple)):
+                failed_handles = rest[0]
 
         from .global_data import solver_state_items
         from .utilities.bpy import bpyEnum
 
-        result_code = retval['result']
+        result_code = retval["result"]
         self.ok = result_code == 0 or result_code == 4
+
+        # Flag the offending constraints so the UI (constraint list + gizmos) can
+        # point the user at what to remove -- an inconsistent sketch can't solve,
+        # so nothing in it moves (not even unconstrained geometry) until the
+        # contradictions are cleared.
+        for h in failed_handles:
+            c = self._constraint_by_handle.get(h)
+            if c is not None:
+                c.failed = True
 
         if result_code > 4:
             self.result = bpyEnum(solver_state_items, index=5)
@@ -484,7 +540,7 @@ class CurveSolver:
             self.result = bpyEnum(solver_state_items, index=result_code)
 
         self.sketch.solver_state = self.result.identifier
-        self.sketch.dof = retval.get('dof', 0)
+        self.sketch.dof = retval.get("dof", 0)
 
         if self.ok:
             self._write_results()
