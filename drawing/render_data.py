@@ -66,9 +66,16 @@ def geometry_signature(sketch):
     """Fingerprint of the geometry that determines pickable positions.
 
     Positions + the persistent curve attributes (type/construction/visible/...),
-    plus counts. Excludes transient selection/hover -- those change colours (the
-    overlay), not the projected points/segments (picking), so picking can cache
-    its extraction against this and skip rebuilding while the cursor just hovers.
+    the object's world matrix, plus counts. Excludes transient selection/hover --
+    those change colours (the overlay), not the projected points/segments
+    (picking), so picking can cache its extraction against this and skip
+    rebuilding while the cursor just hovers.
+
+    ``build`` bakes ``matrix_world`` into every point/segment position, so it
+    must be part of the fingerprint: a sketch on a workplane whose transform
+    moves (or settles as the depsgraph first evaluates a parented sketch) changes
+    the world positions without touching any local attribute -- omitting it left
+    the pick/overlay cache serving stale world coordinates.
     """
     cd = sketch.data
     n_curves = len(cd.curves)
@@ -83,6 +90,12 @@ def geometry_signature(sketch):
     for name in ("construction", "fixed", "visible", "cyclic"):
         parts.append(_bulk_bool(cd.attributes.get(name), n_curves).tobytes())
     parts.append(_bulk_int(cd.attributes.get("sketch_type"), n_curves).tobytes())
+    parts.append(
+        np.array(sketch.target_object.matrix_world, dtype=np.float32).tobytes()
+    )
+    # curve_id is the pick result build() returns; the validate self-heal can
+    # re-mint ids in place (same count/positions), so it belongs in the key too.
+    parts.append("".join(read_curve_id_list(cd)).encode())
 
     return (n_curves, n_points, hash(b"".join(parts)))
 
@@ -106,8 +119,12 @@ def overlay_signature(sketch, is_active, theme_sig):
         return (0, 0, is_active, theme_sig)
 
     if not is_active:
-        return (geometry_signature(sketch), False, theme_sig,
-                frozenset(selection.selected))
+        return (
+            geometry_signature(sketch),
+            False,
+            theme_sig,
+            frozenset(selection.selected),
+        )
 
     return (
         geometry_signature(sketch),
@@ -123,8 +140,18 @@ def _arc_points(center, radius, start_angle, arc_angle, segments, mat):
     pts = []
     for i in range(segments + 1):
         a = start_angle + arc_angle * i / segments
-        pts.append((mat @ Vector((center.x + radius * math.cos(a),
-                                  center.y + radius * math.sin(a), 0)))[:])
+        pts.append(
+            (
+                mat
+                @ Vector(
+                    (
+                        center.x + radius * math.cos(a),
+                        center.y + radius * math.sin(a),
+                        0,
+                    )
+                )
+            )[:]
+        )
     return pts
 
 
@@ -134,10 +161,10 @@ class SketchRenderData:
     __slots__ = ("point_buckets", "line_buckets", "point_ids", "segment_ids")
 
     def __init__(self):
-        self.point_buckets = {}       # color(tuple) -> [(pos, size_factor), ...]
-        self.line_buckets = {}        # (construction, color) -> [pos, pos, ...]
-        self.point_ids = []           # [(curve_id, pos), ...]  (for picking)
-        self.segment_ids = []         # [(curve_id, p0, p1), ...] (for picking)
+        self.point_buckets = {}  # color(tuple) -> [(pos, size_factor), ...]
+        self.line_buckets = {}  # (construction, color) -> [pos, pos, ...]
+        self.point_ids = []  # [(curve_id, pos), ...]  (for picking)
+        self.segment_ids = []  # [(curve_id, p0, p1), ...] (for picking)
 
     def _line_bucket(self, construction, col):
         return self.line_buckets.setdefault((construction, tuple(col)), [])
@@ -157,7 +184,11 @@ def build(sketch, ts, is_active):
 
     con = _bulk_bool(cd.attributes.get("construction"), n_curves)
     fix = _bulk_bool(cd.attributes.get("fixed"), n_curves)
-    vis = _bulk_bool(cd.attributes.get("visible"), n_curves) if cd.attributes.get("visible") else np.ones(n_curves, bool)
+    vis = (
+        _bulk_bool(cd.attributes.get("visible"), n_curves)
+        if cd.attributes.get("visible")
+        else np.ones(n_curves, bool)
+    )
     cyc = _bulk_bool(cd.attributes.get("cyclic"), n_curves)
     types = _bulk_int(type_attr, n_curves)
     cids = read_curve_id_list(cd)
@@ -182,8 +213,9 @@ def build(sketch, ts, is_active):
 
         if ctype == SketchCurveType.POINT:
             pos = (mat @ Vector(cd.points[curve_slice.points[0].index].position))[:]
-            psize = POINT_SIZE_SELECTED if is_sel else (
-                POINT_SIZE_HOVER if is_hov else 1.0)
+            psize = (
+                POINT_SIZE_SELECTED if is_sel else (POINT_SIZE_HOVER if is_hov else 1.0)
+            )
             rd.point_buckets.setdefault(tuple(col), []).append((pos, psize))
             rd.point_ids.append((cid, pos))
 
@@ -196,7 +228,9 @@ def build(sketch, ts, is_active):
             rd.segment_ids.append((cid, p1, p2))
 
         elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE) and cp_present:
-            arc_pts = _arc_points_for_curve(sketch, cd, i, curve_slice, bool(cyc[i]), mat)
+            arc_pts = _arc_points_for_curve(
+                sketch, cd, i, curve_slice, bool(cyc[i]), mat
+            )
             if arc_pts and len(arc_pts) >= 2:
                 bucket = rd._line_bucket(bool(con[i]), col)
                 for j in range(len(arc_pts) - 1):
