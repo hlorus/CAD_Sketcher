@@ -55,9 +55,12 @@ def main():
         print("\n".join(lines))
         return 0
 
+    # The Δ column already tells the two kinds apart -- an integer delta is a
+    # deterministic op-count, a percentage is wall-clock. The op-count verdict is
+    # summarised in the line below the table, so no per-row flag column.
     lines += [
-        "| metric | base | head | Δ | |",
-        "| --- | ---: | ---: | ---: | :-- |",
+        "| metric | base | head | Δ |",
+        "| --- | ---: | ---: | ---: |",
     ]
     regressed = []
     for k in sorted(set(base) | set(head)):
@@ -66,22 +69,20 @@ def main():
         if b is None or h is None:
             lines.append(
                 f"| `{k}` | {_fmt(b) if b is not None else '—'} "
-                f"| {_fmt(h) if h is not None else '—'} | new/removed | |"
+                f"| {_fmt(h) if h is not None else '—'} | new/removed |"
             )
             continue
         is_count = not k.endswith("_ms")
         if is_count:
-            # Deterministic: any increase is a real regression.
+            # Deterministic: any increase is a real regression (flagged below).
             delta = h - b
-            flag = "🔴" if delta > 0 else ("🟢" if delta < 0 else "")
             if delta > 0:
                 regressed.append(k)
-            lines.append(f"| `{k}` | {b} | {h} | {delta:+d} | {flag} |")
+            lines.append(f"| `{k}` | {b} | {h} | {delta:+d} |")
         else:
-            # Wall-clock: informational; big swings are runner noise.
+            # Wall-clock: informational trend (machine-dependent).
             pct = (h - b) / b * 100 if b else 0.0
-            flag = "≈ (noisy)"
-            lines.append(f"| `{k}` | {_fmt(b)} | {_fmt(h)} | {pct:+.0f}% | {flag} |")
+            lines.append(f"| `{k}` | {_fmt(b)} | {_fmt(h)} | {pct:+.0f}% |")
 
     lines.append("")
     if regressed:

@@ -17,7 +17,12 @@ import numpy as np
 from mathutils import Vector
 
 from ..model.constants import SketchCurveType
-from ..utilities.curve_data import get_uuid, has_uuid_field, get_curve_data, read_uuid_list
+from ..utilities.curve_data import (
+    get_curve_data,
+    get_uuid,
+    has_uuid_field,
+    read_curve_id_list,
+)
 from ..utilities.math import range_2pi
 from . import selection
 
@@ -57,33 +62,74 @@ def curve_color(ts, selected, hover, fixed, active=True):
     return ts.default
 
 
+def geometry_signature(sketch):
+    """Fingerprint of the geometry that determines pickable positions.
+
+    Positions + the persistent curve attributes (type/construction/visible/...),
+    the object's world matrix, plus counts. Excludes transient selection/hover --
+    those change colours (the overlay), not the projected points/segments
+    (picking), so picking can cache its extraction against this and skip
+    rebuilding while the cursor just hovers.
+
+    ``build`` bakes ``matrix_world`` into every point/segment position, so it
+    must be part of the fingerprint: a sketch on a workplane whose transform
+    moves (or settles as the depsgraph first evaluates a parented sketch) changes
+    the world positions without touching any local attribute -- omitting it left
+    the pick/overlay cache serving stale world coordinates.
+    """
+    cd = sketch.data
+    n_curves = len(cd.curves)
+    n_points = len(cd.points)
+    if n_points == 0:
+        return (0, 0, 0)
+
+    pos = np.empty(n_points * 3, dtype=np.float32)
+    cd.points.foreach_get("position", pos)
+
+    parts = [pos.tobytes()]
+    for name in ("construction", "fixed", "visible", "cyclic"):
+        parts.append(_bulk_bool(cd.attributes.get(name), n_curves).tobytes())
+    parts.append(_bulk_int(cd.attributes.get("sketch_type"), n_curves).tobytes())
+    parts.append(
+        np.array(sketch.target_object.matrix_world, dtype=np.float32).tobytes()
+    )
+    # curve_id is the pick result build() returns; the validate self-heal can
+    # re-mint ids in place (same count/positions), so it belongs in the key too.
+    parts.append("".join(read_curve_id_list(cd)).encode())
+
+    return (n_curves, n_points, hash(b"".join(parts)))
+
+
 def overlay_signature(sketch, is_active, theme_sig):
     """Cheap, hashable fingerprint of everything that affects the overlay.
 
     Reading the flat attribute arrays with ``foreach_get`` is far cheaper than
     rebuilding GPU batches, so the overlay computes this every frame and only
     rebuilds when it changes.
+
+    Hover and highlight are set only by picking, which is active-only, so they
+    never reference an inactive sketch's curves. Folding them into every sketch's
+    signature made unrelated visible sketches rebuild their batches on every
+    hover change (each mouse-move). Inactive sketches therefore track only their
+    geometry and the selection set (which can still contain their curves after an
+    active-sketch switch); the per-frame hover/highlight go to the active sketch
+    alone.
     """
-    cd = sketch.data
-    n_curves = len(cd.curves)
-    n_points = len(cd.points)
-    if n_points == 0:
+    if len(sketch.data.points) == 0:
         return (0, 0, is_active, theme_sig)
 
-    pos = np.empty(n_points * 3, dtype=np.float32)
-    cd.points.foreach_get("position", pos)
-
-    # Geometry + persistent attributes (positions/construction/visible/...). The
-    # transient selected/hover state lives in the selection module, not on the
-    # datablock, so it's folded into the signature separately below.
-    parts = [pos.tobytes()]
-    for name in ("construction", "fixed", "visible", "cyclic"):
-        parts.append(_bulk_bool(cd.attributes.get(name), n_curves).tobytes())
-    parts.append(_bulk_int(cd.attributes.get("sketch_type"), n_curves).tobytes())
+    if not is_active:
+        return (
+            geometry_signature(sketch),
+            False,
+            theme_sig,
+            frozenset(selection.selected),
+        )
 
     return (
-        n_curves, n_points, is_active, theme_sig,
-        hash(b"".join(parts)),
+        geometry_signature(sketch),
+        True,
+        theme_sig,
         frozenset(selection.selected),
         selection.hover,
         frozenset(selection.highlight_curve_ids),
@@ -94,8 +140,18 @@ def _arc_points(center, radius, start_angle, arc_angle, segments, mat):
     pts = []
     for i in range(segments + 1):
         a = start_angle + arc_angle * i / segments
-        pts.append((mat @ Vector((center.x + radius * math.cos(a),
-                                  center.y + radius * math.sin(a), 0)))[:])
+        pts.append(
+            (
+                mat
+                @ Vector(
+                    (
+                        center.x + radius * math.cos(a),
+                        center.y + radius * math.sin(a),
+                        0,
+                    )
+                )
+            )[:]
+        )
     return pts
 
 
@@ -105,10 +161,10 @@ class SketchRenderData:
     __slots__ = ("point_buckets", "line_buckets", "point_ids", "segment_ids")
 
     def __init__(self):
-        self.point_buckets = {}       # color(tuple) -> [(pos, size_factor), ...]
-        self.line_buckets = {}        # (construction, color) -> [pos, pos, ...]
-        self.point_ids = []           # [(curve_id, pos), ...]  (for picking)
-        self.segment_ids = []         # [(curve_id, p0, p1), ...] (for picking)
+        self.point_buckets = {}  # color(tuple) -> [(pos, size_factor), ...]
+        self.line_buckets = {}  # (construction, color) -> [pos, pos, ...]
+        self.point_ids = []  # [(curve_id, pos), ...]  (for picking)
+        self.segment_ids = []  # [(curve_id, p0, p1), ...] (for picking)
 
     def _line_bucket(self, construction, col):
         return self.line_buckets.setdefault((construction, tuple(col)), [])
@@ -128,10 +184,14 @@ def build(sketch, ts, is_active):
 
     con = _bulk_bool(cd.attributes.get("construction"), n_curves)
     fix = _bulk_bool(cd.attributes.get("fixed"), n_curves)
-    vis = _bulk_bool(cd.attributes.get("visible"), n_curves) if cd.attributes.get("visible") else np.ones(n_curves, bool)
+    vis = (
+        _bulk_bool(cd.attributes.get("visible"), n_curves)
+        if cd.attributes.get("visible")
+        else np.ones(n_curves, bool)
+    )
     cyc = _bulk_bool(cd.attributes.get("cyclic"), n_curves)
     types = _bulk_int(type_attr, n_curves)
-    cids = read_uuid_list(cd, "curve_id")
+    cids = read_curve_id_list(cd)
 
     # Selection/hover are transient runtime state (not persisted attributes).
     selected_set = set(selection.selected)
@@ -153,8 +213,9 @@ def build(sketch, ts, is_active):
 
         if ctype == SketchCurveType.POINT:
             pos = (mat @ Vector(cd.points[curve_slice.points[0].index].position))[:]
-            psize = POINT_SIZE_SELECTED if is_sel else (
-                POINT_SIZE_HOVER if is_hov else 1.0)
+            psize = (
+                POINT_SIZE_SELECTED if is_sel else (POINT_SIZE_HOVER if is_hov else 1.0)
+            )
             rd.point_buckets.setdefault(tuple(col), []).append((pos, psize))
             rd.point_ids.append((cid, pos))
 
@@ -167,7 +228,9 @@ def build(sketch, ts, is_active):
             rd.segment_ids.append((cid, p1, p2))
 
         elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE) and cp_present:
-            arc_pts = _arc_points_for_curve(sketch, cd, i, curve_slice, bool(cyc[i]), mat)
+            arc_pts = _arc_points_for_curve(
+                sketch, cd, i, curve_slice, bool(cyc[i]), mat
+            )
             if arc_pts and len(arc_pts) >= 2:
                 bucket = rd._line_bucket(bool(con[i]), col)
                 for j in range(len(arc_pts) - 1):

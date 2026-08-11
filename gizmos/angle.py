@@ -3,7 +3,7 @@ import math
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Matrix
 
-from ..declarations import Gizmos, GizmoGroups
+from ..declarations import GizmoGroups, Gizmos
 from ..model.types import SlvsAngle
 from ..utilities.constants import QUARTER_TURN
 from ..utilities.draw import coords_arc_2d
@@ -34,6 +34,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
     __slots__ = (
         "custom_shape",
         "index",
+        "_shape_sig",
     )
 
     def _get_helplines(self, context, constr, scale_1, scale_2):

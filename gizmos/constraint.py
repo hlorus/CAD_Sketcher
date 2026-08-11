@@ -1,17 +1,15 @@
 import math
 
 import blf
-import gpu
 from bpy.types import Gizmo, GizmoGroup
-from mathutils import Vector, Matrix
+from mathutils import Matrix, Vector
 
 from .. import units
-from ..declarations import Gizmos, GizmoGroups, Operators
+from ..declarations import GizmoGroups, Gizmos, Operators
 from ..utilities.preferences import get_prefs
-from ..utilities.view import get_2d_coords
+from ..utilities.view import get_2d_coords, get_scale_from_pos
 from .base import ConstraintGizmo
 from .utilities import Color, get_color, set_gizmo_colors
-from ..utilities.view import get_scale_from_pos
 
 GIZMO_OFFSET = Vector((1.0, 1.0))
 FONT_ID = 0
@@ -46,6 +44,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
 
     def setup(self, context):
         from ..model.sketch_ref import get_active_sketch
+
         active_sketch = get_active_sketch(context)
 
         # Build mapping: placement_key → [constraints]
@@ -54,6 +53,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         if not active_sketch:
             return
         from ..model.base_constraint import DimensionalConstraint
+
         for c in active_sketch.constraints.all:
             if isinstance(c, DimensionalConstraint):
                 continue
@@ -84,7 +84,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                     gz.curve_id = ident
                 else:
                     gz.entity_index = ident
-                    gz.curve_id = getattr(c, 'curve_id_1', "")
+                    gz.curve_id = getattr(c, "curve_id_1", "")
 
                 # A constraint may pin the marker to a computed point (e.g. a
                 # tangent point) instead of the curve's default placement.
@@ -156,9 +156,11 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         world_pos = getattr(self, "placement_pos", None)
         if world_pos is None and hasattr(self, "curve_id") and self.curve_id:
             from ..model.sketch_ref import get_active_sketch
+
             sketch = get_active_sketch(context)
             if sketch:
                 from ..utilities.curve_data import get_curve_placement
+
                 world_pos = get_curve_placement(sketch, self.curve_id)
             else:
                 return
@@ -186,7 +188,7 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
 
     def draw(self, context):
         constraint = self._get_constraint(context)
-        if not constraint.visible:
+        if not constraint or not constraint.visible:
             return
         # Keep colors + matrix_basis current so test_select stays accurate; the
         # icon itself is rendered in one batched pass (drawing.constraint_icons)
@@ -216,7 +218,10 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
     def draw(self, context):
         constr = self._get_constraint(context)
 
-        if not constr.visible or not hasattr(constr, "value_placement"):
+        # constr is None when its constraint was just deleted but the gizmo group
+        # hasn't refreshed yet (e.g. clearing failed constraints on an
+        # over-constrained sketch) -- skip drawing rather than dereference None.
+        if not constr or not constr.visible or not hasattr(constr, "value_placement"):
             return
 
         color = get_color(Color.Text, self.is_highlight)

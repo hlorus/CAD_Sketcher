@@ -101,8 +101,7 @@ class TestConstraintInit(Sketch2dTestCase):
 
         # Constrain 2 points
         p2 = self.add_point((0.0, 2.0))
-        c2 = sc.add_distance(init=True,
-                             curve_id_1=p0.curve_id, curve_id_2=p2.curve_id)
+        c2 = sc.add_distance(init=True, curve_id_1=p0.curve_id, curve_id_2=p2.curve_id)
         self.solve()
         self.assertAlmostEqual(p2.co.y, 2.0)
         self.assertAlmostEqual(c2.value, 2.0)
@@ -116,8 +115,9 @@ class TestConstraintInit(Sketch2dTestCase):
         p1 = self.add_point((1, -1), fixed=True)
         p2 = self.add_point((1, 1))
         line = self.add_line(p1, p2)
-        c1 = sc.add_distance(init=True,
-                             curve_id_1=p0.curve_id, curve_id_2=line.curve_id)
+        c1 = sc.add_distance(
+            init=True, curve_id_1=p0.curve_id, curve_id_2=line.curve_id
+        )
 
         self.solve()
         self.assertTrue(c1.flip)
@@ -132,8 +132,9 @@ class TestConstraintInit(Sketch2dTestCase):
         p3 = self.add_point((-1, -1), fixed=True)
         p4 = self.add_point((-1, 1))
         line2 = self.add_line(p3, p4)
-        c2 = sc.add_distance(init=True,
-                             curve_id_1=p0.curve_id, curve_id_2=line2.curve_id)
+        c2 = sc.add_distance(
+            init=True, curve_id_1=p0.curve_id, curve_id_2=line2.curve_id
+        )
 
         self.solve()
         self.assertFalse(c2.flip)
@@ -150,10 +151,15 @@ class TestConstraintInit(Sketch2dTestCase):
         p0 = self.add_point((0, 0), fixed=True)
         p1 = self.add_point((1, 2))
 
-        c1 = sc.add_distance(init=True, align="VERTICAL",
-                             curve_id_1=p0.curve_id, curve_id_2=p1.curve_id)
-        c2 = sc.add_distance(init=True, align="HORIZONTAL",
-                             curve_id_1=p0.curve_id, curve_id_2=p1.curve_id)
+        c1 = sc.add_distance(
+            init=True, align="VERTICAL", curve_id_1=p0.curve_id, curve_id_2=p1.curve_id
+        )
+        c2 = sc.add_distance(
+            init=True,
+            align="HORIZONTAL",
+            curve_id_1=p0.curve_id,
+            curve_id_2=p1.curve_id,
+        )
 
         self.solve()
         self.assertAlmostEqual(c1.value, 2.0)
@@ -171,8 +177,7 @@ class TestConstraintInit(Sketch2dTestCase):
 
         # Constrain circle diameter
         circle1 = self.add_circle(p0, 3.0)
-        c1 = sc.add_diameter(init=True, value=4.0,
-                             curve_id_1=circle1.curve_id)
+        c1 = sc.add_diameter(init=True, value=4.0, curve_id_1=circle1.curve_id)
 
         self.solve()
         self.assertAlmostEqual(circle1.radius, 2.0)
@@ -180,8 +185,7 @@ class TestConstraintInit(Sketch2dTestCase):
 
         # Constrain circle radius
         circle2 = self.add_circle(p0, 3.0)
-        c2 = sc.add_diameter(init=True, setting=True,
-                             curve_id_1=circle2.curve_id)
+        c2 = sc.add_diameter(init=True, setting=True, curve_id_1=circle2.curve_id)
 
         self.solve()
         self.assertAlmostEqual(circle2.radius, 3.0)
@@ -189,8 +193,9 @@ class TestConstraintInit(Sketch2dTestCase):
 
         # Submit value and setting
         circle3 = self.add_circle(p0, 1.0)
-        c3 = sc.add_diameter(init=True, value=0.8, setting=True,
-                             curve_id_1=circle3.curve_id)
+        c3 = sc.add_diameter(
+            init=True, value=0.8, setting=True, curve_id_1=circle3.curve_id
+        )
 
         self.solve()
         self.assertAlmostEqual(circle3.radius, 0.8)
@@ -212,8 +217,7 @@ class TestConstraintInit(Sketch2dTestCase):
         p1 = self.add_point((3.0, 0.0))
         p2 = self.add_point((0.0, 3.0))
         arc1 = self.add_arc(p0, p1, p2)
-        c1 = sc.add_diameter(init=True,
-                             curve_id_1=arc1.curve_id)
+        c1 = sc.add_diameter(init=True, curve_id_1=arc1.curve_id)
 
         self.solve()
         self.assertAlmostEqual(arc1.radius, 3.0)
@@ -236,8 +240,9 @@ class TestConstraintInit(Sketch2dTestCase):
         p2 = self.add_point((0, 1))
         line2 = self.add_line(p0, p2)
 
-        c = sc.add_angle(init=True,
-                         curve_id_1=line1.curve_id, curve_id_2=line2.curve_id)
+        c = sc.add_angle(
+            init=True, curve_id_1=line1.curve_id, curve_id_2=line2.curve_id
+        )
 
         self.solve()
         self.assertAlmostEqual(p2.co.x, 0.0)
@@ -285,8 +290,9 @@ class TestConstraintInit(Sketch2dTestCase):
         p2 = self.add_point((0, 1))
         line2 = self.add_line(p0, p2)
 
-        c = sc.add_ratio(init=True,
-                         curve_id_1=line1.curve_id, curve_id_2=line2.curve_id)
+        c = sc.add_ratio(
+            init=True, curve_id_1=line1.curve_id, curve_id_2=line2.curve_id
+        )
         self.solve()
         self.assertAlmostEqual(c.value, 3.0)
 
@@ -294,3 +300,33 @@ class TestConstraintInit(Sketch2dTestCase):
         c.value = 4.0
         self.solve()
         self.assertAlmostEqual(line1.length, 4.0)
+
+
+class TestSolverFeedback(Sketch2dTestCase):
+    def test_inconsistent_flags_failed_constraint(self):
+        """Contradictory constraints make the solver report INCONSISTENT; the
+        offending constraints must be flagged ``failed`` so the UI can point the
+        user at what to remove. An inconsistent sketch can't solve, so nothing in
+        it moves (not even unconstrained geometry) until the conflict is cleared
+        -- without this feedback that state is invisible (box.blend Transparent.001).
+        """
+        sc = self.sketch.constraints
+        p0 = self.add_point((0, 0), fixed=True)
+        p1 = self.add_point((3, 0))
+        # Two distances the same pair of points cannot both satisfy.
+        sc.add_distance(
+            init=True, value=3.0, curve_id_1=p0.curve_id, curve_id_2=p1.curve_id
+        )
+        sc.add_distance(
+            init=True, value=5.0, curve_id_1=p0.curve_id, curve_id_2=p1.curve_id
+        )
+
+        ok = self.sketch.solve(self.context)
+        self.assertFalse(ok, "contradictory constraints should not solve")
+        self.assertEqual(self.sketch.solver_state, "INCONSISTENT")
+
+        all_c = list(self.sketch.target_object.data.sketch_constraints.all)
+        self.assertTrue(
+            any(c.failed for c in all_c),
+            "no constraint flagged failed on an inconsistent solve",
+        )

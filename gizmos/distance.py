@@ -32,6 +32,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
     __slots__ = (
         "custom_shape",
         "index",
+        "_shape_sig",
     )
 
     def _get_helplines(self, context, constr, scale_1, scale_2):

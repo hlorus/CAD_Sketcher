@@ -6,10 +6,10 @@ extracted into the right buckets and that the change-signature both stays stable
 and detects the changes that must invalidate cached batches.
 """
 
-from .utils import Sketch2dTestCase
 from ..drawing import render_data, selection
-from ..utilities.curve_data import refresh_curve_geometry, read_uuid_list
+from ..utilities.curve_data import read_uuid_list, refresh_curve_geometry
 from ..utilities.preferences import get_prefs
+from .utils import Sketch2dTestCase
 
 
 class TestRenderData(Sketch2dTestCase):
@@ -31,10 +31,10 @@ class TestRenderData(Sketch2dTestCase):
         n_points = sum(len(v) for v in data.point_buckets.values())
         n_line_verts = sum(len(v) for v in data.line_buckets.values())
 
-        self.assertEqual(n_points, 3)                 # the three point curves
+        self.assertEqual(n_points, 3)  # the three point curves
         self.assertEqual(len(data.point_ids), 3)
-        self.assertGreater(n_line_verts, 2)           # line + tessellated circle
-        self.assertEqual(n_line_verts % 2, 0)         # LINES come in pairs
+        self.assertGreater(n_line_verts, 2)  # line + tessellated circle
+        self.assertEqual(n_line_verts % 2, 0)  # LINES come in pairs
         self.assertEqual(len(data.segment_ids), n_line_verts // 2)
 
     def test_signature_stable_and_invalidates(self):
@@ -57,9 +57,61 @@ class TestRenderData(Sketch2dTestCase):
         selection.clear()
         selection.selected.append(cid)
         try:
-            self.assertNotEqual(base, render_data.overlay_signature(self.sketch, True, ()))
+            self.assertNotEqual(
+                base, render_data.overlay_signature(self.sketch, True, ())
+            )
         finally:
             selection.clear()
 
         # Active/inactive must change the signature (colors differ).
         self.assertNotEqual(base, render_data.overlay_signature(self.sketch, False, ()))
+
+    def test_signature_tracks_world_transform(self):
+        """build() bakes matrix_world into every pick/overlay position, so the
+        signature must change when the sketch's world transform moves. Omitting
+        it let the pick cache serve stale world coordinates for a sketch on a
+        moved/settling workplane -- selection went dead on non-origin-plane
+        sketches (the whole cache keys on this fingerprint)."""
+        from mathutils import Matrix
+
+        self._build_point_line_circle()
+        obj = self.sketch.target_object
+        before_geo = render_data.geometry_signature(self.sketch)
+        before_overlay = render_data.overlay_signature(self.sketch, True, ())
+
+        original = obj.matrix_world.copy()
+        try:
+            obj.matrix_world = Matrix.Translation((5, 3, 0)) @ original
+            self.assertNotEqual(
+                before_geo,
+                render_data.geometry_signature(self.sketch),
+                "world transform move did not change geometry_signature",
+            )
+            self.assertNotEqual(
+                before_overlay,
+                render_data.overlay_signature(self.sketch, True, ()),
+            )
+        finally:
+            obj.matrix_world = original
+
+    def test_inactive_signature_ignores_hover(self):
+        """Hover is active-only, so it must not invalidate an inactive sketch's
+        signature (which would rebuild its batches on every mouse-move)."""
+        self._build_point_line_circle()
+        selection.clear()
+        try:
+            inactive = render_data.overlay_signature(self.sketch, False, ())
+            selection.hover = "abc123"
+            self.assertEqual(
+                inactive,
+                render_data.overlay_signature(self.sketch, False, ()),
+                "hover changed an inactive sketch's signature",
+            )
+            # The active sketch, by contrast, must react to hover.
+            active = render_data.overlay_signature(self.sketch, True, ())
+            selection.hover = "def456"
+            self.assertNotEqual(
+                active, render_data.overlay_signature(self.sketch, True, ())
+            )
+        finally:
+            selection.clear()

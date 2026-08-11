@@ -8,11 +8,10 @@ exercise the pick logic (point-over-edge priority, box overlap, ignore-list).
 
 import numpy as np
 
-from .utils import Sketch2dTestCase
-from ..drawing import picking
-from ..utilities.curve_data import refresh_curve_geometry
+from ..drawing import picking, selection
 from ..model.sketch_ref import set_active_sketch
-from ..drawing import selection
+from ..utilities.curve_data import refresh_curve_geometry
+from .utils import Sketch2dTestCase
 
 
 class _FakeContext:
@@ -69,3 +68,26 @@ class TestPicking(Sketch2dTestCase):
     def test_ignore_list_respected(self):
         selection.ignore_list = [self.b.curve_id]
         self.assertNotEqual(picking.pick(self.ctx, (40, 0)), self.b.curve_id)
+
+    def test_cache_reuses_on_hover_and_refreshes_on_geometry_change(self):
+        # First pick populates the cache; a second pick (mouse just moved, no
+        # geometry change) must reuse the same extracted data, not rebuild.
+        picking._pick_cache.clear()
+        picking.pick(self.ctx, (40, 0))
+        cached = picking._pick_cache[self.sketch.target_object.name][1]
+        picking.pick(self.ctx, (20, 0))
+        self.assertIs(
+            picking._pick_cache[self.sketch.target_object.name][1],
+            cached,
+            "hover rebuilt pick data despite unchanged geometry",
+        )
+        # Adding a segment changes the geometry signature -> cache refreshes and
+        # the new element is pickable.
+        c = self.add_point((4, 4))
+        line2 = self.add_line(self.b, c)
+        self.solve()
+        self.assertEqual(picking.pick(self.ctx, (40, 40)), c.curve_id)
+        self.assertIsNot(
+            picking._pick_cache[self.sketch.target_object.name][1], cached
+        )
+        self.assertTrue(line2.valid)
