@@ -62,7 +62,15 @@ jobs:
           cat "$GITHUB_WORKSPACE/perf.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request'
+        # Fork PRs get a read-only GITHUB_TOKEN, so commenting 403s and reds the
+        # whole job. Skip the comment for forks -- the perf table is still in the
+        # step summary above -- and keep the run green; same-repo branch PRs get
+        # the sticky comment as before. continue-on-error guards other transient
+        # comment failures too.
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |
