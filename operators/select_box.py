@@ -1,13 +1,14 @@
-import bpy, gpu
-from bpy.types import Operator, Context, Event
+import bpy
+import gpu
+from bpy.types import Context, Event, Operator
 from bpy.utils import register_classes_factory
-from mathutils import Vector
 from gpu_extras.batch import batch_for_shader
+from mathutils import Vector
 
-from ..drawing import selection
 from ..declarations import Operators
+from ..drawing import selection
+from ..utilities.select import deselect_all, mode_property
 from ..utilities.view import refresh
-from ..utilities.select import mode_property, deselect_all
 
 
 def get_start_dist(value1, value2, invert: bool = False):
@@ -125,6 +126,7 @@ class View3D_OT_slvs_select_box(Operator):
             return False
 
         from ..drawing import picking
+
         curve_ids = picking.pick_box(context, self.start_coords, self.end_coords)
 
         mode = self.mode
