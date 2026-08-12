@@ -1,14 +1,14 @@
-import bpy, gpu
-from bpy.types import Operator, Context, Event
+import bpy
+import gpu
+from bpy.types import Context, Event, Operator
 from bpy.utils import register_classes_factory
-from mathutils import Vector
 from gpu_extras.batch import batch_for_shader
+from mathutils import Vector
 
-from ..drawing import selection
 from ..declarations import Operators
+from ..drawing import selection
+from ..utilities.select import deselect_all, mode_property
 from ..utilities.view import refresh
-from ..utilities.select import mode_property, deselect_all
-from ..shaders import Shaders
 
 
 def get_start_dist(value1, value2, invert: bool = False):
@@ -18,43 +18,83 @@ def get_start_dist(value1, value2, invert: bool = False):
     return int(start), int(abs(value2 - value1))
 
 
-def draw_callback_px(self, context):
-    """Draw selection box with appropriate shader based on GPU backend."""
-    # Simple backend detection
-    try:
-        backend_type = gpu.platform.backend_type_get()
-        is_vulkan_metal = backend_type in ('VULKAN', 'METAL')
-    except:
-        is_vulkan_metal = False
+def _append_quad(vertices, left, bottom, right, top):
+    vertices.extend(
+        (
+            (left, bottom),
+            (right, bottom),
+            (right, top),
+            (left, bottom),
+            (right, top),
+            (left, top),
+        )
+    )
 
-    # Use appropriate shader
-    if is_vulkan_metal:
-        shader = gpu.shader.from_builtin("UNIFORM_COLOR")
-    else:
-        shader = Shaders.uniform_color_line_2d()
+
+def _box_outline_vertices(start, end, line_width=2.0):
+    """Return screen-space triangles for a fixed-width rectangular outline.
+
+    GPU line widths are not consistently supported across Blender backends
+    (notably Metal on macOS). Building the outline from triangles keeps the
+    marquee thickness stable without relying on ``gpu.state.line_width_set``.
+    """
+    half_width = line_width / 2.0
+    left = min(start.x, end.x)
+    right = max(start.x, end.x)
+    bottom = min(start.y, end.y)
+    top = max(start.y, end.y)
+
+    vertices = []
+
+    # Horizontal edges. Extend them by half a line width so their corners meet
+    # the vertical edges cleanly.
+    _append_quad(
+        vertices,
+        left - half_width,
+        bottom - half_width,
+        right + half_width,
+        bottom + half_width,
+    )
+    _append_quad(
+        vertices,
+        left - half_width,
+        top - half_width,
+        right + half_width,
+        top + half_width,
+    )
+
+    # Vertical edges.
+    _append_quad(
+        vertices,
+        left - half_width,
+        bottom - half_width,
+        left + half_width,
+        top + half_width,
+    )
+    _append_quad(
+        vertices,
+        right - half_width,
+        bottom - half_width,
+        right + half_width,
+        top + half_width,
+    )
+
+    return vertices
+
+
+def draw_callback_px(self, context):
+    """Draw a backend-independent 2 px selection-box outline."""
+    shader = gpu.shader.from_builtin("UNIFORM_COLOR")
 
     gpu.state.blend_set("ALPHA")
 
-    start = self.start_coords
-    end = self.mouse_pos
+    vertices = _box_outline_vertices(self.start_coords, self.mouse_pos, 2.0)
+    batch = batch_for_shader(shader, "TRIS", {"pos": vertices})
 
-    box_path = (start, (end.x, start.y), end, (start.x, end.y), start)
-    batch = batch_for_shader(shader, "LINE_STRIP", {"pos": box_path})
     shader.bind()
     shader.uniform_float("color", (0.0, 0.0, 0.0, 0.5))
-
-    # Set line width uniforms for custom shader only
-    if not is_vulkan_metal:
-        try:
-            shader.uniform_float("lineWidth", 2.0)
-        except:
-            pass
-
-    gpu.state.line_width_set(2.0)
     batch.draw(shader)
 
-    # Restore OpenGL defaults
-    gpu.state.line_width_set(1.0)
     gpu.state.blend_set("NONE")
 
 
@@ -86,6 +126,7 @@ class View3D_OT_slvs_select_box(Operator):
             return False
 
         from ..drawing import picking
+
         curve_ids = picking.pick_box(context, self.start_coords, self.end_coords)
 
         mode = self.mode
