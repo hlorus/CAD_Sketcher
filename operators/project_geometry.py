@@ -1,4 +1,3 @@
-import bpy
 from bpy.props import BoolProperty, PointerProperty
 from bpy.types import Context, Object, Operator
 from bpy.utils import register_classes_factory
@@ -18,7 +17,9 @@ class VIEW3D_OT_slvs_project_geometry(Operator):
 
     bl_idname = Operators.ProjectGeometry
     bl_label = "Project Geometry"
-    bl_description = "Project mesh edges onto the active sketch and keep a live source reference"
+    bl_description = (
+        "Project mesh edges onto the active sketch and keep a live source reference"
+    )
     bl_options = {"REGISTER", "UNDO"}
 
     source: PointerProperty(
@@ -71,7 +72,7 @@ class VIEW3D_OT_slvs_project_geometry(Operator):
             self.report({"ERROR"}, "The source cannot be the active sketch")
             return {"CANCELLED"}
 
-        points, lines = project_mesh_object(
+        _, lines = project_mesh_object(
             sketch,
             self.source,
             construction=self.construction,
