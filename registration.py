@@ -12,6 +12,7 @@ core_modules = [
     "keymaps",
     "workspacetools",
     "ui",
+    "ui.pie_menu",
     "draw_handler",
     # Register this as last module
     "registration_delayed",
