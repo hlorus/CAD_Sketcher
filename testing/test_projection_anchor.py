@@ -37,8 +37,8 @@ class TestProjectionAnchor(Sketch2dTestCase):
 
         source.data.vertices[1].co = (3.5, 0.5, 1.0)
         source.data.update()
+        self.context.view_layer.update()
         depsgraph = self.context.evaluated_depsgraph_get()
-        depsgraph.update()
         moved = refresh_projection_for_sketch(
             self.sketch,
             depsgraph,
