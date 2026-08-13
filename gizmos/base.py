@@ -6,12 +6,12 @@ from .utilities import get_color, get_constraint_color_type, set_gizmo_colors
 
 class ConstraintGizmo:
     def _get_constraint(self, context):
-        from ..model.sketch_ref import get_active_sketch
+        from ..model.sketch_ref import get_active_constraints
 
-        sketch = get_active_sketch(context)
-        if not sketch:
+        constraints = get_active_constraints(context)
+        if not constraints:
             return None
-        return sketch.constraints.get_from_type_index(self.type, self.index)
+        return constraints.get_from_type_index(self.type, self.index)
 
     def get_constraint_color(self, constraint: GenericConstraint):
         is_highlight = constraint == selection.highlight_constraint or self.is_highlight
@@ -96,14 +96,14 @@ class ConstraintGenericGGT:
     bl_options = {"PERSISTENT", "SCALE", "3D"}
 
     def setup(self, context):
-        from ..model.sketch_ref import get_active_sketch
+        from ..model.sketch_ref import get_active_constraints
 
-        active_sketch = get_active_sketch(context)
-        if not active_sketch:
+        constraints = get_active_constraints(context)
+        if not constraints:
             return
-        for c in active_sketch.constraints.get_list(self.type):
+        for c in constraints.get_list(self.type):
             gz = self.gizmos.new(self.gizmo_type)
-            gz.index = active_sketch.constraints.get_index(c)
+            gz.index = constraints.get_index(c)
 
             set_gizmo_colors(gz, c)
 
