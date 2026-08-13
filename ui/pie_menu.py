@@ -22,6 +22,12 @@ def _tool_set(layout, text, tool_name, icon="NONE"):
     return props
 
 
+def _call_pie(layout, text, menu_id):
+    props = layout.operator("wm.call_menu_pie", text=text)
+    props.name = menu_id
+    return props
+
+
 def _sketch_slot(layout, context):
     sketch = get_active_sketch(context)
     if sketch:
@@ -69,10 +75,10 @@ class VIEW3D_MT_slvs_pie(Menu):
             Operators.AddRectangle,
         )
 
-        # North: constraints live in a second pie so the main menu stays fast.
+        # North: constraints live in a second radial pie so the main menu stays fast.
         slot = pie.row()
         slot.enabled = sketch_active
-        slot.menu(VIEW3D_MT_slvs_constraints_pie.bl_idname, text="Constraints")
+        _call_pie(slot, "Constraints", VIEW3D_MT_slvs_constraints_pie.bl_idname)
 
         # North-West / North-East: less common drawing primitives.
         slot = pie.row()
