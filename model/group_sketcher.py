@@ -1,25 +1,24 @@
 import logging
-from typing import Union, Generator
+from typing import Generator, Union
 
 import bpy
-from bpy.types import PropertyGroup, Context
-from bpy.utils import register_class, unregister_class
 from bpy.props import (
-    IntProperty,
     BoolProperty,
-    PointerProperty,
-    IntVectorProperty,
     CollectionProperty,
+    IntProperty,
+    IntVectorProperty,
+    PointerProperty,
 )
+from bpy.types import Context, PropertyGroup
+from bpy.utils import register_class, unregister_class
 
 from .. import global_data
-from ..drawing import selection
 from ..curve_solver import solve_system
-from .utilities import slvs_entity_pointer
-from .base_entity import SlvsGenericEntity
-from .group_entities import SlvsEntities
-from .group_constraints import SlvsConstraints
+from ..drawing import selection
 from ..utilities.view import update_cb
+from .base_entity import SlvsGenericEntity
+from .group_constraints import SlvsConstraints
+from .group_entities import SlvsEntities
 
 logger = logging.getLogger(__name__)
 
