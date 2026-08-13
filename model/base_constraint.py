@@ -150,7 +150,19 @@ class GenericConstraint:
             if wp:
                 return wp.p1.location, wp.normal
 
-        # TODO: return drawing plane for constraints in 3d
+        # Scene-level 3D dimensions are drawn in the local XY plane produced by
+        # their matrix_basis(). Reuse that plane for label dragging so the gizmo
+        # remains editable outside sketch mode as well.
+        matrix_func = getattr(self, "matrix_basis", None)
+        if callable(matrix_func):
+            try:
+                mat = matrix_func()
+                normal = Vector(mat.col[2][:3])
+                if normal.length:
+                    return mat.translation.copy(), normal.normalized()
+            except Exception:
+                logger.debug("Could not resolve 3D constraint draw plane", exc_info=True)
+
         return None, None
 
     def copy(self, context, entities):
@@ -173,11 +185,9 @@ class GenericConstraint:
         is_experimental = preferences.is_experimental()
 
         layout.prop(self, "name", text="")
-
         if self.failed:
             layout.label(text="Failed", icon="ERROR")
 
-        # Info block
         layout.separator()
         if is_experimental:
             sub = layout.column()
@@ -186,32 +196,18 @@ class GenericConstraint:
             for e in self.dependencies():
                 sub.label(text=str(e))
 
-        # General props
         layout.separator()
         layout.prop(self, "visible")
-
-        # Specific props
         layout.separator()
-
         return layout
 
     def index(self):
-        """Return elements index inside its collection"""
-        # HACK: Elements of collectionproperties currently don't expose an index
-        # method, path_from_id writes the index however, use this hack instead
-        # of looping over elements
         return int(self.path_from_id().split("[")[1].split("]")[0])
 
     def placements(self):
-        """Return the entities where the constraint should be displayed"""
         return []
 
     def curve_id_placements(self):
-        """Return curve_ids where the constraint should be displayed.
-
-        Default: returns curve_id_1 (and curve_id_2/3 if set).
-        Override for constraints with special placement logic.
-        """
         ids = []
         if getattr(self, 'curve_id_1', ""):
             ids.append(self.curve_id_1)
@@ -222,20 +218,12 @@ class GenericConstraint:
         return ids
 
     def marker_position(self, sketch):
-        """World position for a single constraint marker, or None.
-
-        Override to place the gizmo icon at a computed point (e.g. a tangent
-        point) instead of a curve's default placement. Returning None makes the
-        gizmo fall back to ``curve_id_placements``.
-        """
         return None
 
     def _get_sketch(self):
-        """Resolve the Sketch accessor for this constraint."""
         sketch = self.sketch if hasattr(self, "sketch") and self.sketch else None
         if sketch:
             return sketch
-        # Resolve from Curves id_data (native curves path)
         import bpy
         id_data = getattr(self, "id_data", None)
         if id_data and hasattr(id_data, "sketch_constraints"):
@@ -243,17 +231,14 @@ class GenericConstraint:
                 if obj.data is id_data:
                     from .sketch_ref import Sketch
                     return Sketch(obj)
-            # Fallback: match by name (evaluated data has different identity)
             for obj in bpy.data.objects:
                 if obj.data and obj.data.name == id_data.name:
                     from .sketch_ref import Sketch
                     return Sketch(obj)
-        # Last resort: use active sketch from context
         from .sketch_ref import get_active_sketch
         return get_active_sketch(bpy.context)
 
     def ref(self, n=1):
-        """Return a typed CurveRef for curve_id_N, or None if unset."""
         cid = getattr(self, f"curve_id_{n}", "")
         if not cid:
             return None
@@ -276,9 +261,6 @@ class DimensionalConstraint(GenericConstraint):
     setting: BoolProperty
 
     def _set_value(self, displayed_value: float):
-        # NOTE: function signature _set_value(self, val: float, force=False)
-        #       will fail when bpy tries to register the value property.
-        #       See `_set_value_force()`
         if not self.is_reference:
             self._set_value_force(self.from_displayed_value(displayed_value))
 
@@ -309,24 +291,15 @@ class DimensionalConstraint(GenericConstraint):
         for key, value in settings.items():
             if value is None:
                 continue
-
-            # "value" has a custom RNA getter that may call assign_init_props,
-            # so never read it back — just write unconditionally.
             if key == "value":
                 setprop(self, key, value)
                 continue
-
-            # For all other keys (e.g. "setting", "flip", "align") skip the
-            # write when the value is unchanged so we don't fire update
-            # callbacks that would re-enter assign_init_props and recurse.
             try:
                 current = getattr(self, key)
             except Exception:
                 current = object()
-
             if current == value:
                 continue
-
             setprop(self, key, value)
 
     def assign_init_props(self, context: Context = None, **kwargs):
@@ -335,55 +308,4 @@ class DimensionalConstraint(GenericConstraint):
     def on_reference_checked(self, context: Context = None):
         update_system_cb(self, context)
         self.assign_init_props()
-        # Refresh the gizmos as we are changing the colors.
         refresh(context)
-
-    is_reference: BoolProperty(
-        name="Only measure",
-        default=False,
-        update=on_reference_checked,
-    )
-
-    def init_props(self, **kwargs):
-        raise NotImplementedError()
-
-    def to_displayed_value(self, value):
-        """
-        Overwrite this function to convert the property value into
-        something to display on the user interface.
-        NOTE: If the value is writeable, do not forget to change
-              ``from_displayed_value()`` to apply the reverse operation.
-        """
-        return value
-
-    def from_displayed_value(self, displayed_value):
-        """
-        Convert the displayed value of the property into
-        a variable to store.
-        NOTE: See ``to_displayed_value()``
-        """
-        return displayed_value
-
-    def py_data(self, solvesys, **kwargs):
-        if self.is_reference:
-            return []
-        return self.create_slvs_data(solvesys, **kwargs)
-
-    def draw_props(self, layout: UILayout):
-        sub = GenericConstraint.draw_props(self, layout)
-        sub.prop(self, "is_reference")
-        if hasattr(self, "value"):
-            col = sub.column()
-            col.enabled = not self.is_reference
-            import bpy
-            scene = bpy.context.scene
-            uid = getattr(self, "constraint_uid", "")
-            key = None
-            if scene and uid:
-                key = scene.sketcher.get_constraint_value_endpoint(self)
-            if key:
-                col.prop(scene, f'["{key}"]', text="Value")
-        if hasattr(self, "setting"):
-            row = sub.row()
-            row.prop(self, "setting")
-        return sub
