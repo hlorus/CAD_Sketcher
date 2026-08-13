@@ -8,7 +8,6 @@ vertices into the sketch plane and the connected native line curves follow throu
 ``rebuild_segments``.
 """
 
-import bpy
 from mathutils import Vector
 
 from ..model.curve_ref import LineRef, PointRef
@@ -133,7 +132,9 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
     if owner is None:
         return 0
 
-    sketch_changed = force or changed is None or owner in changed or owner.data in changed
+    sketch_changed = (
+        force or changed is None or owner in changed or owner.data in changed
+    )
     if owner.parent is not None and changed is not None and owner.parent in changed:
         sketch_changed = True
 
@@ -163,7 +164,12 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
             eval_ob = source.evaluated_get(depsgraph)
             source_cache[source] = eval_ob
 
-        vertex = _resolve_evaluated_vertex(eval_ob, vertex_id, fallback_index, last_co)
+        vertex = _resolve_evaluated_vertex(
+            eval_ob,
+            vertex_id,
+            fallback_index,
+            last_co,
+        )
         if vertex is None:
             continue
 
@@ -210,7 +216,11 @@ def update_projected_geometry(context, depsgraph):
     try:
         moved = 0
         for sketch in get_sketches(context.scene):
-            moved += refresh_projection_for_sketch(sketch, depsgraph, changed=changed)
+            moved += refresh_projection_for_sketch(
+                sketch,
+                depsgraph,
+                changed=changed,
+            )
     finally:
         _updating = False
 
@@ -228,7 +238,7 @@ def project_mesh_object(sketch, source, construction=True):
     if source is None or source.type != "MESH":
         raise TypeError("Source must be a mesh object")
     mesh = source.data
-    if not mesh.edges:
+    if len(mesh.edges) == 0:
         return [], []
 
     owner = sketch.target_object
