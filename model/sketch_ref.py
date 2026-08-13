@@ -12,6 +12,7 @@ from .. import global_data
 _TAG = "is_cad_sketch"
 _SOLVER_STATE = "solver_state"
 _DOF = "dof"
+_IS_3D = "is_3d_sketch"
 
 
 class Sketch:
@@ -31,6 +32,11 @@ class Sketch:
     @property
     def workplane_object(self):
         return self._obj.parent
+
+    @property
+    def is_3d(self):
+        """Whether this sketch is free in 3D instead of workplane-bound."""
+        return bool(self._obj.get(_IS_3D, False))
 
     @property
     def data(self):

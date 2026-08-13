@@ -1,31 +1,34 @@
 import logging
 import math
 
+from bpy.props import (
+    BoolProperty,
+    EnumProperty,
+    FloatProperty,
+    StringProperty,
+)
 from bpy.types import PropertyGroup
-from .sketch_ref import get_active_sketch
-from bpy.props import BoolProperty, FloatProperty, EnumProperty, IntProperty, StringProperty
 from bpy.utils import register_classes_factory
-from mathutils import Vector, Matrix
-from mathutils.geometry import distance_point_to_plane, intersect_point_line
+from mathutils import Matrix, Vector
+from mathutils.geometry import intersect_point_line
 
 from ..curve_solver import Solver
-from ..utilities import preferences
 from ..global_data import WpReq
-from ..utilities.view import location_3d_to_region_2d
+from ..utilities import preferences
+from ..utilities.bpy import bpyEnum
 from ..utilities.math import range_2pi
-from .base_constraint import DimensionalConstraint
-from .utilities import slvs_entity_pointer
-from .categories import POINT, LINE, POINT2D, CURVE
 from ..utilities.solver import update_system_cb
-from ..utilities.bpy import setprop, bpyEnum
-
-from .workplane import SlvsWorkplane
-from .point_3d import SlvsPoint3D
+from ..utilities.view import location_3d_to_region_2d
+from .arc import SlvsArc
+from .base_constraint import DimensionalConstraint
+from .categories import CURVE, LINE, POINT, POINT2D
+from .circle import SlvsCircle
+from .line_2d import SlvsLine2D
 from .line_3d import SlvsLine3D
 from .point_2d import SlvsPoint2D
-from .line_2d import SlvsLine2D
-from .arc import SlvsArc
-from .circle import SlvsCircle
+from .point_3d import SlvsPoint3D
+from .utilities import slvs_entity_pointer
+from .workplane import SlvsWorkplane
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +126,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     signature = ((*POINT, *LINE, SlvsCircle, SlvsArc), (*POINT, *LINE, SlvsWorkplane))
     props = ("value",)
 
+    def _is_native_3d(self):
+        sketch = self._get_sketch()
+        return bool(sketch and getattr(sketch, "is_3d", False))
+
     @classmethod
     def get_types(cls, index, entities):
         e = entities[1] if index == 0 else entities[0]
@@ -140,9 +147,9 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     curve_id_2: StringProperty(name="Curve ID 2", default="")
 
     def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
-        from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
+
         from ..model.constants import SketchCurveType
-        import bpy
+        from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
 
         h1 = handle_map.get(self.curve_id_1)
         h2 = handle_map.get(self.curve_id_2)
@@ -211,6 +218,8 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
     def use_flipping(self):
         # Only use flipping for constraint between point and line/workplane
+        if self._is_native_3d():
+            return False
         r1, r2 = self.ref(1), self.ref(2)
         if not r1 or not r2:
             return False
@@ -220,6 +229,8 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
     def use_align(self):
         """Returns True if constraint's entities allow distance to be aligned"""
+        if self._is_native_3d():
+            return False
         r1, r2 = self.ref(1), self.ref(2)
         if not r1 or not r2:
             return False
@@ -312,7 +323,31 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         r1, r2 = self.ref(1), self.ref(2)
         if not r1 or not r1.valid:
             return Matrix()
+        if self._is_native_3d():
+            return self._compute_matrix_basis_3d(r1, r2)
         return self._compute_matrix_basis(r1, r2, r1.wp_matrix)
+
+    def _compute_matrix_basis_3d(self, e1, e2):
+        """Build a world-space dimension frame for native 3D geometry."""
+        if e1.is_line():
+            p1, p2 = e1.p1.location, e1.p2.location
+        elif e1.is_point() and e2 and e2.is_point():
+            p1, p2 = e1.location, e2.location
+        elif e1.is_point() and e2 and e2.is_line():
+            p1 = e1.location
+            p2, _ = intersect_point_line(p1, e2.p1.location, e2.p2.location)
+        else:
+            return Matrix.Identity(4)
+
+        direction = p2 - p1
+        midpoint = (p1 + p2) / 2.0
+        if direction.length <= 1e-12:
+            return Matrix.Translation(midpoint)
+
+        rotation = (
+            direction.normalized().to_track_quat("X", "Z").to_matrix().to_4x4()
+        )
+        return Matrix.Translation(midpoint) @ rotation
 
     def _compute_matrix_basis(self, e1, e2, wp_mat):
         """Compute matrix_basis from geometry accessors (CurveRef or entity)."""
@@ -386,6 +421,19 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         if not r1:
             if self.is_property_set("value_store"):
                 return self.value_store
+            return 0.0
+
+        if self._is_native_3d():
+            if r1.is_line():
+                p1, p2 = r1.p1, r1.p2
+                return (p2.location - p1.location).length if p1 and p2 else 0.0
+            if r1.is_point() and r2 and r2.is_point():
+                return (r2.location - r1.location).length
+            if r1.is_point() and r2 and r2.is_line():
+                nearest, _ = intersect_point_line(
+                    r1.location, r2.p1.location, r2.p2.location
+                )
+                return (nearest - r1.location).length
             return 0.0
 
         if r1.is_line():
