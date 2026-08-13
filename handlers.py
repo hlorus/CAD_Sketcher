@@ -63,7 +63,7 @@ def unregister_handlers():
 
 def on_load_post(*args):
     """Migrate legacy entity-based sketches to native curves on file load."""
-    from .utilities.migrate import scene_needs_migration, migrate_scene
+    from .utilities.migrate import migrate_scene, scene_needs_migration
     from .utilities.validate import reset_cache
 
     reset_cache()
@@ -149,9 +149,9 @@ def on_frame_change(scene, depsgraph=None):
         return
 
     from .curve_solver import solve_system
-    from .utilities.curve_data import refresh_curve_geometry
     from .model.sketch_ref import get_sketches
     from .solver_3d import solve_system_3d
+    from .utilities.curve_data import refresh_curve_geometry
 
     context = bpy.context
     solve_system_3d(context)

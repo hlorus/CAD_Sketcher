@@ -2,17 +2,16 @@ import logging
 from typing import List
 
 import bpy
-from bpy.props import StringProperty, BoolProperty
-from bpy.types import UILayout, Property, Context
+from bpy.props import BoolProperty, StringProperty
+from bpy.types import Context, Property, UILayout
 
 from ..global_data import WpReq
 from ..utilities import preferences
-from ..declarations import Operators
-from .constants import ENTITY_PROP_NAMES
-from .base_entity import SlvsGenericEntity
-from ..utilities.view import update_cb, refresh
-from ..utilities.solver import update_system_cb
 from ..utilities.bpy import setprop
+from ..utilities.solver import update_system_cb
+from ..utilities.view import refresh, update_cb
+from .base_entity import SlvsGenericEntity
+from .constants import ENTITY_PROP_NAMES
 
 logger = logging.getLogger(__name__)
 

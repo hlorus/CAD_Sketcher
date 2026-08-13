@@ -1,31 +1,34 @@
 import logging
 import math
 
+from bpy.props import (
+    BoolProperty,
+    EnumProperty,
+    FloatProperty,
+    StringProperty,
+)
 from bpy.types import PropertyGroup
-from .sketch_ref import get_active_sketch
-from bpy.props import BoolProperty, FloatProperty, EnumProperty, IntProperty, StringProperty
 from bpy.utils import register_classes_factory
-from mathutils import Vector, Matrix
+from mathutils import Matrix, Vector
 from mathutils.geometry import distance_point_to_plane, intersect_point_line
 
 from ..curve_solver import Solver
-from ..utilities import preferences
 from ..global_data import WpReq
-from ..utilities.view import location_3d_to_region_2d
+from ..utilities import preferences
+from ..utilities.bpy import bpyEnum
 from ..utilities.math import range_2pi
-from .base_constraint import DimensionalConstraint
-from .utilities import slvs_entity_pointer
-from .categories import POINT, LINE, POINT2D, CURVE
 from ..utilities.solver import update_system_cb
-from ..utilities.bpy import setprop, bpyEnum
-
-from .workplane import SlvsWorkplane
-from .point_3d import SlvsPoint3D
+from ..utilities.view import location_3d_to_region_2d
+from .arc import SlvsArc
+from .base_constraint import DimensionalConstraint
+from .categories import CURVE, LINE, POINT, POINT2D
+from .circle import SlvsCircle
+from .line_2d import SlvsLine2D
 from .line_3d import SlvsLine3D
 from .point_2d import SlvsPoint2D
-from .line_2d import SlvsLine2D
-from .arc import SlvsArc
-from .circle import SlvsCircle
+from .point_3d import SlvsPoint3D
+from .utilities import slvs_entity_pointer
+from .workplane import SlvsWorkplane
 
 logger = logging.getLogger(__name__)
 
@@ -163,9 +166,9 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     curve_id_2: StringProperty(name="Curve ID 2", default="")
 
     def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
-        from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
+
         from ..model.constants import SketchCurveType
-        import bpy
+        from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
 
         h1 = handle_map.get(self.curve_id_1)
         h2 = handle_map.get(self.curve_id_2)

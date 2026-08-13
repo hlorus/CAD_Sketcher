@@ -1,10 +1,10 @@
-from bpy.types import Operator, Context
-from ..model.sketch_ref import get_active_sketch, get_sketches
 from bpy.props import BoolProperty
+from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
-from ..declarations import Operators
 from ..curve_solver import solve_system
+from ..declarations import Operators
+from ..model.sketch_ref import get_active_sketch, get_sketches
 from ..solver_3d import solve_system_3d
 
 

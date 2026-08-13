@@ -2,8 +2,8 @@
 
 from mathutils import Vector
 
-from .utils import BgsTestCase
 from ..solver_3d import solve_system_3d
+from .utils import BgsTestCase
 
 
 class TestDistance3D(BgsTestCase):
