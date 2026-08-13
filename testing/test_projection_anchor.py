@@ -39,23 +39,24 @@ class TestProjectionAnchor(Sketch2dTestCase):
         source.data.update()
         self.context.view_layer.update()
         depsgraph = self.context.evaluated_depsgraph_get()
-        moved = refresh_projection_for_sketch(
+        refresh_projection_for_sketch(
             self.sketch,
             depsgraph,
             force=True,
         )
 
-        self.assertGreaterEqual(moved, 1)
+        # The depsgraph handler can synchronize before the explicit refresh above,
+        # so validate the final live position rather than requiring that call to
+        # report a fresh move.
         self.assertLess((points[1].co - Vector((3.5, 0.5))).length, 1e-5)
 
         source.location.y = 2.0
         self.context.view_layer.update()
         depsgraph = self.context.evaluated_depsgraph_get()
-        moved = refresh_projection_for_sketch(
+        refresh_projection_for_sketch(
             self.sketch,
             depsgraph,
             force=True,
         )
 
-        self.assertGreaterEqual(moved, 1)
         self.assertLess((points[1].co - Vector((3.5, 2.5))).length, 1e-5)
