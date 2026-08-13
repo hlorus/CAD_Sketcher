@@ -51,8 +51,6 @@ class VIEW3D_OT_slvs_project_geometry(Operator):
     def invoke(self, context: Context, event):
         if self.source is None:
             self.source = self._selected_source(context)
-        if self.source is not None:
-            return self.execute(context)
         return context.window_manager.invoke_props_dialog(self)
 
     def draw(self, context: Context):
