@@ -5,6 +5,7 @@ from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from ..curve_solver import solve_system
+from ..solver_3d import solve_system_3d
 
 
 class View3D_OT_slvs_solve(Operator):
@@ -15,11 +16,15 @@ class View3D_OT_slvs_solve(Operator):
 
     def execute(self, context: Context):
         if self.all:
+            ok_3d = solve_system_3d(context)
             sketches = list(get_sketches(context))
-            ok = all(solve_system(context, sketch=s) for s in sketches)
+            ok = ok_3d and all(solve_system(context, sketch=s) for s in sketches)
         else:
             sketch = get_active_sketch(context)
-            ok = solve_system(context, sketch=sketch)
+            if sketch:
+                ok = solve_system(context, sketch=sketch)
+            else:
+                ok = solve_system_3d(context)
 
         # Keep messages simple, sketches are marked with solvestate
         if ok:
