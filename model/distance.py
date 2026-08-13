@@ -39,12 +39,26 @@ def get_side_of_line(line_start, line_end, point):
     )
 
 
+def _entity_coords(entity):
+    if entity is None:
+        return None
+    if hasattr(entity, "co"):
+        return Vector(entity.co)
+    if hasattr(entity, "location"):
+        return Vector(entity.location)
+    return None
+
+
 def _get_aligned_distance(p_1, p_2, alignment):
+    co_1 = _entity_coords(p_1)
+    co_2 = _entity_coords(p_2)
+    if co_1 is None or co_2 is None:
+        return 0.0
     if alignment == "HORIZONTAL":
-        return abs(p_2.co.x - p_1.co.x)
+        return abs(co_2.x - co_1.x)
     if alignment == "VERTICAL":
-        return abs(p_2.co.y - p_1.co.y)
-    return (p_2.co - p_1.co).length
+        return abs(co_2.y - co_1.y)
+    return (co_2 - co_1).length
 
 
 align_items = [
@@ -53,11 +67,13 @@ align_items = [
     ("VERTICAL", "Vertical", "", 2),
 ]
 
+
 def _get_value(self):
     if self.is_reference:
         val = self.init_props(align=self.align)["value"]
         return self.to_displayed_value(val)
     import bpy
+
     scene = bpy.context.scene
     uid = getattr(self, "constraint_uid", "")
     if scene is not None and uid:
@@ -74,13 +90,20 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     def _set_value_force(self, value):
         DimensionalConstraint._set_value_force(self, abs(value))
 
+    def _resolved_entity(self, n):
+        """Resolve native-curve references or legacy scene-level 3D entities."""
+        ref = self.ref(n)
+        if ref:
+            return ref
+        return getattr(self, f"entity{n}", None)
+
     def _set_align(self, value):
         if isinstance(value, str):
             alignment = value
         else:
             alignment = bpyEnum(align_items, value).identifier
         self.align_store = alignment
-        r1, r2 = self.ref(1), self.ref(2)
+        r1, r2 = self._resolved_entity(1), self._resolved_entity(2)
         if r1 and r2:
             self._set_value_force(_get_aligned_distance(r1, r2, alignment))
 
@@ -176,6 +199,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             ct_pos = get_curve_position(sketch, ct_id)
             if ct_handle and ct_pos:
                 from mathutils import Vector
+
                 curve_slice = cd.curves[idx1]
                 edge_pos = Vector(cd.points[curve_slice.points[0].index].position)
                 radius = (edge_pos - Vector(ct_pos)).length
@@ -211,17 +235,19 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
     def use_flipping(self):
         # Only use flipping for constraint between point and line/workplane
-        r1, r2 = self.ref(1), self.ref(2)
+        r1, r2 = self._resolved_entity(1), self._resolved_entity(2)
         if not r1 or not r2:
             return False
         if r1.is_curve():
             return False
-        return r2.is_line()
+        return r2.is_line() or isinstance(r2, SlvsWorkplane)
 
     def use_align(self):
         """Returns True if constraint's entities allow distance to be aligned"""
-        r1, r2 = self.ref(1), self.ref(2)
+        r1, r2 = self._resolved_entity(1), self._resolved_entity(2)
         if not r1 or not r2:
+            return False
+        if r1.is_3d() or r2.is_3d():
             return False
         if r2.is_line():
             return False
@@ -277,7 +303,6 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             func = solvesys.distance
         elif type(e2) in POINT:
             if align and all([e.is_2d() for e in (e1, e2)]):
-
                 # Get Point in between
                 p1, p2 = e1.co, e2.co
                 coords = (p2.x, p1.y)
@@ -293,9 +318,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
                 base_point = e1 if alignment == "VERTICAL" else e2
                 handles.append(
-                    solvesys.distance(
-                        group, p, base_point.py_data, value, wp
-                    )
+                    solvesys.distance(group, p, base_point.py_data, value, wp)
                 )
                 return handles
             else:
@@ -309,10 +332,49 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         return func(group, e1.py_data, e2.py_data, value, *args)
 
     def matrix_basis(self):
-        r1, r2 = self.ref(1), self.ref(2)
-        if not r1 or not r1.valid:
+        r1, r2 = self._resolved_entity(1), self._resolved_entity(2)
+        if not r1:
             return Matrix()
+        if hasattr(r1, "valid") and not r1.valid:
+            return Matrix()
+        if r1.is_3d():
+            return self._compute_matrix_basis_3d(r1, r2)
         return self._compute_matrix_basis(r1, r2, r1.wp_matrix)
+
+    def _compute_matrix_basis_3d(self, e1, e2):
+        """Place the dimension in world space for 3D entity combinations."""
+        if e1.is_line():
+            p1 = Vector(e1.p1.location)
+            p2 = Vector(e1.p2.location)
+        else:
+            p1 = _entity_coords(e1)
+            if p1 is None or e2 is None:
+                return Matrix.Translation(p1) if p1 is not None else Matrix()
+
+            if e2.is_point():
+                p2 = _entity_coords(e2)
+            elif e2.is_line():
+                p2, _ = intersect_point_line(
+                    p1,
+                    Vector(e2.p1.location),
+                    Vector(e2.p2.location),
+                )
+            elif isinstance(e2, SlvsWorkplane):
+                normal = Vector(e2.normal).normalized()
+                distance = distance_point_to_plane(p1, e2.p1.location, normal)
+                p2 = p1 - normal * distance
+            else:
+                return Matrix.Translation(p1)
+
+        direction = p2 - p1
+        midpoint = (p1 + p2) / 2
+        if direction.length == 0:
+            return Matrix.Translation(midpoint)
+
+        direction.normalize()
+        up_axis = "Y" if abs(direction.z) > 0.999 else "Z"
+        rotation = direction.to_track_quat("X", up_axis).to_matrix().to_4x4()
+        return Matrix.Translation(midpoint) @ rotation
 
     def _compute_matrix_basis(self, e1, e2, wp_mat):
         """Compute matrix_basis from geometry accessors (CurveRef or entity)."""
@@ -382,10 +444,29 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         return wp_mat @ mat_local
 
     def _get_init_value(self, alignment):
-        r1, r2 = self.ref(1), self.ref(2)
+        r1, r2 = self._resolved_entity(1), self._resolved_entity(2)
         if not r1:
             if self.is_property_set("value_store"):
                 return self.value_store
+            return 0.0
+
+        if r1.is_3d():
+            if r1.is_line():
+                return _get_aligned_distance(r1.p1, r1.p2, alignment)
+            p1 = _entity_coords(r1)
+            if p1 is None or r2 is None:
+                return 0.0
+            if r2.is_point():
+                return (p1 - _entity_coords(r2)).length
+            if r2.is_line():
+                closest, _ = intersect_point_line(
+                    p1,
+                    Vector(r2.p1.location),
+                    Vector(r2.p2.location),
+                )
+                return (p1 - closest).length
+            if isinstance(r2, SlvsWorkplane):
+                return distance_point_to_plane(p1, r2.p1.location, r2.normal)
             return 0.0
 
         if r1.is_line():
@@ -412,7 +493,6 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         return 0.0
 
     def init_props(self, **kwargs):
-
         # NOTE: Flip is currently ignored when passed in kwargs
         alignment = kwargs.get("align")
         retval = {}
