@@ -22,6 +22,7 @@ modules = [
     "batch_set",
     "bevel",
     "offset",
+    "project_geometry",
     "set_sketch",
     "delete_entity",
     "delete_sketch",
