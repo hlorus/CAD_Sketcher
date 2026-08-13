@@ -1,15 +1,12 @@
-from bpy.props import BoolProperty, PointerProperty
-from bpy.types import Context, Object, Operator
+import bpy
+from bpy.props import BoolProperty, StringProperty
+from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from ..model.sketch_ref import get_active_sketch
 from ..utilities.curve_data import refresh_curve_geometry
 from ..utilities.projection_anchor import project_mesh_object
-
-
-def _mesh_object_poll(_self, obj):
-    return obj is not None and obj.type == "MESH"
 
 
 class VIEW3D_OT_slvs_project_geometry(Operator):
@@ -22,11 +19,10 @@ class VIEW3D_OT_slvs_project_geometry(Operator):
     )
     bl_options = {"REGISTER", "UNDO"}
 
-    source: PointerProperty(
+    source: StringProperty(
         name="Source",
         description="Mesh object whose edges are projected onto the active sketch",
-        type=Object,
-        poll=_mesh_object_poll,
+        default="",
     )
     construction: BoolProperty(
         name="Construction Geometry",
@@ -49,13 +45,15 @@ class VIEW3D_OT_slvs_project_geometry(Operator):
         return meshes[0] if len(meshes) == 1 else None
 
     def invoke(self, context: Context, event):
-        if self.source is None:
-            self.source = self._selected_source(context)
+        if not self.source:
+            selected = self._selected_source(context)
+            if selected is not None:
+                self.source = selected.name
         return context.window_manager.invoke_props_dialog(self)
 
     def draw(self, context: Context):
         layout = self.layout
-        layout.prop(self, "source")
+        layout.prop_search(self, "source", bpy.data, "objects", text="Source")
         layout.prop(self, "construction")
 
     def execute(self, context: Context):
@@ -63,16 +61,18 @@ class VIEW3D_OT_slvs_project_geometry(Operator):
         if sketch is None:
             self.report({"ERROR"}, "Enter a sketch before projecting geometry")
             return {"CANCELLED"}
-        if self.source is None or self.source.type != "MESH":
+
+        source = bpy.data.objects.get(self.source)
+        if source is None or source.type != "MESH":
             self.report({"ERROR"}, "Choose a mesh source object")
             return {"CANCELLED"}
-        if self.source == sketch.target_object:
+        if source == sketch.target_object:
             self.report({"ERROR"}, "The source cannot be the active sketch")
             return {"CANCELLED"}
 
         _, lines = project_mesh_object(
             sketch,
-            self.source,
+            source,
             construction=self.construction,
         )
         if not lines:
@@ -86,7 +86,7 @@ class VIEW3D_OT_slvs_project_geometry(Operator):
         global_data.needs_redraw = True
         self.report(
             {"INFO"},
-            f"Projected {len(lines)} edge(s) from {self.source.name}",
+            f"Projected {len(lines)} edge(s) from {source.name}",
         )
         return {"FINISHED"}
 
