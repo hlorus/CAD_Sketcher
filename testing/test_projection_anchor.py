@@ -7,7 +7,9 @@ from ..utilities.projection_anchor import (
     PROJECT_VERTEX_ID_ATTR,
     PROJECT_VERTEX_INDEX_ATTR,
     VERTEX_ID_ATTR,
+    find_projected_point,
     project_curves_object,
+    project_mesh_element,
     project_mesh_object,
     refresh_projection_for_sketch,
 )
@@ -26,6 +28,58 @@ class TestProjectionAnchor(Sketch2dTestCase):
         obj = self.data.objects.new("ProjectionSource", mesh)
         self.scene.collection.objects.link(obj)
         return obj
+
+    def _quad_object(self):
+        mesh = self.data.meshes.new("ProjectionQuadMesh")
+        mesh.from_pydata(
+            [(0.0, 0.0, 1.0), (2.0, 0.0, 1.0), (2.0, 2.0, 1.0), (0.0, 2.0, 1.0)],
+            [],
+            [(0, 1, 2, 3)],
+        )
+        mesh.update()
+        obj = self.data.objects.new("ProjectionQuad", mesh)
+        self.scene.collection.objects.link(obj)
+        return obj
+
+    def _count_curves(self):
+        return len(self.sketch.data.curves)
+
+    def test_project_single_edge_element(self):
+        source = self._mesh_object()
+        n_points, n_lines = project_mesh_element(self.sketch, source, "EDGE", 0)
+
+        # Edge 0 links verts 0 and 1: two new points plus one connecting line.
+        self.assertEqual((n_points, n_lines), (2, 1))
+        # Both endpoints are live-bound and their line rides on them.
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 0))
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 1))
+        self.assertIsNone(find_projected_point(self.sketch, source, 2))
+
+        # A second, adjacent edge reuses the shared vertex 1: only one new point.
+        n_points, n_lines = project_mesh_element(self.sketch, source, "EDGE", 1)
+        self.assertEqual((n_points, n_lines), (1, 1))
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 2))
+
+    def test_project_single_vertex_element(self):
+        source = self._mesh_object()
+        n_points, n_lines = project_mesh_element(self.sketch, source, "VERTEX", 2)
+        self.assertEqual((n_points, n_lines), (1, 0))
+        point = find_projected_point(self.sketch, source, 2)
+        self.assertIsNotNone(point)
+        self.assertTrue(point.fixed)
+        # Re-picking the same vertex must not stack a duplicate point.
+        again = project_mesh_element(self.sketch, source, "VERTEX", 2)
+        self.assertEqual(again, (0, 0))
+
+    def test_project_face_outline_shares_corners(self):
+        source = self._quad_object()
+        n_points, n_lines = project_mesh_element(self.sketch, source, "FACE", 0)
+        # A quad face: four shared corner points and four boundary lines.
+        self.assertEqual((n_points, n_lines), (4, 4))
+        for v in range(4):
+            self.assertIsNotNone(find_projected_point(self.sketch, source, v))
+        # Face outline is a closed loop of eight curves (4 points + 4 lines).
+        self.assertEqual(self._count_curves(), 8)
 
     def test_projection_keeps_live_vertex_reference(self):
         source = self._mesh_object()

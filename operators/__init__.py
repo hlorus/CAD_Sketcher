@@ -23,6 +23,7 @@ modules = [
     "bevel",
     "offset",
     "project_geometry",
+    "project_element",
     "set_sketch",
     "delete_entity",
     "delete_sketch",
@@ -40,7 +41,7 @@ modules = [
     "move",
     "duplicate",
     "set_curve_flag",
-    "test"
+    "test",
 ]
 
 

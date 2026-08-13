@@ -318,6 +318,92 @@ def update_projected_geometry(context, depsgraph):
         global_data.needs_redraw = True
 
 
+def find_projected_point(sketch, source, vertex_index):
+    """Return an existing valid ``PointRef`` bound to ``(source, vertex_index)``.
+
+    Lets repeated element picks reuse a shared corner instead of stacking
+    duplicate points, so an edge and an adjacent face project as one connected
+    outline. Matched on the fallback vertex index (stable at creation time).
+    """
+    for curve_id, bound_source, _vid, fallback, _last in iter_projected_point_bindings(
+        sketch
+    ):
+        if bound_source == source and fallback == int(vertex_index):
+            point = PointRef(sketch, curve_id)
+            if point.valid:
+                return point
+    return None
+
+
+def project_mesh_element(sketch, source, elem_type, elem_index, construction=True):
+    """Project a single picked mesh element (``VERTEX``/``EDGE``/``FACE``).
+
+    Returns ``(new_points, new_lines)``. Shared vertices are reused within the
+    call and against already-projected points, so picking several elements builds
+    one connected set of live native curves. This is the element-granular
+    counterpart to :func:`project_mesh_object`; both go through
+    :func:`bind_projected_point`, so the live-binding storage is identical.
+
+    NOTE (prototype): ``elem_index`` is treated as an index into the source's
+    original mesh. Index-changing modifiers on the source are not yet remapped.
+    """
+    if source is None or source.type != "MESH":
+        raise TypeError("Source must be a mesh object")
+    mesh = source.data
+    owner = sketch.target_object
+    inv = owner.matrix_world.inverted()
+
+    local_points = {}
+    counters = {"points": 0, "lines": 0}
+
+    def get_point(vertex_index):
+        vertex_index = int(vertex_index)
+        cached = local_points.get(vertex_index)
+        if cached is not None:
+            return cached
+        existing = find_projected_point(sketch, source, vertex_index)
+        if existing is not None:
+            local_points[vertex_index] = existing
+            return existing
+        co = inv @ (source.matrix_world @ mesh.vertices[vertex_index].co)
+        point = PointRef.create(
+            sketch,
+            (co.x, co.y),
+            construction=construction,
+            fixed=True,
+            name="Projected Point",
+        )
+        bind_projected_point(sketch, point, source, vertex_index)
+        local_points[vertex_index] = point
+        counters["points"] += 1
+        return point
+
+    def connect(v0, v1):
+        LineRef.create(
+            sketch,
+            get_point(v0),
+            get_point(v1),
+            construction=construction,
+            name="Projected Line",
+        )
+        counters["lines"] += 1
+
+    with batch_update(sketch):
+        if elem_type == "VERTEX":
+            get_point(elem_index)
+        elif elem_type == "EDGE":
+            v0, v1 = mesh.edges[elem_index].vertices
+            connect(v0, v1)
+        elif elem_type == "FACE":
+            verts = list(mesh.polygons[elem_index].vertices)
+            for i, v0 in enumerate(verts):
+                connect(v0, verts[(i + 1) % len(verts)])
+        else:
+            raise ValueError(f"Unsupported element type: {elem_type!r}")
+
+    return counters["points"], counters["lines"]
+
+
 def project_mesh_object(sketch, source, construction=True):
     """Project every edge of ``source`` onto ``sketch`` as live native curves.
 
