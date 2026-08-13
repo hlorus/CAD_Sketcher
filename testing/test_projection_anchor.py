@@ -1,6 +1,11 @@
 from mathutils import Vector
 
+from ..utilities.curve_data import get_curve_data
 from ..utilities.projection_anchor import (
+    PROJECT_LAST_CO_ATTR,
+    PROJECT_SRC_SLOT_ATTR,
+    PROJECT_VERTEX_ID_ATTR,
+    PROJECT_VERTEX_INDEX_ATTR,
     VERTEX_ID_ATTR,
     project_mesh_object,
     refresh_projection_for_sketch,
@@ -31,6 +36,45 @@ class TestProjectionAnchor(Sketch2dTestCase):
         self.assertTrue(all(point.construction for point in points))
         self.assertTrue(all(line.construction for line in lines))
         self.assertIsNotNone(source.data.attributes.get(VERTEX_ID_ATTR))
+
+        # Binding POD data belongs to the native Curves datablock. All projected
+        # points from this object share one real Object pointer slot.
+        owner = self.sketch.target_object
+        self.assertEqual(len(owner.slvs_project_sources), 1)
+        self.assertEqual(owner.slvs_project_sources[0].source, source)
+        for attr_name in (
+            PROJECT_SRC_SLOT_ATTR,
+            PROJECT_VERTEX_ID_ATTR,
+            PROJECT_VERTEX_INDEX_ATTR,
+            PROJECT_LAST_CO_ATTR,
+        ):
+            attr = self.sketch.data.attributes.get(attr_name)
+            self.assertIsNotNone(attr)
+            self.assertEqual(attr.domain, "CURVE")
+
+        for vertex_index, point in enumerate(points):
+            curve_data, curve_index, _ = get_curve_data(self.sketch, point.curve_id)
+            attrs = curve_data.attributes
+            self.assertEqual(attrs[PROJECT_SRC_SLOT_ATTR].data[curve_index].value, 0)
+            self.assertGreater(
+                attrs[PROJECT_VERTEX_ID_ATTR].data[curve_index].value,
+                0,
+            )
+            self.assertEqual(
+                attrs[PROJECT_VERTEX_INDEX_ATTR].data[curve_index].value,
+                vertex_index,
+            )
+            last_co = Vector(attrs[PROJECT_LAST_CO_ATTR].data[curve_index].vector)
+            self.assertLess(
+                (last_co - source.data.vertices[vertex_index].co).length,
+                1e-6,
+            )
+
+        # The old implementation stored four stringly-keyed ID properties per
+        # point on the Object. None should be created by the native binding.
+        self.assertFalse(
+            any(str(key).startswith("slvs_project_src_") for key in owner.keys())
+        )
 
         self.assertLess((points[0].co - Vector((0.0, 0.0))).length, 1e-6)
         self.assertLess((points[1].co - Vector((2.0, 0.0))).length, 1e-6)
