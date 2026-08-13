@@ -125,9 +125,13 @@ class GenericConstraintOp(Operator2d):
         self.sync_settings()
 
         deselect_all(context)
-        solve_system(context, sketch=self.sketch)
         if self.sketch:
+            solve_system(context, sketch=self.sketch)
             refresh_curve_geometry(self.sketch)
+        else:
+            from ..solver_3d import solve_system_3d
+
+            solve_system_3d(context)
         refresh(context)
         self.initialized = True
         return hasattr(self, "target") and bool(self.target)
