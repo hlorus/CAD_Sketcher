@@ -8,25 +8,8 @@ logger = logging.getLogger(__name__)
 _builtin_handlers = {}
 
 
-# Utility functions to simplify registering bpy.app handlers
-#
-# Builtin handlers have to be registered and unregistered,
-# call register_handlers after all modules are registered and
-# vice versa when unregistering
-#
-# Example usage:
-# from event_system import add_builtin_handler
-#
-# add_builtin_handler("save_pre", write_addon_version)
-# add_builtin_handler("version_update", do_versioning)
-
-
 def add_builtin_handler(event: str, callback):
-    """
-    Add to bpy.app.handlers, gets (un)registered on addon enable or disabled.
-    Does not support registering handlers at runtime
-    """
-
+    """Add a callback to bpy.app.handlers for addon lifetime."""
     global _builtin_handlers
     func = persistent(callback)
     _builtin_handlers.setdefault(event, list()).append(func)
@@ -36,11 +19,9 @@ def register_handlers():
     global _builtin_handlers
     for handler_name in _builtin_handlers.keys():
         msg = "Append <{}> builtin handlers: ".format(handler_name)
-
         for cb in _builtin_handlers[handler_name]:
             getattr(bpy.app.handlers, handler_name).append(cb)
             msg += "\n  - {}".format(cb.__name__)
-
         logger.debug(msg)
 
 
@@ -48,16 +29,12 @@ def unregister_handlers():
     global _builtin_handlers
     for handler_name in _builtin_handlers.keys():
         msg = "Remove <{}> builtin handlers: ".format(handler_name)
-
         for cb in _builtin_handlers[handler_name]:
             handler_list = getattr(bpy.app.handlers, handler_name)
-
             if cb not in handler_list:
                 continue
-
             msg += "\n  - {}".format(cb.__name__)
             handler_list.remove(cb)
-
         logger.debug(msg)
 
 
@@ -86,17 +63,17 @@ def on_depsgraph_update(scene, depsgraph):
     from .utilities.face_anchor import update_face_workplanes
     update_face_workplanes(bpy.context, depsgraph)
 
-    # Repair invariants if a built-in tool edited our curve data outside the
-    # addon. Skip while one of our operators is mid-run (it owns the data and
-    # keeps invariants itself).
+    # Keep mesh-projected native points attached to their source vertices. This
+    # may set needs_solve so constraints consuming projected geometry update in
+    # the same depsgraph pass.
+    from .utilities.projection_anchor import update_projected_geometry
+    update_projected_geometry(bpy.context, depsgraph)
+
     if not global_data.stateful_op_running:
         from .utilities.validate import validate_all_sketches
         if validate_all_sketches(scene):
             global_data.needs_solve = True
 
-        # Undo/redo can flatten the origin workplane empties to identity (they
-        # then stack into a mushy overlap, #571); re-assert their transforms.
-        # Only rewrites when drifted, so this settles in one pass.
         from .utilities.workplane import repair_origin_workplanes
         repair_origin_workplanes(bpy.context)
 
@@ -115,11 +92,6 @@ def on_depsgraph_update(scene, depsgraph):
         context = bpy.context
         sketch = get_active_sketch(context)
         if solve_system(context, sketch=sketch) and sketch:
-            # The solver writes point positions in place, which does not make
-            # the Geometry Nodes modifier re-evaluate; force a topology rebuild
-            # so the generated mesh matches the solved geometry (operators that
-            # solve do this themselves; this covers the depsgraph-driven path,
-            # e.g. editing a dimension value).
             refresh_curve_geometry(sketch)
 
     if global_data.needs_redraw:
@@ -130,14 +102,7 @@ def on_depsgraph_update(scene, depsgraph):
 
 
 def on_frame_change(scene, depsgraph=None):
-    """Re-solve on frame changes so animated/driven dimensions update.
-
-    Dimensional values are stored in ``scene["slvs:c:{uid}"]`` custom properties
-    specifically so they can be driven/animated (issue #544). A driver writes
-    that value during depsgraph evaluation, which does not reliably re-flag the
-    scene for ``depsgraph_update_post``; ``frame_change_post`` does fire, so we
-    re-solve here. Covers timeline scrubbing and playback.
-    """
+    """Re-solve animated dimensions and live mesh projections on frame changes."""
     from . import global_data
     if global_data.stateful_op_running:
         return
@@ -145,21 +110,18 @@ def on_frame_change(scene, depsgraph=None):
     from .curve_solver import solve_system
     from .utilities.curve_data import refresh_curve_geometry
     from .model.sketch_ref import get_sketches
+    from .utilities.projection_anchor import refresh_projection_for_sketch
 
     context = bpy.context
+    depsgraph = depsgraph or context.evaluated_depsgraph_get()
     for sketch in get_sketches(scene):
+        refresh_projection_for_sketch(sketch, depsgraph, force=True)
         if solve_system(context, sketch=sketch):
             refresh_curve_geometry(sketch)
 
 
 def on_undo_redo(scene, *args):
-    """Reconcile sketch mode with the active sketch after undo/redo.
-
-    The sketch-mode flag and its registered tool set are Python state that
-    Blender's undo cannot revert, while ``active_sketch_object`` is undo-tracked.
-    Undoing sketch creation nulls the pointer but leaves sketch mode on -- a dead
-    end where you can neither add nor leave a sketch. Re-sync them here.
-    """
+    """Reconcile sketch mode with the active sketch after undo/redo."""
     from .model.sketch_ref import get_active_sketch
     from .workspacetools.manager import sync_sketch_mode
 
