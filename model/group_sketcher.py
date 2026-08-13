@@ -4,7 +4,13 @@ from typing import Union, Generator
 import bpy
 from bpy.types import PropertyGroup, Context
 from bpy.utils import register_class, unregister_class
-from bpy.props import IntProperty, BoolProperty, PointerProperty, IntVectorProperty
+from bpy.props import (
+    IntProperty,
+    BoolProperty,
+    PointerProperty,
+    IntVectorProperty,
+    CollectionProperty,
+)
 
 from .. import global_data
 from ..drawing import selection
@@ -19,6 +25,18 @@ logger = logging.getLogger(__name__)
 
 # Prefix for all constraint driver target custom properties on the scene.
 _EP_PREFIX = "slvs:c:"
+
+
+class ProjectedSourceSlot(PropertyGroup):
+    """Object pointer used by native projected-curve bindings.
+
+    Curve-domain integer attributes store the index into this compact table so
+    all plain binding data can live on the Curves datablock while the one value
+    Blender attributes cannot represent (an ID pointer) remains a real RNA
+    pointer rather than a fragile object-name string.
+    """
+
+    source: PointerProperty(type=bpy.types.Object, name="Projected Source")
 
 
 class SketcherProps(PropertyGroup):
@@ -124,10 +142,14 @@ class SketcherProps(PropertyGroup):
 
 
 def register():
+    register_class(ProjectedSourceSlot)
     register_class(SketcherProps)
+    bpy.types.Object.slvs_project_sources = CollectionProperty(type=ProjectedSourceSlot)
     bpy.types.Scene.sketcher = PointerProperty(type=SketcherProps)
 
 
 def unregister():
+    del bpy.types.Object.slvs_project_sources
     del bpy.types.Scene.sketcher
     unregister_class(SketcherProps)
+    unregister_class(ProjectedSourceSlot)
