@@ -153,11 +153,11 @@ def get_sketches(context_or_scene):
 
 
 def get_active_constraints(context):
-    """Get constraints for the active sketch, or None."""
+    """Get sketch constraints, or scene-level constraints outside sketch mode."""
     sketch = get_active_sketch(context)
     if sketch:
         return sketch.constraints
-    return None
+    return context.scene.sketcher.constraints
 
 
 def get_active_sketch(context):
