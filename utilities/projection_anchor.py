@@ -1,30 +1,37 @@
 """Live references for mesh geometry projected into native sketches.
 
-Projected point curves keep a persistent reference to their source mesh vertex.
-The reference is stored on the sketch object and backed by a POINT-domain integer
-attribute on the source mesh, so normal topology edits that preserve attributes do
-not depend on fragile vertex indices. A depsgraph handler reprojects changed source
-vertices into the sketch plane and the connected native line curves follow through
-``rebuild_segments``.
+Projected point curves keep their binding metadata on the Curves datablock:
+source slot, persistent source vertex id, fallback vertex index and last source
+coordinate are CURVE-domain attributes, so they re-index and disappear together
+with their curve. The only non-POD value is the source Object pointer; it lives in
+a compact per-sketch pointer collection and is referenced by integer slot.
+
+The source mesh itself carries a POINT-domain persistent vertex id attribute, so
+normal topology edits that preserve attributes do not depend on fragile vertex
+indices. A depsgraph handler reprojects changed source vertices into the sketch
+plane and connected native line curves follow through ``rebuild_segments``.
 """
 
 from mathutils import Vector
 
 from ..model.curve_ref import LineRef, PointRef
-from ..utilities.curve_data import batch_update
+from ..utilities.curve_data import (
+    batch_update,
+    ensure_attribute,
+    get_curve_data,
+    read_curve_id_list,
+)
 
+# Persistent identity on the SOURCE mesh (POINT domain).
 VERTEX_ID_ATTR = "slvs_project_vertex_id"
 
-_SOURCE_PREFIX = "slvs_project_src_"
-_VERTEX_ID_PREFIX = "slvs_project_vid_"
-_VERTEX_INDEX_PREFIX = "slvs_project_idx_"
-_LAST_CO_PREFIX = "slvs_project_last_"
+# Binding metadata on the SKETCH Curves datablock (CURVE domain).
+PROJECT_SRC_SLOT_ATTR = "slvs_project_src_slot"
+PROJECT_VERTEX_ID_ATTR = "slvs_project_vertex_id"
+PROJECT_VERTEX_INDEX_ATTR = "slvs_project_vertex_index"
+PROJECT_LAST_CO_ATTR = "slvs_project_last_co"
 
 _updating = False
-
-
-def _key(prefix, curve_id):
-    return f"{prefix}{curve_id}"
 
 
 def _allocate_vertex_id(mesh):
@@ -49,48 +56,77 @@ def ensure_vertex_id(mesh, vertex_index):
     return current
 
 
+def _ensure_projection_attributes(curve_data):
+    attributes = curve_data.attributes
+    ensure_attribute(attributes, PROJECT_SRC_SLOT_ATTR, "INT", "CURVE")
+    ensure_attribute(attributes, PROJECT_VERTEX_ID_ATTR, "INT", "CURVE")
+    ensure_attribute(attributes, PROJECT_VERTEX_INDEX_ATTR, "INT", "CURVE")
+    ensure_attribute(attributes, PROJECT_LAST_CO_ATTR, "FLOAT_VECTOR", "CURVE")
+
+
+def _get_or_add_source_slot(owner, source):
+    """Return a stable slot for ``source`` in the sketch's pointer table."""
+    slots = owner.slvs_project_sources
+    for index, slot in enumerate(slots):
+        if slot.source == source:
+            return index
+
+    slot = slots.add()
+    slot.source = source
+    return len(slots) - 1
+
+
 def bind_projected_point(sketch, point, source, vertex_index):
     """Bind a native sketch point to a source mesh vertex."""
     if source is None or source.type != "MESH":
         raise TypeError("Projected geometry source must be a mesh object")
 
-    curve_id = point.curve_id
+    curve_data, curve_index, _ = get_curve_data(sketch, point.curve_id)
+    if curve_data is None:
+        raise ValueError("Projected point is not part of the sketch")
+
+    _ensure_projection_attributes(curve_data)
     vertex_id = ensure_vertex_id(source.data, vertex_index)
-    owner = sketch.target_object
-    owner[_key(_SOURCE_PREFIX, curve_id)] = source
-    owner[_key(_VERTEX_ID_PREFIX, curve_id)] = vertex_id
-    owner[_key(_VERTEX_INDEX_PREFIX, curve_id)] = int(vertex_index)
-    owner[_key(_LAST_CO_PREFIX, curve_id)] = list(source.data.vertices[vertex_index].co)
+    source_slot = _get_or_add_source_slot(sketch.target_object, source)
+    attributes = curve_data.attributes
+
+    attributes[PROJECT_SRC_SLOT_ATTR].data[curve_index].value = source_slot
+    attributes[PROJECT_VERTEX_ID_ATTR].data[curve_index].value = vertex_id
+    attributes[PROJECT_VERTEX_INDEX_ATTR].data[curve_index].value = int(vertex_index)
+    attributes[PROJECT_LAST_CO_ATTR].data[curve_index].vector = source.data.vertices[
+        vertex_index
+    ].co
     return vertex_id
-
-
-def clear_projected_point_binding(sketch, curve_id):
-    owner = sketch.target_object
-    for prefix in (
-        _SOURCE_PREFIX,
-        _VERTEX_ID_PREFIX,
-        _VERTEX_INDEX_PREFIX,
-        _LAST_CO_PREFIX,
-    ):
-        key = _key(prefix, curve_id)
-        if key in owner:
-            del owner[key]
 
 
 def iter_projected_point_bindings(sketch):
     """Yield ``(curve_id, source, vertex_id, fallback_index, last_co)``."""
     owner = sketch.target_object
-    if owner is None:
+    curve_data = sketch.data
+    if owner is None or curve_data is None:
         return
 
-    for prop_key in list(owner.keys()):
-        if not str(prop_key).startswith(_SOURCE_PREFIX):
+    attributes = curve_data.attributes
+    slot_attr = attributes.get(PROJECT_SRC_SLOT_ATTR)
+    vertex_id_attr = attributes.get(PROJECT_VERTEX_ID_ATTR)
+    fallback_attr = attributes.get(PROJECT_VERTEX_INDEX_ATTR)
+    last_co_attr = attributes.get(PROJECT_LAST_CO_ATTR)
+    if not all((slot_attr, vertex_id_attr, fallback_attr, last_co_attr)):
+        return
+
+    curve_ids = read_curve_id_list(curve_data)
+    slots = owner.slvs_project_sources
+    for index, curve_id in enumerate(curve_ids):
+        vertex_id = int(vertex_id_attr.data[index].value)
+        # All generic/native curves default to zero. A non-zero persistent
+        # source vertex id is therefore the binding marker.
+        if vertex_id <= 0:
             continue
-        curve_id = str(prop_key)[len(_SOURCE_PREFIX) :]
-        source = owner.get(prop_key)
-        vertex_id = int(owner.get(_key(_VERTEX_ID_PREFIX, curve_id), 0))
-        fallback = int(owner.get(_key(_VERTEX_INDEX_PREFIX, curve_id), -1))
-        last_co = owner.get(_key(_LAST_CO_PREFIX, curve_id))
+
+        slot_index = int(slot_attr.data[index].value)
+        source = slots[slot_index].source if 0 <= slot_index < len(slots) else None
+        fallback = int(fallback_attr.data[index].value)
+        last_co = tuple(last_co_attr.data[index].vector)
         yield curve_id, source, vertex_id, fallback, last_co
 
 
@@ -126,6 +162,15 @@ def _source_changed(source, changed):
     return original is not None and original in changed
 
 
+def _set_last_source_co(sketch, curve_id, last_co):
+    curve_data, curve_index, _ = get_curve_data(sketch, curve_id)
+    if curve_data is None:
+        return
+    attr = curve_data.attributes.get(PROJECT_LAST_CO_ATTR)
+    if attr is not None:
+        attr.data[curve_index].vector = last_co
+
+
 def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
     """Reproject bound points for one sketch. Returns number of moved points."""
     owner = sketch.target_object
@@ -140,17 +185,16 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
 
     updates = {}
     source_cache = {}
-    stale = []
 
     for curve_id, source, vertex_id, fallback_index, last_co in list(
         iter_projected_point_bindings(sketch)
     ):
         point = PointRef(sketch, curve_id)
+        # Removed curves remove/re-index their CURVE-domain binding attributes
+        # automatically, so there is no orphan property bookkeeping here.
         if not point.valid:
-            stale.append(curve_id)
             continue
         if source is None or getattr(source, "type", None) != "MESH":
-            stale.append(curve_id)
             continue
         if not (sketch_changed or force or _source_changed(source, changed)):
             continue
@@ -177,10 +221,7 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
         local = owner.matrix_world.inverted() @ world
         new_co = Vector((local.x, local.y))
         if (point.co - new_co).length > 1e-7:
-            updates[curve_id] = (point, new_co, list(vertex.co))
-
-    for curve_id in stale:
-        clear_projected_point_binding(sketch, curve_id)
+            updates[curve_id] = (point, new_co, tuple(vertex.co))
 
     if not updates:
         return 0
@@ -188,7 +229,7 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
     with batch_update(sketch, point_ids=set(updates.keys())):
         for curve_id, (point, co, last_co) in updates.items():
             point.co = co
-            owner[_key(_LAST_CO_PREFIX, curve_id)] = last_co
+            _set_last_source_co(sketch, curve_id, last_co)
 
     return len(updates)
 
