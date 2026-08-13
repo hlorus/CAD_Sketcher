@@ -1,11 +1,11 @@
 from mathutils import Vector
 
-from .utils import Sketch2dTestCase
 from ..utilities.projection_anchor import (
     VERTEX_ID_ATTR,
     project_mesh_object,
     refresh_projection_for_sketch,
 )
+from .utils import Sketch2dTestCase
 
 
 class TestProjectionAnchor(Sketch2dTestCase):

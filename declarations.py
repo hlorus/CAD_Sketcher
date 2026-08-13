@@ -1,7 +1,6 @@
 # Please keep this file in alphabetical order
 from enum import Enum
 
-
 # Blender's built-in Select Box tool — the standard tool we return to when
 # leaving one of our tools (ESC / cancel).
 BLENDER_SELECT_TOOL = "builtin.select_box"

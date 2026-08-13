@@ -1,7 +1,6 @@
 from bpy.types import Context
 
-from .. import declarations
-from .. import icon_manager
+from .. import declarations, icon_manager
 from . import VIEW3D_PT_sketcher_base
 
 

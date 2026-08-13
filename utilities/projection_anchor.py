@@ -86,7 +86,7 @@ def iter_projected_point_bindings(sketch):
     for prop_key in list(owner.keys()):
         if not str(prop_key).startswith(_SOURCE_PREFIX):
             continue
-        curve_id = str(prop_key)[len(_SOURCE_PREFIX):]
+        curve_id = str(prop_key)[len(_SOURCE_PREFIX) :]
         source = owner.get(prop_key)
         vertex_id = int(owner.get(_key(_VERTEX_ID_PREFIX, curve_id), 0))
         fallback = int(owner.get(_key(_VERTEX_INDEX_PREFIX, curve_id), -1))
