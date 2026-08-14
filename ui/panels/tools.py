@@ -1,7 +1,6 @@
 from bpy.types import Context
 
-from .. import declarations
-from .. import icon_manager
+from .. import declarations, icon_manager
 from . import VIEW3D_PT_sketcher_base
 
 
@@ -18,6 +17,7 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         layout = self.layout
 
         layout.operator(declarations.Operators.MergePoints)
+        layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
 
         # Constraints
         layout.label(text="Constraints:")
@@ -37,4 +37,3 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         col = layout.column(align=True)
         col.operator(declarations.Operators.NodeExtrude)
         col.operator(declarations.Operators.NodeArrayLinear)
-
