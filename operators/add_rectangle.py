@@ -1,12 +1,12 @@
 import logging
 
-from bpy.types import Operator, Context
+from bpy.types import Context, Operator
 
-from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
-from ..stateful_operator.state import state_from_args
 from ..curve_solver import solve_system
-from ..model.curve_ref import PointRef, LineRef
+from ..declarations import Operators
+from ..model.curve_ref import LineRef, PointRef
+from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover

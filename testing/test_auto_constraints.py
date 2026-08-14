@@ -2,8 +2,8 @@
 
 from unittest.mock import patch
 
-from .utils import Sketch2dTestCase, make_operator_double
 from ..operators.base_2d import Operator2d
+from .utils import Sketch2dTestCase, make_operator_double
 
 
 class TestAutoConstraints(Sketch2dTestCase):
@@ -56,7 +56,6 @@ class TestAutoConstraints(Sketch2dTestCase):
 
     def test_rectangle_validates_auto_constraints_sequentially(self):
         op = self._rectangle_op()
-        sc = self.sketch.constraints
         calls = []
 
         def validate(context, add, **kwargs):
