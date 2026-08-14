@@ -9,17 +9,21 @@ with a ``Merge ID`` input, letting us weld by *identity* instead.
 This builds an equivalent group that welds mesh vertices sharing a ``merge_id``
 (see ``utilities.curve_data.compute_merge_ids``), gated to true segment endpoints
 via vertex valence so tessellated interior vertices are never merged. The result
-is tolerance-free and independent of sketch scale. Older Blender keeps loading
-the merge-by-distance asset.
+is tolerance-free and independent of sketch scale. The final generated geometry
+also carries deterministic vertex/face identifiers so consumers can keep element
+references across coordinate-only sketch edits while topology is unchanged.
+Older Blender keeps loading the merge-by-distance asset.
 """
 
 import bpy
 
 CONVERT_NODE_GROUP = "CAD Sketcher Convert"
+VERTEX_ID_ATTR = "cad_sketcher_vertex_id"
+FACE_ID_ATTR = "cad_sketcher_face_id"
 
 # Bump whenever the built node tree changes, so groups baked into existing files
 # (or a stale merge-by-distance asset of the same name) are rebuilt on load.
-CONVERT_VERSION = 2
+CONVERT_VERSION = 3
 
 
 def _int_compare(nodes, links, operation, value):
@@ -36,6 +40,24 @@ def _int_compare(nodes, links, operation, value):
 
 def _is_identity_group(ng) -> bool:
     return any(n.bl_idname == "GeometryNodeMergePoints" for n in ng.nodes)
+
+
+def _store_index_attribute(nodes, links, geometry, name, domain):
+    """Store the current element index as a named integer attribute.
+
+    Geometry Nodes evaluates ``Index`` in the domain requested by the Store
+    Named Attribute node. For an unchanged generated topology this gives a
+    deterministic mapping on every depsgraph re-evaluation instead of relying on
+    transient evaluated-mesh instances.
+    """
+    index = nodes.new("GeometryNodeInputIndex")
+    store = nodes.new("GeometryNodeStoreNamedAttribute")
+    store.data_type = "INT"
+    store.domain = domain
+    store.inputs["Name"].default_value = name
+    links.new(geometry, store.inputs["Geometry"])
+    links.new(index.outputs["Index"], store.inputs["Value"])
+    return store.outputs["Geometry"]
 
 
 def build_convert_node_group(name: str = CONVERT_NODE_GROUP):
@@ -126,7 +148,17 @@ def build_convert_node_group(name: str = CONVERT_NODE_GROUP):
     links.new(gi.outputs["Fill"], switch.inputs["Switch"])
     links.new(to_curve.outputs["Curve"], switch.inputs["False"])
     links.new(fill_curve.outputs["Mesh"], switch.inputs["True"])
-    links.new(switch.outputs["Output"], go.inputs["Geometry"])
+
+    # 5. Materialize generated-element identity. The evaluated mesh itself is
+    #    recreated by Blender, so downstream tools must not rely on Python object
+    #    identity. Named integer ids reappear deterministically on every
+    #    evaluation as long as the generated topology is the same. When topology
+    #    changes, only the affected correspondence is intentionally invalidated.
+    geometry = _store_index_attribute(
+        nodes, links, switch.outputs["Output"], VERTEX_ID_ATTR, "POINT"
+    )
+    geometry = _store_index_attribute(nodes, links, geometry, FACE_ID_ATTR, "FACE")
+    links.new(geometry, go.inputs["Geometry"])
 
     ng["cad_convert_version"] = CONVERT_VERSION
     return ng

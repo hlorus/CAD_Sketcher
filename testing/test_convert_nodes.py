@@ -2,8 +2,8 @@
 
 Only runs on 5.2+, where the ``Merge Points`` node exists. On older Blender the
 convert modifier keeps loading the merge-by-distance asset, so there is nothing
-to build here. The weld *behaviour* is validated separately (test_merge_id for
-the ids; viewport verification for the fill).
+to build here. Besides weld identity, the 5.2 group materializes deterministic
+vertex/face ids on the generated mesh for consumers that keep element links.
 """
 
 import unittest
@@ -29,6 +29,7 @@ class TestConvertNodeGroup(TestCase):
                 "GeometryNodeInputMeshVertexNeighbors",
                 "GeometryNodeCurveToMesh",
                 "GeometryNodeFillCurve",
+                "GeometryNodeStoreNamedAttribute",
             ):
                 self.assertIn(expected, ids)
         finally:
@@ -61,6 +62,40 @@ class TestConvertNodeGroup(TestCase):
                 if n.bl_idname == "FunctionNodeBooleanMath" and n.operation == "AND"
             ]
             self.assertTrue(ands, "weld selection does not exclude merge_id 0")
+        finally:
+            bpy.data.node_groups.remove(ng)
+
+    def test_generated_id_nodes_have_expected_domains(self):
+        from ..utilities.convert_nodes import (
+            FACE_ID_ATTR,
+            VERTEX_ID_ATTR,
+            build_convert_node_group,
+        )
+
+        ng = build_convert_node_group("test_generated_ids")
+        try:
+            stores = {
+                n.inputs["Name"].default_value: n
+                for n in ng.nodes
+                if n.bl_idname == "GeometryNodeStoreNamedAttribute"
+            }
+            self.assertEqual(stores[VERTEX_ID_ATTR].data_type, "INT")
+            self.assertEqual(stores[VERTEX_ID_ATTR].domain, "POINT")
+            self.assertEqual(stores[FACE_ID_ATTR].data_type, "INT")
+            self.assertEqual(stores[FACE_ID_ATTR].domain, "FACE")
+
+            # Both ids are explicitly driven by the Index field. Blender's
+            # background test runner cannot materialize a Mesh from this Curves
+            # object after the GN modifier, so the node wiring itself is the
+            # regression boundary: identical topology -> identical indices.
+            index_nodes = {
+                n for n in ng.nodes if n.bl_idname == "GeometryNodeInputIndex"
+            }
+            self.assertEqual(len(index_nodes), 2)
+            for store in stores.values():
+                value_links = [link for link in store.inputs["Value"].links]
+                self.assertEqual(len(value_links), 1)
+                self.assertIn(value_links[0].from_node, index_nodes)
         finally:
             bpy.data.node_groups.remove(ng)
 
