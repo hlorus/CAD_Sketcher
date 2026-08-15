@@ -23,6 +23,21 @@ CONVERT_NODE_GROUP = "CAD Sketcher Convert"
 CONVERT_VERSION = 3
 
 
+def _is_identity_group(group):
+    """Return whether a node group contains the identity-weld conversion core."""
+    if group is None:
+        return False
+    ids = {node.bl_idname for node in group.nodes}
+    required = {
+        "GeometryNodeMergePoints",
+        "GeometryNodeInputMeshVertexNeighbors",
+        "GeometryNodeCurveToMesh",
+        "GeometryNodeMeshToCurve",
+        "GeometryNodeFillCurve",
+    }
+    return required.issubset(ids)
+
+
 def _int_compare(nodes, links, operation, value):
     """A Compare node on integers: returns (node, a_socket) with B set to value."""
     cmp = nodes.new("FunctionNodeCompare")
