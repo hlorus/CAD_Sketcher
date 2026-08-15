@@ -142,7 +142,11 @@ class TestCustomAttributes(Sketch2dTestCase):
         depsgraph = bpy.context.evaluated_depsgraph_get()
         depsgraph.update()
         evaluated = obj.evaluated_get(depsgraph)
-        mesh = evaluated.to_mesh()
+        mesh = bpy.data.meshes.new_from_object(
+            evaluated,
+            preserve_all_data_layers=True,
+            depsgraph=depsgraph,
+        )
         try:
             self.assertIsNotNone(mesh)
             self.assertIsNotNone(mesh.attributes.get("point_tag"))
@@ -150,7 +154,8 @@ class TestCustomAttributes(Sketch2dTestCase):
             self.assertEqual(obj["object_tag"], 23)
             self.assertEqual(obj.data["object_tag"], 23)
         finally:
-            evaluated.to_mesh_clear()
+            if mesh is not None:
+                bpy.data.meshes.remove(mesh)
             obj.modifiers.remove(modifier)
             group = bpy.data.node_groups.get("custom_attribute_conversion_test")
             if group is not None:
