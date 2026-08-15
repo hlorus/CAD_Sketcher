@@ -1,3 +1,5 @@
+import unittest
+
 import bpy
 
 from ..utilities.custom_attributes import (
@@ -61,12 +63,37 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertTrue(values)
         self.assertTrue(all(abs(v - 3.5) < 1e-6 for v in values))
         self.assertEqual(get_attribute_value(self.sketch, "part_number"), 42)
+        self.assertEqual(self.sketch.target_object["part_number"], 42)
+        self.assertEqual(self.sketch.data["part_number"], 42)
+
+        set_attribute_value(self.sketch, "part_number", 77)
+        self.assertEqual(self.sketch.target_object["part_number"], 77)
+        self.assertEqual(self.sketch.data["part_number"], 77)
 
         # Point entities remain independently addressable on the same native
         # source even though conversion consumes the complete Curves datablock.
         set_attribute_value(self.sketch, "weight", 8.0, points[0].curve_id)
         self.assertEqual(
             get_attribute_value(self.sketch, "weight", points[0].curve_id), [8.0]
+        )
+
+    def test_set_dialog_seed_preserves_current_value(self):
+        from ..operators.custom_attributes import _seed_set_value
+
+        _, lines = self._square()
+        define_attribute(self.sketch, "feature_code", "INT", "CURVE", 5)
+        set_attribute_value(self.sketch, "feature_code", 77, lines[0].curve_id)
+        entry = definition(self.sketch, "feature_code")
+
+        self.assertEqual(
+            _seed_set_value(self.sketch, entry, [lines[0].curve_id]), 77
+        )
+        # Mixed values are deliberately initialized from the definition default.
+        self.assertEqual(
+            _seed_set_value(
+                self.sketch, entry, [lines[0].curve_id, lines[1].curve_id]
+            ),
+            5,
         )
 
     def test_refresh_preserves_custom_data_and_definitions(self):
@@ -83,12 +110,6 @@ class TestCustomAttributes(Sketch2dTestCase):
         )
 
     def test_point_attribute_survives_conversion_refresh(self):
-        """The native source keeps the named attribute through a conversion rebuild.
-
-        Blender's background runner cannot materialize a Mesh from the Curves
-        object after its Geometry Nodes modifier, so the regression boundary is
-        the native named attribute that the conversion graph consumes.
-        """
         from ..utilities.curve_data import refresh_curve_geometry
 
         points, _ = self._square()
@@ -105,12 +126,53 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertEqual(attr.domain, "POINT")
         self.assertEqual(attr.data_type, "INT")
 
+    @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
+    def test_named_attributes_reach_evaluated_conversion_output(self):
+        """Exercise the actual Geometry Nodes conversion acceptance boundary."""
+        from ..utilities.convert_nodes import build_convert_node_group
+
+        _, lines = self._square()
+        define_attribute(self.sketch, "point_tag", "INT", "POINT", 13)
+        define_attribute(self.sketch, "curve_tag", "INT", "CURVE", 17)
+        define_attribute(self.sketch, "object_tag", "INT", "OBJECT", 23)
+        set_attribute_value(self.sketch, "point_tag", 29, lines[0].curve_id)
+        set_attribute_value(self.sketch, "curve_tag", 31, lines[0].curve_id)
+
+        obj = self.sketch.target_object
+        modifier = obj.modifiers.new("custom_attribute_conversion_test", "NODES")
+        modifier.node_group = build_convert_node_group("custom_attribute_conversion_test")
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        depsgraph.update()
+        evaluated = obj.evaluated_get(depsgraph)
+        mesh = evaluated.to_mesh()
+        try:
+            self.assertIsNotNone(mesh)
+            self.assertIsNotNone(mesh.attributes.get("point_tag"))
+            self.assertIsNotNone(mesh.attributes.get("curve_tag"))
+            self.assertEqual(obj["object_tag"], 23)
+            self.assertEqual(obj.data["object_tag"], 23)
+        finally:
+            evaluated.to_mesh_clear()
+            obj.modifiers.remove(modifier)
+            group = bpy.data.node_groups.get("custom_attribute_conversion_test")
+            if group is not None:
+                bpy.data.node_groups.remove(group)
+
     def test_remove_deletes_definition_and_source_attribute(self):
         self._square()
         define_attribute(self.sketch, "temporary", "BOOLEAN", "CURVE", True)
         self.assertTrue(remove_attribute(self.sketch, "temporary"))
         self.assertIsNone(definition(self.sketch, "temporary"))
         self.assertIsNone(self.sketch.data.attributes.get("temporary"))
+
+    def test_remove_object_attribute_clears_object_and_data(self):
+        self._square()
+        define_attribute(self.sketch, "temporary_object", "INT", "OBJECT", 7)
+        self.assertIn("temporary_object", self.sketch.target_object)
+        self.assertIn("temporary_object", self.sketch.data)
+        self.assertTrue(remove_attribute(self.sketch, "temporary_object"))
+        self.assertNotIn("temporary_object", self.sketch.target_object)
+        self.assertNotIn("temporary_object", self.sketch.data)
 
     def test_operators_are_registered(self):
         self.assertTrue(hasattr(bpy.ops.view3d, "slvs_add_custom_attribute"))
