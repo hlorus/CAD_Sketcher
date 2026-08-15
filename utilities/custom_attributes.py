@@ -74,6 +74,38 @@ def _write_object_value(sketch, name, value):
     sketch.data[name] = value
 
 
+def _sync_conversion_group(sketch):
+    """Bind an attribute-aware convert group to this sketch on Blender 5.2+.
+
+    The default converter can be shared while no user geometry attributes exist.
+    Once POINT/CURVE definitions are present, the sketch receives a stable
+    per-datablock node group which captures exactly those named fields before
+    topology conversion and restores them on the generated geometry.
+    """
+    import bpy
+
+    if bpy.app.version < (5, 2, 0) or not sketch or not sketch.target_object:
+        return
+
+    from .convert_nodes import CONVERT_NODE_GROUP, build_convert_node_group
+
+    ob = sketch.target_object
+    modifier = ob.modifiers.get(CONVERT_NODE_GROUP)
+    if modifier is None:
+        modifier = ob.modifiers.new(CONVERT_NODE_GROUP, "NODES")
+
+    specs = [entry for entry in definitions(sketch) if entry["domain"] != "OBJECT"]
+    if specs:
+        group_name = f"{CONVERT_NODE_GROUP} [{ob.data.name}]"
+        modifier.node_group = build_convert_node_group(
+            group_name, attribute_definitions=specs
+        )
+    else:
+        modifier.node_group = build_convert_node_group(CONVERT_NODE_GROUP)
+
+    ob.update_tag()
+
+
 def definitions(sketch):
     if not sketch or not sketch.data:
         return []
@@ -126,6 +158,7 @@ def define_attribute(sketch, name, data_type="FLOAT", domain="CURVE", default=0.
     for item in attr.data:
         item.value = value
     curve_data.update_tag()
+    _sync_conversion_group(sketch)
     return entry
 
 
@@ -150,6 +183,7 @@ def remove_attribute(sketch, name):
         if attr is not None:
             curve_data.attributes.remove(attr)
         curve_data.update_tag()
+        _sync_conversion_group(sketch)
     return True
 
 
