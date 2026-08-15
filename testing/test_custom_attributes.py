@@ -121,9 +121,7 @@ class TestCustomAttributes(Sketch2dTestCase):
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
     def test_named_attributes_reach_evaluated_conversion_output(self):
-        """Exercise Blender's actual object-conversion acceptance boundary."""
-        from ..utilities.convert_nodes import build_convert_node_group
-
+        """Exercise the sketch's real attribute-aware conversion modifier."""
         _, lines = self._square()
         define_attribute(self.sketch, "point_tag", "INT", "POINT", 13)
         define_attribute(self.sketch, "curve_tag", "INT", "CURVE", 17)
@@ -132,14 +130,17 @@ class TestCustomAttributes(Sketch2dTestCase):
         set_attribute_value(self.sketch, "curve_tag", 31, lines[0].curve_id)
 
         source = self.sketch.target_object
+        source_modifier = source.modifiers.get("CAD Sketcher Convert")
+        self.assertIsNotNone(source_modifier)
+        self.assertIsNotNone(source_modifier.node_group)
+        self.assertIn("point_tag", source_modifier.node_group.get("cad_convert_attribute_signature", ""))
+        self.assertIn("curve_tag", source_modifier.node_group.get("cad_convert_attribute_signature", ""))
+
         duplicate = source.copy()
         duplicate.data = source.data.copy()
         self.context.collection.objects.link(duplicate)
-        modifier = duplicate.modifiers.new("custom_attribute_conversion_test", "NODES")
-        modifier.node_group = build_convert_node_group("custom_attribute_conversion_test")
 
         converted = None
-        group = modifier.node_group
         try:
             for selected in list(self.context.selected_objects):
                 selected.select_set(False)
@@ -151,8 +152,14 @@ class TestCustomAttributes(Sketch2dTestCase):
             converted = self.context.view_layer.objects.active
             self.assertIsNotNone(converted)
             self.assertEqual(converted.type, "MESH")
-            self.assertIsNotNone(converted.data.attributes.get("point_tag"))
-            self.assertIsNotNone(converted.data.attributes.get("curve_tag"))
+
+            point_attr = converted.data.attributes.get("point_tag")
+            curve_attr = converted.data.attributes.get("curve_tag")
+            self.assertIsNotNone(point_attr)
+            self.assertIsNotNone(curve_attr)
+            self.assertIn(29, [item.value for item in point_attr.data])
+            self.assertIn(31, [item.value for item in curve_attr.data])
+
             self.assertEqual(source["object_tag"], 23)
             self.assertEqual(source.data["object_tag"], 23)
         finally:
@@ -165,8 +172,6 @@ class TestCustomAttributes(Sketch2dTestCase):
                         bpy.data.meshes.remove(data)
                     elif isinstance(data, bpy.types.Curves):
                         bpy.data.hair_curves.remove(data)
-            if group is not None and group.users == 0:
-                bpy.data.node_groups.remove(group)
 
     def test_remove_deletes_definition_and_source_attribute(self):
         self._square()
