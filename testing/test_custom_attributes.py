@@ -70,8 +70,6 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertEqual(self.sketch.target_object["part_number"], 77)
         self.assertEqual(self.sketch.data["part_number"], 77)
 
-        # Point entities remain independently addressable on the same native
-        # source even though conversion consumes the complete Curves datablock.
         set_attribute_value(self.sketch, "weight", 8.0, points[0].curve_id)
         self.assertEqual(
             get_attribute_value(self.sketch, "weight", points[0].curve_id), [8.0]
@@ -86,7 +84,6 @@ class TestCustomAttributes(Sketch2dTestCase):
         entry = definition(self.sketch, "feature_code")
 
         self.assertEqual(_seed_set_value(self.sketch, entry, [lines[0].curve_id]), 77)
-        # Mixed values are deliberately initialized from the definition default.
         self.assertEqual(
             _seed_set_value(self.sketch, entry, [lines[0].curve_id, lines[1].curve_id]),
             5,
@@ -124,7 +121,7 @@ class TestCustomAttributes(Sketch2dTestCase):
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
     def test_named_attributes_reach_evaluated_conversion_output(self):
-        """Exercise the actual Geometry Nodes conversion acceptance boundary."""
+        """Exercise Blender's actual object-conversion acceptance boundary."""
         from ..utilities.convert_nodes import build_convert_node_group
 
         _, lines = self._square()
@@ -134,31 +131,41 @@ class TestCustomAttributes(Sketch2dTestCase):
         set_attribute_value(self.sketch, "point_tag", 29, lines[0].curve_id)
         set_attribute_value(self.sketch, "curve_tag", 31, lines[0].curve_id)
 
-        obj = self.sketch.target_object
-        modifier = obj.modifiers.new("custom_attribute_conversion_test", "NODES")
-        modifier.node_group = build_convert_node_group(
-            "custom_attribute_conversion_test"
-        )
-        depsgraph = bpy.context.evaluated_depsgraph_get()
-        depsgraph.update()
-        evaluated = obj.evaluated_get(depsgraph)
-        mesh = bpy.data.meshes.new_from_object(
-            evaluated,
-            preserve_all_data_layers=True,
-            depsgraph=depsgraph,
-        )
+        source = self.sketch.target_object
+        duplicate = source.copy()
+        duplicate.data = source.data.copy()
+        self.context.collection.objects.link(duplicate)
+        modifier = duplicate.modifiers.new("custom_attribute_conversion_test", "NODES")
+        modifier.node_group = build_convert_node_group("custom_attribute_conversion_test")
+
+        converted = None
+        group = modifier.node_group
         try:
-            self.assertIsNotNone(mesh)
-            self.assertIsNotNone(mesh.attributes.get("point_tag"))
-            self.assertIsNotNone(mesh.attributes.get("curve_tag"))
-            self.assertEqual(obj["object_tag"], 23)
-            self.assertEqual(obj.data["object_tag"], 23)
+            for selected in list(self.context.selected_objects):
+                selected.select_set(False)
+            duplicate.select_set(True)
+            self.context.view_layer.objects.active = duplicate
+
+            result = bpy.ops.object.convert(target="MESH")
+            self.assertEqual(result, {"FINISHED"})
+            converted = self.context.view_layer.objects.active
+            self.assertIsNotNone(converted)
+            self.assertEqual(converted.type, "MESH")
+            self.assertIsNotNone(converted.data.attributes.get("point_tag"))
+            self.assertIsNotNone(converted.data.attributes.get("curve_tag"))
+            self.assertEqual(source["object_tag"], 23)
+            self.assertEqual(source.data["object_tag"], 23)
         finally:
-            if mesh is not None:
-                bpy.data.meshes.remove(mesh)
-            obj.modifiers.remove(modifier)
-            group = bpy.data.node_groups.get("custom_attribute_conversion_test")
-            if group is not None:
+            cleanup = converted if converted is not None else duplicate
+            if cleanup.name in bpy.data.objects:
+                data = cleanup.data
+                bpy.data.objects.remove(cleanup, do_unlink=True)
+                if data is not None and data.users == 0:
+                    if isinstance(data, bpy.types.Mesh):
+                        bpy.data.meshes.remove(data)
+                    elif isinstance(data, bpy.types.Curves):
+                        bpy.data.hair_curves.remove(data)
+            if group is not None and group.users == 0:
                 bpy.data.node_groups.remove(group)
 
     def test_remove_deletes_definition_and_source_attribute(self):
