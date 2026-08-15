@@ -63,6 +63,17 @@ def _write_defs(curve_data, definitions):
     curve_data[DEFINITIONS_PROP] = json.dumps(definitions, separators=(",", ":"))
 
 
+def _write_object_value(sketch, name, value):
+    """Mirror an OBJECT-domain value to the sketch object and its data-block.
+
+    The conversion contract for #200 explicitly treats both ID-property targets
+    as the object-level acceptance boundary. Keeping them synchronized also
+    means either side can be copied/reused by a destructive conversion path.
+    """
+    sketch.target_object[name] = value
+    sketch.data[name] = value
+
+
 def definitions(sketch):
     if not sketch or not sketch.data:
         return []
@@ -77,7 +88,8 @@ def define_attribute(sketch, name, data_type="FLOAT", domain="CURVE", default=0.
     """Define a persistent user attribute on a native sketch.
 
     ``CURVE`` maps naturally to a CAD Sketcher entity/segment, ``POINT`` to the
-    native curve point domain, and ``OBJECT`` to a property on the sketch object.
+    native curve point domain, and ``OBJECT`` to mirrored properties on the
+    sketch object and its Curves data-block.
     """
     if not sketch or not sketch.data:
         raise ValueError("A native sketch is required")
@@ -107,7 +119,7 @@ def define_attribute(sketch, name, data_type="FLOAT", domain="CURVE", default=0.
     _write_defs(curve_data, defs)
 
     if domain == "OBJECT":
-        sketch.target_object[name] = value
+        _write_object_value(sketch, name, value)
         return entry
 
     attr = curve_data.attributes.new(name, type=data_type, domain=domain)
@@ -131,6 +143,8 @@ def remove_attribute(sketch, name):
     if entry["domain"] == "OBJECT":
         if name in sketch.target_object:
             del sketch.target_object[name]
+        if name in curve_data:
+            del curve_data[name]
     else:
         attr = curve_data.attributes.get(name)
         if attr is not None:
@@ -152,7 +166,7 @@ def set_attribute_value(sketch, name, value, curve_id=None):
     value = _cast(entry["type"], value)
 
     if entry["domain"] == "OBJECT":
-        sketch.target_object[name] = value
+        _write_object_value(sketch, name, value)
         return
 
     curve_data = sketch.data
@@ -185,7 +199,9 @@ def get_attribute_value(sketch, name, curve_id=None):
     if entry is None:
         raise KeyError(name)
     if entry["domain"] == "OBJECT":
-        return sketch.target_object.get(name, entry["default"])
+        if name in sketch.target_object:
+            return sketch.target_object[name]
+        return sketch.data.get(name, entry["default"])
 
     attr = sketch.data.attributes.get(name)
     if attr is None:
