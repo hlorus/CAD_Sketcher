@@ -24,6 +24,15 @@ def _value(op, data_type):
     return op.float_value
 
 
+def _assign_value(op, data_type, value):
+    if data_type == "BOOLEAN":
+        op.bool_value = bool(value)
+    elif data_type == "INT":
+        op.int_value = int(value)
+    else:
+        op.float_value = float(value)
+
+
 def _draw_value(op, layout, data_type):
     if data_type == "BOOLEAN":
         layout.prop(op, "bool_value")
@@ -31,6 +40,39 @@ def _draw_value(op, layout, data_type):
         layout.prop(op, "int_value")
     else:
         layout.prop(op, "float_value")
+
+
+def _seed_set_value(sketch, entry, curve_ids):
+    """Return a safe initial value for the Set dialog.
+
+    A common selected value is preserved. Mixed selections intentionally fall
+    back to the attribute default, rather than silently replacing data with the
+    operator property's Python zero value merely by opening/confirming the UI.
+    """
+    if entry["domain"] == "OBJECT":
+        return custom_attributes.get_attribute_value(sketch, entry["name"])
+    if not curve_ids:
+        return entry["default"]
+
+    values = []
+    for curve_id in curve_ids:
+        try:
+            current = custom_attributes.get_attribute_value(
+                sketch, entry["name"], curve_id=curve_id
+            )
+        except KeyError:
+            return entry["default"]
+        if isinstance(current, (list, tuple)):
+            values.extend(current)
+        else:
+            values.append(current)
+
+    if not values:
+        return entry["default"]
+    first = values[0]
+    if all(value == first for value in values[1:]):
+        return first
+    return entry["default"]
 
 
 class VIEW3D_OT_slvs_add_custom_attribute(bpy.types.Operator):
@@ -96,6 +138,9 @@ class VIEW3D_OT_slvs_set_custom_attribute(bpy.types.Operator):
         entry = custom_attributes.definition(sketch, self.name)
         if entry is None:
             return {"CANCELLED"}
+        curve_ids = list(dict.fromkeys(selection.selected))
+        seed = _seed_set_value(sketch, entry, curve_ids)
+        _assign_value(self, entry["type"], seed)
         return context.window_manager.invoke_props_dialog(self)
 
     def draw(self, context):
