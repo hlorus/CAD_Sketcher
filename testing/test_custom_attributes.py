@@ -133,8 +133,14 @@ class TestCustomAttributes(Sketch2dTestCase):
         source_modifier = source.modifiers.get("CAD Sketcher Convert")
         self.assertIsNotNone(source_modifier)
         self.assertIsNotNone(source_modifier.node_group)
-        self.assertIn("point_tag", source_modifier.node_group.get("cad_convert_attribute_signature", ""))
-        self.assertIn("curve_tag", source_modifier.node_group.get("cad_convert_attribute_signature", ""))
+        self.assertIn(
+            "point_tag",
+            source_modifier.node_group.get("cad_convert_attribute_signature", ""),
+        )
+        self.assertIn(
+            "curve_tag",
+            source_modifier.node_group.get("cad_convert_attribute_signature", ""),
+        )
 
         duplicate = source.copy()
         duplicate.data = source.data.copy()
