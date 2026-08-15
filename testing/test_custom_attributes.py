@@ -85,14 +85,10 @@ class TestCustomAttributes(Sketch2dTestCase):
         set_attribute_value(self.sketch, "feature_code", 77, lines[0].curve_id)
         entry = definition(self.sketch, "feature_code")
 
-        self.assertEqual(
-            _seed_set_value(self.sketch, entry, [lines[0].curve_id]), 77
-        )
+        self.assertEqual(_seed_set_value(self.sketch, entry, [lines[0].curve_id]), 77)
         # Mixed values are deliberately initialized from the definition default.
         self.assertEqual(
-            _seed_set_value(
-                self.sketch, entry, [lines[0].curve_id, lines[1].curve_id]
-            ),
+            _seed_set_value(self.sketch, entry, [lines[0].curve_id, lines[1].curve_id]),
             5,
         )
 
@@ -140,7 +136,9 @@ class TestCustomAttributes(Sketch2dTestCase):
 
         obj = self.sketch.target_object
         modifier = obj.modifiers.new("custom_attribute_conversion_test", "NODES")
-        modifier.node_group = build_convert_node_group("custom_attribute_conversion_test")
+        modifier.node_group = build_convert_node_group(
+            "custom_attribute_conversion_test"
+        )
         depsgraph = bpy.context.evaluated_depsgraph_get()
         depsgraph.update()
         evaluated = obj.evaluated_get(depsgraph)
