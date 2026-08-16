@@ -2,6 +2,7 @@ from .manager import ToolGroup, add
 from . import manager
 
 from .add_sketch import VIEW3D_T_slvs_add_sketch
+from .add_sketch3d import VIEW3D_T_slvs_add_sketch3d
 from .add_arc2d import VIEW3D_T_slvs_add_arc2d
 from .add_circle2d import VIEW3D_T_slvs_add_circle2d
 from .add_line2d import VIEW3D_T_slvs_add_line2d
@@ -28,8 +29,10 @@ add(VIEW3D_T_slvs_trim, visibility=ToolGroup.SKETCH, separator=True, group=False
 add(VIEW3D_T_slvs_bevel, visibility=ToolGroup.SKETCH, separator=False, group=False)
 add(VIEW3D_T_slvs_offset, visibility=ToolGroup.SKETCH, separator=False, group=False)
 
-# Non-sketch tools (visible when no sketch is active)
+# Non-sketch tools (visible when no sketch is active). 3D sketch is grouped
+# with Add Sketch as a fly-out, matching the maintainer-approved UX for #607.
 add(VIEW3D_T_slvs_add_sketch, visibility=ToolGroup.NON_SKETCH, separator=True, group=False)
+add(VIEW3D_T_slvs_add_sketch3d, visibility=ToolGroup.NON_SKETCH, separator=False, group=True)
 add(VIEW3D_T_slvs_node_extrude, visibility=ToolGroup.NON_SKETCH, separator=True, group=False)
 add(VIEW3D_T_slvs_node_revolve, visibility=ToolGroup.NON_SKETCH, separator=False, group=False)
 add(VIEW3D_T_slvs_node_array_linear, visibility=ToolGroup.NON_SKETCH, separator=False, group=False)
