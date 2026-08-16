@@ -33,6 +33,21 @@ class TestNative3DSketch(BgsTestCase):
         self.assertEqual(tuple(obj.lock_rotation), (True, True, True))
         self.assertEqual(tuple(obj.lock_scale), (True, True, True))
 
+    def test_axis_and_plane_lock_geometry(self):
+        from ..operators.base_sketch_3d import resolve_locked_position
+
+        anchor = Vector((1.0, 1.0, 1.0))
+        point = Vector((2.0, 3.0, 4.0))
+
+        x_axis = resolve_locked_position(point, anchor, axis_lock=0)
+        self.assertLess((x_axis - Vector((2.0, 1.0, 1.0))).length, 1e-6)
+
+        yz_plane = resolve_locked_position(point, anchor, plane_lock=0)
+        self.assertLess((yz_plane - Vector((1.0, 3.0, 4.0))).length, 1e-6)
+
+        xy_plane = resolve_locked_position(point, anchor, plane_lock=2)
+        self.assertLess((xy_plane - Vector((2.0, 3.0, 1.0))).length, 1e-6)
+
     def test_points_and_lines_preserve_xyz(self):
         from ..model.native_3d import create_line_3d, create_point_3d, is_3d_sketch
 
