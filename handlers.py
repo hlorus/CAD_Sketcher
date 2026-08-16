@@ -18,7 +18,6 @@ _builtin_handlers = {}
 # from event_system import add_builtin_handler
 #
 # add_builtin_handler("save_pre", write_addon_version)
-#
 # add_builtin_handler("version_update", do_versioning)
 
 
@@ -69,7 +68,6 @@ def on_load_post(*args):
 
     reset_cache()
     from .drawing import overlay, selection
-
     overlay.invalidate()
     selection.clear()
     context = bpy.context
@@ -86,15 +84,17 @@ def on_depsgraph_update(scene, depsgraph):
 
     # Keep face-anchored workplanes on their mesh face as geometry changes.
     from .utilities.face_anchor import update_face_workplanes
-
     update_face_workplanes(bpy.context, depsgraph)
+
+    # Keep projected native points attached to their source mesh vertices.
+    from .utilities.projection_anchor import update_projected_geometry
+    update_projected_geometry(bpy.context, depsgraph)
 
     # Repair invariants if a built-in tool edited our curve data outside the
     # addon. Skip while one of our operators is mid-run (it owns the data and
     # keeps invariants itself).
     if not global_data.stateful_op_running:
         from .utilities.validate import validate_all_sketches
-
         if validate_all_sketches(scene):
             global_data.needs_solve = True
 
@@ -102,7 +102,6 @@ def on_depsgraph_update(scene, depsgraph):
         # then stack into a mushy overlap, #571); re-assert their transforms.
         # Only rewrites when drifted, so this settles in one pass.
         from .utilities.workplane import repair_origin_workplanes
-
         repair_origin_workplanes(bpy.context)
 
     if depsgraph.id_type_updated("SCENE"):
@@ -141,25 +140,34 @@ def on_frame_change(scene, depsgraph=None):
     specifically so they can be driven/animated (issue #544). A driver writes
     that value during depsgraph evaluation, which does not reliably re-flag the
     scene for ``depsgraph_update_post``; ``frame_change_post`` does fire, so we
-    re-solve here. Covers timeline scrubbing and playback.
+    re-solve here. Covers timeline scrubbing and playback. Projected source
+    geometry is refreshed first so animated source objects stay attached too.
     """
     from . import global_data
-
     if global_data.stateful_op_running:
         return
 
     from .curve_solver import solve_system
     from .model.sketch_ref import get_sketches
     from .utilities.curve_data import refresh_curve_geometry
+    from .utilities.projection_anchor import refresh_projection_for_sketch
 
     context = bpy.context
+    depsgraph = depsgraph or context.evaluated_depsgraph_get()
     for sketch in get_sketches(scene):
+        refresh_projection_for_sketch(sketch, depsgraph, force=True)
         if solve_system(context, sketch=sketch):
             refresh_curve_geometry(sketch)
 
 
 def on_undo_redo(scene, *args):
-    """Reconcile sketch mode with the active sketch after undo/redo."""
+    """Reconcile sketch mode with the active sketch after undo/redo.
+
+    The sketch-mode flag and its registered tool set are Python state that
+    Blender's undo cannot revert, while ``active_sketch_object`` is undo-tracked.
+    Undoing sketch creation nulls the pointer but leaves sketch mode on -- a dead
+    end where you can neither add nor leave a sketch. Re-sync them here.
+    """
     from .model.sketch_ref import get_active_sketch
     from .workspacetools.manager import sync_sketch_mode
 
