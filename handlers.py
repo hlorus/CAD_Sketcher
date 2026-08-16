@@ -18,6 +18,7 @@ _builtin_handlers = {}
 # from event_system import add_builtin_handler
 #
 # add_builtin_handler("save_pre", write_addon_version)
+#
 # add_builtin_handler("version_update", do_versioning)
 
 
@@ -63,11 +64,12 @@ def unregister_handlers():
 
 def on_load_post(*args):
     """Migrate legacy entity-based sketches to native curves on file load."""
-    from .utilities.migrate import scene_needs_migration, migrate_scene
+    from .utilities.migrate import migrate_scene, scene_needs_migration
     from .utilities.validate import reset_cache
 
     reset_cache()
     from .drawing import overlay, selection
+
     overlay.invalidate()
     selection.clear()
     context = bpy.context
@@ -84,6 +86,7 @@ def on_depsgraph_update(scene, depsgraph):
 
     # Keep face-anchored workplanes on their mesh face as geometry changes.
     from .utilities.face_anchor import update_face_workplanes
+
     update_face_workplanes(bpy.context, depsgraph)
 
     # Repair invariants if a built-in tool edited our curve data outside the
@@ -91,6 +94,7 @@ def on_depsgraph_update(scene, depsgraph):
     # keeps invariants itself).
     if not global_data.stateful_op_running:
         from .utilities.validate import validate_all_sketches
+
         if validate_all_sketches(scene):
             global_data.needs_solve = True
 
@@ -98,6 +102,7 @@ def on_depsgraph_update(scene, depsgraph):
         # then stack into a mushy overlap, #571); re-assert their transforms.
         # Only rewrites when drifted, so this settles in one pass.
         from .utilities.workplane import repair_origin_workplanes
+
         repair_origin_workplanes(bpy.context)
 
     if depsgraph.id_type_updated("SCENE"):
@@ -139,12 +144,13 @@ def on_frame_change(scene, depsgraph=None):
     re-solve here. Covers timeline scrubbing and playback.
     """
     from . import global_data
+
     if global_data.stateful_op_running:
         return
 
     from .curve_solver import solve_system
-    from .utilities.curve_data import refresh_curve_geometry
     from .model.sketch_ref import get_sketches
+    from .utilities.curve_data import refresh_curve_geometry
 
     context = bpy.context
     for sketch in get_sketches(scene):
@@ -153,17 +159,15 @@ def on_frame_change(scene, depsgraph=None):
 
 
 def on_undo_redo(scene, *args):
-    """Reconcile sketch mode with the active sketch after undo/redo.
-
-    The sketch-mode flag and its registered tool set are Python state that
-    Blender's undo cannot revert, while ``active_sketch_object`` is undo-tracked.
-    Undoing sketch creation nulls the pointer but leaves sketch mode on -- a dead
-    end where you can neither add nor leave a sketch. Re-sync them here.
-    """
+    """Reconcile sketch mode with the active sketch after undo/redo."""
     from .model.sketch_ref import get_active_sketch
     from .workspacetools.manager import sync_sketch_mode
 
-    sync_sketch_mode(get_active_sketch(bpy.context) is not None)
+    sketch = get_active_sketch(bpy.context)
+    sync_sketch_mode(
+        sketch is not None,
+        is_3d=bool(sketch and sketch.is_3d),
+    )
 
 
 def _setup_builtin_handlers():
