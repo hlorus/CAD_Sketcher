@@ -12,6 +12,7 @@ modules = [
     "tweak",
     "copy_paste",
     "add_sketch",
+    "add_sketch_3d",
     "workplane_anchor",
     "add_point_2d",
     "add_line_2d",
