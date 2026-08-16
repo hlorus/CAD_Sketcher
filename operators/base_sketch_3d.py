@@ -5,11 +5,7 @@ from mathutils.geometry import intersect_line_line, intersect_line_plane
 
 from ..model.curve_ref import CurveRef, PointRef
 from ..model.native_3d import create_point_3d
-from ..utilities.view import (
-    get_blender_snap_info,
-    get_picking_origin_dir,
-    get_picking_origin_end,
-)
+from ..utilities import view
 from .base_2d import Operator2d
 from .utilities import ignore_hover
 
@@ -117,14 +113,14 @@ class OperatorSketch3d(Operator2d):
 
     def _view_plane_normal(self, context):
         center = Vector((context.region.width * 0.5, context.region.height * 0.5))
-        _origin, direction = get_picking_origin_dir(context, center)
+        _origin, direction = view.get_picking_origin_dir(context, center)
         return Vector(direction).normalized()
 
     def state_func(self, context, coords):
         anchor = self._anchor_world(context)
-        ray_origin, ray_end = get_picking_origin_end(context, coords)
+        ray_origin, ray_end = view.get_picking_origin_end(context, coords)
 
-        snap = get_blender_snap_info(context, coords)
+        snap = view.get_blender_snap_info(context, coords)
         self._snap = snap
         if snap and "world_point" in snap:
             world = Vector(snap["world_point"])
