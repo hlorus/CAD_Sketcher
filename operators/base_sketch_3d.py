@@ -7,8 +7,8 @@ from ..model.curve_ref import CurveRef, PointRef
 from ..model.native_3d import create_point_3d
 from ..utilities.view import (
     get_blender_snap_info,
-    get_picking_origin_end,
     get_picking_origin_dir,
+    get_picking_origin_end,
 )
 from .base_2d import Operator2d
 from .utilities import ignore_hover
