@@ -107,8 +107,12 @@ class View3D_OT_slvs_move(Operator, Operator2d):
     def invoke(self, context: Context, event: Event):
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
         sketch = get_active_sketch(context)
+        is_3d = bool(sketch and sketch.is_3d)
 
-        if sketch and sketch.is_3d:
+        # 3D placement data is independent of Operator2d.init(), so prepare it
+        # before the modal starts. Keep classic 2D initialization after super()
+        # because _get_wp() relies on the active-sketch cache set there.
+        if is_3d:
             points = get_points(context)
             if points:
                 self._move_anchor_world = points[0].location.copy()
@@ -130,10 +134,11 @@ class View3D_OT_slvs_move(Operator, Operator2d):
             )
             if self.origin_pos_world is None:
                 self.origin_pos_world = self._move_anchor_world.copy()
-        else:
-            self.origin_coords = get_pos_2d(context, self._get_wp(), coords)
 
-        return super().invoke(context, event)
+        retval = super().invoke(context, event)
+        if not is_3d:
+            self.origin_coords = get_pos_2d(context, self._get_wp(), coords)
+        return retval
 
     def get_offset(self, context: Context, coords):
         if self.sketch.is_3d:
