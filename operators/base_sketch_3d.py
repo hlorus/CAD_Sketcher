@@ -1,6 +1,6 @@
 """Stateful placement helpers for native free-3D sketches (#607)."""
 
-import mathutils
+import mathutils  # noqa: I001 - Blender module + relative addon imports
 import mathutils.geometry
 
 from ..model import curve_ref, native_3d
