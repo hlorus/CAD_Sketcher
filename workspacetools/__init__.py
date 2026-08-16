@@ -1,18 +1,17 @@
-from .manager import ToolGroup, add
 from . import manager
-
-from .add_sketch import VIEW3D_T_slvs_add_sketch
-from .add_sketch3d import VIEW3D_T_slvs_add_sketch3d
 from .add_arc2d import VIEW3D_T_slvs_add_arc2d
 from .add_circle2d import VIEW3D_T_slvs_add_circle2d
 from .add_line2d import VIEW3D_T_slvs_add_line2d
 from .add_point2d import VIEW3D_T_slvs_add_point2d
 from .add_rectangle import VIEW3D_T_slvs_add_rectangle
+from .add_sketch import VIEW3D_T_slvs_add_sketch
+from .add_sketch3d import VIEW3D_T_slvs_add_sketch3d
 from .array_linear import VIEW3D_T_slvs_node_array_linear
 from .bevel import VIEW3D_T_slvs_bevel
 from .extrude import VIEW3D_T_slvs_node_extrude
-from .revolve import VIEW3D_T_slvs_node_revolve
+from .manager import ToolGroup, add
 from .offset import VIEW3D_T_slvs_offset
+from .revolve import VIEW3D_T_slvs_node_revolve
 from .select import VIEW3D_T_slvs_select
 from .trim import VIEW3D_T_slvs_trim
 
