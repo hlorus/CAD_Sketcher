@@ -1,7 +1,7 @@
 """Helpers for native free-3D sketches backed by Blender Curves."""
 
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from .constants import BezierHandleType, SketchCurveType
 from .curve_ref import (
@@ -15,6 +15,7 @@ from .curve_ref import (
 from .sketch_ref import Sketch, stamp_sketch_props
 
 SKETCH_3D_TAG = "is_3d_sketch"
+SKETCH_3D_ORIGIN_TAG = "is_3d_sketch_origin"
 
 
 def is_3d_sketch(sketch):
@@ -22,8 +23,21 @@ def is_3d_sketch(sketch):
     return bool(sketch and getattr(sketch, "is_3d", False))
 
 
-def create_3d_sketch(context, name="3D Sketch"):
-    """Create an unparented Curves-backed 3D sketch and return its accessor."""
+def create_3d_sketch(context, name="3D Sketch", matrix=None):
+    """Create a Curves-backed 3D sketch parented to a stable origin Empty.
+
+    The Curves object keeps the same structural shape as a 2D sketch, but its
+    parent is an unconstrained origin Empty rather than a workplane. Geometry
+    remains free in XYZ and the Empty provides the stable origin required by
+    placement/editing helpers.
+    """
+    origin = bpy.data.objects.new(f"{name} Origin", None)
+    origin.empty_display_type = "PLAIN_AXES"
+    origin.empty_display_size = 0.5
+    context.scene.collection.objects.link(origin)
+    origin.matrix_world = matrix.copy() if matrix is not None else Matrix.Identity(4)
+    origin[SKETCH_3D_ORIGIN_TAG] = True
+
     curve = bpy.data.hair_curves.new(name)
     obj = bpy.data.objects.new(name, curve)
     context.scene.collection.objects.link(obj)
@@ -33,6 +47,13 @@ def create_3d_sketch(context, name="3D Sketch"):
     from ..utilities.curve_data import _ensure_convert_modifier
 
     _ensure_convert_modifier(obj)
+
+    obj.parent = origin
+    obj.matrix_parent_inverse = Matrix.Identity(4)
+    obj.matrix_basis = Matrix.Identity(4)
+    obj.lock_location = (True, True, True)
+    obj.lock_rotation = (True, True, True)
+    obj.lock_scale = (True, True, True)
     return Sketch(obj)
 
 
