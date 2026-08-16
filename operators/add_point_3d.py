@@ -4,11 +4,11 @@ import logging
 
 from bpy.props import FloatVectorProperty
 from bpy.types import Context, Operator
-from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from ..model.native_3d import create_point_3d
 from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_sketch_3d import OperatorSketch3d
 
 logger = logging.getLogger(__name__)
@@ -60,4 +60,4 @@ class View3D_OT_slvs_add_point3d(Operator, OperatorSketch3d):
             self.sketch.geometry_solved = False
 
 
-register, unregister = register_classes_factory((View3D_OT_slvs_add_point3d,))
+register, unregister = register_stateops_factory((View3D_OT_slvs_add_point3d,))
