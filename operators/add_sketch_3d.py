@@ -1,6 +1,5 @@
 """Create and activate a native free-3D sketch."""
 
-import bpy
 from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
