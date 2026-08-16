@@ -9,16 +9,22 @@ logger = logging.getLogger(__name__)
 
 class ToolGroup(Enum):
     ALWAYS = auto()
-    SKETCH = auto()
+    SKETCH_2D = auto()
+    SKETCH_3D = auto()
     NON_SKETCH = auto()
+
+    # Backward-compatible alias for callers that still mean the classic 2D
+    # sketch tool set.
+    SKETCH = SKETCH_2D
 
 
 _registry = []  # list of (tool_cls, kwargs, group)
 _sketch_active = False
+_sketch_group = None
 _registered = set()  # tool class bl_idname strings currently registered
 
 
-def add(tool_cls, visibility=ToolGroup.SKETCH, **kwargs):
+def add(tool_cls, visibility=ToolGroup.SKETCH_2D, **kwargs):
     _registry.append((tool_cls, kwargs, visibility))
 
 
@@ -42,41 +48,49 @@ def _unregister_tools(groups):
         _registered.discard(tool_cls.bl_idname)
 
 
-def enter_sketch_mode():
-    global _sketch_active
-    if _sketch_active:
+def enter_sketch_mode(is_3d=False):
+    global _sketch_active, _sketch_group
+
+    desired = ToolGroup.SKETCH_3D if is_3d else ToolGroup.SKETCH_2D
+    if _sketch_active and _sketch_group == desired:
         return
+
+    if _sketch_active and _sketch_group is not None:
+        _unregister_tools({_sketch_group})
+    else:
+        _unregister_tools({ToolGroup.NON_SKETCH})
+
     _sketch_active = True
-    _unregister_tools({ToolGroup.NON_SKETCH})
-    _register_tools({ToolGroup.SKETCH})
+    _sketch_group = desired
+    _register_tools({desired})
 
 
 def leave_sketch_mode():
-    global _sketch_active
+    global _sketch_active, _sketch_group
     if not _sketch_active:
         return
+
+    if _sketch_group is not None:
+        _unregister_tools({_sketch_group})
     _sketch_active = False
-    _unregister_tools({ToolGroup.SKETCH})
+    _sketch_group = None
     _register_tools({ToolGroup.NON_SKETCH})
 
 
 def is_sketch_mode():
-    """True while the sketch sub-tools are the registered set."""
+    """True while either sketch sub-tool set is registered."""
     return _sketch_active
 
 
-def sync_sketch_mode(is_active_sketch: bool):
-    """Reconcile the registered tool set with whether a sketch is active.
+def sync_sketch_mode(is_active_sketch: bool, is_3d=False):
+    """Reconcile registered tools with the undo-tracked active sketch.
 
-    Sketch mode is Python-global state (which tools are registered) that
-    Blender's undo does not track, so it can desync from the undo-tracked
-    active_sketch_object. Undoing sketch creation, for instance, removes the
-    sketch but leaves sketch mode on -- a dead end where you can neither add a
-    sketch (the Add Sketch tool is unregistered) nor leave one (there is no
-    active sketch to leave). Force them back in step.
+    2D and native-3D sketches have different draw tool sets. Undo/redo does not
+    restore Python registration state, so re-enter the matching set whenever an
+    active sketch survives the operation.
     """
     if is_active_sketch:
-        enter_sketch_mode()
+        enter_sketch_mode(is_3d=is_3d)
     else:
         leave_sketch_mode()
 
@@ -90,8 +104,16 @@ def register():
 def unregister():
     if bpy.app.background:
         return
-    _unregister_tools({ToolGroup.ALWAYS, ToolGroup.SKETCH, ToolGroup.NON_SKETCH})
+    _unregister_tools(
+        {
+            ToolGroup.ALWAYS,
+            ToolGroup.SKETCH_2D,
+            ToolGroup.SKETCH_3D,
+            ToolGroup.NON_SKETCH,
+        }
+    )
     _registry.clear()
     _registered.clear()
-    global _sketch_active
+    global _sketch_active, _sketch_group
     _sketch_active = False
+    _sketch_group = None
