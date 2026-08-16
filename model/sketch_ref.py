@@ -109,8 +109,18 @@ class Sketch:
     # -- Cleanup --
 
     def remove_objects(self):
-        if self._obj:
-            bpy.data.objects.remove(self._obj)
+        if not self._obj:
+            return
+
+        obj = self._obj
+        parent = obj.parent
+        remove_origin = bool(
+            self.is_3d and parent and parent.get("is_3d_sketch_origin", False)
+        )
+
+        bpy.data.objects.remove(obj)
+        if remove_origin and parent.name in bpy.data.objects:
+            bpy.data.objects.remove(parent)
 
     # -- Identity --
 
