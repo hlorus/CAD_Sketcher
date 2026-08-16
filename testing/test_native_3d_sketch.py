@@ -21,6 +21,18 @@ class TestNative3DSketch(BgsTestCase):
         self.sketch.remove_objects()
         return super().tearDown()
 
+    def test_sketch_uses_origin_empty_without_workplane_constraint(self):
+        obj = self.sketch.target_object
+        origin = obj.parent
+
+        self.assertIsNotNone(origin)
+        self.assertEqual(origin.type, "EMPTY")
+        self.assertTrue(origin.get("is_3d_sketch_origin", False))
+        self.assertEqual(self.sketch.workplane_object, origin)
+        self.assertEqual(tuple(obj.lock_location), (True, True, True))
+        self.assertEqual(tuple(obj.lock_rotation), (True, True, True))
+        self.assertEqual(tuple(obj.lock_scale), (True, True, True))
+
     def test_points_and_lines_preserve_xyz(self):
         from ..model.native_3d import create_line_3d, create_point_3d, is_3d_sketch
 
