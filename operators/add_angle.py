@@ -47,7 +47,7 @@ class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
     )
     type = "ANGLE"
     property_keys = ("value", "setting")
-    has_value_state = True
+    has_value_state = False
 
     def main(self, context):
         if not self.exists(context, SlvsAngle):
@@ -61,9 +61,12 @@ class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
         return super().main(context)
 
     def fini(self, context: Context, succeede: bool):
-        super().fini(context, succeede)
+        # Set the default offset before super().fini() (which hands off to the
+        # placement modal), so the interactive placement writes over the default
+        # rather than the default clobbering the placement.
         if hasattr(self, "target"):
             self.target.draw_offset = 0.1 * context.region_data.view_distance
+        super().fini(context, succeede)
 
 
 register, unregister = register_stateops_factory((VIEW3D_OT_slvs_add_angle,))

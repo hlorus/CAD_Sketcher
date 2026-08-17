@@ -31,7 +31,7 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
     flip: BoolProperty(name="Flip")
     type = "DISTANCE"
     property_keys = ("value", "align", "flip")
-    has_value_state = True
+    has_value_state = False
 
     def main(self, context):
         e1, e2 = self.entity1, self.entity2
@@ -69,9 +69,12 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
         return super().main(context)
 
     def fini(self, context: Context, succeede: bool):
-        super().fini(context, succeede)
+        # Set the default offset before super().fini() (which hands off to the
+        # placement modal), so the interactive placement writes over the default
+        # rather than the default clobbering the placement.
         if hasattr(self, "target"):
             self.target.draw_offset = 0.05 * context.region_data.view_distance
+        super().fini(context, succeede)
 
     def draw(self, context: Context):
         if not hasattr(self, "target"):
