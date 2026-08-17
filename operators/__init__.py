@@ -1,5 +1,5 @@
-from ..utilities.register import module_register_factory
 from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.register import module_register_factory
 
 modules = [
     "select",
@@ -25,6 +25,7 @@ modules = [
     "batch_set",
     "bevel",
     "offset",
+    "project_geometry",
     "set_sketch",
     "delete_entity",
     "delete_sketch",
