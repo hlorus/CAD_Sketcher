@@ -8,24 +8,29 @@ BLENDER_SELECT_TOOL = "builtin.select_box"
 
 
 class Gizmos(str, Enum):
-    Angle = "VIEW3D_GT_slvs_angle"
     Constraint = "VIEW3D_GT_slvs_constraint"
     ConstraintValue = "VIEW3D_GT_slvs_constraint_value"
+    BezierPoint = "VIEW3D_GT_slvs_bezier_point"
+    Coincident = "VIEW3D_GT_slvs_coincident"
     Diameter = "VIEW3D_GT_slvs_diameter"
     Distance = "VIEW3D_GT_slvs_distance"
-    ObjectHover = "VIEW3D_GT_slvs_object_hover"
-    Preselection = "VIEW3D_GT_slvs_preselection"
+    Angle = "VIEW3D_GT_slvs_angle"
+    Point2D = "VIEW3D_GT_slvs_point_2d"
+    Point3D = "VIEW3D_GT_slvs_point_3d"
+    Line2D = "VIEW3D_GT_slvs_line_2d"
+    Line3D = "VIEW3D_GT_slvs_line_3d"
+    Circle = "VIEW3D_GT_slvs_circle"
+    Arc = "VIEW3D_GT_slvs_arc"
     Workplane = "VIEW3D_GT_slvs_workplane"
 
 
 class GizmoGroups(str, Enum):
-    Angle = "VIEW3D_GGT_slvs_angle"
     Constraint = "VIEW3D_GGT_slvs_constraint"
-    Diameter = "VIEW3D_GGT_slvs_diameter"
-    Distance = "VIEW3D_GGT_slvs_distance"
-    ObjectHover = "VIEW3D_GGT_slvs_object_hover"
+    ConstraintValue = "VIEW3D_GGT_slvs_constraint_value"
+    Coincident = "VIEW3D_GGT_slvs_coincident"
+    Entities = "VIEW3D_GGT_slvs_entities"
     Preselection = "VIEW3D_GGT_slvs_preselection"
-    Workplane = "VIEW3D_GGT_slvs_workplane"
+    Empty = "VIEW3D_GGT_slvs_empty"
 
 
 class Operators(str, Enum):
@@ -72,6 +77,7 @@ class Operators(str, Enum):
     NodeExtrude = "view3d.slvs_node_extrude"
     NodeArrayLinear = "view3d.slvs_node_array_linear"
     NodeRevolve = "view3d.slvs_node_revolve"
+    ProjectGeometry = "view3d.slvs_project_geometry"
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
     RenameCurve = "view3d.slvs_rename_curve"
     Restore = "view3d.slvs_restore"
