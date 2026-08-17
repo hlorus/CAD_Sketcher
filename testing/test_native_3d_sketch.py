@@ -66,9 +66,7 @@ class TestNative3DSketch(BgsTestCase):
         # Verify the LINE curve itself stores full XYZ, not merely its PointRef
         # endpoints. This catches the interactive regression where points were
         # correctly 3D but the generated segment was flattened to XY.
-        curve_data, _curve_idx, curve_slice = get_curve_data(
-            self.sketch, line.curve_id
-        )
+        curve_data, _curve_idx, curve_slice = get_curve_data(self.sketch, line.curve_id)
         self.assertIsNotNone(curve_data)
         positions = [
             Vector(curve_data.points[point.index].position).to_3d()
