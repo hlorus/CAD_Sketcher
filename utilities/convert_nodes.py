@@ -11,21 +11,29 @@ This builds an equivalent group that welds mesh vertices sharing a ``merge_id``
 via vertex valence so tessellated interior vertices are never merged. The result
 is tolerance-free and independent of sketch scale. Older Blender keeps loading
 the merge-by-distance asset; both paths share the stable generated-id tail below.
+
+Generated vertices publish their persistent link key through Blender's reserved
+``id`` point attribute. Consumers that support persistent mesh identity should
+use that public key rather than topology-global vertex indices. Generated faces
+use ``cad_sketcher_face_id`` because Blender has no equivalent standard face-domain
+``id`` contract.
 """
 
 import bpy
 
 CONVERT_NODE_GROUP = "CAD Sketcher Convert"
-VERTEX_ID_ATTR = "cad_sketcher_vertex_id"
+# Blender's reserved point-domain identity attribute. This is intentionally the
+# public vertex link key for consumers of evaluated CAD Sketcher meshes.
+VERTEX_ID_ATTR = "id"
 FACE_ID_ATTR = "cad_sketcher_face_id"
 SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
-GENERATED_ID_VERSION = 1
+GENERATED_ID_VERSION = 2
 
 # Bump whenever the built node tree changes, so groups baked into existing files
 # (or a stale merge-by-distance asset of the same name) are rebuilt on load.
-CONVERT_VERSION = 4
+CONVERT_VERSION = 5
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -95,6 +103,10 @@ def add_generated_id_nodes(nodes, links, geometry):
     Source ids are hashes of the native Curves UUID attributes. Accumulate Field
     supplies an index local to each source rather than the topology-global Index,
     so inserting another curve cannot renumber unaffected children.
+
+    Vertex identity is written to Blender's reserved ``id`` point attribute so it
+    remains the public persistent link key on evaluated meshes. Face identity is
+    stored separately because there is no standard face-domain ``id`` attribute.
     """
     curve_source = _named_int(nodes, SOURCE_CURVE_ID_ATTR)
     endpoint_source = _named_int(nodes, SOURCE_ENDPOINT_ID_ATTR)
