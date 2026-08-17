@@ -3,7 +3,7 @@
 import bpy
 from mathutils import Matrix, Vector
 
-from .constants import BezierHandleType, SketchCurveType
+from .constants import SketchCurveType
 from .curve_ref import (
     LineRef,
     PointRef,
@@ -61,7 +61,7 @@ def _local_point_position(ref):
     if not isinstance(ref, PointRef) or not ref._resolve():
         return Vector((0.0, 0.0, 0.0))
     point_index = ref._curve_slice.points[0].index
-    return Vector(ref._curve_data.points[point_index].position)
+    return Vector(ref._curve_data.points[point_index].position).to_3d()
 
 
 def create_point_3d(sketch, co, construction=False, fixed=False, name=None):
@@ -103,7 +103,14 @@ def create_point_3d(sketch, co, construction=False, fixed=False, name=None):
 
 
 def create_line_3d(sketch, p1, p2, construction=False, name=None):
-    """Create a native line curve between two 3D point curves."""
+    """Create a native straight line curve between two 3D point curves.
+
+    The segment is stored as POLY geometry. 2D lines use Bezier curves because
+    the shared 2D curve machinery also services arcs/handles, but a native 3D
+    line has no handles and must preserve the endpoint XYZ values verbatim.
+    Keeping this path handle-free also prevents any 2D handle/default state from
+    re-projecting the generated segment onto XY during interactive creation.
+    """
     if not is_3d_sketch(sketch):
         raise ValueError("create_line_3d requires a native 3D sketch")
     if not isinstance(p1, PointRef) or not isinstance(p2, PointRef):
@@ -115,23 +122,19 @@ def create_line_3d(sketch, p1, p2, construction=False, name=None):
     if curve_data is None:
         return None
 
+    positions = (_local_point_position(p1), _local_point_position(p2))
     cid = _allocate(sketch)
     curve_data.add_curves([2])
-    curve_data.set_types(type="BEZIER")
     _ensure_attrs(curve_data, len(curve_data.curves) - 1)
 
     curve_idx = len(curve_data.curves) - 1
     curve_slice = curve_data.curves[curve_idx]
-    positions = (_local_point_position(p1), _local_point_position(p2))
-
-    attrs = curve_data.attributes
+    # New curves are POLY by default. Set the raw curve points directly from
+    # referenced native 3D points so Z can never be reconstructed via a 2D API.
     for point, position in zip(curve_slice.points, positions):
         curve_data.points[point.index].position = tuple(position)
-        attrs["handle_left"].data[point.index].vector = position
-        attrs["handle_right"].data[point.index].vector = position
-        attrs["handle_type_left"].data[point.index].value = BezierHandleType.FREE
-        attrs["handle_type_right"].data[point.index].value = BezierHandleType.FREE
 
+    attrs = curve_data.attributes
     set_attribute(attrs, "curve_id", cid, curve_idx)
     set_attribute(attrs, "sketch_type", SketchCurveType.LINE, curve_idx)
     set_attribute(attrs, "start_point_id", p1.curve_id, curve_idx)
@@ -147,7 +150,7 @@ def create_line_3d(sketch, p1, p2, construction=False, name=None):
     )
 
     _invalidate(sketch)
-    curve_data.update_tag()
+    rebuild_3d_lines(sketch)
     return LineRef(sketch, cid)
 
 
@@ -172,7 +175,7 @@ def rebuild_3d_lines(sketch):
         if not curve_slice.points_length:
             continue
         point_index = curve_slice.points[0].index
-        point_positions[cid] = Vector(curve_data.points[point_index].position)
+        point_positions[cid] = Vector(curve_data.points[point_index].position).to_3d()
 
     handle_left = curve_data.attributes.get("handle_left")
     handle_right = curve_data.attributes.get("handle_right")
@@ -190,6 +193,9 @@ def rebuild_3d_lines(sketch):
                 continue
             point_index = curve_slice.points[point_offset].index
             curve_data.points[point_index].position = tuple(position)
+            # Older files may contain Bezier-backed 3D lines from the first
+            # implementation. Keep their handles coincident with the 3D point
+            # rather than allowing stale XY handle data to distort the segment.
             if handle_left:
                 handle_left.data[point_index].vector = position
             if handle_right:
