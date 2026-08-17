@@ -8,7 +8,7 @@ from mathutils.geometry import intersect_line_plane
 from ..declarations import Operators
 from ..model.sketch_ref import get_active_constraints, get_active_sketch
 from ..stateful_operator.utilities.keymap import is_numeric_input, is_unit_input
-from ..stateful_operator.utilities.numeric import NumericInput
+from ..stateful_operator.utilities.numeric import NumericInput, parse_numeric
 from ..utilities.view import get_picking_origin_end
 
 # Confirm / cancel the placement modal.
@@ -120,15 +120,14 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
         if constr is None:
             return
 
-        raw = self._numeric.current
         prop = constr.rna_type.properties.get("value")
-        if not raw or prop is None:
+        if prop is None:
             return
-        try:
-            value = bpy.utils.units.to_value(
-                context.scene.unit_settings.system, prop.unit, raw
-            )
-        except ValueError:
+        value = parse_numeric(
+            prop, self._numeric.current, context.scene.unit_settings.system
+        )
+        if value is None:
+            # Empty or mid-typing/invalid input -- keep the current value.
             return
 
         # Route through the property setter (matches the creation-time value

@@ -1,6 +1,36 @@
 from typing import Optional
 
-from .keymap import is_unit_input, get_unit_value, get_value_from_event
+import bpy
+
+from .keymap import get_unit_value, get_value_from_event, is_unit_input
+
+
+def parse_numeric(prop, raw: str, unit_system: str):
+    """Convert a numeric input string to a value for an RNA property.
+
+    Applies the property's unit (via ``bpy.utils.units``) and type. Returns
+    ``None`` when the string is empty or cannot be parsed, so each caller picks
+    its own fallback (the stateful input uses ``prop.default``; the standalone
+    dimension value entry keeps the current value). Shared so both parse alike.
+    """
+    if not raw or raw == "-":
+        return None
+
+    if prop.unit != "NONE":
+        try:
+            value = bpy.utils.units.to_value(unit_system, prop.unit, raw)
+        except ValueError:
+            return None
+        return int(value) if prop.type == "INT" else value
+
+    try:
+        if prop.type == "FLOAT":
+            return float(raw)
+        if prop.type == "INT":
+            return int(raw)
+    except ValueError:
+        return None
+    return None
 
 
 class NumericInput:
@@ -51,7 +81,9 @@ class NumericInput:
             return
 
         if event_type in ("MINUS", "NUMPAD_MINUS"):
-            self.current = self.current[1:] if self.current.startswith("-") else "-" + self.current
+            self.current = (
+                self.current[1:] if self.current.startswith("-") else "-" + self.current
+            )
             return
 
         if is_unit_input(event):
