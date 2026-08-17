@@ -50,6 +50,7 @@ class TestNative3DSketch(BgsTestCase):
 
     def test_points_and_lines_preserve_xyz(self):
         from ..model.native_3d import create_line_3d, create_point_3d, is_3d_sketch
+        from ..utilities.curve_data import get_curve_data
 
         p1 = create_point_3d(self.sketch, (1.0, 2.0, 3.0), fixed=True)
         p2 = create_point_3d(self.sketch, (4.0, 6.0, 8.0))
@@ -61,6 +62,22 @@ class TestNative3DSketch(BgsTestCase):
         self.assertAlmostEqual(
             (line.p2.location - line.p1.location).length, 7.0710678, places=5
         )
+
+        # Verify the LINE curve itself stores full XYZ, not merely its PointRef
+        # endpoints. This catches the interactive regression where points were
+        # correctly 3D but the generated segment was flattened to XY.
+        curve_data, _curve_idx, curve_slice = get_curve_data(
+            self.sketch, line.curve_id
+        )
+        self.assertIsNotNone(curve_data)
+        positions = [
+            Vector(curve_data.points[point.index].position).to_3d()
+            for point in curve_slice.points
+        ]
+        self.assertLess((positions[0] - Vector((1.0, 2.0, 3.0))).length, 1e-6)
+        self.assertLess((positions[1] - Vector((4.0, 6.0, 8.0))).length, 1e-6)
+        self.assertGreater(abs(positions[0].z), 1e-6)
+        self.assertGreater(abs(positions[1].z), 1e-6)
 
     def test_distance_solves_in_free_3d_and_dimension_is_world_space(self):
         from ..model.native_3d import create_line_3d, create_point_3d
