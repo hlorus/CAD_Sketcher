@@ -14,6 +14,7 @@ class TestGeneratedIds(TestCase):
         )
         from ..utilities.curve_data import _get_convert_node_group
 
+        self.assertEqual(VERTEX_ID_ATTR, "id")
         group = _get_convert_node_group()
         self.assertIsNotNone(group)
         stores = {
@@ -32,7 +33,7 @@ class TestGeneratedIds(TestCase):
         )
 
     def test_unaffected_ids_survive_neighbor_insert_and_remove(self):
-        """Re-evaluate after global reindexing and compare unaffected elements."""
+        """Verify public `id` and face ids persist on evaluated mesh topology edits."""
         from ..utilities.convert_nodes import (
             FACE_ID_ATTR,
             SOURCE_CURVE_ID_ATTR,
@@ -41,6 +42,7 @@ class TestGeneratedIds(TestCase):
             add_generated_id_nodes,
         )
 
+        self.assertEqual(VERTEX_ID_ATTR, "id")
         group = bpy.data.node_groups.new(
             "test_stable_generated_ids", "GeometryNodeTree"
         )
@@ -90,6 +92,7 @@ class TestGeneratedIds(TestCase):
                 evaluated, depsgraph=depsgraph
             )
             try:
+                self.assertIn("id", result.attributes)
                 vertex_ids = result.attributes[VERTEX_ID_ATTR]
                 face_ids = result.attributes[FACE_ID_ATTR]
                 vertices = {
@@ -205,6 +208,7 @@ class TestConvertNodeGroup(TestCase):
             build_convert_node_group,
         )
 
+        self.assertEqual(VERTEX_ID_ATTR, "id")
         ng = build_convert_node_group("test_generated_ids")
         try:
             stores = {
