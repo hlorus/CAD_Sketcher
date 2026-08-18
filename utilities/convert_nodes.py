@@ -18,12 +18,11 @@ use that public key rather than topology-global vertex indices. Generated faces
 use ``cad_sketcher_face_id`` because Blender has no equivalent standard face-domain
 ``id`` contract.
 
-User-defined POINT/CURVE attributes normally propagate through the wire path
-(Curve to Mesh -> Merge Points -> Mesh to Curve). Blender's Fill Curve creates a
-new mesh and drops arbitrary, unreferenced named attributes, so attribute-aware
-variants capture only the configured fields before conversion and restore them
-only on the filled branch. The unfilled branch stays on Blender's generic native
-propagation path.
+For user-defined POINT/CURVE values, regression coverage on Blender 5.2 shows the
+unreferenced named attributes are already discarded by the normal wire conversion
+chain, before Fill Curve. Attribute-aware variants therefore capture configured
+fields at the native Curves boundary and consume those captures at the final
+output. Variants are shared by schema rather than rebuilt per sketch/value.
 """
 
 import bpy
@@ -87,7 +86,7 @@ def attribute_signature(specs):
 
 
 def _capture_custom_attributes(nodes, links, geometry_socket, specs):
-    """Capture configured named fields before Fill Curve can discard them."""
+    """Capture configured source fields so topology conversion cannot prune them."""
     captured = []
     current_geometry = geometry_socket
     for entry in specs:
@@ -108,12 +107,12 @@ def _capture_custom_attributes(nodes, links, geometry_socket, specs):
 
 
 def _restore_custom_attributes(nodes, links, geometry_socket, captured):
-    """Restore captured fields on the mesh produced by Fill Curve.
+    """Materialize captured values on the final conversion output.
 
-    The conversion result is a mesh, so user POINT/CURVE values are materialized
-    on its POINT domain. Captured fields retain the per-generated-element value
-    mapping through the topology operation, while the original attribute name and
-    scalar type are preserved.
+    Both Curve and Mesh output geometry support POINT-domain named attributes.
+    The capture sockets remain live because they are consumed after the entire
+    topology chain, which prevents Blender from pruning the source values as
+    unreferenced conversion data.
     """
     current_geometry = geometry_socket
     for entry, value_socket in captured:
@@ -239,11 +238,12 @@ def build_convert_node_group(
 ):
     """Build the identity-weld convert node group (idempotent).
 
-    With no custom definitions this is the single shared converter used by every
-    normal sketch. When a sketch defines POINT/CURVE user attributes, a schema-
-    shared variant captures those fields and restores them only on the Fill Curve
-    branch, the one operation that does not generically preserve arbitrary named
-    attributes. Attribute *values* never rebuild the node tree.
+    With no custom definitions this is the single shared converter used by normal
+    sketches. Attribute-bearing sketches use a converter shared by schema (name,
+    type and domain), never by sketch identity or current values. The configured
+    fields are captured once at the source and restored at the final conversion
+    boundary because Blender 5.2 drops otherwise-unreferenced custom attributes
+    in the wire conversion path itself.
     """
     specs = normalize_attribute_definitions(attribute_definitions)
     signature = attribute_signature(specs)
@@ -271,8 +271,6 @@ def build_convert_node_group(
     gi = nodes.new("NodeGroupInput")
     go = nodes.new("NodeGroupOutput")
 
-    # Capture from the native source. This is deliberately a no-op when there is
-    # no custom schema, preserving the exact shared-main conversion path.
     source_geometry, captured = _capture_custom_attributes(
         nodes, links, gi.outputs["Geometry"], specs
     )
@@ -326,28 +324,27 @@ def build_convert_node_group(
     links.new(merge_id.outputs["Attribute"], merge.inputs["Merge ID"])
     links.new(weld.outputs["Boolean"], merge.inputs["Selection"])
 
-    # 4. Back to curves. This wire branch relies purely on Blender's generic
-    #    named-attribute propagation. Fill Curve is the destructive boundary: its
-    #    generated mesh needs the explicitly captured values restored.
+    # 4. Back to curves; fill closed loops, or output the wire when Fill is off.
     to_curve = nodes.new("GeometryNodeMeshToCurve")
     links.new(merge.outputs["Geometry"], to_curve.inputs["Mesh"])
 
     fill_curve = nodes.new("GeometryNodeFillCurve")
     links.new(to_curve.outputs["Curve"], fill_curve.inputs["Curve"])
-    filled_geometry = _restore_custom_attributes(
-        nodes, links, fill_curve.outputs["Mesh"], captured
-    )
 
     switch = nodes.new("GeometryNodeSwitch")
     switch.input_type = "GEOMETRY"
     links.new(gi.outputs["Fill"], switch.inputs["Switch"])
     links.new(to_curve.outputs["Curve"], switch.inputs["False"])
-    links.new(filled_geometry, switch.inputs["True"])
+    links.new(fill_curve.outputs["Mesh"], switch.inputs["True"])
 
-    # 5. Derive generated-element identity from persistent source UUIDs and
-    #    source-local child indices (never from topology-global Index).
-    geometry = add_generated_id_nodes(nodes, links, switch.outputs["Output"])
-    links.new(geometry, go.inputs["Geometry"])
+    # 5. Preserve generated-element identity from #611, then consume the custom
+    #    capture fields at the final boundary. Keeping the capture connected all
+    #    the way to the output is what prevents Blender from pruning the values.
+    output_geometry = add_generated_id_nodes(nodes, links, switch.outputs["Output"])
+    output_geometry = _restore_custom_attributes(
+        nodes, links, output_geometry, captured
+    )
+    links.new(output_geometry, go.inputs["Geometry"])
 
     ng["cad_convert_version"] = CONVERT_VERSION
     ng["cad_generated_id_version"] = GENERATED_ID_VERSION
