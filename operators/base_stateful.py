@@ -1,16 +1,16 @@
-from typing import Optional, Any
+from typing import Any, Optional
 
-import numpy as np
 import bpy
-from bpy.types import Context
+import numpy as np
 from bpy.props import FloatVectorProperty
+from bpy.types import Context
 
 from .. import global_data
 from ..drawing import selection
+from ..model.types import SlvsGenericEntity, SlvsNormal3D, SlvsPoint2D, SlvsPoint3D
+from ..serialize import scene_from_dict, scene_to_dict
 from ..stateful_operator.integration import StatefulOperator
-from ..model.types import SlvsGenericEntity, SlvsPoint3D, SlvsPoint2D, SlvsNormal3D
 from .utilities import get_hovered
-from ..serialize import scene_to_dict, scene_from_dict
 
 
 class GenericEntityOp(StatefulOperator):
@@ -40,6 +40,22 @@ class GenericEntityOp(StatefulOperator):
             and not state_data.get("skip_auto_constraints", False)
         )
 
+    def add_auto_constraint(self, context: Context, add, state_data=None, **kwargs):
+        """Add an inferred constraint only when the resulting sketch solves."""
+        if not self.use_auto_constraints(context, state_data):
+            return None
+
+        constraint = add(**kwargs)
+        from ..curve_solver import solve_system
+
+        if solve_system(context, sketch=self.sketch):
+            return constraint
+
+        self.sketch.constraints.remove(constraint)
+        # Restore the valid solver state after the rejected trial constraint.
+        solve_system(context, sketch=self.sketch)
+        return None
+
     def pick_element(self, context, coords):
         retval = super().pick_element(context, coords)
         if retval is not None:
@@ -65,15 +81,17 @@ class GenericEntityOp(StatefulOperator):
         return hovered.curve_id if hovered else None
 
     def add_coincident(self, context: Context, point, state, state_data):
-        if not self.use_auto_constraints(context, state_data):
-            return
         hovered_cid = state_data.get("hovered", "")
         if hovered_cid and hasattr(self, "sketch") and self.sketch:
             from ..model.curve_ref import CurveRef
             point_cid = point.curve_id if isinstance(point, CurveRef) else state_data.get("curve_id", "")
 
-            state_data["coincident"] = self.sketch.constraints.add_coincident(
-                curve_id_1=point_cid, curve_id_2=hovered_cid,
+            state_data["coincident"] = self.add_auto_constraint(
+                context,
+                self.sketch.constraints.add_coincident,
+                state_data,
+                curve_id_1=point_cid,
+                curve_id_2=hovered_cid,
             )
 
     def has_coincident(self):
@@ -154,7 +172,6 @@ class GenericEntityOp(StatefulOperator):
         if index is None:
             index = self.state_index
 
-        state = self.get_states_definition()[index]
         data = self._state_data.get(index, {})
         if "type" not in data.keys():
             return None
@@ -191,7 +208,6 @@ class GenericEntityOp(StatefulOperator):
         if index is None:
             index = self.state_index
 
-        state = self.get_states_definition()[index]
         data = self._state_data.get(index, {})
         pointer_type = data.get("type")
         if pointer_type is None:
@@ -408,8 +424,8 @@ class GenericEntityOp(StatefulOperator):
 
     def _restore_all_curves(self, context, curve_snapshots):
         """Restore curve data + constraints for all sketches."""
-        from ..utilities.curve_data import invalidate_curve_id_cache
         from ..model.sketch_ref import get_sketches
+        from ..utilities.curve_data import invalidate_curve_id_cache
         invalidate_curve_id_cache()
 
         if not curve_snapshots:

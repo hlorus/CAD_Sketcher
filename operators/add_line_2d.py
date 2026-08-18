@@ -64,11 +64,17 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
 
             threshold = 0.1
             if angle < threshold or angle > HALF_TURN - threshold:
-                sketch.constraints.add_horizontal(curve_id_1=line_cid)
-                self.has_alignment = True
+                self.has_alignment = bool(
+                    self.add_auto_constraint(
+                        context, sketch.constraints.add_horizontal, curve_id_1=line_cid
+                    )
+                )
             elif (QUARTER_TURN - threshold) < angle < (QUARTER_TURN + threshold):
-                sketch.constraints.add_vertical(curve_id_1=line_cid)
-                self.has_alignment = True
+                self.has_alignment = bool(
+                    self.add_auto_constraint(
+                        context, sketch.constraints.add_vertical, curve_id_1=line_cid
+                    )
+                )
 
         ignore_hover(line_cid)
         return True
