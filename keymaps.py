@@ -172,11 +172,7 @@ tool_access = (
         WorkSpaceTools.Bevel,
         Operators.Bevel,
     ),
-    tool_invoke_kmi(
-        "O",
-        WorkSpaceTools.Offset,
-        Operators.Offset
-    ),
+    tool_invoke_kmi("O", WorkSpaceTools.Offset, Operators.Offset),
     tool_invoke_kmi(
         "S",
         WorkSpaceTools.AddSketch,
@@ -326,6 +322,12 @@ tool_select = (
         {"type": "LEFTMOUSE", "value": "CLICK", "ctrl": True},
         {"properties": [("mode", "SUBTRACT")]},
     ),
+    # Alt+click: select the next entity in the overlapping stack (issue #50).
+    (
+        Operators.Select,
+        {"type": "LEFTMOUSE", "value": "CLICK", "alt": True},
+        {"properties": [("cycle", True)]},
+    ),
     (
         Operators.SelectInvert,
         {"type": "I", "value": "PRESS", "ctrl": True},
@@ -381,6 +383,16 @@ def register():
         kmi.properties.name = BLENDER_SELECT_TOOL
         addon_keymaps.append((km, kmi))
 
+        # Cycle the hovered element through overlapping entities under the cursor
+        # (issue #50). Alt+wheel, so it does not collide with zoom; a no-op unless
+        # more than one entity is stacked under the cursor.
+        for event_type, direction in (("WHEELUPMOUSE", 1), ("WHEELDOWNMOUSE", -1)):
+            kmi = km.keymap_items.new(
+                Operators.HoverCycle, event_type, "PRESS", alt=True
+            )
+            kmi.properties.direction = direction
+            addon_keymaps.append((km, kmi))
+
         # Add Sketch: switch to the Add Sketch tool (workplane gizmo), then
         # invoke the operator (a pre-selected workplane creates immediately).
         kmi = km.keymap_items.new(
@@ -420,7 +432,6 @@ def register():
         kmi.properties.tool_name = WorkSpaceTools.ArrayLinear.value
         kmi.properties.operator = Operators.NodeArrayLinear.value
         addon_keymaps.append((km, kmi))
-
 
 
 def unregister():
