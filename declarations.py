@@ -47,6 +47,7 @@ class Operators(str, Enum):
     AddSymmetry = "view3d.slvs_add_symmetry"
     AddRectangle = "view3d.slvs_add_rectangle"
     AddSketch = "view3d.slvs_add_sketch"
+    AddSketchOnPlane = "view3d.slvs_add_sketch_on_plane"
     AddTangent = "view3d.slvs_add_tangent"
     AddVertical = "view3d.slvs_add_vertical"
     MakeWorkplaneFree = "view3d.slvs_make_workplane_free"
