@@ -1,25 +1,34 @@
 import logging
 
+import blf
 import bpy
 import gpu
 from bpy.types import Context, Operator
 from bpy.utils import register_class, unregister_class
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 from gpu_extras.batch import batch_for_shader
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 from . import global_data
+from .declarations import Operators
+from .shaders import Shaders
 from .utilities import preferences
 from .utilities.preferences import get_prefs
-from .shaders import Shaders
-from .declarations import Operators
 
 logger = logging.getLogger(__name__)
 
+# Blender's built-in default font.
+_FONT_ID = 0
+# Label height as a fraction of the origin plane's drawn side length.
+_LABEL_HEIGHT_FACTOR = 0.22
+# Inset of the label from the plane's outer corner, as a fraction of its side.
+_LABEL_CORNER_MARGIN = 0.08
 
 
 def _draw_curves_overlay(context: Context):
     """Draw native curve geometry as an overlay (cached, batched drawing system)."""
     from .drawing import overlay
+
     overlay.draw(context)
 
 
@@ -30,9 +39,18 @@ def draw_cb():
 
 # Bounding-box edges (Blender's 8-corner order).
 _BBOX_EDGES = (
-    (0, 1), (1, 2), (2, 3), (3, 0),
-    (4, 5), (5, 6), (6, 7), (7, 4),
-    (0, 4), (1, 5), (2, 6), (3, 7),
+    (0, 1),
+    (1, 2),
+    (2, 3),
+    (3, 0),
+    (4, 5),
+    (5, 6),
+    (6, 7),
+    (7, 4),
+    (0, 4),
+    (1, 5),
+    (2, 6),
+    (3, 7),
 )
 
 
@@ -159,12 +177,112 @@ def draw_hover_element():
         _draw_vertex_hover(context, ob, index, col, scale)
 
 
+def draw_origin_labels():
+    """POST_VIEW: name each origin workplane (XY/XZ/YZ), lying in its plane.
+
+    Drawn in the 3D pass so ``blf`` is transformed by the plane's matrix and the
+    text tilts with it in perspective. Visibility mirrors the workplane gizmo:
+    only while the Add Sketch tool is active, and ``iter_wp_empties`` already
+    respects ``show_origin``. The glyph raster is sized to the label's on-screen
+    height so it stays crisp instead of being magnified; the text sits in the
+    plane's outer corner, uses the themed constraint-text color, is mirrored
+    when seen from behind so it never reads backwards, and skips the depth test
+    so it stays legible over geometry.
+    """
+    from .declarations import GizmoGroups
+    from .drawing import selection
+    from .utilities.workplane import (
+        ORIGIN_AXIS_COLOR,
+        ORIGIN_LABEL,
+        iter_wp_empties,
+        wp_plane_bounds,
+    )
+
+    context = bpy.context
+    region, rv3d = context.region, context.region_data
+    if region is None or rv3d is None:
+        return
+
+    tool = context.workspace.tools.from_space_view3d_mode(context.mode)
+    if tool is None or tool.widget != GizmoGroups.Workplane.value:
+        return
+
+    # Direction the view looks along, in world space, to detect back-facing text.
+    view_forward = rv3d.view_rotation @ Vector((0.0, 0.0, -1.0))
+
+    gpu.state.blend_set("ALPHA")
+    gpu.state.depth_test_set("NONE")
+
+    for wp_obj, pick_id in iter_wp_empties(context):
+        label = ORIGIN_LABEL.get(pick_id)
+        if not label:
+            continue
+
+        min_x, min_y, max_x, max_y = wp_plane_bounds(context, pick_id)
+        side = max_x - min_x
+        target_h = side * _LABEL_HEIGHT_FACTOR
+
+        plane_mat = wp_obj.matrix_world
+        up_world = plane_mat.to_3x3().col[1].normalized()
+        corner = plane_mat @ Vector((max_x, max_y, 0.0))
+
+        # Raster the glyphs at their on-screen pixel height so they stay sharp:
+        # magnifying a small raster into world space is what made them blurry.
+        s0 = location_3d_to_region_2d(region, rv3d, corner)
+        s1 = location_3d_to_region_2d(region, rv3d, corner + up_world * target_h)
+        if s0 is None or s1 is None:  # behind the view plane
+            continue
+        blf.size(_FONT_ID, max(8, min(round((s1 - s0).length), 256)))
+
+        w, h = blf.dimensions(_FONT_ID, label)
+        if h <= 0.0:
+            continue
+        scale = target_h / h
+
+        # Anchor the text box's outer corner a margin in from the plane's outer
+        # corner, so it reads as a corner label rather than filling the plane.
+        margin = side * _LABEL_CORNER_MARGIN
+        box_cx = max_x - margin - (w * scale) / 2
+        box_cy = max_y - margin - (h * scale) / 2
+
+        normal = plane_mat.to_3x3().col[2].normalized()
+        # Flip in-plane X when looking at the plane's back so the glyphs read
+        # left-to-right from the viewer's side instead of mirrored.
+        sx = -1.0 if normal.dot(view_forward) > 0.0 else 1.0
+
+        # Right-to-left: center the glyph box, mirror if needed, scale to world,
+        # move to the corner anchor, then into the plane's frame.
+        mat = (
+            plane_mat
+            @ Matrix.Translation((box_cx, box_cy, 0.0))
+            @ Matrix.Scale(scale, 4)
+            @ Matrix.Diagonal((sx, 1.0, 1.0, 1.0))
+            @ Matrix.Translation((-w / 2, -h / 2, 0.0))
+        )
+
+        # Axis-tinted, lightened toward white so the text reads a bit softer
+        # than the plane fill, brighter still while hovered.
+        axis = ORIGIN_AXIS_COLOR[pick_id]
+        lift = 0.55 if selection.hover == pick_id else 0.35
+        color = tuple(c + (1.0 - c) * lift for c in axis) + (1.0,)
+        blf.color(_FONT_ID, *color)
+
+        with gpu.matrix.push_pop():
+            gpu.matrix.multiply_matrix(mat)
+            blf.position(_FONT_ID, 0.0, 0.0, 0.0)
+            blf.draw(_FONT_ID, label)
+
+    gpu.state.depth_test_set("LESS_EQUAL")
+    gpu.state.blend_set("NONE")
+
+
 class View3D_OT_slvs_register_draw_cb(Operator):
     bl_idname = Operators.RegisterDrawCB
     bl_label = "Register Draw Callback"
 
     def execute(self, context: Context):
         from .drawing import constraint_icons
+
         global_data.draw_handle = bpy.types.SpaceView3D.draw_handler_add(
             draw_cb, (), "WINDOW", "POST_VIEW"
         )
@@ -174,6 +292,10 @@ class View3D_OT_slvs_register_draw_cb(Operator):
         # Constraint icons draw in screen space, batched from one atlas.
         global_data.icon_draw_handle = bpy.types.SpaceView3D.draw_handler_add(
             constraint_icons.draw, (), "WINDOW", "POST_PIXEL"
+        )
+        # Origin-plane labels are drawn in the plane, so they need the 3D pass.
+        global_data.origin_label_draw_handle = bpy.types.SpaceView3D.draw_handler_add(
+            draw_origin_labels, (), "WINDOW", "POST_VIEW"
         )
 
         return {"FINISHED"}
@@ -195,6 +317,11 @@ class View3D_OT_slvs_unregister_draw_cb(Operator):
                 global_data.icon_draw_handle, "WINDOW"
             )
             global_data.icon_draw_handle = None
+        if getattr(global_data, "origin_label_draw_handle", None) is not None:
+            bpy.types.SpaceView3D.draw_handler_remove(
+                global_data.origin_label_draw_handle, "WINDOW"
+            )
+            global_data.origin_label_draw_handle = None
         return {"FINISHED"}
 
 
