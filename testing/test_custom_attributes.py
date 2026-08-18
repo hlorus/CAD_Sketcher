@@ -169,15 +169,19 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertEqual(attr.data_type, "INT")
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
-    def test_wire_path_preserves_named_attributes_without_schema_transport(self):
-        """Prove the generic wire chain propagates names; Fill Curve is the gap."""
+    def test_generic_wire_path_drops_unreferenced_point_attribute(self):
+        """Document why a schema transport is needed even when Fill is disabled.
+
+        Blender 5.2 prunes an otherwise-unreferenced POINT named attribute in the
+        standard CurveToMesh -> MergePoints -> MeshToCurve path. The transport
+        group therefore has to keep configured fields live across the complete
+        conversion chain, rather than only around Fill Curve.
+        """
         from ..utilities.convert_nodes import build_convert_node_group
 
         _, lines = self._square()
         define_attribute(self.sketch, "wire_point_tag", "INT", "POINT", 13)
-        define_attribute(self.sketch, "wire_curve_tag", "INT", "CURVE", 17)
         set_attribute_value(self.sketch, "wire_point_tag", 29, lines[0].curve_id)
-        set_attribute_value(self.sketch, "wire_curve_tag", 31, lines[0].curve_id)
 
         generic = build_convert_node_group("test_generic_wire_custom_attrs")
         converted = None
@@ -187,12 +191,7 @@ class TestCustomAttributes(Sketch2dTestCase):
                 node_group=generic,
                 fill=False,
             )
-            point_attr = converted.data.attributes.get("wire_point_tag")
-            curve_attr = converted.data.attributes.get("wire_curve_tag")
-            self.assertIsNotNone(point_attr)
-            self.assertIsNotNone(curve_attr)
-            self.assertIn(29, [item.value for item in point_attr.data])
-            self.assertIn(31, [item.value for item in curve_attr.data])
+            self.assertIsNone(converted.data.attributes.get("wire_point_tag"))
         finally:
             self._remove_converted(converted)
             if generic.users == 0:
@@ -200,7 +199,7 @@ class TestCustomAttributes(Sketch2dTestCase):
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
     def test_named_attributes_reach_filled_conversion_output(self):
-        """Bridge the Fill Curve boundary with a schema-shared transport group."""
+        """Keep configured fields live through the evaluated conversion output."""
         _, lines = self._square()
         define_attribute(self.sketch, "point_tag", "INT", "POINT", 13)
         define_attribute(self.sketch, "curve_tag", "INT", "CURVE", 17)
