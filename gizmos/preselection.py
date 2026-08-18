@@ -66,7 +66,10 @@ class VIEW3D_GT_slvs_preselection(Gizmo):
             context.area.tag_redraw()
 
         # CPU screen-space pick of the active sketch's geometry under the cursor.
-        cid = picking.pick(context, location)
+        # Cycle-aware: keeps the ranked candidate stack so overlapping entities
+        # can be stepped through (see the hover-cycle operator), and preserves a
+        # cycled choice across small mouse moves.
+        cid = picking.update_hover(context, location)
         if cid != selection.hover:
             selection.hover = cid
             context.area.tag_redraw()

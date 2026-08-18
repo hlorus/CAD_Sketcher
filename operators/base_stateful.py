@@ -1,20 +1,51 @@
-from typing import Optional, Any
+from typing import Any, Optional
 
-import numpy as np
 import bpy
-from bpy.types import Context
+import numpy as np
 from bpy.props import FloatVectorProperty
+from bpy.types import Context
 
 from .. import global_data
 from ..drawing import selection
+from ..model.types import SlvsGenericEntity, SlvsNormal3D, SlvsPoint2D, SlvsPoint3D
+from ..serialize import scene_from_dict, scene_to_dict
 from ..stateful_operator.integration import StatefulOperator
-from ..model.types import SlvsGenericEntity, SlvsPoint3D, SlvsPoint2D, SlvsNormal3D
 from .utilities import get_hovered
-from ..serialize import scene_to_dict, scene_from_dict
 
 
 class GenericEntityOp(StatefulOperator):
     """Extend StatefulOperator with extension specific types"""
+
+    def modal(self, context, event):
+        # Alt+wheel cycles the hovered entity through the overlapping stack under
+        # the cursor while drawing/constraining (issue #50). The preselection
+        # gizmo keeps selection.hover_candidates current during the modal, so this
+        # just steps hover; the next pick/commit reads it. Everything else falls
+        # through to the normal stateful modal (plain wheel still navigates).
+        if (
+            event.value == "PRESS"
+            and event.alt
+            and event.type in {"WHEELUPMOUSE", "WHEELDOWNMOUSE"}
+            and len(selection.hover_candidates) > 1
+        ):
+            direction = 1 if event.type == "WHEELUPMOUSE" else -1
+            if selection.cycle_hover(direction):
+                if context.area:
+                    context.area.tag_redraw()
+                return {"RUNNING_MODAL"}
+
+        # Alt+click: pick the next occluded candidate. Step hover, then fall
+        # through so the normal LEFTMOUSE confirm commits the cycled entity
+        # (check_event treats LEFTMOUSE-press as confirm regardless of Alt).
+        if (
+            event.type == "LEFTMOUSE"
+            and event.value == "PRESS"
+            and event.alt
+            and len(selection.hover_candidates) > 1
+        ):
+            selection.cycle_hover(1)
+
+        return super().modal(context, event)
 
     def check_event(self, event):
         # Shift = "place it raw": bypass both geometry snapping and inferred
@@ -23,7 +54,10 @@ class GenericEntityOp(StatefulOperator):
         #  - Auto-constraints are applied at the confirm click, so capture Shift
         #    there (not sticky) — releasing Shift restores normal behaviour.
         global_data.snap_bypass = bool(event.shift)
-        if event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER") and event.value == "PRESS":
+        if (
+            event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER")
+            and event.value == "PRESS"
+        ):
             self.state_data["skip_auto_constraints"] = bool(event.shift)
         return super().check_event(event)
 
@@ -35,9 +69,8 @@ class GenericEntityOp(StatefulOperator):
         """
         if state_data is None:
             state_data = self.state_data
-        return (
-            context.scene.sketcher.auto_axis_constraints
-            and not state_data.get("skip_auto_constraints", False)
+        return context.scene.sketcher.auto_axis_constraints and not state_data.get(
+            "skip_auto_constraints", False
         )
 
     def pick_element(self, context, coords):
@@ -70,10 +103,16 @@ class GenericEntityOp(StatefulOperator):
         hovered_cid = state_data.get("hovered", "")
         if hovered_cid and hasattr(self, "sketch") and self.sketch:
             from ..model.curve_ref import CurveRef
-            point_cid = point.curve_id if isinstance(point, CurveRef) else state_data.get("curve_id", "")
+
+            point_cid = (
+                point.curve_id
+                if isinstance(point, CurveRef)
+                else state_data.get("curve_id", "")
+            )
 
             state_data["coincident"] = self.sketch.constraints.add_coincident(
-                curve_id_1=point_cid, curve_id_2=hovered_cid,
+                curve_id_1=point_cid,
+                curve_id_2=hovered_cid,
             )
 
     def has_coincident(self):
@@ -142,7 +181,14 @@ class GenericEntityOp(StatefulOperator):
             return ""
 
         from ..model.curve_ref import CurveRef
-        if any([issubclass(t, (SlvsGenericEntity, CurveRef)) for t in state.types if isinstance(t, type)]):
+
+        if any(
+            [
+                issubclass(t, (SlvsGenericEntity, CurveRef))
+                for t in state.types
+                if isinstance(t, type)
+            ]
+        ):
             return pointer_name + "_fallback"
         return ""
 
@@ -154,7 +200,6 @@ class GenericEntityOp(StatefulOperator):
         if index is None:
             index = self.state_index
 
-        state = self.get_states_definition()[index]
         data = self._state_data.get(index, {})
         if "type" not in data.keys():
             return None
@@ -164,6 +209,7 @@ class GenericEntityOp(StatefulOperator):
             return None
 
         from ..model.curve_ref import CurveRef
+
         if pointer_type is not None and issubclass(pointer_type, CurveRef):
             cid = data.get("curve_id", "")
             if implicit:
@@ -172,7 +218,12 @@ class GenericEntityOp(StatefulOperator):
                 return None
             from ..model.curve_ref import curve_ref
             from ..model.sketch_ref import get_active_sketch
-            sketch = self.sketch if hasattr(self, "sketch") else get_active_sketch(bpy.context)
+
+            sketch = (
+                self.sketch
+                if hasattr(self, "sketch")
+                else get_active_sketch(bpy.context)
+            )
             return curve_ref(sketch, cid)
 
         if issubclass(pointer_type, SlvsGenericEntity):
@@ -191,13 +242,13 @@ class GenericEntityOp(StatefulOperator):
         if index is None:
             index = self.state_index
 
-        state = self.get_states_definition()[index]
         data = self._state_data.get(index, {})
         pointer_type = data.get("type")
         if pointer_type is None:
             return None
 
         from ..model.curve_ref import CurveRef
+
         if issubclass(pointer_type, CurveRef):
             value = values[0] if values is not None else None
             if value is None:
@@ -227,9 +278,11 @@ class GenericEntityOp(StatefulOperator):
         selected = super().gather_selection(context)
 
         from ..model.sketch_ref import get_active_sketch
+
         sketch = get_active_sketch(context)
         if sketch and selection.selected:
             from ..model.curve_ref import curve_ref
+
             for cid in selection.selected:
                 ref = curve_ref(sketch, cid)
                 if ref.valid:
@@ -258,24 +311,25 @@ class GenericEntityOp(StatefulOperator):
         for attr in curve_data.attributes:
             if attr.name == "position":
                 continue
-            domain_len = n_points if attr.domain == 'POINT' else n_curves
-            if attr.data_type == 'FLOAT_VECTOR':
+            domain_len = n_points if attr.domain == "POINT" else n_curves
+            if attr.data_type == "FLOAT_VECTOR":
                 data = np.zeros(domain_len * 3, dtype=np.float32)
                 attr.data.foreach_get("vector", data)
-            elif attr.data_type == 'BOOLEAN':
+            elif attr.data_type == "BOOLEAN":
                 data = np.zeros(domain_len, dtype=np.bool_)
                 attr.data.foreach_get("value", data)
-            elif attr.data_type in ('INT', 'INT8'):
+            elif attr.data_type in ("INT", "INT8"):
                 data = np.zeros(domain_len, dtype=np.int32)
                 attr.data.foreach_get("value", data)
-            elif attr.data_type in ('INT32_2D', 'INT16_2D'):
+            elif attr.data_type in ("INT32_2D", "INT16_2D"):
                 data = np.zeros(domain_len * 2, dtype=np.int32)
                 attr.data.foreach_get("value", data)
-            elif attr.data_type == 'FLOAT':
+            elif attr.data_type == "FLOAT":
                 data = np.zeros(domain_len, dtype=np.float32)
                 attr.data.foreach_get("value", data)
-            elif attr.data_type == 'STRING':
+            elif attr.data_type == "STRING":
                 from ..utilities.curve_data import get_str_attr
+
                 data = [get_str_attr(attr, i) for i in range(domain_len)]
             else:
                 continue
@@ -306,10 +360,9 @@ class GenericEntityOp(StatefulOperator):
         # This runs every mouse-move, so the rebuild otherwise scales the whole
         # sketch's geometry per frame.
         counts = snapshot["point_counts"]
-        same_topology = (
-            len(curve_data.curves) == snapshot["n_curves"]
-            and len(curve_data.points) == int(counts.sum())
-        )
+        same_topology = len(curve_data.curves) == snapshot["n_curves"] and len(
+            curve_data.points
+        ) == int(counts.sum())
         if same_topology:
             cur_counts = np.zeros(len(curve_data.curves), dtype=np.int32)
             curve_data.curves.foreach_get("points_length", cur_counts)
@@ -329,9 +382,9 @@ class GenericEntityOp(StatefulOperator):
                 attr = curve_data.attributes.new(
                     name, type=attr_info["type"], domain=attr_info["domain"]
                 )
-            if attr_info["type"] == 'FLOAT_VECTOR':
+            if attr_info["type"] == "FLOAT_VECTOR":
                 attr.data.foreach_set("vector", attr_info["data"])
-            elif attr_info["type"] == 'STRING':
+            elif attr_info["type"] == "STRING":
                 for i, v in enumerate(attr_info["data"]):
                     attr.data[i].value = v.encode() if isinstance(v, str) else v
             else:
@@ -391,6 +444,7 @@ class GenericEntityOp(StatefulOperator):
     def _snapshot_all_curves(self, context):
         """Snapshot curve data + constraints for all sketches."""
         from ..model.sketch_ref import get_sketches
+
         curve_snapshots = {}
         for sketch in get_sketches(context):
             obj = sketch.target_object
@@ -408,8 +462,9 @@ class GenericEntityOp(StatefulOperator):
 
     def _restore_all_curves(self, context, curve_snapshots):
         """Restore curve data + constraints for all sketches."""
-        from ..utilities.curve_data import invalidate_curve_id_cache
         from ..model.sketch_ref import get_sketches
+        from ..utilities.curve_data import invalidate_curve_id_cache
+
         invalidate_curve_id_cache()
 
         if not curve_snapshots:

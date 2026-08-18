@@ -74,19 +74,22 @@ def _dist_to_segment(a, b, px, py):
     return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5
 
 
-def pick(context, coords):
-    """curve_id of the active sketch's element under ``coords``, or ``""``.
+def pick_ranked(context, coords):
+    """curve_ids of every active-sketch element under ``coords``, nearest first.
 
-    Points take priority over edges (a vertex on a line is still grabbable)."""
+    Points take priority over edges (a vertex on a line is still grabbable), then
+    by screen distance. Unlike ``pick`` this keeps *all* candidates within the hit
+    radius, so overlapping entities can be cycled through instead of only ever
+    getting the topmost one (issue #50)."""
     data = _active_data(context)
     region, rv3d = context.region, context.region_data
     if data is None or region is None or rv3d is None:
-        return ""
+        return []
 
     ignore = selection.ignore_list
     scale = get_scale()
     cx, cy = float(coords[0]), float(coords[1])
-    best = None  # (priority, distance, cid)
+    hits = []  # (priority, distance, cid)
 
     pts = [(cid, p) for cid, p in data.point_ids if cid not in ignore]
     if pts:
@@ -94,8 +97,8 @@ def pick(context, coords):
         d = np.hypot(screen[:, 0] - cx, screen[:, 1] - cy)
         r = _POINT_RADIUS * scale
         for i, cid in enumerate(cids):
-            if valid[i] and d[i] <= r and (best is None or (0, d[i]) < best[:2]):
-                best = (0, float(d[i]), cid)
+            if valid[i] and d[i] <= r:
+                hits.append((0, float(d[i]), cid))
 
     segs = [(cid, a, b) for cid, a, b in data.segment_ids if cid not in ignore]
     if segs:
@@ -105,10 +108,36 @@ def pick(context, coords):
             if not (valid[i, 0] and valid[i, 1]):
                 continue
             dist = _dist_to_segment(screen[i, 0], screen[i, 1], cx, cy)
-            if dist <= r and (best is None or (1, dist) < best[:2]):
-                best = (1, float(dist), cid)
+            if dist <= r:
+                hits.append((1, float(dist), cid))
 
-    return best[2] if best else ""
+    hits.sort(key=lambda h: (h[0], h[1]))
+    ranked, seen = [], set()
+    for _, _, cid in hits:
+        if cid not in seen:
+            seen.add(cid)
+            ranked.append(cid)
+    return ranked
+
+
+def pick(context, coords):
+    """curve_id of the active sketch's nearest element under ``coords``, or ``""``."""
+    ranked = pick_ranked(context, coords)
+    return ranked[0] if ranked else ""
+
+
+def update_hover(context, coords):
+    """Cycle-aware hover resolution shared by the preselection gizmo and picking.
+
+    Stores the ranked candidate list on ``selection.hover_candidates`` and returns
+    the curve_id to hover: the current hover is kept if it is still under the
+    cursor (so a cycled choice survives small mouse moves), otherwise the nearest.
+    """
+    ranked = pick_ranked(context, coords)
+    selection.hover_candidates = ranked
+    if selection.hover in ranked:
+        return selection.hover
+    return ranked[0] if ranked else ""
 
 
 def _seg_intersects_box(a, b, x0, y0, x1, y1):
@@ -150,8 +179,13 @@ def pick_box(context, min_co, max_co):
     pts = [(cid, p) for cid, p in data.point_ids if cid not in ignore]
     if pts:
         cids, screen, valid = _points_screen(pts, region, rv3d)
-        inside = valid & (screen[:, 0] >= x0) & (screen[:, 0] <= x1) \
-            & (screen[:, 1] >= y0) & (screen[:, 1] <= y1)
+        inside = (
+            valid
+            & (screen[:, 0] >= x0)
+            & (screen[:, 0] <= x1)
+            & (screen[:, 1] >= y0)
+            & (screen[:, 1] <= y1)
+        )
         for i, cid in enumerate(cids):
             if inside[i] and cid not in seen:
                 seen.add(cid)

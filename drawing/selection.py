@@ -14,6 +14,10 @@ selected = []
 # The single curve_id under the cursor ("" = nothing hovered).
 hover = ""
 
+# curve_ids of every element under the cursor, nearest first, so overlapping
+# entities can be cycled. Rebuilt on each hover update; ``hover`` is one of these.
+hover_candidates = []
+
 # curve_ids to render highlighted in addition to hover -- e.g. the geometry a
 # hovered constraint acts on. Cleared by the preselection gizmo.
 highlight_curve_ids = []
@@ -28,12 +32,32 @@ highlight_entities = []
 ignore_list = []
 
 
+def cycle_hover(direction=1):
+    """Advance ``hover`` to the next overlapping candidate under the cursor.
+
+    Steps through ``hover_candidates`` (nearest first). Returns True if the hover
+    moved, False when fewer than two entities are stacked. Shared by the select
+    tool's cycle operator and the stateful draw modal so both behave the same.
+    """
+    global hover
+    if len(hover_candidates) < 2:
+        return False
+    try:
+        index = hover_candidates.index(hover)
+    except ValueError:
+        index = 0
+    step = 1 if direction >= 0 else -1
+    hover = hover_candidates[(index + step) % len(hover_candidates)]
+    return True
+
+
 def clear():
     """Reset all interactive state (e.g. on file load)."""
     selected.clear()
     highlight_curve_ids.clear()
     highlight_entities.clear()
     ignore_list.clear()
+    hover_candidates.clear()
     global hover, highlight_constraint
     hover = ""
     highlight_constraint = None

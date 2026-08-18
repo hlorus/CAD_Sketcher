@@ -72,6 +72,7 @@ class Operators(str, Enum):
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
     RenameCurve = "view3d.slvs_rename_curve"
     Restore = "view3d.slvs_restore"
+    HoverCycle = "view3d.slvs_hover_cycle"
     Select = "view3d.slvs_select"
     SelectAll = "view3d.slvs_select_all"
     SelectBox = "view3d.slvs_select_box"
