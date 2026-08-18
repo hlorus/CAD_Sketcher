@@ -18,11 +18,12 @@ use that public key rather than topology-global vertex indices. Generated faces
 use ``cad_sketcher_face_id`` because Blender has no equivalent standard face-domain
 ``id`` contract.
 
-For user-defined POINT/CURVE values, regression coverage on Blender 5.2 shows the
-unreferenced named attributes are already discarded by the normal wire conversion
-chain, before Fill Curve. Attribute-aware variants therefore capture configured
-fields at the native Curves boundary and consume those captures at the final
-output. Variants are shared by schema rather than rebuilt per sketch/value.
+Blender evaluates Geometry Nodes lazily: arbitrary named attributes that nobody
+reads on the output side can be pruned by topology conversion. Attribute-aware
+variants therefore add only a final Named Attribute -> Store Named Attribute
+consumer for each configured field. That keeps Blender's own generic propagation
+alive without per-sketch capture/re-store plumbing. Variants are shared by schema
+(name/type/domain), never by sketch identity or current values.
 """
 
 import bpy
@@ -39,7 +40,7 @@ GENERATED_ID_VERSION = 2
 
 # Bump whenever the built node tree changes, so groups baked into existing files
 # (or a stale merge-by-distance asset of the same name) are rebuilt on load.
-CONVERT_VERSION = 7
+CONVERT_VERSION = 8
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -85,43 +86,27 @@ def attribute_signature(specs):
     return repr(tuple((x["name"], x["type"], x["domain"]) for x in specs))
 
 
-def _capture_custom_attributes(nodes, links, geometry_socket, specs):
-    """Capture configured source fields so topology conversion cannot prune them."""
-    captured = []
+def _preserve_named_attributes(nodes, links, geometry_socket, specs):
+    """Keep configured source names live through the conversion output.
+
+    A final explicit consumer is enough to tell Blender that each named attribute
+    is semantically required. Geometry Nodes then propagates the field through
+    the topology operations instead of pruning it as unused. The conversion
+    result is materialized on POINT domain because both wire Curve and filled
+    Mesh outputs support that domain consistently.
+    """
     current_geometry = geometry_socket
     for entry in specs:
         named = nodes.new("GeometryNodeInputNamedAttribute")
         named.data_type = entry["type"]
         named.inputs["Name"].default_value = entry["name"]
 
-        capture = nodes.new("GeometryNodeCaptureAttribute")
-        capture.domain = entry["domain"]
-        capture.capture_items.clear()
-        capture.capture_items.new(entry["type"], entry["name"])
-
-        links.new(current_geometry, capture.inputs["Geometry"])
-        links.new(named.outputs["Attribute"], capture.inputs[entry["name"]])
-        current_geometry = capture.outputs["Geometry"]
-        captured.append((entry, capture.outputs[entry["name"]]))
-    return current_geometry, captured
-
-
-def _restore_custom_attributes(nodes, links, geometry_socket, captured):
-    """Materialize captured values on the final conversion output.
-
-    Both Curve and Mesh output geometry support POINT-domain named attributes.
-    The capture sockets remain live because they are consumed after the entire
-    topology chain, which prevents Blender from pruning the source values as
-    unreferenced conversion data.
-    """
-    current_geometry = geometry_socket
-    for entry, value_socket in captured:
         store = nodes.new("GeometryNodeStoreNamedAttribute")
         store.data_type = entry["type"]
         store.domain = "POINT"
         store.inputs["Name"].default_value = entry["name"]
         links.new(current_geometry, store.inputs["Geometry"])
-        links.new(value_socket, store.inputs["Value"])
+        links.new(named.outputs["Attribute"], store.inputs["Value"])
         current_geometry = store.outputs["Geometry"]
     return current_geometry
 
@@ -240,10 +225,9 @@ def build_convert_node_group(
 
     With no custom definitions this is the single shared converter used by normal
     sketches. Attribute-bearing sketches use a converter shared by schema (name,
-    type and domain), never by sketch identity or current values. The configured
-    fields are captured once at the source and restored at the final conversion
-    boundary because Blender 5.2 drops otherwise-unreferenced custom attributes
-    in the wire conversion path itself.
+    type and domain), never by sketch identity or current values. The only extra
+    nodes are final consumers for the configured names; all transport remains
+    Blender's generic named-attribute propagation.
     """
     specs = normalize_attribute_definitions(attribute_definitions)
     signature = attribute_signature(specs)
@@ -271,10 +255,6 @@ def build_convert_node_group(
     gi = nodes.new("NodeGroupInput")
     go = nodes.new("NodeGroupOutput")
 
-    source_geometry, captured = _capture_custom_attributes(
-        nodes, links, gi.outputs["Geometry"], specs
-    )
-
     # 1. Drop construction curves and degenerate (< 2 point) splines before the
     #    fill so they never become geometry.
     construction = nodes.new("GeometryNodeInputNamedAttribute")
@@ -292,7 +272,7 @@ def build_convert_node_group(
 
     delete = nodes.new("GeometryNodeDeleteGeometry")
     delete.domain = "CURVE"
-    links.new(source_geometry, delete.inputs["Geometry"])
+    links.new(gi.outputs["Geometry"], delete.inputs["Geometry"])
     links.new(drop.outputs["Boolean"], delete.inputs["Selection"])
 
     # 2. Tessellate to a wire mesh.
@@ -337,12 +317,12 @@ def build_convert_node_group(
     links.new(to_curve.outputs["Curve"], switch.inputs["False"])
     links.new(fill_curve.outputs["Mesh"], switch.inputs["True"])
 
-    # 5. Preserve generated-element identity from #611, then consume the custom
-    #    capture fields at the final boundary. Keeping the capture connected all
-    #    the way to the output is what prevents Blender from pruning the values.
+    # 5. Preserve generated-element identity from #611, then explicitly consume
+    #    configured custom names. Referencing the fields here is what keeps their
+    #    otherwise generic propagation alive through the topology chain.
     output_geometry = add_generated_id_nodes(nodes, links, switch.outputs["Output"])
-    output_geometry = _restore_custom_attributes(
-        nodes, links, output_geometry, captured
+    output_geometry = _preserve_named_attributes(
+        nodes, links, output_geometry, specs
     )
     links.new(output_geometry, go.inputs["Geometry"])
 
