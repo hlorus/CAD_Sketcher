@@ -26,6 +26,52 @@ class TestCustomAttributes(Sketch2dTestCase):
         )
         return (p1, p2, p3, p4), lines
 
+    def _convert_copy(self, source, *, node_group=None, fill=None):
+        """Destructively convert a disposable copy and return the mesh object."""
+        duplicate = source.copy()
+        duplicate.data = source.data.copy()
+        self.context.collection.objects.link(duplicate)
+
+        modifier = duplicate.modifiers.get("CAD Sketcher Convert")
+        if node_group is not None:
+            self.assertIsNotNone(modifier)
+            modifier.node_group = node_group
+        if fill is not None:
+            self.assertIsNotNone(modifier)
+            group = modifier.node_group
+            fill_socket = next(
+                item
+                for item in group.interface.items_tree
+                if getattr(item, "item_type", "") == "SOCKET"
+                and getattr(item, "in_out", "") == "INPUT"
+                and item.name == "Fill"
+            )
+            modifier[fill_socket.identifier] = bool(fill)
+
+        for selected in list(self.context.selected_objects):
+            selected.select_set(False)
+        duplicate.select_set(True)
+        self.context.view_layer.objects.active = duplicate
+        self.context.view_layer.update()
+
+        result = bpy.ops.object.convert(target="MESH")
+        self.assertEqual(result, {"FINISHED"})
+        converted = self.context.view_layer.objects.active
+        self.assertIsNotNone(converted)
+        self.assertEqual(converted.type, "MESH")
+        return converted
+
+    def _remove_converted(self, converted):
+        if converted is None or converted.name not in bpy.data.objects:
+            return
+        data = converted.data
+        bpy.data.objects.remove(converted, do_unlink=True)
+        if data is not None and data.users == 0:
+            if isinstance(data, bpy.types.Mesh):
+                bpy.data.meshes.remove(data)
+            elif isinstance(data, bpy.types.Curves):
+                bpy.data.hair_curves.remove(data)
+
     def test_curve_attribute_values_live_on_native_source(self):
         _, lines = self._square()
         define_attribute(self.sketch, "material_slot", "INT", "CURVE", 2)
@@ -120,8 +166,38 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertEqual(attr.data_type, "INT")
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
-    def test_named_attributes_reach_evaluated_conversion_output(self):
-        """Prove native named attributes survive the shared conversion group."""
+    def test_wire_path_preserves_named_attributes_without_schema_transport(self):
+        """Prove the generic wire chain propagates names; Fill Curve is the gap."""
+        from ..utilities.convert_nodes import build_convert_node_group
+
+        _, lines = self._square()
+        define_attribute(self.sketch, "wire_point_tag", "INT", "POINT", 13)
+        define_attribute(self.sketch, "wire_curve_tag", "INT", "CURVE", 17)
+        set_attribute_value(self.sketch, "wire_point_tag", 29, lines[0].curve_id)
+        set_attribute_value(self.sketch, "wire_curve_tag", 31, lines[0].curve_id)
+
+        generic = build_convert_node_group("test_generic_wire_custom_attrs")
+        converted = None
+        try:
+            converted = self._convert_copy(
+                self.sketch.target_object,
+                node_group=generic,
+                fill=False,
+            )
+            point_attr = converted.data.attributes.get("wire_point_tag")
+            curve_attr = converted.data.attributes.get("wire_curve_tag")
+            self.assertIsNotNone(point_attr)
+            self.assertIsNotNone(curve_attr)
+            self.assertIn(29, [item.value for item in point_attr.data])
+            self.assertIn(31, [item.value for item in curve_attr.data])
+        finally:
+            self._remove_converted(converted)
+            if generic.users == 0:
+                bpy.data.node_groups.remove(generic)
+
+    @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
+    def test_named_attributes_reach_filled_conversion_output(self):
+        """Bridge the Fill Curve boundary with a schema-shared transport group."""
         _, lines = self._square()
         define_attribute(self.sketch, "point_tag", "INT", "POINT", 13)
         define_attribute(self.sketch, "curve_tag", "INT", "CURVE", 17)
@@ -132,33 +208,26 @@ class TestCustomAttributes(Sketch2dTestCase):
         source = self.sketch.target_object
         source_modifier = source.modifiers.get("CAD Sketcher Convert")
         self.assertIsNotNone(source_modifier)
-        self.assertIsNotNone(source_modifier.node_group)
-        self.assertEqual(source_modifier.node_group.name, "CAD Sketcher Convert")
-        self.assertNotIn("cad_convert_attribute_signature", source_modifier.node_group)
+        group = source_modifier.node_group
+        self.assertIsNotNone(group)
+        self.assertTrue(group.name.startswith("CAD Sketcher Convert [attrs "))
+        self.assertNotIn(source.data.name, group.name)
+        self.assertTrue(group.get("cad_convert_attribute_signature", ""))
 
-        duplicate = source.copy()
-        duplicate.data = source.data.copy()
-        self.context.collection.objects.link(duplicate)
+        # Editing values must not rebuild/rebind the schema group.
+        set_attribute_value(self.sketch, "curve_tag", 37, lines[1].curve_id)
+        self.assertIs(source_modifier.node_group, group)
 
         converted = None
         try:
-            for selected in list(self.context.selected_objects):
-                selected.select_set(False)
-            duplicate.select_set(True)
-            self.context.view_layer.objects.active = duplicate
-
-            result = bpy.ops.object.convert(target="MESH")
-            self.assertEqual(result, {"FINISHED"})
-            converted = self.context.view_layer.objects.active
-            self.assertIsNotNone(converted)
-            self.assertEqual(converted.type, "MESH")
-
+            converted = self._convert_copy(source, fill=True)
             point_attr = converted.data.attributes.get("point_tag")
             curve_attr = converted.data.attributes.get("curve_tag")
             self.assertIsNotNone(point_attr)
             self.assertIsNotNone(curve_attr)
             self.assertIn(29, [item.value for item in point_attr.data])
             self.assertIn(31, [item.value for item in curve_attr.data])
+            self.assertIn(37, [item.value for item in curve_attr.data])
 
             # OBJECT-domain values are mirrored onto both ID-property targets and
             # survive the destructive object conversion boundary as well.
@@ -167,15 +236,22 @@ class TestCustomAttributes(Sketch2dTestCase):
             self.assertEqual(converted["object_tag"], 23)
             self.assertEqual(converted.data["object_tag"], 23)
         finally:
-            cleanup = converted if converted is not None else duplicate
-            if cleanup.name in bpy.data.objects:
-                data = cleanup.data
-                bpy.data.objects.remove(cleanup, do_unlink=True)
-                if data is not None and data.users == 0:
-                    if isinstance(data, bpy.types.Mesh):
-                        bpy.data.meshes.remove(data)
-                    elif isinstance(data, bpy.types.Curves):
-                        bpy.data.hair_curves.remove(data)
+            self._remove_converted(converted)
+
+    def test_schema_change_rebinds_and_discards_unused_group(self):
+        self._square()
+        define_attribute(self.sketch, "first_schema_attr", "INT", "CURVE", 1)
+        modifier = self.sketch.target_object.modifiers.get("CAD Sketcher Convert")
+        first_group = modifier.node_group
+        first_name = first_group.name
+
+        define_attribute(self.sketch, "second_schema_attr", "FLOAT", "POINT", 2.0)
+        second_group = modifier.node_group
+        self.assertIsNot(first_group, second_group)
+        self.assertNotIn(first_name, bpy.data.node_groups)
+
+        remove_attribute(self.sketch, "second_schema_attr")
+        self.assertEqual(modifier.node_group.name, first_name)
 
     def test_remove_deletes_definition_and_source_attribute(self):
         self._square()
