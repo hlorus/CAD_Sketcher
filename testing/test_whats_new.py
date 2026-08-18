@@ -26,17 +26,36 @@ class TestWhatsNewStateMachine(TestCase):
     def test_first_run_records_silently(self):
         self._reset(None)  # no marker yet
         self.assertIsNone(wn._process_update(show_enabled=True))
-        self.assertEqual(wn._read_seen(), self.current, "first run must record the version")
+        self.assertEqual(
+            wn._read_seen(), self.current, "first run must record the version"
+        )
 
     def test_version_change_announces_and_advances(self):
+        # Force notes to exist so this exercises the announce/advance path
+        # independently of whether the shipped changelog has an entry for the
+        # current version yet (see test_version_without_notes_waits for the
+        # no-notes branch). Otherwise the test breaks in the normal post-bump
+        # window where the manifest leads the changelog.
         self._reset("0.0.1")
-        self.assertEqual(wn._process_update(show_enabled=True), self.current)
-        self.assertEqual(wn._read_seen(), self.current)
+        original = wn._notes_for
+        wn._notes_for = lambda version: "- Example note."
+        try:
+            self.assertEqual(wn._process_update(show_enabled=True), self.current)
+            self.assertEqual(wn._read_seen(), self.current)
+        finally:
+            wn._notes_for = original
 
     def test_toggle_off_skips_dialog_but_still_advances(self):
         self._reset("0.0.1")
-        self.assertIsNone(wn._process_update(show_enabled=False))
-        self.assertEqual(wn._read_seen(), self.current, "marker must advance even when disabled")
+        original = wn._notes_for
+        wn._notes_for = lambda version: "- Example note."
+        try:
+            self.assertIsNone(wn._process_update(show_enabled=False))
+            self.assertEqual(
+                wn._read_seen(), self.current, "marker must advance even when disabled"
+            )
+        finally:
+            wn._notes_for = original
 
     def test_same_version_does_nothing(self):
         self._reset(self.current)
