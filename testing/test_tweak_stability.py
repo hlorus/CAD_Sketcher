@@ -179,3 +179,27 @@ class TestTweakStability(Sketch2dTestCase, TweakStabilityMixin):
         solver.solve()
         print(f"[tweak-stability] fully_defined_drag: state={self.sketch.solver_state}")
         self.assertNotEqual(self.sketch.solver_state, "INCONSISTENT")
+
+    def test_drag_does_not_over_report_dof(self):
+        """A drag must not make an under-constrained sketch read 'fully defined'.
+
+        The per-frame tweak solve pins the dragged point with a temporary
+        dragged/coincident constraint, so that system's dof is ~2 below the real
+        one. Publishing it left ``sketch.dof`` at 0 after dragging a free point,
+        showing "Fully defined sketch" for a clearly under-defined sketch. The
+        true dof must survive a drag unchanged.
+        """
+        p0 = self.add_point((0.0, 0.0), fixed=True)
+        p1 = self.add_point((3.0, 0.0))  # free: 2 dof
+        self.add_line(p0, p1)
+        self.solve()
+        self.assertEqual(self.sketch.dof, 2)
+
+        solver = CurveSolver(self.context, self.sketch)
+        solver.tweak(p1.curve_id, Vector((4.0, 1.0, 0.0)))
+        solver.solve()
+        self.assertEqual(
+            self.sketch.dof,
+            2,
+            "dragging pins nothing permanently; reported dof must not drop",
+        )
