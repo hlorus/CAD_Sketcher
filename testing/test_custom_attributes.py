@@ -8,7 +8,6 @@ from ..utilities.custom_attributes import (
     get_attribute_value,
     remove_attribute,
     set_attribute_value,
-    transport_attribute_name,
 )
 from .utils import Sketch2dTestCase
 
@@ -28,33 +27,28 @@ class TestCustomAttributes(Sketch2dTestCase):
         return (p1, p2, p3, p4), lines
 
     def _convert_copy(self, source, *, node_group=None, fill=None):
-        """Destructively convert a disposable copy and return the mesh object."""
         duplicate = source.copy()
         duplicate.data = source.data.copy()
         self.context.collection.objects.link(duplicate)
-
         modifier = duplicate.modifiers.get("CAD Sketcher Convert")
         if node_group is not None:
             self.assertIsNotNone(modifier)
             modifier.node_group = node_group
         if fill is not None:
             self.assertIsNotNone(modifier)
-            group = modifier.node_group
             fill_socket = next(
                 item
-                for item in group.interface.items_tree
+                for item in modifier.node_group.interface.items_tree
                 if getattr(item, "item_type", "") == "SOCKET"
                 and getattr(item, "in_out", "") == "INPUT"
                 and item.name == "Fill"
             )
             fill_socket.default_value = bool(fill)
-
         for selected in list(self.context.selected_objects):
             selected.select_set(False)
         duplicate.select_set(True)
         self.context.view_layer.objects.active = duplicate
         self.context.view_layer.update()
-
         result = bpy.ops.object.convert(target="MESH")
         self.assertEqual(result, {"FINISHED"})
         converted = self.context.view_layer.objects.active
@@ -76,27 +70,17 @@ class TestCustomAttributes(Sketch2dTestCase):
     def test_curve_attribute_values_live_on_native_source(self):
         _, lines = self._square()
         define_attribute(self.sketch, "material_slot", "INT", "CURVE", 2)
-        self.assertEqual(
-            get_attribute_value(self.sketch, "material_slot", lines[0].curve_id), 2
-        )
+        self.assertEqual(get_attribute_value(self.sketch, "material_slot", lines[0].curve_id), 2)
         set_attribute_value(self.sketch, "material_slot", 9, lines[0].curve_id)
-        self.assertEqual(
-            get_attribute_value(self.sketch, "material_slot", lines[0].curve_id), 9
-        )
-        self.assertEqual(
-            get_attribute_value(self.sketch, "material_slot", lines[1].curve_id), 2
-        )
+        self.assertEqual(get_attribute_value(self.sketch, "material_slot", lines[0].curve_id), 9)
+        self.assertEqual(get_attribute_value(self.sketch, "material_slot", lines[1].curve_id), 2)
 
     def test_default_applies_to_geometry_created_after_definition(self):
         first = self.add_point((0.0, 0.0))
         define_attribute(self.sketch, "later_default", "INT", "CURVE", 17)
-        self.assertEqual(
-            get_attribute_value(self.sketch, "later_default", first.curve_id), 17
-        )
+        self.assertEqual(get_attribute_value(self.sketch, "later_default", first.curve_id), 17)
         later = self.add_point((1.0, 0.0))
-        self.assertEqual(
-            get_attribute_value(self.sketch, "later_default", later.curve_id), 17
-        )
+        self.assertEqual(get_attribute_value(self.sketch, "later_default", later.curve_id), 17)
 
     def test_point_and_object_domains(self):
         points, lines = self._square()
@@ -113,9 +97,7 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertEqual(self.sketch.target_object["part_number"], 77)
         self.assertEqual(self.sketch.data["part_number"], 77)
         set_attribute_value(self.sketch, "weight", 8.0, points[0].curve_id)
-        self.assertEqual(
-            get_attribute_value(self.sketch, "weight", points[0].curve_id), [8.0]
-        )
+        self.assertEqual(get_attribute_value(self.sketch, "weight", points[0].curve_id), [8.0])
 
     def test_set_dialog_seed_preserves_current_value(self):
         from ..operators.custom_attributes import _seed_set_value
@@ -138,9 +120,7 @@ class TestCustomAttributes(Sketch2dTestCase):
         set_attribute_value(self.sketch, "feature_code", 77, lines[2].curve_id)
         refresh_curve_geometry(self.sketch)
         self.assertIsNotNone(definition(self.sketch, "feature_code"))
-        self.assertEqual(
-            get_attribute_value(self.sketch, "feature_code", lines[2].curve_id), 77
-        )
+        self.assertEqual(get_attribute_value(self.sketch, "feature_code", lines[2].curve_id), 77)
 
     def test_point_attribute_survives_conversion_refresh(self):
         from ..utilities.curve_data import refresh_curve_geometry
@@ -167,11 +147,7 @@ class TestCustomAttributes(Sketch2dTestCase):
         generic = build_convert_node_group("test_generic_wire_custom_attrs")
         converted = None
         try:
-            converted = self._convert_copy(
-                self.sketch.target_object,
-                node_group=generic,
-                fill=False,
-            )
+            converted = self._convert_copy(self.sketch.target_object, node_group=generic, fill=False)
             self.assertIsNone(converted.data.attributes.get("wire_point_tag"))
         finally:
             self._remove_converted(converted)
@@ -180,12 +156,7 @@ class TestCustomAttributes(Sketch2dTestCase):
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
     def test_named_attributes_reach_filled_conversion_output(self):
-        """Keep configured fields live through the evaluated conversion output."""
-        from ..utilities.convert_nodes import (
-            SOURCE_CURVE_ID_ATTR,
-            SOURCE_ENDPOINT_ID_ATTR,
-        )
-
+        """Sample POINT/CURVE source values onto real generated mesh points."""
         _, lines = self._square()
         define_attribute(self.sketch, "point_tag", "INT", "POINT", 13)
         define_attribute(self.sketch, "curve_tag", "INT", "CURVE", 17)
@@ -194,53 +165,32 @@ class TestCustomAttributes(Sketch2dTestCase):
         set_attribute_value(self.sketch, "curve_tag", 31, lines[0].curve_id)
 
         source = self.sketch.target_object
-        source_modifier = source.modifiers.get("CAD Sketcher Convert")
-        self.assertIsNotNone(source_modifier)
-        group = source_modifier.node_group
+        modifier = source.modifiers.get("CAD Sketcher Convert")
+        self.assertIsNotNone(modifier)
+        group = modifier.node_group
         self.assertIsNotNone(group)
         self.assertTrue(group.name.startswith("CAD Sketcher Convert [attrs "))
         self.assertNotIn(source.data.name, group.name)
         self.assertTrue(group.get("cad_convert_attribute_signature", ""))
 
         set_attribute_value(self.sketch, "curve_tag", 37, lines[1].curve_id)
-        self.assertIs(source_modifier.node_group, group)
-
-        point_entry = definition(self.sketch, "point_tag")
-        curve_entry = definition(self.sketch, "curve_tag")
-        point_transport_name = transport_attribute_name(point_entry)
-        curve_transport_name = transport_attribute_name(curve_entry)
-        point_transport = source.data.attributes.get(point_transport_name)
-        curve_transport = source.data.attributes.get(curve_transport_name)
-        self.assertIsNotNone(point_transport)
-        self.assertIsNotNone(curve_transport)
-        self.assertIn(29, [item.value for item in point_transport.data])
-        self.assertIn(31, [item.value for item in curve_transport.data])
-        self.assertIn(37, [item.value for item in curve_transport.data])
+        self.assertIs(modifier.node_group, group)
+        self.assertIn(29, get_attribute_value(self.sketch, "point_tag"))
+        self.assertIn(31, get_attribute_value(self.sketch, "curve_tag"))
+        self.assertIn(37, get_attribute_value(self.sketch, "curve_tag"))
 
         converted = None
         try:
             converted = self._convert_copy(source, fill=True)
             point_attr = converted.data.attributes.get("point_tag")
             curve_attr = converted.data.attributes.get("curve_tag")
-            hidden_point = converted.data.attributes.get(point_transport_name)
-            hidden_curve = converted.data.attributes.get(curve_transport_name)
-            source_curve_ids = converted.data.attributes.get(SOURCE_CURVE_ID_ATTR)
-            source_endpoint_ids = converted.data.attributes.get(SOURCE_ENDPOINT_ID_ATTR)
-            diagnostic = {
-                "public_point": [] if point_attr is None else [item.value for item in point_attr.data],
-                "public_curve": [] if curve_attr is None else [item.value for item in curve_attr.data],
-                "hidden_point": [] if hidden_point is None else [item.value for item in hidden_point.data],
-                "hidden_curve": [] if hidden_curve is None else [item.value for item in hidden_curve.data],
-                "source_curve_ids": [] if source_curve_ids is None else [item.value for item in source_curve_ids.data],
-                "source_endpoint_ids": [] if source_endpoint_ids is None else [item.value for item in source_endpoint_ids.data],
-            }
-            print("CUSTOM_ATTRIBUTE_CONVERSION_DIAGNOSTIC", diagnostic)
-
             self.assertIsNotNone(point_attr)
             self.assertIsNotNone(curve_attr)
-            self.assertIn(29, diagnostic["public_point"])
-            self.assertIn(31, diagnostic["public_curve"])
-            self.assertIn(37, diagnostic["public_curve"])
+            point_values = [item.value for item in point_attr.data]
+            curve_values = [item.value for item in curve_attr.data]
+            self.assertIn(29, point_values)
+            self.assertIn(31, curve_values)
+            self.assertIn(37, curve_values)
             self.assertEqual(source["object_tag"], 23)
             self.assertEqual(source.data["object_tag"], 23)
             self.assertEqual(converted["object_tag"], 23)
