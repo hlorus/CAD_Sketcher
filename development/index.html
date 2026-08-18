@@ -1,0 +1,993 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../code_docs/">
+      
+      
+        <link rel="next" href="../reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Development - CAD Sketcher</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#development" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="CAD Sketcher" class="md-header__button md-logo" aria-label="CAD Sketcher" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            CAD Sketcher
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Development
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="CAD Sketcher" class="md-nav__button md-logo" aria-label="CAD Sketcher" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    CAD Sketcher
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_interface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../constraints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constraints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../solver/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solver
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interaction_system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interaction system
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code_docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the tests
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running the tests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#full-suite-as-ci-runs-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full suite (as CI runs it)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-single-module-from-a-source-checkout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A single module from a source checkout
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-base-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test base classes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-stateful-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing stateful operators
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing stateful operators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#caveats-of-the-twin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caveats of the twin
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the tests
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running the tests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#full-suite-as-ci-runs-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full suite (as CI runs it)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-single-module-from-a-source-checkout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A single module from a source checkout
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#test-base-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test base classes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-stateful-operators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing stateful operators
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing stateful operators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#caveats-of-the-twin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caveats of the twin
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="development">Development</h1>
+<h2 id="running-the-tests">Running the tests</h2>
+<p>The test suite lives in <code>testing/</code> and runs <strong>inside Blender</strong> (it needs <code>bpy</code>
+and the solver). Tests are plain <code>unittest</code> modules named <code>test_*.py</code>.</p>
+<h3 id="full-suite-as-ci-runs-it">Full suite (as CI runs it)</h3>
+<p>CI builds the extension, installs it, and runs every <code>testing/test_*.py</code> against
+the installed copy:</p>
+<p><code>bash
+blender --background --command extension build --output-filepath ./CAD_Sketcher.zip
+blender --background --command extension install-file --repo user_default --enable ./CAD_Sketcher.zip
+blender --background --python ./scripts/ci_run_tests.py</code></p>
+<p><code>scripts/ci_run_tests.py</code> finds the installed extension, copies <code>testing/</code> in
+(the release build strips it), discovers every <code>test_*.py</code>, and exits non-zero on
+any failure. Set <code>CAD_SKETCHER_SRC</code> to the source checkout if it isn't the
+current directory.</p>
+<h3 id="a-single-module-from-a-source-checkout">A single module from a source checkout</h3>
+<p>For a fast local loop against the addon enabled from source:</p>
+<p><code>bash
+blender --background --addons CAD_Sketcher --python-expr '
+import unittest
+from bl_ext.&lt;namespace&gt;.CAD_Sketcher.testing import test_operators
+suite = unittest.TestLoader().loadTestsFromModule(test_operators)
+unittest.TextTestRunner(verbosity=2).run(suite)
+'</code></p>
+<p><code>&lt;namespace&gt;</code> depends on how the addon is installed (<code>user_default</code> for a normal
+install; it differs for a dev/linked checkout). Because of this, <strong>never
+hardcode the <code>bl_ext.&lt;namespace&gt;.CAD_Sketcher</code> path in addon code — always use
+relative imports.</strong> <code>test_prefill.py</code> has a guard test that fails on any
+hardcoded absolute import, since such a path resolves only in the namespace it
+was written for and raises <code>ModuleNotFoundError</code> everywhere else.</p>
+<h2 id="test-base-classes">Test base classes</h2>
+<p><code>testing/utils.py</code> provides the fixtures:</p>
+<ul>
+<li><strong><code>BgsTestCase</code></strong> — creates a fresh scene, exposes <code>context</code>, <code>entities</code>,
+  <code>constraints</code>, and a <code>solve()</code> helper.</li>
+<li><strong><code>Sketch2dTestCase</code></strong> — additionally creates and activates a 2D sketch in
+  <code>setUp</code>, with geometry helpers <code>add_point</code>, <code>add_line</code>, <code>add_arc</code>,
+  <code>add_circle</code> (each returns a <code>CurveRef</code>).</li>
+</ul>
+<p><code>python
+class TestMyThing(Sketch2dTestCase):
+    def test_line(self):
+        p1 = self.add_point((0, 0))
+        p2 = self.add_point((1, 0))
+        line = self.add_line(p1, p2)
+        self.assertTrue(line.valid)</code></p>
+<h2 id="testing-stateful-operators">Testing stateful operators</h2>
+<p>The interactive tools (<a href="../interaction_system/">stateful operators</a>) cannot be
+instantiated directly: a <code>bpy.types.Operator</code>'s metaclass blocks construction
+outside a modal invoke, and their behavior depends on a modal event loop.</p>
+<p><code>testing/utils.py</code> solves this with <strong><code>OpHarness</code></strong>, which drives an operator the
+way a user does — without a viewport. It builds a non-bpy <em>twin</em> of the operator
+class (<code>make_operator_double</code>): the real class body (<code>states</code>, <code>main</code>, <code>init</code>,
+overrides) is reused verbatim, only <code>bpy.types.Operator</code> is dropped from the
+bases so the twin is a plain, instantiable object. No operator logic is
+duplicated.</p>
+<p>The harness mirrors the real lifecycle:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Mirrors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prefill()</code></td>
+<td>invoke-time selection prefill (Select → Invoke)</td>
+</tr>
+<tr>
+<td><code>pick(ref)</code></td>
+<td>clicking an existing entity for the current state</td>
+</tr>
+<tr>
+<td><code>place_point(co)</code></td>
+<td>clicking empty space to place a new point</td>
+</tr>
+<tr>
+<td><code>set_value(v)</code></td>
+<td>entering a property value (e.g. a circle's radius)</td>
+</tr>
+<tr>
+<td><code>finish()</code></td>
+<td>committing: <code>redo_states</code> + <code>main</code> + <code>fini</code></td>
+</tr>
+</tbody>
+</table>
+<p>```python
+from .utils import Sketch2dTestCase, OpHarness</p>
+<p>class TestAddLine(Sketch2dTestCase):
+    def test_two_clicks(self):
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+        h = OpHarness(View3D_OT_slvs_add_line2d, self.sketch, self.context)
+        h.place_point((0, 0)).place_point((3, 0))
+        line = h.finish()          # real main() runs, auto-constraints applied
+        self.assertEqual(h.op.target.p1.co.x, 0)
+```</p>
+<p>Selection-driven paths populate <code>global_data.selected</code> (a list of <code>curve_id</code> hex
+strings) before calling <code>prefill()</code>:</p>
+<p><code>python
+from .. import global_data
+global_data.selected.clear()
+global_data.selected.append(pt.curve_id)
+h.prefill()   # pt becomes the first pointer state</code></p>
+<p>See <code>test_operators.py</code>, <code>test_prefill.py</code>, and <code>test_constraint_ops.py</code> for
+worked examples covering creation tools, the three selection paradigms, and
+constraint operators.</p>
+<h3 id="caveats-of-the-twin">Caveats of the twin</h3>
+<p><code>make_operator_double</code> reflects the real class, so two Blender-registration
+details don't survive and are handled by the harness:</p>
+<ol>
+<li><strong>bpy property annotations are inert</strong> on the twin (e.g. <code>continuous_draw:
+   BoolProperty(...)</code>). Set a plain attribute where a value is needed; <code>OpHarness</code>
+   already sets the common ones.</li>
+<li><strong>Zero-arg <code>super()</code></strong> in a copied method keeps a hidden <code>__class__</code> cell
+   pointing at the original class. <code>make_operator_double</code> rebinds that cell to
+   the twin (on a copy of the function, leaving the registered operator
+   untouched) so calls like a constraint's <code>super().main()</code> resolve correctly.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

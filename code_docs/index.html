@@ -1,0 +1,1240 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../advanced/">
+      
+      
+        <link rel="next" href="../development/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Code Documentation - CAD Sketcher</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#code-documentation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="CAD Sketcher" class="md-header__button md-logo" aria-label="CAD Sketcher" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            CAD Sketcher
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Code Documentation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="CAD Sketcher" class="md-nav__button md-logo" aria-label="CAD Sketcher" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    CAD Sketcher
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_interface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../constraints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constraints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../solver/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solver
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interaction_system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interaction system
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Documentation
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#native-curve-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Native Curve Model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Native Curve Model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#curve_id-uuid-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        curve_id (UUID identity)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#curveref-accessors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CurveRef accessors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workplanes-as-empties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workplanes as empties
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#self-healing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-healing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entity-model-legacy-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entity Model (legacy layer)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drawing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drawing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interaction
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gotchas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gotchas
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Gotchas">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#remove_curves-drops-string-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        remove_curves drops STRING attributes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stale-attribute-wrappers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stale attribute wrappers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont-resolve-ids-in-hot-loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Don't resolve ids in hot loops
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#native-curve-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Native Curve Model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Native Curve Model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#curve_id-uuid-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        curve_id (UUID identity)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#curveref-accessors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CurveRef accessors
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workplanes-as-empties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workplanes as empties
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#self-healing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-healing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entity-model-legacy-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entity Model (legacy layer)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drawing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drawing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Selection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#solver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Solver
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interaction
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gotchas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gotchas
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Gotchas">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#remove_curves-drops-string-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        remove_curves drops STRING attributes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stale-attribute-wrappers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stale attribute wrappers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont-resolve-ids-in-hot-loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Don't resolve ids in hot loops
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="code-documentation">Code Documentation</h1>
+<p>CAD Sketcher stores its data in <strong>two coexisting layers</strong>. Knowing which layer
+owns what is the key to reading the codebase.</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Owns</th>
+<th>Identity</th>
+<th>Accessors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Native curves</strong></td>
+<td>2D sketch geometry (points, lines, arcs, circles)</td>
+<td><code>curve_id</code> (128-bit UUID)</td>
+<td><code>CurveRef</code> and subclasses</td>
+</tr>
+<tr>
+<td><strong>Entity PropertyGroups</strong></td>
+<td>origin elements, 3D entities, workplanes, sketches, and the type tokens used for state matching</td>
+<td><code>slvs_index</code> (int)</td>
+<td><code>SlvsEntities.get(index)</code></td>
+</tr>
+</tbody>
+</table>
+<p>The native-curve layer is the <strong>source of truth for everything drawn inside a
+sketch</strong>. The entity layer is the older Solvespace-style data model; it is still
+live for the pieces that were not moved onto curves (origins, 3D, workplanes,
+sketches) and for the <code>SlvsPoint2D</code> / <code>SlvsLine2D</code> / <code>SlvsArc</code> / <code>SlvsCircle</code>
+classes, which now serve mainly as <strong>type tokens</strong> (e.g. a state declares
+<code>types=(SlvsPoint2D,)</code> and a <code>PointRef</code> is matched against it).</p>
+<h2 id="native-curve-model">Native Curve Model</h2>
+<p>A sketch is backed by a Blender <strong>Curves</strong> data-block (<code>bpy.types.Curves</code>). Each
+sketch entity is one curve in that object, and its metadata lives in <strong>curve
+attributes</strong> rather than in a PropertyGroup:</p>
+<ul>
+<li><code>sketch_type</code> — what the curve represents (point, line, arc, circle).</li>
+<li><code>curve_id</code> — the entity's stable identity (see below).</li>
+<li>relationship attributes — <code>start_point_id</code>, <code>end_point_id</code>, <code>center_point_id</code>
+  link a segment to its defining points (by their <code>curve_id</code>).</li>
+</ul>
+<p>Because Blender re-indexes curves whenever one is removed, <strong>positional indices
+are not stable</strong> — always refer to an entity by its <code>curve_id</code>.</p>
+<h3 id="curve_id-uuid-identity">curve_id (UUID identity)</h3>
+<p><code>curve_id</code> is a 128-bit UUID. On disk it is stored as hidden <code>INT32_2D</code>
+sub-attributes (<code>curve_id_lo</code> / <code>curve_id_hi</code>, and likewise for the
+<code>*_point_id</code> relationship fields) so it survives Blender's native
+delete/duplicate. In Python it is handled as a 32-character lowercase hex
+string, which is what appears in <code>global_data.selected</code>, <code>global_data.pick_map</code>,
+and the constraint <code>curve_id_N</code> properties.</p>
+<p>Helpers live in <code>utilities/curve_data.py</code>:</p>
+<ul>
+<li><code>new_uuid()</code> — mint a fresh id.</li>
+<li><code>get_uuid(cd, field, i)</code> / <code>set_uuid(...)</code> — read/write a single field.</li>
+<li><code>read_uuid_list(cd, field)</code> — <strong>bulk</strong> read via <code>foreach_get</code>; use this in
+  draw/hot loops, never <code>get_uuid</code> per curve.</li>
+</ul>
+<h3 id="curveref-accessors">CurveRef accessors</h3>
+<p>Rather than manipulate raw attributes, code works through lightweight accessor
+objects in <code>model/curve_ref.py</code>:</p>
+<ul>
+<li><code>curve_ref(sketch, curve_id)</code> — factory returning the right typed accessor.</li>
+<li><code>PointRef</code>, <code>LineRef</code>, <code>ArcRef</code>, <code>CircleRef</code> — typed views exposing <code>.co</code>,
+  <code>.p1</code> / <code>.p2</code>, <code>.ct</code>, <code>.radius</code>, etc., and a <code>.create(...)</code> classmethod.</li>
+</ul>
+<p>An accessor is just <code>(sketch, curve_id)</code>; it resolves live data on each access,
+so it stays valid across re-indexing as long as the <code>curve_id</code> exists.</p>
+<h3 id="workplanes-as-empties">Workplanes as empties</h3>
+<p>A workplane can be any Blender Object: its <code>matrix_world</code> is the workplane
+transform, and the sketch's Curves object is parented to it. <code>Entity2D.wp_matrix</code>
+resolves the workplane from the empty / parent / entity.</p>
+<h3 id="self-healing">Self-healing</h3>
+<p>Native edit-mode operations (delete/duplicate in the curves object) can leave
+geometry in an inconsistent state. <code>utilities/validate.py</code>, run from the
+depsgraph handler (gated by a signature check, skipped in Edit Mode), mints ids
+for empty/duplicate curves, removes degenerate segments, and prunes constraints
+that reference no existing curve. Because <code>curve_id</code>s survive native operations,
+no fingerprint/backup is needed.</p>
+<h2 id="entity-model-legacy-layer">Entity Model (legacy layer)</h2>
+<p>The root of the entity data lives in <code>SketcherProps</code>, registered on the Scene:</p>
+<p><code>bpy.context.scene.sketcher
+  - entities      (SlvsEntities)
+      - points3D, lines3D, workplanes, sketches, ...
+  - constraints   (SlvsConstraints)</code></p>
+<p>Entities inherit from <code>SlvsGenericEntity</code> and are identified by a unique
+<code>entity.slvs_index</code>, assigned by the <code>add_*</code> methods on <code>SlvsEntities</code>. Pointers
+are stored as an <code>IntProperty</code> (via <code>slvs_entity_pointer</code>, which adds
+getter/setters that resolve <code>entities.get(index)</code>).</p>
+<p>This layer is still used for:</p>
+<ul>
+<li><strong>Origin elements</strong> — <code>ensure_origin_elements</code> creates the origin point, axes
+  and the XY/XZ/YZ origin planes as entities.</li>
+<li><strong>3D entities</strong> — <code>SlvsPoint3D</code>, <code>SlvsLine3D</code>, <code>SlvsNormal3D</code>.</li>
+<li><strong>Workplanes and sketches</strong> — created via <code>add_workplane</code> / <code>add_sketch</code>.</li>
+<li><strong>Type identity</strong> — the 2D entity classes are matched against state <code>types</code>.</li>
+</ul>
+<h2 id="constraints">Constraints</h2>
+<p>Constraints inherit from <code>GenericConstraint</code> and, unlike entities, render and
+handle selection through Blender's <a href="https://docs.blender.org/api/current/bpy.types.Gizmo.html">Gizmo API</a>
+rather than a custom draw batch.</p>
+<p>A sketch's constraints are stored on the Curves data-block
+(<code>sketch_constraints</code>). Each constraint references its operands by their curve
+ids through <code>curve_id_1</code> / <code>curve_id_2</code> / <code>curve_id_3</code> <code>StringProperty</code>s — note
+that PropertyGroups are <strong>not</strong> affected by the string-attribute drop that
+native curve removal causes, so these references are safe.</p>
+<h2 id="drawing">Drawing</h2>
+<p>Geometry is drawn in the viewport with the <a href="https://docs.blender.org/api/current/gpu.html">GPU Module</a>.
+The draw handler must be registered on the viewport type; because the context at
+registration time is limited, the extension defers this with an
+<a href="https://docs.blender.org/api/current/bpy.app.timers.html">Application Timer</a>
+shortly after the addon registers.</p>
+<blockquote>
+<p><strong>NOTE:</strong> In-place edits of curve point positions do <strong>not</strong> trigger a Geometry
+Nodes re-evaluation — call <code>refresh_curve_geometry()</code> after changing positions
+directly.</p>
+</blockquote>
+<h2 id="selection">Selection</h2>
+<p>Selection uses the classic
+<a href="http://www.opengl-tutorial.org/miscellaneous/clicking-on-objects/picking-with-an-opengl-hack/">offscreen id-buffer</a>
+technique, but keyed to curves rather than <code>slvs_index</code>:</p>
+<ul>
+<li><code>_draw_curves_id_buffer</code> (in <code>draw_handler.py</code>) draws every visible curve into
+  an offscreen buffer, coloring it by a per-frame <strong>pick index</strong> via
+  <code>index_to_rgb</code>, and records <code>global_data.pick_map[pick_index] = curve_id</code>.</li>
+<li>The <code>VIEW3D_GT_slvs_preselection</code> gizmo reads the pixel under the cursor and
+  writes the resolved <code>curve_id</code> to <code>global_data.hover</code>.</li>
+<li><code>global_data.selected</code> holds the list of selected <code>curve_id</code> hex strings.</li>
+</ul>
+<h2 id="solver">Solver</h2>
+<p>The extension uses the <a href="https://pypi.org/project/py-slvs/">Python binding</a> of
+<a href="https://solvespace.com/index.pl">Solvespace</a>. Solver data is not persistent: a
+fresh <code>slvs.System</code> is built on every solve.</p>
+<p>For sketch geometry this is driven by <strong><code>CurveSolver</code></strong> (<code>curve_solver.py</code>),
+which reads the curve attributes directly (<code>sketch_type</code>, positions, relationship
+ids) and adds the corresponding Solvespace entities — see
+<code>create_slvs_data_from_curves</code> / <code>solve_sketch_from_curves</code>. Constraints add
+themselves to the system. On success the solved positions are written back to the
+curve data. (3D entities still implement their own <code>create_slvs_data</code> /
+<code>update_from_slvs</code>.)</p>
+<p>You can explore the solver interactively from Blender's Python console:</p>
+<p><code>python
+import slvs
+sys = slvs.System()</code></p>
+<h2 id="interaction">Interaction</h2>
+<p>Most viewport tools are <strong>stateful operators</strong> — a declarative framework for
+multi-step tools (pick/place points, enter values). The behavior is documented
+in the <a href="../interaction_system/">interaction chapter</a>; the code lives in
+<code>stateful_operator/</code> with extension-specific types added by <code>GenericEntityOp</code>
+(<code>operators/base_stateful.py</code>) and 2D specifics in <code>Operator2d</code>
+(<code>operators/base_2d.py</code>). See the <a href="../development/">development guide</a> for how to
+drive and test these without a modal region.</p>
+<h2 id="gotchas">Gotchas</h2>
+<h3 id="remove_curves-drops-string-attributes"><code>remove_curves</code> drops STRING attributes</h3>
+<p>Removing curves (including native edit-mode delete) drops <strong>all STRING</strong>
+attributes on the Curves data-block, on both domains. <code>INT</code> / <code>BOOL</code> / <code>FLOAT</code>
+attributes survive and re-index. This is why identity lives in <code>INT32_2D</code>
+sub-attributes, not strings, and why the only remaining STRING attribute
+(<code>name</code>, cosmetic) is snapshotted and restored around removal.</p>
+<h3 id="stale-attribute-wrappers">Stale attribute wrappers</h3>
+<p>After <code>remove_curves</code>, <strong>re-fetch</strong> the attribute wrapper via
+<code>curve_data.attributes.get(...)</code> — a wrapper obtained before the removal reads
+stale data.</p>
+<h3 id="dont-resolve-ids-in-hot-loops">Don't resolve ids in hot loops</h3>
+<p><code>get_uuid</code> performs two <code>attributes.get()</code> calls per invocation. Never call it
+per curve inside a draw or id-buffer loop; use <code>read_uuid_list</code> for a single bulk
+read instead.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
