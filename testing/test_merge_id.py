@@ -78,3 +78,44 @@ class TestMergeIds(Sketch2dTestCase):
             if cid == p0.curve_id:
                 pidx = cd.curves[i].points[0].index
                 self.assertEqual(mid.data[pidx].value, 0)
+
+    def test_uuid_derived_seeds_survive_neighbor_insert_and_remove(self):
+        from ..utilities.curve_data import (
+            SOURCE_CURVE_ID_ATTR,
+            SOURCE_ENDPOINT_ID_ATTR,
+            get_curve_data,
+            refresh_curve_geometry,
+            remove_native_curve_by_id,
+        )
+
+        neighbor_a = self.add_point((-3, 0))
+        neighbor_b = self.add_point((-2, 0))
+        neighbor = self.add_line(neighbor_a, neighbor_b)
+        kept_a = self.add_point((0, 0))
+        kept_b = self.add_point((2, 0))
+        kept = self.add_line(kept_a, kept_b)
+
+        def kept_seeds():
+            refresh_curve_geometry(self.sketch)
+            cd, index, curve = get_curve_data(self.sketch, kept.curve_id)
+            return (
+                cd.attributes[SOURCE_CURVE_ID_ATTR].data[index].value,
+                cd.attributes[SOURCE_ENDPOINT_ID_ATTR]
+                .data[curve.points[0].index]
+                .value,
+                cd.attributes[SOURCE_ENDPOINT_ID_ATTR]
+                .data[curve.points[curve.points_length - 1].index]
+                .value,
+            )
+
+        baseline = kept_seeds()
+        self.assertNotIn(0, baseline)
+
+        for ref in (neighbor, neighbor_a, neighbor_b):
+            remove_native_curve_by_id(self.sketch, ref.curve_id)
+        self.assertEqual(kept_seeds(), baseline)
+
+        added_a = self.add_point((4, 0))
+        added_b = self.add_point((5, 0))
+        self.add_line(added_a, added_b)
+        self.assertEqual(kept_seeds(), baseline)

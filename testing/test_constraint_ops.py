@@ -67,7 +67,10 @@ class TestConstraintOperators(Sketch2dTestCase):
         self.assertIsInstance(target, SlvsHorizontal)
         self.assertIn(line.curve_id, target.curve_id_placements())
 
-    def test_dimensional_constraints_expose_numeric_value_state(self):
+    def test_dimensional_constraints_have_no_creation_value_state(self):
+        """Value entry moved out of creation into the placement step (the tweak
+        operator handed off from fini), so the creation operators end at their
+        geometry states and no longer expose a separate 'Value' state."""
         from ..operators.add_angle import VIEW3D_OT_slvs_add_angle
         from ..operators.add_diameter import VIEW3D_OT_slvs_add_diameter
         from ..operators.add_distance import VIEW3D_OT_slvs_add_distance
@@ -80,16 +83,9 @@ class TestConstraintOperators(Sketch2dTestCase):
 
         for operator in operators:
             with self.subTest(operator=operator.__name__):
-                value_state = operator.get_states_definition()[-1]
-
-                self.assertEqual(value_state.name, "Value")
-                self.assertEqual(value_state.property, "value")
-                self.assertTrue(value_state.optional)
-                self.assertFalse(value_state.allow_prefill)
-                self.assertEqual(
-                    value_state.state_func,
-                    "_current_constraint_value",
-                )
+                self.assertFalse(operator.has_value_state)
+                names = [s.name for s in operator.get_states_definition()]
+                self.assertNotIn("Value", names)
 
     # -- wrong type is rejected: a point can't be a parallel operand ---------
     def test_point_rejected_for_parallel(self):

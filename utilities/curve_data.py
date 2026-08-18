@@ -45,6 +45,9 @@ _STRING_ATTRS = frozenset(("name",))
 
 UUID_FIELDS = ("curve_id", "start_point_id", "end_point_id", "center_point_id")
 
+SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
+SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
+
 
 def _uuid_subnames(field):
     # 128-bit id = low and high 64-bit halves, each an INT32_2D (2x int32).
@@ -57,6 +60,18 @@ def _i32(u):  # unsigned 32-bit -> signed (Blender int32 is signed)
 
 def _u32(v):  # signed int32 -> unsigned
     return v + 0x100000000 if v < 0 else v
+
+
+def _stable_source_id(words):
+    """Fold UUID words into a stable signed 32-bit id; zero means unset."""
+    if not any(words):
+        return 0
+    value = 0x811C9DC5
+    for word in words:
+        value = ((value ^ _u32(word)) * 0x01000193) & 0xFFFFFFFF
+    if value == 0:
+        value = 1
+    return _i32(value)
 
 
 def _hex_to_pairs(hexstr):
@@ -266,6 +281,9 @@ def ensure_standard_attributes(curve_data):
     # Per-point weld identity for the Blender 5.2 "Merge Points" fill path:
     # segment endpoints sharing a junction get the same id (see compute_merge_ids).
     ensure_attribute(attributes, "merge_id", "INT", "POINT")
+    # UUID-derived seeds consumed by both conversion node-group variants.
+    ensure_attribute(attributes, SOURCE_CURVE_ID_ATTR, "INT", "CURVE")
+    ensure_attribute(attributes, SOURCE_ENDPOINT_ID_ATTR, "INT", "POINT")
     # Identity fields: 2x INT32_2D each (128-bit), hidden. Integer attributes
     # survive remove_curves() (STRING attributes don't).
     for field in UUID_FIELDS:
@@ -465,9 +483,11 @@ def _get_convert_node_group():
 
     from .. import global_data
     from ..assets_manager import load_asset
+    from .convert_nodes import ensure_generated_id_nodes
 
     load_asset(global_data.LIB_NAME, "node_groups", "CAD Sketcher Convert")
-    return bpy.data.node_groups.get("CAD Sketcher Convert")
+    group = bpy.data.node_groups.get("CAD Sketcher Convert")
+    return ensure_generated_id_nodes(group) if group else None
 
 
 def ensure_sketch_curve_object(sketch):
@@ -777,6 +797,53 @@ def compute_merge_ids(sketch):
     if attr is None:
         attr = cd.attributes.new("merge_id", "INT", "POINT")
     attr.data.foreach_set("value", ids)
+    compute_generated_id_seeds(sketch)
+    return True
+
+
+def compute_generated_id_seeds(sketch):
+    """Write stable source seeds used to identify generated mesh children."""
+    if not sketch or not sketch.target_object or not sketch.target_object.data:
+        return False
+    cd = sketch.target_object.data
+    n_curves = len(cd.curves)
+    if n_curves == 0:
+        return False
+
+    attrs = cd.attributes
+    curve_attr = ensure_attribute(attrs, SOURCE_CURVE_ID_ATTR, "INT", "CURVE")
+    endpoint_attr = ensure_attribute(
+        attrs, SOURCE_ENDPOINT_ID_ATTR, "INT", "POINT"
+    )
+    type_attr = attrs.get("sketch_type")
+    if not curve_attr or not endpoint_attr or not type_attr:
+        return False
+
+    curve_ids = read_uuid_raw_list(cd, "curve_id")
+    start_ids = read_uuid_raw_list(cd, "start_point_id")
+    end_ids = read_uuid_raw_list(cd, "end_point_id")
+    curve_seeds = np.array(
+        [_stable_source_id(value) for value in curve_ids], dtype=np.int32
+    )
+    endpoint_seeds = np.zeros(len(cd.points), dtype=np.int32)
+
+    for index, curve in enumerate(cd.curves):
+        if type_attr.data[index].value not in (
+            SketchCurveType.LINE,
+            SketchCurveType.ARC,
+        ) or curve.points_length < 2:
+            continue
+        if any(start_ids[index]):
+            endpoint_seeds[curve.points[0].index] = _stable_source_id(
+                start_ids[index]
+            )
+        if any(end_ids[index]):
+            endpoint_seeds[curve.points[curve.points_length - 1].index] = (
+                _stable_source_id(end_ids[index])
+            )
+
+    curve_attr.data.foreach_set("value", curve_seeds)
+    endpoint_attr.data.foreach_set("value", endpoint_seeds)
     return True
 
 
@@ -912,12 +979,10 @@ def refresh_curve_geometry(sketch):
     # is the sync point right before the GN convert re-evaluates.
     compute_merge_ids(sketch)
 
-    # Keep the 5.2 identity-weld convert group current (rebuilds a stale version
-    # in place, so groups baked into existing files upgrade on the first edit).
-    if bpy.app.version >= (5, 2, 0):
-        from .convert_nodes import build_convert_node_group
-
-        build_convert_node_group()
+    # Keep either conversion path current. On 5.0 this attaches the same stable
+    # id tail to the loaded merge-by-distance asset; on 5.2+ it rebuilds a stale
+    # programmatic group in place.
+    _get_convert_node_group()
 
     n_points = len(curve_data.points)
     point_counts = np.zeros(n_curves, dtype=np.int32)
