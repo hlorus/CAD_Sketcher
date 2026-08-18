@@ -173,7 +173,11 @@ class OperatorSketch3d(base_2d.Operator2d):
         # that frame directly so interactive origin transforms cannot leave a
         # stale child matrix between depsgraph updates while placing new points.
         frame = self.sketch.target_object.parent
-        matrix = frame.matrix_world if frame is not None else self.sketch.target_object.matrix_world
+        matrix = (
+            frame.matrix_world
+            if frame is not None
+            else self.sketch.target_object.matrix_world
+        )
         local = matrix.inverted_safe() @ world
         return mathutils.Vector(local).to_3d()
 
