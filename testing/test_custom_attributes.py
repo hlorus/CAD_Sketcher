@@ -121,7 +121,7 @@ class TestCustomAttributes(Sketch2dTestCase):
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
     def test_named_attributes_reach_evaluated_conversion_output(self):
-        """Exercise the sketch's real attribute-aware conversion modifier."""
+        """Prove native named attributes survive the shared conversion group."""
         _, lines = self._square()
         define_attribute(self.sketch, "point_tag", "INT", "POINT", 13)
         define_attribute(self.sketch, "curve_tag", "INT", "CURVE", 17)
@@ -133,14 +133,8 @@ class TestCustomAttributes(Sketch2dTestCase):
         source_modifier = source.modifiers.get("CAD Sketcher Convert")
         self.assertIsNotNone(source_modifier)
         self.assertIsNotNone(source_modifier.node_group)
-        self.assertIn(
-            "point_tag",
-            source_modifier.node_group.get("cad_convert_attribute_signature", ""),
-        )
-        self.assertIn(
-            "curve_tag",
-            source_modifier.node_group.get("cad_convert_attribute_signature", ""),
-        )
+        self.assertEqual(source_modifier.node_group.name, "CAD Sketcher Convert")
+        self.assertNotIn("cad_convert_attribute_signature", source_modifier.node_group)
 
         duplicate = source.copy()
         duplicate.data = source.data.copy()
@@ -166,8 +160,12 @@ class TestCustomAttributes(Sketch2dTestCase):
             self.assertIn(29, [item.value for item in point_attr.data])
             self.assertIn(31, [item.value for item in curve_attr.data])
 
+            # OBJECT-domain values are mirrored onto both ID-property targets and
+            # survive the destructive object conversion boundary as well.
             self.assertEqual(source["object_tag"], 23)
             self.assertEqual(source.data["object_tag"], 23)
+            self.assertEqual(converted["object_tag"], 23)
+            self.assertEqual(converted.data["object_tag"], 23)
         finally:
             cleanup = converted if converted is not None else duplicate
             if cleanup.name in bpy.data.objects:
