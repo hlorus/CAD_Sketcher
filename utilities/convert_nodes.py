@@ -1,33 +1,15 @@
 """Conversion-node helpers shared by the asset and programmatic paths.
 
-The shipped node group (``resources/assets.blend``) closes sketch loops for
-filling with Merge by Distance, which is a distance threshold and therefore
-fragile: too tight and loose junctions never weld (fill vanishes), too loose and
-distinct points on small models merge. Blender 5.2 adds the ``Merge Points`` node
-with a ``Merge ID`` input, letting us weld by *identity* instead.
-
-This builds an equivalent group that welds mesh vertices sharing a ``merge_id``
-(see ``utilities.curve_data.compute_merge_ids``), gated to true segment endpoints
-via vertex valence so tessellated interior vertices are never merged. The result
-is tolerance-free and independent of sketch scale. Older Blender keeps loading
-the merge-by-distance asset; both paths share the stable generated-id tail below.
-
-Generated vertices publish their persistent link key through Blender's reserved
-``id`` point attribute. Consumers that support persistent mesh identity should
-use that public key rather than topology-global vertex indices. Generated faces
-use ``cad_sketcher_face_id`` because Blender has no equivalent standard face-domain
-``id`` contract.
-
-Blender 5.2 drops otherwise-unreferenced custom fields across parts of the
-Curve -> Mesh -> Curve conversion chain. Attribute-aware variants therefore use
-small hidden POINT-domain transport attributes and a local anonymous
-Capture Attribute bridge across each topology-changing operation. Variants are
-shared by schema (name/type/domain), never by sketch identity or current values.
+The standard converter remains shared by all sketches without user attributes.
+Attribute-bearing sketches share a schema-specific variant. Their live values are
+mirrored to hidden native Curves attributes (the same persistence mechanism used
+by CAD Sketcher's stable source ids), so Geometry Nodes only needs to consume the
+hidden names at the final boundary and re-publish the public attribute names.
 """
 
-import hashlib
-
 import bpy
+
+from .custom_attributes import transport_attribute_name
 
 CONVERT_NODE_GROUP = "CAD Sketcher Convert"
 VERTEX_ID_ATTR = "id"
@@ -36,7 +18,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 10
+CONVERT_VERSION = 11
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -44,6 +26,7 @@ _FACE_ROLE = 0x2468B
 
 
 def _int_compare(nodes, links, operation, value):
+    """A Compare node on integers: returns (node, a_socket) with B set to value."""
     cmp = nodes.new("FunctionNodeCompare")
     cmp.data_type = "INT"
     cmp.operation = operation
@@ -57,7 +40,7 @@ def _is_identity_group(ng) -> bool:
 
 
 def normalize_attribute_definitions(attribute_definitions):
-    """Return a stable list of non-object conversion attribute specifications."""
+    """Return stable non-object specs used by the conversion group."""
     specs = []
     for entry in attribute_definitions or ():
         name = str(entry.get("name", "")).strip()
@@ -75,92 +58,23 @@ def normalize_attribute_definitions(attribute_definitions):
 
 
 def attribute_signature(specs):
-    """Stable schema signature; values/defaults deliberately do not affect it."""
     return repr(tuple((x["name"], x["type"], x["domain"]) for x in specs))
 
 
-def _transport_name(entry):
-    signature = f"{entry['name']}|{entry['type']}|{entry['domain']}"
-    digest = hashlib.sha1(signature.encode("utf-8")).hexdigest()[:12]
-    return f".cad_custom_transport_{digest}"
-
-
-def _store_named_field(nodes, links, geometry, source_name, target_name, data_type):
-    named = nodes.new("GeometryNodeInputNamedAttribute")
-    named.data_type = data_type
-    named.inputs["Name"].default_value = source_name
-
-    store = nodes.new("GeometryNodeStoreNamedAttribute")
-    store.data_type = data_type
-    store.domain = "POINT"
-    store.inputs["Name"].default_value = target_name
-    links.new(geometry, store.inputs["Geometry"])
-    links.new(named.outputs["Attribute"], store.inputs["Value"])
-    return store.outputs["Geometry"]
-
-
-def _materialize_source_transport(nodes, links, geometry, specs):
-    """Normalize source POINT/CURVE values into hidden POINT attributes."""
+def _restore_custom_attributes(nodes, links, geometry, specs):
+    """Publish hidden native transport values under their user-facing names."""
     current = geometry
-    for entry in specs:
-        current = _store_named_field(
-            nodes,
-            links,
-            current,
-            entry["name"],
-            _transport_name(entry),
-            entry["type"],
-        )
-    return current
-
-
-def _restore_transport(nodes, links, geometry, specs):
-    """Restore public attribute names from the hidden transport."""
-    current = geometry
-    for entry in specs:
-        current = _store_named_field(
-            nodes,
-            links,
-            current,
-            _transport_name(entry),
-            entry["name"],
-            entry["type"],
-        )
-    return current
-
-
-def _capture_transport(nodes, links, geometry, specs):
-    """Capture hidden transport values immediately before one topology operation."""
-    current = geometry
-    captured = []
     for entry in specs:
         named = nodes.new("GeometryNodeInputNamedAttribute")
         named.data_type = entry["type"]
-        named.inputs["Name"].default_value = _transport_name(entry)
+        named.inputs["Name"].default_value = transport_attribute_name(entry)
 
-        capture = nodes.new("GeometryNodeCaptureAttribute")
-        capture.domain = "POINT"
-        capture.capture_items.clear()
-        capture.capture_items.new(entry["type"], entry["name"])
-        links.new(current, capture.inputs["Geometry"])
-        links.new(named.outputs["Attribute"], capture.inputs[entry["name"]])
-        current = capture.outputs["Geometry"]
-        captured.append((entry, capture.outputs[entry["name"]]))
-    return current, captured
-
-
-def _restore_captured(nodes, links, geometry, captured, *, public=False):
-    """Materialize anonymous fields immediately after one topology operation."""
-    current = geometry
-    for entry, value_socket in captured:
         store = nodes.new("GeometryNodeStoreNamedAttribute")
         store.data_type = entry["type"]
         store.domain = "POINT"
-        store.inputs["Name"].default_value = (
-            entry["name"] if public else _transport_name(entry)
-        )
+        store.inputs["Name"].default_value = entry["name"]
         links.new(current, store.inputs["Geometry"])
-        links.new(value_socket, store.inputs["Value"])
+        links.new(named.outputs["Attribute"], store.inputs["Value"])
         current = store.outputs["Geometry"]
     return current
 
@@ -173,6 +87,7 @@ def _named_int(nodes, name):
 
 
 def _local_child_index(nodes, links, source, domain):
+    """Return a zero-based index accumulated independently per stable source."""
     accumulate = nodes.new("GeometryNodeAccumulateField")
     accumulate.data_type = "INT"
     accumulate.domain = domain
@@ -233,7 +148,9 @@ def add_generated_id_nodes(nodes, links, geometry):
     face_source = _named_int(nodes, VERTEX_ID_ATTR)
     face_local = _local_child_index(nodes, links, face_source, "FACE")
     face_id = _child_id(nodes, links, face_source, face_local, _FACE_ROLE)
-    return _store_int_attribute(nodes, links, geometry, face_id, FACE_ID_ATTR, "FACE")
+    return _store_int_attribute(
+        nodes, links, geometry, face_id, FACE_ID_ATTR, "FACE"
+    )
 
 
 def ensure_generated_id_nodes(node_group):
@@ -288,11 +205,6 @@ def build_convert_node_group(
     gi = nodes.new("NodeGroupInput")
     go = nodes.new("NodeGroupOutput")
 
-    source_geometry = _materialize_source_transport(
-        nodes, links, gi.outputs["Geometry"], specs
-    )
-
-    # 1. Drop construction curves and degenerate splines before conversion.
     construction = nodes.new("GeometryNodeInputNamedAttribute")
     construction.data_type = "BOOLEAN"
     construction.inputs["Name"].default_value = "construction"
@@ -308,18 +220,12 @@ def build_convert_node_group(
 
     delete = nodes.new("GeometryNodeDeleteGeometry")
     delete.domain = "CURVE"
-    links.new(source_geometry, delete.inputs["Geometry"])
+    links.new(gi.outputs["Geometry"], delete.inputs["Geometry"])
     links.new(drop.outputs["Boolean"], delete.inputs["Selection"])
 
-    # 2. Curve -> Mesh. Capture immediately before, materialize immediately after.
-    curve_input, curve_capture = _capture_transport(nodes, links, delete.outputs["Geometry"], specs)
     to_mesh = nodes.new("GeometryNodeCurveToMesh")
-    links.new(curve_input, to_mesh.inputs["Curve"])
-    mesh_geometry = _restore_captured(
-        nodes, links, to_mesh.outputs["Mesh"], curve_capture
-    )
+    links.new(delete.outputs["Geometry"], to_mesh.inputs["Curve"])
 
-    # 3. Merge Points. Use another local anonymous bridge.
     merge_id = nodes.new("GeometryNodeInputNamedAttribute")
     merge_id.data_type = "INT"
     merge_id.inputs["Name"].default_value = "merge_id"
@@ -335,42 +241,26 @@ def build_convert_node_group(
     links.new(is_end.outputs["Result"], weld.inputs[0])
     links.new(nonzero.outputs["Result"], weld.inputs[1])
 
-    merge_input, merge_capture = _capture_transport(nodes, links, mesh_geometry, specs)
     merge = nodes.new("GeometryNodeMergePoints")
-    links.new(merge_input, merge.inputs["Geometry"])
+    links.new(to_mesh.outputs["Mesh"], merge.inputs["Geometry"])
     links.new(merge_id.outputs["Attribute"], merge.inputs["Merge ID"])
     links.new(weld.outputs["Boolean"], merge.inputs["Selection"])
-    merged_geometry = _restore_captured(
-        nodes, links, merge.outputs["Geometry"], merge_capture
-    )
 
-    # 4. Mesh -> Curve. Bridge locally again, then restore public names for wire.
-    mesh_input, mesh_capture = _capture_transport(nodes, links, merged_geometry, specs)
     to_curve = nodes.new("GeometryNodeMeshToCurve")
-    links.new(mesh_input, to_curve.inputs["Mesh"])
-    wire_geometry = _restore_captured(
-        nodes, links, to_curve.outputs["Curve"], mesh_capture
-    )
-    wire_output = _restore_transport(nodes, links, wire_geometry, specs)
+    links.new(merge.outputs["Geometry"], to_curve.inputs["Mesh"])
 
-    # 5. Fill Curve is another topology boundary; bridge it independently and
-    # materialize directly to public names on the filled Mesh.
-    fill_input, fill_capture = _capture_transport(nodes, links, wire_geometry, specs)
     fill_curve = nodes.new("GeometryNodeFillCurve")
-    links.new(fill_input, fill_curve.inputs["Curve"])
-    filled_output = _restore_captured(
-        nodes, links, fill_curve.outputs["Mesh"], fill_capture, public=True
-    )
+    links.new(to_curve.outputs["Curve"], fill_curve.inputs["Curve"])
 
     switch = nodes.new("GeometryNodeSwitch")
     switch.input_type = "GEOMETRY"
     links.new(gi.outputs["Fill"], switch.inputs["Switch"])
-    links.new(wire_output, switch.inputs["False"])
-    links.new(filled_output, switch.inputs["True"])
+    links.new(to_curve.outputs["Curve"], switch.inputs["False"])
+    links.new(fill_curve.outputs["Mesh"], switch.inputs["True"])
 
-    # Preserve #611 generated identity after custom values are materialized.
-    output_geometry = add_generated_id_nodes(nodes, links, switch.outputs["Output"])
-    links.new(output_geometry, go.inputs["Geometry"])
+    geometry = add_generated_id_nodes(nodes, links, switch.outputs["Output"])
+    geometry = _restore_custom_attributes(nodes, links, geometry, specs)
+    links.new(geometry, go.inputs["Geometry"])
 
     ng["cad_convert_version"] = CONVERT_VERSION
     ng["cad_generated_id_version"] = GENERATED_ID_VERSION
