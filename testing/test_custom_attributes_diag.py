@@ -59,10 +59,10 @@ class TestCustomAttributeTopologyDiagnostic(Sketch2dTestCase):
         geometry = capture.outputs["Geometry"]
         value = capture.outputs["diag_value"]
 
-        if "curve_to_mesh" in stages:
-            node = nodes.new("GeometryNodeCurveToMesh")
-            links.new(geometry, node.inputs["Curve"])
-            geometry = node.outputs["Mesh"]
+        to_mesh = nodes.new("GeometryNodeCurveToMesh")
+        links.new(geometry, to_mesh.inputs["Curve"])
+        geometry = to_mesh.outputs["Mesh"]
+
         if "merge" in stages:
             node = nodes.new("GeometryNodeMergePoints")
             links.new(geometry, node.inputs["Geometry"])
@@ -73,6 +73,10 @@ class TestCustomAttributeTopologyDiagnostic(Sketch2dTestCase):
             geometry = node.outputs["Curve"]
         if "fill" in stages:
             node = nodes.new("GeometryNodeFillCurve")
+            links.new(geometry, node.inputs["Curve"])
+            geometry = node.outputs["Mesh"]
+        elif "mesh_to_curve" in stages:
+            node = nodes.new("GeometryNodeCurveToMesh")
             links.new(geometry, node.inputs["Curve"])
             geometry = node.outputs["Mesh"]
 
@@ -88,10 +92,10 @@ class TestCustomAttributeTopologyDiagnostic(Sketch2dTestCase):
     def test_locate_first_attribute_loss(self):
         source = self._source()
         variants = {
-            "capture_only": (),
-            "curve_to_mesh": ("curve_to_mesh",),
-            "merge": ("curve_to_mesh", "merge"),
-            "mesh_to_curve": ("curve_to_mesh", "merge", "mesh_to_curve"),
+            "curve_to_mesh": (),
+            "merge": ("merge",),
+            "mesh_to_curve": ("merge", "mesh_to_curve"),
+            "fill": ("merge", "mesh_to_curve", "fill"),
         }
         results = {}
         groups = []
@@ -101,10 +105,10 @@ class TestCustomAttributeTopologyDiagnostic(Sketch2dTestCase):
                 groups.append(group)
                 results[name] = self._evaluate_group(source, group)
             print("CUSTOM_ATTRIBUTE_TOPOLOGY_DIAGNOSTIC", results)
-            self.assertIn(29, results["capture_only"])
             self.assertIn(29, results["curve_to_mesh"])
             self.assertIn(29, results["merge"])
             self.assertIn(29, results["mesh_to_curve"])
+            self.assertIn(29, results["fill"])
         finally:
             for group in groups:
                 if group.users == 0:
