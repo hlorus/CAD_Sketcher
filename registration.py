@@ -14,6 +14,7 @@ core_modules = [
     "ui",
     "ui.pie_menu",
     "draw_handler",
+    "mcp",
     # Register this as last module
     "registration_delayed",
 ]
