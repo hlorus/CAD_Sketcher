@@ -1,11 +1,8 @@
 """User-defined attributes backed by native Curves data.
 
-Definitions and public values live on the native Curves source of truth. For
-POINT/CURVE values we also maintain a hidden native mirror used only by the
-conversion graph. Blender already preserves CAD Sketcher's hidden source-id
-attributes through the topology chain when they are consumed downstream; using
-the same native-attribute mechanism avoids per-sketch value baking in Geometry
-Nodes while keeping the public user attribute intact on the sketch itself.
+Definitions live on the sketch Curves datablock and POINT/CURVE values live in
+native Blender attributes. Conversion variants are shared by attribute schema;
+value edits never rebuild the Geometry Nodes tree.
 """
 
 import hashlib
@@ -65,31 +62,6 @@ def _write_defs(curve_data, definitions):
     curve_data[DEFINITIONS_PROP] = json.dumps(definitions, separators=(",", ":"))
 
 
-def transport_attribute_name(entry):
-    """Deterministic hidden native mirror name for one public definition."""
-    signature = f"{entry['name']}|{entry['type']}|{entry['domain']}"
-    digest = hashlib.sha1(signature.encode("utf-8")).hexdigest()[:12]
-    return f".cad_custom_transport_{digest}"
-
-
-def _ensure_transport_mirror(curve_data, entry):
-    """Create/synchronize a hidden native conversion mirror for one definition."""
-    if entry["domain"] == "OBJECT":
-        return None
-    public = curve_data.attributes.get(entry["name"])
-    if public is None:
-        return None
-    hidden_name = transport_attribute_name(entry)
-    hidden = curve_data.attributes.get(hidden_name)
-    if hidden is None:
-        hidden = curve_data.attributes.new(
-            hidden_name, type=entry["type"], domain=entry["domain"]
-        )
-    for index, item in enumerate(public.data):
-        hidden.data[index].value = item.value
-    return hidden
-
-
 def _write_object_value(sketch, name, value):
     """Mirror an OBJECT-domain value to the sketch object and its data-block."""
     sketch.target_object[name] = value
@@ -106,21 +78,10 @@ def _attribute_group_name(specs):
 
 
 def _sync_conversion_group(sketch):
-    """Bind the smallest converter needed by this sketch on Blender 5.2+.
-
-    Attribute-bearing sketches share a converter by schema. Their hidden native
-    mirrors carry live values, so value edits never rebuild or rebind the group.
-    """
+    """Bind the standard or schema-shared converter on Blender 5.2+."""
     import bpy
 
-    if not sketch or not sketch.target_object:
-        return
-
-    entries = definitions(sketch)
-    for entry in entries:
-        _ensure_transport_mirror(sketch.data, entry)
-
-    if bpy.app.version < (5, 2, 0):
+    if bpy.app.version < (5, 2, 0) or not sketch or not sketch.target_object:
         return
 
     from .convert_nodes import (
@@ -134,7 +95,7 @@ def _sync_conversion_group(sketch):
     if modifier is None:
         modifier = ob.modifiers.new(CONVERT_NODE_GROUP, "NODES")
 
-    specs = normalize_attribute_definitions(entries)
+    specs = normalize_attribute_definitions(definitions(sketch))
     if specs:
         group = build_convert_node_group(
             _attribute_group_name(specs), attribute_definitions=specs
@@ -198,13 +159,9 @@ def define_attribute(sketch, name, data_type="FLOAT", domain="CURVE", default=0.
         _write_object_value(sketch, name, value)
         return entry
 
-    public = curve_data.attributes.new(name, type=data_type, domain=domain)
-    hidden = curve_data.attributes.new(
-        transport_attribute_name(entry), type=data_type, domain=domain
-    )
-    for public_item, hidden_item in zip(public.data, hidden.data):
-        public_item.value = value
-        hidden_item.value = value
+    attr = curve_data.attributes.new(name, type=data_type, domain=domain)
+    for item in attr.data:
+        item.value = value
     curve_data.update_tag()
     _sync_conversion_group(sketch)
     return entry
@@ -227,17 +184,16 @@ def remove_attribute(sketch, name):
         if name in curve_data:
             del curve_data[name]
     else:
-        for attr_name in (name, transport_attribute_name(entry)):
-            attr = curve_data.attributes.get(attr_name)
-            if attr is not None:
-                curve_data.attributes.remove(attr)
+        attr = curve_data.attributes.get(name)
+        if attr is not None:
+            curve_data.attributes.remove(attr)
         curve_data.update_tag()
         _sync_conversion_group(sketch)
     return True
 
 
 def set_attribute_value(sketch, name, value, curve_id=None):
-    """Set public and hidden conversion values from one source operation."""
+    """Set one native user attribute value."""
     entry = definition(sketch, name)
     if entry is None:
         raise KeyError(name)
@@ -248,32 +204,27 @@ def set_attribute_value(sketch, name, value, curve_id=None):
         return
 
     curve_data = sketch.data
-    public = curve_data.attributes.get(name)
-    if public is None:
-        public = curve_data.attributes.new(
+    attr = curve_data.attributes.get(name)
+    if attr is None:
+        attr = curve_data.attributes.new(
             name, type=entry["type"], domain=entry["domain"]
         )
-        for item in public.data:
+        for item in attr.data:
             item.value = _cast(entry["type"], entry["default"])
-    hidden = _ensure_transport_mirror(curve_data, entry)
-    attrs = (public, hidden)
 
     if curve_id is None:
-        for attr in attrs:
-            for item in attr.data:
-                item.value = value
+        for item in attr.data:
+            item.value = value
     else:
         curve_index = get_curve_index(sketch, curve_id)
         if curve_index is None:
             raise KeyError(curve_id)
         if entry["domain"] == "CURVE":
-            for attr in attrs:
-                attr.data[curve_index].value = value
+            attr.data[curve_index].value = value
         else:
             curve = curve_data.curves[curve_index]
             for point in curve.points:
-                for attr in attrs:
-                    attr.data[point.index].value = value
+                attr.data[point.index].value = value
     curve_data.update_tag()
 
 
@@ -302,29 +253,21 @@ def get_attribute_value(sketch, name, curve_id=None):
 
 
 def initialize_curve_defaults(curve_data, curve_index):
-    """Apply configured defaults to a newly-added native curve and mirror."""
+    """Apply configured defaults to a newly-added native curve."""
     if curve_data is None or curve_index < 0 or curve_index >= len(curve_data.curves):
         return
     for entry in _read_defs(curve_data):
         domain = entry["domain"]
         if domain == "OBJECT":
             continue
-        public = curve_data.attributes.get(entry["name"])
-        if public is None:
-            public = curve_data.attributes.new(
+        attr = curve_data.attributes.get(entry["name"])
+        if attr is None:
+            attr = curve_data.attributes.new(
                 entry["name"], type=entry["type"], domain=domain
-            )
-        hidden_name = transport_attribute_name(entry)
-        hidden = curve_data.attributes.get(hidden_name)
-        if hidden is None:
-            hidden = curve_data.attributes.new(
-                hidden_name, type=entry["type"], domain=domain
             )
         value = _cast(entry["type"], entry["default"])
         if domain == "CURVE":
-            public.data[curve_index].value = value
-            hidden.data[curve_index].value = value
+            attr.data[curve_index].value = value
         else:
             for point in curve_data.curves[curve_index].points:
-                public.data[point.index].value = value
-                hidden.data[point.index].value = value
+                attr.data[point.index].value = value
