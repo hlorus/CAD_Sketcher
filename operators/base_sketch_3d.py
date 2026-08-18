@@ -1,4 +1,9 @@
-"""Stateful placement helpers for native free-3D sketches (#607)."""
+"""Stateful placement helpers for native free-3D sketches (#607).
+
+Free-3D placement is anchored in world space: the origin Empty provides the
+fallback view-plane depth until a real previous point exists, while native curve
+coordinates remain local to that origin frame.
+"""
 
 import mathutils  # noqa: I001 - Blender module + relative addon imports
 import mathutils.geometry
