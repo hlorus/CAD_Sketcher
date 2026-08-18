@@ -82,6 +82,16 @@ def on_load_post(*args):
 def on_depsgraph_update(scene, depsgraph):
     from . import global_data
 
+    # Destructive Object > Convert keeps object ID-properties but can replace the
+    # Curves datablock with a Mesh that has no custom ID-properties (Blender 5.2).
+    # Re-apply only CAD Sketcher OBJECT-domain values recorded on updated objects.
+    from .utilities.custom_attributes import sync_object_attribute_values
+
+    for update in depsgraph.updates:
+        updated_id = update.id
+        if isinstance(updated_id, bpy.types.Object):
+            sync_object_attribute_values(updated_id.original)
+
     # Keep face-anchored workplanes on their mesh face as geometry changes.
     from .utilities.face_anchor import update_face_workplanes
     update_face_workplanes(bpy.context, depsgraph)
