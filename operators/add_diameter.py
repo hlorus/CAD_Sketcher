@@ -29,7 +29,7 @@ class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
     setting: BoolProperty(name="Use Radius")
     type = "DIAMETER"
     property_keys = ("value", "setting")
-    has_value_state = True
+    has_value_state = False
 
     def main(self, context):
         if not self.exists(context, SlvsDiameter):

@@ -12,25 +12,12 @@ from ..utilities import preferences
 from ..utilities.geometry import face_bounds_in_plane, face_workplane_matrix
 from ..utilities.preferences import get_prefs
 from ..utilities.workplane import (
-    WP_ID_XY,
-    WP_ID_XZ,
-    WP_ID_YZ,
+    ORIGIN_AXIS_COLOR,
     iter_wp_empties,
     resolve_sketch_base,
     wp_plane_bounds,
 )
 from .utilities import context_mode_check
-
-# Blender-style axis colors used to tint the origin planes by their normal
-# (XY -> Z/blue, XZ -> Y/green, YZ -> X/red).
-_AXIS_X = (0.80, 0.24, 0.24)
-_AXIS_Y = (0.34, 0.67, 0.20)
-_AXIS_Z = (0.22, 0.40, 0.80)
-_ORIGIN_AXIS_COLOR = {
-    WP_ID_XY: _AXIS_Z,
-    WP_ID_XZ: _AXIS_Y,
-    WP_ID_YZ: _AXIS_X,
-}
 
 
 class VIEW3D_GGT_slvs_workplane(GizmoGroup):
@@ -88,7 +75,7 @@ class VIEW3D_GT_slvs_workplane(Gizmo):
         Origin planes are tinted by their normal axis; other planes keep the
         themed default/highlight look.
         """
-        axis = _ORIGIN_AXIS_COLOR.get(pick_id)
+        axis = ORIGIN_AXIS_COLOR.get(pick_id)
         if axis is None:
             return tuple(ts.highlight) if is_hovered else (*ts.default[:3], 0.3)
         if is_hovered:
@@ -154,7 +141,9 @@ class VIEW3D_GT_slvs_workplane(Gizmo):
             is_hovered = selection.hover == pick_id
             col = self._plane_color(pick_id, is_hovered, ts)
             bounds = wp_plane_bounds(context, pick_id)
-            self._draw_rect(context, wp_obj.matrix_world, bounds, scale, col, is_hovered)
+            self._draw_rect(
+                context, wp_obj.matrix_world, bounds, scale, col, is_hovered
+            )
 
         # Preview the workplane a hovered mesh face would create, sized to the
         # face's bounding box plus a margin.
@@ -169,9 +158,15 @@ class VIEW3D_GT_slvs_workplane(Gizmo):
                     bounds = None
                 if bounds is not None:
                     min_x, min_y, max_x, max_y = bounds
-                    margin = max(max_x - min_x, max_y - min_y) * self.FACE_PREVIEW_MARGIN
-                    bounds = (min_x - margin, min_y - margin,
-                              max_x + margin, max_y + margin)
+                    margin = (
+                        max(max_x - min_x, max_y - min_y) * self.FACE_PREVIEW_MARGIN
+                    )
+                    bounds = (
+                        min_x - margin,
+                        min_y - margin,
+                        max_x + margin,
+                        max_y + margin,
+                    )
                     self._draw_rect(context, mat, bounds, scale, ts.highlight, True)
 
     def test_select(self, context, location):

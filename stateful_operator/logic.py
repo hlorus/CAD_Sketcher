@@ -1,18 +1,17 @@
 import math
+from typing import Any
 
 import bpy
-from bpy.props import IntProperty, BoolProperty
+from bpy.props import BoolProperty, IntProperty
 from bpy.types import Context, Event
 from mathutils import Vector
 
 from .. import global_data
 from .state_machine import _StateMachineMixin
-from .utilities.generic import to_list
 from .utilities.description import state_desc, stateful_op_desc
+from .utilities.generic import to_list
 from .utilities.keymap import get_key_map_desc, is_numeric_input, is_unit_input
-from .utilities.numeric import NumericInput
-
-from typing import Optional, Any
+from .utilities.numeric import NumericInput, parse_numeric
 
 # Re-export so any `from .logic import _NumericInput` keeps working.
 _NumericInput = NumericInput
@@ -215,25 +214,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """Convert the current numeric text buffer to a typed value (or list)."""
         prop_name = self.get_property()[0]
         prop = self.properties.rna_type.properties[prop_name]
-
-        def parse_input(prop, raw):
-            units = context.scene.unit_settings
-            unit = prop.unit
-            value = None
-            if raw == "-":
-                pass
-            elif unit != "NONE":
-                try:
-                    value = bpy.utils.units.to_value(units.system, unit, raw)
-                except ValueError:
-                    return prop.default
-                if prop.type == "INT":
-                    value = int(value)
-            elif prop.type == "FLOAT":
-                value = float(raw)
-            elif prop.type == "INT":
-                value = int(raw)
-            return prop.default if value is None else value
+        unit_system = context.scene.unit_settings.system
 
         def to_iterable(item):
             if hasattr(item, "__iter__") or hasattr(item, "__getitem__"):
@@ -254,7 +235,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         for sub_index in range(size):
             raw = self._numeric.get(sub_index)
             if raw:
-                num = parse_input(prop, raw)
+                num = parse_numeric(prop, raw, unit_system)
+                if num is None:
+                    num = prop.default
                 result[sub_index] = num
                 storage[sub_index] = num
             elif interactive_val[sub_index] is not None:
@@ -495,7 +478,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         if self.state_init_coords is None:
             self.state_init_coords = coords
 
-        is_picked, pointer_values = self._pick_hovered(context, coords, state, is_numeric)
+        is_picked, pointer_values = self._pick_hovered(
+            context, coords, state, is_numeric
+        )
         values, ok = self._resolve_values(context, coords, state, is_numeric, is_picked)
 
         # Reflect the live value (property or point placement) in the status bar.

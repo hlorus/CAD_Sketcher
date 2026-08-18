@@ -1,13 +1,12 @@
-from bpy.types import Operator, Context
-from bpy.props import IntProperty, BoolProperty, StringProperty
+from bpy.props import BoolProperty, IntProperty, StringProperty
+from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
-from .utilities import select_extend, select_invert
-from ..utilities.select import select_all, deselect_all
-from ..drawing import selection
 from ..declarations import Operators
+from ..drawing import selection
 from ..utilities.highlighting import HighlightElement
-from ..utilities.select import mode_property
+from ..utilities.select import deselect_all, mode_property, select_all
+from .utilities import select_extend, select_invert
 
 
 class View3D_OT_slvs_select(Operator, HighlightElement):
@@ -26,12 +25,17 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
     # currently hovered curve id is used.
     index: StringProperty(name="Curve ID", default="")
     mode: mode_property
+    # Alt+click: step to the next entity in the overlapping stack under the cursor
+    # before selecting, so repeated Alt+clicks reach occluded geometry (issue #50).
+    cycle: BoolProperty(name="Cycle Overlapping", default=False, options={"SKIP_SAVE"})
 
     def execute(self, context: Context):
+        # Alt+click: advance to the next candidate, unless the hover was just
+        # positioned with Alt+wheel -- then commit that one instead of overshooting.
+        if self.cycle and not selection.take_hover_lock():
+            selection.cycle_hover(1)
         index = (
-            self.index
-            if self.properties.is_property_set("index")
-            else selection.hover
+            self.index if self.properties.is_property_set("index") else selection.hover
         )
         hit = bool(index)
         mode = self.mode
@@ -114,6 +118,25 @@ class View3D_OT_slvs_select_extend_all(Operator):
         return {"FINISHED"}
 
 
+class View3D_OT_slvs_hover_cycle(Operator):
+    """Cycle the hovered element through entities overlapping under the cursor"""
+
+    bl_idname = Operators.HoverCycle
+    bl_label = "Cycle Hovered Element"
+    bl_options = {"INTERNAL"}
+
+    direction: IntProperty(default=1)
+
+    def execute(self, context: Context):
+        # lock=True: this is a preview cycle, so a following Alt+click commits the
+        # positioned hover rather than advancing past it.
+        if not selection.cycle_hover(self.direction, lock=True):
+            return {"CANCELLED"}
+        if context.area:
+            context.area.tag_redraw()
+        return {"FINISHED"}
+
+
 register, unregister = register_classes_factory(
     (
         View3D_OT_slvs_select,
@@ -121,5 +144,6 @@ register, unregister = register_classes_factory(
         View3D_OT_slvs_select_invert,
         View3D_OT_slvs_select_extend,
         View3D_OT_slvs_select_extend_all,
+        View3D_OT_slvs_hover_cycle,
     )
 )

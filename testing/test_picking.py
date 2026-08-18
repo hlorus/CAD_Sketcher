@@ -27,7 +27,9 @@ class _FakeContext:
 def _ortho_projection(world, region, rv3d):
     """Top-down orthographic stub: screen = (x*10, y*10), everything visible."""
     world = np.asarray(world, dtype=float).reshape(-1, 3)
-    return np.column_stack([world[:, 0] * 10, world[:, 1] * 10]), np.ones(len(world), bool)
+    return np.column_stack([world[:, 0] * 10, world[:, 1] * 10]), np.ones(
+        len(world), bool
+    )
 
 
 class TestPicking(Sketch2dTestCase):
@@ -46,7 +48,65 @@ class TestPicking(Sketch2dTestCase):
     def tearDown(self):
         picking._project_points_to_region = self._orig
         selection.ignore_list = []
+        selection.hover = ""
+        selection.hover_candidates = []
+        selection.hover_locked = False
         super().tearDown()
+
+    def test_pick_ranked_returns_overlapping_stack(self):
+        # At point b's location (40, 0) the point and the line's endpoint overlap:
+        # both are candidates, point first (grabbable vertex over edge).
+        ranked = picking.pick_ranked(self.ctx, (40, 0))
+        self.assertEqual(ranked[0], self.b.curve_id)
+        self.assertIn(self.line.curve_id, ranked)
+        self.assertGreaterEqual(len(ranked), 2)
+
+    def test_update_hover_keeps_cycled_choice(self):
+        # Hover the stack (nearest = point b), cycle to the line, then re-hover the
+        # same spot: the cycled choice must survive rather than snap back to nearest.
+        selection.hover = ""
+        picking.update_hover(self.ctx, (40, 0))
+        self.assertEqual(selection.hover_candidates[0], self.b.curve_id)
+        self.assertTrue(selection.cycle_hover(1))
+        self.assertEqual(selection.hover, self.line.curve_id)
+        self.assertEqual(picking.update_hover(self.ctx, (40, 0)), self.line.curve_id)
+
+    def test_cycle_hover_wraps_and_noops(self):
+        selection.hover_candidates = ["a", "b", "c"]
+        selection.hover = "a"
+        self.assertTrue(selection.cycle_hover(1))
+        self.assertEqual(selection.hover, "b")
+        self.assertTrue(selection.cycle_hover(1))
+        self.assertEqual(selection.hover, "c")
+        self.assertTrue(selection.cycle_hover(1))  # wrap forward
+        self.assertEqual(selection.hover, "a")
+        self.assertTrue(selection.cycle_hover(-1))  # wrap backward
+        self.assertEqual(selection.hover, "c")
+
+        selection.hover_candidates = ["only"]
+        selection.hover = "only"
+        self.assertFalse(selection.cycle_hover(1))  # fewer than two -> no-op
+
+    def test_wheel_lock_stops_alt_click_overshoot(self):
+        # Alt+wheel previews to "b" and locks; the following Alt+click must commit
+        # "b" (consume the lock), not advance to "c".
+        selection.hover_candidates = ["a", "b", "c"]
+        selection.hover = "a"
+        self.assertTrue(selection.cycle_hover(1, lock=True))
+        self.assertEqual(selection.hover, "b")
+        self.assertTrue(selection.hover_locked)
+
+        self.assertTrue(selection.take_hover_lock())  # Alt+click commits "b"
+        self.assertFalse(selection.hover_locked)
+        # A further Alt+click (no lock) digs on to the next candidate.
+        self.assertFalse(selection.take_hover_lock())
+
+    def test_moving_off_element_clears_lock(self):
+        # A wheel lock must not persist once the cursor leaves the stack.
+        selection.hover = self.b.curve_id
+        selection.hover_locked = True
+        picking.update_hover(self.ctx, (1000, 1000))  # over nothing
+        self.assertFalse(selection.hover_locked)
 
     def test_point_takes_priority_over_edge(self):
         # Cursor over point b's screen location (40, 0).
@@ -87,7 +147,5 @@ class TestPicking(Sketch2dTestCase):
         line2 = self.add_line(self.b, c)
         self.solve()
         self.assertEqual(picking.pick(self.ctx, (40, 40)), c.curve_id)
-        self.assertIsNot(
-            picking._pick_cache[self.sketch.target_object.name][1], cached
-        )
+        self.assertIsNot(picking._pick_cache[self.sketch.target_object.name][1], cached)
         self.assertTrue(line2.valid)

@@ -17,5 +17,9 @@ into Blender, better stability and performance.
 - Added auto-constraints toggle to add horizontal, vertical and coincident constraints while drawing; hold Shift to skip
 - Snap sketch points to existing 3D geometry (vertices, edges, midpoints, face center); this is a static snap at placement time and does not track the underlying geometry afterwards
 - Added Workspacetools for parametric Extrude and Linear Array
+- Added Project Geometry: bring an external object's edges into the active sketch as construction geometry that stays linked to the source and follows its edits
+- Added a pie menu (Ctrl+Shift+M) for quick access to drawing tools and constraints
+- Dimensional constraints (distance, angle, diameter) are placed in one step: pick the geometry, drag the label into position, and optionally type the value
+- Select overlapping entities under the cursor: Alt+click steps through the stack, Alt+wheel cycles the highlight without selecting
 - Added extension auto-update via the extension repository
 - New "What's New" dialog surfaces changes after each update
