@@ -46,7 +46,10 @@ class TestCustomAttributes(Sketch2dTestCase):
                 and getattr(item, "in_out", "") == "INPUT"
                 and item.name == "Fill"
             )
-            modifier[fill_socket.identifier] = bool(fill)
+            # Geometry-node modifiers on Curves do not expose socket values as
+            # ID properties in Blender 5.2. For this disposable test group, set
+            # the interface default directly before evaluating/converting it.
+            fill_socket.default_value = bool(fill)
 
         for selected in list(self.context.selected_objects):
             selected.select_set(False)
@@ -238,6 +241,7 @@ class TestCustomAttributes(Sketch2dTestCase):
         finally:
             self._remove_converted(converted)
 
+    @unittest.skipIf(bpy.app.version < (5, 2, 0), "schema converters require 5.2+")
     def test_schema_change_rebinds_and_discards_unused_group(self):
         self._square()
         define_attribute(self.sketch, "first_schema_attr", "INT", "CURVE", 1)
