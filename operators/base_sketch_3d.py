@@ -25,6 +25,25 @@ def _project_to_plane(point, anchor, normal_index):
     return point - normal * (point - anchor).dot(normal)
 
 
+def view_plane_intersection(ray_origin, ray_end, anchor, normal):
+    """Intersect a view ray with the temporary placement plane.
+
+    ``anchor`` is the depth reference: the 3D-sketch origin for the first point
+    (or whenever no previous point exists), and the previous point afterwards.
+    A parallel ray falls back to the anchor itself so placement remains stable.
+    This is kept as a pure helper so the origin-depth contract is testable without
+    a live viewport.
+    """
+    anchor = mathutils.Vector(anchor).to_3d()
+    world = mathutils.geometry.intersect_line_plane(
+        mathutils.Vector(ray_origin).to_3d(),
+        mathutils.Vector(ray_end).to_3d(),
+        anchor,
+        mathutils.Vector(normal).to_3d().normalized(),
+    )
+    return mathutils.Vector(world).to_3d() if world is not None else anchor.copy()
+
+
 def resolve_locked_position(
     point,
     anchor,
@@ -99,6 +118,9 @@ class OperatorSketch3d(base_2d.Operator2d):
         return super().modal(context, event)
 
     def _anchor_world(self, context):
+        # Mirror the 2D chaining model: once a previous point really exists it
+        # becomes the temporary-plane depth. Otherwise the origin Empty is always
+        # the deterministic fallback, including a partially-prefilled later state.
         if self.state_index > 0:
             previous = self.get_point(context, self.state_index - 1)
             if isinstance(previous, curve_ref.PointRef) and previous.valid:
@@ -127,12 +149,12 @@ class OperatorSketch3d(base_2d.Operator2d):
             self.state_data["snapped_external"] = True
         else:
             self.state_data["snapped_external"] = False
-            normal = self._view_plane_normal(context)
-            world = mathutils.geometry.intersect_line_plane(
-                ray_origin, ray_end, anchor, normal
+            world = view_plane_intersection(
+                ray_origin,
+                ray_end,
+                anchor,
+                self._view_plane_normal(context),
             )
-            if world is None:
-                world = anchor.copy()
 
         world = resolve_locked_position(
             world,
