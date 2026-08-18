@@ -84,6 +84,7 @@ Available in Object Mode regardless of the active tool.
 |A|Ctrl+Shift|Add sketch / leave the active sketch|
 |E|Ctrl+Shift|Extrude the active sketch|
 |D|Ctrl+Shift|Linear array of the active sketch|
+|M|Ctrl+Shift|Open the CAD Sketcher pie menu (drawing tools and constraints)|
 |Esc|Shift|Switch to Blender's Select tool|
 
 ### Basic Tool Keymap
@@ -122,6 +123,8 @@ The basic tool interaction is consistent between tools.
 |LMB (click)|-   |Toggle select|
 |LMB (click)|Shift|Extend selection|
 |LMB (click)|Ctrl|Subtract from selection|
+|LMB (click)|Alt|Select the next entity in the overlapping stack under the cursor|
+|Wheel|Alt|Cycle the hovered entity through overlapping ones without selecting|
 |LMB (drag)|-|Box select, or tweak the hovered entity|
 |LMB (drag)|Shift|Box select (extend)|
 |LMB (drag)|Ctrl|Box select (subtract)|
@@ -136,6 +139,11 @@ The basic tool interaction is consistent between tools.
 
 > **INFO:** Chain selection works with coincident constraints too
 
+> **INFO:** When entities overlap, a plain click grabs the nearest one. Alt+click
+steps to the next entity down (repeat to dig through the stack), and Alt+wheel
+cycles the hovered entity so you can preview before clicking. This also works
+while picking geometry inside a drawing or constraint tool.
+
 ::: CAD_Sketcher.operators.add_point_2d.View3D_OT_slvs_add_point2d
 
 ::: CAD_Sketcher.operators.add_line_2d.View3D_OT_slvs_add_line2d
@@ -147,6 +155,12 @@ The basic tool interaction is consistent between tools.
 ::: CAD_Sketcher.operators.add_rectangle.View3D_OT_slvs_add_rectangle
 
 ::: CAD_Sketcher.operators.trim.View3D_OT_slvs_trim
+
+::: CAD_Sketcher.operators.project_geometry.VIEW3D_OT_slvs_project_geometry
+
+Project Geometry brings a mesh object's edges into the active sketch as native
+construction points and lines. The projected points stay linked to their source
+vertices, so editing or transforming the source object updates the projection.
 
 ### Workplane tools
 A workplane is any Blender object whose transform defines the sketch plane (see
