@@ -5,7 +5,7 @@ from mathutils import Vector
 from mathutils.geometry import intersect_line_plane
 
 from .. import global_data
-from ..curve_solver import CurveSolver
+from ..curve_solver import CurveSolver, solve_system
 from ..declarations import Operators
 from ..drawing import selection
 from ..drawing.snap import draw_snap_marker
@@ -170,8 +170,10 @@ class View3D_OT_slvs_tweak(Operator):
             ):
                 PointRef(self.sketch, self.curve_id).fixed = True
 
-            if self.sketch.is_3d:
-                CurveSolver(context, self.sketch).solve()
+            # Clean re-solve without the drag pin so published DOF/state reflect
+            # the real sketch. This also covers the free-3D path, whose direct
+            # point edit has no temporary 2D drag constraint.
+            solve_system(context, sketch=self.sketch)
 
             refresh_curve_geometry(self.sketch)
             self._remove_snap_marker()
