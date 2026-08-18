@@ -1,11 +1,12 @@
 """User-defined attributes backed by native Curves data.
 
 Definitions live on the sketch Curves datablock and values live in native Blender
-attributes, so the sketch remains the source of truth. Geometry Nodes can carry
-those named attributes into evaluated conversion geometry and rebuilding the
-native curves does not discard them.
+attributes, so the sketch remains the source of truth. Geometry Nodes carry named
+attributes generically through most of the conversion chain; schema-aware node
+groups are needed only to bridge Blender's destructive Fill Curve boundary.
 """
 
+import hashlib
 import json
 
 from .curve_data import get_curve_index
@@ -75,27 +76,59 @@ def _write_object_value(sketch, name, value):
     sketch.data[name] = value
 
 
-def _sync_conversion_group(sketch):
-    """Keep the sketch bound to the shared converter on Blender 5.2+.
+def _attribute_group_name(specs):
+    """Return a deterministic group name shared by equal attribute schemas."""
+    from .convert_nodes import CONVERT_NODE_GROUP, attribute_signature
 
-    Native named attributes propagate through Geometry Nodes generically, so
-    custom attributes do not require a per-sketch node group or a rebuilt node
-    tree for every definition change. This helper only ensures the standard
-    shared converter is present and bound.
+    signature = attribute_signature(specs)
+    digest = hashlib.sha1(signature.encode("utf-8")).hexdigest()[:12]
+    return f"{CONVERT_NODE_GROUP} [attrs {digest}]"
+
+
+def _sync_conversion_group(sketch):
+    """Bind the smallest converter needed by this sketch on Blender 5.2+.
+
+    Sketches without POINT/CURVE user attributes stay on the single standard
+    converter. Attribute-bearing sketches share a converter by *schema* (names,
+    types and domains), rather than owning a per-sketch group. Values/defaults do
+    not rebuild the node tree. A schema change simply rebinds the modifier; an
+    unused old schema group is removed immediately.
     """
     import bpy
 
     if bpy.app.version < (5, 2, 0) or not sketch or not sketch.target_object:
         return
 
-    from .convert_nodes import CONVERT_NODE_GROUP, build_convert_node_group
+    from .convert_nodes import (
+        CONVERT_NODE_GROUP,
+        build_convert_node_group,
+        normalize_attribute_definitions,
+    )
 
     ob = sketch.target_object
     modifier = ob.modifiers.get(CONVERT_NODE_GROUP)
     if modifier is None:
         modifier = ob.modifiers.new(CONVERT_NODE_GROUP, "NODES")
-    modifier.node_group = build_convert_node_group(CONVERT_NODE_GROUP)
+
+    specs = normalize_attribute_definitions(definitions(sketch))
+    if specs:
+        group = build_convert_node_group(
+            _attribute_group_name(specs), attribute_definitions=specs
+        )
+    else:
+        group = build_convert_node_group(CONVERT_NODE_GROUP)
+
+    old_group = modifier.node_group
+    modifier.node_group = group
     ob.update_tag()
+
+    if (
+        old_group is not None
+        and old_group != group
+        and old_group.users == 0
+        and old_group.name.startswith(f"{CONVERT_NODE_GROUP} [attrs ")
+    ):
+        bpy.data.node_groups.remove(old_group)
 
 
 def definitions(sketch):
