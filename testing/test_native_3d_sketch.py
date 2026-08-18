@@ -1,6 +1,8 @@
 """Regression coverage for native free-3D sketches (#607)."""
 
-from mathutils import Vector
+import math
+
+from mathutils import Matrix, Vector
 
 from .utils import BgsTestCase
 
@@ -48,6 +50,35 @@ class TestNative3DSketch(BgsTestCase):
         xy_plane = resolve_locked_position(point, anchor, plane_lock=2)
         self.assertLess((xy_plane - Vector((2.0, 3.0, 1.0))).length, 1e-6)
 
+    def test_origin_is_default_view_plane_depth(self):
+        from ..operators.base_sketch_3d import view_plane_intersection
+
+        origin = self.sketch.target_object.parent
+        origin.location = (4.0, -3.0, 7.0)
+        self.context.view_layer.update()
+        anchor = origin.matrix_world.translation
+
+        # A view ray along -Z must land on the plane through the sketch origin,
+        # not on the global XY plane. The resulting Z therefore follows the
+        # moved origin exactly.
+        hit = view_plane_intersection(
+            (10.0, 20.0, 20.0),
+            (10.0, 20.0, -20.0),
+            anchor,
+            (0.0, 0.0, 1.0),
+        )
+        self.assertLess((hit - Vector((10.0, 20.0, 7.0))).length, 1e-6)
+
+        # A ray parallel to the temporary plane has no geometric intersection;
+        # the placement fallback remains the origin depth anchor, not world zero.
+        parallel = view_plane_intersection(
+            (10.0, 20.0, 7.0),
+            (30.0, 20.0, 7.0),
+            anchor,
+            (0.0, 0.0, 1.0),
+        )
+        self.assertLess((parallel - anchor).length, 1e-6)
+
     def test_points_and_lines_preserve_xyz(self):
         from ..model.native_3d import create_line_3d, create_point_3d, is_3d_sketch
         from ..utilities.curve_data import get_curve_data
@@ -76,6 +107,56 @@ class TestNative3DSketch(BgsTestCase):
         self.assertLess((positions[1] - Vector((4.0, 6.0, 8.0))).length, 1e-6)
         self.assertGreater(abs(positions[0].z), 1e-6)
         self.assertGreater(abs(positions[1].z), 1e-6)
+
+    def test_origin_transform_moves_rendered_3d_geometry(self):
+        from ..drawing import render_data
+        from ..model.native_3d import create_line_3d, create_point_3d
+        from ..utilities.preferences import get_prefs
+
+        p1 = create_point_3d(self.sketch, (1.0, 0.0, 0.0), fixed=True)
+        p2 = create_point_3d(self.sketch, (0.0, 2.0, 1.0), fixed=True)
+        line = create_line_3d(self.sketch, p1, p2)
+        origin = self.sketch.target_object.parent
+
+        before = render_data.geometry_signature(self.sketch)
+        local_p1 = Vector((1.0, 0.0, 0.0))
+        local_p2 = Vector((0.0, 2.0, 1.0))
+
+        origin.matrix_world = Matrix.Translation((5.0, -2.0, 3.0)) @ Matrix.Rotation(
+            math.radians(90.0), 4, "Z"
+        )
+        self.context.view_layer.update()
+
+        after = render_data.geometry_signature(self.sketch)
+        self.assertNotEqual(before, after)
+
+        expected_p1 = origin.matrix_world @ local_p1
+        expected_p2 = origin.matrix_world @ local_p2
+        data = render_data.build(
+            self.sketch,
+            get_prefs().theme_settings.entity,
+            is_active=True,
+        )
+        point_world = {cid: Vector(pos) for cid, pos in data.point_ids}
+        self.assertLess((point_world[p1.curve_id] - expected_p1).length, 1e-5)
+        self.assertLess((point_world[p2.curve_id] - expected_p2).length, 1e-5)
+
+        segment = next(item for item in data.segment_ids if item[0] == line.curve_id)
+        self.assertLess((Vector(segment[1]) - expected_p1).length, 1e-5)
+        self.assertLess((Vector(segment[2]) - expected_p2).length, 1e-5)
+
+        # A solve/depsgraph pass must not bake the origin transform back into the
+        # native coordinates or visually reset the sketch to its old position.
+        self.assertTrue(self.sketch.solve(self.context))
+        self.context.view_layer.update()
+        solved = render_data.build(
+            self.sketch,
+            get_prefs().theme_settings.entity,
+            is_active=True,
+        )
+        solved_world = {cid: Vector(pos) for cid, pos in solved.point_ids}
+        self.assertLess((solved_world[p1.curve_id] - expected_p1).length, 1e-5)
+        self.assertLess((solved_world[p2.curve_id] - expected_p2).length, 1e-5)
 
     def test_distance_solves_in_free_3d_and_dimension_is_world_space(self):
         from ..model.native_3d import create_line_3d, create_point_3d
