@@ -169,7 +169,12 @@ class OperatorSketch3d(base_2d.Operator2d):
             ray_origin=ray_origin,
             ray_end=ray_end,
         )
-        local = self.sketch.target_object.matrix_world.inverted_safe() @ world
+        # The free-3D Curves child is identity-parented to the origin Empty. Use
+        # that frame directly so interactive origin transforms cannot leave a
+        # stale child matrix between depsgraph updates while placing new points.
+        frame = self.sketch.target_object.parent
+        matrix = frame.matrix_world if frame is not None else self.sketch.target_object.matrix_world
+        local = matrix.inverted_safe() @ world
         return mathutils.Vector(local).to_3d()
 
     def create_element(self, context, values, state, state_data):
