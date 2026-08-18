@@ -1,15 +1,14 @@
 """Conversion-node helpers shared by the asset and programmatic paths.
 
-The standard converter remains shared by all sketches without user attributes.
-Attribute-bearing sketches share a schema-specific variant. Their live values are
-mirrored to hidden native Curves attributes (the same persistence mechanism used
-by CAD Sketcher's stable source ids), so Geometry Nodes only needs to consume the
-hidden names at the final boundary and re-publish the public attribute names.
+The standard converter remains shared by sketches without user attributes.
+Attribute-bearing sketches share a schema-specific variant. Instead of trying to
+carry arbitrary fields through every topology-changing node, the variant samples
+live values from a Curve-to-Points lookup built from the filtered native source
+and writes them onto the final generated geometry. Attribute values therefore
+remain native source data and value edits never rebuild the node tree.
 """
 
 import bpy
-
-from .custom_attributes import transport_attribute_name
 
 CONVERT_NODE_GROUP = "CAD Sketcher Convert"
 VERTEX_ID_ATTR = "id"
@@ -18,7 +17,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 11
+CONVERT_VERSION = 12
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -26,7 +25,6 @@ _FACE_ROLE = 0x2468B
 
 
 def _int_compare(nodes, links, operation, value):
-    """A Compare node on integers: returns (node, a_socket) with B set to value."""
     cmp = nodes.new("FunctionNodeCompare")
     cmp.data_type = "INT"
     cmp.operation = operation
@@ -61,20 +59,47 @@ def attribute_signature(specs):
     return repr(tuple((x["name"], x["type"], x["domain"]) for x in specs))
 
 
-def _restore_custom_attributes(nodes, links, geometry, specs):
-    """Publish hidden native transport values under their user-facing names."""
+def _transfer_custom_attributes(nodes, links, source_curves, geometry, specs):
+    """Sample live source values onto final generated points.
+
+    Curve to Points preserves both native POINT attributes and adapts CURVE-domain
+    attributes to its point cloud. Sample Nearest maps every generated point to a
+    lookup point, and Sample Index reads the requested value in that lookup's
+    POINT domain. This makes the transfer independent of attribute propagation in
+    Curve to Mesh, Merge Points, Mesh to Curve, and Fill Curve.
+    """
+    if not specs:
+        return geometry
+
+    lookup = nodes.new("GeometryNodeCurveToPoints")
+    lookup.mode = "EVALUATED"
+    links.new(source_curves, lookup.inputs["Curve"])
+    lookup_points = lookup.outputs["Points"]
+
     current = geometry
     for entry in specs:
+        nearest = nodes.new("GeometryNodeSampleNearest")
+        nearest.domain = "POINT"
+        links.new(lookup_points, nearest.inputs["Geometry"])
+
         named = nodes.new("GeometryNodeInputNamedAttribute")
         named.data_type = entry["type"]
-        named.inputs["Name"].default_value = transport_attribute_name(entry)
+        named.inputs["Name"].default_value = entry["name"]
+
+        sample = nodes.new("GeometryNodeSampleIndex")
+        sample.data_type = entry["type"]
+        sample.domain = "POINT"
+        sample.clamp = True
+        links.new(lookup_points, sample.inputs["Geometry"])
+        links.new(named.outputs["Attribute"], sample.inputs["Value"])
+        links.new(nearest.outputs["Index"], sample.inputs["Index"])
 
         store = nodes.new("GeometryNodeStoreNamedAttribute")
         store.data_type = entry["type"]
         store.domain = "POINT"
         store.inputs["Name"].default_value = entry["name"]
         links.new(current, store.inputs["Geometry"])
-        links.new(named.outputs["Attribute"], store.inputs["Value"])
+        links.new(sample.outputs["Value"], store.inputs["Value"])
         current = store.outputs["Geometry"]
     return current
 
@@ -87,7 +112,6 @@ def _named_int(nodes, name):
 
 
 def _local_child_index(nodes, links, source, domain):
-    """Return a zero-based index accumulated independently per stable source."""
     accumulate = nodes.new("GeometryNodeAccumulateField")
     accumulate.data_type = "INT"
     accumulate.domain = domain
@@ -222,9 +246,10 @@ def build_convert_node_group(
     delete.domain = "CURVE"
     links.new(gi.outputs["Geometry"], delete.inputs["Geometry"])
     links.new(drop.outputs["Boolean"], delete.inputs["Selection"])
+    filtered_source = delete.outputs["Geometry"]
 
     to_mesh = nodes.new("GeometryNodeCurveToMesh")
-    links.new(delete.outputs["Geometry"], to_mesh.inputs["Curve"])
+    links.new(filtered_source, to_mesh.inputs["Curve"])
 
     merge_id = nodes.new("GeometryNodeInputNamedAttribute")
     merge_id.data_type = "INT"
@@ -259,7 +284,9 @@ def build_convert_node_group(
     links.new(fill_curve.outputs["Mesh"], switch.inputs["True"])
 
     geometry = add_generated_id_nodes(nodes, links, switch.outputs["Output"])
-    geometry = _restore_custom_attributes(nodes, links, geometry, specs)
+    geometry = _transfer_custom_attributes(
+        nodes, links, filtered_source, geometry, specs
+    )
     links.new(geometry, go.inputs["Geometry"])
 
     ng["cad_convert_version"] = CONVERT_VERSION
