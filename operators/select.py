@@ -30,7 +30,9 @@ class View3D_OT_slvs_select(Operator, HighlightElement):
     cycle: BoolProperty(name="Cycle Overlapping", default=False, options={"SKIP_SAVE"})
 
     def execute(self, context: Context):
-        if self.cycle:
+        # Alt+click: advance to the next candidate, unless the hover was just
+        # positioned with Alt+wheel -- then commit that one instead of overshooting.
+        if self.cycle and not selection.take_hover_lock():
             selection.cycle_hover(1)
         index = (
             self.index if self.properties.is_property_set("index") else selection.hover
@@ -126,7 +128,9 @@ class View3D_OT_slvs_hover_cycle(Operator):
     direction: IntProperty(default=1)
 
     def execute(self, context: Context):
-        if not selection.cycle_hover(self.direction):
+        # lock=True: this is a preview cycle, so a following Alt+click commits the
+        # positioned hover rather than advancing past it.
+        if not selection.cycle_hover(self.direction, lock=True):
             return {"CANCELLED"}
         if context.area:
             context.area.tag_redraw()

@@ -137,6 +137,8 @@ def update_hover(context, coords):
     selection.hover_candidates = ranked
     if selection.hover in ranked:
         return selection.hover
+    # Moved to a different element (or off geometry): drop any wheel-set lock.
+    selection.hover_locked = False
     return ranked[0] if ranked else ""
 
 

@@ -29,21 +29,23 @@ class GenericEntityOp(StatefulOperator):
             and len(selection.hover_candidates) > 1
         ):
             direction = 1 if event.type == "WHEELUPMOUSE" else -1
-            if selection.cycle_hover(direction):
+            if selection.cycle_hover(direction, lock=True):
                 if context.area:
                     context.area.tag_redraw()
                 return {"RUNNING_MODAL"}
 
         # Alt+click: pick the next occluded candidate. Step hover, then fall
         # through so the normal LEFTMOUSE confirm commits the cycled entity
-        # (check_event treats LEFTMOUSE-press as confirm regardless of Alt).
+        # (check_event treats LEFTMOUSE-press as confirm regardless of Alt). If the
+        # hover was just positioned with Alt+wheel, commit it instead of advancing.
         if (
             event.type == "LEFTMOUSE"
             and event.value == "PRESS"
             and event.alt
             and len(selection.hover_candidates) > 1
         ):
-            selection.cycle_hover(1)
+            if not selection.take_hover_lock():
+                selection.cycle_hover(1)
 
         return super().modal(context, event)
 

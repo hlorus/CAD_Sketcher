@@ -50,6 +50,7 @@ class TestPicking(Sketch2dTestCase):
         selection.ignore_list = []
         selection.hover = ""
         selection.hover_candidates = []
+        selection.hover_locked = False
         super().tearDown()
 
     def test_pick_ranked_returns_overlapping_stack(self):
@@ -85,6 +86,27 @@ class TestPicking(Sketch2dTestCase):
         selection.hover_candidates = ["only"]
         selection.hover = "only"
         self.assertFalse(selection.cycle_hover(1))  # fewer than two -> no-op
+
+    def test_wheel_lock_stops_alt_click_overshoot(self):
+        # Alt+wheel previews to "b" and locks; the following Alt+click must commit
+        # "b" (consume the lock), not advance to "c".
+        selection.hover_candidates = ["a", "b", "c"]
+        selection.hover = "a"
+        self.assertTrue(selection.cycle_hover(1, lock=True))
+        self.assertEqual(selection.hover, "b")
+        self.assertTrue(selection.hover_locked)
+
+        self.assertTrue(selection.take_hover_lock())  # Alt+click commits "b"
+        self.assertFalse(selection.hover_locked)
+        # A further Alt+click (no lock) digs on to the next candidate.
+        self.assertFalse(selection.take_hover_lock())
+
+    def test_moving_off_element_clears_lock(self):
+        # A wheel lock must not persist once the cursor leaves the stack.
+        selection.hover = self.b.curve_id
+        selection.hover_locked = True
+        picking.update_hover(self.ctx, (1000, 1000))  # over nothing
+        self.assertFalse(selection.hover_locked)
 
     def test_point_takes_priority_over_edge(self):
         # Cursor over point b's screen location (40, 0).
