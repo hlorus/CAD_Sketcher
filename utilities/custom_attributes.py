@@ -30,6 +30,7 @@ _RESERVED_NAMES = {
     "fixed",
     "visible",
     "merge_id",
+    "id",
     "curve_id",
     "start_point_id",
     "end_point_id",
