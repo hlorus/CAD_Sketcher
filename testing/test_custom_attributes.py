@@ -70,17 +70,27 @@ class TestCustomAttributes(Sketch2dTestCase):
     def test_curve_attribute_values_live_on_native_source(self):
         _, lines = self._square()
         define_attribute(self.sketch, "material_slot", "INT", "CURVE", 2)
-        self.assertEqual(get_attribute_value(self.sketch, "material_slot", lines[0].curve_id), 2)
+        self.assertEqual(
+            get_attribute_value(self.sketch, "material_slot", lines[0].curve_id), 2
+        )
         set_attribute_value(self.sketch, "material_slot", 9, lines[0].curve_id)
-        self.assertEqual(get_attribute_value(self.sketch, "material_slot", lines[0].curve_id), 9)
-        self.assertEqual(get_attribute_value(self.sketch, "material_slot", lines[1].curve_id), 2)
+        self.assertEqual(
+            get_attribute_value(self.sketch, "material_slot", lines[0].curve_id), 9
+        )
+        self.assertEqual(
+            get_attribute_value(self.sketch, "material_slot", lines[1].curve_id), 2
+        )
 
     def test_default_applies_to_geometry_created_after_definition(self):
         first = self.add_point((0.0, 0.0))
         define_attribute(self.sketch, "later_default", "INT", "CURVE", 17)
-        self.assertEqual(get_attribute_value(self.sketch, "later_default", first.curve_id), 17)
+        self.assertEqual(
+            get_attribute_value(self.sketch, "later_default", first.curve_id), 17
+        )
         later = self.add_point((1.0, 0.0))
-        self.assertEqual(get_attribute_value(self.sketch, "later_default", later.curve_id), 17)
+        self.assertEqual(
+            get_attribute_value(self.sketch, "later_default", later.curve_id), 17
+        )
 
     def test_point_and_object_domains(self):
         points, lines = self._square()
@@ -97,7 +107,9 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertEqual(self.sketch.target_object["part_number"], 77)
         self.assertEqual(self.sketch.data["part_number"], 77)
         set_attribute_value(self.sketch, "weight", 8.0, points[0].curve_id)
-        self.assertEqual(get_attribute_value(self.sketch, "weight", points[0].curve_id), [8.0])
+        self.assertEqual(
+            get_attribute_value(self.sketch, "weight", points[0].curve_id), [8.0]
+        )
 
     def test_set_dialog_seed_preserves_current_value(self):
         from ..operators.custom_attributes import _seed_set_value
@@ -120,7 +132,9 @@ class TestCustomAttributes(Sketch2dTestCase):
         set_attribute_value(self.sketch, "feature_code", 77, lines[2].curve_id)
         refresh_curve_geometry(self.sketch)
         self.assertIsNotNone(definition(self.sketch, "feature_code"))
-        self.assertEqual(get_attribute_value(self.sketch, "feature_code", lines[2].curve_id), 77)
+        self.assertEqual(
+            get_attribute_value(self.sketch, "feature_code", lines[2].curve_id), 77
+        )
 
     def test_point_attribute_survives_conversion_refresh(self):
         from ..utilities.curve_data import refresh_curve_geometry
@@ -147,7 +161,9 @@ class TestCustomAttributes(Sketch2dTestCase):
         generic = build_convert_node_group("test_generic_wire_custom_attrs")
         converted = None
         try:
-            converted = self._convert_copy(self.sketch.target_object, node_group=generic, fill=False)
+            converted = self._convert_copy(
+                self.sketch.target_object, node_group=generic, fill=False
+            )
             self.assertIsNone(converted.data.attributes.get("wire_point_tag"))
         finally:
             self._remove_converted(converted)
