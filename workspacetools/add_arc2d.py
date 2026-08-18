@@ -20,4 +20,9 @@ class VIEW3D_T_slvs_add_arc2d(GenericStateTool, WorkSpaceTool):
     )
 
     def draw_settings(context, layout, tool):
-        layout.prop(context.scene.sketcher, "auto_axis_constraints", text="Auto Constraints")
+        layout.prop(
+            context.scene.sketcher, "auto_axis_constraints", text="Auto Constraints"
+        )
+        layout.prop(
+            context.scene.sketcher, "use_snap_project", text="Live Project Snaps"
+        )
