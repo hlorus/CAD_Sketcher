@@ -2,7 +2,7 @@
 
 import logging
 
-from bpy.props import FloatVectorProperty
+from bpy.props import BoolProperty, FloatVectorProperty
 from bpy.types import Context, Operator
 
 from ..declarations import Operators
@@ -21,6 +21,8 @@ class View3D_OT_slvs_add_line3d(Operator, OperatorSketch3d):
     bl_idname = Operators.AddLine3D
     bl_label = "Add 3D Line"
     bl_options = {"REGISTER", "UNDO"}
+
+    continuous_draw: BoolProperty(name="Continuous Draw", default=True)
 
     p1_coordinates: FloatVectorProperty(
         name="Start Coordinates",
@@ -78,6 +80,14 @@ class View3D_OT_slvs_add_line3d(Operator, OperatorSketch3d):
             construction=construction,
         )
         return self.target is not None
+
+    def continue_draw(self):
+        last_state = self._state_data[1]
+        if last_state["is_existing_entity"]:
+            return False
+        if last_state.get("coincident"):
+            return False
+        return True
 
     def fini(self, context: Context, succeede: bool):
         if hasattr(self, "target"):
