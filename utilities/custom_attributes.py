@@ -76,12 +76,12 @@ def _write_object_value(sketch, name, value):
 
 
 def _sync_conversion_group(sketch):
-    """Bind an attribute-aware convert group to this sketch on Blender 5.2+.
+    """Keep the sketch bound to the shared converter on Blender 5.2+.
 
-    The default converter can be shared while no user geometry attributes exist.
-    Once POINT/CURVE definitions are present, the sketch receives a stable
-    per-datablock node group which captures exactly those named fields before
-    topology conversion and restores them on the generated geometry.
+    Native named attributes propagate through Geometry Nodes generically, so
+    custom attributes do not require a per-sketch node group or a rebuilt node
+    tree for every definition change. This helper only ensures the standard
+    shared converter is present and bound.
     """
     import bpy
 
@@ -94,16 +94,7 @@ def _sync_conversion_group(sketch):
     modifier = ob.modifiers.get(CONVERT_NODE_GROUP)
     if modifier is None:
         modifier = ob.modifiers.new(CONVERT_NODE_GROUP, "NODES")
-
-    specs = [entry for entry in definitions(sketch) if entry["domain"] != "OBJECT"]
-    if specs:
-        group_name = f"{CONVERT_NODE_GROUP} [{ob.data.name}]"
-        modifier.node_group = build_convert_node_group(
-            group_name, attribute_definitions=specs
-        )
-    else:
-        modifier.node_group = build_convert_node_group(CONVERT_NODE_GROUP)
-
+    modifier.node_group = build_convert_node_group(CONVERT_NODE_GROUP)
     ob.update_tag()
 
 
