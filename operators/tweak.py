@@ -3,7 +3,7 @@ from bpy.types import Context, Event, Operator
 from bpy.utils import register_classes_factory
 
 from .. import global_data
-from ..curve_solver import CurveSolver
+from ..curve_solver import CurveSolver, solve_system
 from ..declarations import Operators
 from ..drawing import selection
 from ..drawing.snap import draw_snap_marker
@@ -107,6 +107,10 @@ class View3D_OT_slvs_tweak(Operator):
                 and get_curve_type(self.sketch, self.curve_id) == SketchCurveType.POINT
             ):
                 PointRef(self.sketch, self.curve_id).fixed = True
+            # Clean re-solve without the drag pin so the published dof/state
+            # reflect the real system again (per-frame tweak solves don't publish
+            # dof, and a drag-onto-snap above just changed the true dof).
+            solve_system(context, sketch=self.sketch)
             # Topology rebuild to trigger GN modifier refresh
             refresh_curve_geometry(self.sketch)
             self._remove_snap_marker()
