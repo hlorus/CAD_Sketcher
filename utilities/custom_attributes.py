@@ -11,6 +11,7 @@ import json
 from .curve_data import get_curve_index
 
 DEFINITIONS_PROP = "cad_custom_attribute_definitions"
+OBJECT_NAMES_PROP = "cad_custom_object_attribute_names"
 
 SUPPORTED_TYPES = {"BOOLEAN", "INT", "FLOAT"}
 SUPPORTED_DOMAINS = {"POINT", "CURVE", "OBJECT"}
@@ -62,10 +63,58 @@ def _write_defs(curve_data, definitions):
     curve_data[DEFINITIONS_PROP] = json.dumps(definitions, separators=(",", ":"))
 
 
+def _read_object_names(obj):
+    """Names of OBJECT-domain properties that must survive data replacement."""
+    raw = obj.get(OBJECT_NAMES_PROP, "[]") if obj else "[]"
+    if isinstance(raw, bytes):
+        raw = raw.decode()
+    try:
+        names = json.loads(raw)
+    except (TypeError, ValueError):
+        names = []
+    return [name for name in names if isinstance(name, str) and name]
+
+
+def _write_object_names(obj, names):
+    names = sorted(set(names))
+    if names:
+        obj[OBJECT_NAMES_PROP] = json.dumps(names, separators=(",", ":"))
+    elif OBJECT_NAMES_PROP in obj:
+        del obj[OBJECT_NAMES_PROP]
+
+
+def sync_object_attribute_values(obj):
+    """Mirror persistent OBJECT values onto the object's current data-block.
+
+    Blender's destructive ``Object > Convert`` keeps object ID-properties but
+    replaces the Curves datablock with a new Mesh. Blender 5.2 no longer carries
+    datablock custom properties across that replacement. Keeping a tiny manifest
+    on the object lets the depsgraph handler restore only CAD Sketcher-defined
+    OBJECT properties on the new data without copying unrelated ID-properties.
+    """
+    if obj is None or getattr(obj, "data", None) is None:
+        return False
+
+    changed = False
+    for name in _read_object_names(obj):
+        if name not in obj:
+            continue
+        value = obj[name]
+        if obj.data.get(name) != value:
+            obj.data[name] = value
+            changed = True
+    return changed
+
+
 def _write_object_value(sketch, name, value):
     """Mirror an OBJECT-domain value to the sketch object and its data-block."""
-    sketch.target_object[name] = value
+    obj = sketch.target_object
+    obj[name] = value
     sketch.data[name] = value
+    names = _read_object_names(obj)
+    if name not in names:
+        names.append(name)
+        _write_object_names(obj, names)
 
 
 def _attribute_group_name(specs):
@@ -179,10 +228,15 @@ def remove_attribute(sketch, name):
     defs = [d for d in defs if d["name"] != name]
     _write_defs(curve_data, defs)
     if entry["domain"] == "OBJECT":
-        if name in sketch.target_object:
-            del sketch.target_object[name]
+        obj = sketch.target_object
+        if name in obj:
+            del obj[name]
         if name in curve_data:
             del curve_data[name]
+        names = _read_object_names(obj)
+        if name in names:
+            names.remove(name)
+            _write_object_names(obj, names)
     else:
         attr = curve_data.attributes.get(name)
         if attr is not None:
