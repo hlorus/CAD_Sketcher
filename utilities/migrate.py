@@ -43,7 +43,7 @@ def scene_needs_migration(context):
 
 def _create_workplane_empty(context, wp, name):
     empty = bpy.data.objects.new(name, None)
-    empty.empty_display_type = 'PLAIN_AXES'
+    empty.empty_display_type = "PLAIN_AXES"
     empty.empty_display_size = 0.5
     empty.lock_location = (True, True, True)
     empty.lock_rotation = (True, True, True)
@@ -75,11 +75,11 @@ def _migrate_geometry(context, old_sketch, sketch, entity_map):
     ``entity_map`` is populated with ``old slvs_index -> (sketch, curve_id)`` for
     every migrated entity, so constraints can be remapped afterwards.
     """
-    from ..model.point_2d import SlvsPoint2D
-    from ..model.line_2d import SlvsLine2D
     from ..model.arc import SlvsArc
     from ..model.circle import SlvsCircle
-    from ..model.curve_ref import PointRef, LineRef, ArcRef, CircleRef
+    from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef
+    from ..model.line_2d import SlvsLine2D
+    from ..model.point_2d import SlvsPoint2D
 
     ents = list(old_sketch.sketch_entities(context))
     point_map = {}  # old slvs_index -> new PointRef
@@ -89,7 +89,8 @@ def _migrate_geometry(context, old_sketch, sketch, entity_map):
     for e in ents:
         if isinstance(e, SlvsPoint2D):
             pr = PointRef.create(
-                sketch, (e.co[0], e.co[1]),
+                sketch,
+                (e.co[0], e.co[1]),
                 construction=getattr(e, "construction", False),
                 fixed=getattr(e, "fixed", False),
             )
@@ -112,7 +113,8 @@ def _migrate_geometry(context, old_sketch, sketch, entity_map):
             return None
         local = wp_inv @ entity.location
         pr = PointRef.create(
-            sketch, (local.x, local.y),
+            sketch,
+            (local.x, local.y),
             construction=getattr(entity, "construction", False),
         )
         point_map[entity.slvs_index] = pr
@@ -141,11 +143,133 @@ def _migrate_geometry(context, old_sketch, sketch, entity_map):
     return len(point_map), n_seg
 
 
+# ---------------------------------------------------------------------------
+# Modifier translation
+#
+# In old files a sketch's ``target_object`` was the generated MESH output, and
+# users stacked ordinary mesh modifiers on it to build the finished part. New
+# sketches are Curves objects, which mesh modifiers cannot be added to, so the
+# old stack would be orphaned. Rebuild the translatable modifiers as the addon's
+# Geometry Nodes node tools (or a native GN node) on the new Curves sketch, in
+# order. Anything without a GN equivalent (e.g. Bevel -- Blender has no bevel
+# node) is skipped and recorded so the user knows exactly what was dropped.
+# ---------------------------------------------------------------------------
+
+
+def _load_node_group(name):
+    from ..assets_manager import load_asset
+    from ..global_data import LIB_NAME
+
+    if load_asset(LIB_NAME, "node_groups", name):
+        return bpy.data.node_groups.get(name)
+    return None
+
+
+def _translate_solidify(mod, old_mesh, obj):
+    """Solidify gives a profile thickness -- the same as the Extrude tool."""
+    from ..operators.modifiers import set_modifier_input
+
+    ng = _load_node_group("CAD Sketcher Extrude")
+    if ng is None:
+        return False
+    m = obj.modifiers.new("CAD_Sketcher Extrude", "NODES")
+    m.node_group = ng
+    set_modifier_input(m, "Input_2", float(mod.thickness))  # Size
+    return True
+
+
+def _translate_boolean(mod, old_mesh, obj):
+    """Boolean -> the CAD Sketcher Boolean node group, reading the same cutter."""
+    cutter = mod.object
+    if cutter is None:
+        return False
+    from ..operators.modifiers import (
+        View3D_OT_node_boolean,
+        set_boolean_operation,
+        set_modifier_input,
+    )
+    from .boolean_nodes import build_boolean_node_group
+
+    ng = build_boolean_node_group()
+    m = obj.modifiers.new(f"CAD_Sketcher Boolean {cutter.name}", "NODES")
+    m.node_group = ng
+    ids = View3D_OT_node_boolean._input_ids(ng)
+    set_modifier_input(m, ids["Cutter"], cutter)
+    op = {"DIFFERENCE": "Difference", "UNION": "Union", "INTERSECT": "Intersect"}[
+        mod.operation
+    ]
+    set_boolean_operation(m, ids["Operation"], op)
+    return True
+
+
+def _translate_array(mod, old_mesh, obj):
+    """Array -> the Linear Array node group. The old offset is a mix of a
+    relative (fraction of the object's bounds) and a constant part; combine both
+    into one world-space offset, then split into direction + spacing."""
+    from mathutils import Vector
+
+    from ..operators.modifiers import set_modifier_input
+
+    offset = Vector((0.0, 0.0, 0.0))
+    if mod.use_constant_offset:
+        offset += Vector(mod.constant_offset_displace)
+    if mod.use_relative_offset:
+        dims = old_mesh.dimensions
+        rel = mod.relative_offset_displace
+        offset += Vector((rel[0] * dims.x, rel[1] * dims.y, rel[2] * dims.z))
+    if offset.length < 1e-9:
+        return False  # no derivable direction
+
+    ng = _load_node_group("CAD Sketcher Linear Array")
+    if ng is None:
+        return False
+    m = obj.modifiers.new("CAD_Sketcher Linear Array", "NODES")
+    m.node_group = ng
+    set_modifier_input(m, "Input_21", tuple(offset.normalized()))  # Direction
+    set_modifier_input(m, "Input_22", int(mod.count))  # Count
+    set_modifier_input(m, "Input_23", offset.length)  # Spacing
+    return True
+
+
+_MODIFIER_TRANSLATORS = {
+    "SOLIDIFY": _translate_solidify,
+    "BOOLEAN": _translate_boolean,
+    "ARRAY": _translate_array,
+}
+
+
+def _migrate_modifiers(old_mesh, sketch, summary):
+    """Rebuild ``old_mesh``'s modifier stack as GN siblings on ``sketch``.
+
+    Isolated per modifier: a failed or unsupported one is skipped and recorded,
+    never aborting the rest of the migration.
+    """
+    obj = sketch.target_object
+    if obj is None:
+        return
+    for mod in list(old_mesh.modifiers):
+        try:
+            translator = _MODIFIER_TRANSLATORS.get(mod.type)
+            if translator is not None and translator(mod, old_mesh, obj):
+                summary["modifiers"] += 1
+            else:
+                summary["modifiers_skipped"].append(f"{old_mesh.name}: {mod.type}")
+        except Exception as e:
+            logger.exception("Failed to migrate modifier %s", mod.name)
+            summary["modifiers_skipped"].append(f"{old_mesh.name}: {mod.type} ({e!r})")
+
+
 def migrate_scene(context):
     """Migrate all legacy sketches (geometry + constraints). Returns a summary."""
     summary = {
-        "sketches": 0, "points": 0, "segments": 0,
-        "constraints": 0, "constraints_skipped": 0, "errors": [],
+        "sketches": 0,
+        "points": 0,
+        "segments": 0,
+        "constraints": 0,
+        "constraints_skipped": 0,
+        "errors": [],
+        "modifiers": 0,
+        "modifiers_skipped": [],
     }
 
     # One Empty per distinct legacy workplane (sketches sharing a plane share it).
@@ -163,13 +287,17 @@ def migrate_scene(context):
                 )
                 wp_empties[wp.slvs_index] = empty
 
-            sketch = _create_sketch_object(
-                context, empty, old_sketch.name or "Sketch"
-            )
+            # The legacy target_object is the old generated mesh (with the user's
+            # modifier stack); capture it before re-pointing to the new sketch.
+            old_mesh = old_sketch.target_object
+
+            sketch = _create_sketch_object(context, empty, old_sketch.name or "Sketch")
             # Link old->new so re-runs skip it and future phases can find it.
             old_sketch.target_object = sketch.target_object
 
             n_pts, n_seg = _migrate_geometry(context, old_sketch, sketch, entity_map)
+            if old_mesh is not None and getattr(old_mesh, "type", None) == "MESH":
+                _migrate_modifiers(old_mesh, sketch, summary)
             summary["sketches"] += 1
             summary["points"] += n_pts
             summary["segments"] += n_seg
@@ -242,8 +370,7 @@ def _migrate_constraints(context, entity_map, summary):
             ctype = getattr(old, "type", None)
             refs = [getattr(old, n, None) for n in ("entity1", "entity2", "entity3")]
             mapped = [
-                entity_map.get(r.slvs_index) if r is not None else None
-                for r in refs
+                entity_map.get(r.slvs_index) if r is not None else None for r in refs
             ]
             present = [m for m in mapped if m]
             if not present:
