@@ -130,7 +130,6 @@ class WorkSpaceTools(str, Enum):
     Extrude = "sketcher.slvs_node_extrude"
     ArrayLinear = "sketcher.slvs_node_array_linear"
     Revolve = "sketcher.slvs_node_revolve"
-    Boolean = "sketcher.slvs_node_boolean"
 
 
 ConstraintOperators = (
