@@ -156,7 +156,14 @@ class OperatorSketch3d(base_2d.Operator2d):
         _origin, direction = view.get_picking_origin_dir(context, center)
         return mathutils.Vector(direction).normalized()
 
-    def state_func(self, context, coords):
+    def state_func_3d(self, context, coords):
+        """Resolve placement on the native 3D temporary view-aligned plane.
+
+        3D pointer states explicitly bind this callback instead of relying on
+        the generic state callback fallback. That prevents line endpoints from
+        ever being routed through ``Operator2d.state_func`` (which projects onto
+        the sketch workplane/XY plane).
+        """
         anchor = self._anchor_world(context)
         ray_origin, ray_end = view.get_picking_origin_end(context, coords)
 
@@ -194,7 +201,12 @@ class OperatorSketch3d(base_2d.Operator2d):
         local = matrix.inverted_safe() @ world
         return mathutils.Vector(local).to_3d()
 
-    def create_element(self, context, values, state, state_data):
+    def state_func(self, context, coords):
+        """Compatibility fallback for 3D operators without an explicit callback."""
+        return self.state_func_3d(context, coords)
+
+    def create_element_3d(self, context, values, state, state_data):
+        """Create an XYZ native point for a 3D pointer state."""
         location = mathutils.Vector(values[0]).to_3d()
         fixed = bool(state_data.get("snapped_external", False))
         ref = native_3d.create_point_3d(self.sketch, location, fixed=fixed)
@@ -205,6 +217,10 @@ class OperatorSketch3d(base_2d.Operator2d):
         state_data["type"] = curve_ref.PointRef
         state_data["curve_id"] = ref.curve_id
         return ref.curve_id
+
+    def create_element(self, context, values, state, state_data):
+        """Compatibility fallback for 3D pointer creation."""
+        return self.create_element_3d(context, values, state, state_data)
 
     def get_point(self, context, index):
         data = self._state_data.get(index, {})
