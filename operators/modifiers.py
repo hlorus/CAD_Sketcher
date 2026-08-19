@@ -732,9 +732,14 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
             return False
         self.cutter_name = cutter.name
         self._cutter = cutter
-        # Reveal the result: a solid cutter sitting over the body would hide it.
-        cutter.display_type = self.cutter_display
         return super().main(context)
+
+    def fini(self, context: Context, succeed: bool):
+        # Reveal the result: a solid cutter sitting over the body would hide it.
+        # Done here, once, rather than in main() -- main() can re-run during the
+        # modal's undo/redo churn, so the display change belongs at completion.
+        if succeed and getattr(self, "_cutter", None) is not None:
+            self._cutter.display_type = self.cutter_display
 
     @staticmethod
     def _input_ids(node_group):
