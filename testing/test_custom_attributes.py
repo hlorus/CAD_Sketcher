@@ -152,34 +152,46 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertEqual(attr.data_type, "INT")
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
-    def test_generic_wire_path_preserves_named_point_and_curve_attributes(self):
-        """The shared wire path carries named attributes without sampling nodes."""
+    def test_domain_capture_conversion_preserves_named_attributes(self):
+        """Fill bridge preserves points and exact per-segment values without sampling."""
         _, lines = self._square()
         define_attribute(self.sketch, "wire_point_tag", "INT", "POINT", 13)
         define_attribute(self.sketch, "wire_curve_tag", "INT", "CURVE", 0)
-        set_attribute_value(self.sketch, "wire_point_tag", 29, lines[0].curve_id)
+        set_attribute_value(self.sketch, "wire_point_tag", 29)
         for line, value in zip(lines, (10, 20, 30, 40)):
             set_attribute_value(self.sketch, "wire_curve_tag", value, line.curve_id)
 
         source = self.sketch.target_object
         modifier = source.modifiers.get("CAD Sketcher Convert")
         self.assertIsNotNone(modifier)
-        self.assertEqual(modifier.node_group.name, "CAD Sketcher Convert")
+        group = modifier.node_group
+        self.assertEqual(group.name, "CAD Sketcher Convert")
         self.assertFalse(
             any(
                 node.bl_idname
                 in {"GeometryNodeSampleNearest", "GeometryNodeSampleIndex"}
-                for node in modifier.node_group.nodes
+                for node in group.nodes
             )
         )
 
+        segment_stores = [
+            node
+            for node in group.nodes
+            if node.bl_idname == "GeometryNodeStoreNamedAttribute"
+            and node.domain == "EDGE"
+            and node.inputs["Name"].default_value == "wire_curve_tag"
+        ]
+        self.assertTrue(segment_stores)
+
         converted = None
         try:
-            converted = self._convert_copy(source, fill=False)
+            converted = self._convert_copy(source, fill=True)
             point_attr = converted.data.attributes.get("wire_point_tag")
             curve_attr = converted.data.attributes.get("wire_curve_tag")
             self.assertIsNotNone(point_attr)
             self.assertIsNotNone(curve_attr)
+            self.assertEqual(point_attr.domain, "POINT")
+            self.assertEqual(curve_attr.domain, "EDGE")
             self.assertIn(29, [item.value for item in point_attr.data])
             curve_values = [item.value for item in curve_attr.data]
             for expected in (10, 20, 30, 40):
