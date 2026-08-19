@@ -2,11 +2,10 @@
 
 The standard Blender 5.2 conversion path welds sketch endpoints by identity.
 Named POINT/CURVE attributes are allowed to propagate generically through the
-wire path. CURVE values are pinned to EDGE before the weld so different segment
-values cannot be averaged at shared corners. Fill Curve is the only topology
-boundary that drops those attributes, so anonymous captures bridge POINT values
-to output points and per-segment CURVE values to output edges without any
-nearest/spatial sampling.
+wire path. CURVE values are re-homed onto EDGE before the weld so different
+segment values cannot be averaged at shared corners. Fill Curve is the only
+topology boundary that drops attributes, so anonymous captures bridge values
+across that boundary without spatial/nearest sampling.
 
 There is one shared ``CAD Sketcher Convert`` group. Attribute definitions only
 change the small bridge section in that same group; no per-schema node-group
@@ -22,7 +21,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 14
+CONVERT_VERSION = 15
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -67,27 +66,56 @@ def attribute_signature(specs):
     return repr(tuple((x["name"], x["type"], x["domain"]) for x in specs))
 
 
-def _store_segment_attributes_on_edges(nodes, links, geometry, specs):
-    """Pin per-segment CURVE values to EDGE before Merge Points.
+def _capture_value(nodes, links, geometry, entry, domain, item_name):
+    """Bake a named value anonymously on ``domain`` and return geometry/value."""
+    named = nodes.new("GeometryNodeInputNamedAttribute")
+    named.data_type = entry["type"]
+    named.inputs["Name"].default_value = entry["name"]
 
-    Geometry Nodes already carries the named value through Curve to Mesh. An
-    explicit EDGE store prevents Merge Points from adapting a segment value to
-    shared points and averaging adjacent segments (10/20/30/40 must stay exact).
+    capture = nodes.new("GeometryNodeCaptureAttribute")
+    capture.domain = domain
+    capture.capture_items.clear()
+    capture.capture_items.new(entry["type"], item_name)
+    links.new(geometry, capture.inputs["Geometry"])
+    links.new(named.outputs["Attribute"], capture.inputs[item_name])
+    return capture.outputs["Geometry"], capture.outputs[item_name]
+
+
+def _remove_named_attribute(nodes, links, geometry, name):
+    remove = nodes.new("GeometryNodeRemoveAttribute")
+    remove.inputs["Name"].default_value = name
+    links.new(geometry, remove.inputs["Geometry"])
+    return remove.outputs["Geometry"]
+
+
+def _store_segment_attributes_on_edges(nodes, links, geometry, specs):
+    """Move per-segment CURVE values to EDGE before Merge Points.
+
+    Curve to Mesh initially adapts a CURVE value onto mesh elements. Merely
+    storing the same name on EDGE is not sufficient when a same-named attribute
+    already exists on another domain: Blender keeps that original domain and the
+    shared corner can still become 15/25/35 for source values 10/20/30/40.
+
+    Capture the value anonymously on EDGE first, remove the adapted named copy,
+    then restore that name on EDGE. The weld therefore sees one value per source
+    segment and never has to combine adjacent segment values at a shared point.
     """
     current = geometry
-    for entry in specs:
+    for index, entry in enumerate(specs):
         if entry["domain"] != "CURVE":
             continue
-        named = nodes.new("GeometryNodeInputNamedAttribute")
-        named.data_type = entry["type"]
-        named.inputs["Name"].default_value = entry["name"]
+        item_name = f"segment_{index}"
+        current, value = _capture_value(
+            nodes, links, current, entry, "EDGE", item_name
+        )
+        current = _remove_named_attribute(nodes, links, current, entry["name"])
 
         store = nodes.new("GeometryNodeStoreNamedAttribute")
         store.data_type = entry["type"]
         store.domain = "EDGE"
         store.inputs["Name"].default_value = entry["name"]
         links.new(current, store.inputs["Geometry"])
-        links.new(named.outputs["Attribute"], store.inputs["Value"])
+        links.new(value, store.inputs["Value"])
         current = store.outputs["Geometry"]
     return current
 
@@ -96,21 +124,13 @@ def _capture_fill_attributes(nodes, links, geometry, specs):
     """Capture merged boundary values by their natural mesh domain for Fill."""
     current = geometry
     captured = []
-    for entry in specs:
+    for index, entry in enumerate(specs):
         domain = "POINT" if entry["domain"] == "POINT" else "EDGE"
-
-        named = nodes.new("GeometryNodeInputNamedAttribute")
-        named.data_type = entry["type"]
-        named.inputs["Name"].default_value = entry["name"]
-
-        capture = nodes.new("GeometryNodeCaptureAttribute")
-        capture.domain = domain
-        capture.capture_items.clear()
-        capture.capture_items.new(entry["type"], entry["name"])
-        links.new(current, capture.inputs["Geometry"])
-        links.new(named.outputs["Attribute"], capture.inputs[entry["name"]])
-        current = capture.outputs["Geometry"]
-        captured.append((entry, domain, capture.outputs[entry["name"]]))
+        item_name = f"fill_{index}"
+        current, value = _capture_value(
+            nodes, links, current, entry, domain, item_name
+        )
+        captured.append((entry, domain, value))
     return current, captured
 
 
@@ -118,6 +138,7 @@ def _restore_fill_attributes(nodes, links, geometry, captured):
     """Restore captured values after Fill Curve without spatial matching."""
     current = geometry
     for entry, domain, value in captured:
+        current = _remove_named_attribute(nodes, links, current, entry["name"])
         store = nodes.new("GeometryNodeStoreNamedAttribute")
         store.data_type = entry["type"]
         store.domain = domain
