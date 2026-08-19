@@ -13,7 +13,7 @@ from mathutils import Vector
 from mathutils.geometry import intersect_line_line, intersect_line_plane
 
 from ..assets_manager import load_asset
-from ..declarations import Operators
+from ..declarations import BLENDER_SELECT_TOOL, Operators
 from ..global_data import LIB_NAME
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
@@ -249,6 +249,7 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
 
     resources = (("node_groups", "CAD Sketcher Extrude"),)
     NODEGROUP_NAME = "CAD Sketcher Extrude"
+    return_to_tool = BLENDER_SELECT_TOOL
 
     invalid_target_msg = "Select a sketch or curve to extrude (2D profile)"
 
@@ -305,6 +306,7 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
 
     NODEGROUP_NAME = "CAD Sketcher Linear Array"
     resources = (("node_groups", "CAD Sketcher Linear Array"),)
+    return_to_tool = BLENDER_SELECT_TOOL
 
     # Array offset in the object's local space (direction * spacing), captured
     # by a single interactive drag; direction and distance derive from it.
@@ -415,6 +417,7 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
 
     NODEGROUP_NAME = "CAD Sketcher Revolve"
     resources = (("node_groups", "CAD Sketcher Revolve"),)
+    return_to_tool = BLENDER_SELECT_TOOL
 
     invalid_target_msg = "Select a sketch, curve or mesh profile to revolve"
 
