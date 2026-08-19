@@ -641,6 +641,27 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         # Object pointer states carry no implicit point.
         return None
 
+    def invoke(self, context, event):
+        # Editing: when the body and the cutter are both preselected and that
+        # cutter already has a boolean on the body, seed the operator from it so
+        # re-invoking edits the existing boolean (like Extrude) instead of
+        # resetting it to defaults. Seeding must happen here, once, before the
+        # redo panel -- doing it in main()/execute() would clobber a redo-panel
+        # edit on the next re-run. The cutter is only known at invoke when it is
+        # preselected, so interactive cutter-picking is always treated as create.
+        selection = self.gather_selection(context)
+        if selection:
+            body = selection[0]
+            for other in selection[1:]:
+                mod = body.modifiers.get(f"CAD_Sketcher Boolean {other.name}")
+                if mod and mod.node_group:
+                    try:
+                        self.read_props(mod)
+                    except Exception:
+                        pass
+                    break
+        return super().invoke(context, event)
+
     def init(self, context: Context, event: Event):
         # Build the boolean node group in place of loading an asset.
         from ..utilities.boolean_nodes import build_boolean_node_group

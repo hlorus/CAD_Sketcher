@@ -18,7 +18,7 @@ from ..utilities.boolean_nodes import (
     BOOLEAN_VERSION,
     build_boolean_node_group,
 )
-from .utils import BgsTestCase
+from .utils import BgsTestCase, make_operator_double
 
 
 class TestBooleanNodeGroup(BgsTestCase):
@@ -248,6 +248,29 @@ class TestBooleanNodeGroup(BgsTestCase):
             operation="Difference",
         )
         self.assertEqual(result, {expect})
+
+    def test_read_props_seeds_from_existing_modifier(self):
+        # The edit path: invoke seeds the operator from an existing boolean so
+        # re-invoking keeps its settings instead of resetting to defaults. Here
+        # we drive read_props directly (the modal invoke can't run headless).
+        group = build_boolean_node_group()
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        try:
+            modifier = body.modifiers.new("CAD_Sketcher Boolean x", "NODES")
+            modifier.node_group = group
+            ids = View3D_OT_node_boolean._input_ids(group)
+            set_boolean_operation(modifier, ids["Operation"], "Intersect")
+            set_modifier_input(modifier, ids["Self Intersection"], False)
+            set_modifier_input(modifier, ids["Hole Tolerant"], True)
+
+            op = make_operator_double(View3D_OT_node_boolean)()
+            op.read_props(modifier)
+            self.assertEqual(op.operation, "Intersect")
+            self.assertFalse(op.self_intersection)
+            self.assertTrue(op.hole_tolerant)
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
 
     def test_mutual_cycle_is_rejected(self):
         # A cut by B is fine; then B cut by A would close a dependency cycle
