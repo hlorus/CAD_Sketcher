@@ -199,3 +199,22 @@ class TestBooleanNodeGroup(BgsTestCase):
             self.assertEqual(cutter.display_type, "WIRE")
         finally:
             bpy.data.objects.remove(body, do_unlink=True)
+
+    def test_cutter_equal_body_is_rejected(self):
+        # Using an object as its own cutter makes the Object Info node read the
+        # object the modifier is on -- a depsgraph cycle that crashes Blender.
+        # The operator must refuse it and not add a modifier.
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        obj = self.context.active_object
+        obj.name = "self_cutter_body"
+        try:
+            result = bpy.ops.view3d.slvs_node_boolean(
+                "EXEC_DEFAULT",
+                target_name=obj.name,
+                cutter_name=obj.name,
+                operation="Difference",
+            )
+            self.assertEqual(result, {"CANCELLED"})
+            self.assertNotIn("CAD_Sketcher Boolean", [m.name for m in obj.modifiers])
+        finally:
+            bpy.data.objects.remove(obj, do_unlink=True)

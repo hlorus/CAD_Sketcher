@@ -667,6 +667,15 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         if cutter is None:
             self.report({"WARNING"}, "Pick a cutter object to boolean with")
             return False
+        # The cutter is read through an Object Info node on a modifier that lives
+        # on the body. If the cutter is the body itself, that node reads the
+        # object it is attached to -- a depsgraph dependency cycle that crashes
+        # Blender. Reject it before the modifier is created.
+        if cutter == self.resolved_object():
+            self.report(
+                {"WARNING"}, "The cutter must be a different object than the body"
+            )
+            return False
         self.cutter_name = cutter.name
         self._cutter = cutter
         # Reveal the result: a solid cutter sitting over the body would hide it.
