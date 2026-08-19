@@ -165,3 +165,28 @@ class TestBooleanNodeGroup(BgsTestCase):
             self.assertGreater(len(mesh.polygons), 6, "operator wiring must cut")
         finally:
             bpy.data.objects.remove(body, do_unlink=True)
+
+    def test_operator_sets_cutter_display(self):
+        # Applying the boolean via the operator hides the cutter (wireframe by
+        # default) so the result is visible.
+        cutter = self._solid_cutter()
+        cutter.display_type = "SOLID"
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        body.name = "boolean_body"
+        for obj in self.context.selected_objects:
+            obj.select_set(False)
+        cutter.select_set(True)
+        body.select_set(True)
+        self.context.view_layer.objects.active = body
+        try:
+            result = bpy.ops.view3d.slvs_node_boolean(
+                "EXEC_DEFAULT",
+                target_name=body.name,
+                cutter_name=cutter.name,
+                operation="Difference",
+            )
+            self.assertEqual(result, {"FINISHED"})
+            self.assertEqual(cutter.display_type, "WIRE")
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)

@@ -587,6 +587,19 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
     self_intersection: BoolProperty(name="Self Intersection", default=True)
     hole_tolerant: BoolProperty(name="Hole Tolerant", default=False)
 
+    # A solid cutter would hide the boolean result, so switch its viewport
+    # display (wireframe by default, like Bool Tool). Set on the object, so it
+    # persists with the modifier and is undone with it.
+    cutter_display: bpy.props.EnumProperty(
+        name="Cutter Display",
+        items=(
+            ("WIRE", "Wire", "Show the cutter as wireframe so the result is visible"),
+            ("BOUNDS", "Bounds", "Show the cutter as its bounding box"),
+            ("SOLID", "Solid", "Leave the cutter shaded solid"),
+        ),
+        default="WIRE",
+    )
+
     # Persist the picked cutter so the redo panel can re-apply and edit it (the
     # pointer state, like the base object pointer, is transient across redo).
     cutter_name: StringProperty(name="Cutter")
@@ -636,6 +649,8 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
             return False
         self.cutter_name = cutter.name
         self._cutter = cutter
+        # Reveal the result: a solid cutter sitting over the body would hide it.
+        cutter.display_type = self.cutter_display
         return super().main(context)
 
     @staticmethod
@@ -659,6 +674,7 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         layout = self.layout
         layout.prop_search(self, "cutter_name", bpy.data, "objects", text="Cutter")
         layout.prop(self, "operation")
+        layout.prop(self, "cutter_display")
         layout.prop(self, "self_intersection")
         layout.prop(self, "hole_tolerant")
 
