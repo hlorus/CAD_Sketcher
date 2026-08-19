@@ -25,7 +25,7 @@ BOOLEAN_NODE_GROUP = "CAD Sketcher Boolean"
 
 # Bump whenever the built tree changes so groups baked into existing files are
 # rebuilt in place on load, keeping modifiers bound to the same name.
-BOOLEAN_VERSION = 2
+BOOLEAN_VERSION = 3
 
 # Menu items, in node/enum order. The interface menu default is the first.
 _OPERATIONS = ("Difference", "Union", "Intersect")
@@ -74,9 +74,15 @@ def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
     iface = ng.interface
     iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
     iface.new_socket("Cutter", in_out="INPUT", socket_type="NodeSocketObject")
+    # An integer + Index Switch, not a menu socket: menu sockets do not evaluate
+    # reliably as modifier inputs on Blender 5.0/5.1 (the switch produces no
+    # geometry there), whereas an int index behaves identically across versions.
     operation = iface.new_socket(
-        "Operation", in_out="INPUT", socket_type="NodeSocketMenu"
+        "Operation", in_out="INPUT", socket_type="NodeSocketInt"
     )
+    operation.min_value = 0
+    operation.max_value = len(_OPERATIONS) - 1
+    operation.description = "0 = Difference, 1 = Union, 2 = Intersect"
     self_intersection = iface.new_socket(
         "Self Intersection", in_out="INPUT", socket_type="NodeSocketBool"
     )
@@ -121,21 +127,20 @@ def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
                 links.new(gi.outputs["Hole Tolerant"], socket)
         return node
 
-    # Only the branch the Menu Switch selects is evaluated, so the other two
+    # Only the branch the Index Switch selects is evaluated, so the other two
     # boolean nodes cost nothing at runtime.
-    branches = {label: make_boolean(_OP_TO_NODE[label]) for label in _OPERATIONS}
+    branches = [make_boolean(_OP_TO_NODE[label]) for label in _OPERATIONS]
 
-    switch = nodes.new("GeometryNodeMenuSwitch")
+    switch = nodes.new("GeometryNodeIndexSwitch")
     switch.data_type = "GEOMETRY"
-    switch.enum_items.clear()
-    for label in _OPERATIONS:
-        switch.enum_items.new(label)
-    links.new(gi.outputs["Operation"], switch.inputs["Menu"])
-    for label, node in branches.items():
-        links.new(node.outputs["Mesh"], switch.inputs[label])
+    while len(switch.index_switch_items) < len(_OPERATIONS):
+        switch.index_switch_items.new()
+    links.new(gi.outputs["Operation"], switch.inputs["Index"])
+    for i, node in enumerate(branches):
+        links.new(node.outputs["Mesh"], switch.inputs[str(i)])
     links.new(switch.outputs["Output"], go.inputs["Geometry"])
 
-    operation.default_value = _OPERATIONS[0]
+    operation.default_value = 0
 
     ng["cad_boolean_version"] = BOOLEAN_VERSION
     return ng
