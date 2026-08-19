@@ -39,6 +39,7 @@ class View3D_OT_slvs_add_point3d(Operator, OperatorSketch3d):
             property="coordinates",
             interactive=True,
             axis_lock=True,
+            state_func="state_func_3d",
         ),
     )
 
