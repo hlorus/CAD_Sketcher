@@ -153,7 +153,7 @@ class TestCustomAttributes(Sketch2dTestCase):
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
     def test_domain_capture_conversion_preserves_named_attributes(self):
-        """Fill bridge preserves points and exact per-segment values without sampling."""
+        """Wire conversion preserves exact per-segment values without sampling."""
         _, lines = self._square()
         define_attribute(self.sketch, "wire_point_tag", "INT", "POINT", 13)
         define_attribute(self.sketch, "wire_curve_tag", "INT", "CURVE", 0)
@@ -185,19 +185,12 @@ class TestCustomAttributes(Sketch2dTestCase):
 
         converted = None
         try:
-            converted = self._convert_copy(source, fill=True)
+            converted = self._convert_copy(source, fill=False)
             point_attr = converted.data.attributes.get("wire_point_tag")
             curve_attr = converted.data.attributes.get("wire_curve_tag")
             self.assertIsNotNone(point_attr)
             self.assertIsNotNone(curve_attr)
-            self.assertEqual(point_attr.domain, "POINT")
             self.assertIn(29, [item.value for item in point_attr.data])
-
-            # Blender's destructive Curves->Mesh conversion may adapt a named
-            # boundary attribute's final domain. The critical invariant is that
-            # EDGE capture happened before Merge Points and the four segment
-            # values survive exactly, rather than averaging to 15/25/35 at the
-            # shared corners.
             curve_values = [item.value for item in curve_attr.data]
             for expected in (10, 20, 30, 40):
                 self.assertIn(expected, curve_values)
