@@ -676,6 +676,11 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
                 {"WARNING"}, "The cutter must be a different object than the body"
             )
             return False
+        # A non-geometry cutter (empty, light, camera) yields no mesh, so the
+        # boolean would silently do nothing. Reject it with a clear message.
+        if not self.is_valid_target(cutter):
+            self.report({"WARNING"}, "The cutter must be a mesh or sketch object")
+            return False
         self.cutter_name = cutter.name
         self._cutter = cutter
         # Reveal the result: a solid cutter sitting over the body would hide it.

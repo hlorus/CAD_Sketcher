@@ -218,3 +218,24 @@ class TestBooleanNodeGroup(BgsTestCase):
             self.assertNotIn("CAD_Sketcher Boolean", [m.name for m in obj.modifiers])
         finally:
             bpy.data.objects.remove(obj, do_unlink=True)
+
+    def test_non_geometry_cutter_is_rejected(self):
+        # An empty/light/camera cutter has no mesh, so the boolean would silently
+        # do nothing. The operator must refuse it instead.
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        body.name = "body_for_empty_cutter"
+        empty = self.data.objects.new("empty_cutter", None)
+        self.scene.collection.objects.link(empty)
+        try:
+            result = bpy.ops.view3d.slvs_node_boolean(
+                "EXEC_DEFAULT",
+                target_name=body.name,
+                cutter_name=empty.name,
+                operation="Difference",
+            )
+            self.assertEqual(result, {"CANCELLED"})
+            self.assertNotIn("CAD_Sketcher Boolean", [m.name for m in body.modifiers])
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+            bpy.data.objects.remove(empty, do_unlink=True)
