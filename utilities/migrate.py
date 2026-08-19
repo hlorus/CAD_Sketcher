@@ -281,11 +281,18 @@ def _translate_solidify(mod, old_mesh, obj):
     return True
 
 
-def _translate_boolean(mod, old_mesh, obj):
-    """Boolean -> the CAD Sketcher Boolean node group, reading the same cutter."""
+def _translate_boolean(mod, old_mesh, obj, cutter_map=None):
+    """Boolean -> the CAD Sketcher Boolean node group, reading the same cutter.
+
+    ``cutter_map`` maps a legacy generated mesh to the new Curves sketch that
+    replaced it. If the cutter was itself a migrated sketch's output, point the
+    new boolean at that sketch instead of the orphaned (soon removed) old mesh.
+    """
     cutter = mod.object
     if cutter is None:
         return False
+    if cutter_map is not None:
+        cutter = cutter_map.get(cutter, cutter)
     from ..operators.modifiers import (
         View3D_OT_node_boolean,
         set_boolean_operation,
@@ -373,11 +380,12 @@ _MODIFIER_TRANSLATORS = {
 }
 
 
-def _migrate_modifiers(old_mesh, sketch, summary):
+def _migrate_modifiers(old_mesh, sketch, summary, cutter_map=None):
     """Rebuild ``old_mesh``'s modifier stack as GN siblings on ``sketch``.
 
     Isolated per modifier: a failed or unsupported one is skipped and recorded,
-    never aborting the rest of the migration.
+    never aborting the rest of the migration. ``cutter_map`` (old mesh -> new
+    sketch object) lets boolean cutters be remapped onto migrated sketches.
     """
     obj = sketch.target_object
     if obj is None:
@@ -385,13 +393,38 @@ def _migrate_modifiers(old_mesh, sketch, summary):
     for mod in list(old_mesh.modifiers):
         try:
             translator = _MODIFIER_TRANSLATORS.get(mod.type)
-            if translator is not None and translator(mod, old_mesh, obj):
+            if translator is None:
+                summary["modifiers_skipped"].append(f"{old_mesh.name}: {mod.type}")
+                continue
+            if mod.type == "BOOLEAN":
+                ok = translator(mod, old_mesh, obj, cutter_map)
+            else:
+                ok = translator(mod, old_mesh, obj)
+            if ok:
                 summary["modifiers"] += 1
             else:
                 summary["modifiers_skipped"].append(f"{old_mesh.name}: {mod.type}")
         except Exception as e:
             logger.exception("Failed to migrate modifier %s", mod.name)
             summary["modifiers_skipped"].append(f"{old_mesh.name}: {mod.type} ({e!r})")
+
+
+def _remove_legacy_meshes(old_meshes, summary):
+    """Delete the orphaned legacy generated meshes after their stacks migrated.
+
+    The new Curves sketches (with their translated GN modifiers) are now the
+    extension's output, so the old meshes would only duplicate the geometry.
+    """
+    for old_mesh in list(old_meshes):
+        try:
+            data = old_mesh.data
+            bpy.data.objects.remove(old_mesh, do_unlink=True)
+            if data is not None and data.users == 0:
+                bpy.data.meshes.remove(data)
+            summary["meshes_removed"] += 1
+        except Exception as e:
+            logger.exception("Failed to remove legacy mesh %s", old_mesh)
+            summary["errors"].append(f"remove mesh: {e!r}")
 
 
 def migrate_scene(context):
@@ -405,12 +438,17 @@ def migrate_scene(context):
         "errors": [],
         "modifiers": 0,
         "modifiers_skipped": [],
+        "meshes_removed": 0,
     }
 
     # One Empty per distinct legacy workplane (sketches sharing a plane share it).
     wp_empties = {}
     # old entity slvs_index -> (new Sketch, curve_id) for constraint remapping.
     entity_map = {}
+    # Legacy generated mesh -> new sketch (deferred), and old mesh -> new sketch
+    # object (for remapping boolean cutters that reference another sketch).
+    pending_modifiers = []
+    mesh_to_sketch_obj = {}
 
     for old_sketch in list(_iter_legacy_sketches(context)):
         try:
@@ -432,13 +470,21 @@ def migrate_scene(context):
 
             n_pts, n_seg = _migrate_geometry(context, old_sketch, sketch, entity_map)
             if old_mesh is not None and getattr(old_mesh, "type", None) == "MESH":
-                _migrate_modifiers(old_mesh, sketch, summary)
+                mesh_to_sketch_obj[old_mesh] = sketch.target_object
+                pending_modifiers.append((old_mesh, sketch))
             summary["sketches"] += 1
             summary["points"] += n_pts
             summary["segments"] += n_seg
         except Exception as e:
             logger.exception("Failed to migrate sketch %s", old_sketch)
             summary["errors"].append(f"{old_sketch.name}: {e!r}")
+
+    # Translate modifier stacks only after every old->new link is known, so a
+    # boolean cutting with another sketch's output can be remapped correctly.
+    for old_mesh, sketch in pending_modifiers:
+        _migrate_modifiers(old_mesh, sketch, summary, cutter_map=mesh_to_sketch_obj)
+
+    _remove_legacy_meshes(mesh_to_sketch_obj.keys(), summary)
 
     _migrate_constraints(context, entity_map, summary)
     return summary

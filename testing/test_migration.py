@@ -69,8 +69,14 @@ class TestMigration(unittest.TestCase):
         self.assertEqual(n_con, 8)
         self.assertEqual(
             ctypes,
-            {"ANGLE": 1, "DIAMETER": 2, "DISTANCE": 2,
-             "HORIZONTAL": 1, "TANGENT": 1, "VERTICAL": 1},
+            {
+                "ANGLE": 1,
+                "DIAMETER": 2,
+                "DISTANCE": 2,
+                "HORIZONTAL": 1,
+                "TANGENT": 1,
+                "VERTICAL": 1,
+            },
         )
 
     def test_cad_part_geometry_constraints_values(self):
@@ -81,15 +87,85 @@ class TestMigration(unittest.TestCase):
         self.assertEqual(n_con, 75)
         self.assertEqual(
             ctypes,
-            {"COINCIDENT": 3, "DIAMETER": 6, "DISTANCE": 14, "EQUAL": 6,
-             "HORIZONTAL": 14, "MIDPOINT": 5, "TANGENT": 10, "VERTICAL": 17},
+            {
+                "COINCIDENT": 3,
+                "DIAMETER": 6,
+                "DISTANCE": 14,
+                "EQUAL": 6,
+                "HORIZONTAL": 14,
+                "MIDPOINT": 5,
+                "TANGENT": 10,
+                "VERTICAL": 17,
+            },
         )
         # Dimensional values are preserved exactly from the legacy file.
         self.assertEqual(
             vals,
-            [5.0, 10.0, 13.0, 18.0, 18.0, 20.0, 30.0, 30.0, 30.0, 40.0,
-             53.0, 53.0, 53.0, 55.0, 55.0, 80.0, 80.0, 100.0, 150.0, 150.0],
+            [
+                5.0,
+                10.0,
+                13.0,
+                18.0,
+                18.0,
+                20.0,
+                30.0,
+                30.0,
+                30.0,
+                40.0,
+                53.0,
+                53.0,
+                53.0,
+                55.0,
+                55.0,
+                80.0,
+                80.0,
+                100.0,
+                150.0,
+                150.0,
+            ],
         )
+
+    def test_cad_part_modifiers_translated_to_gn(self):
+        # The legacy part stacks Solidify + Boolean on its generated meshes.
+        # Migration must rebuild those as GN siblings on the new Curves sketches,
+        # remap boolean cutters onto the migrated sketches, and delete the old
+        # meshes so the geometry is not duplicated.
+        from ..model.sketch_ref import is_sketch_object
+        from ..operators.modifiers import View3D_OT_node_boolean, get_modifier_input
+
+        _open("CAD_Sketcher_Part.blend")
+        sketches = list(get_sketches(bpy.context))
+
+        extrudes = booleans = 0
+        for s in sketches:
+            for m in s.target_object.modifiers:
+                if m.type != "NODES" or m.node_group is None:
+                    continue
+                name = m.node_group.name
+                if name == "CAD Sketcher Extrude":
+                    extrudes += 1
+                elif name == "CAD Sketcher Boolean":
+                    booleans += 1
+                    ids = View3D_OT_node_boolean._input_ids(m.node_group)
+                    cutter = get_modifier_input(m, ids["Cutter"])
+                    # The cutter is another migrated sketch, not an old mesh.
+                    self.assertTrue(
+                        is_sketch_object(cutter),
+                        f"boolean cutter {cutter!r} is not a migrated sketch",
+                    )
+
+        # Six Solidify -> Extrude, five Boolean -> Boolean node group.
+        self.assertEqual(extrudes, 6)
+        self.assertEqual(booleans, 5)
+
+        # No orphaned legacy mesh (carrying the raw modifier stack) is left over.
+        leftovers = [
+            o.name
+            for o in bpy.data.objects
+            if o.type == "MESH"
+            and any(mm.type in ("SOLIDIFY", "BOOLEAN") for mm in o.modifiers)
+        ]
+        self.assertEqual(leftovers, [])
 
     def test_idempotent(self):
         # Re-running migration on an already-migrated scene is a no-op.
