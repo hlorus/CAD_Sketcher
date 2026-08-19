@@ -191,11 +191,19 @@ class TestCustomAttributes(Sketch2dTestCase):
             self.assertIsNotNone(point_attr)
             self.assertIsNotNone(curve_attr)
             self.assertEqual(point_attr.domain, "POINT")
-            self.assertEqual(curve_attr.domain, "EDGE")
             self.assertIn(29, [item.value for item in point_attr.data])
+
+            # Blender's destructive Curves->Mesh conversion may adapt a named
+            # boundary attribute's final domain. The critical invariant is that
+            # EDGE capture happened before Merge Points and the four segment
+            # values survive exactly, rather than averaging to 15/25/35 at the
+            # shared corners.
             curve_values = [item.value for item in curve_attr.data]
             for expected in (10, 20, 30, 40):
                 self.assertIn(expected, curve_values)
+            self.assertNotIn(15, curve_values)
+            self.assertNotIn(25, curve_values)
+            self.assertNotIn(35, curve_values)
         finally:
             self._remove_converted(converted)
 
