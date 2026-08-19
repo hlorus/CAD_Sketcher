@@ -76,10 +76,29 @@ def _get_or_add_source_slot(owner, source):
     return len(slots) - 1
 
 
+# Source object types that can drive a projection. A mesh binds to its vertices;
+# a sketch/curve binds to its control points. Both carry the persistent id on the
+# same POINT-domain INT attribute (INT attributes survive edits on either type).
+_MESH_SOURCE = {"MESH"}
+_CURVE_SOURCE = {"CURVES", "CURVE"}
+
+
+def _source_point_index(source, vertex_index):
+    """Local position of source element ``vertex_index`` (mesh vert or curve point)."""
+    if source.type in _MESH_SOURCE:
+        return Vector(source.data.vertices[vertex_index].co)
+    return Vector(source.data.points[vertex_index].position)
+
+
 def bind_projected_point(sketch, point, source, vertex_index):
-    """Bind a native sketch point to a source mesh vertex."""
-    if source is None or source.type != "MESH":
-        raise TypeError("Projected geometry source must be a mesh object")
+    """Bind a native sketch point to a source element.
+
+    The source is a mesh (bind to a vertex) or another sketch/curve (bind to a
+    control point). Both mint the persistent id on the source's POINT-domain
+    ``VERTEX_ID_ATTR`` so the reproject can find the element after edits.
+    """
+    if source is None or source.type not in (_MESH_SOURCE | _CURVE_SOURCE):
+        raise TypeError("Projected geometry source must be a mesh or sketch/curve")
 
     curve_data, curve_index, _ = get_curve_data(sketch, point.curve_id)
     if curve_data is None:
@@ -93,9 +112,9 @@ def bind_projected_point(sketch, point, source, vertex_index):
     attributes[PROJECT_SRC_SLOT_ATTR].data[curve_index].value = source_slot
     attributes[PROJECT_VERTEX_ID_ATTR].data[curve_index].value = vertex_id
     attributes[PROJECT_VERTEX_INDEX_ATTR].data[curve_index].value = int(vertex_index)
-    attributes[PROJECT_LAST_CO_ATTR].data[curve_index].vector = source.data.vertices[
-        vertex_index
-    ].co
+    attributes[PROJECT_LAST_CO_ATTR].data[curve_index].vector = _source_point_index(
+        source, vertex_index
+    )
     return vertex_id
 
 
@@ -153,6 +172,26 @@ def _resolve_evaluated_vertex(eval_ob, vertex_id, fallback_index, last_co):
     return None
 
 
+def _resolve_curve_point(curve_data, vertex_id, fallback_index, last_co):
+    """Position of the source control point bound by ``vertex_id`` (curve source).
+
+    Reads the ORIGINAL curve data (a sketch's control points hold the solved
+    positions), not an evaluated object -- the evaluated geometry of a sketch is
+    its generated mesh, which does not carry the control points.
+    """
+    points = getattr(curve_data, "points", None)
+    if points is None:
+        return None
+    attr = curve_data.attributes.get(VERTEX_ID_ATTR)
+    if attr is not None and attr.domain == "POINT":
+        for i, item in enumerate(attr.data):
+            if int(item.value) == vertex_id and i < len(points):
+                return Vector(points[i].position)
+    if 0 <= fallback_index < len(points):
+        return Vector(points[fallback_index].position)
+    return None
+
+
 def _source_changed(source, changed):
     if changed is None:
         return True
@@ -194,7 +233,8 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
         # automatically, so there is no orphan property bookkeeping here.
         if not point.valid:
             continue
-        if source is None or getattr(source, "type", None) != "MESH":
+        source_type = getattr(source, "type", None)
+        if source is None or source_type not in (_MESH_SOURCE | _CURVE_SOURCE):
             continue
         if not (sketch_changed or force or _source_changed(source, changed)):
             continue
@@ -203,25 +243,33 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
             # reconciled when Blender emits the update on leaving Edit Mode.
             continue
 
-        eval_ob = source_cache.get(source)
-        if eval_ob is None:
-            eval_ob = source.evaluated_get(depsgraph)
-            source_cache[source] = eval_ob
+        # A mesh source reads its evaluated vertices (deform/modifiers apply); a
+        # sketch/curve source reads its original control points (the solver
+        # writes solved positions there, and its evaluated data is a mesh).
+        if source_type in _MESH_SOURCE:
+            eval_ob = source_cache.get(source)
+            if eval_ob is None:
+                eval_ob = source.evaluated_get(depsgraph)
+                source_cache[source] = eval_ob
+            vertex = _resolve_evaluated_vertex(
+                eval_ob, vertex_id, fallback_index, last_co
+            )
+            if vertex is None:
+                continue
+            source_co = Vector(vertex.co)
+            world = eval_ob.matrix_world @ source_co
+        else:
+            source_co = _resolve_curve_point(
+                source.original.data, vertex_id, fallback_index, last_co
+            )
+            if source_co is None:
+                continue
+            world = source.matrix_world @ source_co
 
-        vertex = _resolve_evaluated_vertex(
-            eval_ob,
-            vertex_id,
-            fallback_index,
-            last_co,
-        )
-        if vertex is None:
-            continue
-
-        world = eval_ob.matrix_world @ vertex.co
         local = owner.matrix_world.inverted() @ world
         new_co = Vector((local.x, local.y))
         if (point.co - new_co).length > 1e-7:
-            updates[curve_id] = (point, new_co, tuple(vertex.co))
+            updates[curve_id] = (point, new_co, tuple(source_co))
 
     if not updates:
         return 0
@@ -319,3 +367,92 @@ def project_mesh_object(sketch, source, construction=True):
             lines.append(line)
 
     return points, lines
+
+
+def _source_point_flat_index(source_point):
+    """Flat index of a source PointRef's control point in ``source.data.points``."""
+    if not source_point._resolve():
+        return None
+    return source_point._curve_slice.points[0].index
+
+
+def project_curves_object(sketch, source, construction=True):
+    """Project a source sketch's line segments onto ``sketch`` as live curves.
+
+    Reads the source sketch's line curves and their endpoint points, creating a
+    projected point per shared source point (deduplicated) and a projected line
+    per source segment. Endpoints are fixed; their positions are driven by the
+    source sketch's control points. Standalone points and arcs/circles are not
+    projected in this first slice (an arc/circle projects to an ellipse on a
+    non-parallel plane, which has no native representation). Returns
+    ``(points, lines, skipped_curves)`` where ``skipped_curves`` counts the
+    arcs/circles that were not projected, for user feedback.
+    """
+    if source is None or source.type not in _CURVE_SOURCE:
+        raise TypeError("Source must be a sketch or curve object")
+
+    from ..model.constants import SketchCurveType
+    from ..model.curve_ref import LineRef as _LineRef
+    from ..model.sketch_ref import Sketch
+    from ..utilities.curve_data import get_curve_type, read_curve_id_list
+
+    src_sketch = Sketch(source)
+    src_data = source.data
+    owner = sketch.target_object
+    inv = owner.matrix_world.inverted()
+
+    projected_by_src_point = {}
+    points = []
+    lines = []
+    skipped_curves = 0
+
+    def _project_point(src_point):
+        # Deduplicate shared endpoints so coincident source points become one
+        # projected point (and thus a shared line endpoint).
+        src_cid = src_point.curve_id
+        existing = projected_by_src_point.get(src_cid)
+        if existing is not None:
+            return existing
+        flat_index = _source_point_flat_index(src_point)
+        if flat_index is None:
+            return None
+        local = inv @ src_point.location  # source world -> active sketch local
+        projected = PointRef.create(
+            sketch,
+            (local.x, local.y),
+            construction=construction,
+            fixed=True,
+            name="Projected Point",
+        )
+        bind_projected_point(sketch, projected, source, flat_index)
+        projected_by_src_point[src_cid] = projected
+        points.append(projected)
+        return projected
+
+    with batch_update(sketch):
+        for src_cid in read_curve_id_list(src_data):
+            if not src_cid:
+                continue
+            src_type = get_curve_type(src_sketch, src_cid)
+            if src_type == SketchCurveType.LINE:
+                src_line = _LineRef(src_sketch, src_cid)
+                p1_src, p2_src = src_line.p1, src_line.p2
+                if p1_src is None or p2_src is None:
+                    continue
+                p1 = _project_point(p1_src)
+                p2 = _project_point(p2_src)
+                if p1 is None or p2 is None:
+                    continue
+                line = LineRef.create(
+                    sketch, p1, p2, construction=construction, name="Projected Line"
+                )
+                lines.append(line)
+            elif src_type == SketchCurveType.POINT:
+                # A point projects to a point at any angle -- project standalone
+                # points too. Line endpoints are already deduped via curve_id, so
+                # a point that is also an endpoint is not duplicated.
+                _project_point(PointRef(src_sketch, src_cid))
+            elif src_type in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
+                skipped_curves += 1
+
+    return points, lines, skipped_curves

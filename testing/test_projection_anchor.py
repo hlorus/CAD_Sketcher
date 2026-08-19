@@ -7,6 +7,7 @@ from ..utilities.projection_anchor import (
     PROJECT_VERTEX_ID_ATTR,
     PROJECT_VERTEX_INDEX_ATTR,
     VERTEX_ID_ATTR,
+    project_curves_object,
     project_mesh_object,
     refresh_projection_for_sketch,
 )
@@ -104,3 +105,79 @@ class TestProjectionAnchor(Sketch2dTestCase):
         )
 
         self.assertLess((points[1].co - Vector((3.5, 2.5))).length, 1e-5)
+
+    def _source_sketch_with_line(self, p1_co, p2_co):
+        """A second sketch containing one line, to project onto the active one."""
+        from ..model.curve_ref import LineRef, PointRef
+
+        src = self.new_sketch()
+        p1 = PointRef.create(src, p1_co)
+        p2 = PointRef.create(src, p2_co)
+        LineRef.create(src, p1, p2)
+        return src, p1, p2
+
+    def test_project_sketch_source_lines(self):
+        # The active sketch is self.sketch; the source is another sketch sharing
+        # the same XY workplane, so its local coords map straight through.
+        src, sp1, sp2 = self._source_sketch_with_line((0.0, 0.0), (2.0, 3.0))
+
+        points, lines, _ = project_curves_object(
+            self.sketch, src.target_object, construction=True
+        )
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(len(points), 2)
+        self.assertTrue(all(p.fixed for p in points))
+        self.assertTrue(all(p.construction for p in points))
+        self.assertTrue(all(line.construction for line in lines))
+        self.assertLess((points[0].co - Vector((0.0, 0.0))).length, 1e-6)
+        self.assertLess((points[1].co - Vector((2.0, 3.0))).length, 1e-6)
+
+        # The source sketch carries the minted persistent id, and each projected
+        # point stores the binding marker on the active sketch.
+        self.assertIsNotNone(src.target_object.data.attributes.get(VERTEX_ID_ATTR))
+        for point in points:
+            cd, idx, _ = get_curve_data(self.sketch, point.curve_id)
+            self.assertGreater(cd.attributes[PROJECT_VERTEX_ID_ATTR].data[idx].value, 0)
+
+        # Live update: move a source point, the projected point follows.
+        sp2.co = (5.0, 1.0)
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertLess((points[1].co - Vector((5.0, 1.0))).length, 1e-5)
+
+    def test_project_sketch_source_dedups_shared_endpoints(self):
+        # Two connected lines share a point -> one projected point at the join.
+        from ..model.curve_ref import LineRef, PointRef
+
+        src = self.new_sketch()
+        a = PointRef.create(src, (0.0, 0.0))
+        b = PointRef.create(src, (1.0, 0.0))
+        c = PointRef.create(src, (1.0, 1.0))
+        LineRef.create(src, a, b)
+        LineRef.create(src, b, c)
+
+        points, lines, _ = project_curves_object(self.sketch, src.target_object)
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(len(points), 3, "shared endpoint must not duplicate")
+
+    def test_project_sketch_source_standalone_points_and_skips_curves(self):
+        # A standalone point projects (a point is a point at any angle); an arc
+        # is skipped and counted so the caller can report it.
+        from ..model.curve_ref import PointRef
+
+        src = self.new_sketch()
+        PointRef.create(src, (3.0, 4.0))  # standalone point, no line
+        center = PointRef.create(src, (0.0, 0.0))
+        start = PointRef.create(src, (1.0, 0.0))
+        end = PointRef.create(src, (0.0, 1.0))
+        from ..model.curve_ref import ArcRef
+
+        ArcRef.create(src, center, start, end)  # an arc -> skipped
+
+        points, lines, skipped = project_curves_object(self.sketch, src.target_object)
+        self.assertEqual(len(lines), 0)
+        self.assertGreaterEqual(len(points), 1)
+        # The standalone point landed at its position.
+        self.assertTrue(any((p.co - Vector((3.0, 4.0))).length < 1e-6 for p in points))
+        self.assertEqual(skipped, 1, "the arc must be counted as skipped")
