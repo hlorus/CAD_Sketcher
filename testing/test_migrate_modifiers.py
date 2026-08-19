@@ -89,6 +89,29 @@ class TestMigrateModifiers(Sketch2dTestCase):
         self.assertEqual(int(get_modifier_input(arr, "Input_22")), 4)  # Count
         self.assertAlmostEqual(get_modifier_input(arr, "Input_23"), 3.0, places=4)
 
+    def test_screw_becomes_revolve(self):
+        import math
+
+        old = self._old_mesh()
+        s = old.modifiers.new("sc", "SCREW")
+        s.axis = "Y"
+        s.angle = math.pi  # 180 degrees
+        s.steps = 12
+        summary = self._run(old)
+        self.assertEqual(summary["modifiers"], 1)
+        rev = next(
+            m
+            for m in self._sketch_mods()
+            if m.node_group.name == "CAD Sketcher Revolve"
+        )
+        self.assertAlmostEqual(get_modifier_input(rev, "Socket_3"), math.pi, places=4)
+        # Axis Direction is Y.
+        axis = tuple(get_modifier_input(rev, "Socket_2"))
+        self.assertLess(abs(axis[1] - 1.0), 1e-4)
+        self.assertAlmostEqual(
+            get_modifier_input(rev, "Socket_4"), math.pi / 12, places=4
+        )
+
     def test_bevel_is_skipped_with_record(self):
         # Bevel has no GN equivalent; it must be skipped and recorded.
         old = self._old_mesh()

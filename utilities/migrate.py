@@ -231,10 +231,38 @@ def _translate_array(mod, old_mesh, obj):
     return True
 
 
+def _translate_screw(mod, old_mesh, obj):
+    """Screw -> the Revolve tool. Best-effort: map the axis, angle, and step
+    resolution; ignore the params Revolve has no concept of (helical screw
+    offset, iterations, axis-object override)."""
+    from ..operators.modifiers import set_modifier_input
+
+    axis_dir = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}.get(
+        getattr(mod, "axis", "Z")
+    )
+    if axis_dir is None:
+        return False
+
+    ng = _load_node_group("CAD Sketcher Revolve")
+    if ng is None:
+        return False
+    angle = float(getattr(mod, "angle", 6.283185307179586))
+    steps = max(1, int(getattr(mod, "steps", 16)))
+
+    m = obj.modifiers.new("CAD_Sketcher Revolve", "NODES")
+    m.node_group = ng
+    set_modifier_input(m, "Socket_1", (0.0, 0.0, 0.0))  # Axis Origin (local)
+    set_modifier_input(m, "Socket_2", axis_dir)  # Axis Direction
+    set_modifier_input(m, "Socket_3", angle)  # Angle
+    set_modifier_input(m, "Socket_4", abs(angle) / steps)  # Angular Resolution
+    return True
+
+
 _MODIFIER_TRANSLATORS = {
     "SOLIDIFY": _translate_solidify,
     "BOOLEAN": _translate_boolean,
     "ARRAY": _translate_array,
+    "SCREW": _translate_screw,
 }
 
 
