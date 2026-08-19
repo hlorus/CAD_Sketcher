@@ -678,7 +678,13 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         on the redo path where the pointer is gone.
         """
         cutter = getattr(self, "cutter", None)
-        if cutter is None and self.cutter_name:
+        if cutter is not None:
+            # The Object pointer state returns the EVALUATED object (a temporary
+            # depsgraph copy). Assigning that to the modifier's Object input
+            # corrupts ID refcounts ("user decrement error") and setting its
+            # display_type is lost on the next evaluation. Use the original.
+            cutter = cutter.original
+        elif self.cutter_name:
             cutter = bpy.data.objects.get(self.cutter_name)
         return cutter
 
@@ -712,8 +718,12 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         # depends on cutter). If the cutter already depends on the body through
         # other CAD Sketcher booleans -- including the cutter being the body
         # itself -- that closes a depsgraph dependency cycle, which crashes
-        # Blender. Refuse before creating the modifier.
+        # Blender. Refuse before creating the modifier. Compare originals: the
+        # cutters read off the modifiers are originals, but resolved_object()
+        # may hand back the evaluated body.
         body = self.resolved_object()
+        if body is not None:
+            body = body.original
         if self._creates_cycle(body, cutter):
             self.report(
                 {"WARNING"},

@@ -249,6 +249,27 @@ class TestBooleanNodeGroup(BgsTestCase):
         )
         self.assertEqual(result, {expect})
 
+    def test_resolve_cutter_returns_original_not_evaluated(self):
+        # The Object pointer state hands back the evaluated object; assigning that
+        # to the modifier corrupts refcounts and its display change is transient.
+        # _resolve_cutter must return the original datablock.
+        cutter = self._solid_cutter()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        evaluated = cutter.evaluated_get(depsgraph)
+        self.assertIsNot(evaluated, cutter)  # sanity: eval copy is distinct
+
+        double = make_operator_double(View3D_OT_node_boolean)
+        # ``cutter`` is a read-only pointer property; drop it so the test can
+        # inject the evaluated object the state would otherwise return.
+        if "cutter" in double.__dict__:
+            delattr(double, "cutter")
+        op = double()
+        op.cutter = evaluated  # simulate the interactive pointer-state value
+        op.cutter_name = ""
+        resolved = op._resolve_cutter(self.context)
+        self.assertIs(resolved, cutter, "must resolve to the original datablock")
+        bpy.data.objects.remove(cutter, do_unlink=True)
+
     def test_read_props_seeds_from_existing_modifier(self):
         # The edit path: invoke seeds the operator from an existing boolean so
         # re-invoking keeps its settings instead of resetting to defaults. Here
