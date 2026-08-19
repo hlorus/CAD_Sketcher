@@ -433,6 +433,14 @@ def register():
         kmi.properties.operator = Operators.NodeArrayLinear.value
         addon_keymaps.append((km, kmi))
 
+        # Boolean: no workspacetool, so invoke the operator directly. It prefills
+        # the body/cutter from the selection or lets them be picked, same as the
+        # other node tools.
+        kmi = km.keymap_items.new(
+            Operators.NodeBoolean.value, "B", "PRESS", ctrl=True, shift=True
+        )
+        addon_keymaps.append((km, kmi))
+
 
 def unregister():
     wm = bpy.context.window_manager
