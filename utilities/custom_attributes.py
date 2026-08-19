@@ -1,11 +1,11 @@
 """User-defined attributes backed by native Curves data.
 
 Definitions live on the sketch Curves datablock and POINT/CURVE values live in
-native Blender attributes. Conversion variants are shared by attribute schema;
-value edits never rebuild the Geometry Nodes tree.
+native Blender attributes. Geometry Nodes carries those named attributes through
+the normal wire conversion path generically, so attribute definitions do not
+create or rebind conversion-node variants.
 """
 
-import hashlib
 import json
 
 from .curve_data import get_curve_index
@@ -117,54 +117,6 @@ def _write_object_value(sketch, name, value):
         _write_object_names(obj, names)
 
 
-def _attribute_group_name(specs):
-    """Return a deterministic group name shared by equal attribute schemas."""
-    from .convert_nodes import CONVERT_NODE_GROUP, attribute_signature
-
-    signature = attribute_signature(specs)
-    digest = hashlib.sha1(signature.encode("utf-8")).hexdigest()[:12]
-    return f"{CONVERT_NODE_GROUP} [attrs {digest}]"
-
-
-def _sync_conversion_group(sketch):
-    """Bind the standard or schema-shared converter on Blender 5.2+."""
-    import bpy
-
-    if bpy.app.version < (5, 2, 0) or not sketch or not sketch.target_object:
-        return
-
-    from .convert_nodes import (
-        CONVERT_NODE_GROUP,
-        build_convert_node_group,
-        normalize_attribute_definitions,
-    )
-
-    ob = sketch.target_object
-    modifier = ob.modifiers.get(CONVERT_NODE_GROUP)
-    if modifier is None:
-        modifier = ob.modifiers.new(CONVERT_NODE_GROUP, "NODES")
-
-    specs = normalize_attribute_definitions(definitions(sketch))
-    if specs:
-        group = build_convert_node_group(
-            _attribute_group_name(specs), attribute_definitions=specs
-        )
-    else:
-        group = build_convert_node_group(CONVERT_NODE_GROUP)
-
-    old_group = modifier.node_group
-    modifier.node_group = group
-    ob.update_tag()
-
-    if (
-        old_group is not None
-        and old_group != group
-        and old_group.users == 0
-        and old_group.name.startswith(f"{CONVERT_NODE_GROUP} [attrs ")
-    ):
-        bpy.data.node_groups.remove(old_group)
-
-
 def definitions(sketch):
     if not sketch or not sketch.data:
         return []
@@ -212,7 +164,6 @@ def define_attribute(sketch, name, data_type="FLOAT", domain="CURVE", default=0.
     for item in attr.data:
         item.value = value
     curve_data.update_tag()
-    _sync_conversion_group(sketch)
     return entry
 
 
@@ -242,7 +193,6 @@ def remove_attribute(sketch, name):
         if attr is not None:
             curve_data.attributes.remove(attr)
         curve_data.update_tag()
-        _sync_conversion_group(sketch)
     return True
 
 
