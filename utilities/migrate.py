@@ -165,6 +165,109 @@ def _load_node_group(name):
     return None
 
 
+def _add_gn_modifier(obj, name, build):
+    """Add a GN modifier wrapping a small built-in node construction.
+
+    ``build(nodes, links, geometry_socket)`` wires nodes onto the input geometry
+    and returns the output geometry socket. Params are baked into a fresh group
+    per modifier (they are small), so no shared-group value conflicts arise.
+    """
+    ng = bpy.data.node_groups.new(name, "GeometryNodeTree")
+    ng.interface.new_socket(
+        "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+    )
+    ng.interface.new_socket(
+        "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+    )
+    nodes, links = ng.nodes, ng.links
+    gi = nodes.new("NodeGroupInput")
+    go = nodes.new("NodeGroupOutput")
+    out = build(nodes, links, gi.outputs["Geometry"])
+    links.new(out, go.inputs["Geometry"])
+    modifier = obj.modifiers.new(name, "NODES")
+    modifier.node_group = ng
+    return modifier
+
+
+def _translate_weld(mod, old_mesh, obj):
+    """Weld -> Merge by Distance (collapse vertices within a threshold)."""
+    distance = float(getattr(mod, "merge_threshold", 0.001))
+
+    def build(nodes, links, geo):
+        merge = nodes.new("GeometryNodeMergeByDistance")
+        links.new(geo, merge.inputs["Geometry"])
+        merge.inputs["Distance"].default_value = distance
+        return merge.outputs["Geometry"]
+
+    _add_gn_modifier(obj, "CAD_Sketcher Weld", build)
+    return True
+
+
+def _translate_subsurf(mod, old_mesh, obj):
+    """Subdivision Surface -> the Subdivision Surface node (viewport levels)."""
+    levels = int(getattr(mod, "levels", 1))
+
+    def build(nodes, links, geo):
+        sub = nodes.new("GeometryNodeSubdivisionSurface")
+        links.new(geo, sub.inputs["Mesh"])
+        sub.inputs["Level"].default_value = levels
+        return sub.outputs["Mesh"]
+
+    _add_gn_modifier(obj, "CAD_Sketcher Subdivision", build)
+    return True
+
+
+def _translate_triangulate(mod, old_mesh, obj):
+    """Triangulate -> the Triangulate node (default methods)."""
+
+    def build(nodes, links, geo):
+        tri = nodes.new("GeometryNodeTriangulate")
+        links.new(geo, tri.inputs["Mesh"])
+        return tri.outputs["Mesh"]
+
+    _add_gn_modifier(obj, "CAD_Sketcher Triangulate", build)
+    return True
+
+
+def _translate_mirror(mod, old_mesh, obj):
+    """Mirror -> a per-axis GN construction (scale -1, flip faces, join, merge).
+
+    Only the axis mirror (across the object's local origin) is handled; a mirror
+    across a separate ``mirror_object`` has no clean equivalent, so it is skipped.
+    """
+    if getattr(mod, "mirror_object", None) is not None:
+        return False
+    axes = [i for i in range(3) if mod.use_axis[i]]
+    if not axes:
+        return False
+    do_merge = bool(getattr(mod, "use_mirror_merge", True))
+    threshold = float(getattr(mod, "merge_threshold", 0.001))
+
+    def build(nodes, links, geo):
+        current = geo
+        for axis in axes:
+            scale = [1.0, 1.0, 1.0]
+            scale[axis] = -1.0
+            xf = nodes.new("GeometryNodeTransform")
+            links.new(current, xf.inputs["Geometry"])
+            xf.inputs["Scale"].default_value = tuple(scale)
+            flip = nodes.new("GeometryNodeFlipFaces")
+            links.new(xf.outputs["Geometry"], flip.inputs["Mesh"])
+            join = nodes.new("GeometryNodeJoinGeometry")
+            links.new(current, join.inputs["Geometry"])
+            links.new(flip.outputs["Mesh"], join.inputs["Geometry"])
+            current = join.outputs["Geometry"]
+        if do_merge:
+            merge = nodes.new("GeometryNodeMergeByDistance")
+            links.new(current, merge.inputs["Geometry"])
+            merge.inputs["Distance"].default_value = threshold
+            current = merge.outputs["Geometry"]
+        return current
+
+    _add_gn_modifier(obj, "CAD_Sketcher Mirror", build)
+    return True
+
+
 def _translate_solidify(mod, old_mesh, obj):
     """Solidify gives a profile thickness -- the same as the Extrude tool."""
     from ..operators.modifiers import set_modifier_input
@@ -263,6 +366,10 @@ _MODIFIER_TRANSLATORS = {
     "BOOLEAN": _translate_boolean,
     "ARRAY": _translate_array,
     "SCREW": _translate_screw,
+    "WELD": _translate_weld,
+    "SUBSURF": _translate_subsurf,
+    "TRIANGULATE": _translate_triangulate,
+    "MIRROR": _translate_mirror,
 }
 
 

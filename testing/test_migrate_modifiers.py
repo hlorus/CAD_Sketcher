@@ -112,6 +112,59 @@ class TestMigrateModifiers(Sketch2dTestCase):
             get_modifier_input(rev, "Socket_4"), math.pi / 12, places=4
         )
 
+    def _sketch_group_named(self, name):
+        return next((m for m in self._sketch_mods() if m.node_group.name == name), None)
+
+    def test_weld_becomes_merge_by_distance(self):
+        old = self._old_mesh()
+        w = old.modifiers.new("w", "WELD")
+        w.merge_threshold = 0.05
+        summary = self._run(old)
+        self.assertEqual(summary["modifiers"], 1)
+        mod = self._sketch_group_named("CAD_Sketcher Weld")
+        self.assertIsNotNone(mod)
+        merge = next(n for n in mod.node_group.nodes if n.type == "MERGE_BY_DISTANCE")
+        self.assertAlmostEqual(merge.inputs["Distance"].default_value, 0.05, places=5)
+
+    def test_subsurf_becomes_subdivision(self):
+        old = self._old_mesh()
+        old.modifiers.new("s", "SUBSURF").levels = 3
+        summary = self._run(old)
+        self.assertEqual(summary["modifiers"], 1)
+        mod = self._sketch_group_named("CAD_Sketcher Subdivision")
+        self.assertIsNotNone(mod)
+        sub = next(n for n in mod.node_group.nodes if n.type == "SUBDIVISION_SURFACE")
+        self.assertEqual(int(sub.inputs["Level"].default_value), 3)
+
+    def test_triangulate_translates(self):
+        old = self._old_mesh()
+        old.modifiers.new("t", "TRIANGULATE")
+        summary = self._run(old)
+        self.assertEqual(summary["modifiers"], 1)
+        self.assertIsNotNone(self._sketch_group_named("CAD_Sketcher Triangulate"))
+
+    def test_mirror_axis_translates(self):
+        old = self._old_mesh()
+        mi = old.modifiers.new("mi", "MIRROR")
+        mi.use_axis = (True, False, False)
+        summary = self._run(old)
+        self.assertEqual(summary["modifiers"], 1)
+        mod = self._sketch_group_named("CAD_Sketcher Mirror")
+        self.assertIsNotNone(mod)
+        # The construction includes a transform (scale -1) and a flip-faces.
+        types = {n.type for n in mod.node_group.nodes}
+        self.assertIn("TRANSFORM_GEOMETRY", types)
+        self.assertIn("FLIP_FACES", types)
+
+    def test_mirror_object_is_skipped(self):
+        old = self._old_mesh()
+        pivot = self._old_mesh()
+        mi = old.modifiers.new("mi", "MIRROR")
+        mi.mirror_object = pivot
+        summary = self._run(old)
+        self.assertEqual(summary["modifiers"], 0)
+        self.assertEqual(len(summary["modifiers_skipped"]), 1)
+
     def test_bevel_is_skipped_with_record(self):
         # Bevel has no GN equivalent; it must be skipped and recorded.
         old = self._old_mesh()
