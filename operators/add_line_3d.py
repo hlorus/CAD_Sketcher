@@ -51,6 +51,8 @@ class View3D_OT_slvs_add_line3d(Operator, OperatorSketch3d):
             property="p1_coordinates",
             interactive=True,
             axis_lock=True,
+            state_func="state_func_3d",
+            create_element="create_element_3d",
         ),
         state_from_args(
             "Endpoint",
@@ -63,6 +65,8 @@ class View3D_OT_slvs_add_line3d(Operator, OperatorSketch3d):
             property="p2_coordinates",
             interactive=True,
             axis_lock=True,
+            state_func="state_func_3d",
+            create_element="create_element_3d",
         ),
     )
 
