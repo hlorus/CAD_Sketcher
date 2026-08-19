@@ -186,10 +186,19 @@ class NodeOperator(Operator3d):
         bpy.ops.ed.undo_push(message=f'Load Asset "{rName}"')
         return True
 
+    def _modifier_name(self):
+        """Name of this tool's modifier on the target.
+
+        One per object by default (re-invoking edits it). Tools that can stack
+        several instances on one object (e.g. Boolean, one per cutter) override
+        this to return a distinct name per instance.
+        """
+        return f"CAD_Sketcher {self.bl_label}"
+
     def _ensure_modifier(self, context):
         """Create the modifier once, reuse on subsequent calls."""
         ob = self._obj.original
-        mod_name = f"CAD_Sketcher {self.bl_label}"
+        mod_name = self._modifier_name()
 
         self.modifier = ob.modifiers.get(mod_name)
         if self.modifier:
@@ -632,6 +641,27 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         # Object pointer states carry no implicit point.
         return None
 
+    def invoke(self, context, event):
+        # Editing: when the body and the cutter are both preselected and that
+        # cutter already has a boolean on the body, seed the operator from it so
+        # re-invoking edits the existing boolean (like Extrude) instead of
+        # resetting it to defaults. Seeding must happen here, once, before the
+        # redo panel -- doing it in main()/execute() would clobber a redo-panel
+        # edit on the next re-run. The cutter is only known at invoke when it is
+        # preselected, so interactive cutter-picking is always treated as create.
+        selection = self.gather_selection(context)
+        if selection:
+            body = selection[0]
+            for other in selection[1:]:
+                mod = body.modifiers.get(f"CAD_Sketcher Boolean {other.name}")
+                if mod and mod.node_group:
+                    try:
+                        self.read_props(mod)
+                    except Exception:
+                        pass
+                    break
+        return super().invoke(context, event)
+
     def init(self, context: Context, event: Event):
         # Build the boolean node group in place of loading an asset.
         from ..utilities.boolean_nodes import build_boolean_node_group
@@ -648,9 +678,21 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         on the redo path where the pointer is gone.
         """
         cutter = getattr(self, "cutter", None)
-        if cutter is None and self.cutter_name:
+        if cutter is not None:
+            # The Object pointer state returns the EVALUATED object (a temporary
+            # depsgraph copy). Assigning that to the modifier's Object input
+            # corrupts ID refcounts ("user decrement error") and setting its
+            # display_type is lost on the next evaluation. Use the original.
+            cutter = cutter.original
+        elif self.cutter_name:
             cutter = bpy.data.objects.get(self.cutter_name)
         return cutter
+
+    def _modifier_name(self):
+        # One modifier per cutter, so several booleans stack on the same body
+        # instead of overwriting each other. Re-applying with the same cutter
+        # edits its existing modifier (same name); a new cutter adds another.
+        return f"CAD_Sketcher Boolean {self._cutter.name}"
 
     def read_props(self, modifier):
         ids = self._input_ids(modifier.node_group)
@@ -667,11 +709,37 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         if cutter is None:
             self.report({"WARNING"}, "Pick a cutter object to boolean with")
             return False
+        # A non-geometry cutter (empty, light, camera) yields no mesh, so the
+        # boolean would silently do nothing. Reject it with a clear message.
+        if not self.is_valid_target(cutter):
+            self.report({"WARNING"}, "The cutter must be a mesh or sketch object")
+            return False
+        # Adding this boolean makes the body read the cutter's geometry (body
+        # depends on cutter). If the cutter already depends on the body through
+        # other CAD Sketcher booleans -- including the cutter being the body
+        # itself -- that closes a depsgraph dependency cycle, which crashes
+        # Blender. Refuse before creating the modifier. Compare originals: the
+        # cutters read off the modifiers are originals, but resolved_object()
+        # may hand back the evaluated body.
+        body = self.resolved_object()
+        if body is not None:
+            body = body.original
+        if self._creates_cycle(body, cutter):
+            self.report(
+                {"WARNING"},
+                "That cutter depends on the body; it would create a dependency cycle",
+            )
+            return False
         self.cutter_name = cutter.name
         self._cutter = cutter
-        # Reveal the result: a solid cutter sitting over the body would hide it.
-        cutter.display_type = self.cutter_display
         return super().main(context)
+
+    def fini(self, context: Context, succeed: bool):
+        # Reveal the result: a solid cutter sitting over the body would hide it.
+        # Done here, once, rather than in main() -- main() can re-run during the
+        # modal's undo/redo churn, so the display change belongs at completion.
+        if succeed and getattr(self, "_cutter", None) is not None:
+            self._cutter.display_type = self.cutter_display
 
     @staticmethod
     def _input_ids(node_group):
@@ -680,6 +748,41 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
             for s in node_group.interface.items_tree
             if getattr(s, "in_out", "") == "INPUT"
         }
+
+    @classmethod
+    def _boolean_cutters(cls, obj):
+        """Objects ``obj`` reads as cutters through its CAD Sketcher booleans."""
+        from ..utilities.boolean_nodes import BOOLEAN_NODE_GROUP
+
+        cutters = []
+        for m in obj.modifiers:
+            group = getattr(m, "node_group", None)
+            if m.type != "NODES" or group is None or group.name != BOOLEAN_NODE_GROUP:
+                continue
+            ids = cls._input_ids(group)
+            cutter = get_modifier_input(m, ids["Cutter"])
+            if cutter is not None:
+                cutters.append(cutter)
+        return cutters
+
+    @classmethod
+    def _creates_cycle(cls, body, cutter):
+        """Whether making ``body`` read ``cutter`` closes a boolean dependency
+        cycle, i.e. ``cutter`` already depends (transitively) on ``body``.
+
+        Also true when ``cutter is body`` (a self-reference is a length-0 cycle).
+        """
+        stack = [cutter]
+        seen = set()
+        while stack:
+            obj = stack.pop()
+            if obj == body:
+                return True
+            if obj in seen:
+                continue
+            seen.add(obj)
+            stack.extend(cls._boolean_cutters(obj))
+        return False
 
     def set_props(self):
         m = self.modifier

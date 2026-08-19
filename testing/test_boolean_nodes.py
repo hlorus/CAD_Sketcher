@@ -18,7 +18,7 @@ from ..utilities.boolean_nodes import (
     BOOLEAN_VERSION,
     build_boolean_node_group,
 )
-from .utils import BgsTestCase
+from .utils import BgsTestCase, make_operator_double
 
 
 class TestBooleanNodeGroup(BgsTestCase):
@@ -197,5 +197,165 @@ class TestBooleanNodeGroup(BgsTestCase):
         body = self._apply_via_operator(cutter, "WIRE")
         try:
             self.assertEqual(cutter.display_type, "WIRE")
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+
+    def test_cutter_equal_body_is_rejected(self):
+        # Using an object as its own cutter makes the Object Info node read the
+        # object the modifier is on -- a depsgraph cycle that crashes Blender.
+        # The operator must refuse it and not add a modifier.
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        obj = self.context.active_object
+        obj.name = "self_cutter_body"
+        try:
+            result = bpy.ops.view3d.slvs_node_boolean(
+                "EXEC_DEFAULT",
+                target_name=obj.name,
+                cutter_name=obj.name,
+                operation="Difference",
+            )
+            self.assertEqual(result, {"CANCELLED"})
+            self.assertNotIn("CAD_Sketcher Boolean", [m.name for m in obj.modifiers])
+        finally:
+            bpy.data.objects.remove(obj, do_unlink=True)
+
+    def test_non_geometry_cutter_is_rejected(self):
+        # An empty/light/camera cutter has no mesh, so the boolean would silently
+        # do nothing. The operator must refuse it instead.
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        body.name = "body_for_empty_cutter"
+        empty = self.data.objects.new("empty_cutter", None)
+        self.scene.collection.objects.link(empty)
+        try:
+            result = bpy.ops.view3d.slvs_node_boolean(
+                "EXEC_DEFAULT",
+                target_name=body.name,
+                cutter_name=empty.name,
+                operation="Difference",
+            )
+            self.assertEqual(result, {"CANCELLED"})
+            self.assertNotIn("CAD_Sketcher Boolean", [m.name for m in body.modifiers])
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+            bpy.data.objects.remove(empty, do_unlink=True)
+
+    def _boolean(self, body, cutter, expect="FINISHED"):
+        result = bpy.ops.view3d.slvs_node_boolean(
+            "EXEC_DEFAULT",
+            target_name=body.name,
+            cutter_name=cutter.name,
+            operation="Difference",
+        )
+        self.assertEqual(result, {expect})
+
+    def test_resolve_cutter_returns_original_not_evaluated(self):
+        # The Object pointer state hands back the evaluated object; assigning that
+        # to the modifier corrupts refcounts and its display change is transient.
+        # _resolve_cutter must return the original datablock.
+        cutter = self._solid_cutter()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        evaluated = cutter.evaluated_get(depsgraph)
+        self.assertIsNot(evaluated, cutter)  # sanity: eval copy is distinct
+
+        double = make_operator_double(View3D_OT_node_boolean)
+        # ``cutter`` is a read-only pointer property; drop it so the test can
+        # inject the evaluated object the state would otherwise return.
+        if "cutter" in double.__dict__:
+            delattr(double, "cutter")
+        op = double()
+        op.cutter = evaluated  # simulate the interactive pointer-state value
+        op.cutter_name = ""
+        resolved = op._resolve_cutter(self.context)
+        self.assertIs(resolved, cutter, "must resolve to the original datablock")
+        bpy.data.objects.remove(cutter, do_unlink=True)
+
+    def test_read_props_seeds_from_existing_modifier(self):
+        # The edit path: invoke seeds the operator from an existing boolean so
+        # re-invoking keeps its settings instead of resetting to defaults. Here
+        # we drive read_props directly (the modal invoke can't run headless).
+        group = build_boolean_node_group()
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        try:
+            modifier = body.modifiers.new("CAD_Sketcher Boolean x", "NODES")
+            modifier.node_group = group
+            ids = View3D_OT_node_boolean._input_ids(group)
+            set_boolean_operation(modifier, ids["Operation"], "Intersect")
+            set_modifier_input(modifier, ids["Self Intersection"], False)
+            set_modifier_input(modifier, ids["Hole Tolerant"], True)
+
+            op = make_operator_double(View3D_OT_node_boolean)()
+            op.read_props(modifier)
+            self.assertEqual(op.operation, "Intersect")
+            self.assertFalse(op.self_intersection)
+            self.assertTrue(op.hole_tolerant)
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+
+    def test_mutual_cycle_is_rejected(self):
+        # A cut by B is fine; then B cut by A would close a dependency cycle
+        # (A reads B, B reads A) and crash Blender. The second must be refused.
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        a = self.context.active_object
+        a.name = "cycle_a"
+        bpy.ops.mesh.primitive_cube_add(size=1.5, location=(1, 0, 0))
+        b = self.context.active_object
+        b.name = "cycle_b"
+        try:
+            self._boolean(a, b)  # A reads B -- ok
+            self._boolean(b, a, expect="CANCELLED")  # B reads A -- would cycle
+            self.assertFalse(
+                any(m.name.startswith("CAD_Sketcher Boolean") for m in b.modifiers)
+            )
+        finally:
+            bpy.data.objects.remove(a, do_unlink=True)
+            bpy.data.objects.remove(b, do_unlink=True)
+
+    def test_multiple_cutters_stack_on_one_body(self):
+        # Two different cutters must produce two boolean modifiers that both
+        # apply, not one that overwrites the other.
+        cutter1 = self._solid_cutter()  # spans [0,2]^3 -> notches the +++ corner
+        cutter2 = self._solid_cutter()  # move it to notch the --- corner
+        for node in cutter2.modifiers[0].node_group.nodes:
+            if node.type == "TRANSFORM_GEOMETRY":
+                node.inputs["Translation"].default_value = (-1.0, -1.0, -1.0)
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        body.name = "stack_body"
+        try:
+            self._boolean(body, cutter1)
+            self._boolean(body, cutter2)
+            bool_mods = [
+                m
+                for m in body.modifiers
+                if m.type == "NODES" and m.name.startswith("CAD_Sketcher Boolean")
+            ]
+            self.assertEqual(
+                len(bool_mods), 2, "each cutter should add its own modifier"
+            )
+            # Both notches present: a size-2 cube with two opposite corners cut
+            # has more than the 6 original faces.
+            depsgraph = self.context.evaluated_depsgraph_get()
+            mesh = body.evaluated_get(depsgraph).to_mesh()
+            self.assertGreater(len(mesh.polygons), 9)
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+
+    def test_same_cutter_is_idempotent(self):
+        # Re-applying with the same cutter edits its modifier, not a duplicate.
+        cutter = self._solid_cutter()
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        body.name = "idempotent_body"
+        try:
+            self._boolean(body, cutter)
+            self._boolean(body, cutter)
+            bool_mods = [
+                m
+                for m in body.modifiers
+                if m.type == "NODES" and m.name.startswith("CAD_Sketcher Boolean")
+            ]
+            self.assertEqual(len(bool_mods), 1)
         finally:
             bpy.data.objects.remove(body, do_unlink=True)
