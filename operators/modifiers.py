@@ -85,8 +85,9 @@ class NodeOperator(Operator3d):
 
     @classmethod
     def poll(cls, context):
-        if not context.active_object:
-            return False
+        # Available without a preselection: the state machine lets the user pick
+        # the target object in the viewport. (Objects are ray-pickable; an open
+        # profile a ray can't hit must still be selected first.)
         return True
 
     def state_property(self, state_index):
@@ -137,14 +138,12 @@ class NodeOperator(Operator3d):
         pass
 
     def invoke(self, context, event):
-        # Follow the stateful prefill-from-selection flow: if nothing valid is
-        # selected to prefill the base Object state, cancel instead of dropping
-        # into an object-pick (a sketch/curve isn't reliably pickable in the
-        # viewport). gather_selection already filters to valid targets.
+        # With a valid preselection the base Object state prefills from it; with
+        # nothing selected we fall through to the modal state machine so the user
+        # can pick the target in the viewport instead of being blocked. The state
+        # description guides the pick, and gather_selection filters to valid
+        # targets so an invalid preselection is simply not prefilled.
         selection = self.gather_selection(context)
-        if self.wait_for_input and not selection:
-            self.report({"WARNING"}, self.invalid_target_msg)
-            return {"CANCELLED"}
 
         # If the prefill target already carries this tool's modifier, seed the
         # operator from its current values. Convenience only -- never let a
@@ -560,11 +559,21 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
     # Built programmatically (not shipped as an asset); see init().
     resources = ()
 
-    invalid_target_msg = "Select a body (mesh or sketch) and a cutter object"
+    invalid_target_msg = "Pick a body (mesh or sketch) to receive the boolean"
 
-    # Only the body is a pointer state (it receives the modifier); the cutter is
-    # taken from the rest of the selection in main().
-    states = BASE_STATES
+    # Two object states: the body (receives the modifier) and the cutter. Both
+    # can be preselected (body active, cutter also selected) or picked in the
+    # viewport, matching the other node tools.
+    states = (
+        *BASE_STATES,
+        state_from_args(
+            "Cutter",
+            description="Pick the object to boolean the body with",
+            pointer="cutter",
+            types=(Object,),
+            use_create=False,
+        ),
+    )
 
     operation: bpy.props.EnumProperty(
         name="Operation",
@@ -578,17 +587,16 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
     self_intersection: BoolProperty(name="Self Intersection", default=True)
     hole_tolerant: BoolProperty(name="Hole Tolerant", default=False)
 
-    # The cutter is resolved from the (non-active) selection, then persisted so
-    # the redo panel can re-apply and edit it without a live pointer state.
+    # Persist the picked cutter so the redo panel can re-apply and edit it (the
+    # pointer state, like the base object pointer, is transient across redo).
     cutter_name: StringProperty(name="Cutter")
 
-    # The body receives the modifier; the cutter is a second selected object, so
-    # both a mesh and a sketch (Curves) are valid bodies.
+    # Both operands may be a mesh or a sketch (Curves).
     def is_valid_target(self, obj):
         return obj is not None and obj.type in {"MESH", "CURVE", "CURVES"}
 
     def get_point(self, context, index):
-        # No entity states beyond the base object pointer.
+        # Object pointer states carry no implicit point.
         return None
 
     def init(self, context: Context, event: Event):
@@ -600,17 +608,16 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         return True
 
     def _resolve_cutter(self, context: Context):
-        """The cutter object: the persisted name (redo) else a selected object
-        that is not the body."""
-        if self.cutter_name:
+        """The cutter object: the picked pointer, else the persisted name (redo).
+
+        Mirrors ``resolved_object`` for the body: the ``cutter`` pointer state
+        carries the interactive/prefilled pick, and ``cutter_name`` restores it
+        on the redo path where the pointer is gone.
+        """
+        cutter = getattr(self, "cutter", None)
+        if cutter is None and self.cutter_name:
             cutter = bpy.data.objects.get(self.cutter_name)
-            if cutter is not None:
-                return cutter
-        body = self.resolved_object()
-        for obj in context.selected_objects:
-            if obj != body:
-                return obj
-        return None
+        return cutter
 
     def read_props(self, modifier):
         ids = self._input_ids(modifier.node_group)
@@ -625,7 +632,7 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
 
         cutter = self._resolve_cutter(context)
         if cutter is None:
-            self.report({"WARNING"}, "Select a body and a cutter object")
+            self.report({"WARNING"}, "Pick a cutter object to boolean with")
             return False
         self.cutter_name = cutter.name
         self._cutter = cutter
