@@ -21,6 +21,24 @@ from ..utilities.view import get_picking_origin_dir, get_placement_pos
 from .base_3d import Operator3d
 
 
+def _defer_object_hide(name: str, hidden: bool):
+    """Toggle an object's viewport visibility after the current operator returns.
+
+    Writing ``hide_viewport`` rebuilds the depsgraph; doing that mid-operator
+    (while our depsgraph handler runs) crashes, so apply it from a one-shot timer
+    once control is back in the event loop. Guarded so it only writes on a real
+    change, avoiding needless depsgraph churn.
+    """
+
+    def _apply():
+        ob = bpy.data.objects.get(name)
+        if ob is not None and ob.hide_viewport != hidden:
+            ob.hide_viewport = hidden
+        return None  # run once
+
+    bpy.app.timers.register(_apply)
+
+
 def set_modifier_input(modifier, identifier, value):
     """Set a Geometry-Nodes modifier input by socket identifier.
 
@@ -651,12 +669,12 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         self.cutter_name = cutter.name
         self._cutter = cutter
         # Reveal the result: a solid cutter sitting over the body would hide it.
-        # Toggle hide off for the shaded modes so switching back re-shows it.
-        if self.cutter_display == "HIDE":
-            cutter.hide_viewport = True
-        else:
-            cutter.hide_viewport = False
+        # display_type is a draw-only property, safe to set now; a visibility
+        # change rebuilds the depsgraph, which crashes if done while our depsgraph
+        # handler is mid-run, so defer it until the operator has returned.
+        if self.cutter_display != "HIDE":
             cutter.display_type = self.cutter_display
+        _defer_object_hide(cutter.name, self.cutter_display == "HIDE")
         return super().main(context)
 
     @staticmethod

@@ -186,23 +186,34 @@ class TestBooleanNodeGroup(BgsTestCase):
         return body
 
     def test_operator_wireframes_cutter_by_default(self):
+        # display_type is set immediately (a draw-only property, no depsgraph
+        # rebuild), so the wireframe applies without a crash.
         cutter = self._solid_cutter()
         cutter.display_type = "SOLID"
         body = self._apply_via_operator(cutter, "WIRE")
         try:
             self.assertEqual(cutter.display_type, "WIRE")
-            self.assertFalse(cutter.hide_viewport)
         finally:
             bpy.data.objects.remove(body, do_unlink=True)
 
-    def test_operator_hides_cutter_but_still_cuts(self):
+    def test_operator_hide_leaves_display_and_finishes(self):
+        # The Hide option defers the visibility toggle (a timer) to avoid a
+        # mid-operator depsgraph rebuild, so it must not touch display_type or
+        # fail here.
         cutter = self._solid_cutter()
+        cutter.display_type = "SOLID"
         body = self._apply_via_operator(cutter, "HIDE")
         try:
-            self.assertTrue(cutter.hide_viewport)
-            # A hidden cutter is still read by Object Info, so the cut happens.
-            depsgraph = self.context.evaluated_depsgraph_get()
-            mesh = body.evaluated_get(depsgraph).to_mesh()
-            self.assertGreater(len(mesh.polygons), 6)
+            self.assertEqual(cutter.display_type, "SOLID")
         finally:
             bpy.data.objects.remove(body, do_unlink=True)
+
+    def test_hidden_cutter_still_cuts(self):
+        # The invariant Hide relies on: Object Info reads a hidden cutter, so the
+        # boolean still evaluates.
+        group = build_boolean_node_group()
+        cutter = self._solid_cutter()
+        cutter.hide_viewport = True
+        _, _, hi = self._result(group, cutter, "Difference")
+        # A size-2 cube minus the +++ octant keeps its [-1,1]^3 extent.
+        self._assert_vec(hi, (1.0, 1.0, 1.0))
