@@ -25,7 +25,7 @@ BOOLEAN_NODE_GROUP = "CAD Sketcher Boolean"
 
 # Bump whenever the built tree changes so groups baked into existing files are
 # rebuilt in place on load, keeping modifiers bound to the same name.
-BOOLEAN_VERSION = 1
+BOOLEAN_VERSION = 2
 
 # Menu items, in node/enum order. The interface menu default is the first.
 _OPERATIONS = ("Difference", "Union", "Intersect")
@@ -104,11 +104,16 @@ def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
         node.solver = "EXACT"
         node.operation = op_node
         single, multi = _geometry_sockets(node)
-        # Body is the primary operand; the cutter is the other. This is uniform
-        # across operations (Difference: Mesh 1 / Mesh 2; Union & Intersect:
-        # Mesh 1 / Mesh), so a fully-contained cutter unions/intersects correctly.
-        links.new(body_geo, single[0])
-        links.new(cutter_geo, multi[0])
+        if op_node == "DIFFERENCE":
+            # Difference subtracts the multi-input (Mesh 2) from Mesh 1 (body).
+            links.new(body_geo, single[0])
+            links.new(cutter_geo, multi[0])
+        else:
+            # Union/Intersect operate on the multi-input list ONLY and ignore
+            # Mesh 1, so both operands go into it. (Feeding the body to Mesh 1
+            # here silently drops it and outputs just the cutter.)
+            links.new(body_geo, multi[0])
+            links.new(cutter_geo, multi[0])
         for socket in node.inputs:
             if socket.name == "Self Intersection":
                 links.new(gi.outputs["Self Intersection"], socket)
