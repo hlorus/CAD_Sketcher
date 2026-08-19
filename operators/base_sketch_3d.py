@@ -141,8 +141,7 @@ class OperatorSketch3d(base_2d.Operator2d):
             if prop and getattr(self, prop, None) is not None:
                 frame = self.sketch.target_object.parent or self.sketch.target_object
                 return (
-                    frame.matrix_world
-                    @ mathutils.Vector(getattr(self, prop)).to_3d()
+                    frame.matrix_world @ mathutils.Vector(getattr(self, prop)).to_3d()
                 ).copy()
 
         origin = self.sketch.target_object.parent
