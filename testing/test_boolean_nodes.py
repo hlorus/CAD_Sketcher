@@ -239,3 +239,60 @@ class TestBooleanNodeGroup(BgsTestCase):
         finally:
             bpy.data.objects.remove(body, do_unlink=True)
             bpy.data.objects.remove(empty, do_unlink=True)
+
+    def _boolean(self, body, cutter):
+        result = bpy.ops.view3d.slvs_node_boolean(
+            "EXEC_DEFAULT",
+            target_name=body.name,
+            cutter_name=cutter.name,
+            operation="Difference",
+        )
+        self.assertEqual(result, {"FINISHED"})
+
+    def test_multiple_cutters_stack_on_one_body(self):
+        # Two different cutters must produce two boolean modifiers that both
+        # apply, not one that overwrites the other.
+        cutter1 = self._solid_cutter()  # spans [0,2]^3 -> notches the +++ corner
+        cutter2 = self._solid_cutter()  # move it to notch the --- corner
+        for node in cutter2.modifiers[0].node_group.nodes:
+            if node.type == "TRANSFORM_GEOMETRY":
+                node.inputs["Translation"].default_value = (-1.0, -1.0, -1.0)
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        body.name = "stack_body"
+        try:
+            self._boolean(body, cutter1)
+            self._boolean(body, cutter2)
+            bool_mods = [
+                m
+                for m in body.modifiers
+                if m.type == "NODES" and m.name.startswith("CAD_Sketcher Boolean")
+            ]
+            self.assertEqual(
+                len(bool_mods), 2, "each cutter should add its own modifier"
+            )
+            # Both notches present: a size-2 cube with two opposite corners cut
+            # has more than the 6 original faces.
+            depsgraph = self.context.evaluated_depsgraph_get()
+            mesh = body.evaluated_get(depsgraph).to_mesh()
+            self.assertGreater(len(mesh.polygons), 9)
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+
+    def test_same_cutter_is_idempotent(self):
+        # Re-applying with the same cutter edits its modifier, not a duplicate.
+        cutter = self._solid_cutter()
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        body.name = "idempotent_body"
+        try:
+            self._boolean(body, cutter)
+            self._boolean(body, cutter)
+            bool_mods = [
+                m
+                for m in body.modifiers
+                if m.type == "NODES" and m.name.startswith("CAD_Sketcher Boolean")
+            ]
+            self.assertEqual(len(bool_mods), 1)
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)

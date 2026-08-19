@@ -186,10 +186,19 @@ class NodeOperator(Operator3d):
         bpy.ops.ed.undo_push(message=f'Load Asset "{rName}"')
         return True
 
+    def _modifier_name(self):
+        """Name of this tool's modifier on the target.
+
+        One per object by default (re-invoking edits it). Tools that can stack
+        several instances on one object (e.g. Boolean, one per cutter) override
+        this to return a distinct name per instance.
+        """
+        return f"CAD_Sketcher {self.bl_label}"
+
     def _ensure_modifier(self, context):
         """Create the modifier once, reuse on subsequent calls."""
         ob = self._obj.original
-        mod_name = f"CAD_Sketcher {self.bl_label}"
+        mod_name = self._modifier_name()
 
         self.modifier = ob.modifiers.get(mod_name)
         if self.modifier:
@@ -651,6 +660,12 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         if cutter is None and self.cutter_name:
             cutter = bpy.data.objects.get(self.cutter_name)
         return cutter
+
+    def _modifier_name(self):
+        # One modifier per cutter, so several booleans stack on the same body
+        # instead of overwriting each other. Re-applying with the same cutter
+        # edits its existing modifier (same name); a new cutter adds another.
+        return f"CAD_Sketcher Boolean {self._cutter.name}"
 
     def read_props(self, modifier):
         ids = self._input_ids(modifier.node_group)
