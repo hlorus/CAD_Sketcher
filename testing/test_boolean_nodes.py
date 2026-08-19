@@ -166,11 +166,7 @@ class TestBooleanNodeGroup(BgsTestCase):
         finally:
             bpy.data.objects.remove(body, do_unlink=True)
 
-    def test_operator_sets_cutter_display(self):
-        # Applying the boolean via the operator hides the cutter (wireframe by
-        # default) so the result is visible.
-        cutter = self._solid_cutter()
-        cutter.display_type = "SOLID"
+    def _apply_via_operator(self, cutter, cutter_display):
         bpy.ops.mesh.primitive_cube_add(size=2.0)
         body = self.context.active_object
         body.name = "boolean_body"
@@ -179,14 +175,34 @@ class TestBooleanNodeGroup(BgsTestCase):
         cutter.select_set(True)
         body.select_set(True)
         self.context.view_layer.objects.active = body
+        result = bpy.ops.view3d.slvs_node_boolean(
+            "EXEC_DEFAULT",
+            target_name=body.name,
+            cutter_name=cutter.name,
+            operation="Difference",
+            cutter_display=cutter_display,
+        )
+        self.assertEqual(result, {"FINISHED"})
+        return body
+
+    def test_operator_wireframes_cutter_by_default(self):
+        cutter = self._solid_cutter()
+        cutter.display_type = "SOLID"
+        body = self._apply_via_operator(cutter, "WIRE")
         try:
-            result = bpy.ops.view3d.slvs_node_boolean(
-                "EXEC_DEFAULT",
-                target_name=body.name,
-                cutter_name=cutter.name,
-                operation="Difference",
-            )
-            self.assertEqual(result, {"FINISHED"})
             self.assertEqual(cutter.display_type, "WIRE")
+            self.assertFalse(cutter.hide_viewport)
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+
+    def test_operator_hides_cutter_but_still_cuts(self):
+        cutter = self._solid_cutter()
+        body = self._apply_via_operator(cutter, "HIDE")
+        try:
+            self.assertTrue(cutter.hide_viewport)
+            # A hidden cutter is still read by Object Info, so the cut happens.
+            depsgraph = self.context.evaluated_depsgraph_get()
+            mesh = body.evaluated_get(depsgraph).to_mesh()
+            self.assertGreater(len(mesh.polygons), 6)
         finally:
             bpy.data.objects.remove(body, do_unlink=True)
