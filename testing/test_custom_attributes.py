@@ -152,61 +152,64 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertEqual(attr.data_type, "INT")
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
-    def test_generic_wire_path_drops_unreferenced_point_attribute(self):
-        from ..utilities.convert_nodes import build_convert_node_group
-
+    def test_generic_wire_path_preserves_named_point_and_curve_attributes(self):
+        """The shared wire path carries named attributes without sampling nodes."""
         _, lines = self._square()
         define_attribute(self.sketch, "wire_point_tag", "INT", "POINT", 13)
+        define_attribute(self.sketch, "wire_curve_tag", "INT", "CURVE", 0)
         set_attribute_value(self.sketch, "wire_point_tag", 29, lines[0].curve_id)
-        generic = build_convert_node_group("test_generic_wire_custom_attrs")
+        for line, value in zip(lines, (10, 20, 30, 40)):
+            set_attribute_value(self.sketch, "wire_curve_tag", value, line.curve_id)
+
+        source = self.sketch.target_object
+        modifier = source.modifiers.get("CAD Sketcher Convert")
+        self.assertIsNotNone(modifier)
+        self.assertEqual(modifier.node_group.name, "CAD Sketcher Convert")
+        self.assertFalse(
+            any(
+                node.bl_idname in {"GeometryNodeSampleNearest", "GeometryNodeSampleIndex"}
+                for node in modifier.node_group.nodes
+            )
+        )
+
         converted = None
         try:
-            converted = self._convert_copy(
-                self.sketch.target_object, node_group=generic, fill=False
-            )
-            self.assertIsNone(converted.data.attributes.get("wire_point_tag"))
+            converted = self._convert_copy(source, fill=False)
+            point_attr = converted.data.attributes.get("wire_point_tag")
+            curve_attr = converted.data.attributes.get("wire_curve_tag")
+            self.assertIsNotNone(point_attr)
+            self.assertIsNotNone(curve_attr)
+            self.assertIn(29, [item.value for item in point_attr.data])
+            curve_values = [item.value for item in curve_attr.data]
+            for expected in (10, 20, 30, 40):
+                self.assertIn(expected, curve_values)
         finally:
             self._remove_converted(converted)
-            if generic.users == 0:
-                bpy.data.node_groups.remove(generic)
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
-    def test_named_attributes_reach_filled_conversion_output(self):
-        """Sample POINT/CURVE source values onto real generated mesh points."""
+    def test_filled_conversion_keeps_object_values_without_spatial_sampling(self):
+        """Fill remains deterministic and never invents segment ownership by proximity."""
         _, lines = self._square()
-        define_attribute(self.sketch, "point_tag", "INT", "POINT", 13)
-        define_attribute(self.sketch, "curve_tag", "INT", "CURVE", 17)
+        define_attribute(self.sketch, "curve_tag", "INT", "CURVE", 0)
         define_attribute(self.sketch, "object_tag", "INT", "OBJECT", 23)
-        set_attribute_value(self.sketch, "point_tag", 29, lines[0].curve_id)
-        set_attribute_value(self.sketch, "curve_tag", 31, lines[0].curve_id)
+        for line, value in zip(lines, (10, 20, 30, 40)):
+            set_attribute_value(self.sketch, "curve_tag", value, line.curve_id)
 
         source = self.sketch.target_object
         modifier = source.modifiers.get("CAD Sketcher Convert")
         self.assertIsNotNone(modifier)
         group = modifier.node_group
-        self.assertIsNotNone(group)
-        self.assertTrue(group.name.startswith("CAD Sketcher Convert [attrs "))
-        self.assertNotIn(source.data.name, group.name)
-        self.assertTrue(group.get("cad_convert_attribute_signature", ""))
-
-        set_attribute_value(self.sketch, "curve_tag", 37, lines[1].curve_id)
-        self.assertIs(modifier.node_group, group)
-        self.assertIn(29, get_attribute_value(self.sketch, "point_tag"))
-        self.assertIn(31, get_attribute_value(self.sketch, "curve_tag"))
-        self.assertIn(37, get_attribute_value(self.sketch, "curve_tag"))
+        self.assertEqual(group.name, "CAD Sketcher Convert")
+        self.assertFalse(
+            any(
+                node.bl_idname in {"GeometryNodeSampleNearest", "GeometryNodeSampleIndex"}
+                for node in group.nodes
+            )
+        )
 
         converted = None
         try:
             converted = self._convert_copy(source, fill=True)
-            point_attr = converted.data.attributes.get("point_tag")
-            curve_attr = converted.data.attributes.get("curve_tag")
-            self.assertIsNotNone(point_attr)
-            self.assertIsNotNone(curve_attr)
-            point_values = [item.value for item in point_attr.data]
-            curve_values = [item.value for item in curve_attr.data]
-            self.assertIn(29, point_values)
-            self.assertIn(31, curve_values)
-            self.assertIn(37, curve_values)
             self.assertEqual(source["object_tag"], 23)
             self.assertEqual(source.data["object_tag"], 23)
             self.assertEqual(converted["object_tag"], 23)
@@ -214,19 +217,19 @@ class TestCustomAttributes(Sketch2dTestCase):
         finally:
             self._remove_converted(converted)
 
-    @unittest.skipIf(bpy.app.version < (5, 2, 0), "schema converters require 5.2+")
-    def test_schema_change_rebinds_and_discards_unused_group(self):
+    @unittest.skipIf(bpy.app.version < (5, 2, 0), "shared converter requires 5.2+")
+    def test_attribute_schema_changes_keep_shared_convert_group(self):
         self._square()
-        define_attribute(self.sketch, "first_schema_attr", "INT", "CURVE", 1)
         modifier = self.sketch.target_object.modifiers.get("CAD Sketcher Convert")
-        first_group = modifier.node_group
-        first_name = first_group.name
-        define_attribute(self.sketch, "second_schema_attr", "FLOAT", "POINT", 2.0)
-        second_group = modifier.node_group
-        self.assertIsNot(first_group, second_group)
-        self.assertNotIn(first_name, bpy.data.node_groups)
-        remove_attribute(self.sketch, "second_schema_attr")
-        self.assertEqual(modifier.node_group.name, first_name)
+        self.assertIsNotNone(modifier)
+        shared_group = modifier.node_group
+        self.assertEqual(shared_group.name, "CAD Sketcher Convert")
+
+        define_attribute(self.sketch, "first_attr", "INT", "CURVE", 1)
+        define_attribute(self.sketch, "second_attr", "FLOAT", "POINT", 2.0)
+        self.assertIs(modifier.node_group, shared_group)
+        remove_attribute(self.sketch, "second_attr")
+        self.assertIs(modifier.node_group, shared_group)
 
     def test_remove_deletes_definition_and_source_attribute(self):
         self._square()
