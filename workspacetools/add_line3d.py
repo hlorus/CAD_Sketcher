@@ -1,7 +1,7 @@
 from bpy.types import WorkSpaceTool
 
 from ..declarations import GizmoGroups, Operators, WorkSpaceTools
-from ..keymaps import tool_generic
+from ..keymaps import tool_generic_3d
 from ..stateful_operator.tool import GenericStateTool
 from ..stateful_operator.utilities.keymap import operator_access
 
@@ -15,6 +15,6 @@ class VIEW3D_T_slvs_add_line3d(GenericStateTool, WorkSpaceTool):
     bl_icon = "ops.gpencil.primitive_line"
     bl_widget = GizmoGroups.Preselection
     bl_keymap = (
-        *tool_generic,
+        *tool_generic_3d,
         *operator_access(Operators.AddLine3D),
     )
