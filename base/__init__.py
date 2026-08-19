@@ -2,7 +2,6 @@ from ..utilities.register import module_register_factory
 
 modules = [
     "theme",
-    "install_op",
     "preferences",
     "whats_new",
 ]

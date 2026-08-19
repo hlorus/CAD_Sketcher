@@ -40,7 +40,6 @@ wheels = [
 
 [permissions]
 files = "Used to load CAD Sketcher assets"
-network = "Used to install the solver module from PiPy"
 
 [build]
 # Ship only the runtime add-on. Everything below is dev tooling, docs, tests,

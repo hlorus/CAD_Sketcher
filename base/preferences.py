@@ -1,6 +1,4 @@
 import logging
-import sys
-from pathlib import Path
 
 import bpy
 from bl_ui.utils import PresetPanel
@@ -10,12 +8,10 @@ from bpy.props import (
     FloatProperty,
     IntProperty,
     PointerProperty,
-    StringProperty,
 )
 from bpy.types import AddonPreferences, Menu, Panel
 
 from .. import global_data, units
-from ..declarations import Operators
 from ..utilities.install import check_module
 from ..utilities.register import get_name, get_path
 from ..utilities.view import update_cb
@@ -37,34 +33,6 @@ def on_logging_level_update(self, context):
     level = self.logging_level
     logger.info("setting log level: {}".format(level))
     logger.setLevel(level)
-
-
-def get_wheel():
-    p = Path(__file__).parent.absolute()
-    from sys import platform, version_info
-
-    if platform == "linux" or platform == "linux2":
-        # Linux
-        platform_strig = "linux"
-    elif platform == "darwin":
-        # OS X
-        platform_strig = "macosx"
-    elif platform == "win32":
-        # Windows
-        platform_strig = "win"
-
-    matches = list(
-        p.glob(
-            "**/*cp{}{}*{}*.whl".format(
-                version_info.major, version_info.minor, platform_strig
-            )
-        )
-    )
-    if matches:
-        match = matches[0]
-        logger.info("Local installation file available: " + str(match))
-        return match.as_posix()
-    return ""
 
 
 # Presets
@@ -98,12 +66,6 @@ class Preferences(AddonPreferences):
         name="Show Theme Settings",
         description="Expand this box to show various theme settings",
         default=False,
-    )
-    package_path: StringProperty(
-        name="Package Filepath",
-        description="Filepath to the module's .whl file",
-        subtype="FILE_PATH",
-        default=get_wheel(),
     )
     logging_level: EnumProperty(
         name="Logging Level",
@@ -211,20 +173,10 @@ class Preferences(AddonPreferences):
                 module_path = module.__path__[0] if module else ""
                 box.label(text="Path: " + module_path)
         else:
-            row = box.row()
-            row.label(text="Module isn't Registered", icon="CANCEL")
-            split = box.split(factor=0.8)
-            split.prop(self, "package_path", text="")
-            split.operator(
-                Operators.InstallPackage,
-                text="Install from File",
-            ).package = self.package_path
-
-            row = box.row()
-            row.operator(
-                Operators.InstallPackage,
-                text="Install from PIP",
-            ).package = "slvs"
+            # The solver ships as a bundled wheel, so a failure here means the
+            # install itself is broken rather than a missing dependency.
+            box.label(text="Solver module failed to load", icon="CANCEL")
+            box.label(text="Try restarting Blender or reinstalling the add-on")
 
         box = layout.box()
         box.label(text="General")
