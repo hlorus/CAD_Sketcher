@@ -382,8 +382,11 @@ def project_curves_object(sketch, source, construction=True):
     Reads the source sketch's line curves and their endpoint points, creating a
     projected point per shared source point (deduplicated) and a projected line
     per source segment. Endpoints are fixed; their positions are driven by the
-    source sketch's control points. Points/circles/arcs are not projected in this
-    first slice. Returns ``(points, lines)``.
+    source sketch's control points. Standalone points and arcs/circles are not
+    projected in this first slice (an arc/circle projects to an ellipse on a
+    non-parallel plane, which has no native representation). Returns
+    ``(points, lines, skipped_curves)`` where ``skipped_curves`` counts the
+    arcs/circles that were not projected, for user feedback.
     """
     if source is None or source.type not in _CURVE_SOURCE:
         raise TypeError("Source must be a sketch or curve object")
@@ -401,6 +404,7 @@ def project_curves_object(sketch, source, construction=True):
     projected_by_src_point = {}
     points = []
     lines = []
+    skipped_curves = 0
 
     def _project_point(src_point):
         # Deduplicate shared endpoints so coincident source points become one
@@ -429,19 +433,26 @@ def project_curves_object(sketch, source, construction=True):
         for src_cid in read_curve_id_list(src_data):
             if not src_cid:
                 continue
-            if get_curve_type(src_sketch, src_cid) != SketchCurveType.LINE:
-                continue
-            src_line = _LineRef(src_sketch, src_cid)
-            p1_src, p2_src = src_line.p1, src_line.p2
-            if p1_src is None or p2_src is None:
-                continue
-            p1 = _project_point(p1_src)
-            p2 = _project_point(p2_src)
-            if p1 is None or p2 is None:
-                continue
-            line = LineRef.create(
-                sketch, p1, p2, construction=construction, name="Projected Line"
-            )
-            lines.append(line)
+            src_type = get_curve_type(src_sketch, src_cid)
+            if src_type == SketchCurveType.LINE:
+                src_line = _LineRef(src_sketch, src_cid)
+                p1_src, p2_src = src_line.p1, src_line.p2
+                if p1_src is None or p2_src is None:
+                    continue
+                p1 = _project_point(p1_src)
+                p2 = _project_point(p2_src)
+                if p1 is None or p2 is None:
+                    continue
+                line = LineRef.create(
+                    sketch, p1, p2, construction=construction, name="Projected Line"
+                )
+                lines.append(line)
+            elif src_type == SketchCurveType.POINT:
+                # A point projects to a point at any angle -- project standalone
+                # points too. Line endpoints are already deduped via curve_id, so
+                # a point that is also an endpoint is not duplicated.
+                _project_point(PointRef(src_sketch, src_cid))
+            elif src_type in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
+                skipped_curves += 1
 
-    return points, lines
+    return points, lines, skipped_curves

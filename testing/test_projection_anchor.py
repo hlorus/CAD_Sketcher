@@ -121,7 +121,7 @@ class TestProjectionAnchor(Sketch2dTestCase):
         # the same XY workplane, so its local coords map straight through.
         src, sp1, sp2 = self._source_sketch_with_line((0.0, 0.0), (2.0, 3.0))
 
-        points, lines = project_curves_object(
+        points, lines, _ = project_curves_object(
             self.sketch, src.target_object, construction=True
         )
         self.assertEqual(len(lines), 1)
@@ -157,6 +157,27 @@ class TestProjectionAnchor(Sketch2dTestCase):
         LineRef.create(src, a, b)
         LineRef.create(src, b, c)
 
-        points, lines = project_curves_object(self.sketch, src.target_object)
+        points, lines, _ = project_curves_object(self.sketch, src.target_object)
         self.assertEqual(len(lines), 2)
         self.assertEqual(len(points), 3, "shared endpoint must not duplicate")
+
+    def test_project_sketch_source_standalone_points_and_skips_curves(self):
+        # A standalone point projects (a point is a point at any angle); an arc
+        # is skipped and counted so the caller can report it.
+        from ..model.curve_ref import PointRef
+
+        src = self.new_sketch()
+        PointRef.create(src, (3.0, 4.0))  # standalone point, no line
+        center = PointRef.create(src, (0.0, 0.0))
+        start = PointRef.create(src, (1.0, 0.0))
+        end = PointRef.create(src, (0.0, 1.0))
+        from ..model.curve_ref import ArcRef
+
+        ArcRef.create(src, center, start, end)  # an arc -> skipped
+
+        points, lines, skipped = project_curves_object(self.sketch, src.target_object)
+        self.assertEqual(len(lines), 0)
+        self.assertGreaterEqual(len(points), 1)
+        # The standalone point landed at its position.
+        self.assertTrue(any((p.co - Vector((3.0, 4.0))).length < 1e-6 for p in points))
+        self.assertEqual(skipped, 1, "the arc must be counted as skipped")

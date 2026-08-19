@@ -77,17 +77,20 @@ class VIEW3D_OT_slvs_project_geometry(Operator):
             self.report({"ERROR"}, "The source cannot be the active sketch")
             return {"CANCELLED"}
 
+        skipped = 0
         if source.type in _MESH_SOURCE:
-            _, lines = project_mesh_object(
+            points, lines = project_mesh_object(
                 sketch, source, construction=self.construction
             )
+            summary = f"{len(lines)} edge(s)"
             empty_msg = "The source mesh has no edges to project"
         else:
-            _, lines = project_curves_object(
+            points, lines, skipped = project_curves_object(
                 sketch, source, construction=self.construction
             )
-            empty_msg = "The source sketch has no line segments to project"
-        if not lines:
+            summary = f"{len(lines)} line(s), {len(points)} point(s)"
+            empty_msg = "The source sketch has no lines or points to project"
+        if not points and not lines:
             self.report({"WARNING"}, empty_msg)
             return {"CANCELLED"}
 
@@ -96,10 +99,12 @@ class VIEW3D_OT_slvs_project_geometry(Operator):
 
         global_data.needs_solve = True
         global_data.needs_redraw = True
-        self.report(
-            {"INFO"},
-            f"Projected {len(lines)} edge(s) from {source.name}",
-        )
+        message = f"Projected {summary} from {source.name}"
+        if skipped:
+            # Arcs/circles project to an ellipse on a non-parallel plane, which
+            # has no native representation, so they are left out (see #626).
+            message += f" (skipped {skipped} arc(s)/circle(s), not supported)"
+        self.report({"INFO"}, message)
         return {"FINISHED"}
 
 
