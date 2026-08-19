@@ -124,12 +124,26 @@ class OperatorSketch3d(base_2d.Operator2d):
 
     def _anchor_world(self, context):
         # Mirror the 2D chaining model: once a previous point really exists it
-        # becomes the temporary-plane depth. Otherwise the origin Empty is always
-        # the deterministic fallback, including a partially-prefilled later state.
+        # becomes the temporary-plane depth. For deferred point creation the
+        # previous state's placed coordinate is the authoritative anchor until
+        # its PointRef becomes resolvable; only then fall back to the origin.
         if self.state_index > 0:
             previous = self.get_point(context, self.state_index - 1)
             if isinstance(previous, curve_ref.PointRef) and previous.valid:
                 return previous.location.copy()
+
+            # Points are created deferred in redo_states(), so the immediately
+            # preceding state can have a valid placed coordinate before it has a
+            # resolvable PointRef. Use that coordinate so a line's second point
+            # chains from the first point rather than flattening to origin depth.
+            prev_state = self.get_states_definition()[self.state_index - 1]
+            prop = getattr(prev_state, "property", None)
+            if prop and getattr(self, prop, None) is not None:
+                frame = self.sketch.target_object.parent or self.sketch.target_object
+                return (
+                    frame.matrix_world
+                    @ mathutils.Vector(getattr(self, prop)).to_3d()
+                ).copy()
 
         origin = self.sketch.target_object.parent
         if origin is not None:
