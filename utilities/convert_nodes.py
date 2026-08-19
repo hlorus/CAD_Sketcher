@@ -3,9 +3,11 @@
 The standard Blender 5.2 conversion path welds sketch endpoints by identity.
 Named POINT/CURVE attributes are allowed to propagate generically through the
 wire path. CURVE values are re-homed onto EDGE before the weld so different
-segment values cannot be averaged at shared corners. Fill Curve is the only
-topology boundary that drops attributes, so anonymous captures bridge values
-across that boundary without spatial/nearest sampling.
+segment values cannot be averaged at shared corners. The non-fill path keeps
+that welded mesh-wire representation, which preserves exact per-segment EDGE
+values and feeds downstream mesh-capable node tools directly. Fill Curve is the
+only topology boundary that drops attributes, so anonymous captures bridge
+values across that boundary without spatial/nearest sampling.
 
 There is one shared ``CAD Sketcher Convert`` group. Attribute definitions only
 change the small bridge section in that same group; no per-schema node-group
@@ -21,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 15
+CONVERT_VERSION = 16
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -340,7 +342,11 @@ def build_convert_node_group(
     switch = nodes.new("GeometryNodeSwitch")
     switch.input_type = "GEOMETRY"
     links.new(gi.outputs["Fill"], switch.inputs["Switch"])
-    links.new(to_curve.outputs["Curve"], switch.inputs["False"])
+    # Keep the non-fill path as the welded edge mesh. Sending these segment
+    # values through Mesh to Curve would collapse a multi-segment loop to one
+    # spline and adapt adjacent EDGE values onto shared curve points, recreating
+    # the meaningless 15/25/35 corner averages the EDGE capture is meant to avoid.
+    links.new(merge.outputs["Geometry"], switch.inputs["False"])
     links.new(filled, switch.inputs["True"])
 
     geometry = add_generated_id_nodes(nodes, links, switch.outputs["Output"])
