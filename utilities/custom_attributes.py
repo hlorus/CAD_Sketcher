@@ -91,9 +91,7 @@ def _sync_shared_conversion_group():
         return
     from .convert_nodes import build_convert_node_group
 
-    build_convert_node_group(
-        attribute_definitions=_shared_conversion_definitions()
-    )
+    build_convert_node_group(attribute_definitions=_shared_conversion_definitions())
 
 
 def _read_object_names(obj):
