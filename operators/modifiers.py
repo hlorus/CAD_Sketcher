@@ -51,6 +51,35 @@ def get_modifier_input(modifier, identifier):
     return modifier[identifier]  # Blender <= 5.1
 
 
+# Boolean operation menu items, in the node group's definition order (the int
+# index used on Blender <= 5.1, see set/get_boolean_operation).
+BOOLEAN_OPERATIONS = ("Difference", "Union", "Intersect")
+
+
+def set_boolean_operation(modifier, identifier, name):
+    """Set the boolean Operation menu input across Blender versions.
+
+    A menu socket is exposed as the item string on Blender 5.2+, but as an int
+    index into the menu items in the modifier's ID-properties on 5.0/5.1, so set
+    whichever the modifier input actually holds.
+    """
+    try:
+        set_modifier_input(modifier, identifier, name)  # 5.2+: item string
+    except TypeError:
+        set_modifier_input(modifier, identifier, BOOLEAN_OPERATIONS.index(name))
+
+
+def get_boolean_operation(modifier, identifier):
+    """Read the boolean Operation menu input as its item name (both versions)."""
+    value = get_modifier_input(modifier, identifier)
+    if isinstance(value, str):
+        return value
+    index = int(value)
+    if 0 <= index < len(BOOLEAN_OPERATIONS):
+        return BOOLEAN_OPERATIONS[index]
+    return BOOLEAN_OPERATIONS[0]
+
+
 BASE_STATES = (
     state_from_args(
         "Object",
@@ -633,7 +662,7 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
 
     def read_props(self, modifier):
         ids = self._input_ids(modifier.node_group)
-        self.operation = get_modifier_input(modifier, ids["Operation"])
+        self.operation = get_boolean_operation(modifier, ids["Operation"])
         self.self_intersection = get_modifier_input(modifier, ids["Self Intersection"])
         self.hole_tolerant = get_modifier_input(modifier, ids["Hole Tolerant"])
 
@@ -664,7 +693,7 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         m = self.modifier
         ids = self._input_ids(m.node_group)
         set_modifier_input(m, ids["Cutter"], self._cutter)
-        set_modifier_input(m, ids["Operation"], self.operation)
+        set_boolean_operation(m, ids["Operation"], self.operation)
         set_modifier_input(m, ids["Self Intersection"], self.self_intersection)
         set_modifier_input(m, ids["Hole Tolerant"], self.hole_tolerant)
         return True

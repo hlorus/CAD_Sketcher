@@ -8,7 +8,11 @@ Curves object whose modifier produces a solid).
 
 import bpy
 
-from ..operators.modifiers import View3D_OT_node_boolean, set_modifier_input
+from ..operators.modifiers import (
+    View3D_OT_node_boolean,
+    set_boolean_operation,
+    set_modifier_input,
+)
 from ..utilities.boolean_nodes import (
     BOOLEAN_NODE_GROUP,
     BOOLEAN_VERSION,
@@ -60,9 +64,9 @@ class TestBooleanNodeGroup(BgsTestCase):
             modifier = target.modifiers.new("CAD_Sketcher Boolean", "NODES")
             modifier.node_group = group
             ids = self._input_ids(group)
-            inputs = modifier.properties.inputs
-            getattr(inputs, ids["Cutter"]).value = cutter
-            getattr(inputs, ids["Operation"]).value = operation
+            # Version-aware setters (menu socket differs on 5.0 vs 5.2).
+            set_modifier_input(modifier, ids["Cutter"], cutter)
+            set_boolean_operation(modifier, ids["Operation"], operation)
             depsgraph = self.context.evaluated_depsgraph_get()
             mesh = target.evaluated_get(depsgraph).to_mesh()
             if mesh is None or len(mesh.vertices) == 0:
@@ -157,7 +161,7 @@ class TestBooleanNodeGroup(BgsTestCase):
             modifier = body.modifiers.new("CAD_Sketcher Boolean", "NODES")
             modifier.node_group = group
             set_modifier_input(modifier, ids["Cutter"], cutter)
-            set_modifier_input(modifier, ids["Operation"], "Difference")
+            set_boolean_operation(modifier, ids["Operation"], "Difference")
             set_modifier_input(modifier, ids["Self Intersection"], True)
             set_modifier_input(modifier, ids["Hole Tolerant"], False)
             depsgraph = self.context.evaluated_depsgraph_get()
