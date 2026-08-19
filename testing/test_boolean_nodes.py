@@ -240,14 +240,33 @@ class TestBooleanNodeGroup(BgsTestCase):
             bpy.data.objects.remove(body, do_unlink=True)
             bpy.data.objects.remove(empty, do_unlink=True)
 
-    def _boolean(self, body, cutter):
+    def _boolean(self, body, cutter, expect="FINISHED"):
         result = bpy.ops.view3d.slvs_node_boolean(
             "EXEC_DEFAULT",
             target_name=body.name,
             cutter_name=cutter.name,
             operation="Difference",
         )
-        self.assertEqual(result, {"FINISHED"})
+        self.assertEqual(result, {expect})
+
+    def test_mutual_cycle_is_rejected(self):
+        # A cut by B is fine; then B cut by A would close a dependency cycle
+        # (A reads B, B reads A) and crash Blender. The second must be refused.
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        a = self.context.active_object
+        a.name = "cycle_a"
+        bpy.ops.mesh.primitive_cube_add(size=1.5, location=(1, 0, 0))
+        b = self.context.active_object
+        b.name = "cycle_b"
+        try:
+            self._boolean(a, b)  # A reads B -- ok
+            self._boolean(b, a, expect="CANCELLED")  # B reads A -- would cycle
+            self.assertFalse(
+                any(m.name.startswith("CAD_Sketcher Boolean") for m in b.modifiers)
+            )
+        finally:
+            bpy.data.objects.remove(a, do_unlink=True)
+            bpy.data.objects.remove(b, do_unlink=True)
 
     def test_multiple_cutters_stack_on_one_body(self):
         # Two different cutters must produce two boolean modifiers that both

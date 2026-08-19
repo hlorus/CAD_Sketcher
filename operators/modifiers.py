@@ -682,19 +682,22 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         if cutter is None:
             self.report({"WARNING"}, "Pick a cutter object to boolean with")
             return False
-        # The cutter is read through an Object Info node on a modifier that lives
-        # on the body. If the cutter is the body itself, that node reads the
-        # object it is attached to -- a depsgraph dependency cycle that crashes
-        # Blender. Reject it before the modifier is created.
-        if cutter == self.resolved_object():
-            self.report(
-                {"WARNING"}, "The cutter must be a different object than the body"
-            )
-            return False
         # A non-geometry cutter (empty, light, camera) yields no mesh, so the
         # boolean would silently do nothing. Reject it with a clear message.
         if not self.is_valid_target(cutter):
             self.report({"WARNING"}, "The cutter must be a mesh or sketch object")
+            return False
+        # Adding this boolean makes the body read the cutter's geometry (body
+        # depends on cutter). If the cutter already depends on the body through
+        # other CAD Sketcher booleans -- including the cutter being the body
+        # itself -- that closes a depsgraph dependency cycle, which crashes
+        # Blender. Refuse before creating the modifier.
+        body = self.resolved_object()
+        if self._creates_cycle(body, cutter):
+            self.report(
+                {"WARNING"},
+                "That cutter depends on the body; it would create a dependency cycle",
+            )
             return False
         self.cutter_name = cutter.name
         self._cutter = cutter
@@ -709,6 +712,41 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
             for s in node_group.interface.items_tree
             if getattr(s, "in_out", "") == "INPUT"
         }
+
+    @classmethod
+    def _boolean_cutters(cls, obj):
+        """Objects ``obj`` reads as cutters through its CAD Sketcher booleans."""
+        from ..utilities.boolean_nodes import BOOLEAN_NODE_GROUP
+
+        cutters = []
+        for m in obj.modifiers:
+            group = getattr(m, "node_group", None)
+            if m.type != "NODES" or group is None or group.name != BOOLEAN_NODE_GROUP:
+                continue
+            ids = cls._input_ids(group)
+            cutter = get_modifier_input(m, ids["Cutter"])
+            if cutter is not None:
+                cutters.append(cutter)
+        return cutters
+
+    @classmethod
+    def _creates_cycle(cls, body, cutter):
+        """Whether making ``body`` read ``cutter`` closes a boolean dependency
+        cycle, i.e. ``cutter`` already depends (transitively) on ``body``.
+
+        Also true when ``cutter is body`` (a self-reference is a length-0 cycle).
+        """
+        stack = [cutter]
+        seen = set()
+        while stack:
+            obj = stack.pop()
+            if obj == body:
+                return True
+            if obj in seen:
+                continue
+            seen.add(obj)
+            stack.extend(cls._boolean_cutters(obj))
+        return False
 
     def set_props(self):
         m = self.modifier
