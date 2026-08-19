@@ -65,6 +65,8 @@ class TestBooleanNodeGroup(BgsTestCase):
         group = build_boolean_node_group()
         self.assertEqual(group.name, BOOLEAN_NODE_GROUP)
         self.assertEqual(group.get("cad_boolean_version"), BOOLEAN_VERSION)
+        # Flagged so it appears in the Add Modifier > Geometry Nodes picker.
+        self.assertTrue(group.is_modifier)
         # Idempotent: a second call returns the same up-to-date group.
         self.assertIs(build_boolean_node_group(), group)
 

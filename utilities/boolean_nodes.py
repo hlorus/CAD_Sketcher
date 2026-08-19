@@ -56,14 +56,20 @@ def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
     without rebinding. Returns the node group.
     """
     ng = bpy.data.node_groups.get(name)
-    if ng is not None:
-        if ng.get("cad_boolean_version") == BOOLEAN_VERSION:
-            return ng
-        ng.nodes.clear()
-        ng.links.clear()
-        ng.interface.clear()
-    else:
+    if ng is None:
         ng = bpy.data.node_groups.new(name, "GeometryNodeTree")
+
+    # Offer it in the Add Modifier > Geometry Nodes picker. A group created via
+    # the API has this off by default, so it would otherwise only be selectable
+    # from the node editor (assigning it to a modifier from code still works,
+    # which is why it can be used without this flag).
+    ng.is_modifier = True
+
+    if ng.get("cad_boolean_version") == BOOLEAN_VERSION:
+        return ng
+    ng.nodes.clear()
+    ng.links.clear()
+    ng.interface.clear()
 
     iface = ng.interface
     iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
