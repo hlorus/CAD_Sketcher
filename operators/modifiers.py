@@ -77,11 +77,6 @@ class NodeOperator(Operator3d):
     # Message shown when the resolved target fails is_valid_target().
     invalid_target_msg = "Invalid target object"
 
-    # One-off tools return to Blender's select tool once the modifier is added,
-    # so the node tool doesn't linger (matches Add Sketch). Opt-in per tool; off
-    # for operators invoked without their own workspacetool.
-    return_to_select_tool = False
-
     # Persisted target so the redo panel (which re-runs execute() on a fresh
     # instance, losing the transient pointer state) can re-resolve the object
     # and edit the existing modifier instead of failing. Not SKIP_SAVE: it must
@@ -140,14 +135,6 @@ class NodeOperator(Operator3d):
         the defaults. Override to pull the relevant sockets; base is a no-op.
         """
         pass
-
-    def fini(self, context, succeed):
-        # Return to Blender's select tool after a one-off action, so the node
-        # tool doesn't stay active. Only on success -- a cancel or missed target
-        # keeps the tool so the user can select a target and retry (this is why
-        # the switch lives here and not on cancel, matching Add Sketch).
-        if succeed and self.return_to_select_tool:
-            bpy.ops.wm.tool_set_by_id(name=BLENDER_SELECT_TOOL)
 
     def invoke(self, context, event):
         # Follow the stateful prefill-from-selection flow: if nothing valid is
@@ -245,7 +232,7 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
 
     resources = (("node_groups", "CAD Sketcher Extrude"),)
     NODEGROUP_NAME = "CAD Sketcher Extrude"
-    return_to_select_tool = True
+    return_to_tool = BLENDER_SELECT_TOOL
 
     invalid_target_msg = "Select a sketch or curve to extrude (2D profile)"
 
@@ -302,7 +289,7 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
 
     NODEGROUP_NAME = "CAD Sketcher Linear Array"
     resources = (("node_groups", "CAD Sketcher Linear Array"),)
-    return_to_select_tool = True
+    return_to_tool = BLENDER_SELECT_TOOL
 
     # Array offset in the object's local space (direction * spacing), captured
     # by a single interactive drag; direction and distance derive from it.
@@ -413,7 +400,7 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
 
     NODEGROUP_NAME = "CAD Sketcher Revolve"
     resources = (("node_groups", "CAD Sketcher Revolve"),)
-    return_to_select_tool = True
+    return_to_tool = BLENDER_SELECT_TOOL
 
     invalid_target_msg = "Select a sketch, curve or mesh profile to revolve"
 
