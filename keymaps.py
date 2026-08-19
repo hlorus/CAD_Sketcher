@@ -181,6 +181,22 @@ tool_access = (
     *constraint_access,
 )
 
+# Native free-3D sketches use their own P/L tool bindings. Reusing
+# ``tool_access`` here would route P/L through the 2D workspace tools, which are
+# not registered while a 3D sketch is active.
+tool_access_3d = (
+    tool_invoke_kmi(
+        "P",
+        WorkSpaceTools.AddPoint3D,
+        Operators.AddPoint3D,
+    ),
+    tool_invoke_kmi(
+        "L",
+        WorkSpaceTools.AddLine3D,
+        Operators.AddLine3D,
+    ),
+)
+
 node_access = (
     tool_invoke_kmi(
         "E",
@@ -287,6 +303,13 @@ tool_generic = (
     use_construction,
     *tool_use_select,
     *tool_access,
+)
+
+tool_generic_3d = (
+    *tool_base_keymap,
+    use_construction,
+    *tool_use_select,
+    *tool_access_3d,
 )
 
 tool_node = (
