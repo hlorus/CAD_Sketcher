@@ -167,7 +167,8 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertEqual(modifier.node_group.name, "CAD Sketcher Convert")
         self.assertFalse(
             any(
-                node.bl_idname in {"GeometryNodeSampleNearest", "GeometryNodeSampleIndex"}
+                node.bl_idname
+                in {"GeometryNodeSampleNearest", "GeometryNodeSampleIndex"}
                 for node in modifier.node_group.nodes
             )
         )
@@ -202,7 +203,8 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertEqual(group.name, "CAD Sketcher Convert")
         self.assertFalse(
             any(
-                node.bl_idname in {"GeometryNodeSampleNearest", "GeometryNodeSampleIndex"}
+                node.bl_idname
+                in {"GeometryNodeSampleNearest", "GeometryNodeSampleIndex"}
                 for node in group.nodes
             )
         )
