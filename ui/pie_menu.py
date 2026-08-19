@@ -237,6 +237,12 @@ class VIEW3D_MT_slvs_more_menu(Menu):
             WorkSpaceTools.ArrayLinear,
             Operators.NodeArrayLinear,
         )
+        _invoke_tool(
+            layout,
+            "Boolean",
+            WorkSpaceTools.Boolean,
+            Operators.NodeBoolean,
+        )
 
 
 classes = (

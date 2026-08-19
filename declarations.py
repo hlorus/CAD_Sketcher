@@ -69,6 +69,7 @@ class Operators(str, Enum):
     NodeExtrude = "view3d.slvs_node_extrude"
     NodeArrayLinear = "view3d.slvs_node_array_linear"
     NodeRevolve = "view3d.slvs_node_revolve"
+    NodeBoolean = "view3d.slvs_node_boolean"
     ProjectGeometry = "view3d.slvs_project_geometry"
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
     RenameCurve = "view3d.slvs_rename_curve"
@@ -129,6 +130,7 @@ class WorkSpaceTools(str, Enum):
     Extrude = "sketcher.slvs_node_extrude"
     ArrayLinear = "sketcher.slvs_node_array_linear"
     Revolve = "sketcher.slvs_node_revolve"
+    Boolean = "sketcher.slvs_node_boolean"
 
 
 ConstraintOperators = (

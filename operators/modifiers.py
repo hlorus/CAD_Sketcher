@@ -8,7 +8,7 @@ from bpy.props import (
     IntProperty,
     StringProperty,
 )
-from bpy.types import Context, MeshEdge, Object, Operator
+from bpy.types import Context, Event, MeshEdge, Object, Operator
 from mathutils import Vector
 from mathutils.geometry import intersect_line_line, intersect_line_plane
 
@@ -550,6 +550,117 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
         layout.prop(self, "angular_resolution")
 
 
+class View3D_OT_node_boolean(Operator, NodeOperator):
+    """Nondestructively boolean the active object with a cutter object"""
+
+    bl_idname = Operators.NodeBoolean
+    bl_label = "Boolean"
+
+    NODEGROUP_NAME = "CAD Sketcher Boolean"
+    # Built programmatically (not shipped as an asset); see init().
+    resources = ()
+
+    invalid_target_msg = "Select a body (mesh or sketch) and a cutter object"
+
+    # Only the body is a pointer state (it receives the modifier); the cutter is
+    # taken from the rest of the selection in main().
+    states = BASE_STATES
+
+    operation: bpy.props.EnumProperty(
+        name="Operation",
+        items=(
+            ("Difference", "Difference", "Subtract the cutter from the body"),
+            ("Union", "Union", "Merge the cutter into the body"),
+            ("Intersect", "Intersect", "Keep only the overlap"),
+        ),
+        default="Difference",
+    )
+    self_intersection: BoolProperty(name="Self Intersection", default=True)
+    hole_tolerant: BoolProperty(name="Hole Tolerant", default=False)
+
+    # The cutter is resolved from the (non-active) selection, then persisted so
+    # the redo panel can re-apply and edit it without a live pointer state.
+    cutter_name: StringProperty(name="Cutter")
+
+    # The body receives the modifier; the cutter is a second selected object, so
+    # both a mesh and a sketch (Curves) are valid bodies.
+    def is_valid_target(self, obj):
+        return obj is not None and obj.type in {"MESH", "CURVE", "CURVES"}
+
+    def get_point(self, context, index):
+        # No entity states beyond the base object pointer.
+        return None
+
+    def init(self, context: Context, event: Event):
+        # Build the boolean node group in place of loading an asset.
+        from ..utilities.boolean_nodes import build_boolean_node_group
+
+        build_boolean_node_group()
+        bpy.ops.ed.undo_push(message="Add Boolean")
+        return True
+
+    def _resolve_cutter(self, context: Context):
+        """The cutter object: the persisted name (redo) else a selected object
+        that is not the body."""
+        if self.cutter_name:
+            cutter = bpy.data.objects.get(self.cutter_name)
+            if cutter is not None:
+                return cutter
+        body = self.resolved_object()
+        for obj in context.selected_objects:
+            if obj != body:
+                return obj
+        return None
+
+    def read_props(self, modifier):
+        ids = self._input_ids(modifier.node_group)
+        self.operation = get_modifier_input(modifier, ids["Operation"])
+        self.self_intersection = get_modifier_input(modifier, ids["Self Intersection"])
+        self.hole_tolerant = get_modifier_input(modifier, ids["Hole Tolerant"])
+
+    def main(self, context: Context):
+        from ..utilities.boolean_nodes import build_boolean_node_group
+
+        build_boolean_node_group()  # ensure it exists on the redo path too
+
+        cutter = self._resolve_cutter(context)
+        if cutter is None:
+            self.report({"WARNING"}, "Select a body and a cutter object")
+            return False
+        self.cutter_name = cutter.name
+        self._cutter = cutter
+        return super().main(context)
+
+    @staticmethod
+    def _input_ids(node_group):
+        return {
+            s.name: s.identifier
+            for s in node_group.interface.items_tree
+            if getattr(s, "in_out", "") == "INPUT"
+        }
+
+    def set_props(self):
+        m = self.modifier
+        ids = self._input_ids(m.node_group)
+        set_modifier_input(m, ids["Cutter"], self._cutter)
+        set_modifier_input(m, ids["Operation"], self.operation)
+        set_modifier_input(m, ids["Self Intersection"], self.self_intersection)
+        set_modifier_input(m, ids["Hole Tolerant"], self.hole_tolerant)
+        return True
+
+    def draw_settings(self, context):
+        layout = self.layout
+        layout.prop_search(self, "cutter_name", bpy.data, "objects", text="Cutter")
+        layout.prop(self, "operation")
+        layout.prop(self, "self_intersection")
+        layout.prop(self, "hole_tolerant")
+
+
 register, unregister = register_stateops_factory(
-    (View3D_OT_node_extrude, View3D_OT_node_array_linear, View3D_OT_node_revolve)
+    (
+        View3D_OT_node_extrude,
+        View3D_OT_node_array_linear,
+        View3D_OT_node_revolve,
+        View3D_OT_node_boolean,
+    )
 )

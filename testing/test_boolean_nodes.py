@@ -8,6 +8,7 @@ Curves object whose modifier produces a solid).
 
 import bpy
 
+from ..operators.modifiers import View3D_OT_node_boolean, set_modifier_input
 from ..utilities.boolean_nodes import (
     BOOLEAN_NODE_GROUP,
     BOOLEAN_VERSION,
@@ -118,3 +119,49 @@ class TestBooleanNodeGroup(BgsTestCase):
         self.assertEqual(polys, 6)
         self._assert_vec(lo, (-1.0, -1.0, -1.0))
         self._assert_vec(hi, (1.0, 1.0, 1.0))
+
+    # -- operator ---------------------------------------------------------
+
+    def test_operator_registered(self):
+        self.assertTrue(hasattr(bpy.ops.view3d, "slvs_node_boolean"))
+
+    def test_is_valid_target_gate(self):
+        op = View3D_OT_node_boolean
+        curves = self._solid_cutter()  # CURVES object
+        bpy.ops.mesh.primitive_cube_add(size=1.0)
+        mesh = self.context.active_object
+        empty = self.data.objects.new("empty", None)
+        self.scene.collection.objects.link(empty)
+        try:
+            self.assertTrue(op.is_valid_target(None, mesh))
+            self.assertTrue(op.is_valid_target(None, curves))
+            self.assertFalse(op.is_valid_target(None, empty))
+            self.assertFalse(op.is_valid_target(None, None))
+        finally:
+            bpy.data.objects.remove(mesh, do_unlink=True)
+            bpy.data.objects.remove(empty, do_unlink=True)
+
+    def test_operator_socket_contract_and_wiring(self):
+        # The names the operator's set_props writes must exist on the group, and
+        # driving them the way it does must produce a real cut. Guards against the
+        # operator and the group drifting apart.
+        group = build_boolean_node_group()
+        ids = View3D_OT_node_boolean._input_ids(group)
+        for name in ("Cutter", "Operation", "Self Intersection", "Hole Tolerant"):
+            self.assertIn(name, ids)
+
+        cutter = self._solid_cutter()
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        try:
+            modifier = body.modifiers.new("CAD_Sketcher Boolean", "NODES")
+            modifier.node_group = group
+            set_modifier_input(modifier, ids["Cutter"], cutter)
+            set_modifier_input(modifier, ids["Operation"], "Difference")
+            set_modifier_input(modifier, ids["Self Intersection"], True)
+            set_modifier_input(modifier, ids["Hole Tolerant"], False)
+            depsgraph = self.context.evaluated_depsgraph_get()
+            mesh = body.evaluated_get(depsgraph).to_mesh()
+            self.assertGreater(len(mesh.polygons), 6, "operator wiring must cut")
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
