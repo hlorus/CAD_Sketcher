@@ -6,7 +6,7 @@ prepended to that version's GitHub release notes, and it is shown in the in-app
 `## X.Y.Z` section (matching the manifest version) with a short summary — CI
 rejects a stable release that has no matching entry.
 
-## 0.3.0
+## 0.30.0
 The data model of the extension has been fundamentally reworked for a closer integration
 into Blender, better stability and performance.
 
