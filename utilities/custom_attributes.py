@@ -1,12 +1,15 @@
 """User-defined attributes backed by native Curves data.
 
 Definitions live on the sketch Curves datablock and POINT/CURVE values live in
-native Blender attributes. Geometry Nodes carries those named attributes through
-the normal wire conversion path generically, so attribute definitions do not
-create or rebind conversion-node variants.
+native Blender attributes. Blender carries those attributes through the normal
+wire conversion path generically. The single shared conversion group only adds
+small domain-aware bridges where topology changes would otherwise lose them;
+attribute definitions never create per-schema node-group variants.
 """
 
 import json
+
+import bpy
 
 from .curve_data import get_curve_index
 
@@ -63,6 +66,36 @@ def _write_defs(curve_data, definitions):
     curve_data[DEFINITIONS_PROP] = json.dumps(definitions, separators=(",", ":"))
 
 
+def _shared_conversion_definitions():
+    """Union of non-object definitions used by the one shared GN converter."""
+    definitions_by_key = {}
+    for curve_data in bpy.data.hair_curves:
+        for entry in _read_defs(curve_data):
+            domain = str(entry.get("domain", "")).upper()
+            data_type = str(entry.get("type", "")).upper()
+            name = str(entry.get("name", "")).strip()
+            if domain not in {"POINT", "CURVE"} or data_type not in SUPPORTED_TYPES:
+                continue
+            key = (name, data_type, domain)
+            definitions_by_key[key] = {
+                "name": name,
+                "type": data_type,
+                "domain": domain,
+            }
+    return [definitions_by_key[key] for key in sorted(definitions_by_key)]
+
+
+def _sync_shared_conversion_group():
+    """Rebuild the existing shared converter in place when definitions change."""
+    if bpy.app.version < (5, 2, 0):
+        return
+    from .convert_nodes import build_convert_node_group
+
+    build_convert_node_group(
+        attribute_definitions=_shared_conversion_definitions()
+    )
+
+
 def _read_object_names(obj):
     """Names of OBJECT-domain properties that must survive data replacement."""
     raw = obj.get(OBJECT_NAMES_PROP, "[]") if obj else "[]"
@@ -84,14 +117,7 @@ def _write_object_names(obj, names):
 
 
 def sync_object_attribute_values(obj):
-    """Mirror persistent OBJECT values onto the object's current data-block.
-
-    Blender's destructive ``Object > Convert`` keeps object ID-properties but
-    replaces the Curves datablock with a new Mesh. Blender 5.2 no longer carries
-    datablock custom properties across that replacement. Keeping a tiny manifest
-    on the object lets the depsgraph handler restore only CAD Sketcher-defined
-    OBJECT properties on the new data without copying unrelated ID-properties.
-    """
+    """Mirror persistent OBJECT values onto the object's current data-block."""
     if obj is None or getattr(obj, "data", None) is None:
         return False
 
@@ -164,6 +190,7 @@ def define_attribute(sketch, name, data_type="FLOAT", domain="CURVE", default=0.
     for item in attr.data:
         item.value = value
     curve_data.update_tag()
+    _sync_shared_conversion_group()
     return entry
 
 
@@ -193,6 +220,7 @@ def remove_attribute(sketch, name):
         if attr is not None:
             curve_data.attributes.remove(attr)
         curve_data.update_tag()
+        _sync_shared_conversion_group()
     return True
 
 
