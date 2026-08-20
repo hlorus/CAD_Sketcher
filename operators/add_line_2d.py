@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class View3D_OT_slvs_add_line2d(Operator, Operator2d):
     """Add a line to the active sketch"""
-    
+
     bl_idname = Operators.AddLine2D
     bl_label = "Add Solvespace 2D Line"
     bl_options = {"REGISTER", "UNDO"}
@@ -44,6 +44,16 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
             interactive=True,
         ),
     )
+
+    @classmethod
+    def poll(cls, context: Context):
+        """Never let a stale 2D hotkey/operator path create XY geometry in 3D."""
+        obj = context.scene.sketcher.active_sketch_object
+        if obj is None:
+            return False
+        from ..model.sketch_ref import Sketch
+
+        return not Sketch(obj).is_3d
 
     def main(self, context: Context):
         p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
