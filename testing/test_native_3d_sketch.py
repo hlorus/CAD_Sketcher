@@ -35,6 +35,23 @@ class TestNative3DSketch(BgsTestCase):
         self.assertEqual(tuple(obj.lock_rotation), (True, True, True))
         self.assertEqual(tuple(obj.lock_scale), (True, True, True))
 
+    def test_3d_sketch_disables_planar_fill_by_default(self):
+        from ..operators.modifiers import get_modifier_input
+
+        obj = self.sketch.target_object
+        modifier = obj.modifiers.get("CAD Sketcher Convert")
+        self.assertIsNotNone(modifier)
+        self.assertIsNotNone(modifier.node_group)
+
+        fill_socket = next(
+            item
+            for item in modifier.node_group.interface.items_tree
+            if getattr(item, "item_type", "") == "SOCKET"
+            and getattr(item, "in_out", "") == "INPUT"
+            and item.name == "Fill"
+        )
+        self.assertFalse(get_modifier_input(modifier, fill_socket.identifier))
+
     def test_axis_and_plane_lock_geometry(self):
         from ..operators.base_sketch_3d import resolve_locked_position
 
