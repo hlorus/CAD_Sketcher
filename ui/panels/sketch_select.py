@@ -35,9 +35,10 @@ def sketch_selector(
     active_sketch = get_active_sketch(context)
 
     if not active_sketch:
-        # Switch to the Add Sketch tool (which shows the workplane gizmo) and
-        # invoke the operator; a pre-selected workplane empty creates the sketch
-        # immediately, otherwise the user picks one interactively.
+        # Keep both creation modes explicit in the sidebar. The workspace tools
+        # remain grouped in the toolbar, but relying on that fly-out alone makes
+        # the native 3D entry point effectively undiscoverable from the panel
+        # and operator search on some Blender versions.
         props = row.operator(
             StatefulOps.InvokeTool.value,
             text="Add Sketch",
@@ -45,6 +46,14 @@ def sketch_selector(
         )
         props.tool_name = declarations.WorkSpaceTools.AddSketch.value
         props.operator = declarations.Operators.AddSketch.value
+
+        props_3d = row.operator(
+            StatefulOps.InvokeTool.value,
+            text="Add 3D Sketch",
+            icon="ADD",
+        )
+        props_3d.tool_name = declarations.WorkSpaceTools.AddSketch3D.value
+        props_3d.operator = declarations.Operators.AddSketch3D.value
 
     else:
         row.operator(
