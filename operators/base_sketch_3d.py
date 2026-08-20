@@ -89,6 +89,20 @@ def resolve_locked_position(
     return _project_to_axis(point, anchor, axis_lock)
 
 
+def restore_native_3d_segments(sketch):
+    """Restore XYZ segment geometry from native 3D endpoint curves.
+
+    The 3D draw tools intentionally reuse the mature 2D stateful framework. A
+    late generic rebuild in that framework can still touch segment geometry and
+    project it to XY even though the native endpoint curves retain their XYZ
+    coordinates. Re-sync after stateful finalization so the committed segment is
+    always derived from the authoritative 3D point curves.
+    """
+    if sketch is None or not native_3d.is_3d_sketch(sketch):
+        return
+    native_3d.rebuild_3d_lines(sketch)
+
+
 class OperatorSketch3d(base_2d.Operator2d):
     """Stateful native-3D placement while reusing the 2D operator framework."""
 
@@ -106,6 +120,15 @@ class OperatorSketch3d(base_2d.Operator2d):
     def set_state(self, context, index):
         self._plane_lock = None
         return super().set_state(context, index)
+
+    def _end(self, context, succeede, *args, **kwargs):
+        # Let the shared stateful framework complete first. Any legacy 2D segment
+        # rebuild it performs during teardown has then already happened, so the
+        # final operation here can safely restore the authoritative endpoint XYZ.
+        result = super()._end(context, succeede, *args, **kwargs)
+        if succeede:
+            restore_native_3d_segments(self.sketch)
+        return result
 
     def modal(self, context, event):
         # Shift+X/Y/Z locks to YZ/XZ/XY respectively. Plain X/Y/Z is handled by
