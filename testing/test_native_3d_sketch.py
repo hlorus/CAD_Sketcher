@@ -108,6 +108,46 @@ class TestNative3DSketch(BgsTestCase):
         self.assertGreater(abs(positions[0].z), 1e-6)
         self.assertGreater(abs(positions[1].z), 1e-6)
 
+    def test_late_xy_flatten_is_restored_from_native_3d_endpoints(self):
+        from ..model.native_3d import create_line_3d, create_point_3d
+        from ..operators.base_sketch_3d import restore_native_3d_segments
+        from ..utilities.curve_data import get_curve_data
+
+        p1 = create_point_3d(self.sketch, (1.0, 2.0, 3.0), fixed=True)
+        p2 = create_point_3d(self.sketch, (4.0, 6.0, 8.0), fixed=True)
+        line = create_line_3d(self.sketch, p1, p2)
+
+        curve_data, _curve_idx, curve_slice = get_curve_data(self.sketch, line.curve_id)
+        self.assertIsNotNone(curve_data)
+
+        # Reproduce the real regression: a late legacy 2D path rewrites only the
+        # segment geometry to XY while the authoritative endpoint curves stay 3D.
+        for point, source in zip(curve_slice.points, (p1, p2)):
+            source_local = source._first_point_3d()
+            curve_data.points[point.index].position = (
+                source_local.x,
+                source_local.y,
+                0.0,
+            )
+
+        flattened = [
+            Vector(curve_data.points[point.index].position).to_3d()
+            for point in curve_slice.points
+        ]
+        self.assertEqual(flattened[0].z, 0.0)
+        self.assertEqual(flattened[1].z, 0.0)
+        self.assertAlmostEqual(p1.location.z, 3.0)
+        self.assertAlmostEqual(p2.location.z, 8.0)
+
+        restore_native_3d_segments(self.sketch)
+
+        restored = [
+            Vector(curve_data.points[point.index].position).to_3d()
+            for point in curve_slice.points
+        ]
+        self.assertLess((restored[0] - Vector((1.0, 2.0, 3.0))).length, 1e-6)
+        self.assertLess((restored[1] - Vector((4.0, 6.0, 8.0))).length, 1e-6)
+
     def test_origin_transform_moves_rendered_3d_geometry(self):
         from ..drawing import render_data
         from ..model.native_3d import create_line_3d, create_point_3d
