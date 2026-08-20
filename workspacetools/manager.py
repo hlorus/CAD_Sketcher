@@ -28,12 +28,39 @@ def add(tool_cls, visibility=ToolGroup.SKETCH_2D, **kwargs):
     _registry.append((tool_cls, kwargs, visibility))
 
 
+def _select_keymap_for_group(group):
+    """Return the Select-tool keymap matching the active sketch family.
+
+    The Select workspace tool is intentionally shared by 2D and 3D sketch
+    groups. Its class-level ``bl_keymap`` therefore has to be rebound immediately
+    before registration; otherwise the 3D group inherits the 2D P/L InvokeTool
+    entries and a hotkey can invoke AddLine2D/AddPoint2D without activating the
+    matching 3D workspace tool.
+    """
+    from ..keymaps import tool_access, tool_access_3d, tool_base_keymap, tool_select
+
+    # ``tool_select`` is base + 2D access + selection/picking actions. Reuse the
+    # common selection tail and swap only the sketch-family tool access entries.
+    common = tool_select[len(tool_base_keymap) + len(tool_access) :]
+    access = tool_access_3d if group == ToolGroup.SKETCH_3D else tool_access
+    return (*tool_base_keymap, *access, *common)
+
+
+def _prepare_tool_class(tool_cls, group):
+    """Apply group-specific class data before Blender registers a tool."""
+    from ..declarations import WorkSpaceTools
+
+    if tool_cls.bl_idname == WorkSpaceTools.Select:
+        tool_cls.bl_keymap = _select_keymap_for_group(group)
+
+
 def _register_tools(groups):
     for tool_cls, kwargs, group in _registry:
         if group not in groups:
             continue
         if tool_cls.bl_idname in _registered:
             continue
+        _prepare_tool_class(tool_cls, group)
         register_tool(tool_cls, **kwargs)
         _registered.add(tool_cls.bl_idname)
 
