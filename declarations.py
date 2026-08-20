@@ -127,6 +127,7 @@ class WorkSpaceTools(str, Enum):
     Trim = "sketcher.slvs_trim"
     Bevel = "sketcher.slvs_bevel"
     AddSketch = "sketcher.slvs_add_sketch"
+    ProjectElement = "sketcher.slvs_project_element"
     Extrude = "sketcher.slvs_node_extrude"
     ArrayLinear = "sketcher.slvs_node_array_linear"
     Revolve = "sketcher.slvs_node_revolve"
