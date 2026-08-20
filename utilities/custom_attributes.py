@@ -1,10 +1,13 @@
-"""User-defined attributes backed by native Curves data.
+"""User-defined attributes backed directly by native Curves data.
 
-Definitions live on the sketch Curves datablock and POINT/CURVE values live in
-native Blender attributes. Blender carries those attributes through the normal
-wire conversion path generically. The single shared conversion group only adds
-small domain-aware bridges where topology changes would otherwise lose them;
-attribute definitions never create per-schema node-group variants.
+Attribute definitions (name/type/domain/default) live on the sketch Curves
+datablock for UI/default metadata. Values themselves live only in native Blender
+POINT/CURVE attributes, which are the single source of truth consumed by the
+shared conversion path.
+
+OBJECT-domain attributes are intentionally deferred: keeping a mirrored copy on
+the Object plus a depsgraph synchronization handler made the implementation much
+heavier than the conversion problem requires.
 """
 
 import json
@@ -14,10 +17,9 @@ import bpy
 from .curve_data import get_curve_index
 
 DEFINITIONS_PROP = "cad_custom_attribute_definitions"
-OBJECT_NAMES_PROP = "cad_custom_object_attribute_names"
 
 SUPPORTED_TYPES = {"BOOLEAN", "INT", "FLOAT"}
-SUPPORTED_DOMAINS = {"POINT", "CURVE", "OBJECT"}
+SUPPORTED_DOMAINS = {"POINT", "CURVE"}
 
 _RESERVED_NAMES = {
     "position",
@@ -67,14 +69,19 @@ def _write_defs(curve_data, definitions):
 
 
 def _shared_conversion_definitions():
-    """Union of non-object definitions used by the one shared GN converter."""
+    """Return the union required by the one shared conversion node group.
+
+    Definitions remain per-sketch; the converter only needs the minimal
+    name/type/domain triples for attributes that cross lossy topology steps.
+    Values are never copied or mirrored here.
+    """
     definitions_by_key = {}
     for curve_data in bpy.data.hair_curves:
         for entry in _read_defs(curve_data):
             domain = str(entry.get("domain", "")).upper()
             data_type = str(entry.get("type", "")).upper()
             name = str(entry.get("name", "")).strip()
-            if domain not in {"POINT", "CURVE"} or data_type not in SUPPORTED_TYPES:
+            if domain not in SUPPORTED_DOMAINS or data_type not in SUPPORTED_TYPES:
                 continue
             key = (name, data_type, domain)
             definitions_by_key[key] = {
@@ -86,59 +93,12 @@ def _shared_conversion_definitions():
 
 
 def _sync_shared_conversion_group():
-    """Rebuild the existing shared converter in place when definitions change."""
+    """Refresh only the small attribute bridge in the shared 5.2+ converter."""
     if bpy.app.version < (5, 2, 0):
         return
     from .convert_nodes import build_convert_node_group
 
     build_convert_node_group(attribute_definitions=_shared_conversion_definitions())
-
-
-def _read_object_names(obj):
-    """Names of OBJECT-domain properties that must survive data replacement."""
-    raw = obj.get(OBJECT_NAMES_PROP, "[]") if obj else "[]"
-    if isinstance(raw, bytes):
-        raw = raw.decode()
-    try:
-        names = json.loads(raw)
-    except (TypeError, ValueError):
-        names = []
-    return [name for name in names if isinstance(name, str) and name]
-
-
-def _write_object_names(obj, names):
-    names = sorted(set(names))
-    if names:
-        obj[OBJECT_NAMES_PROP] = json.dumps(names, separators=(",", ":"))
-    elif OBJECT_NAMES_PROP in obj:
-        del obj[OBJECT_NAMES_PROP]
-
-
-def sync_object_attribute_values(obj):
-    """Mirror persistent OBJECT values onto the object's current data-block."""
-    if obj is None or getattr(obj, "data", None) is None:
-        return False
-
-    changed = False
-    for name in _read_object_names(obj):
-        if name not in obj:
-            continue
-        value = obj[name]
-        if obj.data.get(name) != value:
-            obj.data[name] = value
-            changed = True
-    return changed
-
-
-def _write_object_value(sketch, name, value):
-    """Mirror an OBJECT-domain value to the sketch object and its data-block."""
-    obj = sketch.target_object
-    obj[name] = value
-    sketch.data[name] = value
-    names = _read_object_names(obj)
-    if name not in names:
-        names.append(name)
-        _write_object_names(obj, names)
 
 
 def definitions(sketch):
@@ -152,9 +112,10 @@ def definition(sketch, name):
 
 
 def define_attribute(sketch, name, data_type="FLOAT", domain="CURVE", default=0.0):
-    """Define a persistent user attribute on a native sketch."""
+    """Define a persistent POINT/CURVE attribute on native sketch geometry."""
     if not sketch or not sketch.data:
         raise ValueError("A native sketch is required")
+
     name = str(name).strip()
     if not name:
         raise ValueError("Attribute name cannot be empty")
@@ -166,7 +127,10 @@ def define_attribute(sketch, name, data_type="FLOAT", domain="CURVE", default=0.
     if data_type not in SUPPORTED_TYPES:
         raise ValueError(f"Unsupported attribute type: {data_type}")
     if domain not in SUPPORTED_DOMAINS:
-        raise ValueError(f"Unsupported attribute domain: {domain}")
+        raise ValueError(
+            f"Unsupported attribute domain: {domain}. "
+            "OBJECT-domain attributes are deferred."
+        )
 
     curve_data = sketch.data
     defs = _read_defs(curve_data)
@@ -176,17 +140,14 @@ def define_attribute(sketch, name, data_type="FLOAT", domain="CURVE", default=0.
         raise ValueError(f"Attribute '{name}' already exists on the Curves data")
 
     value = _cast(data_type, default)
+    attr = curve_data.attributes.new(name, type=data_type, domain=domain)
+    for item in attr.data:
+        item.value = value
+
     entry = {"name": name, "type": data_type, "domain": domain, "default": value}
     defs.append(entry)
     _write_defs(curve_data, defs)
 
-    if domain == "OBJECT":
-        _write_object_value(sketch, name, value)
-        return entry
-
-    attr = curve_data.attributes.new(name, type=data_type, domain=domain)
-    for item in attr.data:
-        item.value = value
     curve_data.update_tag()
     _sync_shared_conversion_group()
     return entry
@@ -195,30 +156,20 @@ def define_attribute(sketch, name, data_type="FLOAT", domain="CURVE", default=0.
 def remove_attribute(sketch, name):
     if not sketch or not sketch.data:
         return False
+
     curve_data = sketch.data
     defs = _read_defs(curve_data)
     entry = next((d for d in defs if d["name"] == name), None)
     if entry is None:
         return False
 
-    defs = [d for d in defs if d["name"] != name]
-    _write_defs(curve_data, defs)
-    if entry["domain"] == "OBJECT":
-        obj = sketch.target_object
-        if name in obj:
-            del obj[name]
-        if name in curve_data:
-            del curve_data[name]
-        names = _read_object_names(obj)
-        if name in names:
-            names.remove(name)
-            _write_object_names(obj, names)
-    else:
-        attr = curve_data.attributes.get(name)
-        if attr is not None:
-            curve_data.attributes.remove(attr)
-        curve_data.update_tag()
-        _sync_shared_conversion_group()
+    attr = curve_data.attributes.get(name)
+    if attr is not None:
+        curve_data.attributes.remove(attr)
+
+    _write_defs(curve_data, [d for d in defs if d["name"] != name])
+    curve_data.update_tag()
+    _sync_shared_conversion_group()
     return True
 
 
@@ -227,20 +178,17 @@ def set_attribute_value(sketch, name, value, curve_id=None):
     entry = definition(sketch, name)
     if entry is None:
         raise KeyError(name)
+
     value = _cast(entry["type"], value)
-
-    if entry["domain"] == "OBJECT":
-        _write_object_value(sketch, name, value)
-        return
-
     curve_data = sketch.data
     attr = curve_data.attributes.get(name)
     if attr is None:
         attr = curve_data.attributes.new(
             name, type=entry["type"], domain=entry["domain"]
         )
+        default = _cast(entry["type"], entry["default"])
         for item in attr.data:
-            item.value = _cast(entry["type"], entry["default"])
+            item.value = default
 
     if curve_id is None:
         for item in attr.data:
@@ -255,6 +203,7 @@ def set_attribute_value(sketch, name, value, curve_id=None):
             curve = curve_data.curves[curve_index]
             for point in curve.points:
                 attr.data[point.index].value = value
+
     curve_data.update_tag()
 
 
@@ -262,10 +211,6 @@ def get_attribute_value(sketch, name, curve_id=None):
     entry = definition(sketch, name)
     if entry is None:
         raise KeyError(name)
-    if entry["domain"] == "OBJECT":
-        if name in sketch.target_object:
-            return sketch.target_object[name]
-        return sketch.data.get(name, entry["default"])
 
     attr = sketch.data.attributes.get(name)
     if attr is None:
@@ -278,6 +223,7 @@ def get_attribute_value(sketch, name, curve_id=None):
         raise KeyError(curve_id)
     if entry["domain"] == "CURVE":
         return attr.data[curve_index].value
+
     curve = sketch.data.curves[curve_index]
     return [attr.data[point.index].value for point in curve.points]
 
@@ -286,17 +232,16 @@ def initialize_curve_defaults(curve_data, curve_index):
     """Apply configured defaults to a newly-added native curve."""
     if curve_data is None or curve_index < 0 or curve_index >= len(curve_data.curves):
         return
+
     for entry in _read_defs(curve_data):
-        domain = entry["domain"]
-        if domain == "OBJECT":
-            continue
         attr = curve_data.attributes.get(entry["name"])
         if attr is None:
             attr = curve_data.attributes.new(
-                entry["name"], type=entry["type"], domain=domain
+                entry["name"], type=entry["type"], domain=entry["domain"]
             )
+
         value = _cast(entry["type"], entry["default"])
-        if domain == "CURVE":
+        if entry["domain"] == "CURVE":
             attr.data[curve_index].value = value
         else:
             for point in curve_data.curves[curve_index].points:
