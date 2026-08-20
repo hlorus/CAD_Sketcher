@@ -8,11 +8,7 @@ constraint_access = (
     (
         Operators.AddCoincident,
         {"type": "C", "value": "PRESS", "shift": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     (
         Operators.MergePoints,
@@ -22,84 +18,48 @@ constraint_access = (
     (
         Operators.AddVertical,
         {"type": "V", "value": "PRESS", "shift": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     (
         Operators.AddHorizontal,
         {"type": "H", "value": "PRESS", "shift": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     (
         Operators.AddEqual,
         {"type": "E", "value": "PRESS", "shift": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     (
         Operators.AddParallel,
         {"type": "A", "value": "PRESS", "shift": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     (
         Operators.AddPerpendicular,
         {"type": "P", "value": "PRESS", "shift": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     (
         Operators.AddTangent,
         {"type": "T", "value": "PRESS", "shift": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     (
         Operators.AddMidPoint,
         {"type": "M", "value": "PRESS", "shift": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     (
         Operators.AddRatio,
         {"type": "R", "value": "PRESS", "shift": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     # Dimensional Constraints
     (
         Operators.AddDistance,
         {"type": "D", "value": "PRESS", "alt": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     (
         Operators.AddDistance,
@@ -114,20 +74,12 @@ constraint_access = (
     (
         Operators.AddAngle,
         {"type": "A", "value": "PRESS", "alt": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     (
         Operators.AddDiameter,
         {"type": "O", "value": "PRESS", "alt": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
+        {"properties": [("wait_for_input", True)]},
     ),
     (
         Operators.AddDiameter,
@@ -137,47 +89,17 @@ constraint_access = (
 )
 
 tool_access = (
-    tool_invoke_kmi(
-        "P",
-        WorkSpaceTools.AddPoint2D,
-        Operators.AddPoint2D,
-    ),
-    tool_invoke_kmi(
-        "L",
-        WorkSpaceTools.AddLine2D,
-        Operators.AddLine2D,
-    ),
-    tool_invoke_kmi(
-        "C",
-        WorkSpaceTools.AddCircle2D,
-        Operators.AddCircle2D,
-    ),
-    tool_invoke_kmi(
-        "A",
-        WorkSpaceTools.AddArc2D,
-        Operators.AddArc2D,
-    ),
-    tool_invoke_kmi(
-        "R",
-        WorkSpaceTools.AddRectangle,
-        Operators.AddRectangle,
-    ),
-    tool_invoke_kmi(
-        "Y",
-        WorkSpaceTools.Trim,
-        Operators.Trim,
-    ),
-    tool_invoke_kmi(
-        "B",
-        WorkSpaceTools.Bevel,
-        Operators.Bevel,
-    ),
+    tool_invoke_kmi("P", WorkSpaceTools.AddPoint2D, Operators.AddPoint2D),
+    tool_invoke_kmi("L", WorkSpaceTools.AddLine2D, Operators.AddLine2D),
+    tool_invoke_kmi("C", WorkSpaceTools.AddCircle2D, Operators.AddCircle2D),
+    tool_invoke_kmi("A", WorkSpaceTools.AddArc2D, Operators.AddArc2D),
+    tool_invoke_kmi("R", WorkSpaceTools.AddRectangle, Operators.AddRectangle),
+    tool_invoke_kmi("Y", WorkSpaceTools.Trim, Operators.Trim),
+    tool_invoke_kmi("B", WorkSpaceTools.Bevel, Operators.Bevel),
     tool_invoke_kmi("O", WorkSpaceTools.Offset, Operators.Offset),
-    tool_invoke_kmi(
-        "S",
-        WorkSpaceTools.AddSketch,
-        Operators.AddSketch,
-    ),
+    tool_invoke_kmi("S", WorkSpaceTools.AddSketch, Operators.AddSketch),
+    # "P" is already the Add Point tool, so Project Geometry uses "J".
+    tool_invoke_kmi("J", WorkSpaceTools.ProjectGeometry, Operators.ProjectGeometry),
     *constraint_access,
 )
 
@@ -185,54 +107,24 @@ tool_access = (
 # ``tool_access`` here would route P/L through the 2D workspace tools, which are
 # not registered while a 3D sketch is active.
 tool_access_3d = (
-    tool_invoke_kmi(
-        "P",
-        WorkSpaceTools.AddPoint3D,
-        Operators.AddPoint3D,
-    ),
-    tool_invoke_kmi(
-        "L",
-        WorkSpaceTools.AddLine3D,
-        Operators.AddLine3D,
-    ),
+    tool_invoke_kmi("P", WorkSpaceTools.AddPoint3D, Operators.AddPoint3D),
+    tool_invoke_kmi("L", WorkSpaceTools.AddLine3D, Operators.AddLine3D),
 )
 
 node_access = (
-    tool_invoke_kmi(
-        "E",
-        WorkSpaceTools.Extrude,
-        Operators.NodeExtrude,
-    ),
-    tool_invoke_kmi(
-        "R",
-        WorkSpaceTools.Revolve,
-        Operators.NodeRevolve,
-    ),
-    tool_invoke_kmi(
-        "D",
-        WorkSpaceTools.ArrayLinear,
-        Operators.NodeArrayLinear,
-    ),
-    tool_invoke_kmi(
-        "S",
-        WorkSpaceTools.AddSketch,
-        Operators.AddSketch,
-    ),
+    tool_invoke_kmi("E", WorkSpaceTools.Extrude, Operators.NodeExtrude),
+    tool_invoke_kmi("R", WorkSpaceTools.Revolve, Operators.NodeRevolve),
+    tool_invoke_kmi("D", WorkSpaceTools.ArrayLinear, Operators.NodeArrayLinear),
+    tool_invoke_kmi("S", WorkSpaceTools.AddSketch, Operators.AddSketch),
 )
 
 use_construction = (
     "wm.context_toggle",
     {"type": "C", "value": "PRESS", "alt": True, "shift": True},
-    {
-        "properties": [
-            ("data_path", "scene.sketcher.use_construction"),
-        ]
-    },
+    {"properties": [("data_path", "scene.sketcher.use_construction")]},
 )
 
-# ESC / RMB from a sketch drawing tool returns to the slvs Select tool. Only
-# used by tool_generic, whose tools are all sketch-mode, so slvs_select is
-# always registered here.
+# ESC / RMB from a sketch drawing tool returns to the slvs Select tool.
 tool_use_select = (
     (
         "wm.tool_set_by_id",
@@ -246,8 +138,7 @@ tool_use_select = (
     ),
 )
 
-# ESC/RMB -> Blender's builtin select, for non-sketch tools (the slvs_select
-# tool only exists in sketch mode; outside it, tool_set_by_id would no-op).
+# ESC/RMB -> Blender's builtin select for non-sketch tools.
 tool_use_select_builtin = (
     (
         "wm.tool_set_by_id",
@@ -260,37 +151,14 @@ tool_use_select_builtin = (
         {"properties": [("name", BLENDER_SELECT_TOOL)]},
     ),
 )
+
 tool_base_keymap = (
-    (
-        Operators.DeleteEntity,
-        {"type": "DEL", "value": "PRESS"},
-        None,
-    ),
-    (
-        Operators.DeleteEntity,
-        {"type": "X", "value": "PRESS"},
-        None,
-    ),
-    (
-        Operators.Copy,
-        {"type": "C", "value": "PRESS", "ctrl": True},
-        None,
-    ),
-    (
-        Operators.Paste,
-        {"type": "V", "value": "PRESS", "ctrl": True},
-        None,
-    ),
-    (
-        Macros.DuplicateMove,
-        {"type": "D", "value": "PRESS", "shift": True},
-        None,
-    ),
-    (
-        Operators.Move,
-        {"type": "G", "value": "PRESS"},
-        None,
-    ),
+    (Operators.DeleteEntity, {"type": "DEL", "value": "PRESS"}, None),
+    (Operators.DeleteEntity, {"type": "X", "value": "PRESS"}, None),
+    (Operators.Copy, {"type": "C", "value": "PRESS", "ctrl": True}, None),
+    (Operators.Paste, {"type": "V", "value": "PRESS", "ctrl": True}, None),
+    (Macros.DuplicateMove, {"type": "D", "value": "PRESS", "shift": True}, None),
+    (Operators.Move, {"type": "G", "value": "PRESS"}, None),
     (
         Operators.AlignView,
         {"type": "V", "value": "PRESS"},
@@ -330,11 +198,7 @@ tool_select = (
         {"type": "A", "value": "PRESS", "ctrl": True},
         {"properties": [("deselect", False)]},
     ),
-    (
-        Operators.Select,
-        {"type": "LEFTMOUSE", "value": "CLICK", "any": True},
-        None,
-    ),
+    (Operators.Select, {"type": "LEFTMOUSE", "value": "CLICK", "any": True}, None),
     (
         Operators.Select,
         {"type": "LEFTMOUSE", "value": "CLICK", "shift": True},
@@ -345,32 +209,19 @@ tool_select = (
         {"type": "LEFTMOUSE", "value": "CLICK", "ctrl": True},
         {"properties": [("mode", "SUBTRACT")]},
     ),
-    # Alt+click: select the next entity in the overlapping stack (issue #50).
     (
         Operators.Select,
         {"type": "LEFTMOUSE", "value": "CLICK", "alt": True},
         {"properties": [("cycle", True)]},
     ),
-    (
-        Operators.SelectInvert,
-        {"type": "I", "value": "PRESS", "ctrl": True},
-        None,
-    ),
-    (
-        Operators.SelectExtend,
-        {"type": "E", "value": "PRESS", "ctrl": True},
-        None,
-    ),
+    (Operators.SelectInvert, {"type": "I", "value": "PRESS", "ctrl": True}, None),
+    (Operators.SelectExtend, {"type": "E", "value": "PRESS", "ctrl": True}, None),
     (
         Operators.SelectExtendAll,
         {"type": "E", "value": "PRESS", "ctrl": True, "shift": True},
         None,
     ),
-    (
-        Operators.SelectBox,
-        {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
-        None,
-    ),
+    (Operators.SelectBox, {"type": "LEFTMOUSE", "value": "CLICK_DRAG"}, None),
     (
         Operators.SelectBox,
         {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "ctrl": True},
@@ -381,11 +232,7 @@ tool_select = (
         {"type": "LEFTMOUSE", "value": "CLICK_DRAG", "shift": True},
         {"properties": [("mode", "EXTEND")]},
     ),
-    (
-        Operators.Tweak,
-        {"type": "LEFTMOUSE", "value": "CLICK_DRAG"},
-        None,
-    ),
+    (Operators.Tweak, {"type": "LEFTMOUSE", "value": "CLICK_DRAG"}, None),
     (
         Operators.ContextMenu,
         {"type": "RIGHTMOUSE", "value": "PRESS"},
@@ -401,23 +248,15 @@ def register():
     if wm.keyconfigs.addon:
         km = wm.keyconfigs.addon.keymaps.new(name="Object Mode", space_type="EMPTY")
 
-        # Select
         kmi = km.keymap_items.new("wm.tool_set_by_id", "ESC", "PRESS", shift=True)
         kmi.properties.name = BLENDER_SELECT_TOOL
         addon_keymaps.append((km, kmi))
 
-        # Cycle the hovered element through overlapping entities under the cursor
-        # (issue #50). Alt+wheel, so it does not collide with zoom; a no-op unless
-        # more than one entity is stacked under the cursor.
         for event_type, direction in (("WHEELUPMOUSE", 1), ("WHEELDOWNMOUSE", -1)):
-            kmi = km.keymap_items.new(
-                Operators.HoverCycle, event_type, "PRESS", alt=True
-            )
+            kmi = km.keymap_items.new(Operators.HoverCycle, event_type, "PRESS", alt=True)
             kmi.properties.direction = direction
             addon_keymaps.append((km, kmi))
 
-        # Add Sketch: switch to the Add Sketch tool (workplane gizmo), then
-        # invoke the operator (a pre-selected workplane creates immediately).
         kmi = km.keymap_items.new(
             StatefulOps.InvokeTool.value, "A", "PRESS", ctrl=True, shift=True
         )
@@ -425,14 +264,12 @@ def register():
         kmi.properties.operator = Operators.AddSketch.value
         addon_keymaps.append((km, kmi))
 
-        # Leave Sketch (same shortcut as add sketch)
         kmi = km.keymap_items.new(
             Operators.SetActiveSketch, "A", "PRESS", ctrl=True, shift=True
         )
         kmi.properties.sketch_name = ""
         addon_keymaps.append((km, kmi))
 
-        # Extrude: switch to the Extrude tool, then invoke the operator.
         kmi = km.keymap_items.new(
             StatefulOps.InvokeTool.value, "E", "PRESS", ctrl=True, shift=True
         )
@@ -440,7 +277,6 @@ def register():
         kmi.properties.operator = Operators.NodeExtrude.value
         addon_keymaps.append((km, kmi))
 
-        # Revolve: switch to the Revolve tool, then invoke the operator.
         kmi = km.keymap_items.new(
             StatefulOps.InvokeTool.value, "R", "PRESS", ctrl=True, shift=True
         )
@@ -448,12 +284,17 @@ def register():
         kmi.properties.operator = Operators.NodeRevolve.value
         addon_keymaps.append((km, kmi))
 
-        # Linear Array: switch to the tool, then invoke the operator.
         kmi = km.keymap_items.new(
             StatefulOps.InvokeTool.value, "D", "PRESS", ctrl=True, shift=True
         )
         kmi.properties.tool_name = WorkSpaceTools.ArrayLinear.value
         kmi.properties.operator = Operators.NodeArrayLinear.value
+        addon_keymaps.append((km, kmi))
+
+        # Boolean: no workspacetool, so invoke the operator directly.
+        kmi = km.keymap_items.new(
+            Operators.NodeBoolean.value, "B", "PRESS", ctrl=True, shift=True
+        )
         addon_keymaps.append((km, kmi))
 
 
@@ -463,4 +304,4 @@ def unregister():
     if kc:
         for km, kmi in addon_keymaps:
             km.keymap_items.remove(kmi)
-            addon_keymaps.clear()
+        addon_keymaps.clear()
