@@ -1,11 +1,16 @@
 """Regression coverage for native 3D operator placement routing."""
 
+import bpy
 from mathutils import Vector
 
 from .utils import BgsTestCase
 
 
 class TestNative3DOperatorRouting(BgsTestCase):
+    def test_add_sketch3d_operator_is_registered(self):
+        """The native 3D creation entry point must exist in an enabled build."""
+        self.assertTrue(hasattr(bpy.ops.view3d, "slvs_add_sketch3d"))
+
     def test_line_pointer_states_use_native_3d_callbacks(self):
         from ..operators.add_line_3d import View3D_OT_slvs_add_line3d
 
