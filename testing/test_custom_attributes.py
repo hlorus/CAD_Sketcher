@@ -238,6 +238,43 @@ class TestCustomAttributes(Sketch2dTestCase):
         remove_attribute(self.sketch, "second_attr")
         self.assertIs(modifier.node_group, shared_group)
 
+    @unittest.skipIf(bpy.app.version < (5, 2, 0), "shared converter requires 5.2+")
+    def test_attribute_schema_change_preserves_fill_modifier_binding(self):
+        """Rebuilding the internal bridge must not remint the Fill socket id."""
+        self._square()
+        source = self.sketch.target_object
+        modifier = source.modifiers.get("CAD Sketcher Convert")
+        self.assertIsNotNone(modifier)
+        group = modifier.node_group
+        fill_socket = next(
+            item
+            for item in group.interface.items_tree
+            if getattr(item, "item_type", "") == "SOCKET"
+            and getattr(item, "in_out", "") == "INPUT"
+            and item.name == "Fill"
+        )
+        fill_identifier = fill_socket.identifier
+        modifier[fill_identifier] = True
+
+        define_attribute(self.sketch, "fill_survival_tag", "INT", "CURVE", 7)
+
+        fill_socket_after = next(
+            item
+            for item in group.interface.items_tree
+            if getattr(item, "item_type", "") == "SOCKET"
+            and getattr(item, "in_out", "") == "INPUT"
+            and item.name == "Fill"
+        )
+        self.assertEqual(fill_socket_after.identifier, fill_identifier)
+        self.assertTrue(modifier[fill_identifier])
+
+        converted = None
+        try:
+            converted = self._convert_copy(source)
+            self.assertGreater(len(converted.data.polygons), 0)
+        finally:
+            self._remove_converted(converted)
+
     def test_remove_deletes_definition_and_source_attribute(self):
         self._square()
         define_attribute(self.sketch, "temporary", "BOOLEAN", "CURVE", True)
