@@ -1,7 +1,7 @@
 """Workspace keymaps specific to native free-3D sketches."""
 
+from .. import keymaps
 from ..declarations import Operators, WorkSpaceTools
-from ..keymaps import tool_base_keymap, tool_use_select, use_construction
 from ..stateful_operator.utilities.keymap import tool_invoke_kmi
 
 
@@ -20,8 +20,8 @@ tool_access_3d = (
 
 
 tool_generic_3d = (
-    *tool_base_keymap,
-    use_construction,
-    *tool_use_select,
+    *keymaps.tool_base_keymap,
+    keymaps.use_construction,
+    *keymaps.tool_use_select,
     *tool_access_3d,
 )
