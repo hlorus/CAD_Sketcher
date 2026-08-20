@@ -92,24 +92,26 @@ class TestCustomAttributes(Sketch2dTestCase):
             get_attribute_value(self.sketch, "later_default", later.curve_id), 17
         )
 
-    def test_point_and_object_domains(self):
+    def test_point_domain_uses_native_curve_data(self):
         points, lines = self._square()
         define_attribute(self.sketch, "weight", "FLOAT", "POINT", 1.25)
-        define_attribute(self.sketch, "part_number", "INT", "OBJECT", 42)
         set_attribute_value(self.sketch, "weight", 3.5, lines[0].curve_id)
         values = get_attribute_value(self.sketch, "weight", lines[0].curve_id)
         self.assertTrue(values)
         self.assertTrue(all(abs(v - 3.5) < 1e-6 for v in values))
-        self.assertEqual(get_attribute_value(self.sketch, "part_number"), 42)
-        self.assertEqual(self.sketch.target_object["part_number"], 42)
-        self.assertEqual(self.sketch.data["part_number"], 42)
-        set_attribute_value(self.sketch, "part_number", 77)
-        self.assertEqual(self.sketch.target_object["part_number"], 77)
-        self.assertEqual(self.sketch.data["part_number"], 77)
+
         set_attribute_value(self.sketch, "weight", 8.0, points[0].curve_id)
         self.assertEqual(
             get_attribute_value(self.sketch, "weight", points[0].curve_id), [8.0]
         )
+        attr = self.sketch.data.attributes.get("weight")
+        self.assertIsNotNone(attr)
+        self.assertEqual(attr.domain, "POINT")
+
+    def test_object_domain_is_deferred(self):
+        self._square()
+        with self.assertRaisesRegex(ValueError, "OBJECT-domain attributes are deferred"):
+            define_attribute(self.sketch, "part_number", "INT", "OBJECT", 42)
 
     def test_set_dialog_seed_preserves_current_value(self):
         from ..operators.custom_attributes import _seed_set_value
@@ -201,34 +203,22 @@ class TestCustomAttributes(Sketch2dTestCase):
             self._remove_converted(converted)
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
-    def test_filled_conversion_keeps_object_values_without_spatial_sampling(self):
-        """Fill remains deterministic and never invents segment ownership by proximity."""
+    def test_filled_conversion_preserves_exact_segment_values(self):
+        """The 10/20/30/40 loop survives both identity weld and Fill Curve."""
         _, lines = self._square()
-        define_attribute(self.sketch, "curve_tag", "INT", "CURVE", 0)
-        define_attribute(self.sketch, "object_tag", "INT", "OBJECT", 23)
+        define_attribute(self.sketch, "fill_curve_tag", "INT", "CURVE", 0)
         for line, value in zip(lines, (10, 20, 30, 40)):
-            set_attribute_value(self.sketch, "curve_tag", value, line.curve_id)
+            set_attribute_value(self.sketch, "fill_curve_tag", value, line.curve_id)
 
         source = self.sketch.target_object
-        modifier = source.modifiers.get("CAD Sketcher Convert")
-        self.assertIsNotNone(modifier)
-        group = modifier.node_group
-        self.assertEqual(group.name, "CAD Sketcher Convert")
-        self.assertFalse(
-            any(
-                node.bl_idname
-                in {"GeometryNodeSampleNearest", "GeometryNodeSampleIndex"}
-                for node in group.nodes
-            )
-        )
-
         converted = None
         try:
             converted = self._convert_copy(source, fill=True)
-            self.assertEqual(source["object_tag"], 23)
-            self.assertEqual(source.data["object_tag"], 23)
-            self.assertEqual(converted["object_tag"], 23)
-            self.assertEqual(converted.data["object_tag"], 23)
+            attr = converted.data.attributes.get("fill_curve_tag")
+            self.assertIsNotNone(attr)
+            distinct = {item.value for item in attr.data if item.value != 0}
+            self.assertEqual(distinct, {10, 20, 30, 40})
+            self.assertTrue(distinct.isdisjoint({15, 25, 35}))
         finally:
             self._remove_converted(converted)
 
@@ -252,15 +242,6 @@ class TestCustomAttributes(Sketch2dTestCase):
         self.assertTrue(remove_attribute(self.sketch, "temporary"))
         self.assertIsNone(definition(self.sketch, "temporary"))
         self.assertIsNone(self.sketch.data.attributes.get("temporary"))
-
-    def test_remove_object_attribute_clears_object_and_data(self):
-        self._square()
-        define_attribute(self.sketch, "temporary_object", "INT", "OBJECT", 7)
-        self.assertIn("temporary_object", self.sketch.target_object)
-        self.assertIn("temporary_object", self.sketch.data)
-        self.assertTrue(remove_attribute(self.sketch, "temporary_object"))
-        self.assertNotIn("temporary_object", self.sketch.target_object)
-        self.assertNotIn("temporary_object", self.sketch.data)
 
     def test_operators_are_registered(self):
         self.assertTrue(hasattr(bpy.ops.view3d, "slvs_add_custom_attribute"))
