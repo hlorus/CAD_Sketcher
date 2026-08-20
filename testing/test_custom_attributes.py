@@ -110,7 +110,9 @@ class TestCustomAttributes(Sketch2dTestCase):
 
     def test_object_domain_is_deferred(self):
         self._square()
-        with self.assertRaisesRegex(ValueError, "OBJECT-domain attributes are deferred"):
+        with self.assertRaisesRegex(
+            ValueError, "OBJECT-domain attributes are deferred"
+        ):
             define_attribute(self.sketch, "part_number", "INT", "OBJECT", 42)
 
     def test_set_dialog_seed_preserves_current_value(self):
