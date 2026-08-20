@@ -12,7 +12,7 @@ class VIEW3D_T_slvs_project_geometry(GenericStateTool, WorkSpaceTool):
     bl_idname = WorkSpaceTools.ProjectGeometry
     bl_label = "Project Geometry"
     bl_operator = Operators.ProjectGeometry
-    bl_icon = "ops.mesh.knife_project"
+    bl_icon = "ops.mesh.knife_tool"
     # Hover feedback for the picked mesh vertex/edge/face is driven by the
     # operator's current state types (mesh_element_types) via this gizmo.
     bl_widget = GizmoGroups.ObjectHover
