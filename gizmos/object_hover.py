@@ -8,9 +8,13 @@ and never claims the click (returns -1). The highlight is rendered by the draw
 handler (see draw_handler.draw_hover_element).
 
 What it detects is driven by ``global_data.hover_types`` — the accepted types of
-the operator's current state — falling back to Object when idle. Objects are
-found via a bounding-box screen test (a raycast can't hit a surfaceless sketch);
-mesh vertices/edges/faces via the raycast-based ``get_mesh_element``.
+the operator's current state. Before the operator runs the state types are not
+published yet, so the idle preview falls back to the active tool's own pick
+types (see ``_IDLE_HOVER_TYPES``): the object-base tools keep their whole-object
+highlight, while the projection tool previews the exact vertex/edge/face and
+never the whole object. Objects are found via a bounding-box screen test (a
+raycast can't hit a surfaceless sketch); mesh vertices/edges/faces via the
+raycast-based ``get_mesh_element``.
 """
 
 from bpy.types import Gizmo, GizmoGroup, MeshEdge, MeshPolygon, MeshVertex, Object
@@ -18,9 +22,29 @@ from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector
 
 from .. import global_data
-from ..declarations import GizmoGroups, Gizmos
+from ..declarations import GizmoGroups, Gizmos, WorkSpaceTools
+from ..stateful_operator.constants import mesh_element_types
 from ..stateful_operator.utilities.geometry import get_mesh_element
 from .utilities import context_mode_check
+
+# Idle pick preview per ObjectHover tool: what the tool's operator will pick
+# once it runs, published before it starts so the hover already tracks it. The
+# node tools pick a whole base object; the projection tool picks a mesh element,
+# so it must never fall back to the whole-object highlight.
+_IDLE_HOVER_TYPES = {
+    WorkSpaceTools.Extrude: (Object,),
+    WorkSpaceTools.ArrayLinear: (Object,),
+    WorkSpaceTools.Revolve: (Object,),
+    WorkSpaceTools.ProjectGeometry: mesh_element_types,
+}
+
+
+def _idle_hover_types(context):
+    """Pick types to preview while a hover tool is active but not yet running."""
+    tool = context.workspace.tools.from_space_view3d_mode(context.mode)
+    if tool is None:
+        return None
+    return _IDLE_HOVER_TYPES.get(tool.idname)
 
 
 def object_under_cursor(context, coords):
@@ -59,11 +83,9 @@ def detect_hover(context, coords, types):
 
     Precise mesh elements win over the object; returns one of
     ``("OBJECT", name, None)``, ``("VERTEX"|"EDGE"|"FACE", name, index)``, or
-    ``None``. ``types`` of None means idle (default to Object); an empty tuple
-    means the current state picks nothing (no hover).
+    ``None``. Falsy ``types`` (None or empty) means nothing to pick, so no hover
+    is produced; the caller resolves the idle preview types before this point.
     """
-    if types is None:
-        types = (Object,)
     if not types:
         return None
 
@@ -81,6 +103,7 @@ def detect_hover(context, coords, types):
         # Curves aren't raycastable -> screen-space segment pick for edge states.
         if want_edge:
             from ..utilities.view import curve_segment_under_cursor
+
             radius = 12.0 * context.preferences.system.ui_scale
             hit = curve_segment_under_cursor(context, coords, radius)
             if hit is not None:
@@ -118,7 +141,12 @@ class VIEW3D_GT_slvs_object_hover(Gizmo):
         pass
 
     def test_select(self, context, location):
-        element = detect_hover(context, Vector(location), global_data.hover_types)
+        # While the operator runs, its current state publishes the pick types;
+        # before that, preview what the active tool itself will pick.
+        types = global_data.hover_types
+        if types is None:
+            types = _idle_hover_types(context)
+        element = detect_hover(context, Vector(location), types)
         if element != global_data.hover_element:
             global_data.hover_element = element
             context.area.tag_redraw()
