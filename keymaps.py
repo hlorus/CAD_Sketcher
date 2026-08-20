@@ -178,6 +178,12 @@ tool_access = (
         WorkSpaceTools.AddSketch,
         Operators.AddSketch,
     ),
+    # "P" is already the Add Point tool, so Project Geometry uses "J".
+    tool_invoke_kmi(
+        "J",
+        WorkSpaceTools.ProjectGeometry,
+        Operators.ProjectGeometry,
+    ),
     *constraint_access,
 )
 
