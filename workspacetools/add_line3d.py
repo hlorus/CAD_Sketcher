@@ -1,9 +1,9 @@
 from bpy.types import WorkSpaceTool
 
 from ..declarations import GizmoGroups, Operators, WorkSpaceTools
-from ..keymaps import tool_generic_3d
 from ..stateful_operator.tool import GenericStateTool
 from ..stateful_operator.utilities.keymap import operator_access
+from .keymaps_3d import tool_generic_3d
 
 
 class VIEW3D_T_slvs_add_line3d(GenericStateTool, WorkSpaceTool):
