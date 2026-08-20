@@ -1,9 +1,9 @@
 from bpy.types import Context, UILayout
 
-from .. import declarations
-from . import VIEW3D_PT_sketcher_base
 from ...model.sketch_ref import get_active_sketch, get_sketches
 from ...stateful_operator.constants import Operators as StatefulOps
+from .. import declarations
+from . import VIEW3D_PT_sketcher_base
 
 
 def _draw_detached_warning(layout: UILayout, sketch):
