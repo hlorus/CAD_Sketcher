@@ -18,6 +18,32 @@ SKETCH_3D_TAG = "is_3d_sketch"
 SKETCH_3D_ORIGIN_TAG = "is_3d_sketch_origin"
 
 
+def _set_convert_fill(modifier, value):
+    """Set the shared converter's Fill input across Blender versions."""
+    if modifier is None or modifier.node_group is None:
+        return False
+
+    fill_socket = next(
+        (
+            item
+            for item in modifier.node_group.interface.items_tree
+            if getattr(item, "item_type", "") == "SOCKET"
+            and getattr(item, "in_out", "") == "INPUT"
+            and item.name == "Fill"
+        ),
+        None,
+    )
+    if fill_socket is None:
+        return False
+
+    props = getattr(modifier, "properties", None)
+    if props is not None and hasattr(props, "inputs"):
+        getattr(props.inputs, fill_socket.identifier).value = bool(value)
+    else:
+        modifier[fill_socket.identifier] = bool(value)
+    return True
+
+
 def is_3d_sketch(sketch):
     """Return whether *sketch* is a native free-3D sketch."""
     return bool(sketch and getattr(sketch, "is_3d", False))
@@ -46,7 +72,13 @@ def create_3d_sketch(context, name="3D Sketch", matrix=None):
 
     from ..utilities.curve_data import _ensure_convert_modifier
 
-    _ensure_convert_modifier(obj)
+    modifier = _ensure_convert_modifier(obj)
+    # A free-3D sketch is not a planar profile. The shared converter defaults
+    # Fill on for normal 2D sketches, but Fill Curve necessarily planarizes a
+    # non-coplanar loop and makes Blender's evaluated geometry diverge from the
+    # native XYZ overlay. Keep 3D sketches wire/free-space by default; users can
+    # constrain geometry to a plane before opting into profile-style operations.
+    _set_convert_fill(modifier, False)
 
     obj.parent = origin
     obj.matrix_parent_inverse = Matrix.Identity(4)
