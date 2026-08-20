@@ -12,7 +12,6 @@ _TYPE_ITEMS = (
 _DOMAIN_ITEMS = (
     ("CURVE", "Segment", "Store one value per native sketch entity/segment"),
     ("POINT", "Point", "Store values on the selected entity's native points"),
-    ("OBJECT", "Object", "Store one value on the sketch object"),
 )
 
 
@@ -49,8 +48,6 @@ def _seed_set_value(sketch, entry, curve_ids):
     back to the attribute default, rather than silently replacing data with the
     operator property's Python zero value merely by opening/confirming the UI.
     """
-    if entry["domain"] == "OBJECT":
-        return custom_attributes.get_attribute_value(sketch, entry["name"])
     if not curve_ids:
         return entry["default"]
 
@@ -160,15 +157,12 @@ class VIEW3D_OT_slvs_set_custom_attribute(bpy.types.Operator):
             self.report({"ERROR"}, "Attribute no longer exists")
             return {"CANCELLED"}
 
-        value = _value(self, entry["type"])
-        if entry["domain"] == "OBJECT":
-            custom_attributes.set_attribute_value(sketch, self.name, value)
-            return {"FINISHED"}
-
         curve_ids = list(dict.fromkeys(selection.selected))
         if not curve_ids:
             self.report({"WARNING"}, "Select one or more sketch entities first")
             return {"CANCELLED"}
+
+        value = _value(self, entry["type"])
         for curve_id in curve_ids:
             custom_attributes.set_attribute_value(
                 sketch, self.name, value, curve_id=curve_id
