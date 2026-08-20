@@ -37,6 +37,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
     continuous_draw: BoolProperty(name="Continuous Draw", default=False)
 
     executed = False
+    # Tool id to activate once the operator succeeds (see _end). Lets a one-off
+    # tool return to a select tool afterwards instead of lingering; None keeps
+    # the current tool. On failure/cancel the tool is left alone so a missed
+    # pick can be retried.
+    return_to_tool = None
     # Screen coords when a state first runs — used by state_func for delta/scale
     state_init_coords = None
     _last_coords = Vector((0, 0))
@@ -567,6 +572,15 @@ class StatefulOperatorLogic(_StateMachineMixin):
         context.window.cursor_modal_restore()
         if hasattr(self, "fini"):
             self.fini(context, succeede)
+        # One-off tools return to their select tool once done (only on success,
+        # so a missed pick keeps the tool for a retry). The target tool differs
+        # per operator: object tools -> Blender's select, sketch tools -> the
+        # sketch select tool.
+        if succeede and self.return_to_tool:
+            try:
+                bpy.ops.wm.tool_set_by_id(name=self.return_to_tool)
+            except Exception:
+                pass
         self.on_before_redo_states(context)
         context.workspace.status_text_set(None)
 

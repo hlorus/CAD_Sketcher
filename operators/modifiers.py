@@ -8,12 +8,12 @@ from bpy.props import (
     IntProperty,
     StringProperty,
 )
-from bpy.types import Context, MeshEdge, Object, Operator
+from bpy.types import Context, Event, MeshEdge, Object, Operator
 from mathutils import Vector
 from mathutils.geometry import intersect_line_line, intersect_line_plane
 
 from ..assets_manager import load_asset
-from ..declarations import Operators
+from ..declarations import BLENDER_SELECT_TOOL, Operators
 from ..global_data import LIB_NAME
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
@@ -51,6 +51,24 @@ def get_modifier_input(modifier, identifier):
     return modifier[identifier]  # Blender <= 5.1
 
 
+# Boolean operations, in the node group's Index Switch order: the operator's
+# enum name maps to this integer index (see set/get_boolean_operation).
+BOOLEAN_OPERATIONS = ("Difference", "Union", "Intersect")
+
+
+def set_boolean_operation(modifier, identifier, name):
+    """Set the boolean Operation input (an integer index into BOOLEAN_OPERATIONS)."""
+    set_modifier_input(modifier, identifier, BOOLEAN_OPERATIONS.index(name))
+
+
+def get_boolean_operation(modifier, identifier):
+    """Read the boolean Operation input back as its name."""
+    index = int(get_modifier_input(modifier, identifier))
+    if 0 <= index < len(BOOLEAN_OPERATIONS):
+        return BOOLEAN_OPERATIONS[index]
+    return BOOLEAN_OPERATIONS[0]
+
+
 BASE_STATES = (
     state_from_args(
         "Object",
@@ -85,8 +103,9 @@ class NodeOperator(Operator3d):
 
     @classmethod
     def poll(cls, context):
-        if not context.active_object:
-            return False
+        # Available without a preselection: the state machine lets the user pick
+        # the target object in the viewport. (Objects are ray-pickable; an open
+        # profile a ray can't hit must still be selected first.)
         return True
 
     def state_property(self, state_index):
@@ -137,14 +156,12 @@ class NodeOperator(Operator3d):
         pass
 
     def invoke(self, context, event):
-        # Follow the stateful prefill-from-selection flow: if nothing valid is
-        # selected to prefill the base Object state, cancel instead of dropping
-        # into an object-pick (a sketch/curve isn't reliably pickable in the
-        # viewport). gather_selection already filters to valid targets.
+        # With a valid preselection the base Object state prefills from it; with
+        # nothing selected we fall through to the modal state machine so the user
+        # can pick the target in the viewport instead of being blocked. The state
+        # description guides the pick, and gather_selection filters to valid
+        # targets so an invalid preselection is simply not prefilled.
         selection = self.gather_selection(context)
-        if self.wait_for_input and not selection:
-            self.report({"WARNING"}, self.invalid_target_msg)
-            return {"CANCELLED"}
 
         # If the prefill target already carries this tool's modifier, seed the
         # operator from its current values. Convenience only -- never let a
@@ -169,10 +186,19 @@ class NodeOperator(Operator3d):
         bpy.ops.ed.undo_push(message=f'Load Asset "{rName}"')
         return True
 
+    def _modifier_name(self):
+        """Name of this tool's modifier on the target.
+
+        One per object by default (re-invoking edits it). Tools that can stack
+        several instances on one object (e.g. Boolean, one per cutter) override
+        this to return a distinct name per instance.
+        """
+        return f"CAD_Sketcher {self.bl_label}"
+
     def _ensure_modifier(self, context):
         """Create the modifier once, reuse on subsequent calls."""
         ob = self._obj.original
-        mod_name = f"CAD_Sketcher {self.bl_label}"
+        mod_name = self._modifier_name()
 
         self.modifier = ob.modifiers.get(mod_name)
         if self.modifier:
@@ -232,6 +258,7 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
 
     resources = (("node_groups", "CAD Sketcher Extrude"),)
     NODEGROUP_NAME = "CAD Sketcher Extrude"
+    return_to_tool = BLENDER_SELECT_TOOL
 
     invalid_target_msg = "Select a sketch or curve to extrude (2D profile)"
 
@@ -288,6 +315,7 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
 
     NODEGROUP_NAME = "CAD Sketcher Linear Array"
     resources = (("node_groups", "CAD Sketcher Linear Array"),)
+    return_to_tool = BLENDER_SELECT_TOOL
 
     # Array offset in the object's local space (direction * spacing), captured
     # by a single interactive drag; direction and distance derive from it.
@@ -398,6 +426,7 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
 
     NODEGROUP_NAME = "CAD Sketcher Revolve"
     resources = (("node_groups", "CAD Sketcher Revolve"),)
+    return_to_tool = BLENDER_SELECT_TOOL
 
     invalid_target_msg = "Select a sketch, curve or mesh profile to revolve"
 
@@ -550,6 +579,234 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
         layout.prop(self, "angular_resolution")
 
 
+class View3D_OT_node_boolean(Operator, NodeOperator):
+    """Nondestructively boolean the active object with a cutter object"""
+
+    bl_idname = Operators.NodeBoolean
+    bl_label = "Boolean"
+
+    NODEGROUP_NAME = "CAD Sketcher Boolean"
+    # Built programmatically (not shipped as an asset); see init().
+    resources = ()
+
+    invalid_target_msg = "Pick a body (mesh or sketch) to receive the boolean"
+
+    # Two object states: the body (receives the modifier) and the cutter. Both
+    # can be preselected (body active, cutter also selected) or picked in the
+    # viewport, matching the other node tools.
+    states = (
+        *BASE_STATES,
+        state_from_args(
+            "Cutter",
+            description="Pick the object to boolean the body with",
+            pointer="cutter",
+            types=(Object,),
+            use_create=False,
+        ),
+    )
+
+    operation: bpy.props.EnumProperty(
+        name="Operation",
+        items=(
+            ("Difference", "Difference", "Subtract the cutter from the body"),
+            ("Union", "Union", "Merge the cutter into the body"),
+            ("Intersect", "Intersect", "Keep only the overlap"),
+        ),
+        default="Difference",
+    )
+    self_intersection: BoolProperty(name="Self Intersection", default=True)
+    hole_tolerant: BoolProperty(name="Hole Tolerant", default=False)
+
+    # A solid cutter would hide the boolean result, so switch its viewport
+    # display (wireframe by default, like Bool Tool). display_type is a draw-only
+    # property, so setting it is cheap and does not rebuild the depsgraph.
+    cutter_display: bpy.props.EnumProperty(
+        name="Cutter Display",
+        items=(
+            ("WIRE", "Wire", "Show the cutter as wireframe so the result is visible"),
+            ("SOLID", "Solid", "Leave the cutter shaded solid"),
+        ),
+        default="WIRE",
+    )
+
+    # Persist the picked cutter so the redo panel can re-apply and edit it (the
+    # pointer state, like the base object pointer, is transient across redo).
+    cutter_name: StringProperty(name="Cutter")
+
+    # Both operands may be a mesh or a sketch (Curves).
+    def is_valid_target(self, obj):
+        return obj is not None and obj.type in {"MESH", "CURVE", "CURVES"}
+
+    def get_point(self, context, index):
+        # Object pointer states carry no implicit point.
+        return None
+
+    def invoke(self, context, event):
+        # Editing: when the body and the cutter are both preselected and that
+        # cutter already has a boolean on the body, seed the operator from it so
+        # re-invoking edits the existing boolean (like Extrude) instead of
+        # resetting it to defaults. Seeding must happen here, once, before the
+        # redo panel -- doing it in main()/execute() would clobber a redo-panel
+        # edit on the next re-run. The cutter is only known at invoke when it is
+        # preselected, so interactive cutter-picking is always treated as create.
+        selection = self.gather_selection(context)
+        if selection:
+            body = selection[0]
+            for other in selection[1:]:
+                mod = body.modifiers.get(f"CAD_Sketcher Boolean {other.name}")
+                if mod and mod.node_group:
+                    try:
+                        self.read_props(mod)
+                    except Exception:
+                        pass
+                    break
+        return super().invoke(context, event)
+
+    def init(self, context: Context, event: Event):
+        # Build the boolean node group in place of loading an asset.
+        from ..utilities.boolean_nodes import build_boolean_node_group
+
+        build_boolean_node_group()
+        bpy.ops.ed.undo_push(message="Add Boolean")
+        return True
+
+    def _resolve_cutter(self, context: Context):
+        """The cutter object: the picked pointer, else the persisted name (redo).
+
+        Mirrors ``resolved_object`` for the body: the ``cutter`` pointer state
+        carries the interactive/prefilled pick, and ``cutter_name`` restores it
+        on the redo path where the pointer is gone.
+        """
+        cutter = getattr(self, "cutter", None)
+        if cutter is not None:
+            # The Object pointer state returns the EVALUATED object (a temporary
+            # depsgraph copy). Assigning that to the modifier's Object input
+            # corrupts ID refcounts ("user decrement error") and setting its
+            # display_type is lost on the next evaluation. Use the original.
+            cutter = cutter.original
+        elif self.cutter_name:
+            cutter = bpy.data.objects.get(self.cutter_name)
+        return cutter
+
+    def _modifier_name(self):
+        # One modifier per cutter, so several booleans stack on the same body
+        # instead of overwriting each other. Re-applying with the same cutter
+        # edits its existing modifier (same name); a new cutter adds another.
+        return f"CAD_Sketcher Boolean {self._cutter.name}"
+
+    def read_props(self, modifier):
+        ids = self._input_ids(modifier.node_group)
+        self.operation = get_boolean_operation(modifier, ids["Operation"])
+        self.self_intersection = get_modifier_input(modifier, ids["Self Intersection"])
+        self.hole_tolerant = get_modifier_input(modifier, ids["Hole Tolerant"])
+
+    def main(self, context: Context):
+        from ..utilities.boolean_nodes import build_boolean_node_group
+
+        build_boolean_node_group()  # ensure it exists on the redo path too
+
+        cutter = self._resolve_cutter(context)
+        if cutter is None:
+            self.report({"WARNING"}, "Pick a cutter object to boolean with")
+            return False
+        # A non-geometry cutter (empty, light, camera) yields no mesh, so the
+        # boolean would silently do nothing. Reject it with a clear message.
+        if not self.is_valid_target(cutter):
+            self.report({"WARNING"}, "The cutter must be a mesh or sketch object")
+            return False
+        # Adding this boolean makes the body read the cutter's geometry (body
+        # depends on cutter). If the cutter already depends on the body through
+        # other CAD Sketcher booleans -- including the cutter being the body
+        # itself -- that closes a depsgraph dependency cycle, which crashes
+        # Blender. Refuse before creating the modifier. Compare originals: the
+        # cutters read off the modifiers are originals, but resolved_object()
+        # may hand back the evaluated body.
+        body = self.resolved_object()
+        if body is not None:
+            body = body.original
+        if self._creates_cycle(body, cutter):
+            self.report(
+                {"WARNING"},
+                "That cutter depends on the body; it would create a dependency cycle",
+            )
+            return False
+        self.cutter_name = cutter.name
+        self._cutter = cutter
+        return super().main(context)
+
+    def fini(self, context: Context, succeed: bool):
+        # Reveal the result: a solid cutter sitting over the body would hide it.
+        # Done here, once, rather than in main() -- main() can re-run during the
+        # modal's undo/redo churn, so the display change belongs at completion.
+        if succeed and getattr(self, "_cutter", None) is not None:
+            self._cutter.display_type = self.cutter_display
+
+    @staticmethod
+    def _input_ids(node_group):
+        return {
+            s.name: s.identifier
+            for s in node_group.interface.items_tree
+            if getattr(s, "in_out", "") == "INPUT"
+        }
+
+    @classmethod
+    def _boolean_cutters(cls, obj):
+        """Objects ``obj`` reads as cutters through its CAD Sketcher booleans."""
+        from ..utilities.boolean_nodes import BOOLEAN_NODE_GROUP
+
+        cutters = []
+        for m in obj.modifiers:
+            group = getattr(m, "node_group", None)
+            if m.type != "NODES" or group is None or group.name != BOOLEAN_NODE_GROUP:
+                continue
+            ids = cls._input_ids(group)
+            cutter = get_modifier_input(m, ids["Cutter"])
+            if cutter is not None:
+                cutters.append(cutter)
+        return cutters
+
+    @classmethod
+    def _creates_cycle(cls, body, cutter):
+        """Whether making ``body`` read ``cutter`` closes a boolean dependency
+        cycle, i.e. ``cutter`` already depends (transitively) on ``body``.
+
+        Also true when ``cutter is body`` (a self-reference is a length-0 cycle).
+        """
+        stack = [cutter]
+        seen = set()
+        while stack:
+            obj = stack.pop()
+            if obj == body:
+                return True
+            if obj in seen:
+                continue
+            seen.add(obj)
+            stack.extend(cls._boolean_cutters(obj))
+        return False
+
+    def set_props(self):
+        m = self.modifier
+        ids = self._input_ids(m.node_group)
+        set_modifier_input(m, ids["Cutter"], self._cutter)
+        set_boolean_operation(m, ids["Operation"], self.operation)
+        set_modifier_input(m, ids["Self Intersection"], self.self_intersection)
+        set_modifier_input(m, ids["Hole Tolerant"], self.hole_tolerant)
+        return True
+
+    def draw_settings(self, context):
+        layout = self.layout
+        layout.prop_search(self, "cutter_name", bpy.data, "objects", text="Cutter")
+        layout.prop(self, "operation")
+        layout.prop(self, "cutter_display")
+        layout.prop(self, "self_intersection")
+        layout.prop(self, "hole_tolerant")
+
+
 register, unregister = register_stateops_factory(
-    (View3D_OT_node_extrude, View3D_OT_node_array_linear, View3D_OT_node_revolve)
+    (
+        View3D_OT_node_extrude,
+        View3D_OT_node_array_linear,
+        View3D_OT_node_revolve,
+        View3D_OT_node_boolean,
+    )
 )

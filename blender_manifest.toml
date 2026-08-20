@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "CAD_Sketcher"
-version = "0.3.1"
+version = "0.30.1"
 name = "CAD Sketcher"
 tagline = "Parametric, constraint-based geometry sketcher"
 maintainer = "hlorus <dave19924@gmail.com>"
@@ -40,7 +40,6 @@ wheels = [
 
 [permissions]
 files = "Used to load CAD Sketcher assets"
-network = "Used to install the solver module from PiPy"
 
 [build]
 # Ship only the runtime add-on. Everything below is dev tooling, docs, tests,

@@ -1,94 +1,93 @@
+"""Project a single picked mesh element into the active sketch.
+
+A minimal single-state stateful operator: the one state picks a mesh vertex,
+edge or face (via the framework's native mesh-element picking), and ``main``
+projects just that element as live native curves through the shared
+``project_mesh_element`` path. Re-run to project more; shared corners are reused.
+"""
+
 import bpy
-from bpy.props import BoolProperty, StringProperty
+from bpy.props import BoolProperty
 from bpy.types import Context, Operator
-from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from ..model.sketch_ref import get_active_sketch
+from ..stateful_operator.constants import mesh_element_types
+from ..stateful_operator.integration import StatefulOperator
+from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.curve_data import refresh_curve_geometry
-from ..utilities.projection_anchor import project_mesh_object
+from ..utilities.projection_anchor import project_mesh_element
+from .base_stateful import GenericEntityOp
+
+_TYPE_TO_ELEMENT = {
+    bpy.types.MeshVertex: "VERTEX",
+    bpy.types.MeshEdge: "EDGE",
+    bpy.types.MeshPolygon: "FACE",
+}
 
 
-class VIEW3D_OT_slvs_project_geometry(Operator):
-    """Project a mesh object's edges onto the active sketch"""
+class VIEW3D_OT_slvs_project_geometry(Operator, GenericEntityOp):
+    """Project a picked mesh vertex, edge or face into the active sketch"""
 
     bl_idname = Operators.ProjectGeometry
     bl_label = "Project Geometry"
-    bl_description = (
-        "Project mesh edges onto the active sketch and keep a live source reference"
-    )
     bl_options = {"REGISTER", "UNDO"}
 
-    source: StringProperty(
-        name="Source",
-        description="Mesh object whose edges are projected onto the active sketch",
-        default="",
-    )
     construction: BoolProperty(
         name="Construction Geometry",
         description="Create the projected points and lines as construction geometry",
         default=True,
     )
 
+    states = (
+        state_from_args(
+            "Element",
+            description="Pick a mesh vertex, edge or face to project into the sketch",
+            pointer="element",
+            types=mesh_element_types,
+            property=None,
+            use_create=False,
+        ),
+    )
+
     @classmethod
     def poll(cls, context: Context):
         return get_active_sketch(context) is not None
 
-    def _selected_source(self, context):
+    def pick_element(self, context: Context, coords):
+        # Only the raw mesh-element pick; skip GenericEntityOp's curve/constraint
+        # hover handling, which is irrelevant when projecting scene meshes.
+        return StatefulOperator.pick_element(self, context, coords)
+
+    def main(self, context: Context):
         sketch = get_active_sketch(context)
-        sketch_ob = sketch.target_object if sketch else None
-        meshes = [
-            obj
-            for obj in context.selected_objects
-            if obj is not sketch_ob and obj.type == "MESH"
-        ]
-        return meshes[0] if len(meshes) == 1 else None
+        data = self._state_data.get(0, {})
+        elem = _TYPE_TO_ELEMENT.get(data.get("type"))
+        pointer = self.get_state_pointer(index=0, implicit=True)
+        if sketch is None or elem is None or not pointer:
+            return False
 
-    def invoke(self, context: Context, event):
-        if not self.source:
-            selected = self._selected_source(context)
-            if selected is not None:
-                self.source = selected.name
-        return context.window_manager.invoke_props_dialog(self)
-
-    def draw(self, context: Context):
-        layout = self.layout
-        layout.prop_search(self, "source", bpy.data, "objects", text="Source")
-        layout.prop(self, "construction")
-
-    def execute(self, context: Context):
-        sketch = get_active_sketch(context)
-        if sketch is None:
-            self.report({"ERROR"}, "Enter a sketch before projecting geometry")
-            return {"CANCELLED"}
-
-        source = bpy.data.objects.get(self.source)
+        obj_name, mesh_index = pointer
+        source = bpy.data.objects.get(obj_name)
         if source is None or source.type != "MESH":
-            self.report({"ERROR"}, "Choose a mesh source object")
-            return {"CANCELLED"}
-        if source == sketch.target_object:
-            self.report({"ERROR"}, "The source cannot be the active sketch")
-            return {"CANCELLED"}
+            return False
 
-        _, lines = project_mesh_object(
-            sketch,
-            source,
-            construction=self.construction,
+        n_points, n_lines = project_mesh_element(
+            sketch, source, elem, mesh_index, construction=self.construction
         )
-        if not lines:
-            self.report({"WARNING"}, "The source mesh has no edges to project")
-            return {"CANCELLED"}
+        if n_points or n_lines:
+            refresh_curve_geometry(sketch)
+            from .. import global_data
 
-        refresh_curve_geometry(sketch)
-        from .. import global_data
+            global_data.needs_solve = True
+            global_data.needs_redraw = True
 
-        global_data.needs_solve = True
-        global_data.needs_redraw = True
-        self.report(
-            {"INFO"},
-            f"Projected {len(lines)} edge(s) from {source.name}",
-        )
-        return {"FINISHED"}
+        self.target = sketch
+        return True
+
+    def fini(self, context: Context, succeed: bool):
+        pass
 
 
-register, unregister = register_classes_factory((VIEW3D_OT_slvs_project_geometry,))
+register, unregister = register_stateops_factory((VIEW3D_OT_slvs_project_geometry,))

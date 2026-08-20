@@ -3,7 +3,7 @@ import logging
 import bpy
 from bpy.types import Context, Event, Operator
 
-from ..declarations import Operators
+from ..declarations import Operators, WorkSpaceTools
 from ..model.curve_ref import PointRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
@@ -60,6 +60,10 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
     bl_idname = Operators.AddSketch
     bl_label = "Add Sketch"
     bl_options = {"UNDO"}
+
+    # Creating a sketch enters sketch mode, so return to the sketch-mode select
+    # tool (not Blender's object select) once done, via the framework setting.
+    return_to_tool = WorkSpaceTools.Select
 
     sketch_state1_doc = [
         "Workplane",

@@ -178,6 +178,12 @@ tool_access = (
         WorkSpaceTools.AddSketch,
         Operators.AddSketch,
     ),
+    # "P" is already the Add Point tool, so Project Geometry uses "J".
+    tool_invoke_kmi(
+        "J",
+        WorkSpaceTools.ProjectGeometry,
+        Operators.ProjectGeometry,
+    ),
     *constraint_access,
 )
 
@@ -431,6 +437,14 @@ def register():
         )
         kmi.properties.tool_name = WorkSpaceTools.ArrayLinear.value
         kmi.properties.operator = Operators.NodeArrayLinear.value
+        addon_keymaps.append((km, kmi))
+
+        # Boolean: no workspacetool, so invoke the operator directly. It prefills
+        # the body/cutter from the selection or lets them be picked, same as the
+        # other node tools.
+        kmi = km.keymap_items.new(
+            Operators.NodeBoolean.value, "B", "PRESS", ctrl=True, shift=True
+        )
         addon_keymaps.append((km, kmi))
 
 
