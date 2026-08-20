@@ -14,12 +14,14 @@ plane and connected native line curves follow through ``rebuild_segments``.
 
 from mathutils import Vector
 
+from ..model.constants import SketchCurveType
 from ..model.curve_ref import LineRef, PointRef
 from ..utilities.curve_data import (
     batch_update,
     ensure_attribute,
     get_curve_data,
     read_curve_id_list,
+    read_uuid_list,
 )
 
 # Persistent identity on the SOURCE mesh (POINT domain).
@@ -335,6 +337,27 @@ def find_projected_point(sketch, source, vertex_index):
     return None
 
 
+def _line_exists_between(sketch, p1, p2):
+    """Whether a native line already connects ``p1`` and ``p2`` (either order).
+
+    Re-projecting the same edge or face reuses its already-projected points, so
+    without this the connecting lines would stack a fresh duplicate every time.
+    """
+    curve_data = sketch.data
+    type_attr = curve_data.attributes.get("sketch_type")
+    if not type_attr:
+        return False
+    starts = read_uuid_list(curve_data, "start_point_id")
+    ends = read_uuid_list(curve_data, "end_point_id")
+    wanted = {p1.curve_id, p2.curve_id}
+    for index in range(len(curve_data.curves)):
+        if type_attr.data[index].value != SketchCurveType.LINE:
+            continue
+        if {starts[index], ends[index]} == wanted:
+            return True
+    return False
+
+
 def project_mesh_element(sketch, source, elem_type, elem_index, construction=True):
     """Project a single picked mesh element (``VERTEX``/``EDGE``/``FACE``).
 
@@ -379,10 +402,15 @@ def project_mesh_element(sketch, source, elem_type, elem_index, construction=Tru
         return point
 
     def connect(v0, v1):
+        p0, p1 = get_point(v0), get_point(v1)
+        # Reuse an existing projected line so re-picking the same edge/face
+        # doesn't stack duplicate segments on the shared points.
+        if _line_exists_between(sketch, p0, p1):
+            return
         LineRef.create(
             sketch,
-            get_point(v0),
-            get_point(v1),
+            p0,
+            p1,
             construction=construction,
             name="Projected Line",
         )

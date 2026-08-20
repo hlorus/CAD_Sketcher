@@ -60,6 +60,18 @@ class TestProjectionAnchor(Sketch2dTestCase):
         self.assertEqual((n_points, n_lines), (1, 1))
         self.assertIsNotNone(find_projected_point(self.sketch, source, 2))
 
+    def test_reprojecting_same_edge_adds_no_duplicate_line(self):
+        source = self._mesh_object()
+        first = project_mesh_element(self.sketch, source, "EDGE", 0)
+        curves = len(self.sketch.data.curves)
+
+        # Re-picking the exact same edge reuses both points and the line, so
+        # nothing new is created (the points already deduped, now the line too).
+        again = project_mesh_element(self.sketch, source, "EDGE", 0)
+        self.assertEqual(first, (2, 1))
+        self.assertEqual(again, (0, 0))
+        self.assertEqual(len(self.sketch.data.curves), curves)
+
     def test_project_single_vertex_element(self):
         source = self._mesh_object()
         n_points, n_lines = project_mesh_element(self.sketch, source, "VERTEX", 2)
