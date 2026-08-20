@@ -158,7 +158,8 @@ class Operator2d(GenericEntityOp):
         (or reuse) a live projected reference for that vertex and set it as the
         coincidence target, so the placed point tracks the source instead of
         being a dead static point. Scoped to mesh vertices; edges/curves and the
-        topology-changing-modifier case fall back to the static point.
+        case where the snapped vertex can't be traced to an original one fall
+        back to the static point.
         """
         if not context.scene.sketcher.use_snap_project:
             return
@@ -178,18 +179,29 @@ class Operator2d(GenericEntityOp):
         if source is None or source.type != "MESH":
             return
 
-        # Snapping reads the evaluated mesh; a topology-changing modifier makes
-        # its vertex index not line up with the original vertex we would bind, so
-        # skip projection then rather than link the wrong vertex.
+        # Snapping reads the evaluated mesh; resolve that evaluated vertex back to
+        # the original one to bind (by persistent id when tagged, else an
+        # order-preserving index). Skip when the correspondence isn't trustworthy.
         from ..stateful_operator.utilities.geometry import get_evaluated_obj
+        from ..utilities.projection_anchor import (
+            project_mesh_vertex,
+            resolve_source_vertex_index,
+        )
 
-        eval_mesh = get_evaluated_obj(context, source).data
-        if len(eval_mesh.vertices) != len(source.data.vertices):
+        eval_source = get_evaluated_obj(context, source)
+        orig_index = resolve_source_vertex_index(source, eval_source, v_index)
+        if orig_index is None:
             return
 
-        from ..utilities.projection_anchor import project_mesh_vertex
-
-        projected = project_mesh_vertex(self.sketch, source, v_index, construction=True)
+        # Place the point where the user snapped (the evaluated hit), so a
+        # vertex-moving modifier doesn't leave it a frame behind the source.
+        projected = project_mesh_vertex(
+            self.sketch,
+            source,
+            orig_index,
+            construction=True,
+            world_co=snap.get("world_point"),
+        )
         if projected is not None and projected.valid:
             state_data["hovered"] = projected.curve_id
 

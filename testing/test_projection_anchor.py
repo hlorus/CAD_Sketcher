@@ -13,6 +13,7 @@ from ..utilities.projection_anchor import (
     project_mesh_object,
     project_mesh_vertex,
     refresh_projection_for_sketch,
+    resolve_source_vertex_index,
 )
 from .utils import Sketch2dTestCase
 
@@ -290,3 +291,24 @@ class TestProjectionAnchor(Sketch2dTestCase):
         depsgraph = self.context.evaluated_depsgraph_get()
         refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
         self.assertLess((point.co - Vector((4.0, 1.0))).length, 1e-5)
+
+    def test_project_mesh_vertex_places_at_snapped_world_co(self):
+        # A snap hands the evaluated world position; the point lands there rather
+        # than at the (possibly modifier-shifted) original vertex coordinate.
+        source = self._mesh_object()
+        point = project_mesh_vertex(
+            self.sketch, source, 1, construction=True, world_co=(5.0, 6.0, 1.0)
+        )
+        self.assertIsNotNone(point)
+        self.assertLess((point.co - Vector((5.0, 6.0))).length, 1e-6)
+
+    def test_resolve_source_vertex_index(self):
+        source = self._mesh_object()
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        eval_source = source.evaluated_get(depsgraph)
+
+        # No modifier: the evaluated index maps straight through (count matches).
+        self.assertEqual(resolve_source_vertex_index(source, eval_source, 1), 1)
+        # An out-of-range evaluated index resolves to nothing rather than crash.
+        self.assertIsNone(resolve_source_vertex_index(source, eval_source, 99))

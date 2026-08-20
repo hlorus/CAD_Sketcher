@@ -320,29 +320,12 @@ def update_projected_geometry(context, depsgraph):
         global_data.needs_redraw = True
 
 
-def find_projected_point(sketch, source, vertex_index):
-    """Return an existing valid ``PointRef`` bound to ``(source, vertex_index)``.
-
-    Lets repeated element picks reuse a shared corner instead of stacking
-    duplicate points, so an edge and an adjacent face project as one connected
-    outline. Matched on the fallback vertex index (stable at creation time).
-    """
-    for curve_id, bound_source, _vid, fallback, _last in iter_projected_point_bindings(
-        sketch
-    ):
-        if bound_source == source and fallback == int(vertex_index):
-            point = PointRef(sketch, curve_id)
-            if point.valid:
-                return point
-    return None
-
-
 def find_projected_vertex_point(sketch, source, vertex_id):
     """Return an existing live point bound to ``source``'s ``vertex_id``, or None.
 
-    Like :func:`find_projected_point` but matched on the persistent source vertex
-    id (survives topology edits) rather than the creation-time index. Used by the
-    snap path, which mints/knows the id before placing.
+    The single dedup used by both the projection tool and the snap path: matches
+    on the persistent source vertex id, which survives topology edits that
+    reshuffle indices, rather than the creation-time index.
     """
     for (
         curve_id,
@@ -356,6 +339,17 @@ def find_projected_vertex_point(sketch, source, vertex_id):
             if existing.valid:
                 return existing
     return None
+
+
+def find_projected_point(sketch, source, vertex_index):
+    """Return an existing valid ``PointRef`` bound to ``(source, vertex_index)``.
+
+    Resolves the vertex to its persistent source id and matches on that (via
+    :func:`find_projected_vertex_point`), so repeated element picks reuse a
+    shared corner even after topology edits shuffle the raw indices.
+    """
+    vertex_id = ensure_vertex_id(source.data, int(vertex_index))
+    return find_projected_vertex_point(sketch, source, vertex_id)
 
 
 def _line_exists_between(sketch, p1, p2):
@@ -458,7 +452,39 @@ def project_mesh_element(sketch, source, elem_type, elem_index, construction=Tru
     return counters["points"], counters["lines"]
 
 
-def project_mesh_vertex(sketch, source, vertex_index, construction=True):
+def resolve_source_vertex_index(source, eval_source, eval_vertex_index):
+    """Map an evaluated-mesh vertex index back to the original mesh vertex.
+
+    Snapping picks a vertex on the *evaluated* mesh, but a live projection must
+    bind the *original* vertex. When the evaluated mesh carries the persistent
+    vertex id (already-tagged / previously projected vertices), match on that so
+    the binding is index-independent and survives index-shuffling modifiers.
+    Otherwise the index only corresponds when the modifier stack preserves vertex
+    order, which we approximate by an equal vertex count. Returns the original
+    index, or None when the correspondence can't be trusted.
+    """
+    orig_mesh = source.data
+    eval_mesh = eval_source.data
+    if not (0 <= eval_vertex_index < len(eval_mesh.vertices)):
+        return None
+
+    eval_attr = eval_mesh.attributes.get(VERTEX_ID_ATTR)
+    if eval_attr is not None and eval_attr.domain == "POINT":
+        vid = int(eval_attr.data[eval_vertex_index].value)
+        if vid:
+            orig_attr = orig_mesh.attributes.get(VERTEX_ID_ATTR)
+            if orig_attr is not None and orig_attr.domain == "POINT":
+                for index, item in enumerate(orig_attr.data):
+                    if int(item.value) == vid and index < len(orig_mesh.vertices):
+                        return index
+
+    # No id to match on: trust the index only when topology is preserved.
+    if len(eval_mesh.vertices) == len(orig_mesh.vertices):
+        return eval_vertex_index
+    return None
+
+
+def project_mesh_vertex(sketch, source, vertex_index, construction=True, world_co=None):
     """Project a single source mesh vertex onto ``sketch`` as a live point.
 
     Unlike :func:`project_mesh_object` (which projects a whole mesh), this is the
@@ -467,6 +493,11 @@ def project_mesh_vertex(sketch, source, vertex_index, construction=True):
     they share a single projected point (and thus become coincident). Returns the
     ``PointRef`` (fixed, driven by the source vertex), or None if the index is out
     of range.
+
+    ``world_co`` is the world-space position to place the point at, typically the
+    snap's evaluated hit. Passing it avoids a one-frame jump when the source has a
+    vertex-moving modifier (the original vertex position differs from the snapped,
+    evaluated one). It defaults to the original vertex position.
     """
     if source is None or source.type != "MESH":
         raise TypeError("Source must be a mesh object")
@@ -480,9 +511,12 @@ def project_mesh_vertex(sketch, source, vertex_index, construction=True):
         return existing
 
     owner = sketch.target_object
-    local = owner.matrix_world.inverted() @ (
-        source.matrix_world @ mesh.vertices[vertex_index].co
-    )
+    if world_co is not None:
+        local = owner.matrix_world.inverted() @ Vector(world_co)
+    else:
+        local = owner.matrix_world.inverted() @ (
+            source.matrix_world @ mesh.vertices[vertex_index].co
+        )
     with batch_update(sketch):
         point = PointRef.create(
             sketch,
