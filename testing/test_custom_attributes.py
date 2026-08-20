@@ -2,6 +2,7 @@ import unittest
 
 import bpy
 
+from ..operators.modifiers import get_modifier_input, set_modifier_input
 from ..utilities.custom_attributes import (
     define_attribute,
     definition,
@@ -43,7 +44,7 @@ class TestCustomAttributes(Sketch2dTestCase):
                 and getattr(item, "in_out", "") == "INPUT"
                 and item.name == "Fill"
             )
-            fill_socket.default_value = bool(fill)
+            set_modifier_input(modifier, fill_socket.identifier, bool(fill))
         for selected in list(self.context.selected_objects):
             selected.select_set(False)
         duplicate.select_set(True)
@@ -254,7 +255,7 @@ class TestCustomAttributes(Sketch2dTestCase):
             and item.name == "Fill"
         )
         fill_identifier = fill_socket.identifier
-        modifier[fill_identifier] = True
+        set_modifier_input(modifier, fill_identifier, True)
 
         define_attribute(self.sketch, "fill_survival_tag", "INT", "CURVE", 7)
 
@@ -266,7 +267,7 @@ class TestCustomAttributes(Sketch2dTestCase):
             and item.name == "Fill"
         )
         self.assertEqual(fill_socket_after.identifier, fill_identifier)
-        self.assertTrue(modifier[fill_identifier])
+        self.assertTrue(get_modifier_input(modifier, fill_identifier))
 
         converted = None
         try:
