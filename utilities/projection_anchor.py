@@ -403,6 +403,11 @@ def project_mesh_element(sketch, source, elem_type, elem_index, construction=Tru
 
     def connect(v0, v1):
         p0, p1 = get_point(v0), get_point(v1)
+        # An edge perpendicular to the sketch plane collapses to a point (e.g. a
+        # side face of a cube projected edge-on). A zero-length line is useless
+        # for the solver and the fill, so drop it rather than project it.
+        if (p0.co - p1.co).length < 1e-6:
+            return
         # Reuse an existing projected line so re-picking the same edge/face
         # doesn't stack duplicate segments on the shared points.
         if _line_exists_between(sketch, p0, p1):

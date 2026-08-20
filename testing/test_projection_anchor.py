@@ -72,6 +72,18 @@ class TestProjectionAnchor(Sketch2dTestCase):
         self.assertEqual(again, (0, 0))
         self.assertEqual(len(self.sketch.data.curves), curves)
 
+    def test_perpendicular_edge_creates_no_zero_length_line(self):
+        # An edge going straight through the sketch plane (e.g. a cube side face
+        # projected edge-on) collapses both endpoints to one 2D spot. No line.
+        mesh = self.data.meshes.new("PerpSource")
+        mesh.from_pydata([(1.0, 1.0, 0.0), (1.0, 1.0, 2.0)], [(0, 1)], [])
+        mesh.update()
+        source = self.data.objects.new("PerpSource", mesh)
+        self.scene.collection.objects.link(source)
+
+        n_points, n_lines = project_mesh_element(self.sketch, source, "EDGE", 0)
+        self.assertEqual(n_lines, 0)
+
     def test_project_single_vertex_element(self):
         source = self._mesh_object()
         n_points, n_lines = project_mesh_element(self.sketch, source, "VERTEX", 2)
