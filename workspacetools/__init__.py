@@ -13,6 +13,7 @@ from .bevel import VIEW3D_T_slvs_bevel
 from .extrude import VIEW3D_T_slvs_node_extrude
 from .manager import ToolGroup, add
 from .offset import VIEW3D_T_slvs_offset
+from .project_geometry import VIEW3D_T_slvs_project_geometry
 from .revolve import VIEW3D_T_slvs_node_revolve
 from .select import VIEW3D_T_slvs_select
 from .trim import VIEW3D_T_slvs_trim
@@ -27,6 +28,12 @@ add(VIEW3D_T_slvs_add_rectangle, visibility=ToolGroup.SKETCH_2D, separator=False
 add(VIEW3D_T_slvs_trim, visibility=ToolGroup.SKETCH_2D, separator=True, group=False)
 add(VIEW3D_T_slvs_bevel, visibility=ToolGroup.SKETCH_2D, separator=False, group=False)
 add(VIEW3D_T_slvs_offset, visibility=ToolGroup.SKETCH_2D, separator=False, group=False)
+add(
+    VIEW3D_T_slvs_project_geometry,
+    visibility=ToolGroup.SKETCH_2D,
+    separator=True,
+    group=False,
+)
 
 # Native free-3D sketch tools. Keep this first slice intentionally small:
 # selection plus point/line placement on stateful temporary planes.
