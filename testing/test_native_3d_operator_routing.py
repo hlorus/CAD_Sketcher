@@ -33,3 +33,37 @@ class TestNative3DOperatorRouting(BgsTestCase):
 
         self.assertAlmostEqual((hit - anchor).dot(normal), 0.0, places=6)
         self.assertGreater(abs(hit.z), 1e-6)
+
+    def test_3d_select_hotkeys_switch_and_invoke_native_tools(self):
+        """P/L from Select must never route through the 2D operators."""
+        from ..declarations import Operators, WorkSpaceTools
+        from ..stateful_operator.constants import Operators as StatefulOps
+        from ..workspacetools.manager import ToolGroup, _select_keymap_for_group
+
+        keymap = _select_keymap_for_group(ToolGroup.SKETCH_3D)
+        routes = {}
+        for entry in keymap:
+            if entry[0] != StatefulOps.InvokeTool:
+                continue
+            event = entry[1]
+            options = entry[2] or {}
+            props = dict(options.get("properties", ()))
+            routes[event.get("type")] = (
+                props.get("tool_name"),
+                props.get("operator"),
+            )
+
+        self.assertEqual(
+            routes.get("P"),
+            (WorkSpaceTools.AddPoint3D, Operators.AddPoint3D),
+        )
+        self.assertEqual(
+            routes.get("L"),
+            (WorkSpaceTools.AddLine3D, Operators.AddLine3D),
+        )
+        self.assertNotIn(
+            (WorkSpaceTools.AddPoint2D, Operators.AddPoint2D), routes.values()
+        )
+        self.assertNotIn(
+            (WorkSpaceTools.AddLine2D, Operators.AddLine2D), routes.values()
+        )
