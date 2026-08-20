@@ -37,7 +37,8 @@ def _select_keymap_for_group(group):
     entries and a hotkey can invoke AddLine2D/AddPoint2D without activating the
     matching 3D workspace tool.
     """
-    from ..keymaps import tool_access, tool_access_3d, tool_base_keymap, tool_select
+    from ..keymaps import tool_access, tool_base_keymap, tool_select
+    from .keymaps_3d import tool_access_3d
 
     # ``tool_select`` is base + 2D access + selection/picking actions. Reuse the
     # common selection tail and swap only the sketch-family tool access entries.
