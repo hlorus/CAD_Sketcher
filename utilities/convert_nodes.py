@@ -11,7 +11,8 @@ values across that boundary without spatial/nearest sampling.
 
 There is one shared ``CAD Sketcher Convert`` group. Attribute definitions only
 change the small bridge section in that same group; no per-schema node-group
-variants are created or rebound.
+variants are created or rebound. The public group interface is kept stable when
+that bridge is rebuilt so existing modifier input bindings remain valid.
 """
 
 import bpy
@@ -23,7 +24,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 16
+CONVERT_VERSION = 17
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -246,6 +247,38 @@ def ensure_generated_id_nodes(node_group):
     return node_group
 
 
+def _interface_socket(ng, name, in_out):
+    return next(
+        (
+            item
+            for item in ng.interface.items_tree
+            if getattr(item, "item_type", "") == "SOCKET"
+            and getattr(item, "in_out", "") == in_out
+            and item.name == name
+        ),
+        None,
+    )
+
+
+def _ensure_convert_interface(ng):
+    """Create missing public sockets without replacing existing identifiers.
+
+    Geometry-node modifier values are keyed by interface socket identifier.
+    Clearing/recreating this interface while rebuilding the internal bridge
+    therefore orphans values already stored on bound modifiers (notably Fill).
+    """
+    iface = ng.interface
+    if _interface_socket(ng, "Geometry", "OUTPUT") is None:
+        iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    if _interface_socket(ng, "Geometry", "INPUT") is None:
+        iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    fill = _interface_socket(ng, "Fill", "INPUT")
+    if fill is None:
+        fill = iface.new_socket("Fill", in_out="INPUT", socket_type="NodeSocketBool")
+        fill.default_value = True
+    return fill
+
+
 def build_convert_node_group(
     name: str = CONVERT_NODE_GROUP, attribute_definitions=None
 ):
@@ -253,7 +286,8 @@ def build_convert_node_group(
 
     Passing ``attribute_definitions`` updates only this same group's domain-aware
     bridge. Omitting it reuses a current group unchanged, which lets every sketch
-    keep the same modifier binding.
+    keep the same modifier binding. Rebuilds replace internal nodes/links only;
+    the public interface stays intact so modifier socket identifiers stay stable.
     """
     requested = attribute_definitions is not None
     specs = normalize_attribute_definitions(attribute_definitions)
@@ -268,15 +302,10 @@ def build_convert_node_group(
             return ng
         ng.nodes.clear()
         ng.links.clear()
-        ng.interface.clear()
     else:
         ng = bpy.data.node_groups.new(name, "GeometryNodeTree")
 
-    iface = ng.interface
-    iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
-    iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
-    fill = iface.new_socket("Fill", in_out="INPUT", socket_type="NodeSocketBool")
-    fill.default_value = True
+    _ensure_convert_interface(ng)
 
     nodes, links = ng.nodes, ng.links
     gi = nodes.new("NodeGroupInput")
