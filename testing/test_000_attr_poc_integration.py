@@ -3,7 +3,7 @@ import unittest
 import bpy
 
 from ..model.constants import SketchCurveType
-from ..operators.modifiers import set_modifier_input
+from ..operators.modifiers import get_modifier_input, set_modifier_input
 from .utils import Sketch2dTestCase
 
 
@@ -42,6 +42,7 @@ class TestAttributePOCIntegration(Sketch2dTestCase):
             and item.name == "Fill"
         )
         set_modifier_input(modifier, fill_socket.identifier, enabled)
+        return fill_socket
 
     def _evaluated_values(self, attr_name):
         from ..utilities.curve_data import refresh_curve_geometry
@@ -60,8 +61,17 @@ class TestAttributePOCIntegration(Sketch2dTestCase):
             except RuntimeError:
                 continue
             mesh_attr = mesh.attributes.get(attr_name)
+            print(
+                "ATTR_PROBE",
+                attr_name,
+                "verts=", len(mesh.vertices),
+                "edges=", len(mesh.edges),
+                "polys=", len(mesh.polygons),
+                "attrs=", [(a.name, a.domain, a.data_type) for a in mesh.attributes],
+            )
             if mesh_attr is not None:
                 values = [item.value for item in mesh_attr.data]
+                print("ATTR_PROBE_VALUES", attr_name, values)
             instance.object.to_mesh_clear()
         return values
 
@@ -81,7 +91,14 @@ class TestAttributePOCIntegration(Sketch2dTestCase):
 
         modifier = self.sketch.target_object.modifiers.get("CAD Sketcher Convert")
         self.assertIsNotNone(modifier)
-        self._set_fill(modifier)
+        fill_socket = self._set_fill(modifier)
+        print(
+            "ATTR_PROBE_FILL",
+            fill_socket.identifier,
+            get_modifier_input(modifier, fill_socket.identifier),
+            "group=", modifier.node_group.name,
+            "sig=", modifier.node_group.get("cad_convert_attribute_signature"),
+        )
 
         distinct = {value for value in self._evaluated_values(attr_name) if value != 0}
         self.assertEqual(distinct, {10, 20, 30, 40})
@@ -105,7 +122,14 @@ class TestAttributePOCIntegration(Sketch2dTestCase):
         modifier = self.sketch.target_object.modifiers.get("CAD Sketcher Convert")
         self.assertIsNotNone(modifier)
         modifier.node_group = group
-        self._set_fill(modifier)
+        fill_socket = self._set_fill(modifier)
+        print(
+            "ATTR_PROBE_FILL_ISOLATED",
+            fill_socket.identifier,
+            get_modifier_input(modifier, fill_socket.identifier),
+            "group=", modifier.node_group.name,
+            "sig=", modifier.node_group.get("cad_convert_attribute_signature"),
+        )
 
         distinct = {value for value in self._evaluated_values(attr_name) if value != 0}
         self.assertEqual(distinct, {10, 20, 30, 40})
