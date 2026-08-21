@@ -73,10 +73,13 @@ def _shared_conversion_definitions():
 
     Definitions remain per-sketch; the converter only needs the minimal
     name/type/domain triples for attributes that cross lossy topology steps.
-    Values are never copied or mirrored here.
+    Values are never copied or mirrored here. Orphan Curves datablocks are
+    ignored so deleted sketches cannot keep stale schemas in the shared group.
     """
     definitions_by_key = {}
     for curve_data in bpy.data.hair_curves:
+        if curve_data.users == 0:
+            continue
         for entry in _read_defs(curve_data):
             domain = str(entry.get("domain", "")).upper()
             data_type = str(entry.get("type", "")).upper()
