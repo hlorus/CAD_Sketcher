@@ -4,15 +4,14 @@ The standard Blender 5.2 conversion path welds sketch endpoints by identity.
 Named POINT/CURVE attributes propagate generically through the wire path. CURVE
 values are re-homed onto EDGE before the weld so different segment values cannot
 be averaged at shared corners. The non-fill path keeps that welded mesh-wire
-representation. Fill Curve is the only topology boundary that drops named
-attributes, so anonymous captures bridge values across it without spatial or
-nearest sampling.
+representation. Fill Curve is the only node that drops named attributes, so
+anonymous captures bridge values across it without spatial/nearest sampling.
 
 There is one shared ``CAD Sketcher Convert`` group. Attribute definitions only
-change the bridge in that same group; no per-schema node-group variants are
-created or rebound. Rebuilding the group interface follows Blender's reliable
-5.2 field-evaluation path, while existing modifier Fill values are migrated to
-the newly-created socket so users do not lose their setting.
+change the internal bridge in that same group; no per-schema node-group variants
+are created or rebound. The public Geometry/Fill interface is preserved across
+internal rebuilds so existing modifiers keep the same socket identifiers and
+therefore keep their Fill value.
 """
 
 import bpy
@@ -24,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 24
+CONVERT_VERSION = 25
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -92,7 +91,12 @@ def _remove_named_attribute(nodes, links, geometry, name):
 
 
 def _store_segment_attributes_on_edges(nodes, links, geometry, specs):
-    """Move per-segment CURVE values to EDGE before Merge Points."""
+    """Move per-segment CURVE values to EDGE before Merge Points.
+
+    Curve to Mesh initially adapts a CURVE value onto mesh elements. Capturing
+    the value on EDGE, removing the adapted named copy, then restoring that name
+    on EDGE ensures the weld never averages adjacent segment values at corners.
+    """
     current = geometry
     for index, entry in enumerate(specs):
         if entry["domain"] != "CURVE":
@@ -247,84 +251,54 @@ def _interface_socket(ng, name, in_out):
     )
 
 
-def _get_modifier_input(modifier, identifier, default):
-    try:
-        props = getattr(modifier, "properties", None)
-        if props is not None and hasattr(props, "inputs"):
-            return getattr(props.inputs, identifier).value
-        return modifier[identifier]
-    except (AttributeError, KeyError, TypeError):
-        return default
+def _ensure_convert_interface(ng):
+    """Create the public interface once and keep its socket identifiers stable."""
+    iface = ng.interface
 
+    geometry_out = _interface_socket(ng, "Geometry", "OUTPUT")
+    if geometry_out is None:
+        geometry_out = iface.new_socket(
+            "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+        )
 
-def _set_modifier_input(modifier, identifier, value):
-    props = getattr(modifier, "properties", None)
-    if props is not None and hasattr(props, "inputs"):
-        getattr(props.inputs, identifier).value = value
-    else:
-        modifier[identifier] = value
+    geometry_in = _interface_socket(ng, "Geometry", "INPUT")
+    if geometry_in is None:
+        geometry_in = iface.new_socket(
+            "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+        )
 
-
-def _snapshot_fill_bindings(ng):
-    """Remember Fill values for every modifier using this shared group."""
     fill = _interface_socket(ng, "Fill", "INPUT")
     if fill is None:
-        return []
-    default = bool(getattr(fill, "default_value", True))
-    bindings = []
-    for obj in bpy.data.objects:
-        for modifier in obj.modifiers:
-            if modifier.type != "NODES" or modifier.node_group is not ng:
-                continue
-            bindings.append(
-                (modifier, bool(_get_modifier_input(modifier, fill.identifier, default)))
-            )
-    return bindings
+        fill = iface.new_socket("Fill", in_out="INPUT", socket_type="NodeSocketBool")
+        fill.default_value = True
 
-
-def _create_convert_interface(ng):
-    iface = ng.interface
-    iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
-    iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
-    fill = iface.new_socket("Fill", in_out="INPUT", socket_type="NodeSocketBool")
-    fill.default_value = True
-    return fill
-
-
-def _restore_fill_bindings(bindings, fill):
-    for modifier, value in bindings:
-        try:
-            _set_modifier_input(modifier, fill.identifier, value)
-        except (AttributeError, KeyError, TypeError):
-            # A modifier can disappear while a datablock is being torn down; that
-            # must not prevent the shared converter from rebuilding for the rest.
-            continue
+    return geometry_out, geometry_in, fill
 
 
 def build_convert_node_group(
     name: str = CONVERT_NODE_GROUP, attribute_definitions=None
 ):
-    """Build/update the one shared identity-weld converter in place."""
+    """Build/update the shared identity-weld converter without reminting sockets."""
     requested = attribute_definitions is not None
     specs = normalize_attribute_definitions(attribute_definitions)
     signature = attribute_signature(specs)
 
     ng = bpy.data.node_groups.get(name)
-    fill_bindings = []
     if ng is not None:
         if ng.get("cad_convert_version") == CONVERT_VERSION and (
             not requested
             or ng.get("cad_convert_attribute_signature", "") == signature
         ):
             return ng
-        fill_bindings = _snapshot_fill_bindings(ng)
+        # Attribute-schema changes only affect internal nodes. Do not clear the
+        # interface: modifiers store their input values by socket identifier, and
+        # recreating Fill silently orphaned the old value and evaluated as False.
         ng.nodes.clear()
         ng.links.clear()
-        ng.interface.clear()
     else:
         ng = bpy.data.node_groups.new(name, "GeometryNodeTree")
 
-    fill_socket = _create_convert_interface(ng)
+    _ensure_convert_interface(ng)
 
     nodes, links = ng.nodes, ng.links
     gi = nodes.new("NodeGroupInput")
@@ -400,5 +374,4 @@ def build_convert_node_group(
     ng["cad_generated_id_version"] = GENERATED_ID_VERSION
     ng["cad_convert_attribute_signature"] = signature
     ng.update_tag()
-    _restore_fill_bindings(fill_bindings, fill_socket)
     return ng
