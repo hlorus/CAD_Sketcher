@@ -9,10 +9,9 @@ for a property state, ``pick`` for an existing element -- and assert the geometr
 and the auto-constraints ``main``/``fini`` add.
 """
 
-import math
 
-from .utils import Sketch2dTestCase, OpHarness
-from ..model.curve_ref import LineRef, CircleRef, ArcRef, PointRef
+from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef
+from .utils import OpHarness, Sketch2dTestCase
 
 
 class TestCreateOperators(Sketch2dTestCase):
@@ -41,8 +40,8 @@ class TestCreateOperators(Sketch2dTestCase):
         self.assertAlmostEqual(line.p2.co.y, 5.0)
 
     def test_axis_aligned_line_gets_horizontal_constraint(self):
-        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
         from ..model.horizontal import SlvsHorizontal
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
 
         self.context.scene.sketcher.auto_axis_constraints = True
         h = self._harness(View3D_OT_slvs_add_line2d)
@@ -52,15 +51,18 @@ class TestCreateOperators(Sketch2dTestCase):
         self.assertTrue(h.op.has_alignment)
         line_cid = h.op.target.curve_id
         horiz = [
-            c for c in self.sketch.constraints.all
+            c
+            for c in self.sketch.constraints.all
             if isinstance(c, SlvsHorizontal) and line_cid in c.curve_id_placements()
         ]
-        self.assertEqual(len(horiz), 1, "expected exactly one auto horizontal constraint")
+        self.assertEqual(
+            len(horiz), 1, "expected exactly one auto horizontal constraint"
+        )
 
     def test_auto_constraints_toggle_off_suppresses_alignment(self):
         """With Auto Constraints disabled, an axis-aligned line gets no constraint."""
-        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
         from ..model.horizontal import SlvsHorizontal
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
 
         self.context.scene.sketcher.auto_axis_constraints = False
         try:
@@ -68,21 +70,26 @@ class TestCreateOperators(Sketch2dTestCase):
             h.place_point((0.0, 0.0)).place_point((5.0, 0.0))  # horizontal
             h.finish()
 
-            self.assertFalse(h.op.has_alignment, "toggle off must suppress auto alignment")
+            self.assertFalse(
+                h.op.has_alignment, "toggle off must suppress auto alignment"
+            )
             line_cid = h.op.target.curve_id
             horiz = [
-                c for c in self.sketch.constraints.all
+                c
+                for c in self.sketch.constraints.all
                 if isinstance(c, SlvsHorizontal) and line_cid in c.curve_id_placements()
             ]
-            self.assertEqual(len(horiz), 0, "no auto constraint should be added when disabled")
+            self.assertEqual(
+                len(horiz), 0, "no auto constraint should be added when disabled"
+            )
         finally:
             self.context.scene.sketcher.auto_axis_constraints = True
 
     def test_shift_bypass_suppresses_alignment(self):
         """Shift on a segment (skip_auto_constraints) bypasses auto alignment
         even with the toggle enabled."""
-        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
         from ..model.horizontal import SlvsHorizontal
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
 
         self.context.scene.sketcher.auto_axis_constraints = True
         h = self._harness(View3D_OT_slvs_add_line2d)
@@ -91,13 +98,18 @@ class TestCreateOperators(Sketch2dTestCase):
         h.op.get_state_data(h.op.state_index)["skip_auto_constraints"] = True
         h.finish()
 
-        self.assertFalse(h.op.has_alignment, "Shift bypass must suppress auto alignment")
+        self.assertFalse(
+            h.op.has_alignment, "Shift bypass must suppress auto alignment"
+        )
         line_cid = h.op.target.curve_id
         horiz = [
-            c for c in self.sketch.constraints.all
+            c
+            for c in self.sketch.constraints.all
             if isinstance(c, SlvsHorizontal) and line_cid in c.curve_id_placements()
         ]
-        self.assertEqual(len(horiz), 0, "no auto constraint should be added under Shift bypass")
+        self.assertEqual(
+            len(horiz), 0, "no auto constraint should be added under Shift bypass"
+        )
 
     def test_shift_bypass_is_not_sticky(self):
         """A confirm with Shift sets the bypass; a later confirm without Shift
@@ -112,7 +124,9 @@ class TestCreateOperators(Sketch2dTestCase):
 
         op = self._harness(View3D_OT_slvs_add_line2d).op
         op.check_event(_Event(shift=True))
-        self.assertTrue(op.state_data.get("skip_auto_constraints"), "Shift confirm sets bypass")
+        self.assertTrue(
+            op.state_data.get("skip_auto_constraints"), "Shift confirm sets bypass"
+        )
         op.check_event(_Event(shift=False))
         self.assertFalse(
             op.state_data.get("skip_auto_constraints"),
@@ -126,7 +140,9 @@ class TestCreateOperators(Sketch2dTestCase):
         h.place_point((0.0, 0.0)).place_point((5.0, 5.0))  # 45 degrees
         h.finish()
 
-        self.assertFalse(h.op.has_alignment, "diagonal line must not be auto-constrained")
+        self.assertFalse(
+            h.op.has_alignment, "diagonal line must not be auto-constrained"
+        )
 
     def test_line_continue_draw_after_placed_endpoint(self):
         from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
@@ -155,9 +171,9 @@ class TestCreateOperators(Sketch2dTestCase):
         from ..operators.add_arc import View3D_OT_slvs_add_arc2d
 
         h = self._harness(View3D_OT_slvs_add_arc2d)
-        h.place_point((0.0, 0.0))   # center
-        h.place_point((2.0, 0.0))   # start
-        h.place_point((0.0, 2.0))   # end
+        h.place_point((0.0, 0.0))  # center
+        h.place_point((2.0, 0.0))  # start
+        h.place_point((0.0, 2.0))  # end
         h.finish()
 
         arc = h.op.target
@@ -174,12 +190,15 @@ class TestCreateOperators(Sketch2dTestCase):
         h.place_point((0.0, 0.0)).place_point((4.0, 2.0))
         h.finish()
 
-        self.assertEqual(self._count_lines() - before, 4, "rectangle must add four lines")
+        self.assertEqual(
+            self._count_lines() - before, 4, "rectangle must add four lines"
+        )
 
     # -- point (single property state) ---------------------------------------
     def test_point_from_coordinates(self):
-        from ..operators.add_point_2d import View3D_OT_slvs_add_point2d
         from mathutils import Vector
+
+        from ..operators.add_point_2d import View3D_OT_slvs_add_point2d
 
         h = self._harness(View3D_OT_slvs_add_point2d)
         h.set_value(Vector((7.0, 8.0)))
@@ -189,6 +208,42 @@ class TestCreateOperators(Sketch2dTestCase):
         self.assertIsInstance(pt, PointRef)
         self.assertAlmostEqual(pt.co.x, 7.0)
         self.assertAlmostEqual(pt.co.y, 8.0)
+
+    def test_point_snapped_to_mesh_vertex_live_projects(self):
+        # Add Point is a coordinate state (no create_element), so its main() must
+        # run the snap-link itself -- otherwise snapping onto a mesh vertex would
+        # only ever place a dead static point.
+        from mathutils import Vector
+
+        from ..operators.add_point_2d import View3D_OT_slvs_add_point2d
+        from ..utilities.projection_anchor import iter_projected_point_bindings
+
+        mesh = self.data.meshes.new("SnapSrc")
+        mesh.from_pydata([(1.0, 1.0, 0.0)], [], [])
+        mesh.update()
+        source = self.data.objects.new("SnapSrc", mesh)
+        self.scene.collection.objects.link(source)
+        self.context.view_layer.update()
+
+        self.context.scene.sketcher.auto_axis_constraints = True
+        self.context.scene.sketcher.use_snap_project = True
+
+        h = self._harness(View3D_OT_slvs_add_point2d)
+        h.set_value(Vector((1.0, 1.0)))
+        # Emulate what state_func stashes when the cursor is on a mesh vertex.
+        data = h.op.get_state_data(0)
+        data["snapped"] = True
+        data["snap"] = {
+            "type": "VERTEX",
+            "object": "SnapSrc",
+            "vertex_index": 0,
+            "world_point": Vector((1.0, 1.0, 0.0)),
+        }
+        h.finish()
+
+        bindings = list(iter_projected_point_bindings(self.sketch))
+        self.assertEqual(len(bindings), 1, "the snap must create one live binding")
+        self.assertEqual(bindings[0][1], source)
 
     # -- mixed paradigm: pick an existing point, place the other ------------
     def test_line_reuses_picked_start_point(self):
