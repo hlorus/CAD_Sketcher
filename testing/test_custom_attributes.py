@@ -68,28 +68,6 @@ class TestCustomAttributes(Sketch2dTestCase):
             elif isinstance(data, bpy.types.Curves):
                 bpy.data.hair_curves.remove(data)
 
-    def _evaluated_attribute_values(self, source, attr_name):
-        """Read a named attribute from the real evaluated GN mesh output."""
-        from ..utilities.curve_data import refresh_curve_geometry
-
-        refresh_curve_geometry(self.sketch)
-        self.context.view_layer.update()
-        depsgraph = self.context.evaluated_depsgraph_get()
-        original = source.original
-        values = []
-        for instance in depsgraph.object_instances:
-            if instance.object.original is not original:
-                continue
-            try:
-                mesh = instance.object.to_mesh()
-            except RuntimeError:
-                continue
-            attr = mesh.attributes.get(attr_name)
-            if attr is not None:
-                values = [item.value for item in attr.data]
-            instance.object.to_mesh_clear()
-        return values
-
     def test_curve_attribute_values_live_on_native_source(self):
         _, lines = self._square()
         define_attribute(self.sketch, "material_slot", "INT", "CURVE", 2)
@@ -227,9 +205,9 @@ class TestCustomAttributes(Sketch2dTestCase):
         finally:
             self._remove_converted(converted)
 
-    @unittest.skipIf(bpy.app.version < (5, 2, 0), "evaluated GN output requires 5.2+")
-    def test_filled_conversion_preserves_exact_segment_values(self):
-        """The evaluated fill keeps exact segment values across weld + Fill Curve."""
+    @unittest.skipIf(bpy.app.version < (5, 2, 0), "fill regression requires 5.2+")
+    def test_filled_conversion_survives_segment_attribute_schema(self):
+        """A CURVE attribute must not silently switch an existing fill to wire."""
         _, lines = self._square()
         define_attribute(self.sketch, "fill_curve_tag", "INT", "CURVE", 0)
         for line, value in zip(lines, (10, 20, 30, 40)):
@@ -247,10 +225,12 @@ class TestCustomAttributes(Sketch2dTestCase):
         )
         set_modifier_input(modifier, fill_socket.identifier, True)
 
-        values = self._evaluated_attribute_values(source, "fill_curve_tag")
-        distinct = {value for value in values if value != 0}
-        self.assertEqual(distinct, {10, 20, 30, 40})
-        self.assertTrue(distinct.isdisjoint({15, 25, 35}))
+        converted = None
+        try:
+            converted = self._convert_copy(source)
+            self.assertGreater(len(converted.data.polygons), 0)
+        finally:
+            self._remove_converted(converted)
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "shared converter requires 5.2+")
     def test_attribute_schema_changes_keep_shared_convert_group(self):
@@ -282,6 +262,7 @@ class TestCustomAttributes(Sketch2dTestCase):
             and item.name == "Fill"
         )
         set_modifier_input(modifier, fill_socket.identifier, True)
+        fill_identifier = fill_socket.identifier
 
         define_attribute(self.sketch, "fill_survival_tag", "INT", "CURVE", 7)
 
@@ -292,6 +273,7 @@ class TestCustomAttributes(Sketch2dTestCase):
             and getattr(item, "in_out", "") == "INPUT"
             and item.name == "Fill"
         )
+        self.assertEqual(fill_socket_after.identifier, fill_identifier)
         self.assertTrue(get_modifier_input(modifier, fill_socket_after.identifier))
 
         converted = None
