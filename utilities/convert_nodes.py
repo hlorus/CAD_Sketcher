@@ -23,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 25
+CONVERT_VERSION = 26
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -290,9 +290,6 @@ def build_convert_node_group(
             or ng.get("cad_convert_attribute_signature", "") == signature
         ):
             return ng
-        # Attribute-schema changes only affect internal nodes. Do not clear the
-        # interface: modifiers store their input values by socket identifier, and
-        # recreating Fill silently orphaned the old value and evaluated as False.
         ng.nodes.clear()
         ng.links.clear()
     else:
@@ -373,5 +370,4 @@ def build_convert_node_group(
     ng["cad_convert_version"] = CONVERT_VERSION
     ng["cad_generated_id_version"] = GENERATED_ID_VERSION
     ng["cad_convert_attribute_signature"] = signature
-    ng.update_tag()
     return ng
