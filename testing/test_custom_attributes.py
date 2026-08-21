@@ -70,6 +70,9 @@ class TestCustomAttributes(Sketch2dTestCase):
 
     def _evaluated_attribute_values(self, source, attr_name):
         """Read a named attribute from the real evaluated GN mesh output."""
+        from ..utilities.curve_data import refresh_curve_geometry
+
+        refresh_curve_geometry(self.sketch)
         self.context.view_layer.update()
         depsgraph = self.context.evaluated_depsgraph_get()
         original = source.original
