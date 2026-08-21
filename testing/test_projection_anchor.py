@@ -11,7 +11,9 @@ from ..utilities.projection_anchor import (
     project_curves_object,
     project_mesh_element,
     project_mesh_object,
+    project_mesh_vertex,
     refresh_projection_for_sketch,
+    resolve_source_vertex_index,
 )
 from .utils import Sketch2dTestCase
 
@@ -259,3 +261,54 @@ class TestProjectionAnchor(Sketch2dTestCase):
         # The standalone point landed at its position.
         self.assertTrue(any((p.co - Vector((3.0, 4.0))).length < 1e-6 for p in points))
         self.assertEqual(skipped, 1, "the arc must be counted as skipped")
+
+    def test_project_single_vertex_dedup_and_live(self):
+        # The granular snap path: one vertex -> one live point, reused on repeat.
+        source = self._mesh_object()
+
+        point = project_mesh_vertex(self.sketch, source, 1, construction=True)
+        self.assertIsNotNone(point)
+        self.assertTrue(point.fixed)
+        self.assertTrue(point.construction)
+        self.assertLess((point.co - Vector((2.0, 0.0))).length, 1e-6)
+
+        # Snapping the same vertex again must reuse the existing point, not stack
+        # a second projected reference on top of it.
+        again = project_mesh_vertex(self.sketch, source, 1, construction=True)
+        self.assertEqual(again.curve_id, point.curve_id)
+
+        # A different vertex gets its own point.
+        other = project_mesh_vertex(self.sketch, source, 0, construction=True)
+        self.assertNotEqual(other.curve_id, point.curve_id)
+
+        # Out-of-range index is a no-op rather than a crash.
+        self.assertIsNone(project_mesh_vertex(self.sketch, source, 99))
+
+        # The live link tracks source edits, same as a full projection.
+        source.data.vertices[1].co = (4.0, 1.0, 1.0)
+        source.data.update()
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertLess((point.co - Vector((4.0, 1.0))).length, 1e-5)
+
+    def test_project_mesh_vertex_places_at_snapped_world_co(self):
+        # A snap hands the evaluated world position; the point lands there rather
+        # than at the (possibly modifier-shifted) original vertex coordinate.
+        source = self._mesh_object()
+        point = project_mesh_vertex(
+            self.sketch, source, 1, construction=True, world_co=(5.0, 6.0, 1.0)
+        )
+        self.assertIsNotNone(point)
+        self.assertLess((point.co - Vector((5.0, 6.0))).length, 1e-6)
+
+    def test_resolve_source_vertex_index(self):
+        source = self._mesh_object()
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        eval_source = source.evaluated_get(depsgraph)
+
+        # No modifier: the evaluated index maps straight through (count matches).
+        self.assertEqual(resolve_source_vertex_index(source, eval_source, 1), 1)
+        # An out-of-range evaluated index resolves to nothing rather than crash.
+        self.assertIsNone(resolve_source_vertex_index(source, eval_source, 99))

@@ -88,6 +88,7 @@ class Operator2d(GenericEntityOp):
 
     def init(self, context: Context, event: Event):
         from ..model.sketch_ref import get_active_sketch
+
         self._active_sketch = get_active_sketch(context)
         return True
 
@@ -97,6 +98,7 @@ class Operator2d(GenericEntityOp):
             import bpy
 
             from ..model.sketch_ref import get_active_sketch
+
             self._active_sketch = get_active_sketch(bpy.context)
         return self._active_sketch
 
@@ -119,6 +121,9 @@ class Operator2d(GenericEntityOp):
         # deferred creation can anchor it (fixed) — otherwise an inferred
         # constraint would drag the snapped point off target (see create_element).
         self.state_data["snapped"] = self._snap is not None
+        # Stash the snap target so create_element can live-project it (the marker
+        # reflects the current position; at click this is the committed one).
+        self.state_data["snap"] = self._snap
 
         # Handle implicit properties based on state.types
         if SlvsPoint2D in state.types:
@@ -146,14 +151,74 @@ class Operator2d(GenericEntityOp):
 
         return super().state_func(context, coords)
 
+    def _maybe_link_projected_snap(self, context: Context, state_data):
+        """Live-project the snapped mesh vertex and register it for coincidence.
+
+        Prototype: when a point is snapped onto an external mesh vertex, create
+        (or reuse) a live projected reference for that vertex and set it as the
+        coincidence target, so the placed point tracks the source instead of
+        being a dead static point. Scoped to mesh vertices; edges/curves and the
+        case where the snapped vertex can't be traced to an original one fall
+        back to the static point.
+        """
+        if not context.scene.sketcher.use_snap_project:
+            return
+        if not self.use_auto_constraints(context, state_data):
+            return
+        if state_data.get("hovered"):
+            return  # already coinciding with an existing sketch entity
+
+        snap = state_data.get("snap")
+        if not snap or snap.get("type") != "VERTEX":
+            return
+        ob_name = snap.get("object")
+        v_index = snap.get("vertex_index")
+        if ob_name is None or v_index is None:
+            return
+        source = bpy.data.objects.get(ob_name)
+        if source is None or source.type != "MESH":
+            return
+
+        # Snapping reads the evaluated mesh; resolve that evaluated vertex back to
+        # the original one to bind (by persistent id when tagged, else an
+        # order-preserving index). Skip when the correspondence isn't trustworthy.
+        from ..stateful_operator.utilities.geometry import get_evaluated_obj
+        from ..utilities.projection_anchor import (
+            project_mesh_vertex,
+            resolve_source_vertex_index,
+        )
+
+        eval_source = get_evaluated_obj(context, source)
+        orig_index = resolve_source_vertex_index(source, eval_source, v_index)
+        if orig_index is None:
+            return
+
+        # Place the point where the user snapped (the evaluated hit), so a
+        # vertex-moving modifier doesn't leave it a frame behind the source.
+        projected = project_mesh_vertex(
+            self.sketch,
+            source,
+            orig_index,
+            construction=True,
+            world_co=snap.get("world_point"),
+        )
+        if projected is not None and projected.valid:
+            state_data["hovered"] = projected.curve_id
+
     # create element depending on mode
     def create_element(self, context: Context, values: List[Any], state, state_data):
         sketch = self.sketch
         loc = values[0]
 
+        # Snapped onto external mesh geometry: live-project it and coincide, so
+        # the point tracks the source. Registers the projected point as the
+        # coincidence target below (behaves like snapping onto a sketch entity).
+        self._maybe_link_projected_snap(context, state_data)
+
         # A point snapped to external geometry is a deliberate placement: fix it
-        # so the solver keeps it there. Points snapped onto a sketch entity are
-        # pinned by the coincident constraint below instead, so skip those.
+        # so the solver keeps it there. Points snapped onto a sketch entity (or a
+        # live-projected reference above) are pinned by the coincident constraint
+        # below instead, so skip those.
         fixed = state_data.get("snapped", False) and not state_data.get("hovered")
 
         ref = PointRef.create(sketch, loc, fixed=fixed)
@@ -169,6 +234,7 @@ class Operator2d(GenericEntityOp):
     def _check_constrain(self, context: Context, curve_id: int):
         """Check if a hovered curve_id is a constrainable type (line/arc/circle)."""
         from ..model.curve_ref import ArcRef, CircleRef, LineRef
+
         sketch = self.sketch
         if not sketch:
             return False
@@ -195,5 +261,3 @@ class Operator2d(GenericEntityOp):
         if cid:
             return PointRef(sketch, cid)
         return getattr(self, state.pointer)
-
-

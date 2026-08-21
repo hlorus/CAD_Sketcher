@@ -149,7 +149,9 @@ def _screen_snap_candidates(
 
     if "VERTEX" in elements:
         vertex_indices = (
-            face_vertex_indices if face_vertex_indices is not None else range(len(me.vertices))
+            face_vertex_indices
+            if face_vertex_indices is not None
+            else range(len(me.vertices))
         )
         for vertex_index in vertex_indices:
             vertex = me.vertices[vertex_index]
@@ -159,12 +161,18 @@ def _screen_snap_candidates(
                 {
                     "type": "VERTEX",
                     "world_point": matrix @ vertex.co,
+                    # Provenance so a placed point can be live-projected onto this
+                    # source vertex (see projection_anchor.project_mesh_vertex).
+                    "object": obj_eval.original.name,
+                    "vertex_index": vertex.index,
                 },
             )
 
     if "EDGE" in elements or "EDGE_MIDPOINT" in elements:
         if face_edge_keys is not None:
-            face_edge_map = {edge_key: me.edges[i] for i, edge_key in enumerate(me.edge_keys)}
+            face_edge_map = {
+                edge_key: me.edges[i] for i, edge_key in enumerate(me.edge_keys)
+            }
             edges = [face_edge_map[edge_key] for edge_key in face_edge_keys]
         else:
             edges = me.edges
@@ -192,7 +200,9 @@ def _screen_snap_candidates(
                 )
 
             if "EDGE" in elements:
-                world_closest = _closest_segment_point_world(coords, world_start, world_end, region, rv3d)
+                world_closest = _closest_segment_point_world(
+                    coords, world_start, world_end, region, rv3d
+                )
                 if world_closest is None:
                     continue
                 region_point = location_3d_to_region_2d(region, rv3d, world_closest)
@@ -251,7 +261,9 @@ def _project_points_to_region(world, region, rv3d):
     return screen, valid
 
 
-def _curve_snap_candidates(context: Context, obj, coords: Vector, elements, threshold=None):
+def _curve_snap_candidates(
+    context: Context, obj, coords: Vector, elements, threshold=None
+):
     """Snap candidates from a curve object's control points and segments.
 
     Curve objects (CAD Sketcher sketches) don't expose a readable evaluated
@@ -292,10 +304,14 @@ def _curve_snap_candidates(context: Context, obj, coords: Vector, elements, thre
     if "VERTEX" in elements:
         d = np.hypot(screen[:, 0] - cur[0], screen[:, 1] - cur[1])
         for i in np.nonzero(valid & (d <= threshold))[0]:
-            candidates.append((
-                0, float(d[i]), Vector((screen[i, 0], screen[i, 1])),
-                {"type": "VERTEX", "world_point": Vector(world[i])},
-            ))
+            candidates.append(
+                (
+                    0,
+                    float(d[i]),
+                    Vector((screen[i, 0], screen[i, 1])),
+                    {"type": "VERTEX", "world_point": Vector(world[i])},
+                )
+            )
 
     if "FACE_MIDPOINT" in elements:
         # A face only exists for a closed region. Cheaply: the centroid of each
@@ -316,10 +332,14 @@ def _curve_snap_candidates(context: Context, obj, coords: Vector, elements, thre
                 continue
             dc = (cur[0] - cs[0, 0]) ** 2 + (cur[1] - cs[0, 1]) ** 2
             if dc <= thr2:
-                candidates.append((
-                    3, float(dc ** 0.5), Vector((cs[0, 0], cs[0, 1])),
-                    {"type": "FACE_MIDPOINT", "world_point": Vector(center_world)},
-                ))
+                candidates.append(
+                    (
+                        3,
+                        float(dc**0.5),
+                        Vector((cs[0, 0], cs[0, 1])),
+                        {"type": "FACE_MIDPOINT", "world_point": Vector(center_world)},
+                    )
+                )
 
     if "EDGE" in elements or "EDGE_MIDPOINT" in elements:
         thr2 = threshold * threshold
@@ -335,14 +355,18 @@ def _curve_snap_candidates(context: Context, obj, coords: Vector, elements, thre
                     mid = (sa + sb) * 0.5
                     dm = (cur[0] - mid[0]) ** 2 + (cur[1] - mid[1]) ** 2
                     if dm <= thr2:
-                        candidates.append((
-                            1, float(dm ** 0.5), Vector((mid[0], mid[1])),
-                            {
-                                "type": "EDGE_MIDPOINT",
-                                "world_point": Vector((world[a] + world[b]) * 0.5),
-                                "world_edge": (Vector(world[a]), Vector(world[b])),
-                            },
-                        ))
+                        candidates.append(
+                            (
+                                1,
+                                float(dm**0.5),
+                                Vector((mid[0], mid[1])),
+                                {
+                                    "type": "EDGE_MIDPOINT",
+                                    "world_point": Vector((world[a] + world[b]) * 0.5),
+                                    "world_edge": (Vector(world[a]), Vector(world[b])),
+                                },
+                            )
+                        )
 
                 if "EDGE" in elements:
                     # Closest point on the screen-space segment to the cursor.
@@ -350,21 +374,27 @@ def _curve_snap_candidates(context: Context, obj, coords: Vector, elements, thre
                     seg_len2 = seg[0] * seg[0] + seg[1] * seg[1]
                     if seg_len2 < 1e-9:
                         continue
-                    t = ((cur[0] - sa[0]) * seg[0] + (cur[1] - sa[1]) * seg[1]) / seg_len2
+                    t = (
+                        (cur[0] - sa[0]) * seg[0] + (cur[1] - sa[1]) * seg[1]
+                    ) / seg_len2
                     t = min(1.0, max(0.0, t))
                     cx = sa[0] + t * seg[0]
                     cy = sa[1] + t * seg[1]
                     de = (cur[0] - cx) ** 2 + (cur[1] - cy) ** 2
                     if de <= thr2:
                         world_closest = Vector(world[a]).lerp(Vector(world[b]), t)
-                        candidates.append((
-                            2, float(de ** 0.5), Vector((cx, cy)),
-                            {
-                                "type": "EDGE",
-                                "world_point": world_closest,
-                                "world_edge": (Vector(world[a]), Vector(world[b])),
-                            },
-                        ))
+                        candidates.append(
+                            (
+                                2,
+                                float(de**0.5),
+                                Vector((cx, cy)),
+                                {
+                                    "type": "EDGE",
+                                    "world_point": world_closest,
+                                    "world_edge": (Vector(world[a]), Vector(world[b])),
+                                },
+                            )
+                        )
 
     return candidates
 
@@ -402,8 +432,12 @@ def curve_segment_under_cursor(context: Context, coords, threshold_px):
         if ob.type not in {"CURVE", "CURVES"}:
             continue
         cd = getattr(ob.original, "data", None)
-        if cd is None or not hasattr(cd, "points") or len(cd.points) == 0 \
-                or not hasattr(cd, "curves"):
+        if (
+            cd is None
+            or not hasattr(cd, "points")
+            or len(cd.points) == 0
+            or not hasattr(cd, "curves")
+        ):
             continue
         n = len(cd.points)
         local = np.empty(n * 3, dtype=np.float64)
@@ -448,6 +482,7 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
     # otherwise capture the cursor (issue #591). Skip past it and keep looking for
     # real reference geometry behind it.
     from ..model.sketch_ref import get_active_sketch
+
     active = get_active_sketch(context)
     active_obj = active.target_object if active else None
 
@@ -483,7 +518,11 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
     if ob.type == "MESH":
         # Restrict to the hit face's vertices/edges for a cheap, local search.
         candidates = _screen_snap_candidates(
-            context, coords, ob.evaluated_get(depsgraph), elements, face_index=face_index
+            context,
+            coords,
+            ob.evaluated_get(depsgraph),
+            elements,
+            face_index=face_index,
         )
     elif ob.type == "CURVES":
         # CAD Sketcher sketches (and other curve objects) are Curves objects; the
@@ -515,7 +554,7 @@ def get_pos_2d(
     origin, end_point = get_picking_origin_end(context, coords)
 
     # Support both entity workplanes and empty objects
-    if hasattr(wp, 'p1'):
+    if hasattr(wp, "p1"):
         # Entity workplane
         wp_origin = wp.p1.location
         wp_normal = wp.normal
