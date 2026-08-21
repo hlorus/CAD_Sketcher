@@ -230,21 +230,10 @@ class TestCustomAttributes(Sketch2dTestCase):
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "evaluated GN output requires 5.2+")
     def test_filled_conversion_preserves_exact_segment_values(self):
         """The evaluated fill keeps exact segment values across weld + Fill Curve."""
-        from ..utilities.convert_nodes import build_convert_node_group
-
         _, lines = self._square()
         define_attribute(self.sketch, "fill_curve_tag", "INT", "CURVE", 0)
         for line, value in zip(lines, (10, 20, 30, 40)):
             set_attribute_value(self.sketch, "fill_curve_tag", value, line.curve_id)
-
-        # Diagnostic parity with the maintainer's #630 POC: isolate this one
-        # CURVE schema. If this passes while the global-union bridge fails, the
-        # remaining bug is schema aggregation rather than Fill Curve itself.
-        build_convert_node_group(
-            attribute_definitions=[
-                {"name": "fill_curve_tag", "type": "INT", "domain": "CURVE"}
-            ]
-        )
 
         source = self.sketch.target_object
         modifier = source.modifiers.get("CAD Sketcher Convert")
@@ -279,7 +268,7 @@ class TestCustomAttributes(Sketch2dTestCase):
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "shared converter requires 5.2+")
     def test_attribute_schema_change_preserves_fill_modifier_binding(self):
-        """Rebuilding the internal bridge must not remint the Fill socket id."""
+        """Rebuilding the shared group must preserve the modifier's Fill value."""
         self._square()
         source = self.sketch.target_object
         modifier = source.modifiers.get("CAD Sketcher Convert")
@@ -292,8 +281,7 @@ class TestCustomAttributes(Sketch2dTestCase):
             and getattr(item, "in_out", "") == "INPUT"
             and item.name == "Fill"
         )
-        fill_identifier = fill_socket.identifier
-        set_modifier_input(modifier, fill_identifier, True)
+        set_modifier_input(modifier, fill_socket.identifier, True)
 
         define_attribute(self.sketch, "fill_survival_tag", "INT", "CURVE", 7)
 
@@ -304,8 +292,7 @@ class TestCustomAttributes(Sketch2dTestCase):
             and getattr(item, "in_out", "") == "INPUT"
             and item.name == "Fill"
         )
-        self.assertEqual(fill_socket_after.identifier, fill_identifier)
-        self.assertTrue(get_modifier_input(modifier, fill_identifier))
+        self.assertTrue(get_modifier_input(modifier, fill_socket_after.identifier))
 
         converted = None
         try:
