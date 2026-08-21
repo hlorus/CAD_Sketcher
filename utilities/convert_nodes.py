@@ -1,14 +1,12 @@
 """Conversion-node helpers shared by the asset and programmatic paths.
 
 The standard Blender 5.2 conversion path welds sketch endpoints by identity.
-Named POINT/CURVE attributes are carried explicitly across the topology-changing
-steps. POINT values are captured before Curve to Mesh and restored on mesh
-points. CURVE values are re-homed onto EDGE before the weld so different
-segment values cannot be averaged at shared corners. The non-fill path keeps
-that welded mesh-wire representation, which preserves exact per-segment EDGE
-values and feeds downstream mesh-capable node tools directly. Fill Curve is the
-other topology boundary that drops attributes, so anonymous captures bridge
-values across it without spatial/nearest sampling.
+Named POINT/CURVE attributes propagate generically through the wire path. CURVE
+values are re-homed onto EDGE before the weld so different segment values cannot
+be averaged at shared corners. The non-fill path keeps that welded mesh-wire
+representation. Fill Curve is the only topology boundary that drops named
+attributes, so anonymous captures bridge values across it without spatial or
+nearest sampling.
 
 There is one shared ``CAD Sketcher Convert`` group. Attribute definitions only
 change the small bridge section in that same group; no per-schema node-group
@@ -25,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 18
+CONVERT_VERSION = 19
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -90,41 +88,6 @@ def _remove_named_attribute(nodes, links, geometry, name):
     remove.inputs["Name"].default_value = name
     links.new(geometry, remove.inputs["Geometry"])
     return remove.outputs["Geometry"]
-
-
-def _capture_point_attributes_before_mesh(nodes, links, geometry, specs):
-    """Capture POINT values while they still live on the source curves.
-
-    Blender 5.2 does not reliably carry named POINT attributes through a bare
-    Curve to Mesh node when no profile is supplied. Anonymous capture does
-    preserve the field mapping, so restore the same names explicitly on the
-    produced mesh points before the weld.
-    """
-    current = geometry
-    captured = []
-    for index, entry in enumerate(specs):
-        if entry["domain"] != "POINT":
-            continue
-        current, value = _capture_value(
-            nodes, links, current, entry, "POINT", f"mesh_point_{index}"
-        )
-        captured.append((entry, value))
-    return current, captured
-
-
-def _restore_point_attributes_on_mesh(nodes, links, geometry, captured):
-    """Restore source POINT captures onto mesh POINT after Curve to Mesh."""
-    current = geometry
-    for entry, value in captured:
-        current = _remove_named_attribute(nodes, links, current, entry["name"])
-        store = nodes.new("GeometryNodeStoreNamedAttribute")
-        store.data_type = entry["type"]
-        store.domain = "POINT"
-        store.inputs["Name"].default_value = entry["name"]
-        links.new(current, store.inputs["Geometry"])
-        links.new(value, store.inputs["Value"])
-        current = store.outputs["Geometry"]
-    return current
 
 
 def _store_segment_attributes_on_edges(nodes, links, geometry, specs):
@@ -365,16 +328,11 @@ def build_convert_node_group(
     links.new(gi.outputs["Geometry"], delete.inputs["Geometry"])
     links.new(drop.outputs["Boolean"], delete.inputs["Selection"])
 
-    curve_source, point_captures = _capture_point_attributes_before_mesh(
-        nodes, links, delete.outputs["Geometry"], specs
-    )
-
     to_mesh = nodes.new("GeometryNodeCurveToMesh")
-    links.new(curve_source, to_mesh.inputs["Curve"])
-    wire_mesh = _restore_point_attributes_on_mesh(
-        nodes, links, to_mesh.outputs["Mesh"], point_captures
+    links.new(delete.outputs["Geometry"], to_mesh.inputs["Curve"])
+    wire_mesh = _store_segment_attributes_on_edges(
+        nodes, links, to_mesh.outputs["Mesh"], specs
     )
-    wire_mesh = _store_segment_attributes_on_edges(nodes, links, wire_mesh, specs)
 
     merge_id = nodes.new("GeometryNodeInputNamedAttribute")
     merge_id.data_type = "INT"
