@@ -23,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 20
+CONVERT_VERSION = 21
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -68,6 +68,21 @@ def attribute_signature(specs):
     return repr(tuple((x["name"], x["type"], x["domain"]) for x in specs))
 
 
+def _capture_value(nodes, links, geometry, entry, domain, item_name):
+    """Bake a named value anonymously on ``domain`` and return geometry/value."""
+    named = nodes.new("GeometryNodeInputNamedAttribute")
+    named.data_type = entry["type"]
+    named.inputs["Name"].default_value = entry["name"]
+
+    capture = nodes.new("GeometryNodeCaptureAttribute")
+    capture.domain = domain
+    capture.capture_items.clear()
+    capture.capture_items.new(entry["type"], item_name)
+    links.new(geometry, capture.inputs["Geometry"])
+    links.new(named.outputs["Attribute"], capture.inputs[item_name])
+    return capture.outputs["Geometry"], capture.outputs[item_name]
+
+
 def _remove_named_attribute(nodes, links, geometry, name):
     remove = nodes.new("GeometryNodeRemoveAttribute")
     remove.inputs["Name"].default_value = name
@@ -75,49 +90,22 @@ def _remove_named_attribute(nodes, links, geometry, name):
     return remove.outputs["Geometry"]
 
 
-def _batch_capture(nodes, links, geometry, entries, domain, prefix):
-    """Capture multiple fields on one domain in the same geometry context."""
-    entries = list(entries)
-    if not entries:
-        return geometry, []
-
-    capture = nodes.new("GeometryNodeCaptureAttribute")
-    capture.domain = domain
-    capture.capture_items.clear()
-    links.new(geometry, capture.inputs["Geometry"])
-
-    captured = []
-    for index, entry in entries:
-        item_name = f"{prefix}_{index}"
-        capture.capture_items.new(entry["type"], item_name)
-
-        named = nodes.new("GeometryNodeInputNamedAttribute")
-        named.data_type = entry["type"]
-        named.inputs["Name"].default_value = entry["name"]
-        links.new(named.outputs["Attribute"], capture.inputs[item_name])
-        captured.append((entry, capture.outputs[item_name]))
-
-    return capture.outputs["Geometry"], captured
-
-
 def _store_segment_attributes_on_edges(nodes, links, geometry, specs):
-    """Move all per-segment CURVE values to EDGE before Merge Points.
+    """Move per-segment CURVE values to EDGE before Merge Points.
 
-    All segment fields are captured together on the same EDGE-domain geometry.
-    This keeps each anonymous field tied to one topology context and prevents
-    shared-corner averaging without chaining one Capture node per attribute.
+    Curve to Mesh initially adapts a CURVE value onto mesh elements. Capture the
+    value anonymously on EDGE first, remove the adapted named copy, then restore
+    that name on EDGE. The weld therefore sees one value per source segment and
+    never has to combine adjacent segment values at a shared point.
     """
-    curve_specs = [
-        (index, entry)
-        for index, entry in enumerate(specs)
-        if entry["domain"] == "CURVE"
-    ]
-    current, captured = _batch_capture(
-        nodes, links, geometry, curve_specs, "EDGE", "segment"
-    )
-
-    for entry, value in captured:
+    current = geometry
+    for index, entry in enumerate(specs):
+        if entry["domain"] != "CURVE":
+            continue
+        item_name = f"segment_{index}"
+        current, value = _capture_value(nodes, links, current, entry, "EDGE", item_name)
         current = _remove_named_attribute(nodes, links, current, entry["name"])
+
         store = nodes.new("GeometryNodeStoreNamedAttribute")
         store.data_type = entry["type"]
         store.domain = "EDGE"
@@ -129,19 +117,14 @@ def _store_segment_attributes_on_edges(nodes, links, geometry, specs):
 
 
 def _capture_fill_attributes(nodes, links, geometry, specs):
-    """Capture all boundary values once per natural mesh domain for Fill."""
+    """Capture merged boundary values by their natural mesh domain for Fill."""
     current = geometry
     captured = []
-    for domain, source_domain in (("POINT", "POINT"), ("EDGE", "CURVE")):
-        entries = [
-            (index, entry)
-            for index, entry in enumerate(specs)
-            if entry["domain"] == source_domain
-        ]
-        current, values = _batch_capture(
-            nodes, links, current, entries, domain, f"fill_{domain.lower()}"
-        )
-        captured.extend((entry, domain, value) for entry, value in values)
+    for index, entry in enumerate(specs):
+        domain = "POINT" if entry["domain"] == "POINT" else "EDGE"
+        item_name = f"fill_{index}"
+        current, value = _capture_value(nodes, links, current, entry, domain, item_name)
+        captured.append((entry, domain, value))
     return current, captured
 
 
@@ -269,12 +252,7 @@ def _interface_socket(ng, name, in_out):
 
 
 def _ensure_convert_interface(ng):
-    """Create missing public sockets without replacing existing identifiers.
-
-    Geometry-node modifier values are keyed by interface socket identifier.
-    Clearing/recreating this interface while rebuilding the internal bridge
-    therefore orphans values already stored on bound modifiers (notably Fill).
-    """
+    """Create missing public sockets without replacing existing identifiers."""
     iface = ng.interface
     if _interface_socket(ng, "Geometry", "OUTPUT") is None:
         iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
