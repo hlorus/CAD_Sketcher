@@ -173,6 +173,23 @@ class OperatorSketch3d(base_2d.Operator2d):
         return self.sketch.target_object.matrix_world.translation.copy()
 
     def _view_plane_normal(self, context):
+        """Return the actual viewport-facing plane normal in world space.
+
+        Derive this from RegionView3D.view_rotation rather than a synthetic
+        picking ray through the region center. In perspective view the latter is
+        a camera ray, not the viewport orientation contract, and depending on the
+        active region it can collapse back to a global-axis result. The placement
+        plane must stay parallel to the visible screen plane after every orbit.
+        Normal sign is irrelevant for line/plane intersection.
+        """
+        rv3d = context.region_data
+        if rv3d is not None:
+            normal = rv3d.view_rotation @ mathutils.Vector((0.0, 0.0, 1.0))
+            if normal.length_squared > 1e-12:
+                return normal.normalized()
+
+        # Defensive fallback for unusual non-3D-region contexts. Normal
+        # interactive use always takes the RegionView3D path above.
         center = mathutils.Vector(
             (context.region.width * 0.5, context.region.height * 0.5)
         )
