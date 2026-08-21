@@ -23,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 21
+CONVERT_VERSION = 22
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -91,13 +91,7 @@ def _remove_named_attribute(nodes, links, geometry, name):
 
 
 def _store_segment_attributes_on_edges(nodes, links, geometry, specs):
-    """Move per-segment CURVE values to EDGE before Merge Points.
-
-    Curve to Mesh initially adapts a CURVE value onto mesh elements. Capture the
-    value anonymously on EDGE first, remove the adapted named copy, then restore
-    that name on EDGE. The weld therefore sees one value per source segment and
-    never has to combine adjacent segment values at a shared point.
-    """
+    """Move per-segment CURVE values to EDGE before Merge Points."""
     current = geometry
     for index, entry in enumerate(specs):
         if entry["domain"] != "CURVE":
@@ -235,6 +229,7 @@ def ensure_generated_id_nodes(node_group):
     geometry = add_generated_id_nodes(node_group.nodes, node_group.links, upstream)
     node_group.links.new(geometry, geometry_input)
     node_group["cad_generated_id_version"] = GENERATED_ID_VERSION
+    node_group.update_tag()
     return node_group
 
 
@@ -268,13 +263,7 @@ def _ensure_convert_interface(ng):
 def build_convert_node_group(
     name: str = CONVERT_NODE_GROUP, attribute_definitions=None
 ):
-    """Build/update the one shared identity-weld converter in place.
-
-    Passing ``attribute_definitions`` updates only this same group's domain-aware
-    bridge. Omitting it reuses a current group unchanged, which lets every sketch
-    keep the same modifier binding. Rebuilds replace internal nodes/links only;
-    the public interface stays intact so modifier socket identifiers stay stable.
-    """
+    """Build/update the one shared identity-weld converter in place."""
     requested = attribute_definitions is not None
     specs = normalize_attribute_definitions(attribute_definitions)
     signature = attribute_signature(specs)
@@ -366,4 +355,7 @@ def build_convert_node_group(
     ng["cad_convert_version"] = CONVERT_VERSION
     ng["cad_generated_id_version"] = GENERATED_ID_VERSION
     ng["cad_convert_attribute_signature"] = signature
+    # Preserve interface identifiers, but explicitly invalidate every modifier
+    # evaluating this shared tree after replacing its internal nodes/links.
+    ng.update_tag()
     return ng
