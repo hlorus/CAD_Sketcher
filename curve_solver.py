@@ -65,6 +65,11 @@ class CurveSolver:
 
         Falls back to entity workplane if no empty exists yet.
         """
+        if getattr(self.sketch, "is_3d", False):
+            self._wp_handle = self.solvesys.E_FREE_IN_3D
+            self._normal_handle = None
+            return
+
         wp_obj = ensure_workplane_empty(self.sketch)
 
         # Fallback: curve object's parent
@@ -122,6 +127,7 @@ class CurveSolver:
             return
 
         wp = self._wp_handle
+        is_3d = getattr(sketch, "is_3d", False)
 
         from .utilities.curve_data import read_uuid_list
 
@@ -147,9 +153,14 @@ class CurveSolver:
 
             pt_idx = curve_data.curves[curve_idx].points[0].index
             pos = curve_data.points[pt_idx].position
-            u, v = float(pos[0]), float(pos[1])
 
-            handle = self.solvesys.add_point_2d(group, u, v, wp)
+            if is_3d:
+                handle = self.solvesys.add_point_3d(
+                    group, *map(float, pos[:3])
+                )
+            else:
+                u, v = float(pos[0]), float(pos[1])
+                handle = self.solvesys.add_point_2d(group, u, v, wp)
             self._point_handles[cid] = handle
             self._entity_handles[cid] = handle
 
@@ -158,6 +169,9 @@ class CurveSolver:
             ctype = type_attr.data[curve_idx].value
             cid = cid_list[curve_idx]
 
+            if is_3d and ctype not in (SketchCurveType.POINT, SketchCurveType.LINE):
+                continue
+
             if ctype == SketchCurveType.LINE:
                 sp_id = sp_list[curve_idx]
                 ep_id = ep_list[curve_idx]
@@ -165,9 +179,14 @@ class CurveSolver:
                 p1_handle = self._point_handles.get(sp_id)
                 p2_handle = self._point_handles.get(ep_id)
                 if p1_handle and p2_handle:
-                    handle = self.solvesys.add_line_2d(
-                        self.group_sketch, p1_handle, p2_handle, wp
-                    )
+                    if is_3d:
+                        handle = self.solvesys.add_line_3d(
+                            self.group_sketch, p1_handle, p2_handle
+                        )
+                    else:
+                        handle = self.solvesys.add_line_2d(
+                            self.group_sketch, p1_handle, p2_handle, wp
+                        )
                     self._entity_handles[cid] = handle
 
             elif ctype == SketchCurveType.CIRCLE:
@@ -219,7 +238,11 @@ class CurveSolver:
                     self._entity_handles[cid] = handle
 
         # Third pass: handle tweak (after all entities exist)
-        if self._tweak_curve_id is not None and self._tweak_pos is not None:
+        if (
+            not is_3d
+            and self._tweak_curve_id is not None
+            and self._tweak_pos is not None
+        ):
             tweak_handle = self._entity_handles.get(self._tweak_curve_id)
             if tweak_handle:
                 wp_obj = self.sketch.workplane_object
@@ -259,6 +282,9 @@ class CurveSolver:
         for c in sketch_constraints.all:
             group = self.group_sketch
             c.failed = False
+
+            if getattr(sketch, "is_3d", False) and getattr(c, "type", "") != "DISTANCE":
+                continue
 
             if not getattr(c, "curve_id_1", ""):
                 continue
@@ -392,6 +418,11 @@ class CurveSolver:
         handle = self._point_handles.get(curve_id)
         if not handle:
             return None
+        if getattr(self.sketch, "is_3d", False):
+            return tuple(
+                self.solvesys.get_param_value(handle["param"][axis])
+                for axis in range(3)
+            )
         u = self.solvesys.get_param_value(handle["param"][0])
         v = self.solvesys.get_param_value(handle["param"][1])
         return (u, v, 0.0)
@@ -449,10 +480,15 @@ class CurveSolver:
                             ct_pos[2],
                         )
 
-        # Third pass: rebuild segments from updated point positions
-        from .utilities.curve_data import rebuild_segments
+        # Third pass: rebuild segments from updated point positions.
+        if getattr(sketch, "is_3d", False):
+            from .model.native_3d import rebuild_3d_lines
 
-        rebuild_segments(sketch)
+            rebuild_3d_lines(sketch)
+        else:
+            from .utilities.curve_data import rebuild_segments
+
+            rebuild_segments(sketch)
 
         # Sync entity.co from solved curve positions (bridge for gizmo positioning)
         # TODO: Remove when gizmos read from curve data directly

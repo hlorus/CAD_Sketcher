@@ -171,7 +171,11 @@ def on_undo_redo(scene, *args):
     from .model.sketch_ref import get_active_sketch
     from .workspacetools.manager import sync_sketch_mode
 
-    sync_sketch_mode(get_active_sketch(bpy.context) is not None)
+    sketch = get_active_sketch(bpy.context)
+    sync_sketch_mode(
+        sketch is not None,
+        is_3d=bool(sketch and sketch.is_3d),
+    )
 
 
 def _setup_builtin_handlers():

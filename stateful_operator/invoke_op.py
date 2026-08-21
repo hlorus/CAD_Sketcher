@@ -1,6 +1,6 @@
 import bpy
-from bpy.types import Operator, Context
 from bpy.props import StringProperty
+from bpy.types import Context, Operator
 
 from .constants import Operators
 
@@ -22,7 +22,8 @@ class View3D_OT_invoke_tool(Operator):
         props = tool.operator_properties(self.operator)
 
         options = {}
-        for p in props.rna_type.properties.keys():
+        prop_names = props.rna_type.properties.keys()
+        for p in prop_names:
             if p in ("bl_rna", "rna_type", "state_index"):
                 continue
             if p.startswith("_"):
@@ -39,7 +40,11 @@ class View3D_OT_invoke_tool(Operator):
             if value != default:
                 options[p] = value
 
-        options["wait_for_input"] = True
+        # Stateful drawing operators expose wait_for_input, but simple operators
+        # such as Add 3D Sketch do not. Passing it unconditionally raises a
+        # TypeError in Blender before the operator can run.
+        if "wait_for_input" in prop_names:
+            options["wait_for_input"] = True
 
         parts = self.operator.split(".", 1)
         if len(parts) != 2:

@@ -1,14 +1,14 @@
 import logging
 
-from bpy.types import Operator, Context
 from bpy.props import FloatVectorProperty
+from bpy.types import Context, Operator
 
-from ..drawing import selection
-from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
-from ..stateful_operator.state import state_from_args
 from ..curve_solver import solve_system
+from ..declarations import Operators
+from ..drawing import selection
 from ..model.curve_ref import PointRef
+from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_2d import Operator2d
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,16 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
             property="coordinates",
         ),
     )
+
+    @classmethod
+    def poll(cls, context: Context):
+        """Never let a stale 2D hotkey/operator path mutate a 3D sketch."""
+        obj = context.scene.sketcher.active_sketch_object
+        if obj is None:
+            return False
+        from ..model.sketch_ref import Sketch
+
+        return not Sketch(obj).is_3d
 
     def main(self, context: Context):
         sketch = self.sketch

@@ -3,11 +3,11 @@ import logging
 import bpy
 from bpy.types import Context, Operator
 
-from ..drawing import selection
 from ..declarations import BLENDER_SELECT_TOOL, GizmoGroups, WorkSpaceTools
-from ..utilities.curve_data import refresh_curve_geometry, get_uuid, has_uuid_field
-from ..utilities.preferences import get_prefs
+from ..drawing import selection
 from ..model.sketch_ref import get_active_sketch
+from ..utilities.curve_data import get_uuid, has_uuid_field, refresh_curve_geometry
+from ..utilities.preferences import get_prefs
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ def select_extend(context: Context):
         return False
 
     from ..model.constants import SketchCurveType
+
     selected = set(selection.selected)
     to_add = set()
 
@@ -79,7 +80,7 @@ def select_extend(context: Context):
     sketch = get_active_sketch(context)
     coincident = sketch.constraints.coincident if sketch else []
     for c in coincident:
-        c1, c2 = getattr(c, 'curve_id_1', ""), getattr(c, 'curve_id_2', "")
+        c1, c2 = getattr(c, "curve_id_1", ""), getattr(c, "curve_id_2", "")
         if c1 in selected and c2:
             to_add.add(c2)
         if c2 in selected and c1:
@@ -98,6 +99,7 @@ def select_extend(context: Context):
 def ignore_hover(ref_or_id):
     """Add a curve_id to the ignore list. Accepts CurveRef, curve_id int, or entity."""
     from ..model.curve_ref import CurveRef
+
     ignore_list = selection.ignore_list
     if isinstance(ref_or_id, CurveRef):
         ignore_list.append(ref_or_id.curve_id)
@@ -114,7 +116,7 @@ def get_hovered(context: Context, *types):
     Types can be CurveRef subclasses (PointRef, LineRef, etc.) or legacy
     entity classes (SlvsPoint2D, SlvsLine2D, etc.).
     """
-    from ..model.curve_ref import curve_ref, PointRef, LineRef, ArcRef, CircleRef
+    from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef, curve_ref
 
     hover_id = selection.hover
     if not hover_id:
@@ -129,7 +131,8 @@ def get_hovered(context: Context, *types):
         return None
 
     # Map legacy entity types to CurveRef types for matching
-    from ..model.types import SlvsPoint2D, SlvsLine2D, SlvsArc, SlvsCircle
+    from ..model.types import SlvsArc, SlvsCircle, SlvsLine2D, SlvsPoint2D
+
     _type_map = {
         SlvsPoint2D: PointRef,
         SlvsLine2D: LineRef,
@@ -139,7 +142,10 @@ def get_hovered(context: Context, *types):
 
     for t in types:
         # Direct CurveRef subclass check
-        if isinstance(ref, t) if isinstance(t, type) and issubclass(t, (PointRef, LineRef, ArcRef, CircleRef)) else False:
+        is_curve_ref_type = (
+            isinstance(t, type) and issubclass(t, (PointRef, LineRef, ArcRef, CircleRef))
+        )
+        if is_curve_ref_type and isinstance(ref, t):
             return ref
         # Legacy entity type → mapped CurveRef type
         mapped = _type_map.get(t)
@@ -173,11 +179,13 @@ def align_view(rv3d, mat_start, mat_end):
     # rv3d.view_distance = 6
 
 
-def switch_sketch_mode(self, context: Context, to_sketch_mode: bool):
+def switch_sketch_mode(
+    self, context: Context, to_sketch_mode: bool, *, is_3d: bool = False
+):
     from ..workspacetools.manager import enter_sketch_mode, leave_sketch_mode
 
     if to_sketch_mode:
-        enter_sketch_mode()
+        enter_sketch_mode(is_3d=is_3d)
         tool = context.workspace.tools.from_space_view3d_mode(context.mode)
         if tool.widget != GizmoGroups.Preselection:
             bpy.ops.wm.tool_set_by_id(name=WorkSpaceTools.Select)
@@ -190,23 +198,30 @@ def switch_sketch_mode(self, context: Context, to_sketch_mode: bool):
 
 def activate_sketch(context: Context, sketch_obj, operator: Operator):
     """Activate a sketch (Curves object) or deactivate (pass None)."""
-    from ..model.sketch_ref import Sketch, set_active_sketch, get_active_sketch
+    from ..model.sketch_ref import Sketch, get_active_sketch, set_active_sketch
 
     space_data = context.space_data
-    props = context.scene.sketcher
 
     current = get_active_sketch(context)
     if sketch_obj is not None and current and current.target_object == sketch_obj:
         return {"CANCELLED"}
 
-    sketch_mode = sketch_obj is not None
-    switch_sketch_mode(self=operator, context=context, to_sketch_mode=sketch_mode)
+    new_sketch = Sketch(sketch_obj) if sketch_obj is not None else None
+    sketch_mode = new_sketch is not None
+    switch_sketch_mode(
+        self=operator,
+        context=context,
+        to_sketch_mode=sketch_mode,
+        is_3d=bool(new_sketch and new_sketch.is_3d),
+    )
 
     last = current
     set_active_sketch(context, sketch_obj)
 
-    # Align view (after setting active sketch)
-    if get_prefs().use_align_view:
+    # A native 3D sketch deliberately keeps the user's current view: that view
+    # defines its temporary placement plane. Classic 2D sketches still align to
+    # their workplane according to the preference.
+    if get_prefs().use_align_view and not (new_sketch and new_sketch.is_3d):
         bpy.ops.view3d.slvs_align_view(use_active=True)
 
     # Hide objects
