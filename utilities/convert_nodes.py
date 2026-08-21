@@ -23,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 22
+CONVERT_VERSION = 23
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -83,6 +83,34 @@ def _capture_value(nodes, links, geometry, entry, domain, item_name):
     return capture.outputs["Geometry"], capture.outputs[item_name]
 
 
+def _capture_values(nodes, links, geometry, entries, domain, prefix):
+    """Capture several fields on one topology/domain in a single node.
+
+    Fill Curve is a topology boundary. Keeping every field that must cross it in
+    the same Capture Attribute node prevents independent anonymous-field chains
+    from being evaluated against subtly different geometry contexts.
+    """
+    entries = list(entries)
+    if not entries:
+        return geometry, []
+
+    capture = nodes.new("GeometryNodeCaptureAttribute")
+    capture.domain = domain
+    capture.capture_items.clear()
+    links.new(geometry, capture.inputs["Geometry"])
+
+    captured = []
+    for index, entry in entries:
+        item_name = f"{prefix}_{index}"
+        capture.capture_items.new(entry["type"], item_name)
+        named = nodes.new("GeometryNodeInputNamedAttribute")
+        named.data_type = entry["type"]
+        named.inputs["Name"].default_value = entry["name"]
+        links.new(named.outputs["Attribute"], capture.inputs[item_name])
+        captured.append((entry, capture.outputs[item_name]))
+    return capture.outputs["Geometry"], captured
+
+
 def _remove_named_attribute(nodes, links, geometry, name):
     remove = nodes.new("GeometryNodeRemoveAttribute")
     remove.inputs["Name"].default_value = name
@@ -111,14 +139,19 @@ def _store_segment_attributes_on_edges(nodes, links, geometry, specs):
 
 
 def _capture_fill_attributes(nodes, links, geometry, specs):
-    """Capture merged boundary values by their natural mesh domain for Fill."""
+    """Capture all Fill-boundary fields once per natural mesh domain."""
     current = geometry
     captured = []
-    for index, entry in enumerate(specs):
-        domain = "POINT" if entry["domain"] == "POINT" else "EDGE"
-        item_name = f"fill_{index}"
-        current, value = _capture_value(nodes, links, current, entry, domain, item_name)
-        captured.append((entry, domain, value))
+    for domain, source_domain in (("POINT", "POINT"), ("EDGE", "CURVE")):
+        entries = [
+            (index, entry)
+            for index, entry in enumerate(specs)
+            if entry["domain"] == source_domain
+        ]
+        current, values = _capture_values(
+            nodes, links, current, entries, domain, f"fill_{domain.lower()}"
+        )
+        captured.extend((entry, domain, value) for entry, value in values)
     return current, captured
 
 
@@ -355,7 +388,5 @@ def build_convert_node_group(
     ng["cad_convert_version"] = CONVERT_VERSION
     ng["cad_generated_id_version"] = GENERATED_ID_VERSION
     ng["cad_convert_attribute_signature"] = signature
-    # Preserve interface identifiers, but explicitly invalidate every modifier
-    # evaluating this shared tree after replacing its internal nodes/links.
     ng.update_tag()
     return ng
