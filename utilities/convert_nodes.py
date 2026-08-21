@@ -9,9 +9,10 @@ attributes, so anonymous captures bridge values across it without spatial or
 nearest sampling.
 
 There is one shared ``CAD Sketcher Convert`` group. Attribute definitions only
-change the small bridge section in that same group; no per-schema node-group
-variants are created or rebound. The public group interface is kept stable when
-that bridge is rebuilt so existing modifier input bindings remain valid.
+change the bridge in that same group; no per-schema node-group variants are
+created or rebound. Rebuilding the group interface follows Blender's reliable
+5.2 field-evaluation path, while existing modifier Fill values are migrated to
+the newly-created socket so users do not lose their setting.
 """
 
 import bpy
@@ -23,7 +24,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 23
+CONVERT_VERSION = 24
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -83,34 +84,6 @@ def _capture_value(nodes, links, geometry, entry, domain, item_name):
     return capture.outputs["Geometry"], capture.outputs[item_name]
 
 
-def _capture_values(nodes, links, geometry, entries, domain, prefix):
-    """Capture several fields on one topology/domain in a single node.
-
-    Fill Curve is a topology boundary. Keeping every field that must cross it in
-    the same Capture Attribute node prevents independent anonymous-field chains
-    from being evaluated against subtly different geometry contexts.
-    """
-    entries = list(entries)
-    if not entries:
-        return geometry, []
-
-    capture = nodes.new("GeometryNodeCaptureAttribute")
-    capture.domain = domain
-    capture.capture_items.clear()
-    links.new(geometry, capture.inputs["Geometry"])
-
-    captured = []
-    for index, entry in entries:
-        item_name = f"{prefix}_{index}"
-        capture.capture_items.new(entry["type"], item_name)
-        named = nodes.new("GeometryNodeInputNamedAttribute")
-        named.data_type = entry["type"]
-        named.inputs["Name"].default_value = entry["name"]
-        links.new(named.outputs["Attribute"], capture.inputs[item_name])
-        captured.append((entry, capture.outputs[item_name]))
-    return capture.outputs["Geometry"], captured
-
-
 def _remove_named_attribute(nodes, links, geometry, name):
     remove = nodes.new("GeometryNodeRemoveAttribute")
     remove.inputs["Name"].default_value = name
@@ -139,19 +112,14 @@ def _store_segment_attributes_on_edges(nodes, links, geometry, specs):
 
 
 def _capture_fill_attributes(nodes, links, geometry, specs):
-    """Capture all Fill-boundary fields once per natural mesh domain."""
+    """Capture merged boundary values by their natural mesh domain for Fill."""
     current = geometry
     captured = []
-    for domain, source_domain in (("POINT", "POINT"), ("EDGE", "CURVE")):
-        entries = [
-            (index, entry)
-            for index, entry in enumerate(specs)
-            if entry["domain"] == source_domain
-        ]
-        current, values = _capture_values(
-            nodes, links, current, entries, domain, f"fill_{domain.lower()}"
-        )
-        captured.extend((entry, domain, value) for entry, value in values)
+    for index, entry in enumerate(specs):
+        domain = "POINT" if entry["domain"] == "POINT" else "EDGE"
+        item_name = f"fill_{index}"
+        current, value = _capture_value(nodes, links, current, entry, domain, item_name)
+        captured.append((entry, domain, value))
     return current, captured
 
 
@@ -279,18 +247,58 @@ def _interface_socket(ng, name, in_out):
     )
 
 
-def _ensure_convert_interface(ng):
-    """Create missing public sockets without replacing existing identifiers."""
-    iface = ng.interface
-    if _interface_socket(ng, "Geometry", "OUTPUT") is None:
-        iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
-    if _interface_socket(ng, "Geometry", "INPUT") is None:
-        iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+def _get_modifier_input(modifier, identifier, default):
+    try:
+        props = getattr(modifier, "properties", None)
+        if props is not None and hasattr(props, "inputs"):
+            return getattr(props.inputs, identifier).value
+        return modifier[identifier]
+    except (AttributeError, KeyError, TypeError):
+        return default
+
+
+def _set_modifier_input(modifier, identifier, value):
+    props = getattr(modifier, "properties", None)
+    if props is not None and hasattr(props, "inputs"):
+        getattr(props.inputs, identifier).value = value
+    else:
+        modifier[identifier] = value
+
+
+def _snapshot_fill_bindings(ng):
+    """Remember Fill values for every modifier using this shared group."""
     fill = _interface_socket(ng, "Fill", "INPUT")
     if fill is None:
-        fill = iface.new_socket("Fill", in_out="INPUT", socket_type="NodeSocketBool")
-        fill.default_value = True
+        return []
+    default = bool(getattr(fill, "default_value", True))
+    bindings = []
+    for obj in bpy.data.objects:
+        for modifier in obj.modifiers:
+            if modifier.type != "NODES" or modifier.node_group is not ng:
+                continue
+            bindings.append(
+                (modifier, bool(_get_modifier_input(modifier, fill.identifier, default)))
+            )
+    return bindings
+
+
+def _create_convert_interface(ng):
+    iface = ng.interface
+    iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    fill = iface.new_socket("Fill", in_out="INPUT", socket_type="NodeSocketBool")
+    fill.default_value = True
     return fill
+
+
+def _restore_fill_bindings(bindings, fill):
+    for modifier, value in bindings:
+        try:
+            _set_modifier_input(modifier, fill.identifier, value)
+        except (AttributeError, KeyError, TypeError):
+            # A modifier can disappear while a datablock is being torn down; that
+            # must not prevent the shared converter from rebuilding for the rest.
+            continue
 
 
 def build_convert_node_group(
@@ -302,18 +310,21 @@ def build_convert_node_group(
     signature = attribute_signature(specs)
 
     ng = bpy.data.node_groups.get(name)
+    fill_bindings = []
     if ng is not None:
         if ng.get("cad_convert_version") == CONVERT_VERSION and (
             not requested
             or ng.get("cad_convert_attribute_signature", "") == signature
         ):
             return ng
+        fill_bindings = _snapshot_fill_bindings(ng)
         ng.nodes.clear()
         ng.links.clear()
+        ng.interface.clear()
     else:
         ng = bpy.data.node_groups.new(name, "GeometryNodeTree")
 
-    _ensure_convert_interface(ng)
+    fill_socket = _create_convert_interface(ng)
 
     nodes, links = ng.nodes, ng.links
     gi = nodes.new("NodeGroupInput")
@@ -389,4 +400,5 @@ def build_convert_node_group(
     ng["cad_generated_id_version"] = GENERATED_ID_VERSION
     ng["cad_convert_attribute_signature"] = signature
     ng.update_tag()
+    _restore_fill_bindings(fill_bindings, fill_socket)
     return ng
