@@ -68,6 +68,25 @@ class TestCustomAttributes(Sketch2dTestCase):
             elif isinstance(data, bpy.types.Curves):
                 bpy.data.hair_curves.remove(data)
 
+    def _evaluated_attribute_values(self, source, attr_name):
+        """Read a named attribute from the real evaluated GN mesh output."""
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        original = source.original
+        values = []
+        for instance in depsgraph.object_instances:
+            if instance.object.original is not original:
+                continue
+            try:
+                mesh = instance.object.to_mesh()
+            except RuntimeError:
+                continue
+            attr = mesh.attributes.get(attr_name)
+            if attr is not None:
+                values = [item.value for item in attr.data]
+            instance.object.to_mesh_clear()
+        return values
+
     def test_curve_attribute_values_live_on_native_source(self):
         _, lines = self._square()
         define_attribute(self.sketch, "material_slot", "INT", "CURVE", 2)
@@ -205,25 +224,30 @@ class TestCustomAttributes(Sketch2dTestCase):
         finally:
             self._remove_converted(converted)
 
-    @unittest.skipIf(bpy.app.version < (5, 2, 0), "programmatic convert requires 5.2+")
+    @unittest.skipIf(bpy.app.version < (5, 2, 0), "evaluated GN output requires 5.2+")
     def test_filled_conversion_preserves_exact_segment_values(self):
-        """The 10/20/30/40 loop survives both identity weld and Fill Curve."""
+        """The evaluated fill keeps exact segment values across weld + Fill Curve."""
         _, lines = self._square()
         define_attribute(self.sketch, "fill_curve_tag", "INT", "CURVE", 0)
         for line, value in zip(lines, (10, 20, 30, 40)):
             set_attribute_value(self.sketch, "fill_curve_tag", value, line.curve_id)
 
         source = self.sketch.target_object
-        converted = None
-        try:
-            converted = self._convert_copy(source, fill=True)
-            attr = converted.data.attributes.get("fill_curve_tag")
-            self.assertIsNotNone(attr)
-            distinct = {item.value for item in attr.data if item.value != 0}
-            self.assertEqual(distinct, {10, 20, 30, 40})
-            self.assertTrue(distinct.isdisjoint({15, 25, 35}))
-        finally:
-            self._remove_converted(converted)
+        modifier = source.modifiers.get("CAD Sketcher Convert")
+        self.assertIsNotNone(modifier)
+        fill_socket = next(
+            item
+            for item in modifier.node_group.interface.items_tree
+            if getattr(item, "item_type", "") == "SOCKET"
+            and getattr(item, "in_out", "") == "INPUT"
+            and item.name == "Fill"
+        )
+        set_modifier_input(modifier, fill_socket.identifier, True)
+
+        values = self._evaluated_attribute_values(source, "fill_curve_tag")
+        distinct = {value for value in values if value != 0}
+        self.assertEqual(distinct, {10, 20, 30, 40})
+        self.assertTrue(distinct.isdisjoint({15, 25, 35}))
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "shared converter requires 5.2+")
     def test_attribute_schema_changes_keep_shared_convert_group(self):
