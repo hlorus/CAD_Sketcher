@@ -23,6 +23,7 @@ modules = [
     "bevel",
     "offset",
     "project_geometry",
+    "custom_attributes",
     "set_sketch",
     "delete_entity",
     "delete_sketch",
