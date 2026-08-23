@@ -168,10 +168,21 @@ class Operator2d(GenericEntityOp):
         if not self.use_auto_constraints(context, state_data):
             state_data["snap_anchored"] = False
             return
-        if state_data.get("hovered"):
-            # Already coincident with an existing sketch entity or a projection
-            # from an earlier frame; leave its anchored state untouched.
-            return
+        hovered = state_data.get("hovered")
+        if hovered:
+            # Coincident with something already. If it still resolves to a LIVE
+            # curve (a genuine pick, or this state's projection), leave it be. But
+            # a non-current state's projection gets wiped by the preview restore
+            # each frame while its stale hovered id lingers here -- honoring it
+            # would coincide the endpoint to a deleted curve (a dead static point,
+            # the "snaps but no live link" bug). Detect that and fall through to
+            # re-project so the reference is recreated.
+            from ..model.curve_ref import curve_ref
+
+            existing = curve_ref(self.sketch, hovered)
+            if existing is not None and existing.valid:
+                return
+            state_data["hovered"] = ""
 
         # Fresh (re)evaluation of this state: default to not-anchored, so a stale
         # flag from a previous frame (e.g. the cursor moved off a vertex) is

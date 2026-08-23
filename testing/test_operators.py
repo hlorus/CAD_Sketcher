@@ -321,6 +321,70 @@ class TestCreateOperators(Sketch2dTestCase):
         target = curve_ref(self.sketch, coincident[0].curve_id_2)
         self.assertIsInstance(target, LineRef, "the coincidence target is a line")
 
+    def test_first_point_projection_survives_preview_churn(self):
+        # Modal flow regression: the first point is snapped/projected, then the
+        # SECOND state previews across several restore+redo frames. The preview
+        # restore wipes the first point's projected reference each frame; its stale
+        # `hovered` must not make the endpoint coincide to a deleted curve (the
+        # "snaps but no live link" bug). The reference must be re-created so both
+        # endpoints stay coincident to LIVE projected points.
+        from mathutils import Vector
+
+        from ..model.curve_ref import curve_ref
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+        from ..utilities.projection_anchor import iter_projected_point_bindings
+
+        mesh = self.data.meshes.new("ChurnSrc")
+        mesh.from_pydata([(0.0, 0.0, 0.0), (5.0, 3.0, 0.0)], [(0, 1)], [])
+        mesh.update()
+        source = self.data.objects.new("ChurnSrc", mesh)
+        self.scene.collection.objects.link(source)
+        self.context.view_layer.update()
+        self.context.scene.sketcher.use_snap_project = True
+
+        def vsnap(vi, co):
+            return {
+                "type": "VERTEX",
+                "object": "ChurnSrc",
+                "vertex_index": vi,
+                "world_point": Vector(co),
+            }
+
+        def set_point(op, index, co, snap):
+            for p in op.get_property(index=index) or []:
+                setattr(op, p, Vector(co))
+            d = op.get_state_data(index)
+            d["is_existing_entity"] = False
+            d["snapped"] = True
+            d["snap"] = snap
+
+        op = self._harness(View3D_OT_slvs_add_line2d).op
+        snap0 = op.create_snapshot(self.context)  # invoke-time baseline (empty)
+
+        op.state_index = 0
+        set_point(op, 0, (0.0, 0.0), vsnap(0, (0.0, 0.0, 0.0)))
+        op.redo_states(self.context)
+
+        # Second state previews: restore (wipes the first point's projection) then
+        # rebuild, several frames -- exactly what the modal does on mouse-move.
+        op.state_index = 1
+        for _ in range(4):
+            op.restore_snapshot(self.context, snap0)
+            set_point(op, 1, (5.0, 3.0), vsnap(1, (5.0, 3.0, 0.0)))
+            op.redo_states(self.context)
+        op.main(self.context)
+
+        bindings = list(iter_projected_point_bindings(self.sketch))
+        self.assertEqual(len(bindings), 2, "both endpoints must stay projected")
+        for c in self.sketch.constraints.coincident:
+            target = curve_ref(self.sketch, c.curve_id_2)
+            self.assertTrue(
+                target is not None and target.valid,
+                f"coincidence targets a wiped curve: {c.curve_id_2}",
+            )
+        self.assertFalse(op.target.p1.fixed, "first endpoint became a static point")
+        self.assertFalse(op.target.p2.fixed, "second endpoint became a static point")
+
     def test_snapped_endpoints_skip_conflicting_auto_alignment(self):
         # Two endpoints live-projected onto near-but-not-exactly-aligned vertices
         # must NOT get an auto horizontal/vertical: the fixed projected positions
