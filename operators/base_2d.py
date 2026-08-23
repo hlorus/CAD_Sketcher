@@ -228,8 +228,15 @@ class Operator2d(GenericEntityOp):
             construction=True,
             world_co=snap.get("world_point"),
         )
+        _dbg(
+            "SNAPPROJ project_mesh_vertex -> %r valid=%r curve_id=%r",
+            projected,
+            getattr(projected, "valid", None),
+            getattr(projected, "curve_id", None),
+        )
         if projected is not None and projected.valid:
             state_data["hovered"] = projected.curve_id
+            _dbg("SNAPPROJ set hovered=%r", state_data["hovered"])
 
     # create element depending on mode
     def create_element(self, context: Context, values: List[Any], state, state_data):
@@ -247,10 +254,23 @@ class Operator2d(GenericEntityOp):
         # below instead, so skip those.
         fixed = state_data.get("snapped", False) and not state_data.get("hovered")
 
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "SNAPPROJ create_element fixed=%r hovered=%r snapped=%r",
+            fixed,
+            state_data.get("hovered"),
+            state_data.get("snapped"),
+        )
+
         ref = PointRef.create(sketch, loc, fixed=fixed)
         cid = ref.curve_id
 
         self.add_coincident(context, ref, state, state_data)
+        logging.getLogger(__name__).warning(
+            "SNAPPROJ create_element post add_coincident coincident=%r",
+            state_data.get("coincident"),
+        )
 
         ignore_hover(cid)
         state_data["type"] = PointRef
