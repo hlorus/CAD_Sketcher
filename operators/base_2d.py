@@ -125,14 +125,6 @@ class Operator2d(GenericEntityOp):
         # reflects the current position; at click this is the committed one).
         self.state_data["snap"] = self._snap
 
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "SNAPPROJ state_func idx=%s snap=%s",
-            self.state_index,
-            None if self._snap is None else self._snap.get("type"),
-        )
-
         # Handle implicit properties based on state.types
         if SlvsPoint2D in state.types:
             return pos
@@ -171,11 +163,20 @@ class Operator2d(GenericEntityOp):
         the static point.
         """
         if not context.scene.sketcher.use_snap_project:
+            state_data["snap_anchored"] = False
             return
         if not self.use_auto_constraints(context, state_data):
+            state_data["snap_anchored"] = False
             return
         if state_data.get("hovered"):
-            return  # already coinciding with an existing sketch entity
+            # Already coincident with an existing sketch entity or a projection
+            # from an earlier frame; leave its anchored state untouched.
+            return
+
+        # Fresh (re)evaluation of this state: default to not-anchored, so a stale
+        # flag from a previous frame (e.g. the cursor moved off a vertex) is
+        # cleared. It is set True again below only on a fixed-point projection.
+        state_data["snap_anchored"] = False
 
         snap = state_data.get("snap")
         if not snap:
@@ -267,20 +268,7 @@ class Operator2d(GenericEntityOp):
         # Snapped onto external mesh geometry: live-project it and coincide, so
         # the point tracks the source. Registers the projected point as the
         # coincidence target below (behaves like snapping onto a sketch entity).
-        import logging
-
-        _snap = state_data.get("snap")
-        logging.getLogger(__name__).warning(
-            "SNAPPROJ create_element snap=%s snapped=%s",
-            None if _snap is None else _snap.get("type"),
-            state_data.get("snapped"),
-        )
         self._maybe_link_projected_snap(context, state_data)
-        logging.getLogger(__name__).warning(
-            "SNAPPROJ create_element -> hovered=%r anchored=%s",
-            state_data.get("hovered"),
-            state_data.get("snap_anchored"),
-        )
 
         # A point snapped to external geometry is a deliberate placement: fix it
         # so the solver keeps it there. Points snapped onto a sketch entity (or a
