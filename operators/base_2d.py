@@ -117,6 +117,19 @@ class Operator2d(GenericEntityOp):
         self._snap = get_blender_snap_info(context, coords)
         pos = get_pos_2d(context, wp, coords, respect_snapping=True)
 
+        # TEMP diagnostic: what does Blender's snapping actually hand us as the
+        # cursor moves? Only logs when a snap is present, so it stays quiet over
+        # empty space. Strip once the live-project-on-snap issue is diagnosed.
+        if self._snap is not None:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "SNAPPROJ state_func snap type=%r object=%r vertex_index=%r",
+                self._snap.get("type"),
+                self._snap.get("object"),
+                self._snap.get("vertex_index"),
+            )
+
         # Remember whether this point landed on an external-geometry snap, so its
         # deferred creation can anchor it (fixed) — otherwise an inferred
         # constraint would drag the snapped point off target (see create_element).
@@ -161,22 +174,33 @@ class Operator2d(GenericEntityOp):
         case where the snapped vertex can't be traced to an original one fall
         back to the static point.
         """
+        import logging
+
+        _dbg = logging.getLogger(__name__).warning
+        _dbg("SNAPPROJ enter (state_data keys=%s)", sorted(state_data.keys()))
         if not context.scene.sketcher.use_snap_project:
+            _dbg("SNAPPROJ bail: use_snap_project off")
             return
         if not self.use_auto_constraints(context, state_data):
+            _dbg("SNAPPROJ bail: auto_constraints off / shift bypass")
             return
         if state_data.get("hovered"):
+            _dbg("SNAPPROJ bail: already hovered=%r", state_data.get("hovered"))
             return  # already coinciding with an existing sketch entity
 
         snap = state_data.get("snap")
+        _dbg("SNAPPROJ snap=%r", snap)
         if not snap or snap.get("type") != "VERTEX":
+            _dbg("SNAPPROJ bail: snap missing or not VERTEX")
             return
         ob_name = snap.get("object")
         v_index = snap.get("vertex_index")
         if ob_name is None or v_index is None:
+            _dbg("SNAPPROJ bail: no object/vertex_index in snap")
             return
         source = bpy.data.objects.get(ob_name)
         if source is None or source.type != "MESH":
+            _dbg("SNAPPROJ bail: source missing/not mesh: %r", source)
             return
 
         # Snapping reads the evaluated mesh; resolve that evaluated vertex back to
@@ -191,7 +215,9 @@ class Operator2d(GenericEntityOp):
         eval_source = get_evaluated_obj(context, source)
         orig_index = resolve_source_vertex_index(source, eval_source, v_index)
         if orig_index is None:
+            _dbg("SNAPPROJ bail: could not resolve orig index for eval %r", v_index)
             return
+        _dbg("SNAPPROJ projecting source=%s orig_index=%s", ob_name, orig_index)
 
         # Place the point where the user snapped (the evaluated hit), so a
         # vertex-moving modifier doesn't leave it a frame behind the source.
