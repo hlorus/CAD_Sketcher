@@ -152,21 +152,28 @@ class Operator2d(GenericEntityOp):
         return super().state_func(context, coords)
 
     def _maybe_link_projected_snap(self, context: Context, state_data):
-        """Live-project a snapped mesh feature and register it for coincidence.
+        """Live-project a snapped mesh feature and register it for constraining.
 
         When a point is snapped onto external mesh geometry, create (or reuse) a
-        live projected reference and set it as the coincidence target, so the
-        placed point tracks the source instead of being a dead static point.
-        Handles vertex snaps (bind the vertex) and edge-midpoint snaps (bind the
-        edge's two endpoints, ride at their midpoint). Other snap types, and cases
-        where the snapped feature can't be traced to an original one, fall back to
-        the static point.
+        live projected reference and set it as the constraint target, so the placed
+        point tracks the source instead of being a dead static point:
+
+        - vertex: project the vertex as a point; coincide the placed point on it.
+        - along an edge: project the edge as a line; coincide the point on the line
+          (point-on-line) so it slides along the edge.
+        - edge midpoint: project the edge as a line; add a midpoint constraint so
+          the point stays centered as the edge's endpoints track the source.
+
+        Other snap types, and cases where the snapped feature can't be traced to an
+        original one, fall back to the static point.
         """
         if not context.scene.sketcher.use_snap_project:
             state_data["snap_anchored"] = False
+            state_data["snap_link_kind"] = "COINCIDENT"
             return
         if not self.use_auto_constraints(context, state_data):
             state_data["snap_anchored"] = False
+            state_data["snap_link_kind"] = "COINCIDENT"
             return
         hovered = state_data.get("hovered")
         if hovered:
@@ -184,10 +191,12 @@ class Operator2d(GenericEntityOp):
                 return
             state_data["hovered"] = ""
 
-        # Fresh (re)evaluation of this state: default to not-anchored, so a stale
-        # flag from a previous frame (e.g. the cursor moved off a vertex) is
-        # cleared. It is set True again below only on a fixed-point projection.
+        # Fresh (re)evaluation of this state: default to not-anchored and a plain
+        # coincidence, so stale flags from a previous frame (e.g. the cursor moved
+        # off a vertex/midpoint) are cleared. They are set again below only when the
+        # current snap warrants it.
         state_data["snap_anchored"] = False
+        state_data["snap_link_kind"] = "COINCIDENT"
 
         snap = state_data.get("snap")
         if not snap:
@@ -205,7 +214,6 @@ class Operator2d(GenericEntityOp):
         from ..stateful_operator.utilities.geometry import get_evaluated_obj
         from ..utilities.projection_anchor import (
             project_mesh_edge,
-            project_mesh_edge_midpoint,
             project_mesh_vertex,
             resolve_source_vertex_index,
         )
@@ -225,7 +233,7 @@ class Operator2d(GenericEntityOp):
             projected = project_mesh_vertex(
                 self.sketch, source, orig, construction=True, world_co=world_point
             )
-        else:  # EDGE_MIDPOINT or EDGE: both bind the edge's two endpoints
+        else:  # EDGE_MIDPOINT or EDGE: project the edge as a live line
             edge = snap.get("edge_vertices")
             if not edge:
                 return
@@ -233,34 +241,26 @@ class Operator2d(GenericEntityOp):
             orig_b = resolve_source_vertex_index(source, eval_source, edge[1])
             if orig_a is None or orig_b is None:
                 return
-            if snap_type == "EDGE_MIDPOINT":
-                projected = project_mesh_edge_midpoint(
-                    self.sketch,
-                    source,
-                    orig_a,
-                    orig_b,
-                    construction=True,
-                    world_co=world_point,
-                )
-            else:
-                # Project the edge as a live line; the placed point coincides onto
-                # it (point-on-line), so it slides along the edge rather than being
-                # pinned. SlvsCoincident accepts (POINT, LINE), so setting the line
-                # as the hovered target below yields the right constraint.
-                projected = project_mesh_edge(
-                    self.sketch, source, orig_a, orig_b, construction=True
-                )
+            projected = project_mesh_edge(
+                self.sketch, source, orig_a, orig_b, construction=True
+            )
 
         if projected is not None and projected.valid:
             state_data["hovered"] = projected.curve_id
-            # A vertex/midpoint projection pins the endpoint to a FIXED point, so
-            # it can't move; an auto axis-alignment on such an endpoint would fight
-            # the fixed position (inconsistent when the features aren't exactly
-            # aligned). Flag it so the line tool skips alignment, same as it does
-            # for two statically-fixed endpoints. An edge projection is point-on-
-            # line (the endpoint can still slide), so it is not flagged.
-            if snap_type in ("VERTEX", "EDGE_MIDPOINT"):
+            if snap_type == "EDGE_MIDPOINT":
+                # Constrain the point to the edge's midpoint (POINT, LINE). The
+                # projected line's endpoints track the source, and the midpoint
+                # constraint keeps the point centered as they move. It fully pins
+                # the point, so treat it as anchored for the alignment guard.
+                state_data["snap_link_kind"] = "MIDPOINT"
                 state_data["snap_anchored"] = True
+            elif snap_type == "VERTEX":
+                # Coincident to a FIXED point: an auto axis-alignment would fight
+                # the fixed position, so flag it anchored (the line tool skips
+                # alignment, as it does for two statically-fixed endpoints).
+                state_data["snap_anchored"] = True
+            # EDGE: point-on-line coincidence (default kind); the point can still
+            # slide along the line, so it is not flagged anchored.
 
     def point_is_anchored(self, index: int) -> bool:
         """Whether the point placed for state ``index`` is pinned in place.

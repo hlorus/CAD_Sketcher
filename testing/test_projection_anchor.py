@@ -10,7 +10,6 @@ from ..utilities.projection_anchor import (
     find_projected_point,
     project_curves_object,
     project_mesh_edge,
-    project_mesh_edge_midpoint,
     project_mesh_element,
     project_mesh_object,
     project_mesh_vertex,
@@ -314,53 +313,6 @@ class TestProjectionAnchor(Sketch2dTestCase):
 
         # The bound point follows the object's new world position (2 + 3 = 5 on X).
         self.assertLess((point.co - Vector((5.0, 0.0))).length, 1e-5)
-
-    def test_project_edge_midpoint_binds_both_endpoints(self):
-        # An edge-midpoint snap binds BOTH endpoints and rides at their midpoint.
-        source = self._mesh_object()  # edge 0 links v0 (0,0,1) and v1 (2,0,1)
-
-        point = project_mesh_edge_midpoint(self.sketch, source, 0, 1, construction=True)
-        self.assertIsNotNone(point)
-        self.assertTrue(point.fixed)
-        self.assertTrue(point.construction)
-        self.assertLess((point.co - Vector((1.0, 0.0))).length, 1e-6)
-
-        # Re-snapping the same edge midpoint (either vertex order) reuses the point.
-        again = project_mesh_edge_midpoint(self.sketch, source, 1, 0, construction=True)
-        self.assertEqual(again.curve_id, point.curve_id)
-
-        # It is distinct from a single-vertex projection of one endpoint.
-        vtx = project_mesh_vertex(self.sketch, source, 0, construction=True)
-        self.assertNotEqual(vtx.curve_id, point.curve_id)
-
-        # Degenerate / out-of-range inputs are no-ops, not crashes.
-        self.assertIsNone(project_mesh_edge_midpoint(self.sketch, source, 0, 0))
-        self.assertIsNone(project_mesh_edge_midpoint(self.sketch, source, 0, 99))
-
-    def test_edge_midpoint_tracks_a_moving_endpoint(self):
-        # Moving one endpoint drags the midpoint by half the delta.
-        source = self._mesh_object()
-        point = project_mesh_edge_midpoint(self.sketch, source, 0, 1, construction=True)
-        self.assertLess((point.co - Vector((1.0, 0.0))).length, 1e-6)
-
-        source.data.vertices[1].co = (4.0, 0.0, 1.0)  # was (2,0,1)
-        source.data.update()
-        self.context.view_layer.update()
-        depsgraph = self.context.evaluated_depsgraph_get()
-        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
-        # Midpoint of (0,0) and (4,0) is (2,0).
-        self.assertLess((point.co - Vector((2.0, 0.0))).length, 1e-5)
-
-    def test_edge_midpoint_tracks_object_translation(self):
-        # Translating the whole object moves the bound midpoint with it.
-        source = self._mesh_object()
-        point = project_mesh_edge_midpoint(self.sketch, source, 0, 1, construction=True)
-
-        source.location = (10.0, 0.0, 0.0)
-        self.context.view_layer.update()
-        depsgraph = self.context.evaluated_depsgraph_get()
-        refresh_projection_for_sketch(self.sketch, depsgraph, changed={source})
-        self.assertLess((point.co - Vector((11.0, 0.0))).length, 1e-5)
 
     def test_project_mesh_edge_returns_live_line(self):
         # Snapping along an edge projects it as a live LINE (bound endpoints), so a

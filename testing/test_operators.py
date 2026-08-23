@@ -244,12 +244,13 @@ class TestCreateOperators(Sketch2dTestCase):
         self.assertEqual(len(bindings), 1, "the snap must create one live binding")
         self.assertEqual(bindings[0][1], source)
 
-    def test_point_snapped_to_edge_midpoint_live_projects(self):
-        # An edge-midpoint snap binds a live point to BOTH endpoints (midpoint),
-        # not a dead static point. Drives the EDGE_MIDPOINT branch of
-        # _maybe_link_projected_snap through the coordinate-state main().
+    def test_point_snapped_to_edge_midpoint_projects_edge_and_midpoints(self):
+        # An edge-midpoint snap projects the EDGE as a live line (both endpoints
+        # bound) and pins the point with a MIDPOINT constraint, not a dead static
+        # point. Drives the EDGE_MIDPOINT branch through the coordinate-state main().
         from mathutils import Vector
 
+        from ..model.curve_ref import LineRef, curve_ref
         from ..operators.add_point_2d import View3D_OT_slvs_add_point2d
         from ..utilities.projection_anchor import iter_projected_point_bindings
 
@@ -275,10 +276,14 @@ class TestCreateOperators(Sketch2dTestCase):
         }
         h.finish()
 
+        # Both edge endpoints are projected (two live bindings) ...
         bindings = list(iter_projected_point_bindings(self.sketch))
-        self.assertEqual(len(bindings), 1, "the snap must create one live binding")
-        # A midpoint binding carries its second vertex (binding2 is not None).
-        self.assertIsNotNone(bindings[0][5], "must be an edge-midpoint binding")
+        self.assertEqual(len(bindings), 2, "edge projection binds both endpoints")
+        # ... and the placed point is pinned by a midpoint constraint on the line.
+        midpoints = list(self.sketch.constraints.midpoint)
+        self.assertEqual(len(midpoints), 1, "one midpoint constraint")
+        target = curve_ref(self.sketch, midpoints[0].curve_id_2)
+        self.assertIsInstance(target, LineRef, "the midpoint target is a line")
 
     def test_point_snapped_along_edge_coincides_on_projected_line(self):
         # Snapping along an edge (not at a vertex/midpoint) projects the edge as a

@@ -32,11 +32,6 @@ PROJECT_SRC_SLOT_ATTR = "slvs_project_src_slot"
 PROJECT_VERTEX_ID_ATTR = "slvs_project_vertex_id"
 PROJECT_VERTEX_INDEX_ATTR = "slvs_project_vertex_index"
 PROJECT_LAST_CO_ATTR = "slvs_project_last_co"
-# A second bound vertex, used only for edge-midpoint bindings: the point rides at
-# the midpoint of vertex_id and vertex_id_2. Zero here marks a single-vertex
-# binding (the common case), so existing bindings read as before.
-PROJECT_VERTEX_ID_2_ATTR = "slvs_project_vertex_id_2"
-PROJECT_VERTEX_INDEX_2_ATTR = "slvs_project_vertex_index_2"
 
 _updating = False
 
@@ -69,8 +64,6 @@ def _ensure_projection_attributes(curve_data):
     ensure_attribute(attributes, PROJECT_VERTEX_ID_ATTR, "INT", "CURVE")
     ensure_attribute(attributes, PROJECT_VERTEX_INDEX_ATTR, "INT", "CURVE")
     ensure_attribute(attributes, PROJECT_LAST_CO_ATTR, "FLOAT_VECTOR", "CURVE")
-    ensure_attribute(attributes, PROJECT_VERTEX_ID_2_ATTR, "INT", "CURVE")
-    ensure_attribute(attributes, PROJECT_VERTEX_INDEX_2_ATTR, "INT", "CURVE")
 
 
 def _get_or_add_source_slot(owner, source):
@@ -99,16 +92,12 @@ def _source_point_index(source, vertex_index):
     return Vector(source.data.points[vertex_index].position)
 
 
-def bind_projected_point(sketch, point, source, vertex_index, vertex_index_2=None):
+def bind_projected_point(sketch, point, source, vertex_index):
     """Bind a native sketch point to a source element.
 
     The source is a mesh (bind to a vertex) or another sketch/curve (bind to a
     control point). Both mint the persistent id on the source's POINT-domain
     ``VERTEX_ID_ATTR`` so the reproject can find the element after edits.
-
-    Pass ``vertex_index_2`` to bind an edge *midpoint*: the point then rides at the
-    midpoint of the two source vertices and tracks either one moving. Leaving it
-    ``None`` is the ordinary single-vertex binding.
     """
     if source is None or source.type not in (_MESH_SOURCE | _CURVE_SOURCE):
         raise TypeError("Projected geometry source must be a mesh or sketch/curve")
@@ -122,34 +111,17 @@ def bind_projected_point(sketch, point, source, vertex_index, vertex_index_2=Non
     source_slot = _get_or_add_source_slot(sketch.target_object, source)
     attributes = curve_data.attributes
 
-    if vertex_index_2 is None:
-        vertex_id_2 = 0
-        last_co = _source_point_index(source, vertex_index)
-    else:
-        vertex_id_2 = ensure_vertex_id(source.data, vertex_index_2)
-        last_co = (
-            _source_point_index(source, vertex_index)
-            + _source_point_index(source, vertex_index_2)
-        ) / 2
-
     attributes[PROJECT_SRC_SLOT_ATTR].data[curve_index].value = source_slot
     attributes[PROJECT_VERTEX_ID_ATTR].data[curve_index].value = vertex_id
     attributes[PROJECT_VERTEX_INDEX_ATTR].data[curve_index].value = int(vertex_index)
-    attributes[PROJECT_VERTEX_ID_2_ATTR].data[curve_index].value = vertex_id_2
-    attributes[PROJECT_VERTEX_INDEX_2_ATTR].data[curve_index].value = (
-        int(vertex_index_2) if vertex_index_2 is not None else 0
+    attributes[PROJECT_LAST_CO_ATTR].data[curve_index].vector = _source_point_index(
+        source, vertex_index
     )
-    attributes[PROJECT_LAST_CO_ATTR].data[curve_index].vector = last_co
     return vertex_id
 
 
 def iter_projected_point_bindings(sketch):
-    """Yield ``(curve_id, source, vertex_id, fallback_index, last_co, binding2)``.
-
-    ``binding2`` is ``None`` for a single-vertex binding, or ``(vertex_id_2,
-    fallback_index_2)`` for an edge-midpoint binding (the point rides at the
-    midpoint of the two vertices).
-    """
+    """Yield ``(curve_id, source, vertex_id, fallback_index, last_co)``."""
     owner = sketch.target_object
     curve_data = sketch.data
     if owner is None or curve_data is None:
@@ -162,11 +134,6 @@ def iter_projected_point_bindings(sketch):
     last_co_attr = attributes.get(PROJECT_LAST_CO_ATTR)
     if not all((slot_attr, vertex_id_attr, fallback_attr, last_co_attr)):
         return
-
-    # Second-vertex attrs are absent on sketches whose bindings predate midpoint
-    # support; treat a missing attr as "all single-vertex".
-    vertex_id_2_attr = attributes.get(PROJECT_VERTEX_ID_2_ATTR)
-    fallback_2_attr = attributes.get(PROJECT_VERTEX_INDEX_2_ATTR)
 
     curve_ids = read_curve_id_list(curve_data)
     slots = owner.slvs_project_sources
@@ -181,19 +148,7 @@ def iter_projected_point_bindings(sketch):
         source = slots[slot_index].source if 0 <= slot_index < len(slots) else None
         fallback = int(fallback_attr.data[index].value)
         last_co = tuple(last_co_attr.data[index].vector)
-
-        binding2 = None
-        if vertex_id_2_attr is not None:
-            vertex_id_2 = int(vertex_id_2_attr.data[index].value)
-            if vertex_id_2 > 0:
-                fallback_2 = (
-                    int(fallback_2_attr.data[index].value)
-                    if fallback_2_attr is not None
-                    else 0
-                )
-                binding2 = (vertex_id_2, fallback_2)
-
-        yield curve_id, source, vertex_id, fallback, last_co, binding2
+        yield curve_id, source, vertex_id, fallback, last_co
 
 
 def _resolve_evaluated_vertex(eval_ob, vertex_id, fallback_index, last_co):
@@ -272,7 +227,7 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
     updates = {}
     source_cache = {}
 
-    for curve_id, source, vertex_id, fallback_index, last_co, binding2 in list(
+    for curve_id, source, vertex_id, fallback_index, last_co in list(
         iter_projected_point_bindings(sketch)
     ):
         point = PointRef(sketch, curve_id)
@@ -298,29 +253,12 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
             if eval_ob is None:
                 eval_ob = source.evaluated_get(depsgraph)
                 source_cache[source] = eval_ob
-            # last_co disambiguates duplicate ids by proximity, but for a midpoint
-            # binding it stores the midpoint (not either vertex), so skip that
-            # tie-break here and resolve each endpoint by id/index alone.
             vertex = _resolve_evaluated_vertex(
-                eval_ob,
-                vertex_id,
-                fallback_index,
-                None if binding2 is not None else last_co,
+                eval_ob, vertex_id, fallback_index, last_co
             )
             if vertex is None:
                 continue
             source_co = Vector(vertex.co)
-            # Edge-midpoint binding: average the two endpoint vertices so the point
-            # tracks either one moving. A missing second vertex detaches this frame
-            # (skip) rather than snapping to the lone endpoint.
-            if binding2 is not None:
-                vertex_id_2, fallback_2 = binding2
-                vertex_b = _resolve_evaluated_vertex(
-                    eval_ob, vertex_id_2, fallback_2, None
-                )
-                if vertex_b is None:
-                    continue
-                source_co = (source_co + Vector(vertex_b.co)) / 2
             world = eval_ob.matrix_world @ source_co
         else:
             source_co = _resolve_curve_point(
@@ -395,36 +333,8 @@ def find_projected_vertex_point(sketch, source, vertex_id):
         bound_vid,
         _fallback,
         _last_co,
-        binding2,
     ) in iter_projected_point_bindings(sketch):
-        # A midpoint binding is a distinct target -- don't hand it back as a
-        # single-vertex reuse.
-        if binding2 is None and bound_source == source and bound_vid == vertex_id:
-            existing = PointRef(sketch, curve_id)
-            if existing.valid:
-                return existing
-    return None
-
-
-def find_projected_midpoint(sketch, source, vertex_id, vertex_id_2):
-    """Return an existing point bound to ``source``'s edge midpoint, or None.
-
-    Matches the unordered pair of persistent source vertex ids, so re-snapping the
-    same edge midpoint reuses the one live point (and repeated snaps coincide on
-    it) regardless of which endpoint was resolved first.
-    """
-    wanted = {vertex_id, vertex_id_2}
-    for (
-        curve_id,
-        bound_source,
-        bound_vid,
-        _fallback,
-        _last_co,
-        binding2,
-    ) in iter_projected_point_bindings(sketch):
-        if binding2 is None or bound_source != source:
-            continue
-        if {bound_vid, binding2[0]} == wanted:
+        if bound_source == source and bound_vid == vertex_id:
             existing = PointRef(sketch, curve_id)
             if existing.valid:
                 return existing
@@ -622,57 +532,6 @@ def project_mesh_vertex(sketch, source, vertex_index, construction=True, world_c
             name="Projected Point",
         )
         bind_projected_point(sketch, point, source, vertex_index)
-    return point
-
-
-def project_mesh_edge_midpoint(
-    sketch, source, vertex_index, vertex_index_2, construction=True, world_co=None
-):
-    """Project a source edge's midpoint onto ``sketch`` as a live point.
-
-    The snap counterpart to :func:`project_mesh_vertex` for edge-midpoint snaps:
-    the point is bound to *both* endpoint vertices and rides at their midpoint, so
-    it tracks either endpoint (or the whole object) moving. Repeated snaps to the
-    same edge midpoint are deduplicated on the unordered vertex-id pair. Returns
-    the ``PointRef`` (fixed, driven by the edge), or None if an index is out of
-    range or the two indices coincide.
-
-    ``world_co`` places the point at the snapped hit (the evaluated midpoint),
-    avoiding a one-frame jump under a vertex-moving modifier; it defaults to the
-    midpoint of the original vertices.
-    """
-    if source is None or source.type != "MESH":
-        raise TypeError("Source must be a mesh object")
-    mesh = source.data
-    n = len(mesh.vertices)
-    if not (0 <= vertex_index < n and 0 <= vertex_index_2 < n):
-        return None
-    if vertex_index == vertex_index_2:
-        return None
-
-    vertex_id = ensure_vertex_id(mesh, vertex_index)
-    vertex_id_2 = ensure_vertex_id(mesh, vertex_index_2)
-    existing = find_projected_midpoint(sketch, source, vertex_id, vertex_id_2)
-    if existing is not None:
-        return existing
-
-    owner = sketch.target_object
-    if world_co is not None:
-        world = Vector(world_co)
-    else:
-        world = source.matrix_world @ (
-            (mesh.vertices[vertex_index].co + mesh.vertices[vertex_index_2].co) / 2
-        )
-    local = owner.matrix_world.inverted() @ world
-    with batch_update(sketch):
-        point = PointRef.create(
-            sketch,
-            (local.x, local.y),
-            construction=construction,
-            fixed=True,
-            name="Projected Point",
-        )
-        bind_projected_point(sketch, point, source, vertex_index, vertex_index_2)
     return point
 
 

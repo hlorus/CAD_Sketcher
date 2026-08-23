@@ -112,7 +112,15 @@ class GenericEntityOp(StatefulOperator):
                 else state_data.get("curve_id", "")
             )
 
-            state_data["coincident"] = self.sketch.constraints.add_coincident(
+            # A snapped edge-midpoint projects the edge as a line and pins the point
+            # to its midpoint; everything else is a plain coincidence (point-point
+            # or point-on-line). Both constraints take (point, target) in order.
+            constraints = self.sketch.constraints
+            if state_data.get("snap_link_kind") == "MIDPOINT":
+                add = constraints.add_midpoint
+            else:
+                add = constraints.add_coincident
+            state_data["coincident"] = add(
                 curve_id_1=point_cid,
                 curve_id_2=hovered_cid,
             )
