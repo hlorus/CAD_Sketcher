@@ -280,6 +280,47 @@ class TestCreateOperators(Sketch2dTestCase):
         # A midpoint binding carries its second vertex (binding2 is not None).
         self.assertIsNotNone(bindings[0][5], "must be an edge-midpoint binding")
 
+    def test_point_snapped_along_edge_coincides_on_projected_line(self):
+        # Snapping along an edge (not at a vertex/midpoint) projects the edge as a
+        # live line and coincides the placed point ONTO it (point-on-line), so the
+        # point slides along the edge instead of being a dead static point.
+        from mathutils import Vector
+
+        from ..model.curve_ref import LineRef, curve_ref
+        from ..operators.add_point_2d import View3D_OT_slvs_add_point2d
+        from ..utilities.projection_anchor import iter_projected_point_bindings
+
+        mesh = self.data.meshes.new("EdgeSrc2")
+        mesh.from_pydata([(0.0, 0.0, 0.0), (2.0, 0.0, 0.0)], [(0, 1)], [])
+        mesh.update()
+        source = self.data.objects.new("EdgeSrc2", mesh)
+        self.scene.collection.objects.link(source)
+        self.context.view_layer.update()
+
+        self.context.scene.sketcher.auto_axis_constraints = True
+        self.context.scene.sketcher.use_snap_project = True
+
+        h = self._harness(View3D_OT_slvs_add_point2d)
+        h.set_value(Vector((0.7, 0.0)))  # arbitrary point along the edge
+        data = h.op.get_state_data(0)
+        data["snapped"] = True
+        data["snap"] = {
+            "type": "EDGE",
+            "object": "EdgeSrc2",
+            "edge_vertices": (0, 1),
+            "world_point": Vector((0.7, 0.0, 0.0)),
+        }
+        h.finish()
+
+        # Both endpoints are projected (two live bindings) and a coincidence links
+        # the placed point to the projected LINE.
+        bindings = list(iter_projected_point_bindings(self.sketch))
+        self.assertEqual(len(bindings), 2, "edge projection binds both endpoints")
+        coincident = list(self.sketch.constraints.coincident)
+        self.assertEqual(len(coincident), 1, "one point-on-line coincidence")
+        target = curve_ref(self.sketch, coincident[0].curve_id_2)
+        self.assertIsInstance(target, LineRef, "the coincidence target is a line")
+
     # -- mixed paradigm: pick an existing point, place the other ------------
     def test_line_reuses_picked_start_point(self):
         from ..operators.add_line_2d import View3D_OT_slvs_add_line2d

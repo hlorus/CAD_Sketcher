@@ -9,6 +9,7 @@ from ..utilities.projection_anchor import (
     VERTEX_ID_ATTR,
     find_projected_point,
     project_curves_object,
+    project_mesh_edge,
     project_mesh_edge_midpoint,
     project_mesh_element,
     project_mesh_object,
@@ -360,6 +361,49 @@ class TestProjectionAnchor(Sketch2dTestCase):
         depsgraph = self.context.evaluated_depsgraph_get()
         refresh_projection_for_sketch(self.sketch, depsgraph, changed={source})
         self.assertLess((point.co - Vector((11.0, 0.0))).length, 1e-5)
+
+    def test_project_mesh_edge_returns_live_line(self):
+        # Snapping along an edge projects it as a live LINE (bound endpoints), so a
+        # placed point can coincide onto it and slide along the edge.
+        from ..model.curve_ref import LineRef
+
+        source = self._mesh_object()  # edge 0: v0 (0,0,1) -- v1 (2,0,1)
+        line = project_mesh_edge(self.sketch, source, 0, 1, construction=True)
+        self.assertIsInstance(line, LineRef)
+        self.assertTrue(line.construction)
+        # Both endpoints are live-bound to their source vertices.
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 0))
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 1))
+
+        # Re-snapping the same edge reuses the same line (no duplicate).
+        again = project_mesh_edge(self.sketch, source, 1, 0, construction=True)
+        self.assertEqual(again.curve_id, line.curve_id)
+
+        # Degenerate / out-of-range inputs are no-ops.
+        self.assertIsNone(project_mesh_edge(self.sketch, source, 1, 1))
+        self.assertIsNone(project_mesh_edge(self.sketch, source, 0, 99))
+
+    def test_project_mesh_edge_skips_plane_perpendicular_edge(self):
+        # An edge going straight through the sketch plane collapses to a point;
+        # there is no usable line, so the projection bails (static fallback).
+        mesh = self.data.meshes.new("PerpEdge")
+        mesh.from_pydata([(1.0, 1.0, 0.0), (1.0, 1.0, 2.0)], [(0, 1)], [])
+        mesh.update()
+        source = self.data.objects.new("PerpEdge", mesh)
+        self.scene.collection.objects.link(source)
+        self.assertIsNone(project_mesh_edge(self.sketch, source, 0, 1))
+
+    def test_projected_edge_line_tracks_object_translation(self):
+        # The projected edge's endpoints (and thus the line) follow the object.
+        source = self._mesh_object()
+        line = project_mesh_edge(self.sketch, source, 0, 1, construction=True)
+        p1_before = Vector(line.p1.co)
+
+        source.location = (5.0, 0.0, 0.0)
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, changed={source})
+        self.assertLess((line.p1.co - (p1_before + Vector((5.0, 0.0)))).length, 1e-5)
 
     def test_project_mesh_vertex_places_at_snapped_world_co(self):
         # A snap hands the evaluated world position; the point lands there rather

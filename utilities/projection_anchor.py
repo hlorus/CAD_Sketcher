@@ -442,25 +442,31 @@ def find_projected_point(sketch, source, vertex_index):
     return find_projected_vertex_point(sketch, source, vertex_id)
 
 
+def _line_curve_id_between(sketch, p1, p2):
+    """curve_id of a native line connecting ``p1`` and ``p2`` (either order), or None."""
+    curve_data = sketch.data
+    type_attr = curve_data.attributes.get("sketch_type")
+    if not type_attr:
+        return None
+    starts = read_uuid_list(curve_data, "start_point_id")
+    ends = read_uuid_list(curve_data, "end_point_id")
+    curve_ids = read_curve_id_list(curve_data)
+    wanted = {p1.curve_id, p2.curve_id}
+    for index in range(len(curve_data.curves)):
+        if type_attr.data[index].value != SketchCurveType.LINE:
+            continue
+        if {starts[index], ends[index]} == wanted:
+            return curve_ids[index]
+    return None
+
+
 def _line_exists_between(sketch, p1, p2):
     """Whether a native line already connects ``p1`` and ``p2`` (either order).
 
     Re-projecting the same edge or face reuses its already-projected points, so
     without this the connecting lines would stack a fresh duplicate every time.
     """
-    curve_data = sketch.data
-    type_attr = curve_data.attributes.get("sketch_type")
-    if not type_attr:
-        return False
-    starts = read_uuid_list(curve_data, "start_point_id")
-    ends = read_uuid_list(curve_data, "end_point_id")
-    wanted = {p1.curve_id, p2.curve_id}
-    for index in range(len(curve_data.curves)):
-        if type_attr.data[index].value != SketchCurveType.LINE:
-            continue
-        if {starts[index], ends[index]} == wanted:
-            return True
-    return False
+    return _line_curve_id_between(sketch, p1, p2) is not None
 
 
 def project_mesh_element(sketch, source, elem_type, elem_index, construction=True):
@@ -668,6 +674,60 @@ def project_mesh_edge_midpoint(
         )
         bind_projected_point(sketch, point, source, vertex_index, vertex_index_2)
     return point
+
+
+def project_mesh_edge(sketch, source, vertex_index, vertex_index_2, construction=True):
+    """Project a source edge onto ``sketch`` as a live line, returning its ``LineRef``.
+
+    The snap counterpart for snapping *along* an edge (not at a vertex or the
+    midpoint): the edge is projected as a live construction line bound to both
+    endpoints, and the caller coincides the placed point onto that line so it
+    slides along the edge instead of being pinned. Endpoints and the line are
+    deduplicated, so re-snapping the same edge reuses them. Returns None if an
+    index is out of range, the indices coincide, or the edge collapses to a point
+    on the sketch plane (a zero-length line the solver cannot use).
+    """
+    if source is None or source.type != "MESH":
+        raise TypeError("Source must be a mesh object")
+    mesh = source.data
+    n = len(mesh.vertices)
+    if not (0 <= vertex_index < n and 0 <= vertex_index_2 < n):
+        return None
+    if vertex_index == vertex_index_2:
+        return None
+
+    owner = sketch.target_object
+    inv = owner.matrix_world.inverted()
+
+    def _endpoint(index):
+        existing = find_projected_point(sketch, source, index)
+        if existing is not None:
+            return existing
+        local = inv @ (source.matrix_world @ mesh.vertices[index].co)
+        point = PointRef.create(
+            sketch,
+            (local.x, local.y),
+            construction=construction,
+            fixed=True,
+            name="Projected Point",
+        )
+        bind_projected_point(sketch, point, source, index)
+        return point
+
+    with batch_update(sketch):
+        p0 = _endpoint(vertex_index)
+        p1 = _endpoint(vertex_index_2)
+        # An edge perpendicular to the sketch plane collapses to a point; a
+        # zero-length line is useless to the solver and to a point-on-line
+        # coincidence, so bail to the static fallback.
+        if (p0.co - p1.co).length < 1e-6:
+            return None
+        existing_line = _line_curve_id_between(sketch, p0, p1)
+        if existing_line:
+            return LineRef(sketch, existing_line)
+        return LineRef.create(
+            sketch, p0, p1, construction=construction, name="Projected Line"
+        )
 
 
 def project_mesh_object(sketch, source, construction=True):

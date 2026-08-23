@@ -221,6 +221,12 @@ def _screen_snap_candidates(
                         "type": "EDGE",
                         "world_point": world_closest,
                         "world_edge": (world_start, world_end),
+                        # Provenance so a point snapped along this edge can be
+                        # live-projected onto it: the edge is projected and the
+                        # point slides on it via a point-on-line coincidence (see
+                        # projection_anchor.project_mesh_edge).
+                        "object": obj_eval.original.name,
+                        "edge_vertices": (int(v1), int(v2)),
                     },
                 )
 

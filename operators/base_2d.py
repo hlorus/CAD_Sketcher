@@ -173,7 +173,7 @@ class Operator2d(GenericEntityOp):
         if not snap:
             return
         snap_type = snap.get("type")
-        if snap_type not in ("VERTEX", "EDGE_MIDPOINT"):
+        if snap_type not in ("VERTEX", "EDGE_MIDPOINT", "EDGE"):
             return
         source = bpy.data.objects.get(snap.get("object") or "")
         if source is None or source.type != "MESH":
@@ -184,6 +184,7 @@ class Operator2d(GenericEntityOp):
         # order-preserving index). Skip when the correspondence isn't trustworthy.
         from ..stateful_operator.utilities.geometry import get_evaluated_obj
         from ..utilities.projection_anchor import (
+            project_mesh_edge,
             project_mesh_edge_midpoint,
             project_mesh_vertex,
             resolve_source_vertex_index,
@@ -204,7 +205,7 @@ class Operator2d(GenericEntityOp):
             projected = project_mesh_vertex(
                 self.sketch, source, orig, construction=True, world_co=world_point
             )
-        else:  # EDGE_MIDPOINT
+        else:  # EDGE_MIDPOINT or EDGE: both bind the edge's two endpoints
             edge = snap.get("edge_vertices")
             if not edge:
                 return
@@ -212,14 +213,23 @@ class Operator2d(GenericEntityOp):
             orig_b = resolve_source_vertex_index(source, eval_source, edge[1])
             if orig_a is None or orig_b is None:
                 return
-            projected = project_mesh_edge_midpoint(
-                self.sketch,
-                source,
-                orig_a,
-                orig_b,
-                construction=True,
-                world_co=world_point,
-            )
+            if snap_type == "EDGE_MIDPOINT":
+                projected = project_mesh_edge_midpoint(
+                    self.sketch,
+                    source,
+                    orig_a,
+                    orig_b,
+                    construction=True,
+                    world_co=world_point,
+                )
+            else:
+                # Project the edge as a live line; the placed point coincides onto
+                # it (point-on-line), so it slides along the edge rather than being
+                # pinned. SlvsCoincident accepts (POINT, LINE), so setting the line
+                # as the hovered target below yields the right constraint.
+                projected = project_mesh_edge(
+                    self.sketch, source, orig_a, orig_b, construction=True
+                )
 
         if projected is not None and projected.valid:
             state_data["hovered"] = projected.curve_id
