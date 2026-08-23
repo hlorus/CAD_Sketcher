@@ -8,16 +8,16 @@ operators/modifiers.py, asserting the evaluated geometry actually changes.
 import bmesh
 import bpy
 
-from .utils import BgsTestCase
 from .. import assets_manager as am
 from ..global_data import LIB_NAME
 from ..operators.modifiers import (
+    View3D_OT_node_array_linear,
+    View3D_OT_node_extrude,
+    View3D_OT_node_revolve,
     is_2d_profile,
     set_modifier_input,
-    View3D_OT_node_extrude,
-    View3D_OT_node_array_linear,
-    View3D_OT_node_revolve,
 )
+from .utils import BgsTestCase
 
 EXTRUDE = "CAD Sketcher Extrude"
 ARRAY = "CAD Sketcher Linear Array"
@@ -286,6 +286,7 @@ class TestNodeTools(BgsTestCase):
         # from its current values, not the defaults. read_props pulls the angle
         # + resolution sockets back onto the operator.
         import math
+
         from ..operators.modifiers import get_modifier_input
         from ..utilities.revolve_nodes import _input_ids
         ob = self._profile_mesh(n=3)

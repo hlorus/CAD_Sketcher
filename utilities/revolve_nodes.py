@@ -134,7 +134,9 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     abs_angle = _math(nodes, links, "ABSOLUTE", a=gi.outputs["Angle"])
     # Guard the divide: clamp resolution away from zero (the operator enforces a
     # positive minimum, but a hand-set 0 would otherwise blow up).
-    safe_res = _math(nodes, links, "MAXIMUM", a=gi.outputs["Angular Resolution"], b=1e-4)
+    safe_res = _math(
+        nodes, links, "MAXIMUM", a=gi.outputs["Angular Resolution"], b=1e-4
+    )
     steps_raw = _math(nodes, links, "DIVIDE", a=abs_angle, b=safe_res)
     steps_ceil = _math(nodes, links, "CEIL", a=steps_raw)
     steps = _math(nodes, links, "MAXIMUM", a=steps_ceil, b=1.0)
@@ -208,7 +210,9 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     col = _math(nodes, links, "MULTIPLY", a=uv.outputs["X"], b=cols_max)
     col = _math(nodes, links, "ROUND", a=col)
     index = _math(nodes, links, "FLOORED_MODULO", a=col, b=point_count)
-    step_angle = _math(nodes, links, "MULTIPLY", a=gi.outputs["Angle"], b=uv.outputs["Y"])
+    step_angle = _math(
+        nodes, links, "MULTIPLY", a=gi.outputs["Angle"], b=uv.outputs["Y"]
+    )
 
     # Sample the profile point at that index and rotate it to this step's angle.
     position = nodes.new("GeometryNodeInputPosition")
