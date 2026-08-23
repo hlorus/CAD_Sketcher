@@ -196,6 +196,11 @@ def _screen_snap_candidates(
                         "type": "EDGE_MIDPOINT",
                         "world_point": (world_start + world_end) / 2,
                         "world_edge": (world_start, world_end),
+                        # Provenance so a placed point can be live-projected onto
+                        # this edge's midpoint (bound to both endpoint vertices, see
+                        # projection_anchor.project_mesh_edge_midpoint).
+                        "object": obj_eval.original.name,
+                        "edge_vertices": (int(v1), int(v2)),
                     },
                 )
 

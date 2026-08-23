@@ -9,7 +9,6 @@ for a property state, ``pick`` for an existing element -- and assert the geometr
 and the auto-constraints ``main``/``fini`` add.
 """
 
-
 from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef
 from .utils import OpHarness, Sketch2dTestCase
 
@@ -244,6 +243,42 @@ class TestCreateOperators(Sketch2dTestCase):
         bindings = list(iter_projected_point_bindings(self.sketch))
         self.assertEqual(len(bindings), 1, "the snap must create one live binding")
         self.assertEqual(bindings[0][1], source)
+
+    def test_point_snapped_to_edge_midpoint_live_projects(self):
+        # An edge-midpoint snap binds a live point to BOTH endpoints (midpoint),
+        # not a dead static point. Drives the EDGE_MIDPOINT branch of
+        # _maybe_link_projected_snap through the coordinate-state main().
+        from mathutils import Vector
+
+        from ..operators.add_point_2d import View3D_OT_slvs_add_point2d
+        from ..utilities.projection_anchor import iter_projected_point_bindings
+
+        mesh = self.data.meshes.new("EdgeSrc")
+        mesh.from_pydata([(0.0, 0.0, 0.0), (2.0, 0.0, 0.0)], [(0, 1)], [])
+        mesh.update()
+        source = self.data.objects.new("EdgeSrc", mesh)
+        self.scene.collection.objects.link(source)
+        self.context.view_layer.update()
+
+        self.context.scene.sketcher.auto_axis_constraints = True
+        self.context.scene.sketcher.use_snap_project = True
+
+        h = self._harness(View3D_OT_slvs_add_point2d)
+        h.set_value(Vector((1.0, 0.0)))
+        data = h.op.get_state_data(0)
+        data["snapped"] = True
+        data["snap"] = {
+            "type": "EDGE_MIDPOINT",
+            "object": "EdgeSrc",
+            "edge_vertices": (0, 1),
+            "world_point": Vector((1.0, 0.0, 0.0)),
+        }
+        h.finish()
+
+        bindings = list(iter_projected_point_bindings(self.sketch))
+        self.assertEqual(len(bindings), 1, "the snap must create one live binding")
+        # A midpoint binding carries its second vertex (binding2 is not None).
+        self.assertIsNotNone(bindings[0][5], "must be an edge-midpoint binding")
 
     # -- mixed paradigm: pick an existing point, place the other ------------
     def test_line_reuses_picked_start_point(self):

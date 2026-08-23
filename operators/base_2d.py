@@ -117,19 +117,6 @@ class Operator2d(GenericEntityOp):
         self._snap = get_blender_snap_info(context, coords)
         pos = get_pos_2d(context, wp, coords, respect_snapping=True)
 
-        # TEMP diagnostic: what does Blender's snapping actually hand us as the
-        # cursor moves? Only logs when a snap is present, so it stays quiet over
-        # empty space. Strip once the live-project-on-snap issue is diagnosed.
-        if self._snap is not None:
-            import logging
-
-            logging.getLogger(__name__).warning(
-                "SNAPPROJ state_func snap type=%r object=%r vertex_index=%r",
-                self._snap.get("type"),
-                self._snap.get("object"),
-                self._snap.get("vertex_index"),
-            )
-
         # Remember whether this point landed on an external-geometry snap, so its
         # deferred creation can anchor it (fixed) — otherwise an inferred
         # constraint would drag the snapped point off target (see create_element).
@@ -165,78 +152,77 @@ class Operator2d(GenericEntityOp):
         return super().state_func(context, coords)
 
     def _maybe_link_projected_snap(self, context: Context, state_data):
-        """Live-project the snapped mesh vertex and register it for coincidence.
+        """Live-project a snapped mesh feature and register it for coincidence.
 
-        Prototype: when a point is snapped onto an external mesh vertex, create
-        (or reuse) a live projected reference for that vertex and set it as the
-        coincidence target, so the placed point tracks the source instead of
-        being a dead static point. Scoped to mesh vertices; edges/curves and the
-        case where the snapped vertex can't be traced to an original one fall
-        back to the static point.
+        When a point is snapped onto external mesh geometry, create (or reuse) a
+        live projected reference and set it as the coincidence target, so the
+        placed point tracks the source instead of being a dead static point.
+        Handles vertex snaps (bind the vertex) and edge-midpoint snaps (bind the
+        edge's two endpoints, ride at their midpoint). Other snap types, and cases
+        where the snapped feature can't be traced to an original one, fall back to
+        the static point.
         """
-        import logging
-
-        _dbg = logging.getLogger(__name__).warning
-        _dbg("SNAPPROJ enter (state_data keys=%s)", sorted(state_data.keys()))
         if not context.scene.sketcher.use_snap_project:
-            _dbg("SNAPPROJ bail: use_snap_project off")
             return
         if not self.use_auto_constraints(context, state_data):
-            _dbg("SNAPPROJ bail: auto_constraints off / shift bypass")
             return
         if state_data.get("hovered"):
-            _dbg("SNAPPROJ bail: already hovered=%r", state_data.get("hovered"))
             return  # already coinciding with an existing sketch entity
 
         snap = state_data.get("snap")
-        _dbg("SNAPPROJ snap=%r", snap)
-        if not snap or snap.get("type") != "VERTEX":
-            _dbg("SNAPPROJ bail: snap missing or not VERTEX")
+        if not snap:
             return
-        ob_name = snap.get("object")
-        v_index = snap.get("vertex_index")
-        if ob_name is None or v_index is None:
-            _dbg("SNAPPROJ bail: no object/vertex_index in snap")
+        snap_type = snap.get("type")
+        if snap_type not in ("VERTEX", "EDGE_MIDPOINT"):
             return
-        source = bpy.data.objects.get(ob_name)
+        source = bpy.data.objects.get(snap.get("object") or "")
         if source is None or source.type != "MESH":
-            _dbg("SNAPPROJ bail: source missing/not mesh: %r", source)
             return
 
-        # Snapping reads the evaluated mesh; resolve that evaluated vertex back to
-        # the original one to bind (by persistent id when tagged, else an
+        # Snapping reads the evaluated mesh; resolve the evaluated vertices back to
+        # the original ones to bind (by persistent id when tagged, else an
         # order-preserving index). Skip when the correspondence isn't trustworthy.
         from ..stateful_operator.utilities.geometry import get_evaluated_obj
         from ..utilities.projection_anchor import (
+            project_mesh_edge_midpoint,
             project_mesh_vertex,
             resolve_source_vertex_index,
         )
 
         eval_source = get_evaluated_obj(context, source)
-        orig_index = resolve_source_vertex_index(source, eval_source, v_index)
-        if orig_index is None:
-            _dbg("SNAPPROJ bail: could not resolve orig index for eval %r", v_index)
-            return
-        _dbg("SNAPPROJ projecting source=%s orig_index=%s", ob_name, orig_index)
+        world_point = snap.get("world_point")
 
         # Place the point where the user snapped (the evaluated hit), so a
         # vertex-moving modifier doesn't leave it a frame behind the source.
-        projected = project_mesh_vertex(
-            self.sketch,
-            source,
-            orig_index,
-            construction=True,
-            world_co=snap.get("world_point"),
-        )
-        _dbg(
-            "SNAPPROJ project_mesh_vertex -> %r valid=%r curve_id=%r",
-            projected,
-            getattr(projected, "valid", None),
-            getattr(projected, "curve_id", None),
-        )
+        if snap_type == "VERTEX":
+            v_index = snap.get("vertex_index")
+            if v_index is None:
+                return
+            orig = resolve_source_vertex_index(source, eval_source, v_index)
+            if orig is None:
+                return
+            projected = project_mesh_vertex(
+                self.sketch, source, orig, construction=True, world_co=world_point
+            )
+        else:  # EDGE_MIDPOINT
+            edge = snap.get("edge_vertices")
+            if not edge:
+                return
+            orig_a = resolve_source_vertex_index(source, eval_source, edge[0])
+            orig_b = resolve_source_vertex_index(source, eval_source, edge[1])
+            if orig_a is None or orig_b is None:
+                return
+            projected = project_mesh_edge_midpoint(
+                self.sketch,
+                source,
+                orig_a,
+                orig_b,
+                construction=True,
+                world_co=world_point,
+            )
+
         if projected is not None and projected.valid:
             state_data["hovered"] = projected.curve_id
-            _dbg("SNAPPROJ set hovered=%r", state_data["hovered"])
 
     # create element depending on mode
     def create_element(self, context: Context, values: List[Any], state, state_data):
@@ -254,23 +240,10 @@ class Operator2d(GenericEntityOp):
         # below instead, so skip those.
         fixed = state_data.get("snapped", False) and not state_data.get("hovered")
 
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "SNAPPROJ create_element fixed=%r hovered=%r snapped=%r",
-            fixed,
-            state_data.get("hovered"),
-            state_data.get("snapped"),
-        )
-
         ref = PointRef.create(sketch, loc, fixed=fixed)
         cid = ref.curve_id
 
         self.add_coincident(context, ref, state, state_data)
-        logging.getLogger(__name__).warning(
-            "SNAPPROJ create_element post add_coincident coincident=%r",
-            state_data.get("coincident"),
-        )
 
         ignore_hover(cid)
         state_data["type"] = PointRef
