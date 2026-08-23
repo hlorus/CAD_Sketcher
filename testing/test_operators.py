@@ -321,6 +321,83 @@ class TestCreateOperators(Sketch2dTestCase):
         target = curve_ref(self.sketch, coincident[0].curve_id_2)
         self.assertIsInstance(target, LineRef, "the coincidence target is a line")
 
+    def test_snapped_endpoints_skip_conflicting_auto_alignment(self):
+        # Two endpoints live-projected onto near-but-not-exactly-aligned vertices
+        # must NOT get an auto horizontal/vertical: the fixed projected positions
+        # disagree with the alignment, so the solver would yank an endpoint off its
+        # vertex (the "endpoint jumps to origin" report). Alignment is skipped and
+        # both endpoints keep their projected positions.
+        from mathutils import Vector
+
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+
+        mesh = self.data.meshes.new("AlignSrc")
+        # ~2.3deg off horizontal: within the auto-align threshold, so alignment
+        # would fire if not suppressed, but the y values (0 vs 0.2) conflict.
+        mesh.from_pydata([(0.0, 0.0, 0.0), (5.0, 0.2, 0.0)], [(0, 1)], [])
+        mesh.update()
+        source = self.data.objects.new("AlignSrc", mesh)
+        self.scene.collection.objects.link(source)
+        self.context.view_layer.update()
+
+        self.context.scene.sketcher.auto_axis_constraints = True
+        self.context.scene.sketcher.use_snap_project = True
+
+        h = self._harness(View3D_OT_slvs_add_line2d)
+        h.place_point((0.0, 0.0)).place_point((5.0, 0.2))
+        for i, (vi, co) in enumerate(((0, (0.0, 0.0, 0.0)), (1, (5.0, 0.2, 0.0)))):
+            d = h.op.get_state_data(i)
+            d["snapped"] = True
+            d["snap"] = {
+                "type": "VERTEX",
+                "object": "AlignSrc",
+                "vertex_index": vi,
+                "world_point": Vector(co),
+            }
+        h.finish()
+
+        self.assertFalse(
+            h.op.has_alignment, "must not auto-align two anchored snapped endpoints"
+        )
+        self.assertLess((h.op.target.p1.co - Vector((0.0, 0.0))).length, 1e-4)
+        self.assertLess(
+            (h.op.target.p2.co - Vector((5.0, 0.2))).length,
+            1e-4,
+            f"endpoint pulled off its vertex: {tuple(h.op.target.p2.co)}",
+        )
+
+    def test_single_snapped_endpoint_still_auto_aligns(self):
+        # With only one endpoint anchored, the free end can absorb the alignment,
+        # so an axis-aligned line still gets its auto constraint (no regression).
+        from mathutils import Vector
+
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+
+        mesh = self.data.meshes.new("AlignSrc2")
+        mesh.from_pydata([(5.0, 0.0, 0.0)], [], [])
+        mesh.update()
+        source = self.data.objects.new("AlignSrc2", mesh)
+        self.scene.collection.objects.link(source)
+        self.context.view_layer.update()
+
+        self.context.scene.sketcher.auto_axis_constraints = True
+        self.context.scene.sketcher.use_snap_project = True
+
+        h = self._harness(View3D_OT_slvs_add_line2d)
+        h.place_point((0.0, 0.05)).place_point((5.0, 0.0))  # near-horizontal
+        d = h.op.get_state_data(1)
+        d["snapped"] = True
+        d["snap"] = {
+            "type": "VERTEX",
+            "object": "AlignSrc2",
+            "vertex_index": 0,
+            "world_point": Vector((5.0, 0.0, 0.0)),
+        }
+        h.finish()
+
+        self.assertTrue(h.op.has_alignment, "one free end should still auto-align")
+        self.assertLess((h.op.target.p2.co - Vector((5.0, 0.0))).length, 1e-4)
+
     # -- mixed paradigm: pick an existing point, place the other ------------
     def test_line_reuses_picked_start_point(self):
         from ..operators.add_line_2d import View3D_OT_slvs_add_line2d

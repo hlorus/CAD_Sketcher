@@ -233,6 +233,23 @@ class Operator2d(GenericEntityOp):
 
         if projected is not None and projected.valid:
             state_data["hovered"] = projected.curve_id
+            # A vertex/midpoint projection pins the endpoint to a FIXED point, so
+            # it can't move; an auto axis-alignment on such an endpoint would fight
+            # the fixed position (inconsistent when the features aren't exactly
+            # aligned). Flag it so the line tool skips alignment, same as it does
+            # for two statically-fixed endpoints. An edge projection is point-on-
+            # line (the endpoint can still slide), so it is not flagged.
+            if snap_type in ("VERTEX", "EDGE_MIDPOINT"):
+                state_data["snap_anchored"] = True
+
+    def point_is_anchored(self, index: int) -> bool:
+        """Whether the point placed for state ``index`` is pinned in place.
+
+        True when the endpoint is a live-projected vertex/midpoint (coincident to a
+        FIXED projected point) -- an auto axis-alignment on it would fight the fixed
+        position. Used by tools that add alignment constraints to skip it.
+        """
+        return bool(self._state_data.get(index, {}).get("snap_anchored", False))
 
     # create element depending on mode
     def create_element(self, context: Context, values: List[Any], state, state_data):
