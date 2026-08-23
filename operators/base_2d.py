@@ -125,6 +125,14 @@ class Operator2d(GenericEntityOp):
         # reflects the current position; at click this is the committed one).
         self.state_data["snap"] = self._snap
 
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "SNAPPROJ state_func idx=%s snap=%s",
+            self.state_index,
+            None if self._snap is None else self._snap.get("type"),
+        )
+
         # Handle implicit properties based on state.types
         if SlvsPoint2D in state.types:
             return pos
@@ -259,7 +267,20 @@ class Operator2d(GenericEntityOp):
         # Snapped onto external mesh geometry: live-project it and coincide, so
         # the point tracks the source. Registers the projected point as the
         # coincidence target below (behaves like snapping onto a sketch entity).
+        import logging
+
+        _snap = state_data.get("snap")
+        logging.getLogger(__name__).warning(
+            "SNAPPROJ create_element snap=%s snapped=%s",
+            None if _snap is None else _snap.get("type"),
+            state_data.get("snapped"),
+        )
         self._maybe_link_projected_snap(context, state_data)
+        logging.getLogger(__name__).warning(
+            "SNAPPROJ create_element -> hovered=%r anchored=%s",
+            state_data.get("hovered"),
+            state_data.get("snap_anchored"),
+        )
 
         # A point snapped to external geometry is a deliberate placement: fix it
         # so the solver keeps it there. Points snapped onto a sketch entity (or a
