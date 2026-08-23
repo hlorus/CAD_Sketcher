@@ -297,21 +297,36 @@ def update_projected_geometry(context, depsgraph):
         if original is not None:
             changed.add(original)
 
+    import logging
+
     from .. import global_data
     from ..model.sketch_ref import get_sketches
 
+    _dbg = logging.getLogger(__name__).warning
+
     if global_data.stateful_op_running:
+        _dbg("SNAPPROJ handler skip: stateful_op_running")
         return
 
     _updating = True
     try:
         moved = 0
         for sketch in get_sketches(context.scene):
-            moved += refresh_projection_for_sketch(
+            n = 0
+            bindings = list(iter_projected_point_bindings(sketch))
+            n = refresh_projection_for_sketch(
                 sketch,
                 depsgraph,
                 changed=changed,
             )
+            if bindings:
+                _dbg(
+                    "SNAPPROJ handler sketch=%s bindings=%d moved=%d",
+                    getattr(sketch.target_object, "name", "?"),
+                    len(bindings),
+                    n,
+                )
+            moved += n
     finally:
         _updating = False
 
