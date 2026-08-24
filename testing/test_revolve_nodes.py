@@ -356,6 +356,7 @@ class TestRevolveThroughConvert(Sketch2dTestCase):
         bm_fill = self._revolve_with_fill(True)
         stats_fill = _stats(bm_fill)
         verts_fill = _vertset(bm_fill)
+        volume_fill = _signed_volume(bm_fill)
         bm_fill.free()
 
         bm_nofill = self._revolve_with_fill(False)
@@ -366,6 +367,8 @@ class TestRevolveThroughConvert(Sketch2dTestCase):
         # Both are clean surfaces (no self-intersection from swept fill).
         self.assertEqual(stats_fill["nonmanifold"], 0)
         self.assertEqual(stats_nofill["nonmanifold"], 0)
+        # The filled solid (caps included) is coherently oriented outward.
+        self.assertGreater(volume_fill, 0.0, "filled revolve is inside-out")
         # The lateral surface is identical; fill only adds the caps.
         self.assertEqual(verts_nofill - verts_fill, set(), "lateral surfaces differ")
         self.assertEqual(stats_fill["boundary"], 0, "filled partial turn is capped")
