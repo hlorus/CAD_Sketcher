@@ -6,7 +6,7 @@ modifiers become the addon's node tools with mapped parameters, and that
 unsupported modifiers are skipped and recorded.
 """
 
-from ..operators.modifiers import View3D_OT_node_boolean, get_modifier_input
+from ..operators.modifiers import boolean_input_ids, get_modifier_input
 from ..utilities.migrate import _migrate_modifiers
 from .utils import Sketch2dTestCase
 
@@ -61,7 +61,7 @@ class TestMigrateModifiers(Sketch2dTestCase):
             for m in self._sketch_mods()
             if m.node_group.name == "CAD Sketcher Boolean"
         )
-        ids = View3D_OT_node_boolean._input_ids(mod.node_group)
+        ids = boolean_input_ids(mod.node_group)
         self.assertEqual(get_modifier_input(mod, ids["Cutter"]), cutter)
         self.assertEqual(int(get_modifier_input(mod, ids["Operation"])), 1)  # Union
 

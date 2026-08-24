@@ -69,6 +69,90 @@ def get_boolean_operation(modifier, identifier):
     return BOOLEAN_OPERATIONS[0]
 
 
+def boolean_modifier_name(cutter):
+    """Name of the boolean modifier that cuts ``cutter`` on a body.
+
+    One modifier per cutter, so several booleans stack on the same body instead
+    of overwriting each other.
+    """
+    return f"CAD_Sketcher Boolean {cutter.name}"
+
+
+def boolean_input_ids(node_group):
+    """Map ``{socket name: identifier}`` for the boolean group's inputs."""
+    return {
+        s.name: s.identifier
+        for s in node_group.interface.items_tree
+        if getattr(s, "in_out", "") == "INPUT"
+    }
+
+
+def boolean_cutters(obj):
+    """Objects ``obj`` reads as cutters through its CAD Sketcher booleans."""
+    from ..utilities.boolean_nodes import BOOLEAN_NODE_GROUP
+
+    cutters = []
+    for m in obj.modifiers:
+        group = getattr(m, "node_group", None)
+        if m.type != "NODES" or group is None or group.name != BOOLEAN_NODE_GROUP:
+            continue
+        cutter = get_modifier_input(m, boolean_input_ids(group)["Cutter"])
+        if cutter is not None:
+            cutters.append(cutter)
+    return cutters
+
+
+def creates_boolean_cycle(body, cutter):
+    """Whether making ``body`` read ``cutter`` closes a boolean dependency cycle.
+
+    True when ``cutter`` already depends (transitively) on ``body`` through other
+    CAD Sketcher booleans, including ``cutter is body`` (a length-0 cycle). Adding
+    such a modifier would close a depsgraph cycle, which crashes Blender.
+    """
+    stack = [cutter]
+    seen = set()
+    while stack:
+        obj = stack.pop()
+        if obj == body:
+            return True
+        if obj in seen:
+            continue
+        seen.add(obj)
+        stack.extend(boolean_cutters(obj))
+    return False
+
+
+def apply_boolean(
+    body, cutter, operation="Difference", self_intersection=True, hole_tolerant=False
+):
+    """Add or update a nondestructive boolean of ``cutter`` on ``body``.
+
+    Reuses the per-cutter modifier if it already exists (so re-applying edits it),
+    otherwise creates one. Returns the modifier, or None if the link would create
+    a dependency cycle. ``body`` and ``cutter`` must be original (not evaluated)
+    objects. The shared entry point for the Boolean tool and for the extrude /
+    revolve tools that boolean their result directly.
+    """
+    from ..utilities.boolean_nodes import build_boolean_node_group
+
+    if creates_boolean_cycle(body, cutter):
+        return None
+
+    ng = build_boolean_node_group()
+    name = boolean_modifier_name(cutter)
+    mod = body.modifiers.get(name)
+    if mod is None:
+        mod = body.modifiers.new(name, "NODES")
+    mod.node_group = ng
+
+    ids = boolean_input_ids(ng)
+    set_modifier_input(mod, ids["Cutter"], cutter)
+    set_boolean_operation(mod, ids["Operation"], operation)
+    set_modifier_input(mod, ids["Self Intersection"], self_intersection)
+    set_modifier_input(mod, ids["Hole Tolerant"], hole_tolerant)
+    return mod
+
+
 BASE_STATES = (
     state_from_args(
         "Object",
@@ -715,10 +799,10 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         # One modifier per cutter, so several booleans stack on the same body
         # instead of overwriting each other. Re-applying with the same cutter
         # edits its existing modifier (same name); a new cutter adds another.
-        return f"CAD_Sketcher Boolean {self._cutter.name}"
+        return boolean_modifier_name(self._cutter)
 
     def read_props(self, modifier):
-        ids = self._input_ids(modifier.node_group)
+        ids = boolean_input_ids(modifier.node_group)
         self.operation = get_boolean_operation(modifier, ids["Operation"])
         self.self_intersection = get_modifier_input(modifier, ids["Self Intersection"])
         self.hole_tolerant = get_modifier_input(modifier, ids["Hole Tolerant"])
@@ -747,7 +831,7 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         body = self.resolved_object()
         if body is not None:
             body = body.original
-        if self._creates_cycle(body, cutter):
+        if creates_boolean_cycle(body, cutter):
             self.report(
                 {"WARNING"},
                 "That cutter depends on the body; it would create a dependency cycle",
@@ -764,52 +848,9 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         if succeed and getattr(self, "_cutter", None) is not None:
             self._cutter.display_type = self.cutter_display
 
-    @staticmethod
-    def _input_ids(node_group):
-        return {
-            s.name: s.identifier
-            for s in node_group.interface.items_tree
-            if getattr(s, "in_out", "") == "INPUT"
-        }
-
-    @classmethod
-    def _boolean_cutters(cls, obj):
-        """Objects ``obj`` reads as cutters through its CAD Sketcher booleans."""
-        from ..utilities.boolean_nodes import BOOLEAN_NODE_GROUP
-
-        cutters = []
-        for m in obj.modifiers:
-            group = getattr(m, "node_group", None)
-            if m.type != "NODES" or group is None or group.name != BOOLEAN_NODE_GROUP:
-                continue
-            ids = cls._input_ids(group)
-            cutter = get_modifier_input(m, ids["Cutter"])
-            if cutter is not None:
-                cutters.append(cutter)
-        return cutters
-
-    @classmethod
-    def _creates_cycle(cls, body, cutter):
-        """Whether making ``body`` read ``cutter`` closes a boolean dependency
-        cycle, i.e. ``cutter`` already depends (transitively) on ``body``.
-
-        Also true when ``cutter is body`` (a self-reference is a length-0 cycle).
-        """
-        stack = [cutter]
-        seen = set()
-        while stack:
-            obj = stack.pop()
-            if obj == body:
-                return True
-            if obj in seen:
-                continue
-            seen.add(obj)
-            stack.extend(cls._boolean_cutters(obj))
-        return False
-
     def set_props(self):
         m = self.modifier
-        ids = self._input_ids(m.node_group)
+        ids = boolean_input_ids(m.node_group)
         set_modifier_input(m, ids["Cutter"], self._cutter)
         set_boolean_operation(m, ids["Operation"], self.operation)
         set_modifier_input(m, ids["Self Intersection"], self.self_intersection)
