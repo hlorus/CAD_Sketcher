@@ -104,12 +104,15 @@ class TestMigrateModifiers(Sketch2dTestCase):
             for m in self._sketch_mods()
             if m.node_group.name == "CAD Sketcher Revolve"
         )
-        self.assertAlmostEqual(get_modifier_input(rev, "Socket_3"), math.pi, places=4)
+        from ..utilities.revolve_nodes import _input_ids
+
+        ids = _input_ids(rev.node_group)
+        self.assertAlmostEqual(get_modifier_input(rev, ids["Angle"]), math.pi, places=4)
         # Axis Direction is Y.
-        axis = tuple(get_modifier_input(rev, "Socket_2"))
+        axis = tuple(get_modifier_input(rev, ids["Axis Direction"]))
         self.assertLess(abs(axis[1] - 1.0), 1e-4)
         self.assertAlmostEqual(
-            get_modifier_input(rev, "Socket_4"), math.pi / 12, places=4
+            get_modifier_input(rev, ids["Angular Resolution"]), math.pi / 12, places=4
         )
 
     def _sketch_group_named(self, name):

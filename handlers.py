@@ -78,6 +78,22 @@ def on_load_post(*args):
     except Exception:
         logger.exception("Legacy sketch migration failed")
 
+    # Upgrade a revolve node group baked into the file to the current build, so
+    # existing revolves pick up fixes on open instead of only when re-invoked.
+    # Only touch it when present -- never create it on load for files that have
+    # no revolve. build_revolve_node_group preserves each modifier's settings
+    # across the rebuild (see utilities.revolve_nodes).
+    try:
+        from .utilities.revolve_nodes import (
+            REVOLVE_NODE_GROUP,
+            build_revolve_node_group,
+        )
+
+        if bpy.data.node_groups.get(REVOLVE_NODE_GROUP) is not None:
+            build_revolve_node_group()
+    except Exception:
+        logger.exception("Revolve node group upgrade failed")
+
 
 def on_depsgraph_update(scene, depsgraph):
     from . import global_data

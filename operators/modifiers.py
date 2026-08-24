@@ -425,7 +425,8 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
     bl_label = "Revolve"
 
     NODEGROUP_NAME = "CAD Sketcher Revolve"
-    resources = (("node_groups", "CAD Sketcher Revolve"),)
+    # Built programmatically (not shipped as an asset); see init()/main().
+    resources = ()
     return_to_tool = BLENDER_SELECT_TOOL
 
     invalid_target_msg = "Select a sketch, curve or mesh profile to revolve"
@@ -471,6 +472,20 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
         # converts mesh edges to a curve, so a poly-line/silhouette mesh works
         # too, matching Blender's Screw modifier.
         return obj is not None and obj.type in {"CURVE", "CURVES", "MESH"}
+
+    @staticmethod
+    def _input_ids(node_group):
+        from ..utilities.revolve_nodes import _input_ids
+
+        return _input_ids(node_group)
+
+    def init(self, context: Context, event: Event):
+        # Build the revolve node group in place of loading an asset.
+        from ..utilities.revolve_nodes import build_revolve_node_group
+
+        build_revolve_node_group()
+        bpy.ops.ed.undo_push(message="Add Revolve")
+        return True
 
     def get_point(self, context, index):
         # The axis is a picked edge, resolved to endpoints in set_props; there
@@ -524,13 +539,20 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
         # Seed the angle/resolution from the existing revolve so re-invoking on
         # the same object continues from its current sweep. The axis is re-picked
         # each run (and flip isn't stored in the modifier), so neither is read.
-        self.angle = get_modifier_input(modifier, "Socket_3")
-        self.angular_resolution = get_modifier_input(modifier, "Socket_4")
+        from ..utilities.revolve_nodes import _input_ids
+
+        ids = _input_ids(modifier.node_group)
+        self.angle = get_modifier_input(modifier, ids["Angle"])
+        self.angular_resolution = get_modifier_input(modifier, ids["Angular Resolution"])
 
     def _has_stored_axis(self):
         return Vector(self.axis_direction).length > 1e-9
 
     def main(self, context):
+        from ..utilities.revolve_nodes import build_revolve_node_group
+
+        build_revolve_node_group()  # ensure it exists on the redo path too
+
         # Need an axis: either freshly picked (interactive) or persisted from a
         # previous run (redo). Without one the modifier would sit on the node
         # group's default axis and generate a bogus revolve.
@@ -565,10 +587,11 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
         final_dir = -direction if self.flip else direction
 
         m = self.modifier
-        set_modifier_input(m, "Socket_1", tuple(origin))  # Axis Origin
-        set_modifier_input(m, "Socket_2", tuple(final_dir))  # Axis Direction
-        set_modifier_input(m, "Socket_3", self.angle)  # Angle
-        set_modifier_input(m, "Socket_4", self.angular_resolution)  # Angular Resolution
+        ids = self._input_ids(m.node_group)
+        set_modifier_input(m, ids["Axis Origin"], tuple(origin))
+        set_modifier_input(m, ids["Axis Direction"], tuple(final_dir))
+        set_modifier_input(m, ids["Angle"], self.angle)
+        set_modifier_input(m, ids["Angular Resolution"], self.angular_resolution)
         return True
 
     def draw_settings(self, context):
