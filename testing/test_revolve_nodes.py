@@ -45,6 +45,13 @@ def _vertset(bm):
     return {tuple(round(c, 5) for c in v.co) for v in bm.verts}
 
 
+def _signed_volume(bm):
+    """Positive when the closed mesh's normals point outward, negative if
+    inside-out."""
+    bm.normal_update()
+    return bm.calc_volume(signed=True)
+
+
 class TestRevolveNodeGroup(BgsTestCase):
     # X-axis revolve; profiles sit at +Y so they never cross the axis.
     AXIS_ORIGIN = (0.0, 0.0, 0.0)
@@ -169,6 +176,66 @@ class TestRevolveNodeGroup(BgsTestCase):
         finally:
             bpy.data.objects.remove(filled, do_unlink=True)
             bpy.data.objects.remove(unfilled, do_unlink=True)
+
+    def _filled_poly(self, points):
+        """A closed poly profile at +Y with a Fill Curve modifier, so the revolve
+        receives a *triangulated* fill (as the real convert modifier produces)."""
+        cu = bpy.data.curves.new("poly", "CURVE")
+        sp = cu.splines.new("POLY")
+        sp.points.add(len(points) - 1)
+        sp.use_cyclic_u = True
+        for i, (x, y) in enumerate(points):
+            sp.points[i].co = (x, 2.0 + y, 0.0, 1.0)
+        ob = bpy.data.objects.new("poly", cu)
+        self.scene.collection.objects.link(ob)
+
+        ng = bpy.data.node_groups.new("fill", "GeometryNodeTree")
+        ng.interface.new_socket(
+            "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+        )
+        ng.interface.new_socket(
+            "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+        )
+        gi = ng.nodes.new("NodeGroupInput")
+        go = ng.nodes.new("NodeGroupOutput")
+        fill = ng.nodes.new("GeometryNodeFillCurve")
+        ng.links.new(gi.outputs["Geometry"], fill.inputs["Curve"])
+        ng.links.new(fill.outputs["Mesh"], go.inputs["Geometry"])
+        ob.modifiers.new("fill", "NODES").node_group = ng
+        return ob
+
+    def test_filled_normals_point_outward_regardless_of_shape(self):
+        # The reporter's regression: the fill boundary loop has no deterministic
+        # winding, so some shapes revolved inside-out (negative volume). The
+        # signed-volume flip must make every filled shape come out solid-outward.
+        shapes = {
+            "square": [(-0.4, -0.4), (0.4, -0.4), (0.4, 0.4), (-0.4, 0.4)],
+            "square_cw": [(-0.4, -0.4), (-0.4, 0.4), (0.4, 0.4), (0.4, -0.4)],
+            "triangle": [(0.0, 0.5), (-0.4, -0.3), (0.4, -0.3)],
+            "concave_L": [
+                (-0.4, -0.4),
+                (0.4, -0.4),
+                (0.4, 0.0),
+                (0.0, 0.0),
+                (0.0, 0.4),
+                (-0.4, 0.4),
+            ],
+        }
+        for angle in (math.pi, math.tau):
+            for name, pts in shapes.items():
+                ob = self._filled_poly(pts)
+                try:
+                    self._revolve(ob, angle)
+                    bm = _bm(ob)
+                    volume = _signed_volume(bm)
+                    nonmanifold = _stats(bm)["nonmanifold"]
+                    bm.free()
+                finally:
+                    bpy.data.objects.remove(ob, do_unlink=True)
+                self.assertGreater(
+                    volume, 0.0, f"{name} at {angle:.2f} rad revolved inside-out"
+                )
+                self.assertEqual(nonmanifold, 0, f"{name} at {angle:.2f} not manifold")
 
     def test_open_profile_makes_a_cylinder_not_a_closed_band(self):
         # An open profile (a line) must NOT get a wrap column: it sweeps to a tube

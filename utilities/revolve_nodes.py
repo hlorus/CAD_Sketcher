@@ -42,7 +42,7 @@ REVOLVE_NODE_GROUP = "CAD Sketcher Revolve"
 # Bump whenever the built tree changes so groups baked into existing files -- or a
 # stale same-named binary asset -- are rebuilt in place on next use, keeping
 # modifiers bound to the same name.
-REVOLVE_VERSION = 1
+REVOLVE_VERSION = 2
 
 # Weld tolerance for the sweep seams and the cap-to-lateral join. The welded
 # points are produced by the *same* profile sample and rotation, so they are
@@ -286,7 +286,53 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     weld = nodes.new("GeometryNodeMergeByDistance")
     links.new(result.outputs["Geometry"], weld.inputs["Geometry"])
     weld.inputs["Distance"].default_value = _WELD_DISTANCE
-    links.new(weld.outputs["Geometry"], go.inputs["Geometry"])
+    welded = weld.outputs["Geometry"]
+
+    # 6. Consistent outward normals. The boundary loop that Mesh to Curve extracts
+    #    from a fill triangulation has no deterministic winding, so the swept solid
+    #    can come out inside-out for some profile shapes. For a *filled* profile
+    #    (which yields a closed solid) compute the signed volume via the divergence
+    #    theorem -- sum over faces of dot(centroid, normal) * area -- and flip the
+    #    whole mesh when it is negative, so normals always point outward regardless
+    #    of the profile's shape. Unfilled profiles are an open shell (no meaningful
+    #    volume) and are left as-is.
+    position = nodes.new("GeometryNodeInputPosition")
+    normal = nodes.new("GeometryNodeInputNormal")
+    face_area = nodes.new("GeometryNodeInputMeshFaceArea")
+    flux = nodes.new("ShaderNodeVectorMath")
+    flux.operation = "DOT_PRODUCT"
+    links.new(position.outputs["Position"], flux.inputs[0])
+    links.new(normal.outputs["Normal"], flux.inputs[1])
+    term = _math(
+        nodes, links, "MULTIPLY", a=flux.outputs["Value"], b=face_area.outputs["Area"]
+    )
+    volume = nodes.new("GeometryNodeAttributeStatistic")
+    volume.data_type = "FLOAT"
+    volume.domain = "FACE"
+    links.new(welded, volume.inputs["Geometry"])
+    links.new(term, volume.inputs["Attribute"])
+
+    inside_out = nodes.new("FunctionNodeCompare")
+    inside_out.data_type = "FLOAT"
+    inside_out.operation = "LESS_THAN"
+    va, vb = (s for s in inside_out.inputs if s.enabled and s.type == "VALUE")
+    vb.default_value = 0.0
+    links.new(volume.outputs["Sum"], va)
+
+    flip_needed = nodes.new("FunctionNodeBooleanMath")
+    flip_needed.operation = "AND"
+    links.new(filled.outputs["Result"], flip_needed.inputs[0])
+    links.new(inside_out.outputs["Result"], flip_needed.inputs[1])
+
+    flipped = nodes.new("GeometryNodeFlipFaces")
+    links.new(welded, flipped.inputs["Mesh"])
+
+    orient = nodes.new("GeometryNodeSwitch")
+    orient.input_type = "GEOMETRY"
+    links.new(flip_needed.outputs["Boolean"], orient.inputs["Switch"])
+    links.new(welded, orient.inputs["False"])
+    links.new(flipped.outputs["Mesh"], orient.inputs["True"])
+    links.new(orient.outputs["Output"], go.inputs["Geometry"])
 
     ng["cad_revolve_version"] = REVOLVE_VERSION
     return ng
