@@ -23,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 16
+CONVERT_VERSION = 17
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -120,29 +120,44 @@ def _store_segment_attributes_on_edges(nodes, links, geometry, specs):
     return current
 
 
-def _capture_fill_attributes(nodes, links, geometry, specs):
-    """Capture merged boundary values by their natural mesh domain for Fill."""
+def _transfer_attributes_after_fill(nodes, links, geometry, source, specs):
+    """Re-establish attribute values on the filled mesh by nearest source element.
+
+    Fill Curve drops named attributes (and a captured anonymous value does not
+    cross it either), so pull them back from the pre-fill welded ``source`` mesh,
+    which still carries them: POINT values by nearest vertex, per-segment (CURVE)
+    values by nearest EDGE. Each filled boundary element has an exact coincident
+    source element (nearest distance 0), so boundary values are recovered exactly;
+    interior fill elements take the nearest boundary value, which is harmless (a
+    flat fill's interior has no owning segment by definition). Sampling reads
+    straight from the source rather than merging, so there is no corner averaging.
+    """
     current = geometry
-    captured = []
-    for index, entry in enumerate(specs):
+    for entry in specs:
         domain = "POINT" if entry["domain"] == "POINT" else "EDGE"
-        item_name = f"fill_{index}"
-        current, value = _capture_value(nodes, links, current, entry, domain, item_name)
-        captured.append((entry, domain, value))
-    return current, captured
 
+        nearest = nodes.new("GeometryNodeSampleNearest")
+        nearest.domain = domain
+        links.new(source, nearest.inputs["Geometry"])
 
-def _restore_fill_attributes(nodes, links, geometry, captured):
-    """Restore captured values after Fill Curve without spatial matching."""
-    current = geometry
-    for entry, domain, value in captured:
+        named = nodes.new("GeometryNodeInputNamedAttribute")
+        named.data_type = entry["type"]
+        named.inputs["Name"].default_value = entry["name"]
+
+        sample = nodes.new("GeometryNodeSampleIndex")
+        sample.data_type = entry["type"]
+        sample.domain = domain
+        links.new(source, sample.inputs["Geometry"])
+        links.new(named.outputs["Attribute"], sample.inputs["Value"])
+        links.new(nearest.outputs["Index"], sample.inputs["Index"])
+
         current = _remove_named_attribute(nodes, links, current, entry["name"])
         store = nodes.new("GeometryNodeStoreNamedAttribute")
         store.data_type = entry["type"]
         store.domain = domain
         store.inputs["Name"].default_value = entry["name"]
         links.new(current, store.inputs["Geometry"])
-        links.new(value, store.inputs["Value"])
+        links.new(sample.outputs["Value"], store.inputs["Value"])
         current = store.outputs["Geometry"]
     return current
 
@@ -319,17 +334,20 @@ def build_convert_node_group(
     links.new(merge_id.outputs["Attribute"], merge.inputs["Merge ID"])
     links.new(weld.outputs["Boolean"], merge.inputs["Selection"])
 
-    fill_source, captured = _capture_fill_attributes(
-        nodes, links, merge.outputs["Geometry"], specs
-    )
+    # The welded wire mesh carries POINT values on its vertices and per-segment
+    # values on its edges; it feeds the non-fill path directly and is the source
+    # for re-establishing POINT values on the filled mesh below.
+    pre_fill = merge.outputs["Geometry"]
 
     to_curve = nodes.new("GeometryNodeMeshToCurve")
-    links.new(fill_source, to_curve.inputs["Mesh"])
+    links.new(pre_fill, to_curve.inputs["Mesh"])
 
     fill_curve = nodes.new("GeometryNodeFillCurve")
     links.new(to_curve.outputs["Curve"], fill_curve.inputs["Curve"])
-    filled = _restore_fill_attributes(
-        nodes, links, fill_curve.outputs["Mesh"], captured
+    # Fill Curve drops named attributes; re-establish them on the filled mesh from
+    # the pre-fill welded mesh by nearest element (POINT and per-segment EDGE).
+    filled = _transfer_attributes_after_fill(
+        nodes, links, fill_curve.outputs["Mesh"], pre_fill, specs
     )
 
     switch = nodes.new("GeometryNodeSwitch")
@@ -339,7 +357,7 @@ def build_convert_node_group(
     # values through Mesh to Curve would collapse a multi-segment loop to one
     # spline and adapt adjacent EDGE values onto shared curve points, recreating
     # the meaningless 15/25/35 corner averages the EDGE capture is meant to avoid.
-    links.new(merge.outputs["Geometry"], switch.inputs["False"])
+    links.new(pre_fill, switch.inputs["False"])
     links.new(filled, switch.inputs["True"])
 
     geometry = add_generated_id_nodes(nodes, links, switch.outputs["Output"])

@@ -1,18 +1,18 @@
 import bpy
 from bpy.types import Context
 
-from .. import declarations
-from .. import icon_manager
+from .. import declarations, icon_manager
 from ..model import types
 from ..stateful_operator import constants
 from ..utilities import preferences
-from .panels.tools import VIEW3D_PT_sketcher_tools
 from .panels.constraints_list import VIEW3D_PT_sketcher_constraints
+from .panels.custom_attributes import VIEW3D_PT_sketcher_custom_attributes
 from .panels.debug import VIEW3D_PT_sketcher_debug
 from .panels.entities_list import VIEW3D_PT_sketcher_entities
 from .panels.sketch_select import VIEW3D_PT_sketcher
-from .sketches_list import VIEW3D_UL_sketches
+from .panels.tools import VIEW3D_PT_sketcher_tools
 from .selected_menu import VIEW3D_MT_selected_menu
+from .sketches_list import VIEW3D_UL_sketches
 
 
 def draw_object_context_menu(self, context: Context):
@@ -61,6 +61,7 @@ classes = [
     VIEW3D_PT_sketcher_tools,
     VIEW3D_PT_sketcher_entities,
     VIEW3D_PT_sketcher_constraints,
+    VIEW3D_PT_sketcher_custom_attributes,
     VIEW3D_PT_sketcher_debug,
     VIEW3D_MT_selected_menu,
 ]
