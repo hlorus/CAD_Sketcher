@@ -88,6 +88,7 @@ class Operator2d(GenericEntityOp):
 
     def init(self, context: Context, event: Event):
         from ..model.sketch_ref import get_active_sketch
+
         self._active_sketch = get_active_sketch(context)
         return True
 
@@ -97,6 +98,7 @@ class Operator2d(GenericEntityOp):
             import bpy
 
             from ..model.sketch_ref import get_active_sketch
+
             self._active_sketch = get_active_sketch(bpy.context)
         return self._active_sketch
 
@@ -119,6 +121,9 @@ class Operator2d(GenericEntityOp):
         # deferred creation can anchor it (fixed) — otherwise an inferred
         # constraint would drag the snapped point off target (see create_element).
         self.state_data["snapped"] = self._snap is not None
+        # Stash the snap target so create_element can live-project it (the marker
+        # reflects the current position; at click this is the committed one).
+        self.state_data["snap"] = self._snap
 
         # Handle implicit properties based on state.types
         if SlvsPoint2D in state.types:
@@ -146,14 +151,175 @@ class Operator2d(GenericEntityOp):
 
         return super().state_func(context, coords)
 
+    def _maybe_link_projected_snap(self, context: Context, state_data):
+        """Live-project a snapped mesh feature and register it for constraining.
+
+        When a point is snapped onto external mesh geometry, create (or reuse) a
+        live projected reference and set it as the constraint target, so the placed
+        point tracks the source instead of being a dead static point:
+
+        - vertex: project the vertex as a point; coincide the placed point on it.
+        - along an edge: project the edge as a line; coincide the point on the line
+          (point-on-line) so it slides along the edge.
+        - edge midpoint: project the edge as a line; add a midpoint constraint so
+          the point stays centered as the edge's endpoints track the source.
+
+        Other snap types, and cases where the snapped feature can't be traced to an
+        original one, fall back to the static point.
+        """
+        # Live-snap has its own toggle and does NOT depend on "Auto Constraints";
+        # only the per-placement Shift bypass still opts out (place it raw).
+        if not context.scene.sketcher.use_snap_project or state_data.get(
+            "skip_auto_constraints"
+        ):
+            state_data["snap_anchored"] = False
+            state_data["snap_link_kind"] = "COINCIDENT"
+            state_data["snap_projected"] = False
+            return
+        hovered = state_data.get("hovered")
+        if hovered:
+            from ..model.curve_ref import curve_ref
+
+            existing = curve_ref(self.sketch, hovered)
+            if existing is not None and existing.valid:
+                if self._is_projected_reference(hovered):
+                    # A live projection from an earlier (non-current) state: its
+                    # flags were set when projected, keep them. (Re-projecting is
+                    # unnecessary while the curve is still valid.)
+                    state_data["snap_projected"] = True
+                    return
+                # A genuine pick of an existing sketch entity under the cursor
+                # (e.g. a pointer tool's constrain target): a plain coincidence
+                # that respects Auto Constraints, anchored only if it is fixed.
+                state_data["snap_projected"] = False
+                state_data["snap_link_kind"] = "COINCIDENT"
+                state_data["snap_anchored"] = bool(getattr(existing, "fixed", False))
+                return
+            # Stale: a projection wiped by the preview restore while its id lingers
+            # here. Honoring it would coincide the endpoint to a deleted curve (a
+            # dead static point, the "snaps but no live link" bug); clear it and
+            # re-project below so the reference is recreated.
+            state_data["hovered"] = ""
+
+        # Fresh (re)evaluation of this state: default to not-anchored, a plain
+        # coincidence, and not-projected, so stale flags from a previous frame
+        # (e.g. the cursor moved off a vertex/midpoint) are cleared. They are set
+        # again below only when the current snap warrants it.
+        state_data["snap_anchored"] = False
+        state_data["snap_link_kind"] = "COINCIDENT"
+        state_data["snap_projected"] = False
+
+        snap = state_data.get("snap")
+        if not snap:
+            return
+        snap_type = snap.get("type")
+        if snap_type not in ("VERTEX", "EDGE_MIDPOINT", "EDGE"):
+            return
+        source = bpy.data.objects.get(snap.get("object") or "")
+        if source is None or source.type != "MESH":
+            return
+
+        # Snapping reads the evaluated mesh; resolve the evaluated vertices back to
+        # the original ones to bind (by persistent id when tagged, else an
+        # order-preserving index). Skip when the correspondence isn't trustworthy.
+        from ..stateful_operator.utilities.geometry import get_evaluated_obj
+        from ..utilities.projection_anchor import (
+            project_mesh_edge,
+            project_mesh_vertex,
+            resolve_source_vertex_index,
+        )
+
+        eval_source = get_evaluated_obj(context, source)
+        world_point = snap.get("world_point")
+
+        # Place the point where the user snapped (the evaluated hit), so a
+        # vertex-moving modifier doesn't leave it a frame behind the source.
+        if snap_type == "VERTEX":
+            v_index = snap.get("vertex_index")
+            if v_index is None:
+                return
+            orig = resolve_source_vertex_index(source, eval_source, v_index)
+            if orig is None:
+                return
+            projected = project_mesh_vertex(
+                self.sketch, source, orig, construction=True, world_co=world_point
+            )
+        else:  # EDGE_MIDPOINT or EDGE: project the edge as a live line
+            edge = snap.get("edge_vertices")
+            if not edge:
+                return
+            orig_a = resolve_source_vertex_index(source, eval_source, edge[0])
+            orig_b = resolve_source_vertex_index(source, eval_source, edge[1])
+            if orig_a is None or orig_b is None:
+                return
+            projected = project_mesh_edge(
+                self.sketch, source, orig_a, orig_b, construction=True
+            )
+
+        if projected is not None and projected.valid:
+            state_data["hovered"] = projected.curve_id
+            # This link IS a projection: its constraint is created regardless of
+            # the Auto Constraints toggle (see add_coincident).
+            state_data["snap_projected"] = True
+            if snap_type == "EDGE_MIDPOINT":
+                # Constrain the point to the edge's midpoint (POINT, LINE). The
+                # projected line's endpoints track the source, and the midpoint
+                # constraint keeps the point centered as they move. It fully pins
+                # the point, so treat it as anchored for the alignment guard.
+                state_data["snap_link_kind"] = "MIDPOINT"
+                state_data["snap_anchored"] = True
+            elif snap_type == "VERTEX":
+                # Coincident to a FIXED point: an auto axis-alignment would fight
+                # the fixed position, so flag it anchored (the line tool skips
+                # alignment, as it does for two statically-fixed endpoints).
+                state_data["snap_anchored"] = True
+            # EDGE: point-on-line coincidence (default kind); the point can still
+            # slide along the line, so it is not flagged anchored.
+
+    def _is_projected_reference(self, curve_id: str) -> bool:
+        """Whether ``curve_id`` is a live-projected reference, not a picked entity.
+
+        A projected reference is a bound point, or a line whose endpoints are both
+        bound. Distinguishes "our projection" (whose constraint bypasses the Auto
+        Constraints toggle) from a genuine pick of a pre-existing sketch entity.
+        """
+        from ..model.curve_ref import LineRef, curve_ref
+        from ..utilities.projection_anchor import iter_projected_point_bindings
+
+        bound = {cid for cid, *_ in iter_projected_point_bindings(self.sketch)}
+        if not bound:
+            return False
+        if curve_id in bound:
+            return True
+        ref = curve_ref(self.sketch, curve_id)
+        if isinstance(ref, LineRef):
+            p1, p2 = ref.p1, ref.p2
+            return bool(p1 and p2 and p1.curve_id in bound and p2.curve_id in bound)
+        return False
+
+    def point_is_anchored(self, index: int) -> bool:
+        """Whether the point placed for state ``index`` is pinned in place.
+
+        True when the endpoint is a live-projected vertex/midpoint (coincident to a
+        FIXED projected point) -- an auto axis-alignment on it would fight the fixed
+        position. Used by tools that add alignment constraints to skip it.
+        """
+        return bool(self._state_data.get(index, {}).get("snap_anchored", False))
+
     # create element depending on mode
     def create_element(self, context: Context, values: List[Any], state, state_data):
         sketch = self.sketch
         loc = values[0]
 
+        # Snapped onto external mesh geometry: live-project it and coincide, so
+        # the point tracks the source. Registers the projected point as the
+        # coincidence target below (behaves like snapping onto a sketch entity).
+        self._maybe_link_projected_snap(context, state_data)
+
         # A point snapped to external geometry is a deliberate placement: fix it
-        # so the solver keeps it there. Points snapped onto a sketch entity are
-        # pinned by the coincident constraint below instead, so skip those.
+        # so the solver keeps it there. Points snapped onto a sketch entity (or a
+        # live-projected reference above) are pinned by the coincident constraint
+        # below instead, so skip those.
         fixed = state_data.get("snapped", False) and not state_data.get("hovered")
 
         ref = PointRef.create(sketch, loc, fixed=fixed)
@@ -169,6 +335,7 @@ class Operator2d(GenericEntityOp):
     def _check_constrain(self, context: Context, curve_id: int):
         """Check if a hovered curve_id is a constrainable type (line/arc/circle)."""
         from ..model.curve_ref import ArcRef, CircleRef, LineRef
+
         sketch = self.sketch
         if not sketch:
             return False
@@ -195,5 +362,3 @@ class Operator2d(GenericEntityOp):
         if cid:
             return PointRef(sketch, cid)
         return getattr(self, state.pointer)
-
-

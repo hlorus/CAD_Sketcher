@@ -100,7 +100,13 @@ class GenericEntityOp(StatefulOperator):
         return hovered.curve_id if hovered else None
 
     def add_coincident(self, context: Context, point, state, state_data):
-        if not self.use_auto_constraints(context, state_data):
+        # A live-projected snap creates its link independently of the "Auto
+        # Constraints" toggle: it is the projection itself, not an inferred
+        # constraint. ``snap_projected`` is set by _maybe_link_projected_snap only
+        # when it actually projected. Every other target (a coincidence onto an
+        # existing sketch entity) still respects the toggle.
+        is_projection = bool(state_data.get("snap_projected"))
+        if not is_projection and not self.use_auto_constraints(context, state_data):
             return
         hovered_cid = state_data.get("hovered", "")
         if hovered_cid and hasattr(self, "sketch") and self.sketch:
@@ -112,7 +118,15 @@ class GenericEntityOp(StatefulOperator):
                 else state_data.get("curve_id", "")
             )
 
-            state_data["coincident"] = self.sketch.constraints.add_coincident(
+            # A snapped edge-midpoint projects the edge as a line and pins the point
+            # to its midpoint; everything else is a plain coincidence (point-point
+            # or point-on-line). Both constraints take (point, target) in order.
+            constraints = self.sketch.constraints
+            if state_data.get("snap_link_kind") == "MIDPOINT":
+                add = constraints.add_midpoint
+            else:
+                add = constraints.add_coincident
+            state_data["coincident"] = add(
                 curve_id_1=point_cid,
                 curve_id_2=hovered_cid,
             )
