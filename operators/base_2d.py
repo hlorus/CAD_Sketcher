@@ -167,11 +167,11 @@ class Operator2d(GenericEntityOp):
         Other snap types, and cases where the snapped feature can't be traced to an
         original one, fall back to the static point.
         """
-        if not context.scene.sketcher.use_snap_project:
-            state_data["snap_anchored"] = False
-            state_data["snap_link_kind"] = "COINCIDENT"
-            return
-        if not self.use_auto_constraints(context, state_data):
+        # Live-snap has its own toggle and does NOT depend on "Auto Constraints";
+        # only the per-placement Shift bypass still opts out (place it raw).
+        if not context.scene.sketcher.use_snap_project or state_data.get(
+            "skip_auto_constraints"
+        ):
             state_data["snap_anchored"] = False
             state_data["snap_link_kind"] = "COINCIDENT"
             return

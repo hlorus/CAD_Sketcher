@@ -244,6 +244,87 @@ class TestCreateOperators(Sketch2dTestCase):
         self.assertEqual(len(bindings), 1, "the snap must create one live binding")
         self.assertEqual(bindings[0][1], source)
 
+    def test_live_snap_does_not_require_auto_constraints(self):
+        # Live Project Snaps is its own feature: it works with the "Auto
+        # Constraints" toggle OFF (only the Shift bypass opts out). A vertex snap
+        # must still project and coincide even though auto-alignment is disabled.
+        from mathutils import Vector
+
+        from ..operators.add_point_2d import View3D_OT_slvs_add_point2d
+        from ..utilities.projection_anchor import iter_projected_point_bindings
+
+        mesh = self.data.meshes.new("NoAutoSrc")
+        mesh.from_pydata([(1.0, 1.0, 0.0)], [], [])
+        mesh.update()
+        source = self.data.objects.new("NoAutoSrc", mesh)
+        self.scene.collection.objects.link(source)
+        self.context.view_layer.update()
+
+        self.context.scene.sketcher.auto_axis_constraints = False  # the point
+        self.context.scene.sketcher.use_snap_project = True
+
+        def snap_dict():
+            return {
+                "type": "VERTEX",
+                "object": "NoAutoSrc",
+                "vertex_index": 0,
+                "world_point": Vector((1.0, 1.0, 0.0)),
+            }
+
+        h = self._harness(View3D_OT_slvs_add_point2d)
+        h.set_value(Vector((1.0, 1.0)))
+        data = h.op.get_state_data(0)
+        data["snapped"] = True
+        data["snap"] = snap_dict()
+        h.finish()
+
+        self.assertEqual(
+            len(list(iter_projected_point_bindings(self.sketch))),
+            1,
+            "projection must work with Auto Constraints off",
+        )
+        self.assertEqual(
+            len(list(self.sketch.constraints.coincident)),
+            1,
+            "the projection coincidence must be created with Auto Constraints off",
+        )
+
+    def test_shift_bypass_still_suppresses_live_snap(self):
+        # The Shift bypass (skip_auto_constraints) remains the "place it raw"
+        # escape hatch: no projection, no coincidence, just a fixed point.
+        from mathutils import Vector
+
+        from ..operators.add_point_2d import View3D_OT_slvs_add_point2d
+        from ..utilities.projection_anchor import iter_projected_point_bindings
+
+        mesh = self.data.meshes.new("ShiftSrc")
+        mesh.from_pydata([(1.0, 1.0, 0.0)], [], [])
+        mesh.update()
+        source = self.data.objects.new("ShiftSrc", mesh)
+        self.scene.collection.objects.link(source)
+        self.context.view_layer.update()
+        self.context.scene.sketcher.use_snap_project = True
+
+        h = self._harness(View3D_OT_slvs_add_point2d)
+        h.set_value(Vector((1.0, 1.0)))
+        data = h.op.get_state_data(0)
+        data["snapped"] = True
+        data["skip_auto_constraints"] = True  # Shift held
+        data["snap"] = {
+            "type": "VERTEX",
+            "object": "ShiftSrc",
+            "vertex_index": 0,
+            "world_point": Vector((1.0, 1.0, 0.0)),
+        }
+        h.finish()
+
+        self.assertEqual(
+            len(list(iter_projected_point_bindings(self.sketch))),
+            0,
+            "Shift bypass must suppress the projection",
+        )
+        self.assertEqual(len(list(self.sketch.constraints.coincident)), 0)
+
     def test_point_snapped_to_edge_midpoint_projects_edge_and_midpoints(self):
         # An edge-midpoint snap projects the EDGE as a live line (both endpoints
         # bound) and pins the point with a MIDPOINT constraint, not a dead static
