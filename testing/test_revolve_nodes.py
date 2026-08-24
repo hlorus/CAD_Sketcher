@@ -52,6 +52,24 @@ def _signed_volume(bm):
     return bm.calc_volume(signed=True)
 
 
+def _incoherent_edges(bm):
+    """Count manifold edges whose two faces wind the same way (inconsistent
+    orientation -- the red/grey face-orientation artifact)."""
+    count = 0
+    for edge in bm.edges:
+        if len(edge.link_faces) != 2:
+            continue
+        dirs = []
+        for face in edge.link_faces:
+            for loop in face.loops:
+                if loop.edge is edge:
+                    dirs.append((loop.vert.index, loop.link_loop_next.vert.index))
+                    break
+        if len(dirs) == 2 and dirs[0] == dirs[1]:
+            count += 1
+    return count
+
+
 class TestRevolveNodeGroup(BgsTestCase):
     # X-axis revolve; profiles sit at +Y so they never cross the axis.
     AXIS_ORIGIN = (0.0, 0.0, 0.0)
@@ -235,10 +253,13 @@ class TestRevolveNodeGroup(BgsTestCase):
         ob.modifiers.new("fill", "NODES").node_group = ng
         return ob
 
-    def test_filled_normals_point_outward_regardless_of_shape(self):
-        # The reporter's regression: the fill boundary loop has no deterministic
-        # winding, so some shapes revolved inside-out (negative volume). The
-        # signed-volume flip must make every filled shape come out solid-outward.
+    def test_filled_normals_coherent_and_outward_any_shape_or_angle(self):
+        # The reporter's regressions: the boundary loop has no deterministic
+        # winding, so (a) the caps came out inconsistently oriented (red/grey
+        # face-orientation) for some shapes, and (b) a negative sweep angle turned
+        # the whole solid inside-out. Canonicalizing the loop winding plus the
+        # signed-volume flip must give a coherent, solid-outward result for every
+        # shape *and* both angle signs.
         shapes = {
             "square": [(-0.4, -0.4), (0.4, -0.4), (0.4, 0.4), (-0.4, 0.4)],
             "square_cw": [(-0.4, -0.4), (-0.4, 0.4), (0.4, 0.4), (0.4, -0.4)],
@@ -252,21 +273,22 @@ class TestRevolveNodeGroup(BgsTestCase):
                 (-0.4, 0.4),
             ],
         }
-        for angle in (math.pi, math.tau):
+        for angle in (math.pi / 2, -math.pi / 2, math.tau, -math.tau):
             for name, pts in shapes.items():
                 ob = self._filled_poly(pts)
                 try:
                     self._revolve(ob, angle)
                     bm = _bm(ob)
                     volume = _signed_volume(bm)
+                    incoherent = _incoherent_edges(bm)
                     nonmanifold = _stats(bm)["nonmanifold"]
                     bm.free()
                 finally:
                     bpy.data.objects.remove(ob, do_unlink=True)
-                self.assertGreater(
-                    volume, 0.0, f"{name} at {angle:.2f} rad revolved inside-out"
-                )
-                self.assertEqual(nonmanifold, 0, f"{name} at {angle:.2f} not manifold")
+                where = f"{name} at {angle:.2f} rad"
+                self.assertEqual(incoherent, 0, f"{where}: inconsistent face winding")
+                self.assertGreater(volume, 0.0, f"{where}: revolved inside-out")
+                self.assertEqual(nonmanifold, 0, f"{where}: not manifold")
 
     def test_open_profile_makes_a_cylinder_not_a_closed_band(self):
         # An open profile (a line) must NOT get a wrap column: it sweeps to a tube
