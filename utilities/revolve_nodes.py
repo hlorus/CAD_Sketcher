@@ -60,6 +60,59 @@ def _input_ids(node_group):
     }
 
 
+def _snapshot_modifier_inputs(node_group):
+    """Capture every modifier bound to ``node_group`` as (modifier, {name: value}).
+
+    Rebuilding the group in place reassigns socket identifiers, and modifier
+    inputs are keyed by identifier, so their values must be re-applied by the
+    stable socket *name* afterwards -- otherwise upgrading from the old binary
+    asset (or a previous version) silently resets every existing revolve.
+    """
+    from ..operators.modifiers import get_modifier_input
+
+    names = {
+        s.identifier: s.name
+        for s in node_group.interface.items_tree
+        if getattr(s, "in_out", "") == "INPUT"
+    }
+    saved = []
+    for obj in bpy.data.objects:
+        for mod in obj.modifiers:
+            if (
+                getattr(mod, "type", None) != "NODES"
+                or mod.node_group is not node_group
+            ):
+                continue
+            values = {}
+            for identifier, name in names.items():
+                try:
+                    value = get_modifier_input(mod, identifier)
+                except Exception:
+                    continue
+                # Coerce array-likes (vectors) to a plain tuple so the snapshot
+                # survives the interface teardown.
+                values[name] = tuple(value) if hasattr(value, "__len__") else value
+            if values:
+                saved.append((mod, values))
+    return saved
+
+
+def _restore_modifier_inputs(node_group, saved):
+    """Re-apply snapshot values (see ``_snapshot_modifier_inputs``) by name."""
+    from ..operators.modifiers import set_modifier_input
+
+    ids = _input_ids(node_group)
+    for mod, values in saved:
+        for name, value in values.items():
+            identifier = ids.get(name)
+            if identifier is None:
+                continue
+            try:
+                set_modifier_input(mod, identifier, value)
+            except Exception:
+                pass
+
+
 def _math(nodes, links, operation, a=None, b=None):
     """A ShaderNodeMath node; wire/`set` inputs 0 and 1, return the output socket."""
     node = nodes.new("ShaderNodeMath")
@@ -103,6 +156,12 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
 
     if ng.get("cad_revolve_version") == REVOLVE_VERSION:
         return ng
+
+    # Rebuilding replaces the interface, reassigning socket identifiers; preserve
+    # the settings of any modifier already bound to this group (old asset or a
+    # prior version) by re-applying them by socket name after the rebuild.
+    saved = _snapshot_modifier_inputs(ng)
+
     ng.nodes.clear()
     ng.links.clear()
     ng.interface.clear()
@@ -334,5 +393,6 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     links.new(flipped.outputs["Mesh"], orient.inputs["True"])
     links.new(orient.outputs["Output"], go.inputs["Geometry"])
 
+    _restore_modifier_inputs(ng, saved)
     ng["cad_revolve_version"] = REVOLVE_VERSION
     return ng

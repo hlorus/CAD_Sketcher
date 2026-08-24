@@ -93,6 +93,37 @@ class TestRevolveNodeGroup(BgsTestCase):
         self.assertIs(again, group)
         self.assertEqual(group.get("cad_revolve_version"), REVOLVE_VERSION)
 
+    def test_rebuild_preserves_existing_modifier_settings(self):
+        # Rebuilding in place reassigns socket identifiers, so a modifier already
+        # bound to the group (from the old binary asset or a prior version) would
+        # lose its settings unless they are re-applied by name. This is the
+        # migration guarantee for existing files.
+        from ..operators.modifiers import get_modifier_input
+
+        group = build_revolve_node_group()
+        ob = self._octagon("NGON")
+        try:
+            mod = ob.modifiers.new("Revolve", "NODES")
+            mod.node_group = group
+            ids = _input_ids(group)
+            set_modifier_input(mod, ids["Angle"], 1.2345)
+            set_modifier_input(mod, ids["Axis Direction"], (0.0, 1.0, 0.0))
+
+            # Force a rebuild, exactly as an old-asset / stale-version group triggers.
+            group["cad_revolve_version"] = 0
+            rebuilt = build_revolve_node_group()
+            new_ids = _input_ids(rebuilt)
+            # The identifiers really did change (otherwise this proves nothing).
+            self.assertNotEqual(ids["Angle"], new_ids["Angle"])
+            # ...yet the values survived, matched up by socket name.
+            self.assertAlmostEqual(
+                get_modifier_input(mod, new_ids["Angle"]), 1.2345, places=4
+            )
+            axis = tuple(get_modifier_input(mod, new_ids["Axis Direction"]))
+            self.assertAlmostEqual(axis[1], 1.0, places=4)
+        finally:
+            bpy.data.objects.remove(ob, do_unlink=True)
+
     # -- geometry --------------------------------------------------------
 
     def test_filled_full_turn_is_watertight_torus_without_caps(self):
