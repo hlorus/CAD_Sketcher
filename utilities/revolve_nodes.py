@@ -38,9 +38,11 @@ caps (the surface closes on itself), and an unfilled profile has no face to cap
 with -- it stays an open shell. This matches the spec: a non-filled sketch
 revolves to a valid surface, just without end caps.
 
-Finally the signed volume (divergence theorem) decides orientation: a filled
-solid is flipped when it comes out inside-out, so normals always point outward
-regardless of the profile's shape or the *sign* of the sweep angle.
+Finally, orientation is decided from an internally-capped (closed) version of the
+solid via its signed volume (divergence theorem) and the whole result is flipped
+when it comes out inside-out. The same decision drives both the filled solid and
+the unfilled open shell, so normals always point outward regardless of the
+profile's shape or the *sign* of the sweep angle.
 """
 
 import math
@@ -52,7 +54,7 @@ REVOLVE_NODE_GROUP = "CAD Sketcher Revolve"
 # Bump whenever the built tree changes so groups baked into existing files -- or a
 # stale same-named binary asset -- are rebuilt in place on next use, keeping
 # modifiers bound to the same name.
-REVOLVE_VERSION = 4
+REVOLVE_VERSION = 5
 
 # Weld tolerance for the sweep seams and the cap-to-lateral join. The welded
 # points are produced by the *same* profile sample and rotation, so they are
@@ -396,16 +398,12 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     pb.default_value = math.tau - 1e-4
     links.new(abs_angle, pa)
 
-    caps_needed = nodes.new("FunctionNodeBooleanMath")
-    caps_needed.operation = "AND"
-    links.new(filled.outputs["Result"], caps_needed.inputs[0])
-    links.new(partial.outputs["Result"], caps_needed.inputs[1])
-
     # Caps fill the (canonicalized) boundary loop the lateral is swept from, so
-    # they weld exactly onto the tube's open ends. Because the loop winding is now
-    # deterministic, the end cap keeps the fill winding and the start cap (at angle
-    # 0) is flipped, so the two caps wind oppositely and stay coherent with the
-    # lateral for every profile shape.
+    # they weld exactly onto the tube's open ends. With the loop winding
+    # deterministic, the end cap keeps the fill winding and the start cap (at
+    # angle 0) is flipped, so the two caps wind oppositely and stay coherent with
+    # the lateral for every profile shape. They close a *partial* turn (a full
+    # turn already closes on itself).
     cap_fill = nodes.new("GeometryNodeFillCurve")
     links.new(profile_curve, cap_fill.inputs["Curve"])
     cap_mesh = cap_fill.outputs["Mesh"]
@@ -427,28 +425,26 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
 
     caps_switch = nodes.new("GeometryNodeSwitch")
     caps_switch.input_type = "GEOMETRY"
-    links.new(caps_needed.outputs["Boolean"], caps_switch.inputs["Switch"])
+    links.new(partial.outputs["Result"], caps_switch.inputs["Switch"])
     links.new(caps.outputs["Geometry"], caps_switch.inputs["True"])
 
-    # 5. Join the caps onto the lateral tube and weld their boundary rings to the
-    #    tube's open ends, giving a closed solid where applicable.
-    result = nodes.new("GeometryNodeJoinGeometry")
-    links.new(lateral, result.inputs["Geometry"])
-    links.new(caps_switch.outputs["Output"], result.inputs["Geometry"])
+    # 5. A closed version (tube + caps) serves as the filled output *and* as the
+    #    reference for deciding orientation. The unfilled output is the bare tube.
+    closed_join = nodes.new("GeometryNodeJoinGeometry")
+    links.new(lateral, closed_join.inputs["Geometry"])
+    links.new(caps_switch.outputs["Output"], closed_join.inputs["Geometry"])
+    closed_weld = nodes.new("GeometryNodeMergeByDistance")
+    links.new(closed_join.outputs["Geometry"], closed_weld.inputs["Geometry"])
+    closed_weld.inputs["Distance"].default_value = _WELD_DISTANCE
+    closed = closed_weld.outputs["Geometry"]
 
-    weld = nodes.new("GeometryNodeMergeByDistance")
-    links.new(result.outputs["Geometry"], weld.inputs["Geometry"])
-    weld.inputs["Distance"].default_value = _WELD_DISTANCE
-    welded = weld.outputs["Geometry"]
-
-    # 6. Consistent outward normals. With the loop winding canonicalized the solid
-    #    is coherently oriented, but whether that coherent orientation faces out or
-    #    in still depends on the profile and the *sign of the sweep angle*. Compute
-    #    the signed volume via the divergence theorem -- sum over faces of
-    #    dot(centroid, normal) * area -- and flip the whole mesh when negative, so
-    #    normals always point outward regardless of shape or angle direction.
-    #    Unfilled profiles are an open shell (no meaningful volume) and are left
-    #    as-is.
+    # 6. Consistent outward normals for BOTH fill states and BOTH angle signs.
+    #    After canonicalization the coherent orientation still faces out or in
+    #    depending on the profile and the sign of the sweep angle. Decide from the
+    #    *closed* solid's signed volume (divergence theorem: sum over faces of
+    #    dot(centroid, normal) * area) and flip when it is inside-out. The same
+    #    decision drives the open shell, so an unfilled revolve keeps a consistent
+    #    orientation regardless of angle direction too.
     position = nodes.new("GeometryNodeInputPosition")
     normal = nodes.new("GeometryNodeInputNormal")
     face_area = nodes.new("GeometryNodeInputMeshFaceArea")
@@ -462,7 +458,7 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     volume = nodes.new("GeometryNodeAttributeStatistic")
     volume.data_type = "FLOAT"
     volume.domain = "FACE"
-    links.new(welded, volume.inputs["Geometry"])
+    links.new(closed, volume.inputs["Geometry"])
     links.new(term, volume.inputs["Attribute"])
 
     inside_out = nodes.new("FunctionNodeCompare")
@@ -472,18 +468,20 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     vb.default_value = 0.0
     links.new(volume.outputs["Sum"], va)
 
-    flip_needed = nodes.new("FunctionNodeBooleanMath")
-    flip_needed.operation = "AND"
-    links.new(filled.outputs["Result"], flip_needed.inputs[0])
-    links.new(inside_out.outputs["Result"], flip_needed.inputs[1])
+    # Filled -> the closed solid; unfilled -> the open tube. Both take the flip.
+    output_geo = nodes.new("GeometryNodeSwitch")
+    output_geo.input_type = "GEOMETRY"
+    links.new(filled.outputs["Result"], output_geo.inputs["Switch"])
+    links.new(lateral, output_geo.inputs["False"])
+    links.new(closed, output_geo.inputs["True"])
 
     flipped = nodes.new("GeometryNodeFlipFaces")
-    links.new(welded, flipped.inputs["Mesh"])
+    links.new(output_geo.outputs["Output"], flipped.inputs["Mesh"])
 
     orient = nodes.new("GeometryNodeSwitch")
     orient.input_type = "GEOMETRY"
-    links.new(flip_needed.outputs["Boolean"], orient.inputs["Switch"])
-    links.new(welded, orient.inputs["False"])
+    links.new(inside_out.outputs["Result"], orient.inputs["Switch"])
+    links.new(output_geo.outputs["Output"], orient.inputs["False"])
     links.new(flipped.outputs["Mesh"], orient.inputs["True"])
     links.new(orient.outputs["Output"], go.inputs["Geometry"])
 

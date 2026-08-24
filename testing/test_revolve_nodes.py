@@ -188,6 +188,42 @@ class TestRevolveNodeGroup(BgsTestCase):
         finally:
             bpy.data.objects.remove(ob, do_unlink=True)
 
+    def _face_normals(self, ob):
+        bm = _bm(ob)
+        normals = {
+            tuple(round(c, 4) for c in f.calc_center_median()): f.normal.copy()
+            for f in bm.faces
+        }
+        bm.free()
+        return normals
+
+    def test_unfilled_orientation_matches_filled_both_angle_signs(self):
+        # An open (unfilled) shell must face the same way as the filled solid's
+        # outer surface, and must not flip with the sign of the sweep angle. The
+        # orientation is decided from an internally-capped version, so the shared
+        # lateral faces agree with the filled result for +angle and -angle alike.
+        for angle in (math.pi / 2, -math.pi / 2):
+            filled = self._octagon("NGON")
+            unfilled = self._octagon("NOTHING")
+            try:
+                self._revolve(filled, angle)
+                self._revolve(unfilled, angle)
+                filled_normals = self._face_normals(filled)
+                unfilled_normals = self._face_normals(unfilled)
+            finally:
+                bpy.data.objects.remove(filled, do_unlink=True)
+                bpy.data.objects.remove(unfilled, do_unlink=True)
+            matched = agree = 0
+            for center, normal in unfilled_normals.items():
+                if center in filled_normals:
+                    matched += 1
+                    if normal.dot(filled_normals[center]) > 0.5:
+                        agree += 1
+            self.assertGreater(matched, 0, f"no shared faces at {angle:.2f} rad")
+            self.assertEqual(
+                agree, matched, f"unfilled shell inverted at {angle:.2f} rad"
+            )
+
     def test_fill_does_not_leak_interior_triangulation(self):
         # The #634 core: a *triangulated* fill has interior edges. Sweeping those
         # (the old behavior) made redundant, self-intersecting geometry. The
