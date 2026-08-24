@@ -102,16 +102,10 @@ class GenericEntityOp(StatefulOperator):
     def add_coincident(self, context: Context, point, state, state_data):
         # A live-projected snap creates its link independently of the "Auto
         # Constraints" toggle: it is the projection itself, not an inferred
-        # constraint. It is exactly the case where the current snap is projectable
-        # mesh geometry and Live Project Snaps is on. Every other target (a
-        # coincidence onto an existing sketch entity) still respects the toggle.
-        snap = state_data.get("snap")
-        is_projection = bool(
-            context.scene.sketcher.use_snap_project
-            and snap
-            and snap.get("object")
-            and snap.get("type") in ("VERTEX", "EDGE", "EDGE_MIDPOINT")
-        )
+        # constraint. ``snap_projected`` is set by _maybe_link_projected_snap only
+        # when it actually projected. Every other target (a coincidence onto an
+        # existing sketch entity) still respects the toggle.
+        is_projection = bool(state_data.get("snap_projected"))
         if not is_projection and not self.use_auto_constraints(context, state_data):
             return
         hovered_cid = state_data.get("hovered", "")

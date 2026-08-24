@@ -174,29 +174,40 @@ class Operator2d(GenericEntityOp):
         ):
             state_data["snap_anchored"] = False
             state_data["snap_link_kind"] = "COINCIDENT"
+            state_data["snap_projected"] = False
             return
         hovered = state_data.get("hovered")
         if hovered:
-            # Coincident with something already. If it still resolves to a LIVE
-            # curve (a genuine pick, or this state's projection), leave it be. But
-            # a non-current state's projection gets wiped by the preview restore
-            # each frame while its stale hovered id lingers here -- honoring it
-            # would coincide the endpoint to a deleted curve (a dead static point,
-            # the "snaps but no live link" bug). Detect that and fall through to
-            # re-project so the reference is recreated.
             from ..model.curve_ref import curve_ref
 
             existing = curve_ref(self.sketch, hovered)
             if existing is not None and existing.valid:
+                if self._is_projected_reference(hovered):
+                    # A live projection from an earlier (non-current) state: its
+                    # flags were set when projected, keep them. (Re-projecting is
+                    # unnecessary while the curve is still valid.)
+                    state_data["snap_projected"] = True
+                    return
+                # A genuine pick of an existing sketch entity under the cursor
+                # (e.g. a pointer tool's constrain target): a plain coincidence
+                # that respects Auto Constraints, anchored only if it is fixed.
+                state_data["snap_projected"] = False
+                state_data["snap_link_kind"] = "COINCIDENT"
+                state_data["snap_anchored"] = bool(getattr(existing, "fixed", False))
                 return
+            # Stale: a projection wiped by the preview restore while its id lingers
+            # here. Honoring it would coincide the endpoint to a deleted curve (a
+            # dead static point, the "snaps but no live link" bug); clear it and
+            # re-project below so the reference is recreated.
             state_data["hovered"] = ""
 
-        # Fresh (re)evaluation of this state: default to not-anchored and a plain
-        # coincidence, so stale flags from a previous frame (e.g. the cursor moved
-        # off a vertex/midpoint) are cleared. They are set again below only when the
-        # current snap warrants it.
+        # Fresh (re)evaluation of this state: default to not-anchored, a plain
+        # coincidence, and not-projected, so stale flags from a previous frame
+        # (e.g. the cursor moved off a vertex/midpoint) are cleared. They are set
+        # again below only when the current snap warrants it.
         state_data["snap_anchored"] = False
         state_data["snap_link_kind"] = "COINCIDENT"
+        state_data["snap_projected"] = False
 
         snap = state_data.get("snap")
         if not snap:
@@ -247,6 +258,9 @@ class Operator2d(GenericEntityOp):
 
         if projected is not None and projected.valid:
             state_data["hovered"] = projected.curve_id
+            # This link IS a projection: its constraint is created regardless of
+            # the Auto Constraints toggle (see add_coincident).
+            state_data["snap_projected"] = True
             if snap_type == "EDGE_MIDPOINT":
                 # Constrain the point to the edge's midpoint (POINT, LINE). The
                 # projected line's endpoints track the source, and the midpoint
@@ -261,6 +275,27 @@ class Operator2d(GenericEntityOp):
                 state_data["snap_anchored"] = True
             # EDGE: point-on-line coincidence (default kind); the point can still
             # slide along the line, so it is not flagged anchored.
+
+    def _is_projected_reference(self, curve_id: str) -> bool:
+        """Whether ``curve_id`` is a live-projected reference, not a picked entity.
+
+        A projected reference is a bound point, or a line whose endpoints are both
+        bound. Distinguishes "our projection" (whose constraint bypasses the Auto
+        Constraints toggle) from a genuine pick of a pre-existing sketch entity.
+        """
+        from ..model.curve_ref import LineRef, curve_ref
+        from ..utilities.projection_anchor import iter_projected_point_bindings
+
+        bound = {cid for cid, *_ in iter_projected_point_bindings(self.sketch)}
+        if not bound:
+            return False
+        if curve_id in bound:
+            return True
+        ref = curve_ref(self.sketch, curve_id)
+        if isinstance(ref, LineRef):
+            p1, p2 = ref.p1, ref.p2
+            return bool(p1 and p2 and p1.curve_id in bound and p2.curve_id in bound)
+        return False
 
     def point_is_anchored(self, index: int) -> bool:
         """Whether the point placed for state ``index`` is pinned in place.

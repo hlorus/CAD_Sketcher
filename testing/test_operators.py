@@ -244,6 +244,101 @@ class TestCreateOperators(Sketch2dTestCase):
         self.assertEqual(len(bindings), 1, "the snap must create one live binding")
         self.assertEqual(bindings[0][1], source)
 
+    def test_entity_pick_beats_geometry_snap(self):
+        # A sketch entity under the cursor wins over the mesh snap behind it: the
+        # point coincides with the entity instead of live-projecting the mesh.
+        from mathutils import Vector
+
+        from ..drawing import selection
+        from ..operators.add_point_2d import View3D_OT_slvs_add_point2d
+        from ..utilities.projection_anchor import iter_projected_point_bindings
+
+        existing = self.add_point((3.0, 4.0))
+
+        mesh = self.data.meshes.new("Compete")
+        mesh.from_pydata([(3.0, 4.0, 0.0)], [], [])
+        mesh.update()
+        source = self.data.objects.new("Compete", mesh)
+        self.scene.collection.objects.link(source)
+        self.context.view_layer.update()
+
+        self.context.scene.sketcher.use_snap_project = True
+        self.context.scene.sketcher.auto_axis_constraints = True
+
+        h = self._harness(View3D_OT_slvs_add_point2d)
+        h.set_value(Vector((3.0, 4.0)))
+        data = h.op.get_state_data(0)
+        data["snapped"] = True
+        data["snap"] = {
+            "type": "VERTEX",
+            "object": "Compete",
+            "vertex_index": 0,
+            "world_point": Vector((3.0, 4.0, 0.0)),
+        }
+        selection.hover = existing.curve_id
+        try:
+            h.finish()
+        finally:
+            selection.hover = ""
+
+        self.assertEqual(
+            len(list(iter_projected_point_bindings(self.sketch))),
+            0,
+            "hovering a sketch entity must beat the mesh snap (no projection)",
+        )
+        coincident = list(self.sketch.constraints.coincident)
+        self.assertEqual(len(coincident), 1)
+        self.assertIn(
+            existing.curve_id, (coincident[0].curve_id_1, coincident[0].curve_id_2)
+        )
+
+    def test_hovering_projected_reference_reuses_it(self):
+        # Hovering an already-projected reference reuses it (no second projection),
+        # and its link is created even with Auto Constraints off (it is a live
+        # projection, not an inferred constraint).
+        from mathutils import Vector
+
+        from ..drawing import selection
+        from ..operators.add_point_2d import View3D_OT_slvs_add_point2d
+        from ..utilities.projection_anchor import (
+            iter_projected_point_bindings,
+            project_mesh_vertex,
+        )
+
+        mesh = self.data.meshes.new("ProjSrc")
+        mesh.from_pydata([(2.0, 2.0, 0.0)], [], [])
+        mesh.update()
+        source = self.data.objects.new("ProjSrc", mesh)
+        self.scene.collection.objects.link(source)
+        self.context.view_layer.update()
+
+        proj = project_mesh_vertex(self.sketch, source, 0, construction=True)
+        self.assertEqual(len(list(iter_projected_point_bindings(self.sketch))), 1)
+
+        self.context.scene.sketcher.use_snap_project = True
+        self.context.scene.sketcher.auto_axis_constraints = False
+
+        h = self._harness(View3D_OT_slvs_add_point2d)
+        h.set_value(Vector((2.0, 2.0)))
+        selection.hover = proj.curve_id
+        try:
+            h.finish()
+        finally:
+            selection.hover = ""
+
+        self.assertEqual(
+            len(list(iter_projected_point_bindings(self.sketch))),
+            1,
+            "hovering a projected reference must reuse it, not add another",
+        )
+        coincident = list(self.sketch.constraints.coincident)
+        self.assertEqual(
+            len(coincident), 1, "a projected-reference pick forces the coincidence"
+        )
+        self.assertIn(
+            proj.curve_id, (coincident[0].curve_id_1, coincident[0].curve_id_2)
+        )
+
     def test_live_snap_does_not_require_auto_constraints(self):
         # Live Project Snaps is its own feature: it works with the "Auto
         # Constraints" toggle OFF (only the Shift bypass opts out). A vertex snap
