@@ -79,3 +79,26 @@ class TestBooleanTargets(BgsTestCase):
         self.assertEqual(default_operation(-1.0, has_source_body=True), "Difference")
         # Without a source body to orient against, default to a cut.
         self.assertEqual(default_operation(1.0, has_source_body=False), "Difference")
+
+    def test_detect_then_apply_adds_boolean_to_overlapping_body(self):
+        # The core of finish_booleans: auto-detected targets get a boolean of the
+        # cutter (here without a source body, so overlap alone drives it).
+        from ..operators.modifiers import apply_boolean, boolean_modifier_name
+        from ..utilities.boolean_targets import detect_targets
+
+        cutter = self._box("Cutter", (0, 0, 0))  # [-1,1]^3
+        body = self._box("Body", (1, 1, 1))  # overlaps
+        far = self._box("Far", (10, 0, 0))  # does not
+
+        targets = detect_targets(self.context, cutter, None)
+        self.assertIn(body, targets)
+        self.assertNotIn(far, targets)
+        self.assertNotIn(cutter, targets)
+
+        for t in targets:
+            apply_boolean(t, cutter, "Difference")
+        self.assertIsNotNone(
+            body.modifiers.get(boolean_modifier_name(cutter)),
+            "the overlapping body must receive the cutter's boolean",
+        )
+        self.assertIsNone(far.modifiers.get(boolean_modifier_name(cutter)))

@@ -3,12 +3,21 @@ import math
 import bpy
 from bpy.props import (
     BoolProperty,
+    CollectionProperty,
+    EnumProperty,
     FloatProperty,
     FloatVectorProperty,
     IntProperty,
     StringProperty,
 )
-from bpy.types import Context, Event, MeshEdge, Object, Operator
+from bpy.types import (
+    Context,
+    Event,
+    MeshEdge,
+    Object,
+    Operator,
+    PropertyGroup,
+)
 from mathutils import Vector
 from mathutils.geometry import intersect_line_line, intersect_line_plane
 
@@ -151,6 +160,128 @@ def apply_boolean(
     set_modifier_input(mod, ids["Self Intersection"], self_intersection)
     set_modifier_input(mod, ids["Hole Tolerant"], hole_tolerant)
     return mod
+
+
+class BooleanTargetItem(PropertyGroup):
+    """One auto-detected boolean target, toggled in the extrude/revolve redo panel."""
+
+    name: StringProperty()
+    enabled: BoolProperty(name="Enabled", default=True)
+
+
+# Redo-panel enum for the tool boolean. "None" leaves the tool a plain solid.
+BOOLEAN_TOOL_OPERATIONS = (
+    ("None", "None", "Do not boolean; just build the solid"),
+    ("Difference", "Difference", "Subtract the solid from the targets"),
+    ("Union", "Union", "Merge the solid into the targets"),
+    ("Intersect", "Intersect", "Keep only the overlap with the targets"),
+)
+
+
+class BooleanFromToolMixin:
+    """Boolean an extrude/revolve solid into auto-detected targets.
+
+    Mixed into the extrude and revolve operators. The concrete operator declares
+    the three properties below (so they register on that operator) and calls
+    ``reset_booleans`` from ``init``, ``finish_booleans`` from ``fini`` and
+    ``draw_boolean_settings`` from ``draw_settings``:
+
+        operation: EnumProperty(items=BOOLEAN_TOOL_OPERATIONS, default="Difference")
+        boolean_targets: CollectionProperty(type=BooleanTargetItem)
+        boolean_detected: BoolProperty(default=False, options={"HIDDEN"})
+    """
+
+    def reset_booleans(self):
+        """Clear detection state for a fresh interactive run (call from init).
+
+        Detection runs once per operation; the redo panel then edits the result.
+        init runs on invoke but not on the redo re-execute, so resetting here
+        preserves the user's redo-panel edits while a new invocation redetects.
+        """
+        self.boolean_detected = False
+        self.boolean_targets.clear()
+
+    def _boolean_offset(self):
+        # Extrude orients the default mode by its offset sign; revolve has none.
+        return getattr(self, "offset", 0.0)
+
+    def finish_booleans(self, context):
+        """Detect targets once, then apply/remove the per-target booleans.
+
+        The cutter is this tool's own object: its evaluated solid is read by the
+        boolean group through Object Info.
+        """
+        cutter = getattr(self, "_obj", None) or self.resolved_object()
+        if cutter is None:
+            return
+        cutter = cutter.original
+
+        from ..model.sketch_ref import Sketch
+        from ..utilities.boolean_targets import (
+            default_operation,
+            detect_targets,
+            sketch_source_body,
+        )
+
+        sketch = Sketch(cutter) if cutter.type == "CURVES" else None
+
+        if not self.boolean_detected:
+            # The solid must be evaluated before the overlap test can see it.
+            context.view_layer.update()
+            targets = detect_targets(context, cutter, sketch)
+            has_source = sketch is not None and sketch_source_body(sketch) is not None
+            self.operation = default_operation(self._boolean_offset(), has_source)
+            self.boolean_targets.clear()
+            for obj in targets:
+                item = self.boolean_targets.add()
+                item.name = obj.name
+                item.enabled = True
+            self.boolean_detected = True
+
+        self._apply_boolean_targets(cutter)
+
+    def _apply_boolean_targets(self, cutter):
+        name = boolean_modifier_name(cutter)
+        applied = False
+        for item in self.boolean_targets:
+            body = bpy.data.objects.get(item.name)
+            if body is None:
+                continue
+            existing = body.modifiers.get(name)
+            if self.operation != "None" and item.enabled:
+                apply_boolean(body, cutter, self.operation)
+                applied = True
+            elif existing is not None:
+                # Excluded (or operation set to None): drop the boolean again.
+                body.modifiers.remove(existing)
+        # A solid cutter sitting over the bodies would hide the result -- wireframe
+        # it, matching the standalone Boolean tool.
+        if applied:
+            cutter.display_type = "WIRE"
+
+    def draw_boolean_settings(self, layout):
+        layout.separator()
+        layout.prop(self, "operation", text="Boolean")
+        if self.operation != "None" and len(self.boolean_targets):
+            box = layout.box()
+            box.label(text="Targets")
+            for item in self.boolean_targets:
+                row = box.row(align=True)
+                row.prop(item, "enabled", text="")
+                row.label(text=item.name)
+
+
+# Shared property annotations for the two boolean-capable tools; spread into each
+# operator's class body so they register on that operator (Blender collects an
+# operator's own annotations, not a mixin's).
+def _boolean_tool_annotations():
+    return {
+        "operation": EnumProperty(
+            name="Boolean", items=BOOLEAN_TOOL_OPERATIONS, default="Difference"
+        ),
+        "boolean_targets": CollectionProperty(type=BooleanTargetItem),
+        "boolean_detected": BoolProperty(default=False, options={"HIDDEN"}),
+    }
 
 
 BASE_STATES = (
@@ -334,7 +465,7 @@ class View3D_OT_node_fill(Operator, NodeOperator):
         return "Fill Mesh and Curve"
 
 
-class View3D_OT_node_extrude(Operator, NodeOperator):
+class View3D_OT_node_extrude(Operator, BooleanFromToolMixin, NodeOperator):
     """Add an extrude modifier node group"""
 
     bl_idname = Operators.NodeExtrude
@@ -374,6 +505,16 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
         delta = (mat @ Vector(pos)).z
         return delta
 
+    def init(self, context: Context, event: Event):
+        if not super().init(context, event):
+            return False
+        self.reset_booleans()
+        return True
+
+    def fini(self, context: Context, succeede: bool):
+        if succeede:
+            self.finish_booleans(context)
+
     def set_props(self):
         m = self.modifier
         set_modifier_input(m, "Input_2", self.offset)  # Size
@@ -389,6 +530,7 @@ class View3D_OT_node_extrude(Operator, NodeOperator):
         sub = layout.column()
         sub.enabled = self.asymmetry
         sub.prop(self, "asymmetry_distance")
+        self.draw_boolean_settings(layout)
 
 
 class View3D_OT_node_array_linear(Operator, NodeOperator):
@@ -502,7 +644,7 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         sub.prop(self, "merge_distance")
 
 
-class View3D_OT_node_revolve(Operator, NodeOperator):
+class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
     """Revolve a 2D profile around a picked axis"""
 
     bl_idname = Operators.NodeRevolve
@@ -569,7 +711,12 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
 
         build_revolve_node_group()
         bpy.ops.ed.undo_push(message="Add Revolve")
+        self.reset_booleans()
         return True
+
+    def fini(self, context: Context, succeede: bool):
+        if succeede:
+            self.finish_booleans(context)
 
     def get_point(self, context, index):
         # The axis is a picked edge, resolved to endpoints in set_props; there
@@ -627,7 +774,9 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
 
         ids = _input_ids(modifier.node_group)
         self.angle = get_modifier_input(modifier, ids["Angle"])
-        self.angular_resolution = get_modifier_input(modifier, ids["Angular Resolution"])
+        self.angular_resolution = get_modifier_input(
+            modifier, ids["Angular Resolution"]
+        )
 
     def _has_stored_axis(self):
         return Vector(self.axis_direction).length > 1e-9
@@ -684,6 +833,7 @@ class View3D_OT_node_revolve(Operator, NodeOperator):
         row.prop(self, "angle")
         row.prop(self, "flip", text="", icon="ARROW_LEFTRIGHT")
         layout.prop(self, "angular_resolution")
+        self.draw_boolean_settings(layout)
 
 
 class View3D_OT_node_boolean(Operator, NodeOperator):
@@ -866,7 +1016,13 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         layout.prop(self, "hole_tolerant")
 
 
-register, unregister = register_stateops_factory(
+# Give the boolean-capable tools their shared boolean properties. Injected here
+# (not on the mixin) so they register on each operator: Blender collects an
+# operator's own annotations, not those of a non-registered base class.
+for _cls in (View3D_OT_node_extrude, View3D_OT_node_revolve):
+    _cls.__annotations__.update(_boolean_tool_annotations())
+
+_stateops_register, _stateops_unregister = register_stateops_factory(
     (
         View3D_OT_node_extrude,
         View3D_OT_node_array_linear,
@@ -874,3 +1030,14 @@ register, unregister = register_stateops_factory(
         View3D_OT_node_boolean,
     )
 )
+
+
+def register():
+    # BooleanTargetItem must exist before the operators' CollectionProperty binds.
+    bpy.utils.register_class(BooleanTargetItem)
+    _stateops_register()
+
+
+def unregister():
+    _stateops_unregister()
+    bpy.utils.unregister_class(BooleanTargetItem)
