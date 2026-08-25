@@ -1071,3 +1071,54 @@ def refresh_curve_geometry(sketch):
             attr.data.foreach_set("value", info["data"])
 
     invalidate_curve_id_cache(sketch)
+
+
+def migrate_curves_to_nurbs(sketch):
+    """Reshape a sketch's legacy Bezier curves into the POLY/NURBS representation.
+
+    Old files store lines/points as Bezier and arcs/circles as Bezier (with handle
+    attributes, 4-point circles, nseg+1-point arcs). Re-type each curve, resize
+    circles to the 8-point rational net, then let ``rebuild_segments`` resegment the
+    arcs and rewrite every arc/circle's NURBS geometry (positions/weights/order/
+    knots) from the entity points. Finally drop the now-unused handle attributes.
+    This reshapes in place -- curve identity and user attributes are preserved.
+    """
+    from ..model.constants import SketchCurveType
+    from ..model.curve_ref import CIRCLE_NURBS_POINTS
+
+    ob = getattr(sketch, "target_object", None)
+    if ob is None or ob.data is None:
+        return
+    cd = ob.data
+    type_attr = cd.attributes.get("sketch_type")
+    n = len(cd.curves)
+    if type_attr is None or n == 0:
+        return
+    # Read the kinds once: set_types below can invalidate attribute wrappers.
+    kinds = [type_attr.data[i].value for i in range(n)]
+
+    curved = (SketchCurveType.ARC, SketchCurveType.CIRCLE)
+    apply_curve_types(cd, range(n), [3 if k in curved else 1 for k in kinds])
+
+    # Circles change control-point count (4 -> 8); arcs are resized from their
+    # sweep by rebuild_segments' _resegment_arcs.
+    sizes = None
+    for i in range(n):
+        if kinds[i] == SketchCurveType.CIRCLE and (
+            cd.curves[i].points_length != CIRCLE_NURBS_POINTS
+        ):
+            if sizes is None:
+                sizes = [cv.points_length for cv in cd.curves]
+            sizes[i] = CIRCLE_NURBS_POINTS
+    if sizes is not None:
+        cd.resize_curves(sizes)
+
+    rebuild_segments(sketch)
+
+    for name in ("handle_left", "handle_right",
+                 "handle_type_left", "handle_type_right"):
+        attr = cd.attributes.get(name)
+        if attr is not None:
+            cd.attributes.remove(attr)
+
+    refresh_curve_geometry(sketch)

@@ -75,6 +75,72 @@ class TestNurbsCurves(TestCustomAttributes):
         finally:
             self._remove_converted(converted)
 
+    def _downgrade_to_bezier(self, kind, bezier_points):
+        """Fake an old-file Bezier curve of ``kind``: retype to BEZIER, resize to a
+        legacy point count, and re-add the handle attributes migration must drop."""
+        cd = self.sketch.target_object.data
+        st = cd.attributes.get("sketch_type")
+        idx = next(i for i in range(len(cd.curves)) if st.data[i].value == kind)
+        cd.set_types(type="BEZIER", indices=[idx])
+        if cd.curves[idx].points_length != bezier_points:
+            sizes = [cv.points_length for cv in cd.curves]
+            sizes[idx] = bezier_points
+            cd.resize_curves(sizes)
+        for name, dtype in (
+            ("handle_left", "FLOAT_VECTOR"), ("handle_right", "FLOAT_VECTOR"),
+            ("handle_type_left", "INT8"), ("handle_type_right", "INT8"),
+        ):
+            if cd.attributes.get(name) is None:
+                cd.attributes.new(name, dtype, "POINT")
+
+    def _assert_no_handles(self):
+        cd = self.sketch.target_object.data
+        for name in ("handle_left", "handle_right",
+                     "handle_type_left", "handle_type_right"):
+            self.assertIsNone(cd.attributes.get(name), f"{name} not removed")
+
+    def test_migrate_legacy_bezier_circle(self):
+        from ..utilities.curve_data import migrate_curves_to_nurbs
+        center = self.add_point((0.0, 0.0))
+        self.add_circle(center, 3.0)
+        self._downgrade_to_bezier(SketchCurveType.CIRCLE, 4)  # legacy 4-point circle
+
+        migrate_curves_to_nurbs(self.sketch)
+
+        cd = self.sketch.target_object.data
+        self.assertEqual(_type_of(cd, SketchCurveType.CIRCLE), (NURBS, 8))
+        self._assert_no_handles()
+        converted = self._convert_copy(self.sketch.target_object, fill=True)
+        try:
+            self.assertGreater(len(converted.data.polygons), 0)
+            for v in converted.data.vertices:
+                self.assertAlmostEqual(math.hypot(v.co.x, v.co.y), 3.0, delta=1e-4)
+        finally:
+            self._remove_converted(converted)
+
+    def test_migrate_legacy_bezier_arc(self):
+        from ..utilities.curve_data import migrate_curves_to_nurbs
+        center = self.add_point((10.0, 0.0))
+        start = self.add_point((12.0, 0.0))
+        end = self.add_point((10.0, 2.0))  # 90 deg
+        self.add_arc(center, start, end)
+        self._downgrade_to_bezier(SketchCurveType.ARC, 2)  # legacy nseg+1 = 2 points
+
+        migrate_curves_to_nurbs(self.sketch)
+
+        cd = self.sketch.target_object.data
+        self.assertEqual(_type_of(cd, SketchCurveType.ARC), (NURBS, 3))  # 2*1+1
+        self._assert_no_handles()
+        converted = self._convert_copy(self.sketch.target_object, fill=False)
+        try:
+            self.assertGreater(len(converted.data.vertices), 0)
+            for v in converted.data.vertices:
+                self.assertAlmostEqual(
+                    math.hypot(v.co.x - 10.0, v.co.y), 2.0, delta=1e-4
+                )
+        finally:
+            self._remove_converted(converted)
+
     def test_mixed_types_survive_refresh(self):
         a = self.add_point((0.0, 0.0))
         b = self.add_point((4.0, 0.0))

@@ -131,4 +131,14 @@ def do_versioning(self):
                 constraints.ensure_constraint_uid(c)
                 scene.sketcher.create_constraint_value_endpoint(c)
 
+        if version < (0, 30, 2):
+            # Bezier -> POLY/NURBS: reshape each sketch's legacy Bezier curves
+            # (4-point circles, nseg+1-point arcs, handle attributes) into the
+            # rational-NURBS representation the current build expects.
+            from .model.sketch_ref import get_sketches
+            from .utilities.curve_data import migrate_curves_to_nurbs
+
+            for sketch in get_sketches(scene):
+                migrate_curves_to_nurbs(sketch)
+
     logger.debug(msg)
