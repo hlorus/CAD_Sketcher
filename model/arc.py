@@ -21,8 +21,6 @@ from ..utilities.math import range_2pi, pol2cart
 from ..utilities.draw import coords_arc_2d
 from .utilities import (
     get_connection_point,
-    get_bezier_curve_midpoint_positions,
-    create_bezier_curve,
     round_v,
 )
 from ..utilities.math import range_2pi, pol2cart
@@ -161,13 +159,6 @@ class SlvsArc(Entity2D, PropertyGroup):
     def _direction(start, end, center):
         pass
 
-    def bezier_segment_count(self):
-        max_angle = QUARTER_TURN
-        return math.ceil(self.angle / max_angle)
-
-    def bezier_point_count(self):
-        return self.bezier_segment_count() + 1
-
     def point_on_curve(self, angle, relative=True):
         start_angle = self.start_angle if relative else 0
         return pol2cart(self.radius, start_angle + angle) + self.ct.co
@@ -220,53 +211,6 @@ class SlvsArc(Entity2D, PropertyGroup):
 
         dir1, dir2 = directions
         return dir1.angle_signed(dir2)
-
-    def to_bezier(
-        self,
-        spline,
-        startpoint,
-        endpoint,
-        invert_direction,
-        set_startpoint=False,
-        midpoints=[],
-    ):
-        # Get midpoint positions
-        segment_count = len(midpoints) + 1
-        curve_angle = self.angle
-        radius, center, start = self.radius, self.ct.co, self.start.co
-
-        midpoint_positions = get_bezier_curve_midpoint_positions(
-            self, segment_count, midpoints, curve_angle
-        )
-
-        angle = curve_angle / segment_count
-
-        locations = [self.start.co, *midpoint_positions, self.end.co]
-        bezier_points = [startpoint, *midpoints, endpoint]
-
-        if invert_direction:
-            locations.reverse()
-
-        if set_startpoint:
-            startpoint.position = locations[0].to_3d()
-
-        # Calculate handle size for smooth arc approximation
-        n = FULL_TURN / angle if angle != 0.0 else 0
-        q = (4 / 3) * math.tan(HALF_TURN / (2 * n))
-        base_offset = Vector((radius, q * radius))
-
-        # Create curve with proper bezier handles
-        create_bezier_curve(
-            spline,
-            segment_count,
-            bezier_points,
-            locations,
-            center,
-            base_offset,
-            invert=invert_direction,
-        )
-
-        return endpoint
 
     def draw_props(self, layout):
         sub = super().draw_props(layout)

@@ -131,28 +131,6 @@ class SlvsLine2D(Entity2D, PropertyGroup):
         )
         return dir1.angle_signed(dir2)
 
-    def to_bezier(
-        self, spline, startpoint, endpoint, invert_direction, set_startpoint=False
-    ):
-        locations = [self.p1.co.to_3d(), self.p2.co.to_3d()]
-        if invert_direction:
-            locations.reverse()
-
-        if set_startpoint:
-            startpoint.position = locations[0]
-        endpoint.position = locations[1]
-
-        # For lines, set handles to be exactly at the points
-        attributes = spline.id_data.attributes
-
-        attributes["handle_right"].data[startpoint.index].vector = locations[0]
-        attributes["handle_left"].data[startpoint.index].vector = locations[0]
-
-        attributes["handle_right"].data[endpoint.index].vector = locations[1]
-        attributes["handle_left"].data[endpoint.index].vector = locations[1]
-
-        return endpoint
-
     def midpoint(self):
         return (self.p1.co + self.p2.co) / 2
 

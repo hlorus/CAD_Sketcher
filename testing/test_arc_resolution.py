@@ -6,10 +6,12 @@ from .utils import Sketch2dTestCase
 
 
 class TestArcResolution(Sketch2dTestCase):
-    """An arc's bezier control-point count must adapt to its swept angle.
+    """A NURBS arc's control-point count must adapt to its swept angle.
 
-    The count is fixed at creation, but the endpoints move (drag/solve), so it
-    is recomputed in rebuild_segments -- one segment per ~90 degrees of sweep.
+    Each rational span covers at most ~90 degrees and contributes 2 control points
+    plus a shared on-circle junction, so an arc of ``nseg`` spans has ``2*nseg + 1``
+    control points. The count is fixed at creation but recomputed in
+    rebuild_segments as the endpoints move (drag/solve).
     """
 
     RADIUS = 2.0
@@ -19,19 +21,27 @@ class TestArcResolution(Sketch2dTestCase):
         cd, idx, _ = get_curve_data(self.sketch, arc.curve_id)
         return cd.curves[idx].points_length
 
+    def _points(self, nseg):
+        return 2 * nseg + 1
+
     def _end_at(self, degrees):
         a = math.radians(degrees)
         return Vector((self.RADIUS * math.cos(a), self.RADIUS * math.sin(a)))
 
     def _assert_on_circle(self, arc):
-        """Every control point must lie on the arc's circle."""
+        """The on-circle control points (even offsets) lie on the arc's circle.
+
+        Odd-offset points are off-circle shoulders (at radius / cos(span/2)), so
+        they are intentionally excluded.
+        """
         from ..utilities.curve_data import get_curve_data
         cd, idx, _ = get_curve_data(self.sketch, arc.curve_id)
         curve_slice = cd.curves[idx]
-        center = Vector((0.0, 0.0))
-        for pt in curve_slice.points:
+        for i, pt in enumerate(curve_slice.points):
+            if i % 2:
+                continue
             p = Vector(cd.points[pt.index].position[:2])
-            self.assertAlmostEqual((p - center).length, self.RADIUS, places=4)
+            self.assertAlmostEqual(p.length, self.RADIUS, places=4)
 
     def _make_arc(self, end_deg):
         ct = self.add_point((0, 0))
@@ -41,32 +51,32 @@ class TestArcResolution(Sketch2dTestCase):
         return arc, end
 
     def test_created_count_matches_angle(self):
-        arc, _ = self._make_arc(30)           # <= 90 deg -> 1 segment
-        self.assertEqual(self._point_count(arc), 2)
+        arc, _ = self._make_arc(30)           # <= 90 deg -> 1 span
+        self.assertEqual(self._point_count(arc), self._points(1))
 
     def test_grow_adds_segments(self):
         arc, end = self._make_arc(30)
-        self.assertEqual(self._point_count(arc), 2)
+        self.assertEqual(self._point_count(arc), self._points(1))
 
-        end.co = self._end_at(300)            # ~300 deg -> 4 segments
-        self.assertEqual(self._point_count(arc), 5)
+        end.co = self._end_at(300)            # ~300 deg -> 4 spans
+        self.assertEqual(self._point_count(arc), self._points(4))
         self._assert_on_circle(arc)
 
     def test_shrink_removes_segments(self):
         arc, end = self._make_arc(300)
-        self.assertEqual(self._point_count(arc), 5)
+        self.assertEqual(self._point_count(arc), self._points(4))
 
-        end.co = self._end_at(30)             # back to a single segment
-        self.assertEqual(self._point_count(arc), 2)
+        end.co = self._end_at(30)             # back to a single span
+        self.assertEqual(self._point_count(arc), self._points(1))
         self._assert_on_circle(arc)
 
     def test_intermediate_angles(self):
         arc, end = self._make_arc(30)
-        for deg, expected_points in ((100, 3), (200, 4), (350, 5), (80, 2)):
+        for deg, nseg in ((100, 2), (200, 3), (350, 4), (80, 1)):
             end.co = self._end_at(deg)
             self.assertEqual(
-                self._point_count(arc), expected_points,
-                f"{deg} deg should give {expected_points} points",
+                self._point_count(arc), self._points(nseg),
+                f"{deg} deg should give {self._points(nseg)} points",
             )
             self._assert_on_circle(arc)
 

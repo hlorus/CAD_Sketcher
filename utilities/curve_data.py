@@ -270,10 +270,11 @@ def ensure_standard_attributes(curve_data):
     attributes = curve_data.attributes
     ensure_attribute(attributes, "cyclic", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "sketch_type", "INT8", "CURVE")
-    ensure_attribute(attributes, "handle_type_left", "INT8", "POINT")
-    ensure_attribute(attributes, "handle_type_right", "INT8", "POINT")
-    ensure_attribute(attributes, "handle_left", "FLOAT_VECTOR", "POINT")
-    ensure_attribute(attributes, "handle_right", "FLOAT_VECTOR", "POINT")
+    # NURBS geometry (rational circles/arcs): per-point weight and per-curve
+    # order + knot mode. Bezier entities leave these at their defaults.
+    ensure_attribute(attributes, "nurbs_weight", "FLOAT", "POINT")
+    ensure_attribute(attributes, "nurbs_order", "INT8", "CURVE")
+    ensure_attribute(attributes, "knots_mode", "INT8", "CURVE")
     ensure_attribute(attributes, "resolution", "INT", "CURVE")
     ensure_attribute(attributes, "construction", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "fixed", "BOOLEAN", "CURVE")
@@ -290,6 +291,35 @@ def ensure_standard_attributes(curve_data):
         for sub in _uuid_subnames(field):
             ensure_attribute(attributes, sub, "INT32_2D", "CURVE")
     ensure_attribute(attributes, "name", "STRING", "CURVE")
+
+
+# Blender Curves curve_type enum values.
+_CURVE_TYPE_ENUM = {0: "CATMULL_ROM", 1: "POLY", 2: "BEZIER", 3: "NURBS"}
+
+
+def apply_curve_types(curve_data, indices, type_values):
+    """``set_types`` the given absolute curve indices to their per-curve values.
+
+    ``set_types`` with no ``indices`` retypes the whole datablock, which would
+    flatten a mixed sketch (POLY lines, NURBS circles, BEZIER arcs) to one type,
+    so callers scope it to exactly the curves they own.
+    """
+    by_type = {}
+    for idx, value in zip(indices, type_values):
+        by_type.setdefault(int(value), []).append(int(idx))
+    for value, idxs in by_type.items():
+        curve_data.set_types(type=_CURVE_TYPE_ENUM.get(value, "BEZIER"), indices=idxs)
+
+
+def restore_curve_types(curve_data, curve_types):
+    """Re-apply every curve's type after a full-datablock rebuild.
+
+    ``curve_types`` may be ``None`` (a pre-NURBS snapshot) -> default all-BEZIER.
+    """
+    if curve_types is None:
+        curve_data.set_types(type="BEZIER")
+        return
+    apply_curve_types(curve_data, range(len(curve_types)), curve_types)
 
 
 def init_string_attrs(curve_data, curve_idx):
@@ -439,12 +469,18 @@ def get_curve_placement(sketch, curve_id):
 
 
 def get_curve_midpoints(curve_slice, is_cyclic):
-    """Get interior bezier points from a curve slice."""
-    if len(curve_slice.points) <= 2:
+    """On-curve interior control points of a NURBS arc/circle (snap midpoints).
+
+    A rational NURBS arc/circle interleaves off-circle shoulder control points at
+    odd offsets; only the even-offset points lie on the curve, so return those
+    (excluding the endpoints on an open arc, and the first point on a cyclic one).
+    """
+    n = len(curve_slice.points)
+    if n <= 2:
         return []
     if is_cyclic:
-        return [curve_slice.points[i] for i in range(1, len(curve_slice.points))]
-    return [curve_slice.points[i] for i in range(1, len(curve_slice.points) - 1)]
+        return [curve_slice.points[i] for i in range(2, n, 2)]
+    return [curve_slice.points[i] for i in range(2, n - 1, 2)]
 
 
 # ---------------------------------------------------------------------------
@@ -656,7 +692,7 @@ def _resegment_arcs(sketch, cd, point_ids=None):
     """
     import math
 
-    from ..model.constants import BezierHandleType, SketchCurveType
+    from ..model.constants import SketchCurveType
     from .math import range_2pi
 
     ob = sketch.target_object
@@ -715,31 +751,21 @@ def _resegment_arcs(sketch, cd, point_ids=None):
 
         sv, ev = s - ct, e - ct
         angle = range_2pi(math.atan2(ev[1], ev[0]) - math.atan2(sv[1], sv[0]))
-        current = cd.curves[i].points_length - 1
+        # NURBS arc control net is 2*nseg + 1 points (on/shoulder/on/...).
+        current = (cd.curves[i].points_length - 1) // 2
         target = _target_arc_segments(angle, current)
         if target != current:
             if sizes is None:
                 sizes = [cv.points_length for cv in cd.curves]
-            sizes[i] = target + 1
+            sizes[i] = 2 * target + 1
             changed.append(i)
 
     if sizes is None:
         return False
 
+    # New points come in zero-initialized; the following rebuild pass rewrites
+    # every arc's positions, weights and order/knots, so nothing to seed here.
     cd.resize_curves(sizes)
-
-    # New points come in zero-initialized; give them free bezier handles so
-    # _build_arc_bezier's handle vectors take effect. (Positions/handles for the
-    # whole arc are rewritten by the rebuild pass that follows.)
-    attrs = cd.attributes
-    hlt = attrs.get("handle_type_left")
-    hrt = attrs.get("handle_type_right")
-    for i in changed:
-        for pt in cd.curves[i].points:
-            if hlt:
-                hlt.data[pt.index].value = BezierHandleType.FREE
-            if hrt:
-                hrt.data[pt.index].value = BezierHandleType.FREE
     return True
 
 
@@ -874,7 +900,7 @@ def rebuild_segments(sketch, point_ids=None):
     from mathutils import Vector
 
     from ..model.constants import SketchCurveType
-    from ..model.curve_ref import _build_arc_bezier
+    from ..model.curve_ref import _build_arc_nurbs, _build_circle_nurbs
 
     if not sketch or not sketch.target_object or not sketch.target_object.data:
         return
@@ -911,11 +937,6 @@ def rebuild_segments(sketch, point_ids=None):
                 p = cd.points[cs.points[0].index].position
                 point_co[cid_list[i]] = Vector((p[0], p[1]))
 
-    # Handle attributes are the same collection for every segment; fetch once
-    # rather than re-resolving them by name inside the per-segment loop below.
-    handle_left = cd.attributes.get("handle_left")
-    handle_right = cd.attributes.get("handle_right")
-
     for i in range(n):
         ctype = type_attr.data[i].value
         if ctype == SketchCurveType.POINT:
@@ -939,24 +960,12 @@ def rebuild_segments(sketch, point_ids=None):
         if ctype == SketchCurveType.LINE:
             sp_co = point_co.get(sp_ids[i])
             ep_co = point_co.get(ep_ids[i])
-            hl = handle_left
-            hr = handle_right
             if sp_co is not None:
-                pos = (sp_co.x, sp_co.y, 0.0)
                 idx = curve_slice.points[0].index
-                cd.points[idx].position = pos
-                if hl:
-                    hl.data[idx].vector = pos
-                if hr:
-                    hr.data[idx].vector = pos
+                cd.points[idx].position = (sp_co.x, sp_co.y, 0.0)
             if ep_co is not None:
-                pos = (ep_co.x, ep_co.y, 0.0)
                 idx = curve_slice.points[1].index
-                cd.points[idx].position = pos
-                if hl:
-                    hl.data[idx].vector = pos
-                if hr:
-                    hr.data[idx].vector = pos
+                cd.points[idx].position = (ep_co.x, ep_co.y, 0.0)
 
         elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
             ct_co = point_co.get(cp_ids[i])
@@ -964,13 +973,14 @@ def rebuild_segments(sketch, point_ids=None):
                 continue
             is_cyclic = ctype == SketchCurveType.CIRCLE
             if is_cyclic:
+                # Radius comes from point 0 (the +X edge the solver updated).
                 edge = Vector(cd.points[curve_slice.points[0].index].position[:2])
-                _build_arc_bezier(cd, i, ct_co, edge, edge, is_cyclic=True)
+                _build_circle_nurbs(cd, i, ct_co, (edge - ct_co).length)
             else:
                 s_co = point_co.get(sp_ids[i])
                 e_co = point_co.get(ep_ids[i])
                 if s_co is not None and e_co is not None:
-                    _build_arc_bezier(cd, i, ct_co, s_co, e_co)
+                    _build_arc_nurbs(cd, i, ct_co, s_co, e_co)
 
     # Weld ids depend on connectivity (start/end_point_id), not positions, so
     # only recompute on a full rebuild -- a scoped move leaves topology intact.
@@ -1036,7 +1046,8 @@ def refresh_curve_geometry(sketch):
 
     curve_data.remove_curves()
     curve_data.add_curves(point_counts.tolist())
-    curve_data.set_types(type="BEZIER")
+    ct_info = saved_attrs.get("curve_type")
+    restore_curve_types(curve_data, ct_info["data"] if ct_info else None)
     ensure_standard_attributes(curve_data)
 
     curve_data.points.foreach_set("position", positions)
@@ -1055,3 +1066,54 @@ def refresh_curve_geometry(sketch):
             attr.data.foreach_set("value", info["data"])
 
     invalidate_curve_id_cache(sketch)
+
+
+def migrate_curves_to_nurbs(sketch):
+    """Reshape a sketch's legacy Bezier curves into the POLY/NURBS representation.
+
+    Old files store lines/points as Bezier and arcs/circles as Bezier (with handle
+    attributes, 4-point circles, nseg+1-point arcs). Re-type each curve, resize
+    circles to the 8-point rational net, then let ``rebuild_segments`` resegment the
+    arcs and rewrite every arc/circle's NURBS geometry (positions/weights/order/
+    knots) from the entity points. Finally drop the now-unused handle attributes.
+    This reshapes in place -- curve identity and user attributes are preserved.
+    """
+    from ..model.constants import SketchCurveType
+    from ..model.curve_ref import CIRCLE_NURBS_POINTS
+
+    ob = getattr(sketch, "target_object", None)
+    if ob is None or ob.data is None:
+        return
+    cd = ob.data
+    type_attr = cd.attributes.get("sketch_type")
+    n = len(cd.curves)
+    if type_attr is None or n == 0:
+        return
+    # Read the kinds once: set_types below can invalidate attribute wrappers.
+    kinds = [type_attr.data[i].value for i in range(n)]
+
+    curved = (SketchCurveType.ARC, SketchCurveType.CIRCLE)
+    apply_curve_types(cd, range(n), [3 if k in curved else 1 for k in kinds])
+
+    # Circles change control-point count (4 -> 8); arcs are resized from their
+    # sweep by rebuild_segments' _resegment_arcs.
+    sizes = None
+    for i in range(n):
+        if kinds[i] == SketchCurveType.CIRCLE and (
+            cd.curves[i].points_length != CIRCLE_NURBS_POINTS
+        ):
+            if sizes is None:
+                sizes = [cv.points_length for cv in cd.curves]
+            sizes[i] = CIRCLE_NURBS_POINTS
+    if sizes is not None:
+        cd.resize_curves(sizes)
+
+    rebuild_segments(sketch)
+
+    for name in ("handle_left", "handle_right",
+                 "handle_type_left", "handle_type_right"):
+        attr = cd.attributes.get(name)
+        if attr is not None:
+            cd.attributes.remove(attr)
+
+    refresh_curve_geometry(sketch)
