@@ -474,20 +474,15 @@ def _ensure_convert_modifier(ob):
 
 
 def _get_convert_node_group():
-    """The convert node group: identity-weld build on Blender 5.2+, else the
-    shipped merge-by-distance asset (which is all older Blender can express)."""
-    if bpy.app.version >= (5, 2, 0):
-        from .convert_nodes import build_convert_node_group
+    """The convert node group, built programmatically for every Blender version.
 
-        return build_convert_node_group()
+    The build is identical apart from the weld: Blender 5.2+ welds sketch
+    endpoints by identity (Merge Points), older Blender merges coincident
+    endpoints by distance (all it can express). Building both keeps the two
+    paths in lockstep instead of shipping a separate, drift-prone asset."""
+    from .convert_nodes import build_convert_node_group
 
-    from .. import global_data
-    from ..assets_manager import load_asset
-    from .convert_nodes import ensure_generated_id_nodes
-
-    load_asset(global_data.LIB_NAME, "node_groups", "CAD Sketcher Convert")
-    group = bpy.data.node_groups.get("CAD Sketcher Convert")
-    return ensure_generated_id_nodes(group) if group else None
+    return build_convert_node_group()
 
 
 def ensure_sketch_curve_object(sketch):
@@ -830,9 +825,7 @@ def compute_generated_id_seeds(sketch):
 
     attrs = cd.attributes
     curve_attr = ensure_attribute(attrs, SOURCE_CURVE_ID_ATTR, "INT", "CURVE")
-    endpoint_attr = ensure_attribute(
-        attrs, SOURCE_ENDPOINT_ID_ATTR, "INT", "POINT"
-    )
+    endpoint_attr = ensure_attribute(attrs, SOURCE_ENDPOINT_ID_ATTR, "INT", "POINT")
     type_attr = attrs.get("sketch_type")
     if not curve_attr or not endpoint_attr or not type_attr:
         return False
@@ -846,15 +839,17 @@ def compute_generated_id_seeds(sketch):
     endpoint_seeds = np.zeros(len(cd.points), dtype=np.int32)
 
     for index, curve in enumerate(cd.curves):
-        if type_attr.data[index].value not in (
-            SketchCurveType.LINE,
-            SketchCurveType.ARC,
-        ) or curve.points_length < 2:
+        if (
+            type_attr.data[index].value
+            not in (
+                SketchCurveType.LINE,
+                SketchCurveType.ARC,
+            )
+            or curve.points_length < 2
+        ):
             continue
         if any(start_ids[index]):
-            endpoint_seeds[curve.points[0].index] = _stable_source_id(
-                start_ids[index]
-            )
+            endpoint_seeds[curve.points[0].index] = _stable_source_id(start_ids[index])
         if any(end_ids[index]):
             endpoint_seeds[curve.points[curve.points_length - 1].index] = (
                 _stable_source_id(end_ids[index])
