@@ -424,3 +424,28 @@ class TestProjectionAnchor(Sketch2dTestCase):
             project_curves_element(self.sketch, src.target_object, ("point", 0)),
             ([], [], 1),
         )
+
+    def test_snap_projection_primitives_accept_a_curve_source(self):
+        # The #619 draw-snap projection reuses project_mesh_vertex/edge; these must
+        # now accept a Curves source so snapping onto a sketch/curve live-projects
+        # its control point or segment (not just meshes).
+        import bpy
+
+        cu = bpy.data.hair_curves.new("SnapSrc")
+        cu.add_curves([2])
+        cu.points[0].position = (0.0, 0.0, 0.0)
+        cu.points[1].position = (2.0, 0.0, 0.0)
+        src = bpy.data.objects.new("SnapSrcCurve", cu)
+        self.scene.collection.objects.link(src)
+
+        # Vertex: binds a fixed, source-tracked point to control point 0, deduped.
+        pv = project_mesh_vertex(self.sketch, src, 0, construction=True)
+        self.assertIsNotNone(pv)
+        self.assertTrue(pv.fixed)
+        self.assertIsNotNone(find_projected_point(self.sketch, src, 0))
+        self.assertEqual(project_mesh_vertex(self.sketch, src, 0).curve_id, pv.curve_id)
+
+        # Edge: projects a live line bound to both control points.
+        line = project_mesh_edge(self.sketch, src, 0, 1, construction=True)
+        self.assertIsNotNone(line)
+        self.assertIsNotNone(find_projected_point(self.sketch, src, 1))

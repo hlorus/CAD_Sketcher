@@ -216,12 +216,14 @@ class Operator2d(GenericEntityOp):
         if snap_type not in ("VERTEX", "EDGE_MIDPOINT", "EDGE"):
             return
         source = bpy.data.objects.get(snap.get("object") or "")
-        if source is None or source.type != "MESH":
+        if source is None or source.type not in ("MESH", "CURVES"):
             return
+        is_curve = source.type == "CURVES"
 
-        # Snapping reads the evaluated mesh; resolve the evaluated vertices back to
-        # the original ones to bind (by persistent id when tagged, else an
-        # order-preserving index). Skip when the correspondence isn't trustworthy.
+        # A mesh snap reports evaluated-mesh indices that must map back to the
+        # original vertices (by persistent id when tagged, else an order-preserving
+        # index). A curve snap reads the source's control points directly, so its
+        # indices are already the originals -- no remap needed.
         from ..stateful_operator.utilities.geometry import get_evaluated_obj
         from ..utilities.projection_anchor import (
             project_mesh_edge,
@@ -229,8 +231,13 @@ class Operator2d(GenericEntityOp):
             resolve_source_vertex_index,
         )
 
-        eval_source = get_evaluated_obj(context, source)
+        eval_source = None if is_curve else get_evaluated_obj(context, source)
         world_point = snap.get("world_point")
+
+        def _orig(index):
+            if is_curve:
+                return index
+            return resolve_source_vertex_index(source, eval_source, index)
 
         # Place the point where the user snapped (the evaluated hit), so a
         # vertex-moving modifier doesn't leave it a frame behind the source.
@@ -238,7 +245,7 @@ class Operator2d(GenericEntityOp):
             v_index = snap.get("vertex_index")
             if v_index is None:
                 return
-            orig = resolve_source_vertex_index(source, eval_source, v_index)
+            orig = _orig(v_index)
             if orig is None:
                 return
             projected = project_mesh_vertex(
@@ -248,8 +255,8 @@ class Operator2d(GenericEntityOp):
             edge = snap.get("edge_vertices")
             if not edge:
                 return
-            orig_a = resolve_source_vertex_index(source, eval_source, edge[0])
-            orig_b = resolve_source_vertex_index(source, eval_source, edge[1])
+            orig_a = _orig(edge[0])
+            orig_b = _orig(edge[1])
             if orig_a is None or orig_b is None:
                 return
             projected = project_mesh_edge(

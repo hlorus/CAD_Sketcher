@@ -89,6 +89,12 @@ _MESH_SOURCE = {"MESH"}
 _CURVE_SOURCE = {"CURVES", "CURVE"}
 
 
+def _source_point_count(source):
+    """Number of source elements (mesh vertices or curve control points)."""
+    data = source.data
+    return len(data.vertices if source.type in _MESH_SOURCE else data.points)
+
+
 def _source_point_index(source, vertex_index):
     """Local position of source element ``vertex_index`` (mesh vert or curve point)."""
     if source.type in _MESH_SOURCE:
@@ -509,13 +515,12 @@ def project_mesh_vertex(sketch, source, vertex_index, construction=True, world_c
     vertex-moving modifier (the original vertex position differs from the snapped,
     evaluated one). It defaults to the original vertex position.
     """
-    if source is None or source.type != "MESH":
-        raise TypeError("Source must be a mesh object")
-    mesh = source.data
-    if not (0 <= vertex_index < len(mesh.vertices)):
+    if source is None or source.type not in (_MESH_SOURCE | _CURVE_SOURCE):
+        raise TypeError("Source must be a mesh or curve object")
+    if not (0 <= vertex_index < _source_point_count(source)):
         return None
 
-    vertex_id = ensure_vertex_id(mesh, vertex_index)
+    vertex_id = ensure_vertex_id(source.data, vertex_index)
     existing = find_projected_vertex_point(sketch, source, vertex_id)
     if existing is not None:
         return existing
@@ -525,7 +530,7 @@ def project_mesh_vertex(sketch, source, vertex_index, construction=True, world_c
         local = owner.matrix_world.inverted() @ Vector(world_co)
     else:
         local = owner.matrix_world.inverted() @ (
-            source.matrix_world @ mesh.vertices[vertex_index].co
+            source.matrix_world @ _source_point_index(source, vertex_index)
         )
     with batch_update(sketch):
         point = PointRef.create(
@@ -550,10 +555,9 @@ def project_mesh_edge(sketch, source, vertex_index, vertex_index_2, construction
     index is out of range, the indices coincide, or the edge collapses to a point
     on the sketch plane (a zero-length line the solver cannot use).
     """
-    if source is None or source.type != "MESH":
-        raise TypeError("Source must be a mesh object")
-    mesh = source.data
-    n = len(mesh.vertices)
+    if source is None or source.type not in (_MESH_SOURCE | _CURVE_SOURCE):
+        raise TypeError("Source must be a mesh or curve object")
+    n = _source_point_count(source)
     if not (0 <= vertex_index < n and 0 <= vertex_index_2 < n):
         return None
     if vertex_index == vertex_index_2:
@@ -566,7 +570,7 @@ def project_mesh_edge(sketch, source, vertex_index, vertex_index_2, construction
         existing = find_projected_point(sketch, source, index)
         if existing is not None:
             return existing
-        local = inv @ (source.matrix_world @ mesh.vertices[index].co)
+        local = inv @ (source.matrix_world @ _source_point_index(source, index))
         point = PointRef.create(
             sketch,
             (local.x, local.y),
