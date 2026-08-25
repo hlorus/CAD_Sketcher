@@ -89,3 +89,41 @@ def pick_object_ranked(obj, context, coords):
     """Keys of ``obj``'s elements under ``coords``, nearest first (points first)."""
     points, segments = extract_pickable_geometry(obj)
     return picking.rank_hits(points, segments, context, coords)
+
+
+def pick_reference_element(context, coords, exclude=None):
+    """Nearest ``(object, element_key)`` across visible curve objects under coords.
+
+    Merges every visible curve object's pickable geometry into one screen-space
+    ranking so the closest element wins regardless of which object it belongs to.
+    ``exclude`` skips an object (e.g. the active sketch, to avoid self-reference).
+    """
+    objs = {}
+    point_items, seg_items = [], []
+    for ob in context.visible_objects:
+        if ob.type != "CURVES" or ob == exclude:
+            continue
+        pts, segs = extract_pickable_geometry(ob)
+        if not pts and not segs:
+            continue
+        objs[ob.name] = ob
+        point_items += [((ob.name, key), pos) for key, pos in pts]
+        seg_items += [((ob.name, key), a, b) for key, a, b in segs]
+
+    ranked = picking.rank_hits(point_items, seg_items, context, coords)
+    if not ranked:
+        return None
+    obj_name, key = ranked[0]
+    return objs[obj_name], key
+
+
+def element_geometry(obj, key):
+    """World-space ``(points, segments)`` of just element ``key`` of ``obj``.
+
+    Used to highlight one hovered element: a point returns its position, a line
+    its single segment, an arc/circle its tessellated segments.
+    """
+    pts, segs = extract_pickable_geometry(obj)
+    points = [pos for k, pos in pts if k == key]
+    segments = [(a, b) for k, a, b in segs if k == key]
+    return points, segments

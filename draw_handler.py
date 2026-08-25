@@ -138,6 +138,33 @@ def _draw_vertex_hover(context, ob, index, col, scale):
     gpu.state.blend_set("NONE")
 
 
+def _draw_curve_element_hover(ob, key, col, scale):
+    """Highlight one hovered curve element: its segments and/or its point.
+
+    A line highlights its segment, an arc/circle its tessellated segments, a
+    point its position -- so the whole element under the cursor lights up.
+    """
+    from .drawing.reference_pick import element_geometry
+
+    points, segments = element_geometry(ob, key)
+    if segments:
+        lines = []
+        for a, b in segments:
+            lines += [a, b]
+        _draw_lines_hover(lines, col, scale, width=3)
+    if points:
+        shader = Shaders.point_color_3d()
+        shader.bind()
+        gpu.state.blend_set("ALPHA")
+        gpu.state.point_size_set(8 * scale)
+        shader.uniform_float("color", col)
+        batch = batch_for_shader(shader, "POINTS", {"pos": points})
+        batch.draw(shader)
+        gpu.shader.unbind()
+        gpu.state.point_size_set(1)
+        gpu.state.blend_set("NONE")
+
+
 def draw_hover_element():
     """POST_VIEW: highlight the hovered element per its type.
 
@@ -175,6 +202,9 @@ def draw_hover_element():
         _draw_face_hover(context, ob, index, col, scale)
     elif kind == "VERTEX":
         _draw_vertex_hover(context, ob, index, col, scale)
+    elif kind == "CURVE_ELEM":
+        # ``index`` is the element key (a curve_id or index tuple).
+        _draw_curve_element_hover(ob, index, col, scale)
 
 
 def draw_origin_labels():

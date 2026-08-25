@@ -2,7 +2,7 @@
 
 import bpy
 
-from ..drawing.reference_pick import extract_pickable_geometry
+from ..drawing.reference_pick import element_geometry, extract_pickable_geometry
 from .utils import Sketch2dTestCase
 
 
@@ -59,3 +59,31 @@ class TestReferencePickGeometry(Sketch2dTestCase):
         ob = self.data.objects.new("m", me)
         self.scene.collection.objects.link(ob)
         self.assertEqual(extract_pickable_geometry(ob), ([], []))
+
+    def test_element_geometry_isolates_one_element_for_highlight(self):
+        # element_geometry returns only the requested element's geometry, so the
+        # hover highlight lights up exactly that line / arc / point.
+        p0 = self.add_point((0.0, 0.0))
+        p1 = self.add_point((2.0, 0.0))
+        line = self.add_line(p0, p1)
+        obj = self.sketch.target_object
+
+        # a line: one segment, no owned point (its endpoints are their own elems)
+        lpoints, lsegments = element_geometry(obj, line.curve_id)
+        self.assertEqual(len(lsegments), 1)
+        self.assertEqual(lpoints, [])
+
+        # a point: its position, no segment
+        ppoints, psegments = element_geometry(obj, p0.curve_id)
+        self.assertEqual(len(ppoints), 1)
+        self.assertEqual(psegments, [])
+
+    def test_element_geometry_of_arc_is_the_tessellated_arc(self):
+        ct = self.add_point((0.0, 0.0))
+        start = self.add_point((1.0, 0.0))
+        end = self.add_point((0.0, 1.0))
+        arc = self.add_arc(ct, start, end)
+
+        points, segments = element_geometry(self.sketch.target_object, arc.curve_id)
+        self.assertGreater(len(segments), 1)  # tessellated
+        self.assertEqual(points, [])
