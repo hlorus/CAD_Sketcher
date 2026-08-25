@@ -78,6 +78,18 @@ class TestReferencePickGeometry(Sketch2dTestCase):
         self.assertEqual(len(ppoints), 1)
         self.assertEqual(psegments, [])
 
+    def test_project_operator_reports_curve_pointer_for_check_props(self):
+        # A picked curve element has no mesh pointer; the operator must still
+        # report a truthy state pointer, or check_props() blocks main() and
+        # nothing projects (the "still cannot project" bug).
+        from ..operators.project_geometry import VIEW3D_OT_slvs_project_geometry
+
+        op = VIEW3D_OT_slvs_project_geometry.__new__(VIEW3D_OT_slvs_project_geometry)
+        op.state_index = 0
+        op._state_data = {0: {"curve_ref": ("Src", "deadbeef")}}
+        self.assertTrue(bool(op.get_state_pointer(index=0)))
+        self.assertEqual(op.get_state_pointer(index=0), ("Src", "deadbeef"))
+
     def test_element_geometry_of_arc_is_the_tessellated_arc(self):
         ct = self.add_point((0.0, 0.0))
         start = self.add_point((1.0, 0.0))

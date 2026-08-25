@@ -12,6 +12,8 @@ indices. A depsgraph handler reprojects changed source vertices into the sketch
 plane and connected native line curves follow through ``rebuild_segments``.
 """
 
+import logging
+
 from mathutils import Vector
 
 from ..model.constants import SketchCurveType
@@ -23,6 +25,8 @@ from ..utilities.curve_data import (
     read_curve_id_list,
     read_uuid_list,
 )
+
+logger = logging.getLogger(__name__)
 
 # Persistent identity on the SOURCE mesh (POINT domain).
 VERTEX_ID_ATTR = "slvs_project_vertex_id"
@@ -739,9 +743,16 @@ def project_curves_element(sketch, source, curve_id, construction=True):
     projectable. Endpoints are reused across calls via ``find_projected_point``,
     so re-projecting the same element is idempotent.
     """
+    logger.debug(
+        "project_curves_element: source=%r type=%s key=%r",
+        getattr(source, "name", None),
+        getattr(source, "type", None),
+        curve_id,
+    )
     if source is None or source.type not in _CURVE_SOURCE:
         raise TypeError("Source must be a sketch or curve object")
     if not isinstance(curve_id, str):
+        logger.debug("project_curves_element: non-sketch key -> not projectable yet")
         return [], [], 1  # a raw Curves index key: not projectable yet
 
     from ..model.constants import SketchCurveType
@@ -751,6 +762,7 @@ def project_curves_element(sketch, source, curve_id, construction=True):
 
     src_sketch = Sketch(source)
     src_type = get_curve_type(src_sketch, curve_id)
+    logger.debug("project_curves_element: src_type=%s", src_type)
     owner = sketch.target_object
     inv = owner.matrix_world.inverted()
     points, lines = [], []

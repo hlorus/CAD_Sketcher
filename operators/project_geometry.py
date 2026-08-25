@@ -6,6 +6,8 @@ projects just that element as live native curves through the shared
 ``project_mesh_element`` path. Re-run to project more; shared corners are reused.
 """
 
+import logging
+
 import bpy
 from bpy.props import BoolProperty
 from bpy.types import Context, Operator
@@ -19,6 +21,8 @@ from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.curve_data import refresh_curve_geometry
 from ..utilities.projection_anchor import project_curves_element, project_mesh_element
 from .base_stateful import GenericEntityOp
+
+logger = logging.getLogger(__name__)
 
 _TYPE_TO_ELEMENT = {
     bpy.types.MeshVertex: "VERTEX",
@@ -64,6 +68,7 @@ class VIEW3D_OT_slvs_project_geometry(Operator, GenericEntityOp):
         data = self.state_data
         if retval is not None:
             data.pop("curve_ref", None)
+            logger.debug("project pick: mesh element %s", retval)
             return retval
 
         from ..drawing.reference_pick import pick_reference_element
@@ -72,27 +77,47 @@ class VIEW3D_OT_slvs_project_geometry(Operator, GenericEntityOp):
         ref = pick_reference_element(
             context, coords, exclude=active.target_object if active else None
         )
+        logger.debug("project pick: no mesh hit; reference curve element -> %s", ref)
         if ref is not None:
             ob, key = ref
             data["curve_ref"] = (ob.name, key)
             data["type"] = None  # not a mesh element; dispatched via curve_ref
-            return (ob.name,)
+            return (ob.name, key)
         data.pop("curve_ref", None)
         return None
+
+    def get_state_pointer(self, index=None, implicit=False):
+        # A picked curve element has no mesh/entity pointer, so report the stashed
+        # reference as the state's pointer -- otherwise check_props() sees an empty
+        # pointer and never calls main() (nothing would project).
+        idx = self.state_index if index is None else index
+        data = self._state_data.get(idx, {})
+        if data.get("curve_ref"):
+            return data["curve_ref"]
+        return super().get_state_pointer(index=index, implicit=implicit)
 
     def main(self, context: Context):
         sketch = get_active_sketch(context)
         if sketch is None:
+            logger.debug("project main: no active sketch")
             return False
         data = self._state_data.get(0, {})
 
         curve_ref = data.get("curve_ref")
+        logger.debug("project main: curve_ref=%s type=%s", curve_ref, data.get("type"))
         if curve_ref:
             source = bpy.data.objects.get(curve_ref[0])
             if source is None:
+                logger.debug("project main: source object %r missing", curve_ref[0])
                 return False
             n_points, n_lines, skipped = project_curves_element(
                 sketch, source, curve_ref[1], construction=self.construction
+            )
+            logger.debug(
+                "project main: curve element -> points=%s lines=%s skipped=%s",
+                n_points,
+                n_lines,
+                skipped,
             )
             if skipped:
                 self.report(
