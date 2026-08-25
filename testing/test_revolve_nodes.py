@@ -70,6 +70,19 @@ def _incoherent_edges(bm):
     return count
 
 
+def _loose_edges(bm):
+    """Count wire edges with no adjacent face -- stray interior geometry that a
+    clean revolve surface should never carry."""
+    return sum(1 for e in bm.edges if len(e.link_faces) == 0)
+
+
+def _euler(bm):
+    """Euler characteristic V - E + F. For a closed manifold surface it is
+    2 - 2*genus, so a genus-0 solid (no through-hole) gives 2 and a genus-1
+    solid (one void/tunnel through it) gives 0."""
+    return len(bm.verts) - len(bm.edges) + len(bm.faces)
+
+
 class TestRevolveNodeGroup(BgsTestCase):
     # X-axis revolve; profiles sit at +Y so they never cross the axis.
     AXIS_ORIGIN = (0.0, 0.0, 0.0)
@@ -93,6 +106,35 @@ class TestRevolveNodeGroup(BgsTestCase):
         )
         ob = self.context.active_object
         bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+        return ob
+
+    def _frame(self, fill=True):
+        """A square 'frame' at +Y: an outer loop with a square hole through it --
+        two boundary loops. ``fill`` builds the filled ring between them (a
+        holed mesh, as the convert modifier's Fill produces); otherwise it is
+        just the two boundary wires."""
+        bm = bmesh.new()
+        cy, o, i = 2.0, 0.8, 0.4
+        ov = [
+            bm.verts.new((x, y, 0.0))
+            for x, y in [(-o, cy - o), (o, cy - o), (o, cy + o), (-o, cy + o)]
+        ]
+        iv = [
+            bm.verts.new((x, y, 0.0))
+            for x, y in [(-i, cy - i), (i, cy - i), (i, cy + i), (-i, cy + i)]
+        ]
+        if fill:
+            for k in range(4):
+                bm.faces.new((ov[k], ov[(k + 1) % 4], iv[(k + 1) % 4], iv[k]))
+        else:
+            for ring in (ov, iv):
+                for k in range(4):
+                    bm.edges.new((ring[k], ring[(k + 1) % 4]))
+        me = bpy.data.meshes.new("frame")
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new("frame", me)
+        self.scene.collection.objects.link(ob)
         return ob
 
     # -- build / versioning ----------------------------------------------
@@ -262,6 +304,86 @@ class TestRevolveNodeGroup(BgsTestCase):
             bpy.data.objects.remove(filled, do_unlink=True)
             bpy.data.objects.remove(unfilled, do_unlink=True)
 
+    # -- holed profiles (#634 follow-up) ---------------------------------
+
+    def test_holed_profile_does_not_bridge_inner_to_outer(self):
+        # The reported regression: a profile with a hole (two boundary loops)
+        # was swept as a single ring, bridging the inner loop to the outer one
+        # with redundant, self-intersecting geometry. The per-loop extrusion
+        # sweep must keep the loops independent: a clean, coherent, manifold
+        # result for a full turn and a partial one alike.
+        for angle in (math.tau, math.pi, -math.pi):
+            ob = self._frame(fill=True)
+            try:
+                self._revolve(ob, angle)
+                bm = _bm(ob)
+                stats = _stats(bm)
+                incoherent = _incoherent_edges(bm)
+                volume = _signed_volume(bm)
+                bm.free()
+            finally:
+                bpy.data.objects.remove(ob, do_unlink=True)
+            where = f"{angle:.2f} rad"
+            self.assertEqual(stats["nonmanifold"], 0, f"{where}: not manifold")
+            self.assertEqual(stats["boundary"], 0, f"{where}: not watertight")
+            self.assertEqual(incoherent, 0, f"{where}: inconsistent winding")
+            self.assertGreater(volume, 0.0, f"{where}: inside-out")
+
+    def test_full_turn_has_no_stray_interior_edges(self):
+        # The sweep is seeded from a filled cap whose interior (a fan's diagonals,
+        # or a holed region's bridge cuts) is stripped afterwards. A full turn adds
+        # no caps to cover that interior, so the result must carry no loose edges
+        # -- for a plain profile and a holed one alike. (A partial turn's caps
+        # legitimately keep their own interior fill; that is covered elsewhere.)
+        for name, ob in (
+            ("octagon", self._octagon("NGON")),
+            ("holed", self._frame(fill=True)),
+            ("holed unfilled", self._frame(fill=False)),
+        ):
+            try:
+                self._revolve(ob, math.tau)
+                bm = _bm(ob)
+                loose = _loose_edges(bm)
+                bm.free()
+            finally:
+                bpy.data.objects.remove(ob, do_unlink=True)
+            self.assertEqual(loose, 0, f"{name} full turn kept interior edges")
+
+    def test_holed_profile_revolves_to_a_solid_with_a_void(self):
+        # A holed profile must revolve to a solid that actually has a void
+        # through it (genus 1, Euler characteristic 0), not a plain solid
+        # (genus 0, characteristic 2) that filled the hole in.
+        holed = self._frame(fill=True)
+        solid = self._octagon("NGON")
+        try:
+            self._revolve(holed, math.pi)
+            self._revolve(solid, math.pi)
+            bm_h, bm_s = _bm(holed), _bm(solid)
+            euler_holed, euler_solid = _euler(bm_h), _euler(bm_s)
+            bm_h.free()
+            bm_s.free()
+        finally:
+            bpy.data.objects.remove(holed, do_unlink=True)
+            bpy.data.objects.remove(solid, do_unlink=True)
+        self.assertEqual(euler_holed, 0, "holed revolve lost its void")
+        self.assertEqual(euler_solid, 2, "solid revolve gained a spurious void")
+
+    def test_unfilled_holed_profile_stays_two_open_tubes(self):
+        # An unfilled holed profile (two boundary loops, no face) sweeps to two
+        # concentric open shells -- clean, coherent, and not bridged together.
+        ob = self._frame(fill=False)
+        try:
+            self._revolve(ob, math.pi)
+            bm = _bm(ob)
+            stats = _stats(bm)
+            incoherent = _incoherent_edges(bm)
+            bm.free()
+        finally:
+            bpy.data.objects.remove(ob, do_unlink=True)
+        self.assertEqual(stats["nonmanifold"], 0, "not manifold")
+        self.assertEqual(incoherent, 0, "inconsistent winding")
+        self.assertGreater(stats["boundary"], 0, "unfilled ends stay open")
+
     def _filled_poly(self, points):
         """A closed poly profile at +Y with a Fill Curve modifier, so the revolve
         receives a *triangulated* fill (as the real convert modifier produces)."""
@@ -288,6 +410,59 @@ class TestRevolveNodeGroup(BgsTestCase):
         ng.links.new(fill.outputs["Mesh"], go.inputs["Geometry"])
         ob.modifiers.new("fill", "NODES").node_group = ng
         return ob
+
+    def _holed_filled_poly(self, outer, inner):
+        """Two concentric closed loops at +Y under a Fill Curve modifier, so the
+        revolve receives a *triangulated holed* mesh -- exactly what the convert
+        modifier hands it for a sketch with a hole."""
+        cu = bpy.data.curves.new("holed", "CURVE")
+        for loop in (outer, inner):
+            sp = cu.splines.new("POLY")
+            sp.points.add(len(loop) - 1)
+            sp.use_cyclic_u = True
+            for i, (x, y) in enumerate(loop):
+                sp.points[i].co = (x, 2.0 + y, 0.0, 1.0)
+        ob = bpy.data.objects.new("holed", cu)
+        self.scene.collection.objects.link(ob)
+
+        ng = bpy.data.node_groups.new("fill", "GeometryNodeTree")
+        ng.interface.new_socket(
+            "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+        )
+        ng.interface.new_socket(
+            "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+        )
+        gi = ng.nodes.new("NodeGroupInput")
+        go = ng.nodes.new("NodeGroupOutput")
+        fill = ng.nodes.new("GeometryNodeFillCurve")
+        ng.links.new(gi.outputs["Geometry"], fill.inputs["Curve"])
+        ng.links.new(fill.outputs["Mesh"], go.inputs["Geometry"])
+        ob.modifiers.new("fill", "NODES").node_group = ng
+        return ob
+
+    def test_triangulated_holed_fill_does_not_leak_or_bridge(self):
+        # The end-to-end regression: a triangulated holed fill (the real convert
+        # output for a sketch with a hole) must revolve to a watertight, coherent
+        # solid with a genuine void -- no swept interior triangulation, no inner
+        # loop bridged to the outer one.
+        outer = [(-0.8, -0.8), (0.8, -0.8), (0.8, 0.8), (-0.8, 0.8)]
+        inner = [(-0.4, -0.4), (0.4, -0.4), (0.4, 0.4), (-0.4, 0.4)]
+        ob = self._holed_filled_poly(outer, inner)
+        try:
+            self._revolve(ob, math.pi)
+            bm = _bm(ob)
+            stats = _stats(bm)
+            incoherent = _incoherent_edges(bm)
+            volume = _signed_volume(bm)
+            euler = _euler(bm)
+            bm.free()
+        finally:
+            bpy.data.objects.remove(ob, do_unlink=True)
+        self.assertEqual(stats["nonmanifold"], 0, "swept interior fill / bridge")
+        self.assertEqual(stats["boundary"], 0, "partial holed fill must be capped")
+        self.assertEqual(incoherent, 0, "inconsistent face winding")
+        self.assertGreater(volume, 0.0, "revolved inside-out")
+        self.assertEqual(euler, 0, "void through the solid was lost")
 
     def test_filled_normals_coherent_and_outward_any_shape_or_angle(self):
         # The reporter's regressions: the boundary loop has no deterministic
