@@ -478,7 +478,7 @@ class CurveSolver:
                     if dist and hasattr(entity, "radius"):
                         entity.radius = self.solvesys.get_param_value(dist["param"][0])
 
-    def solve(self):
+    def solve(self, write=True):
         """Run the solver on curve data.
 
         A drag can over-constrain an already-determined sketch: a fully defined
@@ -488,14 +488,14 @@ class CurveSolver:
         we drop the drag and re-solve, keeping the sketch's valid, constrained
         state instead of flipping it to inconsistent (issue #584).
         """
-        self._solve_once()
+        self._solve_once(write=write)
         if not self.ok and self._tweak_curve_id is not None:
             self._tweak_curve_id = None
             self._tweak_pos = None
-            self._solve_once()
+            self._solve_once(write=write)
         return self.ok
 
-    def _solve_once(self):
+    def _solve_once(self, write=True):
         """Build and solve the system once from the current curve/tweak state."""
         self.solvesys.clear_sketch()
         self._point_handles.clear()
@@ -548,7 +548,11 @@ class CurveSolver:
         if self._tweak_curve_id is None:
             self.sketch.dof = retval.get("dof", 0)
 
-        if self.ok:
+        # write=False validates solvability (dof, solver_state are already set
+        # above) without committing solved positions, so an interactive trial
+        # never drags existing geometry; the scene is updated only by a
+        # committing solve (in fini).
+        if self.ok and write:
             self._write_results()
             self.sketch.geometry_solved = True
 
@@ -558,17 +562,26 @@ class CurveSolver:
 Solver = CurveSolver
 
 
-def solve_sketch_from_curves(context, sketch):
-    """Convenience function to solve a sketch using curve data."""
+def solve_sketch_from_curves(context, sketch, write=True):
+    """Convenience function to solve a sketch using curve data.
+
+    With ``write=False`` the system is solved to report its state without
+    committing solved positions back to the geometry.
+    """
     if not sketch:
         return False
     solver = CurveSolver(context, sketch)
-    return solver.solve()
+    return solver.solve(write=write)
 
 
-def solve_system(context, sketch=None):
-    """Solve the constraint system for a sketch."""
+def solve_system(context, sketch=None, write=True):
+    """Solve the constraint system for a sketch.
+
+    ``write=False`` validates solvability without writing solved positions back,
+    so an interactive trial (see ``add_auto_constraint``) never drags existing
+    geometry; the scene is updated only by the committing solve in fini.
+    """
     if sketch and sketch.target_object and sketch.target_object.data:
         if len(sketch.target_object.data.curves) > 0:
-            return solve_sketch_from_curves(context, sketch)
+            return solve_sketch_from_curves(context, sketch, write=write)
     return True

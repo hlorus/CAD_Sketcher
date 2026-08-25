@@ -1,12 +1,12 @@
 import logging
 
-from bpy.types import Operator, Context
+from bpy.types import Context, Operator
 
-from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
-from ..stateful_operator.state import state_from_args
 from ..curve_solver import solve_system
-from ..model.curve_ref import PointRef, LineRef
+from ..declarations import Operators
+from ..model.curve_ref import LineRef, PointRef
+from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_2d import Operator2d
 from .constants import types_point_2d
 from .utilities import ignore_hover
@@ -48,8 +48,12 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         p_lb, p_rt = self.get_point(context, 0), self.get_point(context, 1)
 
         # Create the two extra corner points
-        p_rb = PointRef.create(sketch, (p_rt.co.x, p_lb.co.y), construction=construction)
-        p_lt = PointRef.create(sketch, (p_lb.co.x, p_rt.co.y), construction=construction)
+        p_rb = PointRef.create(
+            sketch, (p_rt.co.x, p_lb.co.y), construction=construction
+        )
+        p_lt = PointRef.create(
+            sketch, (p_lb.co.x, p_rt.co.y), construction=construction
+        )
 
         if construction:
             p_lb.construction = True
@@ -70,21 +74,23 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         return True
 
     def fini(self, context: Context, succeede: bool):
-        if hasattr(self, "lines") and self.lines:
+        if succeede and hasattr(self, "lines") and self.lines:
             sc = self.sketch.constraints
             # Auto axis-alignment constraints (inferred) respect the toggle and
             # Shift bypass; the numeric distance constraints below are explicit.
             if self.use_auto_constraints(context):
                 for i, line_ref in enumerate(self.lines):
                     func = sc.add_horizontal if (i % 2) == 0 else sc.add_vertical
-                    func(curve_id_1=line_ref.curve_id)
+                    self.add_auto_constraint(
+                        context, func, curve_id_1=line_ref.curve_id
+                    )
 
             data = self._state_data.get(1)
             if data.get("is_numeric_edit", False):
                 input = data.get("numeric_input")
 
                 startpoint = getattr(self, self.get_states()[0].pointer)
-                sp_cid = startpoint.curve_id if hasattr(startpoint, 'curve_id') else ""
+                sp_cid = startpoint.curve_id if hasattr(startpoint, "curve_id") else ""
                 for val, line_ref in zip(input, (self.lines[1], self.lines[2])):
                     if val is None:
                         continue
