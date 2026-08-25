@@ -323,11 +323,24 @@ class NodeOperator(Operator3d):
     # Message shown when the resolved target fails is_valid_target().
     invalid_target_msg = "Invalid target object"
 
-    # Persisted target so the redo panel (which re-runs execute() on a fresh
-    # instance, losing the transient pointer state) can re-resolve the object
-    # and edit the existing modifier instead of failing. Not SKIP_SAVE: it must
-    # survive redo; main() overwrites it every run so a stale value is harmless.
+    # Expose the redo-panel eyedropper (framework edit-state re-entry) so a
+    # finished node op can be re-pointed at a different object/cutter. Object
+    # pointers need none of the entity stable-id machinery -- re-apply just
+    # relocates the modifier (see _prepare_edit / main).
+    editable = True
+
+    # Persisted target so the redo panel (a fresh instance) can re-resolve the
+    # object and edit the existing modifier: the pointer props rebuild
+    # ``self.object`` on the edit path, and this is a plain fallback for value
+    # tweaks. Not SKIP_SAVE; main() overwrites it every run.
     target_name: StringProperty(options={"HIDDEN"})
+
+    # What this op's modifier was applied to before an eyedropper re-point (the
+    # object + the modifier name). Stamped by _prepare_edit so main() can drop
+    # that now-stale modifier and move it to the re-picked target instead of
+    # leaving an orphan. SKIP_SAVE: only meaningful during the edit re-pick.
+    previous_target: StringProperty(options={"HIDDEN", "SKIP_SAVE"})
+    previous_modifier: StringProperty(options={"HIDDEN", "SKIP_SAVE"})
 
     @classmethod
     def poll(cls, context):
@@ -342,12 +355,68 @@ class NodeOperator(Operator3d):
         # for non-entity pointers (it breaks the redo panel and redo_states).
         return None
 
-    def resolved_object(self):
-        """The object to operate on: the live pointer, else the persisted name.
+    def _prepare_pick_ui(self, context):
+        # The object-hover gizmo drives the pick highlight, but it's unlinked
+        # while a non-sketcher tool (e.g. Select) is active. Link it so the
+        # eyedropper re-pick shows hover highlight.
+        from ..declarations import GizmoGroups
 
-        On the interactive path the base Object state resolves ``self.object``;
-        on the redo path that pointer is gone, so fall back to ``target_name``.
-        """
+        context.window_manager.gizmo_group_type_ensure(GizmoGroups.ObjectHover.value)
+
+        # Re-picking a mesh element (e.g. the revolve axis edge) needs the base
+        # geometry, but the tool's modifier shows the *result* -- the profile's
+        # own edges are hidden and not ray-castable. Temporarily disable it so
+        # those edges are visible and pickable; restored in _finish_pick_ui.
+        self._hidden_modifier = None
+        state = self.get_states()[self.edit_state]
+        ob = self.resolved_object()
+        if Object not in state.types and ob is not None:  # a mesh-element pointer
+            mod = ob.modifiers.get(self._modifier_name())
+            if mod is not None and mod.show_viewport:
+                mod.show_viewport = False
+                self._hidden_modifier = (ob.name, mod.name)
+                ob.update_tag()
+                context.view_layer.update()  # force the viewport to drop the result now
+
+    def _maintain_pick_ui(self, context):
+        # The redo-panel re-run (execute of the previous op) reverts the modifier
+        # we hid in _prepare_pick_ui. Re-hide it so the base geometry stays
+        # visible/pickable for the whole re-pick.
+        hidden = getattr(self, "_hidden_modifier", None)
+        if not hidden:
+            return
+        ob = bpy.data.objects.get(hidden[0])
+        mod = ob.modifiers.get(hidden[1]) if ob else None
+        if mod is not None and mod.show_viewport:
+            mod.show_viewport = False
+            ob.update_tag()
+            context.view_layer.update()
+
+    def _finish_pick_ui(self, context):
+        hidden = getattr(self, "_hidden_modifier", None)
+        if not hidden:
+            return
+        ob = bpy.data.objects.get(hidden[0])
+        mod = ob.modifiers.get(hidden[1]) if ob else None
+        if mod is not None:
+            mod.show_viewport = True
+            ob.update_tag()
+        self._hidden_modifier = None
+
+    def _update_pick_hover(self, context, coords):
+        from .. import global_data
+        from ..gizmos.object_hover import detect_hover
+
+        element = detect_hover(context, coords, global_data.hover_types)
+        if element != global_data.hover_element:
+            global_data.hover_element = element
+            if context.area:
+                context.area.tag_redraw()
+
+    def resolved_object(self):
+        """The object to operate on: the live/restored pointer, else the
+        persisted name. The pointer props rebuild ``self.object`` on the redo/edit
+        path; ``target_name`` is a plain fallback."""
         ob = self.object
         if ob is None and self.target_name:
             ob = bpy.data.objects.get(self.target_name)
@@ -411,7 +480,11 @@ class NodeOperator(Operator3d):
                 self.report({"ERROR"}, f'Cannot load asset "{rName}" from library')
                 return False
 
-        bpy.ops.ed.undo_push(message=f'Load Asset "{rName}"')
+        # Don't push undo on the eyedropper re-pick path (edit_state >= 0):
+        # calling ed.undo_push while entering a modal from the redo panel hangs
+        # Blender. init still loads the asset so the re-apply has the group.
+        if self.edit_state < 0:
+            bpy.ops.ed.undo_push(message=f'Load Asset "{rName}"')
         return True
 
     def _modifier_name(self):
@@ -440,6 +513,16 @@ class NodeOperator(Operator3d):
         self.modifier.node_group = nodegroup
         return True
 
+    def _prepare_edit(self, context):
+        """Edit re-pick (framework hook): remember the object + modifier name we
+        are editing away from, so main() drops that modifier if the re-pick lands
+        on a different object -- or changes a per-cutter name. Harmless when a
+        non-target state is edited: main only acts when it actually changes."""
+        ob = self.resolved_object()
+        if ob is not None:
+            self.previous_target = ob.name
+            self.previous_modifier = self._modifier_name()
+
     def main(self, context):
         ob = self.resolved_object()
         if not self.is_valid_target(ob):
@@ -447,10 +530,22 @@ class NodeOperator(Operator3d):
             return False
 
         # Persist the target and keep a resolved reference for this run so
-        # _ensure_modifier / set_props work on both the interactive and redo
-        # paths without going through the (redo-transient) pointer state.
+        # _ensure_modifier / set_props don't re-resolve the pointer repeatedly.
         self.target_name = ob.name
         self._obj = ob
+
+        # Re-pointed via the eyedropper: move the modifier here by dropping it
+        # from the object/name it used to be on (see _prepare_edit).
+        if self.previous_target and (
+            self.previous_target != ob.name
+            or self.previous_modifier != self._modifier_name()
+        ):
+            prev = bpy.data.objects.get(self.previous_target)
+            if prev is not None:
+                old = prev.modifiers.get(self.previous_modifier)
+                if old is not None:
+                    prev.modifiers.remove(old)
+                    prev.update_tag()
 
         if not self._ensure_modifier(context):
             return False
@@ -728,7 +823,8 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         from ..utilities.revolve_nodes import build_revolve_node_group
 
         build_revolve_node_group()
-        bpy.ops.ed.undo_push(message="Add Revolve")
+        if self.edit_state < 0:  # not on the eyedropper re-pick (see NodeOperator.init)
+            bpy.ops.ed.undo_push(message="Add Revolve")
         self.reset_booleans()
         return True
 
@@ -942,15 +1038,26 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         from ..utilities.boolean_nodes import build_boolean_node_group
 
         build_boolean_node_group()
-        bpy.ops.ed.undo_push(message="Add Boolean")
+        if self.edit_state < 0:  # not on the eyedropper re-pick (see NodeOperator.init)
+            bpy.ops.ed.undo_push(message="Add Boolean")
         return True
+
+    def _prepare_edit(self, context):
+        # Resolve the current cutter so the base's _prepare_edit can stamp the
+        # per-cutter modifier name it is editing away from (self._cutter is what
+        # _modifier_name reads, and it is otherwise only set in main()).
+        cutter = self._resolve_cutter(context)
+        if cutter is None:
+            return
+        self._cutter = cutter
+        super()._prepare_edit(context)
 
     def _resolve_cutter(self, context: Context):
         """The cutter object: the picked pointer, else the persisted name (redo).
 
-        Mirrors ``resolved_object`` for the body: the ``cutter`` pointer state
-        carries the interactive/prefilled pick, and ``cutter_name`` restores it
-        on the redo path where the pointer is gone.
+        Like the base Object pointer, the ``cutter`` pointer state carries the
+        interactive/prefilled pick and is rebuilt from the persisted pointer
+        props on redo; ``cutter_name`` is a further fallback.
         """
         cutter = getattr(self, "cutter", None)
         if cutter is not None:
@@ -1026,8 +1133,9 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         return True
 
     def draw_settings(self, context):
+        # The Cutter pointer is drawn (with its eyedropper) by the framework's
+        # per-state row; only the non-pointer options belong here.
         layout = self.layout
-        layout.prop_search(self, "cutter_name", bpy.data, "objects", text="Cutter")
         layout.prop(self, "operation")
         layout.prop(self, "cutter_display")
         layout.prop(self, "self_intersection")

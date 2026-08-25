@@ -148,10 +148,12 @@ def draw_hover_element():
 
     context = bpy.context
 
-    # Only while a hover tool is active; otherwise clear stale hover so the
-    # highlight doesn't linger after switching tools.
+    # While a hover tool is active, or any pick is in progress (the redo-panel
+    # eyedropper re-pick publishes hover_types without switching tools).
+    # Otherwise clear stale hover so the highlight doesn't linger after switching.
     tool = context.workspace.tools.from_space_view3d_mode(context.mode)
-    if tool is None or tool.widget != GizmoGroups.ObjectHover.value:
+    tool_active = tool is not None and tool.widget == GizmoGroups.ObjectHover.value
+    if not tool_active and global_data.hover_types is None:
         global_data.hover_element = None
         return
 
