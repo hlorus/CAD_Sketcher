@@ -10,33 +10,35 @@ fine.
 
 This builds an equivalent group programmatically -- versioned in code and rebuilt
 in place when ``REVOLVE_VERSION`` changes, like the boolean and convert groups --
-that first *normalizes* whatever profile it is handed down to a single boundary
-loop, so the swept lateral surface is identical whether ``Fill`` was on or off:
+that first *normalizes* whatever profile it is handed down to its boundary
+loop(s), so the swept lateral surface is identical whether ``Fill`` was on or off:
 
     * a mesh (filled or a wire) -> its boundary edges become a curve
       (``Mesh to Curve`` selecting edges with fewer than two adjacent faces),
     * a curve passes straight through,
 
-joined into one boundary curve. Only that loop is swept, so interior fill
-triangulation can never leak into the surface.
+joined into one boundary curve, which may contain *several* loops (a profile with
+a hole has an outer loop and one inner loop per hole). Only those loops are swept,
+so interior fill triangulation can never leak into the surface.
 
-The loop winding is *canonicalized* first (reversed when its area normal points
-against an axis-derived reference), because ``Mesh to Curve`` hands back the
-boundary with a shape-dependent direction. Without this the swept surface and the
-caps end up inconsistently oriented for some shapes.
-
-The lateral surface is a Grid of ``(P+wrap) x (steps+1)`` vertices -- ``P`` profile
-points (plus one wrap column for a closed loop) by one column per angular step --
-whose every vertex is the matching profile point rotated about the axis by its
-step's angle. ``Merge by Distance`` welds the wrap column and, at a full turn,
-the start/end seam.
+The lateral surface is swept by *extrusion* rather than a single grid, so any
+number of boundary loops are handled independently -- a profile with a hole
+revolves to a proper solid with a void through it, instead of the inner loop being
+bridged to the outer one. A ``Fill Curve`` of the profile (which resolves holes by
+even-odd containment) seeds a mesh whose rim is repeatedly extruded and rotated by
+one angular step; the extruded top ring is recorded (as an edge attribute) and
+becomes the next rim. The seed cap is stripped afterwards, leaving the bare
+lateral. An *open* profile (a line/arc, not fillable) seeds the sweep from its
+wire instead, giving an open tube (a cylinder). Extrusion keeps every face
+coherent with its neighbour by construction, so no per-loop winding
+canonicalization is needed.
 
 End caps are added only when the profile was *filled* and the sweep is a partial
-turn (< 360 deg): the loop filled at the start (flipped) and a copy filled at the
-end, wound oppositely so both stay coherent with the lateral. A full turn needs no
-caps (the surface closes on itself), and an unfilled profile has no face to cap
-with -- it stays an open shell. This matches the spec: a non-filled sketch
-revolves to a valid surface, just without end caps.
+turn (< 360 deg): the seed cap (already coherent with the lateral it was extruded
+from) serves as the start cap, and a copy rotated to the end angle and flipped is
+the end cap, so the two wind oppositely and stay coherent -- holes included. A full
+turn needs no caps (the surface closes on itself), and an unfilled profile has no
+face to cap with -- it stays an open shell.
 
 Finally, orientation is decided from an internally-capped (closed) version of the
 solid via its signed volume (divergence theorem) and the whole result is flipped
@@ -54,7 +56,7 @@ REVOLVE_NODE_GROUP = "CAD Sketcher Revolve"
 # Bump whenever the built tree changes so groups baked into existing files -- or a
 # stale same-named binary asset -- are rebuilt in place on next use, keeping
 # modifiers bound to the same name.
-REVOLVE_VERSION = 5
+REVOLVE_VERSION = 6
 
 # Weld tolerance for the sweep seams and the cap-to-lateral join. The welded
 # points are produced by the *same* profile sample and rotation, so they are
@@ -201,7 +203,7 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     go = nodes.new("NodeGroupOutput")
 
     # 1. Step count from the sweep angle and the max angle per segment:
-    #    steps = max(1, ceil(|Angle| / Resolution)).
+    #    steps = max(1, ceil(|Angle| / Resolution)); delta = Angle / steps.
     abs_angle = _math(nodes, links, "ABSOLUTE", a=gi.outputs["Angle"])
     # Guard the divide: clamp resolution away from zero (the operator enforces a
     # positive minimum, but a hand-set 0 would otherwise blow up).
@@ -211,9 +213,11 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     steps_raw = _math(nodes, links, "DIVIDE", a=abs_angle, b=safe_res)
     steps_ceil = _math(nodes, links, "CEIL", a=steps_raw)
     steps = _math(nodes, links, "MAXIMUM", a=steps_ceil, b=1.0)
+    delta = _math(nodes, links, "DIVIDE", a=gi.outputs["Angle"], b=steps)
 
-    # 2. Normalize the profile to a single boundary curve, independent of whether
-    #    it arrived as a filled mesh, a wire mesh, or a curve.
+    # 2. Normalize the profile to its boundary curve(s), independent of whether it
+    #    arrived as a filled mesh, a wire mesh, or a curve. This may yield several
+    #    loops (a holed profile: an outer loop plus one loop per hole).
     sep = nodes.new("GeometryNodeSeparateComponents")
     links.new(gi.outputs["Geometry"], sep.inputs["Geometry"])
 
@@ -237,148 +241,136 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     links.new(sep.outputs["Curve"], profile.inputs["Geometry"])
     raw_profile = profile.outputs["Geometry"]
 
-    # P = boundary-loop point count.
-    domain = nodes.new("GeometryNodeAttributeDomainSize")
-    domain.component = "CURVE"
-    links.new(raw_profile, domain.inputs["Geometry"])
-    point_count = domain.outputs["Point Count"]
+    # 3. Fill the profile: a Fill Curve resolves holes by even-odd containment,
+    #    so a holed profile becomes a region mesh with the correct boundary loops.
+    #    Its rim seeds the sweep and (for a partial filled turn) supplies the caps.
+    cap_fill = nodes.new("GeometryNodeFillCurve")
+    links.new(raw_profile, cap_fill.inputs["Curve"])
+    cap_mesh = cap_fill.outputs["Mesh"]
 
-    # Canonicalize the loop winding. Mesh to Curve extracts the boundary loop with
-    # a shape-dependent direction, which would leave the swept surface and the
-    # caps inconsistently oriented. Reverse the loop when its area normal points
-    # against a reference derived from the axis, so every profile winds the same
-    # way and a fixed cap orientation is coherent for all shapes.
-    #
-    # Area normal (Newell-style, translation invariant): N = sum_i (p_i - C) x
-    # (p_{i+1} - C), with C the loop centroid.
-    centroid = nodes.new("GeometryNodeAttributeStatistic")
-    centroid.data_type = "FLOAT_VECTOR"
-    centroid.domain = "POINT"
-    loop_pos = nodes.new("GeometryNodeInputPosition")
-    links.new(raw_profile, centroid.inputs["Geometry"])
-    links.new(loop_pos.outputs["Position"], centroid.inputs["Attribute"])
-    centroid_co = centroid.outputs["Mean"]
+    # An open profile (a line/arc) can't be filled -> Fill Curve yields no faces.
+    # Fall back to the profile's wire so it sweeps to an open tube (a cylinder).
+    wire = nodes.new("GeometryNodeCurveToMesh")
+    links.new(raw_profile, wire.inputs["Curve"])
+    cap_faces = nodes.new("GeometryNodeAttributeDomainSize")
+    cap_faces.component = "MESH"
+    links.new(cap_mesh, cap_faces.inputs["Geometry"])
+    fillable = nodes.new("FunctionNodeCompare")
+    fillable.data_type = "INT"
+    fillable.operation = "GREATER_THAN"
+    fla, flb = (s for s in fillable.inputs if s.enabled and s.type == "INT")
+    flb.default_value = 0
+    links.new(cap_faces.outputs["Face Count"], fla)
+    seed_pick = nodes.new("GeometryNodeSwitch")
+    seed_pick.input_type = "GEOMETRY"
+    links.new(fillable.outputs["Result"], seed_pick.inputs["Switch"])
+    links.new(wire.outputs["Mesh"], seed_pick.inputs["False"])
+    links.new(cap_mesh, seed_pick.inputs["True"])
 
-    loop_index = nodes.new("GeometryNodeInputIndex")
-    next_index = _math(nodes, links, "ADD", a=loop_index.outputs["Index"], b=1.0)
-    next_index = _math(nodes, links, "FLOORED_MODULO", a=next_index, b=point_count)
-    next_pos = nodes.new("GeometryNodeSampleIndex")
-    next_pos.data_type = "FLOAT_VECTOR"
-    next_pos.domain = "POINT"
-    links.new(raw_profile, next_pos.inputs["Geometry"])
-    links.new(loop_pos.outputs["Position"], next_pos.inputs["Value"])
-    links.new(next_index, next_pos.inputs["Index"])
+    # Mark the initial rim: edges with fewer than two adjacent faces (a wire's
+    # edges have 0, a cap's boundary 1, a cap's interior 2). This "rim" edge
+    # attribute is carried through the sweep and refreshed each step from the
+    # Extrude node's Top output, so rim tracking is identical for cap and wire.
+    rim_neighbors = nodes.new("GeometryNodeInputMeshEdgeNeighbors")
+    rim_cmp = nodes.new("FunctionNodeCompare")
+    rim_cmp.data_type = "INT"
+    rim_cmp.operation = "LESS_THAN"
+    rca, rcb = (s for s in rim_cmp.inputs if s.enabled and s.type == "INT")
+    rcb.default_value = 2
+    links.new(rim_neighbors.outputs["Face Count"], rca)
+    seed = nodes.new("GeometryNodeStoreNamedAttribute")
+    seed.data_type = "BOOLEAN"
+    seed.domain = "EDGE"
+    seed.inputs["Name"].default_value = "rim"
+    links.new(seed_pick.outputs["Output"], seed.inputs["Geometry"])
+    links.new(rim_cmp.outputs["Result"], seed.inputs["Value"])
+    seed_geo = seed.outputs["Geometry"]
 
-    def _vsub(a, b):
-        n = nodes.new("ShaderNodeVectorMath")
-        n.operation = "SUBTRACT"
-        links.new(a, n.inputs[0])
-        links.new(b, n.inputs[1])
-        return n.outputs["Vector"]
+    # The seed cap occupies the lowest face indices (extrusion only appends), so
+    # it can be stripped by index afterwards to leave the bare lateral.
+    seed_faces = nodes.new("GeometryNodeAttributeDomainSize")
+    seed_faces.component = "MESH"
+    links.new(seed_geo, seed_faces.inputs["Geometry"])
+    seed_face_count = seed_faces.outputs["Face Count"]
 
-    def _vcross(a, b):
-        n = nodes.new("ShaderNodeVectorMath")
-        n.operation = "CROSS_PRODUCT"
-        links.new(a, n.inputs[0])
-        links.new(b, n.inputs[1])
-        return n.outputs["Vector"]
+    # 4. Sweep the lateral by extrusion: each step extrudes the current rim (offset
+    #    zero, so the new ring starts coincident) and rotates that new ring by one
+    #    angular step about the axis. Recording the extruded Top edges as the next
+    #    rim makes every boundary loop advance independently -- a holed profile
+    #    keeps its void instead of being bridged shut. Extrusion also keeps each
+    #    new face coherent with its neighbour, so no winding fix-up is needed.
+    repeat_in = nodes.new("GeometryNodeRepeatInput")
+    repeat_out = nodes.new("GeometryNodeRepeatOutput")
+    repeat_in.pair_with_output(repeat_out)
+    links.new(steps, repeat_in.inputs["Iterations"])
+    links.new(seed_geo, repeat_in.inputs["Geometry"])
 
-    edge_term = _vcross(
-        _vsub(loop_pos.outputs["Position"], centroid_co),
-        _vsub(next_pos.outputs["Value"], centroid_co),
+    rim_read = nodes.new("GeometryNodeInputNamedAttribute")
+    rim_read.data_type = "BOOLEAN"
+    rim_read.inputs["Name"].default_value = "rim"
+    extrude = nodes.new("GeometryNodeExtrudeMesh")
+    extrude.mode = "EDGES"
+    links.new(repeat_in.outputs["Geometry"], extrude.inputs["Mesh"])
+    links.new(rim_read.outputs["Attribute"], extrude.inputs["Selection"])
+    extrude.inputs["Offset Scale"].default_value = 0.0
+    step_pos = nodes.new("GeometryNodeInputPosition")
+    step_rot = _rotate_about_axis(
+        nodes, links, gi, step_pos.outputs["Position"], delta
     )
-    area_normal = nodes.new("GeometryNodeAttributeStatistic")
-    area_normal.data_type = "FLOAT_VECTOR"
-    area_normal.domain = "POINT"
-    links.new(raw_profile, area_normal.inputs["Geometry"])
-    links.new(edge_term, area_normal.inputs["Attribute"])
+    move_top = nodes.new("GeometryNodeSetPosition")
+    links.new(extrude.outputs["Mesh"], move_top.inputs["Geometry"])
+    links.new(extrude.outputs["Top"], move_top.inputs["Selection"])
+    links.new(step_rot, move_top.inputs["Position"])
+    next_rim = nodes.new("GeometryNodeStoreNamedAttribute")
+    next_rim.data_type = "BOOLEAN"
+    next_rim.domain = "EDGE"
+    next_rim.inputs["Name"].default_value = "rim"
+    links.new(move_top.outputs["Geometry"], next_rim.inputs["Geometry"])
+    links.new(extrude.outputs["Top"], next_rim.inputs["Value"])
+    links.new(next_rim.outputs["Geometry"], repeat_out.inputs["Geometry"])
+    swept = repeat_out.outputs["Geometry"]
 
-    # Reference: axis x (centroid - axis origin) -- the profile-plane normal for a
-    # profile lying in a plane through the axis (the usual revolve setup).
-    reference = _vcross(
-        gi.outputs["Axis Direction"], _vsub(centroid_co, gi.outputs["Axis Origin"])
+    # Strip the seed cap (faces below the seed face count) -> the bare lateral, an
+    # open tube at both ends. Delete with EDGE_FACE, not ONLY_FACE: the seed cap's
+    # *interior* fill edges (a fan's diagonals, or the bridge cuts that let a holed
+    # region be filled) are used only by the deleted cap faces, so they must go too
+    # -- otherwise a full turn (which adds no caps to cover them) would keep loose
+    # interior edges inside the tube. The rim edges survive: they are still used by
+    # the swept lateral faces. Vertices are kept (the rim shares them).
+    face_index = nodes.new("GeometryNodeInputIndex")
+    is_seed = nodes.new("FunctionNodeCompare")
+    is_seed.data_type = "INT"
+    is_seed.operation = "LESS_THAN"
+    sia, sib = (s for s in is_seed.inputs if s.enabled and s.type == "INT")
+    links.new(face_index.outputs["Index"], sia)
+    links.new(seed_face_count, sib)
+    strip = nodes.new("GeometryNodeDeleteGeometry")
+    strip.domain = "FACE"
+    strip.mode = "EDGE_FACE"
+    links.new(swept, strip.inputs["Geometry"])
+    links.new(is_seed.outputs["Result"], strip.inputs["Selection"])
+    lateral = strip.outputs["Geometry"]
+
+    # 5. End caps. The lateral was extruded FROM the seed cap, so the seed cap's
+    #    winding is already coherent with it: reuse it, unflipped, as the start cap
+    #    (angle 0). The end cap is the same cap rotated to the end angle and
+    #    flipped, so the two wind oppositely and stay coherent with the tube (like
+    #    the top and bottom of a prism) -- holes included.
+    end_position = nodes.new("GeometryNodeInputPosition")
+    end_rot = _rotate_about_axis(
+        nodes, links, gi, end_position.outputs["Position"], gi.outputs["Angle"]
     )
-    orient_dot = nodes.new("ShaderNodeVectorMath")
-    orient_dot.operation = "DOT_PRODUCT"
-    links.new(area_normal.outputs["Sum"], orient_dot.inputs[0])
-    links.new(reference, orient_dot.inputs[1])
-    against = nodes.new("FunctionNodeCompare")
-    against.data_type = "FLOAT"
-    against.operation = "LESS_THAN"
-    ga, gb = (s for s in against.inputs if s.enabled and s.type == "VALUE")
-    gb.default_value = 0.0
-    links.new(orient_dot.outputs["Value"], ga)
+    end_moved = nodes.new("GeometryNodeSetPosition")
+    links.new(cap_mesh, end_moved.inputs["Geometry"])
+    links.new(end_rot, end_moved.inputs["Position"])
+    end_flip = nodes.new("GeometryNodeFlipFaces")
+    links.new(end_moved.outputs["Geometry"], end_flip.inputs["Mesh"])
+    caps = nodes.new("GeometryNodeJoinGeometry")
+    links.new(cap_mesh, caps.inputs["Geometry"])
+    links.new(end_flip.outputs["Mesh"], caps.inputs["Geometry"])
 
-    reverse = nodes.new("GeometryNodeReverseCurve")
-    links.new(raw_profile, reverse.inputs["Curve"])
-    links.new(against.outputs["Result"], reverse.inputs["Selection"])
-    profile_curve = reverse.outputs["Curve"]
-
-    # Whether the profile is a closed loop (cyclic). A closed profile needs one
-    # extra "wrap" column so the last point connects back to the first; an open
-    # profile (a line/arc -> a tube open along its length) must NOT wrap, or it
-    # would sweep a phantom face across the profile ends. Sample spline 0's cyclic
-    # flag (profiles are a single loop); Mesh to Curve sets it for closed
-    # boundaries, and a raw curve carries its own.
-    cyclic = nodes.new("GeometryNodeInputSplineCyclic")
-    is_cyclic = nodes.new("GeometryNodeSampleIndex")
-    is_cyclic.data_type = "BOOLEAN"
-    is_cyclic.domain = "CURVE"
-    links.new(profile_curve, is_cyclic.inputs["Geometry"])
-    links.new(cyclic.outputs["Cyclic"], is_cyclic.inputs["Value"])
-    is_cyclic.inputs["Index"].default_value = 0
-    wrap = nodes.new("GeometryNodeSwitch")
-    wrap.input_type = "INT"
-    links.new(is_cyclic.outputs["Value"], wrap.inputs["Switch"])
-    wrap.inputs["False"].default_value = 0
-    wrap.inputs["True"].default_value = 1
-
-    # 3. Lateral surface: a grid of (P + wrap) x (steps + 1) vertices. The wrap
-    #    column closes a cyclic loop; the extra row carries the final angle.
-    grid_x = _math(nodes, links, "ADD", a=point_count, b=wrap.outputs["Output"])
-    grid_y = _math(nodes, links, "ADD", a=steps, b=1.0)
-    grid = nodes.new("GeometryNodeMeshGrid")
-    grid.inputs["Size X"].default_value = 1.0
-    grid.inputs["Size Y"].default_value = 1.0
-    links.new(grid_x, grid.inputs["Vertices X"])
-    links.new(grid_y, grid.inputs["Vertices Y"])
-
-    # Per-vertex column/row from the grid's UV (0..1 across each axis).
-    uv = nodes.new("ShaderNodeSeparateXYZ")
-    links.new(grid.outputs["UV Map"], uv.inputs["Vector"])
-    # column = round(u * (grid_x - 1)); profile index = column mod P, so on a
-    # cyclic profile the wrap column (P) folds back to point 0.
-    cols_max = _math(nodes, links, "SUBTRACT", a=grid_x, b=1.0)
-    col = _math(nodes, links, "MULTIPLY", a=uv.outputs["X"], b=cols_max)
-    col = _math(nodes, links, "ROUND", a=col)
-    index = _math(nodes, links, "FLOORED_MODULO", a=col, b=point_count)
-    step_angle = _math(
-        nodes, links, "MULTIPLY", a=gi.outputs["Angle"], b=uv.outputs["Y"]
-    )
-
-    # Sample the profile point at that index and rotate it to this step's angle.
-    position = nodes.new("GeometryNodeInputPosition")
-    sample = nodes.new("GeometryNodeSampleIndex")
-    sample.data_type = "FLOAT_VECTOR"
-    sample.domain = "POINT"
-    links.new(profile_curve, sample.inputs["Geometry"])
-    links.new(position.outputs["Position"], sample.inputs["Value"])
-    links.new(index, sample.inputs["Index"])
-
-    swept = _rotate_about_axis(nodes, links, gi, sample.outputs["Value"], step_angle)
-    set_pos = nodes.new("GeometryNodeSetPosition")
-    links.new(grid.outputs["Mesh"], set_pos.inputs["Geometry"])
-    links.new(swept, set_pos.inputs["Position"])
-    lateral_raw = set_pos.outputs["Geometry"]
-
-    # Weld the swept grid's seams (the wrap column, and the start/end seam at a
-    # full turn) so the lateral tube is clean before capping.
-    lateral_weld = nodes.new("GeometryNodeMergeByDistance")
-    links.new(lateral_raw, lateral_weld.inputs["Geometry"])
-    lateral_weld.inputs["Distance"].default_value = _WELD_DISTANCE
-    lateral = lateral_weld.outputs["Geometry"]
-
-    # 4. End caps: only for a *filled* profile swept a *partial* turn.
+    # Caps are added only for a *filled* profile swept a *partial* turn: a full
+    # turn closes on itself, and an unfilled profile stays an open shell.
     face_count = nodes.new("GeometryNodeAttributeDomainSize")
     face_count.component = "MESH"
     links.new(gi.outputs["Geometry"], face_count.inputs["Geometry"])
@@ -388,63 +380,46 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     fa, fb = (s for s in filled.inputs if s.enabled and s.type == "INT")
     fb.default_value = 0
     links.new(face_count.outputs["Face Count"], fa)
-
-    # Partial turn: |Angle| < tau (with a small margin so a full turn reads as
-    # closed and gets no caps).
     partial = nodes.new("FunctionNodeCompare")
     partial.data_type = "FLOAT"
     partial.operation = "LESS_THAN"
     pa, pb = (s for s in partial.inputs if s.enabled and s.type == "VALUE")
     pb.default_value = math.tau - 1e-4
     links.new(abs_angle, pa)
-
-    # Caps fill the (canonicalized) boundary loop the lateral is swept from, so
-    # they weld exactly onto the tube's open ends. With the loop winding
-    # deterministic, the end cap keeps the fill winding and the start cap (at
-    # angle 0) is flipped, so the two caps wind oppositely and stay coherent with
-    # the lateral for every profile shape. They close a *partial* turn (a full
-    # turn already closes on itself).
-    cap_fill = nodes.new("GeometryNodeFillCurve")
-    links.new(profile_curve, cap_fill.inputs["Curve"])
-    cap_mesh = cap_fill.outputs["Mesh"]
-
-    start_flip = nodes.new("GeometryNodeFlipFaces")
-    links.new(cap_mesh, start_flip.inputs["Mesh"])
-
-    end_position = nodes.new("GeometryNodeInputPosition")
-    end_rot = _rotate_about_axis(
-        nodes, links, gi, end_position.outputs["Position"], gi.outputs["Angle"]
-    )
-    end_moved = nodes.new("GeometryNodeSetPosition")
-    links.new(cap_mesh, end_moved.inputs["Geometry"])
-    links.new(end_rot, end_moved.inputs["Position"])
-
-    caps = nodes.new("GeometryNodeJoinGeometry")
-    links.new(start_flip.outputs["Mesh"], caps.inputs["Geometry"])
-    links.new(end_moved.outputs["Geometry"], caps.inputs["Geometry"])
-
+    cap_needed = nodes.new("FunctionNodeBooleanMath")
+    cap_needed.operation = "AND"
+    links.new(filled.outputs["Result"], cap_needed.inputs[0])
+    links.new(partial.outputs["Result"], cap_needed.inputs[1])
     caps_switch = nodes.new("GeometryNodeSwitch")
     caps_switch.input_type = "GEOMETRY"
-    links.new(partial.outputs["Result"], caps_switch.inputs["Switch"])
+    links.new(cap_needed.outputs["Boolean"], caps_switch.inputs["Switch"])
     links.new(caps.outputs["Geometry"], caps_switch.inputs["True"])
 
-    # 5. A closed version (tube + caps) serves as the filled output *and* as the
-    #    reference for deciding orientation. The unfilled output is the bare tube.
-    closed_join = nodes.new("GeometryNodeJoinGeometry")
-    links.new(lateral, closed_join.inputs["Geometry"])
-    links.new(caps_switch.outputs["Output"], closed_join.inputs["Geometry"])
-    closed_weld = nodes.new("GeometryNodeMergeByDistance")
-    links.new(closed_join.outputs["Geometry"], closed_weld.inputs["Geometry"])
-    closed_weld.inputs["Distance"].default_value = _WELD_DISTANCE
-    closed = closed_weld.outputs["Geometry"]
+    # The output geometry: lateral plus whatever caps apply, welded. The seed cap
+    # was stripped, so the lateral's start ring welds onto the start cap, and a
+    # full turn welds its start/end seam closed.
+    out_join = nodes.new("GeometryNodeJoinGeometry")
+    links.new(lateral, out_join.inputs["Geometry"])
+    links.new(caps_switch.outputs["Output"], out_join.inputs["Geometry"])
+    out_weld = nodes.new("GeometryNodeMergeByDistance")
+    links.new(out_join.outputs["Geometry"], out_weld.inputs["Geometry"])
+    out_weld.inputs["Distance"].default_value = _WELD_DISTANCE
+    result = out_weld.outputs["Geometry"]
 
     # 6. Consistent outward normals for BOTH fill states and BOTH angle signs.
-    #    After canonicalization the coherent orientation still faces out or in
-    #    depending on the profile and the sign of the sweep angle. Decide from the
-    #    *closed* solid's signed volume (divergence theorem: sum over faces of
-    #    dot(centroid, normal) * area) and flip when it is inside-out. The same
-    #    decision drives the open shell, so an unfilled revolve keeps a consistent
-    #    orientation regardless of angle direction too.
+    #    Extrusion makes the surface coherent, but whether it faces out or in still
+    #    depends on the profile and the sign of the sweep angle. Decide from an
+    #    always-closed reference (lateral + both caps) via its signed volume
+    #    (divergence theorem: sum over faces of dot(centroid, normal) * area) and
+    #    flip the actual result when it is inside-out. The same decision drives the
+    #    open shell, so an unfilled revolve stays consistent regardless of sign.
+    ref_join = nodes.new("GeometryNodeJoinGeometry")
+    links.new(lateral, ref_join.inputs["Geometry"])
+    links.new(caps.outputs["Geometry"], ref_join.inputs["Geometry"])
+    ref_weld = nodes.new("GeometryNodeMergeByDistance")
+    links.new(ref_join.outputs["Geometry"], ref_weld.inputs["Geometry"])
+    ref_weld.inputs["Distance"].default_value = _WELD_DISTANCE
+
     position = nodes.new("GeometryNodeInputPosition")
     normal = nodes.new("GeometryNodeInputNormal")
     face_area = nodes.new("GeometryNodeInputMeshFaceArea")
@@ -458,9 +433,8 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     volume = nodes.new("GeometryNodeAttributeStatistic")
     volume.data_type = "FLOAT"
     volume.domain = "FACE"
-    links.new(closed, volume.inputs["Geometry"])
+    links.new(ref_weld.outputs["Geometry"], volume.inputs["Geometry"])
     links.new(term, volume.inputs["Attribute"])
-
     inside_out = nodes.new("FunctionNodeCompare")
     inside_out.data_type = "FLOAT"
     inside_out.operation = "LESS_THAN"
@@ -468,20 +442,12 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     vb.default_value = 0.0
     links.new(volume.outputs["Sum"], va)
 
-    # Filled -> the closed solid; unfilled -> the open tube. Both take the flip.
-    output_geo = nodes.new("GeometryNodeSwitch")
-    output_geo.input_type = "GEOMETRY"
-    links.new(filled.outputs["Result"], output_geo.inputs["Switch"])
-    links.new(lateral, output_geo.inputs["False"])
-    links.new(closed, output_geo.inputs["True"])
-
     flipped = nodes.new("GeometryNodeFlipFaces")
-    links.new(output_geo.outputs["Output"], flipped.inputs["Mesh"])
-
+    links.new(result, flipped.inputs["Mesh"])
     orient = nodes.new("GeometryNodeSwitch")
     orient.input_type = "GEOMETRY"
     links.new(inside_out.outputs["Result"], orient.inputs["Switch"])
-    links.new(output_geo.outputs["Output"], orient.inputs["False"])
+    links.new(result, orient.inputs["False"])
     links.new(flipped.outputs["Mesh"], orient.inputs["True"])
     links.new(orient.outputs["Output"], go.inputs["Geometry"])
 
