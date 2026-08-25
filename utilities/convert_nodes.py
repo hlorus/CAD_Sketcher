@@ -23,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 19
+CONVERT_VERSION = 20
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -349,6 +349,14 @@ def build_convert_node_group(
     links.new(pre_fill, to_curve.inputs["Mesh"])
 
     fill_curve = nodes.new("GeometryNodeFillCurve")
+    # Fill as a single n-gon per loop; the default 'Triangles' mode fans a quad
+    # into two triangles, leaving a spurious diagonal edge (a rectangle would
+    # convert to 5 edges instead of 4). The mode is a 5.x menu socket, not a
+    # node property -- guard so an older/renamed build simply falls back.
+    try:
+        fill_curve.inputs["Mode"].default_value = "N-gons"
+    except Exception:
+        pass
     links.new(to_curve.outputs["Curve"], fill_curve.inputs["Curve"])
     # Fill Curve drops named attributes; re-establish them on the filled mesh from
     # the pre-fill welded mesh by nearest element (POINT and per-segment EDGE).
