@@ -251,10 +251,42 @@ def set_attribute_value(sketch, name, value, curve_id=None):
             attr.data[curve_index].value = value
         else:
             curve = curve_data.curves[curve_index]
-            for point in curve.points:
-                attr.data[point.index].value = value
+            point_indices = [point.index for point in curve.points]
+            for index in point_indices:
+                attr.data[index].value = value
+            _propagate_point_value(sketch, name, value, point_indices)
 
     curve_data.update_tag()
+
+
+def _propagate_point_value(sketch, name, value, point_indices):
+    """Write a POINT value onto every native point welded to the same vertex.
+
+    A sketch vertex is stored as several coincident native points: a standalone
+    point entity plus the endpoint of each segment meeting there. Conversion
+    welds them by ``merge_id`` and, before meshing, deletes the point entity's
+    degenerate one-point spline. A value written to only the authored point is
+    therefore either dropped with that spline or diluted by the other points'
+    defaults when Merge Points averages the welded corner. Broadcasting it to the
+    whole weld group makes the surviving segment endpoints carry it too, so the
+    welded vertex keeps the value exactly.
+    """
+    from .curve_data import compute_merge_ids
+
+    compute_merge_ids(sketch)
+    curve_data = sketch.data
+    attr = curve_data.attributes.get(name)
+    merge_id = curve_data.attributes.get("merge_id")
+    if attr is None or merge_id is None:
+        return
+
+    # id 0 means "no weld" (interior/unreferenced points); never broadcast on it.
+    groups = {merge_id.data[i].value for i in point_indices} - {0}
+    if not groups:
+        return
+    for i in range(len(merge_id.data)):
+        if merge_id.data[i].value in groups:
+            attr.data[i].value = value
 
 
 def get_attribute_value(sketch, name, curve_id=None):

@@ -228,14 +228,13 @@ class TestCustomAttributes(Sketch2dTestCase):
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "fill bridge requires 5.2+")
     def test_filled_conversion_preserves_point_and_segment_values(self):
         """Acceptance: with fill ON, both POINT and per-segment CURVE values reach
-        the generated faces.
+        the generated faces exactly.
 
         Per-segment CURVE values stay exact (captured onto EDGE before the weld,
-        never averaged). POINT values instead blend at a welded corner shared by
-        entities with differing values -- Merge Points averages POINT attributes,
-        so a corner between a value-7 and a value-0 entity becomes 3.5. That blend
-        is the documented behavior; discrete data belongs on CURVE attributes,
-        which are preserved exactly.
+        never averaged). A POINT value written to an entity is broadcast across
+        its weld group, so every coincident native point at a shared corner
+        carries it and the welded vertex keeps it exactly -- no averaging with a
+        neighbour's default.
 
         The coverage the fill path lacked -- the prior evaluated-output test only
         checked values on the fill-off wire branch, so the fill regression (every
@@ -264,15 +263,43 @@ class TestCustomAttributes(Sketch2dTestCase):
                 self.assertIn(expected, seg_values, "segment value lost through fill")
             # Nearest sampling reads exact per-segment values, never averages.
             self.assertTrue(seg_values.isdisjoint({15, 25, 35}))
-            # POINT values reach the faces; at line[0]'s two corners the value-7
-            # ends blend with the adjacent value-0 ends into the weld average.
-            pt_values = [round(item.value, 3) for item in pt.data]
+            # line[0]'s two corners carry the broadcast value exactly; the weld
+            # never averages it toward a neighbour's default (no 3.5).
+            pt_values = {round(item.value, 3) for item in pt.data}
+            self.assertIn(7.0, pt_values, "point value lost through fill")
             self.assertTrue(
-                any(0.0 < v < 7.0 for v in pt_values),
-                "point value lost through fill (dropped to default)",
+                pt_values.isdisjoint({3.5}), "point value must not be averaged"
             )
         finally:
             self._remove_converted(converted)
+
+    @unittest.skipIf(bpy.app.version < (5, 2, 0), "fill bridge requires 5.2+")
+    def test_point_entity_value_survives_conversion(self):
+        """A POINT value set on a point entity (the usual GUI action) reaches the
+        converted mesh instead of vanishing with the deleted point spline.
+
+        The point entity is a degenerate one-point spline the converter drops
+        before meshing, and it welds onto the coincident segment corner. Without
+        weld-group broadcast the authored value is lost (corner reads default);
+        with it the surviving corner carries the value.
+        """
+        points, lines = self._square()
+        define_attribute(self.sketch, "pt_tag", "FLOAT", "POINT", 0.0)
+        set_attribute_value(self.sketch, "pt_tag", 7.0, points[0].curve_id)
+
+        source = self.sketch.target_object
+        for fill in (False, True):
+            converted = None
+            try:
+                converted = self._convert_copy(source, fill=fill)
+                pt = converted.data.attributes.get("pt_tag")
+                self.assertIsNotNone(pt)
+                values = {round(item.value, 3) for item in pt.data}
+                self.assertIn(
+                    7.0, values, f"point-entity value lost (fill={fill})"
+                )
+            finally:
+                self._remove_converted(converted)
 
     @unittest.skipIf(bpy.app.version < (5, 2, 0), "shared converter requires 5.2+")
     def test_attribute_schema_changes_keep_shared_convert_group(self):
