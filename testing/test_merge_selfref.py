@@ -93,6 +93,60 @@ class TestMergeSelfReferential(Sketch2dTestCase):
 
         self.assertEqual(len(self._coincident()), 1)
 
+    def test_merge_online_point_onto_line_endpoint(self):
+        """Merging a point that's coincident on a line onto that line's endpoint
+        leaves the point structurally on the curve -- the coincident is redundant."""
+        sk = self.sketch
+        a = self.add_point((0, 0))
+        b = self.add_point((5, 0))  # line's end endpoint
+        line = self.add_line(a, b)
+        online = self.add_point((2, 0.02))
+        sk.constraints.add_coincident(
+            curve_id_1=online.curve_id, curve_id_2=line.curve_id
+        )
+
+        merge_points(self.context, online, b)  # keep the endpoint
+        self.solve()
+
+        self.assertEqual(self._coincident(), [], "point-on-own-curve not removed")
+        self.assertNotEqual(sk.solver_state, "REDUNDANT_OK")
+
+    def test_merge_line_endpoint_onto_online_point(self):
+        """Same redundancy in the other merge direction (endpoint is the duplicate)."""
+        sk = self.sketch
+        a = self.add_point((0, 0))
+        b = self.add_point((5, 0))
+        line = self.add_line(a, b)
+        online = self.add_point((2, 0.02))
+        sk.constraints.add_coincident(
+            curve_id_1=online.curve_id, curve_id_2=line.curve_id
+        )
+
+        merge_points(self.context, b, online)  # keep the on-line point
+        self.solve()
+
+        self.assertEqual(self._coincident(), [])
+        self.assertNotEqual(sk.solver_state, "REDUNDANT_OK")
+
+    def test_interior_point_on_line_is_preserved(self):
+        """A point coincident on a line but NOT one of its endpoints stays."""
+        sk = self.sketch
+        a = self.add_point((0, 0))
+        b = self.add_point((5, 0))
+        line = self.add_line(a, b)
+        p1 = self.add_point((2, 0.02))
+        p2 = self.add_point((3, -0.02))
+        sk.constraints.add_coincident(curve_id_1=p1.curve_id, curve_id_2=line.curve_id)
+        sk.constraints.add_coincident(curve_id_1=p2.curve_id, curve_id_2=line.curve_id)
+
+        # Merge two interior on-line points: result is one interior coincident.
+        merge_points(self.context, p1, p2)
+        self.solve()
+
+        remaining = self._coincident()
+        self.assertEqual(len(remaining), 1, "interior point-on-line must survive")
+        self.assertEqual(remaining[0].curve_id_2, line.curve_id)
+
     def test_solver_reports_no_redundancy_after_merge(self):
         """The failed/redundant state the bug produced is gone once merged."""
         sk = self.sketch

@@ -50,14 +50,17 @@ def merge_points(context, duplicate, target):
         if getattr(c, "curve_id_3", 0) == dup_cid:
             c.curve_id_3 = tgt_cid
 
-    # The remap can leave two kinds of redundant constraint behind, both of which
+    # The remap can leave three kinds of redundant constraint behind, all of which
     # the solver reports as failed/redundant:
     #  - self-referential: a coincident joining the two merged points now points
     #    target->target (a point coincident with itself);
     #  - duplicate: two points each constrained to the same third entity (another
-    #    point, a line, a circle...) collapse to identical constraints.
+    #    point, a line, a circle...) collapse to identical constraints;
+    #  - point-on-own-curve: a coincident that put a point onto a curve now targets
+    #    that curve's own endpoint (e.g. merging an on-line point onto the line's
+    #    end), so the point lies on the curve by construction.
     # Drop them so the merge leaves a clean, solvable sketch.
-    _remove_redundant_constraints(sketch.constraints)
+    _remove_redundant_constraints(sketch, sketch.constraints)
 
     # Remove duplicate
     duplicate.remove()
@@ -73,8 +76,35 @@ def _constraint_operands(c):
     return frozenset(i for i in ids if i)
 
 
-def _remove_redundant_constraints(constraints):
-    """Drop self-referential and duplicate constraints left by a merge remap.
+def _point_is_structural_end(sketch, point_id, curve_id):
+    """True if ``point_id`` is a start/end/center point of curve ``curve_id``."""
+    from ..utilities.curve_data import get_curve_data, get_uuid, has_uuid_field
+
+    if not point_id or not curve_id or point_id == curve_id:
+        return False
+    cd, idx, _ = get_curve_data(sketch, curve_id)
+    if cd is None:
+        return False
+    for field in ("start_point_id", "end_point_id", "center_point_id"):
+        if has_uuid_field(cd, field) and get_uuid(cd, field, idx) == point_id:
+            return True
+    return False
+
+
+def _is_redundant_point_on_curve(sketch, c):
+    """A coincident whose point operand is already a structural end of its curve."""
+    if c.type != "COINCIDENT":
+        return False
+    id1 = getattr(c, "curve_id_1", "")
+    id2 = getattr(c, "curve_id_2", "")
+    return _point_is_structural_end(sketch, id1, id2) or _point_is_structural_end(
+        sketch, id2, id1
+    )
+
+
+def _remove_redundant_constraints(sketch, constraints):
+    """Drop self-referential, duplicate and point-on-own-curve constraints left by
+    a merge remap.
 
     Removes one constraint per pass and rescans, so a held reference is never used
     across a collection mutation (which would invalidate it)."""
@@ -85,6 +115,9 @@ def _remove_redundant_constraints(constraints):
             id1 = getattr(c, "curve_id_1", "")
             if id1 and id1 == getattr(c, "curve_id_2", ""):
                 victim = c  # self-referential
+                break
+            if _is_redundant_point_on_curve(sketch, c):
+                victim = c  # point already lies on the curve by construction
                 break
             key = (c.type, _constraint_operands(c))
             if key in seen:
