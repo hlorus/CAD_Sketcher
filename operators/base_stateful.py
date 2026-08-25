@@ -93,13 +93,16 @@ class GenericEntityOp(StatefulOperator):
         from ..curve_solver import solve_system
 
         constraint = add(**kwargs)
-        solve_system(context, sketch=self.sketch)
+        # Validate without committing: solve to read the resulting state but do
+        # not write solved positions back, so drawing never drags existing
+        # geometry. The scene is updated only by the committing solve in fini.
+        solve_system(context, sketch=self.sketch, write=False)
         if self.sketch.solver_state == "OKAY":
             return constraint
 
         self.sketch.constraints.remove(constraint)
-        # Restore the valid solver state after the rejected trial constraint.
-        solve_system(context, sketch=self.sketch)
+        # Reset solver state after the rejected trial (still without writing).
+        solve_system(context, sketch=self.sketch, write=False)
         return None
 
     def pick_element(self, context, coords):

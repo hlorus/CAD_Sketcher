@@ -151,3 +151,30 @@ class TestAutoConstraints(Sketch2dTestCase):
 
         self.assertIsNone(state_data.get("coincident"))
         self.assertEqual(len(list(sc.coincident)), 0)
+
+    def test_valid_auto_constraint_is_kept_without_moving_geometry(self):
+        # Regression: the validation solve must not write solved positions, or
+        # existing geometry visibly shifts while drawing. The auto-horizontal here
+        # is valid (it solves and removes a dof), but adding it must leave the
+        # point where it was placed; only a committing solve (fini) may move it.
+        sc = self.sketch.constraints
+        p0 = self.add_point((0.0, 0.0), fixed=True)
+        p1 = self.add_point((3.0, 0.2))  # placed slightly off horizontal
+        line = self.add_line(p0, p1)
+
+        op = self._op({})
+        self.context.scene.sketcher.auto_axis_constraints = True
+        result = op.add_auto_constraint(
+            self.context, sc.add_horizontal, curve_id_1=line.curve_id
+        )
+
+        # Kept (it solves and constrains) and the solver reports OKAY ...
+        self.assertIsNotNone(result)
+        self.assertEqual(self.sketch.solver_state, "OKAY")
+        self.assertEqual(len(list(sc.horizontal)), 1)
+        # ... but the validation solve must not have moved the point.
+        self.assertAlmostEqual(p1.co.y, 0.2)
+
+        # A committing solve does apply it, proving the constraint is real.
+        self.assertTrue(self.sketch.solve(self.context))
+        self.assertAlmostEqual(p1.co.y, 0.0)
