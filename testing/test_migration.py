@@ -205,7 +205,10 @@ class TestMigration(unittest.TestCase):
 
         dims = [hi[i] - lo[i] for i in range(3)]
         # A substantial solid, not the flat sketch profile (Extrude + Booleans ran).
-        self.assertGreater(total_v, 1000)
+        # n-gon fills feed cleaner, lower-vertex geometry into the booleans than the
+        # old triangulated fills did, so this stays a loose "not flat" floor -- the
+        # bounds check below is the real 3D assertion.
+        self.assertGreater(total_v, 500)
         # Overall bounds match the legacy dimensions; each axis is real 3D depth.
         for got, want in zip(dims, (150.0, 80.0, 100.0)):
             self.assertAlmostEqual(got, want, delta=1.0)

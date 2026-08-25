@@ -40,6 +40,7 @@ modules = [
     "move",
     "duplicate",
     "set_curve_flag",
+    "custom_attributes",
     "test",
 ]
 

@@ -256,11 +256,13 @@ def _allocate(sketch):
 
 
 def _ensure_attrs(curve_data, curve_idx=None):
-    """Ensure all standard attributes exist. Optionally init STRING attrs for a curve."""
+    """Ensure standard and user-defined attributes exist for a new curve."""
     from ..utilities.curve_data import ensure_standard_attributes, init_string_attrs
+    from ..utilities.custom_attributes import initialize_curve_defaults
     ensure_standard_attributes(curve_data)
     if curve_idx is not None:
         init_string_attrs(curve_data, curve_idx)
+        initialize_curve_defaults(curve_data, curve_idx)
 
 
 def _invalidate(sketch):
