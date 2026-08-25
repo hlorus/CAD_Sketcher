@@ -321,7 +321,12 @@ def _curve_snap_candidates(
                     0,
                     float(d[i]),
                     Vector((screen[i, 0], screen[i, 1])),
-                    {"type": "VERTEX", "world_point": Vector(world[i])},
+                    {
+                        "type": "VERTEX",
+                        "world_point": Vector(world[i]),
+                        "object": obj.name,
+                        "vertex_index": int(i),
+                    },
                 )
             )
 
@@ -376,6 +381,8 @@ def _curve_snap_candidates(
                                     "type": "EDGE_MIDPOINT",
                                     "world_point": Vector((world[a] + world[b]) * 0.5),
                                     "world_edge": (Vector(world[a]), Vector(world[b])),
+                                    "object": obj.name,
+                                    "edge_vertices": (int(a), int(b)),
                                 },
                             )
                         )
@@ -404,6 +411,8 @@ def _curve_snap_candidates(
                                     "type": "EDGE",
                                     "world_point": world_closest,
                                     "world_edge": (Vector(world[a]), Vector(world[b])),
+                                    "object": obj.name,
+                                    "edge_vertices": (int(a), int(b)),
                                 },
                             )
                         )
