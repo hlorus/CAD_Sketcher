@@ -43,6 +43,14 @@ def _is_identity_group(ng) -> bool:
     return any(n.bl_idname == "GeometryNodeMergePoints" for n in ng.nodes)
 
 
+def _identity_weld_available() -> bool:
+    """Whether the Merge Points node (identity weld) exists (Blender 5.2+).
+
+    Older Blender has no identity weld, so the converter falls back to merging
+    coincident endpoints by distance (see build_convert_node_group)."""
+    return bpy.app.version >= (5, 2, 0)
+
+
 def normalize_attribute_definitions(attribute_definitions):
     """Return stable POINT/CURVE specs used by the shared conversion bridge."""
     specs = []
@@ -335,10 +343,21 @@ def build_convert_node_group(
     links.new(is_end.outputs["Result"], weld.inputs[0])
     links.new(nonzero.outputs["Result"], weld.inputs[1])
 
-    merge = nodes.new("GeometryNodeMergePoints")
-    links.new(wire_mesh, merge.inputs["Geometry"])
-    links.new(merge_id.outputs["Attribute"], merge.inputs["Merge ID"])
-    links.new(weld.outputs["Boolean"], merge.inputs["Selection"])
+    if _identity_weld_available():
+        merge = nodes.new("GeometryNodeMergePoints")
+        links.new(wire_mesh, merge.inputs["Geometry"])
+        links.new(merge_id.outputs["Attribute"], merge.inputs["Merge ID"])
+        links.new(weld.outputs["Boolean"], merge.inputs["Selection"])
+    else:
+        # Blender < 5.2 has no identity weld (Merge Points). Merge the same
+        # selected endpoints by a tiny distance instead: it only collapses points
+        # that already share a position, so it matches the identity weld for the
+        # coincident sketch endpoints in practice. Both nodes output "Geometry",
+        # so the downstream fill/non-fill wiring below is identical.
+        merge = nodes.new("GeometryNodeMergeByDistance")
+        links.new(wire_mesh, merge.inputs["Geometry"])
+        links.new(weld.outputs["Boolean"], merge.inputs["Selection"])
+        merge.inputs["Distance"].default_value = 1e-6
 
     # The welded wire mesh carries POINT values on its vertices and per-segment
     # values on its edges; it feeds the non-fill path directly and is the source
