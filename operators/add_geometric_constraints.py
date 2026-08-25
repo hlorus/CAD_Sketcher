@@ -50,27 +50,50 @@ def merge_points(context, duplicate, target):
         if getattr(c, "curve_id_3", 0) == dup_cid:
             c.curve_id_3 = tgt_cid
 
-    # A constraint that referenced both merged points (e.g. a coincident joining
-    # the two) is now self-referential after the remap. Leaving it behind yields a
-    # redundant/failed constraint, so drop any that collapsed onto a single curve.
-    _remove_self_referential(sketch.constraints)
+    # The remap can leave two kinds of redundant constraint behind, both of which
+    # the solver reports as failed/redundant:
+    #  - self-referential: a coincident joining the two merged points now points
+    #    target->target (a point coincident with itself);
+    #  - duplicate: two points each constrained to the same third entity (another
+    #    point, a line, a circle...) collapse to identical constraints.
+    # Drop them so the merge leaves a clean, solvable sketch.
+    _remove_redundant_constraints(sketch.constraints)
 
     # Remove duplicate
     duplicate.remove()
 
 
-def _remove_self_referential(constraints):
-    """Remove constraints whose two curve references collapsed to the same curve."""
+def _constraint_operands(c):
+    """The non-empty curve references of a constraint, order-insensitive."""
+    ids = (
+        getattr(c, "curve_id_1", ""),
+        getattr(c, "curve_id_2", ""),
+        getattr(c, "curve_id_3", ""),
+    )
+    return frozenset(i for i in ids if i)
+
+
+def _remove_redundant_constraints(constraints):
+    """Drop self-referential and duplicate constraints left by a merge remap.
+
+    Removes one constraint per pass and rescans, so a held reference is never used
+    across a collection mutation (which would invalidate it)."""
     while True:
-        degenerate = None
+        victim = None
+        seen = {}
         for c in constraints.all:
             id1 = getattr(c, "curve_id_1", "")
             if id1 and id1 == getattr(c, "curve_id_2", ""):
-                degenerate = c
+                victim = c  # self-referential
                 break
-        if degenerate is None:
+            key = (c.type, _constraint_operands(c))
+            if key in seen:
+                victim = c  # duplicate of an earlier constraint
+                break
+            seen[key] = c
+        if victim is None:
             return
-        constraints.remove(degenerate)
+        constraints.remove(victim)
 
 
 class VIEW3D_OT_slvs_merge_points(Operator):
