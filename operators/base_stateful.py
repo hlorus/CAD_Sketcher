@@ -76,14 +76,25 @@ class GenericEntityOp(StatefulOperator):
         )
 
     def add_auto_constraint(self, context: Context, add, state_data=None, **kwargs):
-        """Add an inferred constraint only when the resulting sketch solves."""
+        """Add an inferred constraint only if it both solves and constrains.
+
+        A single solve settles it via the sketch's resulting solver state:
+        ``OKAY`` means the constraint is consistent and removed a degree of
+        freedom (keep it); ``REDUNDANT_OK`` means it constrained nothing new, and
+        any other state means it over-constrains. In every non-OKAY case the
+        constraint is removed and the sketch re-solved to restore the prior state.
+
+        This assumes the sketch was consistent before the trial (the common case
+        while drawing); it does not need a baseline solve to compare against.
+        """
         if not self.use_auto_constraints(context, state_data):
             return None
 
-        constraint = add(**kwargs)
         from ..curve_solver import solve_system
 
-        if solve_system(context, sketch=self.sketch):
+        constraint = add(**kwargs)
+        solve_system(context, sketch=self.sketch)
+        if self.sketch.solver_state == "OKAY":
             return constraint
 
         self.sketch.constraints.remove(constraint)
