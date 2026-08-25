@@ -388,7 +388,10 @@ class GenericEntityOp(StatefulOperator):
             if len(curve_data.curves) > 0:
                 curve_data.remove_curves()
             curve_data.add_curves(counts.tolist())
-            curve_data.set_types(type="BEZIER")
+            from ..utilities.curve_data import restore_curve_types
+
+            ct_info = snapshot["attributes"].get("curve_type")
+            restore_curve_types(curve_data, ct_info["data"] if ct_info else None)
 
         curve_data.points.foreach_set("position", snapshot["positions"])
 

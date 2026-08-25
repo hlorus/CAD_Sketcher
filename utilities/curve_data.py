@@ -274,6 +274,11 @@ def ensure_standard_attributes(curve_data):
     ensure_attribute(attributes, "handle_type_right", "INT8", "POINT")
     ensure_attribute(attributes, "handle_left", "FLOAT_VECTOR", "POINT")
     ensure_attribute(attributes, "handle_right", "FLOAT_VECTOR", "POINT")
+    # NURBS geometry (rational circles/arcs): per-point weight and per-curve
+    # order + knot mode. Bezier entities leave these at their defaults.
+    ensure_attribute(attributes, "nurbs_weight", "FLOAT", "POINT")
+    ensure_attribute(attributes, "nurbs_order", "INT8", "CURVE")
+    ensure_attribute(attributes, "knots_mode", "INT8", "CURVE")
     ensure_attribute(attributes, "resolution", "INT", "CURVE")
     ensure_attribute(attributes, "construction", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "fixed", "BOOLEAN", "CURVE")
@@ -290,6 +295,35 @@ def ensure_standard_attributes(curve_data):
         for sub in _uuid_subnames(field):
             ensure_attribute(attributes, sub, "INT32_2D", "CURVE")
     ensure_attribute(attributes, "name", "STRING", "CURVE")
+
+
+# Blender Curves curve_type enum values.
+_CURVE_TYPE_ENUM = {0: "CATMULL_ROM", 1: "POLY", 2: "BEZIER", 3: "NURBS"}
+
+
+def apply_curve_types(curve_data, indices, type_values):
+    """``set_types`` the given absolute curve indices to their per-curve values.
+
+    ``set_types`` with no ``indices`` retypes the whole datablock, which would
+    flatten a mixed sketch (POLY lines, NURBS circles, BEZIER arcs) to one type,
+    so callers scope it to exactly the curves they own.
+    """
+    by_type = {}
+    for idx, value in zip(indices, type_values):
+        by_type.setdefault(int(value), []).append(int(idx))
+    for value, idxs in by_type.items():
+        curve_data.set_types(type=_CURVE_TYPE_ENUM.get(value, "BEZIER"), indices=idxs)
+
+
+def restore_curve_types(curve_data, curve_types):
+    """Re-apply every curve's type after a full-datablock rebuild.
+
+    ``curve_types`` may be ``None`` (a pre-NURBS snapshot) -> default all-BEZIER.
+    """
+    if curve_types is None:
+        curve_data.set_types(type="BEZIER")
+        return
+    apply_curve_types(curve_data, range(len(curve_types)), curve_types)
 
 
 def init_string_attrs(curve_data, curve_idx):
@@ -879,7 +913,7 @@ def rebuild_segments(sketch, point_ids=None):
     from mathutils import Vector
 
     from ..model.constants import SketchCurveType
-    from ..model.curve_ref import _build_arc_bezier
+    from ..model.curve_ref import _build_arc_bezier, _build_circle_nurbs
 
     if not sketch or not sketch.target_object or not sketch.target_object.data:
         return
@@ -969,8 +1003,9 @@ def rebuild_segments(sketch, point_ids=None):
                 continue
             is_cyclic = ctype == SketchCurveType.CIRCLE
             if is_cyclic:
+                # Radius comes from point 0 (the +X edge the solver updated).
                 edge = Vector(cd.points[curve_slice.points[0].index].position[:2])
-                _build_arc_bezier(cd, i, ct_co, edge, edge, is_cyclic=True)
+                _build_circle_nurbs(cd, i, ct_co, (edge - ct_co).length)
             else:
                 s_co = point_co.get(sp_ids[i])
                 e_co = point_co.get(ep_ids[i])
@@ -1041,7 +1076,8 @@ def refresh_curve_geometry(sketch):
 
     curve_data.remove_curves()
     curve_data.add_curves(point_counts.tolist())
-    curve_data.set_types(type="BEZIER")
+    ct_info = saved_attrs.get("curve_type")
+    restore_curve_types(curve_data, ct_info["data"] if ct_info else None)
     ensure_standard_attributes(curve_data)
 
     curve_data.points.foreach_set("position", positions)

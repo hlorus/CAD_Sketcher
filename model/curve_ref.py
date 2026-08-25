@@ -280,6 +280,51 @@ def _invalidate(sketch):
         compute_merge_ids(sketch)
 
 
+# Rational NURBS conic settings. Order 3 (degree 2) with the ENDPOINT_BEZIER knot
+# mode (Blender knots_mode enum value 3) turns each control triple into a rational
+# Bezier span, so weighted conics evaluate exactly at any resolution.
+_NURBS_CONIC_ORDER = 3
+_KNOTS_ENDPOINT_BEZIER = 3
+
+# Periodic 8-point control net for an exact unit circle: on-circle midpoints
+# (weight 1) interleaved with off-circle square corners (weight sqrt(2)/2). Scaled
+# by radius and offset by the centre at build time. Point 0 is the +X on-circle
+# point, matching where the solver writes the radius edge (curve_solver 2nd pass).
+_CIRCLE_NURBS_CONTROL = (
+    ((1.0, 0.0), 1.0),
+    ((1.0, 1.0), math.sqrt(2.0) / 2.0),
+    ((0.0, 1.0), 1.0),
+    ((-1.0, 1.0), math.sqrt(2.0) / 2.0),
+    ((-1.0, 0.0), 1.0),
+    ((-1.0, -1.0), math.sqrt(2.0) / 2.0),
+    ((0.0, -1.0), 1.0),
+    ((1.0, -1.0), math.sqrt(2.0) / 2.0),
+)
+CIRCLE_NURBS_POINTS = len(_CIRCLE_NURBS_CONTROL)
+
+
+def _build_circle_nurbs(curve_data, curve_idx, center, radius):
+    """Write an exact periodic rational-NURBS circle (positions + weights + order).
+
+    The circle must be cyclic (set by the caller); with the periodic control net
+    and ENDPOINT_BEZIER knots this evaluates to a mathematically exact circle.
+    """
+    attrs = curve_data.attributes
+    weight = attrs.get("nurbs_weight")
+    order = attrs.get("nurbs_order")
+    knots = attrs.get("knots_mode")
+    cx, cy = center[0], center[1]
+    curve_slice = curve_data.curves[curve_idx]
+    for pt, ((ox, oy), wt) in zip(curve_slice.points, _CIRCLE_NURBS_CONTROL):
+        curve_data.points[pt.index].position = (cx + ox * radius, cy + oy * radius, 0.0)
+        if weight is not None:
+            weight.data[pt.index].value = wt
+    if order is not None:
+        order.data[curve_idx].value = _NURBS_CONIC_ORDER
+    if knots is not None:
+        knots.data[curve_idx].value = _KNOTS_ENDPOINT_BEZIER
+
+
 def _build_arc_bezier(curve_data, curve_idx, center, start_co, end_co, is_cyclic=False):
     """Compute and set bezier positions + handles for an arc or circle curve."""
     from ..utilities.constants import FULL_TURN, HALF_TURN
@@ -431,9 +476,11 @@ class PointRef(CurveRef):
 
         cid = _allocate(sketch)
         curve_data.add_curves([1])
-        _ensure_attrs(curve_data, len(curve_data.curves) - 1)
-
         curve_idx = len(curve_data.curves) - 1
+        # A standalone point is a single POLY vertex (scoped, like the others).
+        curve_data.set_types(type="POLY", indices=[curve_idx])
+        _ensure_attrs(curve_data, curve_idx)
+
         curve_slice = curve_data.curves[curve_idx]
         curve_slice.points[0].position = (float(co[0]), float(co[1]), 0.0)
 
@@ -519,7 +566,7 @@ class LineRef(CurveRef):
         Returns:
             LineRef for the new curve.
         """
-        from ..model.constants import BezierHandleType, SketchCurveType
+        from ..model.constants import SketchCurveType
         from ..utilities.curve_data import default_curve_name, set_attribute
 
         curve_data = _ensure_curve_data(sketch)
@@ -528,31 +575,23 @@ class LineRef(CurveRef):
 
         cid = _allocate(sketch)
         curve_data.add_curves([2])
-        curve_data.set_types(type="BEZIER")
-        _ensure_attrs(curve_data, len(curve_data.curves) - 1)
-
         curve_idx = len(curve_data.curves) - 1
-        curve_slice = curve_data.curves[curve_idx]
+        # A line is a straight two-point POLY curve: no handles, a single edge, and
+        # its mesh vertices match the sketch endpoints exactly. Scope the type so
+        # other NURBS/BEZIER curves in the datablock are untouched.
+        curve_data.set_types(type="POLY", indices=[curve_idx])
+        _ensure_attrs(curve_data, curve_idx)
 
+        curve_slice = curve_data.curves[curve_idx]
         p1_co = p1.co if isinstance(p1, CurveRef) else p1
         p2_co = p2.co if isinstance(p2, CurveRef) else p2
         curve_slice.points[0].position = (float(p1_co[0]), float(p1_co[1]), 0.0)
         curve_slice.points[1].position = (float(p2_co[0]), float(p2_co[1]), 0.0)
 
         attrs = curve_data.attributes
-        for pt in curve_slice.points:
-            pos = curve_data.points[pt.index].position
-            attrs["handle_left"].data[pt.index].vector = pos
-            attrs["handle_right"].data[pt.index].vector = pos
-            attrs["handle_type_left"].data[pt.index].value = BezierHandleType.FREE
-            attrs["handle_type_right"].data[pt.index].value = BezierHandleType.FREE
-
         set_attribute(attrs, "curve_id", cid, curve_idx)
         set_attribute(attrs, "sketch_type", SketchCurveType.LINE, curve_idx)
-        # A line is a straight two-point Bezier; evaluating it at the Bezier
-        # default resolution (12) tessellates it into 12 collinear segments for no
-        # benefit. Keep it a single segment so the generated mesh matches the
-        # sketch's own vertices (arcs/circles keep their curved resolution).
+        # POLY isn't tessellated, so resolution is moot; keep 1 for consistency.
         set_attribute(attrs, "resolution", 1, curve_idx)
         set_attribute(attrs, "start_point_id",
                       p1.curve_id if isinstance(p1, CurveRef) else "", curve_idx)
@@ -679,10 +718,11 @@ class ArcRef(CurveRef):
 
         cid = _allocate(sketch)
         curve_data.add_curves([n_points])
-        curve_data.set_types(type="BEZIER")
-        _ensure_attrs(curve_data, len(curve_data.curves) - 1)
-
         curve_idx = len(curve_data.curves) - 1
+        # Scope the type so existing POLY lines / NURBS circles keep theirs.
+        curve_data.set_types(type="BEZIER", indices=[curve_idx])
+        _ensure_attrs(curve_data, curve_idx)
+
         curve_slice = curve_data.curves[curve_idx]
 
         attrs = curve_data.attributes
@@ -765,28 +805,21 @@ class CircleRef(CurveRef):
         Returns:
             CircleRef for the new curve.
         """
-        from ..model.constants import BezierHandleType, SketchCurveType
+        from ..model.constants import SketchCurveType
         from ..utilities.curve_data import default_curve_name, set_attribute
 
         curve_data = _ensure_curve_data(sketch)
         if curve_data is None:
             return None
 
-        n_points = 4  # 4-segment bezier circle
-
         cid = _allocate(sketch)
-        curve_data.add_curves([n_points])
-        curve_data.set_types(type="BEZIER")
-        _ensure_attrs(curve_data, len(curve_data.curves) - 1)
-
+        curve_data.add_curves([CIRCLE_NURBS_POINTS])
         curve_idx = len(curve_data.curves) - 1
-        curve_slice = curve_data.curves[curve_idx]
+        # Scope the type to just this curve so other POLY/BEZIER curves are untouched.
+        curve_data.set_types(type="NURBS", indices=[curve_idx])
+        _ensure_attrs(curve_data, curve_idx)
 
         attrs = curve_data.attributes
-        for pt in curve_slice.points:
-            attrs["handle_type_left"].data[pt.index].value = BezierHandleType.FREE
-            attrs["handle_type_right"].data[pt.index].value = BezierHandleType.FREE
-
         set_attribute(attrs, "curve_id", cid, curve_idx)
         set_attribute(attrs, "sketch_type", SketchCurveType.CIRCLE, curve_idx)
         set_attribute(attrs, "center_point_id", ct.curve_id, curve_idx)
@@ -798,10 +831,7 @@ class CircleRef(CurveRef):
                       name or default_curve_name(curve_data, SketchCurveType.CIRCLE),
                       curve_idx)
 
-        # Compute bezier geometry — use start point at (center.x + radius, center.y)
-        center = ct.co
-        start_co = Vector((center.x + radius, center.y))
-        _build_arc_bezier(curve_data, curve_idx, center, start_co, start_co, is_cyclic=True)
+        _build_circle_nurbs(curve_data, curve_idx, ct.co, radius)
 
         _invalidate(sketch)
         curve_data.update_tag()

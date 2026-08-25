@@ -218,6 +218,7 @@ class View3D_OT_slvs_paste(Operator):
 
         from ..utilities.curve_data import (
             _allocate_curve_id,
+            apply_curve_types,
             ensure_sketch_curve_object,
             ensure_standard_attributes,
             set_attribute,
@@ -237,7 +238,13 @@ class View3D_OT_slvs_paste(Operator):
         selection.selected.clear()
         base_idx = len(curve_data.curves)
         curve_data.add_curves([snap["n_points"] for snap in curves])
-        curve_data.set_types(type="BEZIER")
+        # Type only the pasted curves (scoped, so existing POLY/NURBS curves keep
+        # their type) from each snapshot's curve_type; default BEZIER if absent.
+        apply_curve_types(
+            curve_data,
+            range(base_idx, base_idx + len(curves)),
+            [snap["curve_attrs"].get("curve_type", 2) for snap in curves],
+        )
         ensure_standard_attributes(curve_data)
 
         for offset, snap in enumerate(curves):
