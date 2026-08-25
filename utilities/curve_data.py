@@ -772,14 +772,19 @@ def compute_merge_ids(sketch):
     # id), so read the raw id tuples and skip the per-curve hex formatting.
     sp_ids = read_uuid_raw_list(cd, "start_point_id")
     ep_ids = read_uuid_raw_list(cd, "end_point_id")
+    # A standalone point entity's own curve_id is the id that segments reference
+    # through start/end_point_id, so it joins the same junction and welds onto the
+    # shared corner instead of sitting as a duplicate vertex.
+    curve_ids = read_uuid_raw_list(cd, "curve_id")
 
     ids = np.zeros(n_points, dtype=np.int32)
     dense = {}
 
     def junction(u):
-        # 1-based so 0 stays the "no weld" default for interior/point/circle.
+        # 1-based so 0 stays the "no weld" default for interior/circle vertices.
         return dense.setdefault(u, len(dense) + 1)
 
+    # First, junctions from the segments' referenced endpoints.
     for i in range(len(cd.curves)):
         t = type_attr.data[i].value
         if t not in (SketchCurveType.LINE, SketchCurveType.ARC):
@@ -792,6 +797,19 @@ def compute_merge_ids(sketch):
             ids[cv.points[0].index] = junction(sp_ids[i])
         if any(ep_ids[i]):
             ids[cv.points[npt - 1].index] = junction(ep_ids[i])
+
+    # Then weld each standalone point entity onto its coincident corner -- but
+    # only when a segment actually references it. A lone point or an arc/circle
+    # center that no segment endpoint uses stays 0 (never welded).
+    for i in range(len(cd.curves)):
+        if type_attr.data[i].value != SketchCurveType.POINT:
+            continue
+        cv = cd.curves[i]
+        if cv.points_length < 1:
+            continue
+        jid = dense.get(curve_ids[i])
+        if jid is not None:
+            ids[cv.points[0].index] = jid
 
     attr = cd.attributes.get("merge_id")
     if attr is None:
