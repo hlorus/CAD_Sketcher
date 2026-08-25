@@ -275,6 +275,9 @@ def _translate_solidify(mod, old_mesh, obj):
     ng = _load_node_group("CAD Sketcher Extrude")
     if ng is None:
         return False
+    from .extrude_nodes import ensure_extrude_edge_walls
+
+    ensure_extrude_edge_walls(ng)
     m = obj.modifiers.new("CAD_Sketcher Extrude", "NODES")
     m.node_group = ng
     set_modifier_input(m, "Input_2", float(mod.thickness))  # Size

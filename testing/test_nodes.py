@@ -348,6 +348,29 @@ class TestNodeTools(BgsTestCase):
         z1 = self._extent(self._eval_mesh(ob), "z")
         self.assertGreater(z1, z0 + 0.5)
 
+    def test_extrude_unfilled_wire_becomes_walls(self):
+        # A non-filled profile converts to a face-less wire; the extrude tool must
+        # extrude its edges into open walls with real thickness instead of doing
+        # nothing (the face-only asset silently produced no geometry before).
+        from ..utilities.extrude_nodes import ensure_extrude_edge_walls
+
+        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", EXTRUDE))
+        ensure_extrude_edge_walls(bpy.data.node_groups.get(EXTRUDE))
+
+        me = bpy.data.meshes.new("wire")
+        me.from_pydata(
+            [(0, 0, 0), (2, 0, 0), (2, 2, 0), (0, 2, 0)],
+            [(0, 1), (1, 2), (2, 3), (3, 0)],
+            [],
+        )
+        me.update()
+        ob = self._link("wire", me)
+        mod = self._add_node_mod(ob, EXTRUDE)
+        set_modifier_input(mod, "Input_2", 1.5)  # Size
+        out = self._eval_mesh(ob)
+        self.assertGreater(len(out.polygons), 0, "no walls created from wire")
+        self.assertAlmostEqual(self._extent(out, "z"), 1.5, delta=0.01)
+
     def test_array_multiplies_geometry(self):
         self.assertTrue(am.load_asset(LIB_NAME, "node_groups", ARRAY))
         ob = self._cube()
