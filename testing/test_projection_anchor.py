@@ -7,9 +7,14 @@ from ..utilities.projection_anchor import (
     PROJECT_VERTEX_ID_ATTR,
     PROJECT_VERTEX_INDEX_ATTR,
     VERTEX_ID_ATTR,
+    find_projected_point,
     project_curves_object,
+    project_mesh_edge,
+    project_mesh_element,
     project_mesh_object,
+    project_mesh_vertex,
     refresh_projection_for_sketch,
+    resolve_source_vertex_index,
 )
 from .utils import Sketch2dTestCase
 
@@ -26,6 +31,82 @@ class TestProjectionAnchor(Sketch2dTestCase):
         obj = self.data.objects.new("ProjectionSource", mesh)
         self.scene.collection.objects.link(obj)
         return obj
+
+    def _quad_object(self):
+        mesh = self.data.meshes.new("ProjectionQuadMesh")
+        mesh.from_pydata(
+            [(0.0, 0.0, 1.0), (2.0, 0.0, 1.0), (2.0, 2.0, 1.0), (0.0, 2.0, 1.0)],
+            [],
+            [(0, 1, 2, 3)],
+        )
+        mesh.update()
+        obj = self.data.objects.new("ProjectionQuad", mesh)
+        self.scene.collection.objects.link(obj)
+        return obj
+
+    def _count_curves(self):
+        return len(self.sketch.data.curves)
+
+    def test_project_single_edge_element(self):
+        source = self._mesh_object()
+        n_points, n_lines = project_mesh_element(self.sketch, source, "EDGE", 0)
+
+        # Edge 0 links verts 0 and 1: two new points plus one connecting line.
+        self.assertEqual((n_points, n_lines), (2, 1))
+        # Both endpoints are live-bound and their line rides on them.
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 0))
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 1))
+        self.assertIsNone(find_projected_point(self.sketch, source, 2))
+
+        # A second, adjacent edge reuses the shared vertex 1: only one new point.
+        n_points, n_lines = project_mesh_element(self.sketch, source, "EDGE", 1)
+        self.assertEqual((n_points, n_lines), (1, 1))
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 2))
+
+    def test_reprojecting_same_edge_adds_no_duplicate_line(self):
+        source = self._mesh_object()
+        first = project_mesh_element(self.sketch, source, "EDGE", 0)
+        curves = len(self.sketch.data.curves)
+
+        # Re-picking the exact same edge reuses both points and the line, so
+        # nothing new is created (the points already deduped, now the line too).
+        again = project_mesh_element(self.sketch, source, "EDGE", 0)
+        self.assertEqual(first, (2, 1))
+        self.assertEqual(again, (0, 0))
+        self.assertEqual(len(self.sketch.data.curves), curves)
+
+    def test_perpendicular_edge_creates_no_zero_length_line(self):
+        # An edge going straight through the sketch plane (e.g. a cube side face
+        # projected edge-on) collapses both endpoints to one 2D spot. No line.
+        mesh = self.data.meshes.new("PerpSource")
+        mesh.from_pydata([(1.0, 1.0, 0.0), (1.0, 1.0, 2.0)], [(0, 1)], [])
+        mesh.update()
+        source = self.data.objects.new("PerpSource", mesh)
+        self.scene.collection.objects.link(source)
+
+        n_points, n_lines = project_mesh_element(self.sketch, source, "EDGE", 0)
+        self.assertEqual(n_lines, 0)
+
+    def test_project_single_vertex_element(self):
+        source = self._mesh_object()
+        n_points, n_lines = project_mesh_element(self.sketch, source, "VERTEX", 2)
+        self.assertEqual((n_points, n_lines), (1, 0))
+        point = find_projected_point(self.sketch, source, 2)
+        self.assertIsNotNone(point)
+        self.assertTrue(point.fixed)
+        # Re-picking the same vertex must not stack a duplicate point.
+        again = project_mesh_element(self.sketch, source, "VERTEX", 2)
+        self.assertEqual(again, (0, 0))
+
+    def test_project_face_outline_shares_corners(self):
+        source = self._quad_object()
+        n_points, n_lines = project_mesh_element(self.sketch, source, "FACE", 0)
+        # A quad face: four shared corner points and four boundary lines.
+        self.assertEqual((n_points, n_lines), (4, 4))
+        for v in range(4):
+            self.assertIsNotNone(find_projected_point(self.sketch, source, v))
+        # Face outline is a closed loop of eight curves (4 points + 4 lines).
+        self.assertEqual(self._count_curves(), 8)
 
     def test_projection_keeps_live_vertex_reference(self):
         source = self._mesh_object()
@@ -181,3 +262,118 @@ class TestProjectionAnchor(Sketch2dTestCase):
         # The standalone point landed at its position.
         self.assertTrue(any((p.co - Vector((3.0, 4.0))).length < 1e-6 for p in points))
         self.assertEqual(skipped, 1, "the arc must be counted as skipped")
+
+    def test_project_single_vertex_dedup_and_live(self):
+        # The granular snap path: one vertex -> one live point, reused on repeat.
+        source = self._mesh_object()
+
+        point = project_mesh_vertex(self.sketch, source, 1, construction=True)
+        self.assertIsNotNone(point)
+        self.assertTrue(point.fixed)
+        self.assertTrue(point.construction)
+        self.assertLess((point.co - Vector((2.0, 0.0))).length, 1e-6)
+
+        # Snapping the same vertex again must reuse the existing point, not stack
+        # a second projected reference on top of it.
+        again = project_mesh_vertex(self.sketch, source, 1, construction=True)
+        self.assertEqual(again.curve_id, point.curve_id)
+
+        # A different vertex gets its own point.
+        other = project_mesh_vertex(self.sketch, source, 0, construction=True)
+        self.assertNotEqual(other.curve_id, point.curve_id)
+
+        # Out-of-range index is a no-op rather than a crash.
+        self.assertIsNone(project_mesh_vertex(self.sketch, source, 99))
+
+        # The live link tracks source edits, same as a full projection.
+        source.data.vertices[1].co = (4.0, 1.0, 1.0)
+        source.data.update()
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertLess((point.co - Vector((4.0, 1.0))).length, 1e-5)
+
+    def test_translating_source_object_reprojects_bound_point(self):
+        # The snap workflow's real payoff: moving the whole source OBJECT (its
+        # matrix_world changes, its mesh data does not) must drag the bound point
+        # along. This is a different depsgraph path than editing a vertex .co, and
+        # it must fire without force -- only via the object being in ``changed``.
+        source = self._mesh_object()
+        point = project_mesh_vertex(self.sketch, source, 1, construction=True)
+        self.assertLess((point.co - Vector((2.0, 0.0))).length, 1e-6)
+
+        # Translate the object by +3 on X (no mesh edit at all).
+        source.location = (3.0, 0.0, 0.0)
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+
+        # Mimic the depsgraph handler: object translation puts the object (not its
+        # mesh) in the changed set. No force -- change-detection must catch it.
+        refresh_projection_for_sketch(self.sketch, depsgraph, changed={source})
+
+        # The bound point follows the object's new world position (2 + 3 = 5 on X).
+        self.assertLess((point.co - Vector((5.0, 0.0))).length, 1e-5)
+
+    def test_project_mesh_edge_returns_live_line(self):
+        # Snapping along an edge projects it as a live LINE (bound endpoints), so a
+        # placed point can coincide onto it and slide along the edge.
+        from ..model.curve_ref import LineRef
+
+        source = self._mesh_object()  # edge 0: v0 (0,0,1) -- v1 (2,0,1)
+        line = project_mesh_edge(self.sketch, source, 0, 1, construction=True)
+        self.assertIsInstance(line, LineRef)
+        self.assertTrue(line.construction)
+        # Both endpoints are live-bound to their source vertices.
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 0))
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 1))
+
+        # Re-snapping the same edge reuses the same line (no duplicate).
+        again = project_mesh_edge(self.sketch, source, 1, 0, construction=True)
+        self.assertEqual(again.curve_id, line.curve_id)
+
+        # Degenerate / out-of-range inputs are no-ops.
+        self.assertIsNone(project_mesh_edge(self.sketch, source, 1, 1))
+        self.assertIsNone(project_mesh_edge(self.sketch, source, 0, 99))
+
+    def test_project_mesh_edge_skips_plane_perpendicular_edge(self):
+        # An edge going straight through the sketch plane collapses to a point;
+        # there is no usable line, so the projection bails (static fallback).
+        mesh = self.data.meshes.new("PerpEdge")
+        mesh.from_pydata([(1.0, 1.0, 0.0), (1.0, 1.0, 2.0)], [(0, 1)], [])
+        mesh.update()
+        source = self.data.objects.new("PerpEdge", mesh)
+        self.scene.collection.objects.link(source)
+        self.assertIsNone(project_mesh_edge(self.sketch, source, 0, 1))
+
+    def test_projected_edge_line_tracks_object_translation(self):
+        # The projected edge's endpoints (and thus the line) follow the object.
+        source = self._mesh_object()
+        line = project_mesh_edge(self.sketch, source, 0, 1, construction=True)
+        p1_before = Vector(line.p1.co)
+
+        source.location = (5.0, 0.0, 0.0)
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, changed={source})
+        self.assertLess((line.p1.co - (p1_before + Vector((5.0, 0.0)))).length, 1e-5)
+
+    def test_project_mesh_vertex_places_at_snapped_world_co(self):
+        # A snap hands the evaluated world position; the point lands there rather
+        # than at the (possibly modifier-shifted) original vertex coordinate.
+        source = self._mesh_object()
+        point = project_mesh_vertex(
+            self.sketch, source, 1, construction=True, world_co=(5.0, 6.0, 1.0)
+        )
+        self.assertIsNotNone(point)
+        self.assertLess((point.co - Vector((5.0, 6.0))).length, 1e-6)
+
+    def test_resolve_source_vertex_index(self):
+        source = self._mesh_object()
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        eval_source = source.evaluated_get(depsgraph)
+
+        # No modifier: the evaluated index maps straight through (count matches).
+        self.assertEqual(resolve_source_vertex_index(source, eval_source, 1), 1)
+        # An out-of-range evaluated index resolves to nothing rather than crash.
+        self.assertIsNone(resolve_source_vertex_index(source, eval_source, 99))

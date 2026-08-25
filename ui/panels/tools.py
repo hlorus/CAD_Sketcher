@@ -1,5 +1,6 @@
 from bpy.types import Context
 
+from ...model.sketch_ref import get_active_sketch
 from .. import declarations, icon_manager
 from . import VIEW3D_PT_sketcher_base
 
@@ -13,29 +14,38 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
     bl_idname = declarations.Panels.SketcherTools
     bl_options = {"DEFAULT_CLOSED"}
 
-    def draw(self, context: Context):
+    def _draw_sketch_tools(self, context: Context):
+        """Tools that only make sense while editing a sketch."""
         layout = self.layout
 
         layout.operator(declarations.Operators.MergePoints)
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
 
-        # Constraints
         layout.label(text="Constraints:")
         col = layout.column(align=True)
-
         for op in declarations.ConstraintOperators:
             col.operator(op, icon_value=icon_manager.get_constraint_icon(op))
 
         layout.separator()
 
-        # Drawing
         layout.label(text="Drawing:")
         layout.prop(context.scene.sketcher, "use_construction")
 
-        # Node modifier operators
+    def _draw_node_tools(self, context: Context):
+        """Node-modifier tools that act on objects outside of a sketch."""
+        layout = self.layout
+
         layout.label(text="Node Tools:")
         col = layout.column(align=True)
         col.operator(declarations.Operators.NodeExtrude)
         col.operator(declarations.Operators.NodeRevolve)
         col.operator(declarations.Operators.NodeArrayLinear)
         col.operator(declarations.Operators.NodeBoolean)
+
+    def draw(self, context: Context):
+        # Mirror the workspace toolbar: sketch tools while a sketch is active,
+        # node tools otherwise, instead of showing both at once.
+        if get_active_sketch(context) is not None:
+            self._draw_sketch_tools(context)
+        else:
+            self._draw_node_tools(context)

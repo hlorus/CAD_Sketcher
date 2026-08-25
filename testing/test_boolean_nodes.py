@@ -10,6 +10,7 @@ import bpy
 
 from ..operators.modifiers import (
     View3D_OT_node_boolean,
+    boolean_input_ids,
     set_boolean_operation,
     set_modifier_input,
 )
@@ -150,7 +151,7 @@ class TestBooleanNodeGroup(BgsTestCase):
         # driving them the way it does must produce a real cut. Guards against the
         # operator and the group drifting apart.
         group = build_boolean_node_group()
-        ids = View3D_OT_node_boolean._input_ids(group)
+        ids = boolean_input_ids(group)
         for name in ("Cutter", "Operation", "Self Intersection", "Hole Tolerant"):
             self.assertIn(name, ids)
 
@@ -280,7 +281,7 @@ class TestBooleanNodeGroup(BgsTestCase):
         try:
             modifier = body.modifiers.new("CAD_Sketcher Boolean x", "NODES")
             modifier.node_group = group
-            ids = View3D_OT_node_boolean._input_ids(group)
+            ids = boolean_input_ids(group)
             set_boolean_operation(modifier, ids["Operation"], "Intersect")
             set_modifier_input(modifier, ids["Self Intersection"], False)
             set_modifier_input(modifier, ids["Hole Tolerant"], True)

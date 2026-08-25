@@ -23,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 17
+CONVERT_VERSION = 18
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -318,8 +318,13 @@ def build_convert_node_group(
     merge_id.data_type = "INT"
     merge_id.inputs["Name"].default_value = "merge_id"
 
+    # Weld only true segment endpoints (valence 1) and standalone point entities
+    # (valence 0) -- both have fewer than two neighbours. Tessellated interior
+    # vertices (valence 2) are excluded, so their interpolated id is harmless.
+    # Welding valence-0 points lets a point entity collapse onto the coincident
+    # segment corner.
     neighbors = nodes.new("GeometryNodeInputMeshVertexNeighbors")
-    is_end, end_a = _int_compare(nodes, links, "EQUAL", 1)
+    is_end, end_a = _int_compare(nodes, links, "LESS_THAN", 2)
     links.new(neighbors.outputs["Vertex Count"], end_a)
 
     nonzero, nz_a = _int_compare(nodes, links, "NOT_EQUAL", 0)

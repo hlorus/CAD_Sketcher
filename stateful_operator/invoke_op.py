@@ -1,6 +1,6 @@
 import bpy
-from bpy.types import Operator, Context
 from bpy.props import StringProperty
+from bpy.types import Context, Operator
 
 from .constants import Operators
 
@@ -28,7 +28,13 @@ class View3D_OT_invoke_tool(Operator):
             if p.startswith("_"):
                 continue
 
-            default = props.rna_type.properties[p].default
+            prop = props.rna_type.properties[p]
+            # Collection/pointer properties have no ``default`` and can't be
+            # forwarded as invoke options anyway; skip them (e.g. the extrude /
+            # revolve boolean-target collection).
+            if not hasattr(prop, "default"):
+                continue
+            default = prop.default
             value = getattr(props, p)
 
             # NOTE: Setting all values might mess around with operators that check
@@ -43,7 +49,10 @@ class View3D_OT_invoke_tool(Operator):
 
         parts = self.operator.split(".", 1)
         if len(parts) != 2:
-            self.report({"ERROR"}, f"Invalid operator id '{self.operator}': expected 'module.name'")
+            self.report(
+                {"ERROR"},
+                f"Invalid operator id '{self.operator}': expected 'module.name'",
+            )
             return {"CANCELLED"}
 
         module = getattr(bpy.ops, parts[0], None)

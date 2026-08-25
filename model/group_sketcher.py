@@ -64,6 +64,17 @@ class SketcherProps(PropertyGroup):
         options={"SKIP_SAVE"},
         update=update_cb,
     )
+    use_snap_project: BoolProperty(
+        name="Live Project Snaps",
+        description=(
+            "When snapping a point onto external mesh geometry, project the "
+            "snapped element into the sketch as a live reference and link the "
+            "point to it, instead of placing a dead static point"
+        ),
+        default=True,
+        options={"SKIP_SAVE"},
+        update=update_cb,
+    )
     version: IntVectorProperty(
         name="Extension Version",
         description="CAD Sketcher extension version this scene was saved with",
@@ -96,9 +107,8 @@ class SketcherProps(PropertyGroup):
         scene = self.id_data
         key = f"{_EP_PREFIX}{uid}"
         if key not in scene:
-            if (
-                hasattr(constraint, "value_store")
-                and constraint.is_property_set("value_store")
+            if hasattr(constraint, "value_store") and constraint.is_property_set(
+                "value_store"
             ):
                 init_value = float(constraint.value_store)
             elif hasattr(constraint, "value") and constraint.is_property_set("value"):
@@ -110,7 +120,9 @@ class SketcherProps(PropertyGroup):
             try:
                 rna_prop = type(constraint).bl_rna.properties.get("value_store")
                 subtype = rna_prop.subtype if rna_prop else "NONE"
-                scene.id_properties_ui(key).update(subtype=subtype, min=0.0, soft_min=0.0)
+                scene.id_properties_ui(key).update(
+                    subtype=subtype, min=0.0, soft_min=0.0
+                )
             except Exception:
                 pass
         return key

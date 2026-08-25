@@ -549,6 +549,11 @@ class LineRef(CurveRef):
 
         set_attribute(attrs, "curve_id", cid, curve_idx)
         set_attribute(attrs, "sketch_type", SketchCurveType.LINE, curve_idx)
+        # A line is a straight two-point Bezier; evaluating it at the Bezier
+        # default resolution (12) tessellates it into 12 collinear segments for no
+        # benefit. Keep it a single segment so the generated mesh matches the
+        # sketch's own vertices (arcs/circles keep their curved resolution).
+        set_attribute(attrs, "resolution", 1, curve_idx)
         set_attribute(attrs, "start_point_id",
                       p1.curve_id if isinstance(p1, CurveRef) else "", curve_idx)
         set_attribute(attrs, "end_point_id",
