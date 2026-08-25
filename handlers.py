@@ -63,7 +63,7 @@ def unregister_handlers():
 
 def on_load_post(*args):
     """Migrate legacy entity-based sketches to native curves on file load."""
-    from .utilities.migrate import scene_needs_migration, migrate_scene
+    from .utilities.migrate import migrate_scene, scene_needs_migration
     from .utilities.validate import reset_cache
 
     reset_cache()
@@ -78,6 +78,22 @@ def on_load_post(*args):
     except Exception:
         logger.exception("Legacy sketch migration failed")
 
+    # Upgrade a revolve node group baked into the file to the current build, so
+    # existing revolves pick up fixes on open instead of only when re-invoked.
+    # Only touch it when present -- never create it on load for files that have
+    # no revolve. build_revolve_node_group preserves each modifier's settings
+    # across the rebuild (see utilities.revolve_nodes).
+    try:
+        from .utilities.revolve_nodes import (
+            REVOLVE_NODE_GROUP,
+            build_revolve_node_group,
+        )
+
+        if bpy.data.node_groups.get(REVOLVE_NODE_GROUP) is not None:
+            build_revolve_node_group()
+    except Exception:
+        logger.exception("Revolve node group upgrade failed")
+
 
 def on_depsgraph_update(scene, depsgraph):
     from . import global_data
@@ -85,6 +101,10 @@ def on_depsgraph_update(scene, depsgraph):
     # Keep face-anchored workplanes on their mesh face as geometry changes.
     from .utilities.face_anchor import update_face_workplanes
     update_face_workplanes(bpy.context, depsgraph)
+
+    # Keep projected native points attached to their source mesh vertices.
+    from .utilities.projection_anchor import update_projected_geometry
+    update_projected_geometry(bpy.context, depsgraph)
 
     # Repair invariants if a built-in tool edited our curve data outside the
     # addon. Skip while one of our operators is mid-run (it owns the data and
@@ -136,18 +156,22 @@ def on_frame_change(scene, depsgraph=None):
     specifically so they can be driven/animated (issue #544). A driver writes
     that value during depsgraph evaluation, which does not reliably re-flag the
     scene for ``depsgraph_update_post``; ``frame_change_post`` does fire, so we
-    re-solve here. Covers timeline scrubbing and playback.
+    re-solve here. Covers timeline scrubbing and playback. Projected source
+    geometry is refreshed first so animated source objects stay attached too.
     """
     from . import global_data
     if global_data.stateful_op_running:
         return
 
     from .curve_solver import solve_system
-    from .utilities.curve_data import refresh_curve_geometry
     from .model.sketch_ref import get_sketches
+    from .utilities.curve_data import refresh_curve_geometry
+    from .utilities.projection_anchor import refresh_projection_for_sketch
 
     context = bpy.context
+    depsgraph = depsgraph or context.evaluated_depsgraph_get()
     for sketch in get_sketches(scene):
+        refresh_projection_for_sketch(sketch, depsgraph, force=True)
         if solve_system(context, sketch=sketch):
             refresh_curve_geometry(sketch)
 

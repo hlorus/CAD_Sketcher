@@ -136,6 +136,40 @@ class GenericConstraintOp(Operator2d):
         if hasattr(self, "target"):
             logger.debug("Add: {}".format(self.target))
 
+        # Placement of the dimension label is a display-only concern (draw_offset),
+        # so it does not belong in this stateful creation operator's snapshot/solve
+        # loop. Instead, hand a freshly created dimensional constraint off to the
+        # dedicated tweak operator, which lets the user drag the label into place
+        # (and enter a value) right after creation, as a plain modal with no
+        # per-move solve.
+        if succeede:
+            self._handoff_placement(context)
+
+    def _handoff_placement(self, context: Context):
+        """Start the label-placement/value modal for a new dimensional constraint.
+
+        The modal is started directly here: it comes up live and the creation
+        click's leftover release is swallowed by the tweak operator's ``handoff``
+        mode (rather than immediately confirming), after which mouse-moves place
+        the label and a click confirms.
+        """
+        target = getattr(self, "target", None)
+        if not target or not hasattr(target, "update_draw_offset"):
+            return
+
+        constraints = get_active_constraints(context)
+        if not constraints:
+            return
+        index = constraints.get_index(target)
+        if index < 0:
+            return
+
+        import bpy
+
+        bpy.ops.view3d.slvs_tweak_constraint_value_pos(
+            "INVOKE_DEFAULT", type=target.type, index=index, handoff=True
+        )
+
     def draw(self, context: Context):
         layout = self.layout
 

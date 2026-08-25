@@ -48,8 +48,12 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         p_lb, p_rt = self.get_point(context, 0), self.get_point(context, 1)
 
         # Create the two extra corner points
-        p_rb = PointRef.create(sketch, (p_rt.co.x, p_lb.co.y), construction=construction)
-        p_lt = PointRef.create(sketch, (p_lb.co.x, p_rt.co.y), construction=construction)
+        p_rb = PointRef.create(
+            sketch, (p_rt.co.x, p_lb.co.y), construction=construction
+        )
+        p_lt = PointRef.create(
+            sketch, (p_lb.co.x, p_rt.co.y), construction=construction
+        )
 
         if construction:
             p_lb.construction = True
@@ -76,14 +80,7 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
             # Shift bypass; the numeric distance constraints below are explicit.
             if self.use_auto_constraints(context):
                 for i, line_ref in enumerate(self.lines):
-                    # Fetch each bound method immediately before validation.
-                    # Blender's RNA wrapper does not guarantee stable identity
-                    # for bound methods retained across subsequent accesses.
-                    func = (
-                        self.sketch.constraints.add_horizontal
-                        if (i % 2) == 0
-                        else self.sketch.constraints.add_vertical
-                    )
+                    func = sc.add_horizontal if (i % 2) == 0 else sc.add_vertical
                     self.add_auto_constraint(
                         context, func, curve_id_1=line_ref.curve_id
                     )
@@ -93,7 +90,7 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
                 input = data.get("numeric_input")
 
                 startpoint = getattr(self, self.get_states()[0].pointer)
-                sp_cid = startpoint.curve_id if hasattr(startpoint, 'curve_id') else ""
+                sp_cid = startpoint.curve_id if hasattr(startpoint, "curve_id") else ""
                 for val, line_ref in zip(input, (self.lines[1], self.lines[2])):
                     if val is None:
                         continue

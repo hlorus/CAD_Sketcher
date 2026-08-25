@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class View3D_OT_slvs_add_line2d(Operator, Operator2d):
     """Add a line to the active sketch"""
-    
+
     bl_idname = Operators.AddLine2D
     bl_label = "Add Solvespace 2D Line"
     bl_options = {"REGISTER", "UNDO"}
@@ -56,8 +56,13 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
         # auto vertical/horizontal constraint. Skip it when both endpoints are
         # anchored (e.g. both snapped to external geometry): the alignment can't
         # move either point, so adding it would just make the sketch inconsistent.
+        # An endpoint counts as anchored if it is fixed, or if it was live-projected
+        # onto a fixed vertex/midpoint (coincident to a fixed point -> immovable,
+        # even though the endpoint itself is not flagged fixed).
         self.has_alignment = False
-        both_fixed = self.target.p1.fixed and self.target.p2.fixed
+        p1_anchored = self.target.p1.fixed or self.point_is_anchored(0)
+        p2_anchored = self.target.p2.fixed or self.point_is_anchored(1)
+        both_fixed = p1_anchored and p2_anchored
         vec_dir = self.target.direction_vec()
         if vec_dir.length and self.use_auto_constraints(context) and not both_fixed:
             angle = vec_dir.angle(Vector((1, 0)))

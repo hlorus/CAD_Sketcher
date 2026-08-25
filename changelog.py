@@ -39,6 +39,21 @@ def extract_section(version: str, text: str) -> str:
     return "\n".join(out).strip()
 
 
+def latest_version(text: str) -> str:
+    """Return the newest ``X.Y.Z`` version heading, or ``""`` if there are none.
+
+    The changelog lists releases newest-first (the release process guarantees
+    this), so the first heading in document order is the newest. Used to tell a
+    genuinely missing entry from the normal post-bump window where the manifest
+    version leads the changelog.
+    """
+    for line in text.splitlines():
+        m = _HEADING.match(line)
+        if m:
+            return m.group(1)
+    return ""
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         sys.stderr.write("usage: changelog.py <version> [changelog_path]\n")

@@ -1,24 +1,41 @@
 import logging
-from typing import Union, Generator
+from typing import Generator, Union
 
 import bpy
-from bpy.types import PropertyGroup, Context
+from bpy.props import (
+    BoolProperty,
+    CollectionProperty,
+    IntProperty,
+    IntVectorProperty,
+    PointerProperty,
+)
+from bpy.types import Context, PropertyGroup
 from bpy.utils import register_class, unregister_class
-from bpy.props import IntProperty, BoolProperty, PointerProperty, IntVectorProperty
 
 from .. import global_data
-from ..drawing import selection
 from ..curve_solver import solve_system
-from .utilities import slvs_entity_pointer
-from .base_entity import SlvsGenericEntity
-from .group_entities import SlvsEntities
-from .group_constraints import SlvsConstraints
+from ..drawing import selection
 from ..utilities.view import update_cb
+from .base_entity import SlvsGenericEntity
+from .group_constraints import SlvsConstraints
+from .group_entities import SlvsEntities
 
 logger = logging.getLogger(__name__)
 
 # Prefix for all constraint driver target custom properties on the scene.
 _EP_PREFIX = "slvs:c:"
+
+
+class ProjectedSourceSlot(PropertyGroup):
+    """Object pointer used by native projected-curve bindings.
+
+    Curve-domain integer attributes store the index into this compact table so
+    all plain binding data can live on the Curves datablock while the one value
+    Blender attributes cannot represent (an ID pointer) remains a real RNA
+    pointer rather than a fragile object-name string.
+    """
+
+    source: PointerProperty(type=bpy.types.Object, name="Projected Source")
 
 
 class SketcherProps(PropertyGroup):
@@ -43,6 +60,17 @@ class SketcherProps(PropertyGroup):
     auto_axis_constraints: BoolProperty(
         name="Auto Constraints",
         description="Automatically add inferred constraints (for example auto axis alignment and auto coincident)",
+        default=True,
+        options={"SKIP_SAVE"},
+        update=update_cb,
+    )
+    use_snap_project: BoolProperty(
+        name="Live Project Snaps",
+        description=(
+            "When snapping a point onto external mesh geometry, project the "
+            "snapped element into the sketch as a live reference and link the "
+            "point to it, instead of placing a dead static point"
+        ),
         default=True,
         options={"SKIP_SAVE"},
         update=update_cb,
@@ -79,9 +107,8 @@ class SketcherProps(PropertyGroup):
         scene = self.id_data
         key = f"{_EP_PREFIX}{uid}"
         if key not in scene:
-            if (
-                hasattr(constraint, "value_store")
-                and constraint.is_property_set("value_store")
+            if hasattr(constraint, "value_store") and constraint.is_property_set(
+                "value_store"
             ):
                 init_value = float(constraint.value_store)
             elif hasattr(constraint, "value") and constraint.is_property_set("value"):
@@ -93,7 +120,9 @@ class SketcherProps(PropertyGroup):
             try:
                 rna_prop = type(constraint).bl_rna.properties.get("value_store")
                 subtype = rna_prop.subtype if rna_prop else "NONE"
-                scene.id_properties_ui(key).update(subtype=subtype, min=0.0, soft_min=0.0)
+                scene.id_properties_ui(key).update(
+                    subtype=subtype, min=0.0, soft_min=0.0
+                )
             except Exception:
                 pass
         return key
@@ -124,10 +153,14 @@ class SketcherProps(PropertyGroup):
 
 
 def register():
+    register_class(ProjectedSourceSlot)
     register_class(SketcherProps)
+    bpy.types.Object.slvs_project_sources = CollectionProperty(type=ProjectedSourceSlot)
     bpy.types.Scene.sketcher = PointerProperty(type=SketcherProps)
 
 
 def unregister():
+    del bpy.types.Object.slvs_project_sources
     del bpy.types.Scene.sketcher
     unregister_class(SketcherProps)
+    unregister_class(ProjectedSourceSlot)

@@ -38,6 +38,11 @@ will be colored red, additionally the failed sketch will be marked.
 ::: CAD_Sketcher.model.types.SlvsRatio
 
 ### Dimensional Constraints
+Adding a dimensional constraint places its label in the same step: pick the
+geometry, then move the mouse to position the label and, optionally, type a value
+before confirming. The label's position can be adjusted later by dragging its
+gizmo.
+
 ::: CAD_Sketcher.model.types.SlvsDistance
 
 ::: CAD_Sketcher.model.types.SlvsDiameter

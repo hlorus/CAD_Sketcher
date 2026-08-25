@@ -1,7 +1,6 @@
 # Please keep this file in alphabetical order
 from enum import Enum
 
-
 # Blender's built-in Select Box tool — the standard tool we return to when
 # leaving one of our tools (ESC / cancel).
 BLENDER_SELECT_TOOL = "builtin.select_box"
@@ -48,6 +47,7 @@ class Operators(str, Enum):
     AddSymmetry = "view3d.slvs_add_symmetry"
     AddRectangle = "view3d.slvs_add_rectangle"
     AddSketch = "view3d.slvs_add_sketch"
+    AddSketchOnPlane = "view3d.slvs_add_sketch_on_plane"
     AddTangent = "view3d.slvs_add_tangent"
     AddVertical = "view3d.slvs_add_vertical"
     MakeWorkplaneFree = "view3d.slvs_make_workplane_free"
@@ -60,7 +60,6 @@ class Operators(str, Enum):
     DeleteConstraint = "view3d.slvs_delete_constraint"
     DeleteEntity = "view3d.slvs_delete_entity"
     DeleteSketch = "view3d.slvs_delete_sketch"
-    InstallPackage = "view3d.slvs_install_package"
     MergePoints = "view3d.slvs_merge_points"
     Paste = "view3d.slvs_paste"
     Move = "view3d.slvs_move"
@@ -69,9 +68,12 @@ class Operators(str, Enum):
     NodeExtrude = "view3d.slvs_node_extrude"
     NodeArrayLinear = "view3d.slvs_node_array_linear"
     NodeRevolve = "view3d.slvs_node_revolve"
+    NodeBoolean = "view3d.slvs_node_boolean"
+    ProjectGeometry = "view3d.slvs_project_geometry"
     RegisterDrawCB = "view3d.slvs_register_draw_cb"
     RenameCurve = "view3d.slvs_rename_curve"
     Restore = "view3d.slvs_restore"
+    HoverCycle = "view3d.slvs_hover_cycle"
     Select = "view3d.slvs_select"
     SelectAll = "view3d.slvs_select_all"
     SelectBox = "view3d.slvs_select_box"
@@ -124,6 +126,7 @@ class WorkSpaceTools(str, Enum):
     Trim = "sketcher.slvs_trim"
     Bevel = "sketcher.slvs_bevel"
     AddSketch = "sketcher.slvs_add_sketch"
+    ProjectGeometry = "sketcher.slvs_project_geometry"
     Extrude = "sketcher.slvs_node_extrude"
     ArrayLinear = "sketcher.slvs_node_array_linear"
     Revolve = "sketcher.slvs_node_revolve"

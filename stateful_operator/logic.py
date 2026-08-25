@@ -1,18 +1,17 @@
 import math
+from typing import Any
 
 import bpy
-from bpy.props import IntProperty, BoolProperty
+from bpy.props import BoolProperty, IntProperty
 from bpy.types import Context, Event
 from mathutils import Vector
 
 from .. import global_data
 from .state_machine import _StateMachineMixin
-from .utilities.generic import to_list
 from .utilities.description import state_desc, stateful_op_desc
+from .utilities.generic import to_list
 from .utilities.keymap import get_key_map_desc, is_numeric_input, is_unit_input
-from .utilities.numeric import NumericInput
-
-from typing import Optional, Any
+from .utilities.numeric import NumericInput, parse_numeric
 
 # Re-export so any `from .logic import _NumericInput` keeps working.
 _NumericInput = NumericInput
@@ -38,6 +37,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
     continuous_draw: BoolProperty(name="Continuous Draw", default=False)
 
     executed = False
+    # Tool id to activate once the operator succeeds (see _end). Lets a one-off
+    # tool return to a select tool afterwards instead of lingering; None keeps
+    # the current tool. On failure/cancel the tool is left alone so a missed
+    # pick can be retried.
+    return_to_tool = None
     # Screen coords when a state first runs — used by state_func for delta/scale
     state_init_coords = None
     _last_coords = Vector((0, 0))
@@ -215,25 +219,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """Convert the current numeric text buffer to a typed value (or list)."""
         prop_name = self.get_property()[0]
         prop = self.properties.rna_type.properties[prop_name]
-
-        def parse_input(prop, raw):
-            units = context.scene.unit_settings
-            unit = prop.unit
-            value = None
-            if raw == "-":
-                pass
-            elif unit != "NONE":
-                try:
-                    value = bpy.utils.units.to_value(units.system, unit, raw)
-                except ValueError:
-                    return prop.default
-                if prop.type == "INT":
-                    value = int(value)
-            elif prop.type == "FLOAT":
-                value = float(raw)
-            elif prop.type == "INT":
-                value = int(raw)
-            return prop.default if value is None else value
+        unit_system = context.scene.unit_settings.system
 
         def to_iterable(item):
             if hasattr(item, "__iter__") or hasattr(item, "__getitem__"):
@@ -254,7 +240,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         for sub_index in range(size):
             raw = self._numeric.get(sub_index)
             if raw:
-                num = parse_input(prop, raw)
+                num = parse_numeric(prop, raw, unit_system)
+                if num is None:
+                    num = prop.default
                 result[sub_index] = num
                 storage[sub_index] = num
             elif interactive_val[sub_index] is not None:
@@ -495,7 +483,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         if self.state_init_coords is None:
             self.state_init_coords = coords
 
-        is_picked, pointer_values = self._pick_hovered(context, coords, state, is_numeric)
+        is_picked, pointer_values = self._pick_hovered(
+            context, coords, state, is_numeric
+        )
         values, ok = self._resolve_values(context, coords, state, is_numeric, is_picked)
 
         # Reflect the live value (property or point placement) in the status bar.
@@ -582,6 +572,15 @@ class StatefulOperatorLogic(_StateMachineMixin):
         context.window.cursor_modal_restore()
         if hasattr(self, "fini"):
             self.fini(context, succeede)
+        # One-off tools return to their select tool once done (only on success,
+        # so a missed pick keeps the tool for a retry). The target tool differs
+        # per operator: object tools -> Blender's select, sketch tools -> the
+        # sketch select tool.
+        if succeede and self.return_to_tool:
+            try:
+                bpy.ops.wm.tool_set_by_id(name=self.return_to_tool)
+            except Exception:
+                pass
         self.on_before_redo_states(context)
         context.workspace.status_text_set(None)
 

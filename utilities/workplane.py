@@ -13,6 +13,22 @@ WP_ID_XY = 0xF00001
 WP_ID_XZ = 0xF00002
 WP_ID_YZ = 0xF00003
 
+# Blender-style axis colors used to tint each origin plane by its normal
+# (XY -> Z/blue, XZ -> Y/green, YZ -> X/red) and the short label drawn on it.
+_AXIS_X = (0.80, 0.24, 0.24)
+_AXIS_Y = (0.34, 0.67, 0.20)
+_AXIS_Z = (0.22, 0.40, 0.80)
+ORIGIN_AXIS_COLOR = {
+    WP_ID_XY: _AXIS_Z,
+    WP_ID_XZ: _AXIS_Y,
+    WP_ID_YZ: _AXIS_X,
+}
+ORIGIN_LABEL = {
+    WP_ID_XY: "XY",
+    WP_ID_XZ: "XZ",
+    WP_ID_YZ: "YZ",
+}
+
 # Sequential pick IDs for non-origin empties start here
 _EMPTY_PICK_START = 0xE00001
 
@@ -39,6 +55,7 @@ def get_workplane_empty_by_id(wp_id):
 # ---------------------------------------------------------------------------
 # Drawable workplane enumeration, sizing and picking
 # ---------------------------------------------------------------------------
+
 
 def iter_wp_empties(context):
     """Yield (empty_obj, pick_id) for all drawable workplane empties.
@@ -68,7 +85,7 @@ def iter_wp_empties(context):
         # visible_get() covers the eye-icon hide and collection visibility too,
         # not just hide_viewport (the monitor icon) -- an empty hidden with the
         # eye was still getting its workplane overlay drawn.
-        if obj.type != 'EMPTY' or obj.name in origin_names or not obj.visible_get():
+        if obj.type != "EMPTY" or obj.name in origin_names or not obj.visible_get():
             continue
         yield obj, pick_id
         pick_id += 1
@@ -191,6 +208,7 @@ def resolve_sketch_base(context, coords):
 # Workplane empty creation
 # ---------------------------------------------------------------------------
 
+
 def ensure_workplane_empty(sketch):
     """Ensure the sketch has a workplane empty object.
 
@@ -202,12 +220,12 @@ def ensure_workplane_empty(sketch):
     if sketch.workplane_object:
         return sketch.workplane_object
 
-    if not hasattr(sketch, 'wp') or not sketch.wp:
+    if not hasattr(sketch, "wp") or not sketch.wp:
         return None
 
     name = f"WP_{sketch.name}"
     empty = bpy.data.objects.new(name, None)
-    empty.empty_display_type = 'SINGLE_ARROW'
+    empty.empty_display_type = "SINGLE_ARROW"
     empty.hide_viewport = True
     empty.lock_location = (True, True, True)
     empty.lock_rotation = (True, True, True)
@@ -236,6 +254,7 @@ def _matrix_differs(a, b, eps=1e-6):
 
 def _target_matrix(euler_tuple):
     from mathutils import Euler
+
     return Euler(euler_tuple).to_matrix().to_4x4()
 
 
@@ -278,7 +297,7 @@ def ensure_origin_workplane_empties(context):
             continue
 
         empty = bpy.data.objects.new(name, None)
-        empty.empty_display_type = 'SINGLE_ARROW'
+        empty.empty_display_type = "SINGLE_ARROW"
         empty.matrix_world = _target_matrix(euler_tuple)
         empty.hide_viewport = True
         empty.lock_location = (True, True, True)

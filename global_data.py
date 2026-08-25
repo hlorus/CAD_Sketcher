@@ -1,11 +1,8 @@
-import sys
 from enum import Enum
 
 from mathutils import Vector
 
 registered = False
-
-PYPATH = sys.executable
 
 entities = {}
 batches = {}
@@ -37,6 +34,7 @@ Z_AXIS = Vector((0, 0, 1))
 draw_handle = None
 hover_draw_handle = None
 icon_draw_handle = None
+origin_label_draw_handle = None
 
 COPY_BUFFER = {}
 
@@ -59,8 +57,8 @@ solver_state_items = [
         "INCONSISTENT",
         "Inconsistent",
         (
-            f"Cannot solve sketch because of inconsistent constraints, check through the failed constraints "
-            f"and remove the ones that contradict each other."
+            "Cannot solve sketch because of inconsistent constraints, check through the failed constraints "
+            "and remove the ones that contradict each other."
         ),
         "ERROR",
         1,  # SLVS_RESULT_INCONSISTENT
@@ -83,8 +81,8 @@ solver_state_items = [
         "REDUNDANT_OK",
         "Redundant Constraints",
         (
-            f"Some constraints seem to be redundant, this might cause an error once the constraints are no longer consistent. "
-            f"Check through the marked constraints and only keep what's necessary."
+            "Some constraints seem to be redundant, this might cause an error once the constraints are no longer consistent. "
+            "Check through the marked constraints and only keep what's necessary."
         ),
         "INFO",
         4,  # SLVS_RESULT_REDUNDANT_OK

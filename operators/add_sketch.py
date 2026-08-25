@@ -3,7 +3,7 @@ import logging
 import bpy
 from bpy.types import Context, Event, Operator
 
-from ..declarations import Operators
+from ..declarations import Operators, WorkSpaceTools
 from ..model.curve_ref import PointRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
@@ -15,6 +15,43 @@ from .utilities import activate_sketch
 logger = logging.getLogger(__name__)
 
 
+def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
+    """Create and activate a Curves sketch parented to ``wp_empty``.
+
+    Shared by the interactive Add Sketch operator and the direct
+    keyboard-driven origin-plane operator so both build the sketch identically.
+    Returns the wrapped :class:`Sketch`.
+    """
+    from ..model.sketch_ref import Sketch, stamp_sketch_props
+    from ..utilities.curve_data import _ensure_convert_modifier
+
+    # Create sketch as a Curves object (parent provides the transform)
+    curve = bpy.data.hair_curves.new("Sketch")
+    sketch_obj = bpy.data.objects.new("Sketch", curve)
+
+    scene = context.scene
+    if sketch_obj.name not in scene.collection.objects:
+        scene.collection.objects.link(sketch_obj)
+
+    stamp_sketch_props(sketch_obj)
+    _ensure_convert_modifier(sketch_obj)
+
+    # Parent to workplane empty (before activate so align_view works)
+    wp_orig = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
+    sketch_obj.parent = wp_orig
+    sketch_obj.lock_location = (True, True, True)
+    sketch_obj.lock_rotation = (True, True, True)
+    sketch_obj.lock_scale = (True, True, True)
+
+    sketch = Sketch(sketch_obj)
+
+    origin = PointRef.create(sketch, (0.0, 0.0), fixed=True)
+    assert origin is not None, "Failed to create origin point"
+
+    activate_sketch(context, sketch_obj, operator)
+    return sketch
+
+
 # TODO:
 # - Draw sketches
 class View3D_OT_slvs_add_sketch(Operator, Operator3d):
@@ -24,7 +61,14 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
     bl_label = "Add Sketch"
     bl_options = {"UNDO"}
 
-    sketch_state1_doc = ["Workplane", "Pick a workplane or mesh face as base for the sketch."]
+    # Creating a sketch enters sketch mode, so return to the sketch-mode select
+    # tool (not Blender's object select) once done, via the framework setting.
+    return_to_tool = WorkSpaceTools.Select
+
+    sketch_state1_doc = [
+        "Workplane",
+        "Pick a workplane or mesh face as base for the sketch.",
+    ]
 
     states = (
         state_from_args(
@@ -38,7 +82,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
     )
 
     def gather_selection(self, context):
-        return [o for o in context.selected_objects if o.type == 'EMPTY']
+        return [o for o in context.selected_objects if o.type == "EMPTY"]
 
     def _use_workplane(self, empty):
         self.state_data["is_existing_entity"] = True
@@ -72,7 +116,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         from ..utilities.face_anchor import stamp_face_anchor
 
         empty = bpy.data.objects.new("Workplane", None)
-        empty.empty_display_type = 'PLAIN_AXES'
+        empty.empty_display_type = "PLAIN_AXES"
         empty.empty_display_size = 0.5
         context.scene.collection.objects.link(empty)
 
@@ -117,45 +161,12 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         return True
 
     def main(self, context: Context):
-        from ..model.sketch_ref import Sketch
-
         wp_empty = self.wp
-        if not wp_empty or wp_empty.type != 'EMPTY':
-            self.report({'WARNING'}, "Please select an Empty as workplane")
+        if not wp_empty or wp_empty.type != "EMPTY":
+            self.report({"WARNING"}, "Please select an Empty as workplane")
             return False
 
-        # Create sketch as a Curves object (parent provides the transform)
-        curve = bpy.data.hair_curves.new("Sketch")
-        sketch_obj = bpy.data.objects.new("Sketch", curve)
-
-        scene = context.scene
-        if sketch_obj.name not in scene.collection.objects:
-            scene.collection.objects.link(sketch_obj)
-
-        # Stamp sketch custom properties
-        from ..model.sketch_ref import stamp_sketch_props
-        stamp_sketch_props(sketch_obj)
-
-        # Add GN modifier
-        from ..utilities.curve_data import _ensure_convert_modifier
-        _ensure_convert_modifier(sketch_obj)
-
-        # Parent to workplane empty (before activate so align_view works)
-        wp_orig = wp_empty.original if hasattr(wp_empty, 'original') else wp_empty
-        sketch_obj.parent = wp_orig
-        sketch_obj.lock_location = (True, True, True)
-        sketch_obj.lock_rotation = (True, True, True)
-        sketch_obj.lock_scale = (True, True, True)
-
-        # Wrap as Sketch accessor
-        sketch = Sketch(sketch_obj)
-
-        # Add origin point
-        origin = PointRef.create(sketch, (0.0, 0.0), fixed=True)
-        assert origin is not None, "Failed to create origin point"
-
-        activate_sketch(context, sketch_obj, self)
-        self.target = sketch
+        self.target = create_sketch_on_workplane(context, wp_empty, self)
         return True
 
     def fini(self, context: Context, succeed: bool):
@@ -166,4 +177,55 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
             logger.debug("Add: {}".format(self.target))
 
 
-register, unregister = register_stateops_factory((View3D_OT_slvs_add_sketch,))
+class View3D_OT_slvs_add_sketch_on_plane(Operator):
+    """Create a sketch on an origin workplane by its normal axis.
+
+    Bound to X/Y/Z on the Add Sketch tool so a plane can be chosen directly,
+    without aiming at its (possibly edge-on) rectangle.
+    """
+
+    bl_idname = Operators.AddSketchOnPlane
+    bl_label = "Add Sketch on Origin Plane"
+    bl_options = {"REGISTER", "UNDO"}
+
+    # Value is the origin plane; the key is the axis normal to it (what the user
+    # presses): Z -> XY, Y -> XZ, X -> YZ.
+    plane: bpy.props.EnumProperty(
+        name="Plane",
+        items=(
+            ("XY", "XY", "Ground plane (normal Z)"),
+            ("XZ", "XZ", "Front plane (normal Y)"),
+            ("YZ", "YZ", "Side plane (normal X)"),
+        ),
+        default="XY",
+    )
+
+    def execute(self, context: Context):
+        ensure_origin_workplane_empties(context)
+        sketcher = context.scene.sketcher
+        empty = {
+            "XY": sketcher.wp_xy,
+            "XZ": sketcher.wp_xz,
+            "YZ": sketcher.wp_yz,
+        }[self.plane]
+        if empty is None:
+            self.report({"WARNING"}, "Origin workplane not available")
+            return {"CANCELLED"}
+
+        create_sketch_on_workplane(context, empty, self)
+        return {"FINISHED"}
+
+
+_register_stateops, _unregister_stateops = register_stateops_factory(
+    (View3D_OT_slvs_add_sketch,)
+)
+
+
+def register():
+    bpy.utils.register_class(View3D_OT_slvs_add_sketch_on_plane)
+    _register_stateops()
+
+
+def unregister():
+    _unregister_stateops()
+    bpy.utils.unregister_class(View3D_OT_slvs_add_sketch_on_plane)

@@ -540,7 +540,13 @@ class CurveSolver:
             self.result = bpyEnum(solver_state_items, index=result_code)
 
         self.sketch.solver_state = self.result.identifier
-        self.sketch.dof = retval.get("dof", 0)
+        # A tweak solve augments the system with a temporary dragged/coincident
+        # pin (see _init_geometry), so its reported dof is ~2 lower than the
+        # sketch's real dof. Dragging doesn't change the true dof, so don't
+        # publish the tweak value (it would read as "fully defined" after a
+        # drag); the tweak operator does a clean re-solve on release.
+        if self._tweak_curve_id is None:
+            self.sketch.dof = retval.get("dof", 0)
 
         if self.ok:
             self._write_results()
