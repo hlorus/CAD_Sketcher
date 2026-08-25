@@ -55,6 +55,26 @@ class TestNurbsCurves(TestCustomAttributes):
         finally:
             self._remove_converted(converted)
 
+    def test_arc_is_exact_nurbs(self):
+        center = self.add_point((0.0, 0.0))
+        start = self.add_point((2.0, 0.0))
+        end = self.add_point((0.0, -2.0))  # 270 deg CCW -> 3 spans
+        self.add_arc(center, start, end)
+        cd = self.sketch.target_object.data
+        ctype, npts = _type_of(cd, SketchCurveType.ARC)
+        self.assertEqual(ctype, NURBS)
+        self.assertEqual(npts, 7)  # 2 * 3 + 1
+
+        converted = self._convert_copy(self.sketch.target_object, fill=False)
+        try:
+            radii = [math.hypot(v.co.x, v.co.y) for v in converted.data.vertices]
+            self.assertTrue(radii)
+            # Rational NURBS evaluates the exact arc: every vertex on radius 2.
+            for r in radii:
+                self.assertAlmostEqual(r, 2.0, delta=1e-4)
+        finally:
+            self._remove_converted(converted)
+
     def test_mixed_types_survive_refresh(self):
         a = self.add_point((0.0, 0.0))
         b = self.add_point((4.0, 0.0))
@@ -69,7 +89,7 @@ class TestNurbsCurves(TestCustomAttributes):
         expected = {
             SketchCurveType.LINE: POLY,
             SketchCurveType.CIRCLE: NURBS,
-            SketchCurveType.ARC: BEZIER,
+            SketchCurveType.ARC: NURBS,
         }
         for kind, want in expected.items():
             self.assertEqual(_type_of(cd, kind)[0], want)

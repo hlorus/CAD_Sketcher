@@ -473,12 +473,18 @@ def get_curve_placement(sketch, curve_id):
 
 
 def get_curve_midpoints(curve_slice, is_cyclic):
-    """Get interior bezier points from a curve slice."""
-    if len(curve_slice.points) <= 2:
+    """On-curve interior control points of a NURBS arc/circle (snap midpoints).
+
+    A rational NURBS arc/circle interleaves off-circle shoulder control points at
+    odd offsets; only the even-offset points lie on the curve, so return those
+    (excluding the endpoints on an open arc, and the first point on a cyclic one).
+    """
+    n = len(curve_slice.points)
+    if n <= 2:
         return []
     if is_cyclic:
-        return [curve_slice.points[i] for i in range(1, len(curve_slice.points))]
-    return [curve_slice.points[i] for i in range(1, len(curve_slice.points) - 1)]
+        return [curve_slice.points[i] for i in range(2, n, 2)]
+    return [curve_slice.points[i] for i in range(2, n - 1, 2)]
 
 
 # ---------------------------------------------------------------------------
@@ -695,7 +701,7 @@ def _resegment_arcs(sketch, cd, point_ids=None):
     """
     import math
 
-    from ..model.constants import BezierHandleType, SketchCurveType
+    from ..model.constants import SketchCurveType
     from .math import range_2pi
 
     ob = sketch.target_object
@@ -754,31 +760,21 @@ def _resegment_arcs(sketch, cd, point_ids=None):
 
         sv, ev = s - ct, e - ct
         angle = range_2pi(math.atan2(ev[1], ev[0]) - math.atan2(sv[1], sv[0]))
-        current = cd.curves[i].points_length - 1
+        # NURBS arc control net is 2*nseg + 1 points (on/shoulder/on/...).
+        current = (cd.curves[i].points_length - 1) // 2
         target = _target_arc_segments(angle, current)
         if target != current:
             if sizes is None:
                 sizes = [cv.points_length for cv in cd.curves]
-            sizes[i] = target + 1
+            sizes[i] = 2 * target + 1
             changed.append(i)
 
     if sizes is None:
         return False
 
+    # New points come in zero-initialized; the following rebuild pass rewrites
+    # every arc's positions, weights and order/knots, so nothing to seed here.
     cd.resize_curves(sizes)
-
-    # New points come in zero-initialized; give them free bezier handles so
-    # _build_arc_bezier's handle vectors take effect. (Positions/handles for the
-    # whole arc are rewritten by the rebuild pass that follows.)
-    attrs = cd.attributes
-    hlt = attrs.get("handle_type_left")
-    hrt = attrs.get("handle_type_right")
-    for i in changed:
-        for pt in cd.curves[i].points:
-            if hlt:
-                hlt.data[pt.index].value = BezierHandleType.FREE
-            if hrt:
-                hrt.data[pt.index].value = BezierHandleType.FREE
     return True
 
 
@@ -913,7 +909,7 @@ def rebuild_segments(sketch, point_ids=None):
     from mathutils import Vector
 
     from ..model.constants import SketchCurveType
-    from ..model.curve_ref import _build_arc_bezier, _build_circle_nurbs
+    from ..model.curve_ref import _build_arc_nurbs, _build_circle_nurbs
 
     if not sketch or not sketch.target_object or not sketch.target_object.data:
         return
@@ -1010,7 +1006,7 @@ def rebuild_segments(sketch, point_ids=None):
                 s_co = point_co.get(sp_ids[i])
                 e_co = point_co.get(ep_ids[i])
                 if s_co is not None and e_co is not None:
-                    _build_arc_bezier(cd, i, ct_co, s_co, e_co)
+                    _build_arc_nurbs(cd, i, ct_co, s_co, e_co)
 
     # Weld ids depend on connectivity (start/end_point_id), not positions, so
     # only recompute on a full rebuild -- a scoped move leaves topology intact.
