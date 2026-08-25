@@ -126,6 +126,12 @@ class VIEW3D_GGT_slvs_object_hover(GizmoGroup):
 
     @classmethod
     def poll(cls, context):
+        # Stay active during any pick, even when the workspace tool isn't ours:
+        # the redo-panel eyedropper re-pick publishes hover_types without
+        # switching tools, and hover highlight should still work for it. When no
+        # pick is running, fall back to the tool check (which unlinks us).
+        if global_data.hover_types is not None:
+            return True
         return context_mode_check(context, cls.bl_idname)
 
     def setup(self, context):
