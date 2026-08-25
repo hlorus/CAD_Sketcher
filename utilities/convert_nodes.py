@@ -33,7 +33,7 @@ GENERATED_ID_VERSION = 2
 
 # Bump whenever the built node tree changes, so groups baked into existing files
 # (or a stale merge-by-distance asset of the same name) are rebuilt on load.
-CONVERT_VERSION = 5
+CONVERT_VERSION = 6
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -215,14 +215,16 @@ def build_convert_node_group(name: str = CONVERT_NODE_GROUP):
     links.new(delete.outputs["Geometry"], to_mesh.inputs["Curve"])
 
     # 3. Weld by identity: merge vertices sharing merge_id, but only true segment
-    #    endpoints (valence 1 on the disconnected chains) -- tessellated interior
-    #    vertices (valence 2) are excluded, so their interpolated id is harmless.
+    #    endpoints (valence 1) and standalone point entities (valence 0) -- both
+    #    have fewer than two neighbours. Tessellated interior vertices (valence 2)
+    #    are excluded, so their interpolated id is harmless. Welding valence-0
+    #    points lets a point entity collapse onto the coincident segment corner.
     merge_id = nodes.new("GeometryNodeInputNamedAttribute")
     merge_id.data_type = "INT"
     merge_id.inputs["Name"].default_value = "merge_id"
 
     neighbors = nodes.new("GeometryNodeInputMeshVertexNeighbors")
-    is_end, end_a = _int_compare(nodes, links, "EQUAL", 1)
+    is_end, end_a = _int_compare(nodes, links, "LESS_THAN", 2)
     links.new(neighbors.outputs["Vertex Count"], end_a)
 
     # id 0 means "no weld". Exclude it so a not-yet-computed merge_id (e.g. a

@@ -62,7 +62,7 @@ class TestMergeIds(Sketch2dTestCase):
         self.assertEqual(len(junctions), 4)
 
     def test_interior_and_center_points_stay_zero(self):
-        """Only segment endpoints carry a weld id; centers/points keep 0."""
+        """Centers and points no segment references keep 0 (never welded)."""
         p0 = self.add_point((0, 0), fixed=True)
         p1 = self.add_point((3, 0))
         p2 = self.add_point((0, 3))
@@ -78,6 +78,34 @@ class TestMergeIds(Sketch2dTestCase):
             if cid == p0.curve_id:
                 pidx = cd.curves[i].points[0].index
                 self.assertEqual(mid.data[pidx].value, 0)
+
+    def test_point_entity_welds_onto_referenced_corner(self):
+        """A point entity a segment references shares that junction's weld id, so
+        it collapses onto the corner instead of leaving a duplicate vertex."""
+        from ..utilities.curve_data import compute_merge_ids
+
+        p0 = self.add_point((0, 0))
+        p1 = self.add_point((1, 0))
+        self.add_line(p0, p1)
+        compute_merge_ids(self.sketch)
+
+        cd = self.sketch.target_object.data
+        ta = cd.attributes.get("sketch_type")
+        mid = cd.attributes.get("merge_id")
+        point_id = endpoint_id = None
+        for i in range(len(cd.curves)):
+            t = ta.data[i].value
+            pts = cd.curves[i].points
+            if t == SketchCurveType.POINT and get_uuid(cd, "curve_id", i) == p0.curve_id:
+                point_id = mid.data[pts[0].index].value
+            elif (
+                t == SketchCurveType.LINE
+                and get_uuid(cd, "start_point_id", i) == p0.curve_id
+            ):
+                endpoint_id = mid.data[pts[0].index].value
+        self.assertIsNotNone(point_id)
+        self.assertGreater(point_id, 0, "a referenced point entity must weld")
+        self.assertEqual(point_id, endpoint_id, "point and corner share the weld id")
 
     def test_uuid_derived_seeds_survive_neighbor_insert_and_remove(self):
         from ..utilities.curve_data import (
