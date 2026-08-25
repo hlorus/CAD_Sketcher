@@ -131,7 +131,7 @@ class TestMigration(unittest.TestCase):
         # remap boolean cutters onto the migrated sketches, and delete the old
         # meshes so the geometry is not duplicated.
         from ..model.sketch_ref import is_sketch_object
-        from ..operators.modifiers import View3D_OT_node_boolean, get_modifier_input
+        from ..operators.modifiers import boolean_input_ids, get_modifier_input
 
         _open("CAD_Sketcher_Part.blend")
         sketches = list(get_sketches(bpy.context))
@@ -146,7 +146,7 @@ class TestMigration(unittest.TestCase):
                     extrudes += 1
                 elif name == "CAD Sketcher Boolean":
                     booleans += 1
-                    ids = View3D_OT_node_boolean._input_ids(m.node_group)
+                    ids = boolean_input_ids(m.node_group)
                     cutter = get_modifier_input(m, ids["Cutter"])
                     # The cutter is another migrated sketch, not an old mesh.
                     self.assertTrue(

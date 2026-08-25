@@ -294,7 +294,7 @@ def _translate_boolean(mod, old_mesh, obj, cutter_map=None):
     if cutter_map is not None:
         cutter = cutter_map.get(cutter, cutter)
     from ..operators.modifiers import (
-        View3D_OT_node_boolean,
+        boolean_input_ids,
         set_boolean_operation,
         set_modifier_input,
     )
@@ -303,7 +303,7 @@ def _translate_boolean(mod, old_mesh, obj, cutter_map=None):
     ng = build_boolean_node_group()
     m = obj.modifiers.new(f"CAD_Sketcher Boolean {cutter.name}", "NODES")
     m.node_group = ng
-    ids = View3D_OT_node_boolean._input_ids(ng)
+    ids = boolean_input_ids(ng)
     set_modifier_input(m, ids["Cutter"], cutter)
     op = {"DIFFERENCE": "Difference", "UNION": "Union", "INTERSECT": "Intersect"}[
         mod.operation
