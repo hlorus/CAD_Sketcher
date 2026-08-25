@@ -75,6 +75,43 @@ class TestNurbsCurves(TestCustomAttributes):
         finally:
             self._remove_converted(converted)
 
+    def _rectangle(self):
+        a = self.add_point((0.0, 0.0))
+        b = self.add_point((4.0, 0.0))
+        c = self.add_point((4.0, 3.0))
+        d = self.add_point((0.0, 3.0))
+        self.add_line(a, b)
+        self.add_line(b, c)
+        self.add_line(c, d)
+        self.add_line(d, a)
+
+    def test_simple_fill_stays_a_clean_quad(self):
+        # N-gon fill: a plain rectangle converts to one quad, no diagonal edge.
+        self._rectangle()
+        converted = self._convert_copy(self.sketch.target_object, fill=True)
+        try:
+            self.assertEqual(len(converted.data.polygons), 1)
+            self.assertEqual(len(converted.data.polygons[0].vertices), 4)
+            self.assertEqual(len(converted.data.edges), 4)
+        finally:
+            self._remove_converted(converted)
+
+    def test_holed_fill_avoids_concave_ngons(self):
+        # A holed profile (rectangle around a circle) fills as concave n-gons that
+        # the viewport display-triangulates unstably; the convert triangulates
+        # 5+-vertex faces so the result is stable triangles, not flickering n-gons.
+        self._rectangle()
+        self.add_circle(self.add_point((2.0, 1.5)), 0.8)
+        converted = self._convert_copy(self.sketch.target_object, fill=True)
+        try:
+            self.assertGreater(len(converted.data.polygons), 0)
+            self.assertLessEqual(
+                max(len(p.vertices) for p in converted.data.polygons), 4,
+                "concave holed n-gons must be triangulated",
+            )
+        finally:
+            self._remove_converted(converted)
+
     def _downgrade_to_bezier(self, kind, bezier_points):
         """Fake an old-file Bezier curve of ``kind``: retype to BEZIER, resize to a
         legacy point count, and re-add the handle attributes migration must drop."""

@@ -23,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 20
+CONVERT_VERSION = 21
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -358,10 +358,25 @@ def build_convert_node_group(
     except Exception:
         pass
     links.new(to_curve.outputs["Curve"], fill_curve.inputs["Curve"])
+
+    # N-gon fill keeps simple loops clean (a rectangle stays one quad), but a holed
+    # profile -- e.g. a rectangle around a circle -- fills as large *concave*
+    # n-gons. Their geometry is correct, but Blender's solid viewport
+    # display-triangulates concave n-gons unstably, so the fill appears to flicker.
+    # Triangulate only faces with 5+ vertices (the 5.2 node has no Minimum Vertices
+    # input, so gate it by a selection): quads/tris -- simple rectangles -- stay
+    # clean, while the concave holed n-gons become stable triangles.
+    face_neighbors = nodes.new("GeometryNodeInputMeshFaceNeighbors")
+    is_ngon, ngon_a = _int_compare(nodes, links, "GREATER_EQUAL", 5)
+    links.new(face_neighbors.outputs["Vertex Count"], ngon_a)
+    triangulate = nodes.new("GeometryNodeTriangulate")
+    links.new(fill_curve.outputs["Mesh"], triangulate.inputs["Mesh"])
+    links.new(is_ngon.outputs["Result"], triangulate.inputs["Selection"])
+
     # Fill Curve drops named attributes; re-establish them on the filled mesh from
     # the pre-fill welded mesh by nearest element (POINT and per-segment EDGE).
     filled = _transfer_attributes_after_fill(
-        nodes, links, fill_curve.outputs["Mesh"], pre_fill, specs
+        nodes, links, triangulate.outputs["Mesh"], pre_fill, specs
     )
 
     switch = nodes.new("GeometryNodeSwitch")
