@@ -1,25 +1,24 @@
 import logging
 
-from bpy.types import Operator, Context
 from bpy.props import FloatProperty
+from bpy.types import Context, Operator
 
 from ..curve_solver import solve_system
 from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
-from .base_constraint import GenericConstraintOp
-from ..utilities.select import deselect_all
-from ..utilities.view import refresh
 from ..drawing import selection
-
 from ..model.coincident import SlvsCoincident
 from ..model.equal import SlvsEqual
-from ..model.vertical import SlvsVertical
 from ..model.horizontal import SlvsHorizontal
+from ..model.midpoint import SlvsMidpoint
 from ..model.parallel import SlvsParallel
 from ..model.perpendicular import SlvsPerpendicular
-from ..model.tangent import SlvsTangent
-from ..model.midpoint import SlvsMidpoint
 from ..model.ratio import SlvsRatio
+from ..model.tangent import SlvsTangent
+from ..model.vertical import SlvsVertical
+from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.select import deselect_all
+from ..utilities.view import refresh
+from .base_constraint import GenericConstraintOp
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +86,8 @@ class VIEW3D_OT_slvs_merge_points(Operator):
         return bool(get_active_sketch(context))
 
     def execute(self, context: Context):
-        from ..model.sketch_ref import get_active_sketch
         from ..model.curve_ref import curve_ref
+        from ..model.sketch_ref import get_active_sketch
 
         sketch = get_active_sketch(context)
         if not sketch:

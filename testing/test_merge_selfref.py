@@ -8,8 +8,8 @@ place it is redundant and the solver flags it as failed (``REDUNDANT_OK``); the
 merge must drop it instead.
 """
 
-from .utils import Sketch2dTestCase
 from ..operators.add_geometric_constraints import merge_points
+from .utils import Sketch2dTestCase
 
 
 class TestMergeSelfReferential(Sketch2dTestCase):
@@ -47,9 +47,7 @@ class TestMergeSelfReferential(Sketch2dTestCase):
         p1 = self.add_point((0, 0))
         p2 = self.add_point((0.001, 0))
         other = self.add_point((5, 0))
-        keep = sk.constraints.add_coincident(
-            curve_id_1=p1.curve_id, curve_id_2=other.curve_id
-        )
+        sk.constraints.add_coincident(curve_id_1=p1.curve_id, curve_id_2=other.curve_id)
 
         merge_points(self.context, p1, p2)
 
