@@ -8,9 +8,3 @@ class SketchCurveType:
     LINE = 1
     ARC = 2
     CIRCLE = 3
-
-
-class BezierHandleType:
-    AUTO = 0
-    FREE = 1
-    ALIGN = 3

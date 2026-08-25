@@ -19,10 +19,6 @@ from .utilities import slvs_entity_pointer
 from .constants import CURVE_RESOLUTION
 from ..utilities.constants import HALF_TURN, FULL_TURN
 from ..utilities.draw import coords_arc_2d
-from .utilities import (
-    get_bezier_curve_midpoint_positions,
-    create_bezier_curve,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -118,50 +114,6 @@ class SlvsCircle(Entity2D, PropertyGroup):
 
     def direction(self, point, is_endpoint=False):
         return False
-
-    def bezier_segment_count(self):
-        return 4
-
-    def bezier_point_count(self):
-        return self.bezier_segment_count()
-
-    def to_bezier(
-        self,
-        spline,
-        startpoint,
-        endpoint,
-        invert_direction,
-        set_startpoint=False,
-        midpoints=[],
-    ):
-        # Get midpoint positions
-        segment_count = len(midpoints) + 1
-        radius, center = self.radius, self.ct.co
-
-        bezier_points = [startpoint, *midpoints]
-
-        locations = get_bezier_curve_midpoint_positions(
-            self, segment_count, bezier_points, FULL_TURN, cyclic=True
-        )
-        angle = FULL_TURN / segment_count
-
-        # Calculate handle size for smooth circle approximation
-        n = FULL_TURN / angle
-        q = (4 / 3) * math.tan(HALF_TURN / (2 * n))
-        base_offset = Vector((radius, q * radius))
-
-        # Create curve with proper bezier handles
-        create_bezier_curve(
-            spline,
-            segment_count,
-            bezier_points,
-            locations,
-            center,
-            base_offset,
-            invert=invert_direction,
-            cyclic=True,
-        )
-        return endpoint
 
     def overlaps_endpoint(self, co):
         return False

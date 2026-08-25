@@ -270,10 +270,6 @@ def ensure_standard_attributes(curve_data):
     attributes = curve_data.attributes
     ensure_attribute(attributes, "cyclic", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "sketch_type", "INT8", "CURVE")
-    ensure_attribute(attributes, "handle_type_left", "INT8", "POINT")
-    ensure_attribute(attributes, "handle_type_right", "INT8", "POINT")
-    ensure_attribute(attributes, "handle_left", "FLOAT_VECTOR", "POINT")
-    ensure_attribute(attributes, "handle_right", "FLOAT_VECTOR", "POINT")
     # NURBS geometry (rational circles/arcs): per-point weight and per-curve
     # order + knot mode. Bezier entities leave these at their defaults.
     ensure_attribute(attributes, "nurbs_weight", "FLOAT", "POINT")
@@ -946,11 +942,6 @@ def rebuild_segments(sketch, point_ids=None):
                 p = cd.points[cs.points[0].index].position
                 point_co[cid_list[i]] = Vector((p[0], p[1]))
 
-    # Handle attributes are the same collection for every segment; fetch once
-    # rather than re-resolving them by name inside the per-segment loop below.
-    handle_left = cd.attributes.get("handle_left")
-    handle_right = cd.attributes.get("handle_right")
-
     for i in range(n):
         ctype = type_attr.data[i].value
         if ctype == SketchCurveType.POINT:
@@ -974,24 +965,12 @@ def rebuild_segments(sketch, point_ids=None):
         if ctype == SketchCurveType.LINE:
             sp_co = point_co.get(sp_ids[i])
             ep_co = point_co.get(ep_ids[i])
-            hl = handle_left
-            hr = handle_right
             if sp_co is not None:
-                pos = (sp_co.x, sp_co.y, 0.0)
                 idx = curve_slice.points[0].index
-                cd.points[idx].position = pos
-                if hl:
-                    hl.data[idx].vector = pos
-                if hr:
-                    hr.data[idx].vector = pos
+                cd.points[idx].position = (sp_co.x, sp_co.y, 0.0)
             if ep_co is not None:
-                pos = (ep_co.x, ep_co.y, 0.0)
                 idx = curve_slice.points[1].index
-                cd.points[idx].position = pos
-                if hl:
-                    hl.data[idx].vector = pos
-                if hr:
-                    hr.data[idx].vector = pos
+                cd.points[idx].position = (ep_co.x, ep_co.y, 0.0)
 
         elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
             ct_co = point_co.get(cp_ids[i])
