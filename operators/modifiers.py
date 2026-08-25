@@ -521,6 +521,11 @@ class View3D_OT_node_extrude(Operator, BooleanFromToolMixin, NodeOperator):
     def init(self, context: Context, event: Event):
         if not super().init(context, event):
             return False
+        # Teach the shipped face-extrude asset to turn a non-filled (wire) profile
+        # into open walls; a no-op on groups already carrying the patch.
+        from ..utilities.extrude_nodes import ensure_extrude_edge_walls
+
+        ensure_extrude_edge_walls(bpy.data.node_groups.get(self.NODEGROUP_NAME))
         self.reset_booleans()
         return True
 
