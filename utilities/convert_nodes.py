@@ -23,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 18
+CONVERT_VERSION = 19
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -151,7 +151,8 @@ def _transfer_attributes_after_fill(nodes, links, geometry, source, specs):
         links.new(named.outputs["Attribute"], sample.inputs["Value"])
         links.new(nearest.outputs["Index"], sample.inputs["Index"])
 
-        current = _remove_named_attribute(nodes, links, current, entry["name"])
+        # Fill Curve already dropped the name here, so Store re-creates it fresh;
+        # a Remove first would only warn "attribute does not exist" on every eval.
         store = nodes.new("GeometryNodeStoreNamedAttribute")
         store.data_type = entry["type"]
         store.domain = domain
