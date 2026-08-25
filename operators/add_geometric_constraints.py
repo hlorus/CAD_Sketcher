@@ -51,8 +51,27 @@ def merge_points(context, duplicate, target):
         if getattr(c, "curve_id_3", 0) == dup_cid:
             c.curve_id_3 = tgt_cid
 
+    # A constraint that referenced both merged points (e.g. a coincident joining
+    # the two) is now self-referential after the remap. Leaving it behind yields a
+    # redundant/failed constraint, so drop any that collapsed onto a single curve.
+    _remove_self_referential(sketch.constraints)
+
     # Remove duplicate
     duplicate.remove()
+
+
+def _remove_self_referential(constraints):
+    """Remove constraints whose two curve references collapsed to the same curve."""
+    while True:
+        degenerate = None
+        for c in constraints.all:
+            id1 = getattr(c, "curve_id_1", "")
+            if id1 and id1 == getattr(c, "curve_id_2", ""):
+                degenerate = c
+                break
+        if degenerate is None:
+            return
+        constraints.remove(degenerate)
 
 
 class VIEW3D_OT_slvs_merge_points(Operator):
