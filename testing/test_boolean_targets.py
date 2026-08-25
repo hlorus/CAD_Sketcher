@@ -38,6 +38,31 @@ class TestBooleanTargets(BgsTestCase):
         self.context.view_layer.update()
         return ob
 
+    def _gn_solid(self, name, center, half=1.0):
+        """A Curves object whose GN modifier OUTPUTS a cube.
+
+        Mimics an extruded/revolved sketch: the solid is Geometry-Nodes output on
+        a non-mesh object, so ``to_mesh``/``new_from_object`` raise on it and
+        detection must read the GN mesh from the depsgraph instance instead.
+        """
+        curves = self.data.hair_curves.new(name)
+        obj = self.data.objects.new(name, curves)
+        self.scene.collection.objects.link(obj)
+        ng = self.data.node_groups.new(name + "_ng", "GeometryNodeTree")
+        ng.interface.new_socket(
+            "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+        )
+        out = ng.nodes.new("NodeGroupOutput")
+        cube = ng.nodes.new("GeometryNodeMeshCube")
+        cube.inputs["Size"].default_value = (2 * half, 2 * half, 2 * half)
+        xf = ng.nodes.new("GeometryNodeTransform")
+        xf.inputs["Translation"].default_value = center
+        ng.links.new(cube.outputs["Mesh"], xf.inputs["Geometry"])
+        ng.links.new(xf.outputs["Geometry"], out.inputs["Geometry"])
+        obj.modifiers.new("Convert", "NODES").node_group = ng
+        self.context.view_layer.update()
+        return obj
+
     def test_overlapping_bodies_finds_only_intersecting(self):
         cutter = self._box("Cutter", (0, 0, 0))  # [-1,1]^3
         overlap = self._box("Overlap", (1, 1, 1))  # [0,2]^3, interpenetrates
@@ -46,6 +71,22 @@ class TestBooleanTargets(BgsTestCase):
 
         hits = overlapping_bodies(cutter, [overlap, far], depsgraph)
         self.assertEqual(hits, [overlap])
+
+    def test_gn_solid_cutter_overlaps_multiple_bodies(self):
+        # The real case: the cutter is a Curves object whose modifier OUTPUTS the
+        # solid (an extruded sketch). to_mesh() gives nothing for it, so detection
+        # must evaluate the GN geometry -- and it must find EVERY overlapping body,
+        # not just one (the "only detects one target" bug).
+        # The bodies poke transversally through the rod's side faces (half 0.5,
+        # so they cross rather than sit flush -- BVHTree.overlap needs a crossing).
+        cutter = self._gn_solid("Rod", (0.0, 0.0, 0.0))  # [-1,1]^3
+        b1 = self._box("B1", (1, 0, 0), half=0.5)  # crosses +X face
+        b2 = self._box("B2", (0, 1, 0), half=0.5)  # crosses +Y face
+        far = self._box("Far", (0, 0, 6), half=0.5)  # disjoint
+        depsgraph = self.context.evaluated_depsgraph_get()
+
+        hits = overlapping_bodies(cutter, [b1, b2, far], depsgraph)
+        self.assertEqual(set(hits), {b1, b2}, "must find both overlapping bodies")
 
     def test_overlap_ignores_a_profile_with_no_solid(self):
         # A flat profile (no faces) can't participate: no BVH, no overlap.

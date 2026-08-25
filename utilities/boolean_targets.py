@@ -41,35 +41,52 @@ def sketch_source_body(sketch):
     return source if isinstance(source, bpy.types.Object) else None
 
 
-def _world_geometry(obj, depsgraph):
-    """Return ``(bvh, aabb_min, aabb_max)`` in world space, or None if no solid.
+def _world_geometry_map(depsgraph, wanted):
+    """Map each object in ``wanted`` to ``(bvh, aabb_min, aabb_max)`` in world space.
 
-    Built from the *evaluated* mesh, so it reflects the object's modifiers (a
-    sketch's fill, its extrude/revolve). Returns None when the object yields no
-    faces (e.g. a flat, unextruded profile), which can't participate in a boolean.
+    Reads the *evaluated* geometry from depsgraph instances in a single pass. This
+    is what makes it work for a sketch: its extrude/revolve modifier OUTPUTS a mesh
+    from a Curves object, and that mesh surfaces as a depsgraph instance rather
+    than on the evaluated object (``to_mesh``/``new_from_object`` raise "does not
+    have geometry data" there). Objects yielding no faces (a flat, unextruded
+    profile) are simply absent from the map.
     """
-    ev = obj.evaluated_get(depsgraph)
-    try:
-        mesh = ev.to_mesh()
-    except Exception:
-        return None
-    if mesh is None or len(mesh.polygons) == 0:
-        if mesh is not None:
-            ev.to_mesh_clear()
-        return None
+    wanted = set(wanted)
+    accum = {}  # origin object -> ([world verts], [poly index tuples])
+    for inst in depsgraph.object_instances:
+        ob = inst.object
+        origin = (
+            inst.parent.original
+            if inst.is_instance and inst.parent is not None
+            else ob.original
+        )
+        if origin not in wanted:
+            continue
+        try:
+            mesh = ob.to_mesh()
+        except Exception:
+            mesh = None
+        if mesh is None or len(mesh.polygons) == 0:
+            if mesh is not None:
+                ob.to_mesh_clear()
+            continue
+        mw = inst.matrix_world
+        verts, polys = accum.setdefault(origin, ([], []))
+        base = len(verts)
+        verts.extend(mw @ v.co for v in mesh.vertices)
+        polys.extend(tuple(base + i for i in p.vertices) for p in mesh.polygons)
+        ob.to_mesh_clear()
 
-    mw = obj.matrix_world
-    verts = [mw @ v.co for v in mesh.vertices]
-    polys = [tuple(p.vertices) for p in mesh.polygons]
-    ev.to_mesh_clear()
-
-    lo = Vector(
-        (min(v.x for v in verts), min(v.y for v in verts), min(v.z for v in verts))
-    )
-    hi = Vector(
-        (max(v.x for v in verts), max(v.y for v in verts), max(v.z for v in verts))
-    )
-    return BVHTree.FromPolygons(verts, polys), lo, hi
+    result = {}
+    for obj, (verts, polys) in accum.items():
+        lo = Vector(
+            (min(v.x for v in verts), min(v.y for v in verts), min(v.z for v in verts))
+        )
+        hi = Vector(
+            (max(v.x for v in verts), max(v.y for v in verts), max(v.z for v in verts))
+        )
+        result[obj] = (BVHTree.FromPolygons(verts, polys), lo, hi)
+    return result
 
 
 def _aabb_overlap(a, b):
@@ -84,17 +101,18 @@ def overlapping_bodies(cutter, candidates, depsgraph):
     An AABB pre-filter (cheap, no BVH) gates the exact ``BVHTree.overlap`` test, so
     the expensive check only runs on plausibly-touching bodies. Order preserved.
     """
-    cutter_geo = _world_geometry(cutter, depsgraph)
+    geo = _world_geometry_map(depsgraph, [cutter, *candidates])
+    cutter_geo = geo.get(cutter)
     if cutter_geo is None:
         return []
     cutter_bvh, cutter_lo, cutter_hi = cutter_geo
 
     hits = []
     for obj in candidates:
-        geo = _world_geometry(obj, depsgraph)
-        if geo is None:
+        og = geo.get(obj)
+        if og is None:
             continue
-        bvh, lo, hi = geo
+        bvh, lo, hi = og
         if not _aabb_overlap((cutter_lo, cutter_hi), (lo, hi)):
             continue
         if cutter_bvh.overlap(bvh):
