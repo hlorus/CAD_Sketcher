@@ -74,6 +74,49 @@ def _dist_to_segment(a, b, px, py):
     return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5
 
 
+def rank_hits(point_items, seg_items, context, coords):
+    """Ranked element keys from generic ``(key, world)`` datasets under ``coords``.
+
+    ``point_items``: ``[(key, world_pos), ...]``; ``seg_items``: ``[(key, a, b),
+    ...]``. Points take priority over segments, then nearest first, and keys are
+    deduped. Shared by the active-sketch picker and reference curve-object picking
+    (``reference_pick``), so it must stay independent of any sketch specifics.
+    """
+    region, rv3d = context.region, context.region_data
+    if region is None or rv3d is None:
+        return []
+
+    scale = get_scale()
+    cx, cy = float(coords[0]), float(coords[1])
+    hits = []  # (priority, distance, key)
+
+    if point_items:
+        keys, screen, valid = _points_screen(point_items, region, rv3d)
+        d = np.hypot(screen[:, 0] - cx, screen[:, 1] - cy)
+        r = _POINT_RADIUS * scale
+        for i, key in enumerate(keys):
+            if valid[i] and d[i] <= r:
+                hits.append((0, float(d[i]), key))
+
+    if seg_items:
+        keys, screen, valid = _seg_screen(seg_items, region, rv3d)
+        r = _EDGE_RADIUS * scale
+        for i, key in enumerate(keys):
+            if not (valid[i, 0] and valid[i, 1]):
+                continue
+            dist = _dist_to_segment(screen[i, 0], screen[i, 1], cx, cy)
+            if dist <= r:
+                hits.append((1, float(dist), key))
+
+    hits.sort(key=lambda h: (h[0], h[1]))
+    ranked, seen = [], set()
+    for _, _, key in hits:
+        if key not in seen:
+            seen.add(key)
+            ranked.append(key)
+    return ranked
+
+
 def pick_ranked(context, coords):
     """curve_ids of every active-sketch element under ``coords``, nearest first.
 
@@ -82,42 +125,12 @@ def pick_ranked(context, coords):
     radius, so overlapping entities can be cycled through instead of only ever
     getting the topmost one (issue #50)."""
     data = _active_data(context)
-    region, rv3d = context.region, context.region_data
-    if data is None or region is None or rv3d is None:
+    if data is None:
         return []
-
     ignore = selection.ignore_list
-    scale = get_scale()
-    cx, cy = float(coords[0]), float(coords[1])
-    hits = []  # (priority, distance, cid)
-
     pts = [(cid, p) for cid, p in data.point_ids if cid not in ignore]
-    if pts:
-        cids, screen, valid = _points_screen(pts, region, rv3d)
-        d = np.hypot(screen[:, 0] - cx, screen[:, 1] - cy)
-        r = _POINT_RADIUS * scale
-        for i, cid in enumerate(cids):
-            if valid[i] and d[i] <= r:
-                hits.append((0, float(d[i]), cid))
-
     segs = [(cid, a, b) for cid, a, b in data.segment_ids if cid not in ignore]
-    if segs:
-        cids, screen, valid = _seg_screen(segs, region, rv3d)
-        r = _EDGE_RADIUS * scale
-        for i, cid in enumerate(cids):
-            if not (valid[i, 0] and valid[i, 1]):
-                continue
-            dist = _dist_to_segment(screen[i, 0], screen[i, 1], cx, cy)
-            if dist <= r:
-                hits.append((1, float(dist), cid))
-
-    hits.sort(key=lambda h: (h[0], h[1]))
-    ranked, seen = [], set()
-    for _, _, cid in hits:
-        if cid not in seen:
-            seen.add(cid)
-            ranked.append(cid)
-    return ranked
+    return rank_hits(pts, segs, context, coords)
 
 
 def pick(context, coords):
