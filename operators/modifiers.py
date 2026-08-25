@@ -192,11 +192,11 @@ class BooleanFromToolMixin:
     """
 
     def reset_booleans(self):
-        """Clear detection state for a fresh interactive run (call from init).
+        """Clear boolean state for a fresh interactive run (call from init).
 
-        Detection runs once per operation; the redo panel then edits the result.
-        init runs on invoke but not on the redo re-execute, so resetting here
-        preserves the user's redo-panel edits while a new invocation redetects.
+        init runs on invoke but not on the redo re-execute, so clearing here lets
+        a new invocation start clean while the redo panel keeps the user's edits
+        (their per-target toggles and operation override) across re-runs.
         """
         self.boolean_detected = False
         self.boolean_targets.clear()
@@ -206,10 +206,13 @@ class BooleanFromToolMixin:
         return getattr(self, "offset", 0.0)
 
     def finish_booleans(self, context):
-        """Detect targets once, then apply/remove the per-target booleans.
+        """Re-detect targets, then apply/remove the per-target booleans.
 
         The cutter is this tool's own object: its evaluated solid is read by the
-        boolean group through Object Info.
+        boolean group through Object Info. Detection re-runs on every execute (so a
+        redo that lengthens the extrude picks up bodies it now reaches), but the
+        user's per-target toggles are carried over, and the default operation is
+        seeded only on the first run so a manual override sticks.
         """
         cutter = getattr(self, "_obj", None) or self.resolved_object()
         if cutter is None:
@@ -225,38 +228,48 @@ class BooleanFromToolMixin:
 
         sketch = Sketch(cutter) if cutter.type == "CURVES" else None
 
+        # The solid must be evaluated before the overlap test can see it.
+        context.view_layer.update()
+        targets = detect_targets(context, cutter, sketch)
+
         if not self.boolean_detected:
-            # The solid must be evaluated before the overlap test can see it.
-            context.view_layer.update()
-            targets = detect_targets(context, cutter, sketch)
             has_source = sketch is not None and sketch_source_body(sketch) is not None
             self.operation = default_operation(self._boolean_offset(), has_source)
-            self.boolean_targets.clear()
-            for obj in targets:
-                item = self.boolean_targets.add()
-                item.name = obj.name
-                item.enabled = True
             self.boolean_detected = True
+
+        # Preserve exclusions across redo while adding newly-overlapping bodies; a
+        # target that drops out of detection loses its (now moot) boolean anyway.
+        prev_enabled = {item.name: item.enabled for item in self.boolean_targets}
+        self.boolean_targets.clear()
+        for obj in targets:
+            item = self.boolean_targets.add()
+            item.name = obj.name
+            item.enabled = prev_enabled.get(obj.name, True)
 
         self._apply_boolean_targets(cutter)
 
     def _apply_boolean_targets(self, cutter):
         name = boolean_modifier_name(cutter)
-        applied = False
+        enabled_bodies = set()
         for item in self.boolean_targets:
             body = bpy.data.objects.get(item.name)
             if body is None:
                 continue
-            existing = body.modifiers.get(name)
             if self.operation != "None" and item.enabled:
                 apply_boolean(body, cutter, self.operation)
-                applied = True
-            elif existing is not None:
-                # Excluded (or operation set to None): drop the boolean again.
-                body.modifiers.remove(existing)
+                enabled_bodies.add(body)
+        # Strip this cutter's boolean from every other body, so excluding a target,
+        # setting the operation to None, or a shorter extrude no longer reaching a
+        # body all remove its (now stale) boolean -- even if it left the list.
+        for body in bpy.data.objects:
+            if body in enabled_bodies:
+                continue
+            mod = body.modifiers.get(name)
+            if mod is not None:
+                body.modifiers.remove(mod)
         # A solid cutter sitting over the bodies would hide the result -- wireframe
         # it, matching the standalone Boolean tool.
-        if applied:
+        if enabled_bodies:
             cutter.display_type = "WIRE"
 
     def draw_boolean_settings(self, layout):

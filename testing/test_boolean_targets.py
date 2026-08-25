@@ -143,3 +143,31 @@ class TestBooleanTargets(BgsTestCase):
             "the overlapping body must receive the cutter's boolean",
         )
         self.assertIsNone(far.modifiers.get(boolean_modifier_name(cutter)))
+
+    def test_apply_targets_strips_stale_boolean_from_dropped_body(self):
+        # On a redo re-run a body may leave the target list (a shorter extrude no
+        # longer reaches it, or the user excluded it). _apply_boolean_targets must
+        # remove its now-stale boolean even though it is not iterated as a target.
+        from ..operators.modifiers import (
+            BooleanFromToolMixin,
+            apply_boolean,
+            boolean_modifier_name,
+        )
+
+        cutter = self._box("Cutter", (0, 0, 0))
+        keep = self._box("Keep", (1, 1, 1))
+        dropped = self._box("Dropped", (1, 1, 1))
+        # Both start out carrying the cutter's boolean (from a previous run).
+        apply_boolean(keep, cutter, "Difference")
+        apply_boolean(dropped, cutter, "Difference")
+
+        # This run's targets list only mentions "keep"; "dropped" is gone from it.
+        item = types.SimpleNamespace(name="Keep", enabled=True)
+        fake = types.SimpleNamespace(operation="Difference", boolean_targets=[item])
+        BooleanFromToolMixin._apply_boolean_targets(fake, cutter)
+
+        name = boolean_modifier_name(cutter)
+        self.assertIsNotNone(keep.modifiers.get(name), "kept target stays booleaned")
+        self.assertIsNone(
+            dropped.modifiers.get(name), "dropped body's stale boolean is removed"
+        )
