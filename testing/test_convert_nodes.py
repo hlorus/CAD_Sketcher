@@ -252,3 +252,70 @@ class TestConvertNodeGroup(TestCase):
             self.assertEqual(ng.get("cad_convert_version"), CONVERT_VERSION)
         finally:
             bpy.data.node_groups.remove(ng)
+
+    def _fill(self, loops):
+        """Evaluate the convert group with Fill on over closed wire ``loops``
+        (lists of (x, y) points) and return the filled mesh's bmesh."""
+        import bmesh
+
+        from ..operators.modifiers import set_modifier_input
+        from ..utilities.convert_nodes import build_convert_node_group
+
+        bm = bmesh.new()
+        for loop in loops:
+            vs = [bm.verts.new((x, y, 0.0)) for x, y in loop]
+            for k in range(len(vs)):
+                bm.edges.new((vs[k], vs[(k + 1) % len(vs)]))
+        me = bpy.data.meshes.new("wire")
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new("wire", me)
+        bpy.context.scene.collection.objects.link(ob)
+
+        ng = build_convert_node_group("test_convert_fill")
+        mod = ob.modifiers.new("convert", "NODES")
+        mod.node_group = ng
+        ids = {s.name: s.identifier for s in ng.interface.items_tree
+               if s.in_out == "INPUT"}
+        set_modifier_input(mod, ids["Fill"], True)
+
+        dg = bpy.context.evaluated_depsgraph_get()
+        out = bmesh.new()
+        out.from_mesh(ob.evaluated_get(dg).to_mesh())
+        bpy.data.objects.remove(ob, do_unlink=True)
+        bpy.data.node_groups.remove(ng)
+        return out
+
+    def test_fill_is_ngon_not_triangulated(self):
+        # The fill should carry only the outline plus one face per region -- no
+        # interior triangulation. A simple square fills to a single quad with no
+        # interior edges.
+        bm = self._fill([[(-1, -1), (1, -1), (1, 1), (-1, 1)]])
+        try:
+            self.assertEqual(len(bm.faces), 1, "square should fill to one face")
+            self.assertEqual(
+                [len(f.verts) for f in bm.faces], [4], "face should be a quad"
+            )
+            interior = sum(1 for e in bm.edges if len(e.link_faces) == 2)
+            self.assertEqual(interior, 0, "no interior triangulation edges")
+        finally:
+            bm.free()
+
+    def test_holed_fill_has_no_triangulation(self):
+        # A region with a hole cannot be a single mesh face, so it splits into
+        # the fewest n-gons -- but still no triangles: every face has more than
+        # three sides.
+        bm = self._fill(
+            [
+                [(-1, -1), (1, -1), (1, 1), (-1, 1)],
+                [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)],
+            ]
+        )
+        try:
+            self.assertGreater(len(bm.faces), 0)
+            self.assertTrue(
+                all(len(f.verts) > 3 for f in bm.faces),
+                "holed fill must be n-gons, never triangulated",
+            )
+        finally:
+            bm.free()
