@@ -17,7 +17,7 @@ from ..stateful_operator.integration import StatefulOperator
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.curve_data import refresh_curve_geometry
-from ..utilities.projection_anchor import project_mesh_element
+from ..utilities.projection_anchor import project_curves_element, project_mesh_element
 from .base_stateful import GenericEntityOp
 
 _TYPE_TO_ELEMENT = {
@@ -56,26 +56,61 @@ class VIEW3D_OT_slvs_project_geometry(Operator, GenericEntityOp):
         return get_active_sketch(context) is not None
 
     def pick_element(self, context: Context, coords):
-        # Only the raw mesh-element pick; skip GenericEntityOp's curve/constraint
-        # hover handling, which is irrelevant when projecting scene meshes.
-        return StatefulOperator.pick_element(self, context, coords)
+        # Raw mesh-element pick first (skip GenericEntityOp's curve/constraint
+        # hover handling). With no mesh hit, fall back to a reference curve element
+        # so another sketch's line/point can be picked and projected -- agreeing
+        # with the hover gizmo, which uses the same reference pick.
+        retval = StatefulOperator.pick_element(self, context, coords)
+        data = self.state_data
+        if retval is not None:
+            data.pop("curve_ref", None)
+            return retval
+
+        from ..drawing.reference_pick import pick_reference_element
+
+        active = get_active_sketch(context)
+        ref = pick_reference_element(
+            context, coords, exclude=active.target_object if active else None
+        )
+        if ref is not None:
+            ob, key = ref
+            data["curve_ref"] = (ob.name, key)
+            data["type"] = None  # not a mesh element; dispatched via curve_ref
+            return (ob.name,)
+        data.pop("curve_ref", None)
+        return None
 
     def main(self, context: Context):
         sketch = get_active_sketch(context)
+        if sketch is None:
+            return False
         data = self._state_data.get(0, {})
-        elem = _TYPE_TO_ELEMENT.get(data.get("type"))
-        pointer = self.get_state_pointer(index=0, implicit=True)
-        if sketch is None or elem is None or not pointer:
-            return False
 
-        obj_name, mesh_index = pointer
-        source = bpy.data.objects.get(obj_name)
-        if source is None or source.type != "MESH":
-            return False
+        curve_ref = data.get("curve_ref")
+        if curve_ref:
+            source = bpy.data.objects.get(curve_ref[0])
+            if source is None:
+                return False
+            n_points, n_lines, skipped = project_curves_element(
+                sketch, source, curve_ref[1], construction=self.construction
+            )
+            if skipped:
+                self.report(
+                    {"INFO"}, "This curve element can't be projected yet (arc/circle)"
+                )
+        else:
+            elem = _TYPE_TO_ELEMENT.get(data.get("type"))
+            pointer = self.get_state_pointer(index=0, implicit=True)
+            if elem is None or not pointer:
+                return False
+            obj_name, mesh_index = pointer
+            source = bpy.data.objects.get(obj_name)
+            if source is None or source.type != "MESH":
+                return False
+            n_points, n_lines = project_mesh_element(
+                sketch, source, elem, mesh_index, construction=self.construction
+            )
 
-        n_points, n_lines = project_mesh_element(
-            sketch, source, elem, mesh_index, construction=self.construction
-        )
         if n_points or n_lines:
             refresh_curve_geometry(sketch)
             from .. import global_data

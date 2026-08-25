@@ -8,6 +8,7 @@ from ..utilities.projection_anchor import (
     PROJECT_VERTEX_INDEX_ATTR,
     VERTEX_ID_ATTR,
     find_projected_point,
+    project_curves_element,
     project_curves_object,
     project_mesh_edge,
     project_mesh_element,
@@ -377,3 +378,49 @@ class TestProjectionAnchor(Sketch2dTestCase):
         self.assertEqual(resolve_source_vertex_index(source, eval_source, 1), 1)
         # An out-of-range evaluated index resolves to nothing rather than crash.
         self.assertIsNone(resolve_source_vertex_index(source, eval_source, 99))
+
+    def test_project_single_sketch_line_element(self):
+        # Project just one picked line of a source sketch (Phase 3 of the tool).
+        from ..model.curve_ref import LineRef, PointRef
+
+        src = self.new_sketch()
+        p1 = PointRef.create(src, (0.0, 0.0))
+        p2 = PointRef.create(src, (2.0, 3.0))
+        line = LineRef.create(src, p1, p2)
+
+        points, lines, skipped = project_curves_element(
+            self.sketch, src.target_object, line.curve_id
+        )
+        self.assertEqual(len(points), 2)
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(skipped, 0)
+        self.assertTrue(all(p.fixed for p in points))
+
+        # Idempotent: re-projecting the same line reuses its endpoints, adds none.
+        p_again, l_again, _ = project_curves_element(
+            self.sketch, src.target_object, line.curve_id
+        )
+        self.assertEqual(len(p_again), 0)
+        self.assertEqual(len(l_again), 0)
+
+    def test_project_single_sketch_arc_element_is_skipped(self):
+        from ..model.curve_ref import ArcRef, PointRef
+
+        src = self.new_sketch()
+        center = PointRef.create(src, (0.0, 0.0))
+        start = PointRef.create(src, (1.0, 0.0))
+        end = PointRef.create(src, (0.0, 1.0))
+        arc = ArcRef.create(src, center, start, end)
+
+        points, lines, skipped = project_curves_element(
+            self.sketch, src.target_object, arc.curve_id
+        )
+        self.assertEqual((len(points), len(lines), skipped), (0, 0, 1))
+
+    def test_project_element_rejects_non_sketch_key(self):
+        # A raw-Curves index key is hoverable but not projectable yet.
+        src = self.new_sketch()
+        self.assertEqual(
+            project_curves_element(self.sketch, src.target_object, ("point", 0)),
+            ([], [], 1),
+        )
