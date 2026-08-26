@@ -86,6 +86,10 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
     @classmethod
     def description(cls, context, properties):
         cls.handle_highlight_hover(context, properties)
+        if properties.index:
+            sketch = get_active_sketch(context)
+            if sketch and _is_origin_curve(sketch, properties.index):
+                return "Cannot delete the sketch origin"
         return cls.__doc__
 
     def execute(self, context: Context):
