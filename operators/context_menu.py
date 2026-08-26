@@ -77,6 +77,8 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
             row = col.row()
             row.alert = True
             if is_entity:
+                # The origin is protected — show Delete grayed out.
+                row.enabled = not getattr(element, "is_origin", False)
                 op = row.operator(Operators.DeleteEntity, text="Delete", icon="X")
                 op.index = element._curve_id
             else:

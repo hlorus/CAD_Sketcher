@@ -36,6 +36,9 @@ logger = logging.getLogger(__name__)
 # Start/end points closer than this (sketch units) make an arc zero-sweep.
 _DEGEN_ARC_EPS = 1e-4
 
+# The origin point sits exactly at the workplane's local (0, 0).
+_ORIGIN_EPS = 1e-6
+
 # object.name -> signature of the last validated state
 _validated = {}
 
@@ -125,6 +128,49 @@ def _remove_orphan_points(sketch, candidate_ids):
             remove_native_curve_by_id(sketch, cid)
 
 
+def _ensure_origin(sketch, cd):
+    """Guarantee the sketch keeps its protected origin point.
+
+    A native Edit-Mode delete can remove the origin like any other point.
+    Restore it by adopting an existing fixed point at local (0, 0) — which also
+    migrates sketches created before origins were tagged — or minting a fresh
+    one when none is present. Returns True if the data was changed.
+    """
+    type_attr = cd.attributes.get("sketch_type")
+    if type_attr is None:
+        return False
+
+    origin_attr = cd.attributes.get("is_origin")
+    if origin_attr is None:
+        ensure_standard_attributes(cd)
+        origin_attr = cd.attributes.get("is_origin")
+        if origin_attr is None:
+            return False
+
+    # Already flagged — nothing to do.
+    for i in range(len(cd.curves)):
+        if origin_attr.data[i].value:
+            return False
+
+    # Migration/restore: adopt a pre-existing fixed point at local (0, 0).
+    fixed_attr = cd.attributes.get("fixed")
+    for i in range(len(cd.curves)):
+        if type_attr.data[i].value != SketchCurveType.POINT:
+            continue
+        pos = cd.points[cd.curves[i].points[0].index].position
+        at_origin = math.hypot(pos[0], pos[1]) < _ORIGIN_EPS
+        is_fixed = fixed_attr is None or fixed_attr.data[i].value
+        if at_origin and is_fixed:
+            origin_attr.data[i].value = True
+            return True
+
+    # None to adopt — recreate the origin from scratch.
+    from ..model.curve_ref import PointRef
+
+    PointRef.create(sketch, (0.0, 0.0), fixed=True, is_origin=True)
+    return True
+
+
 def validate_sketch(sketch):
     """Repair invariants on one sketch's curve data.
 
@@ -167,6 +213,10 @@ def validate_sketch(sketch):
                 name_attr.data[i].value = default_curve_name(cd, ctype).encode()
             changed = True
         seen.add(cid)
+
+    # 2b. Guarantee the protected origin point survives a native delete.
+    if _ensure_origin(sketch, cd):
+        changed = True
 
     # 3. Remove segments left degenerate by a native edit — e.g. a line whose
     #    endpoint was deleted in Edit Mode, leaving a 1-point "line".

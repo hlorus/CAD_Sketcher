@@ -278,6 +278,8 @@ def ensure_standard_attributes(curve_data):
     ensure_attribute(attributes, "construction", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "fixed", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "visible", "BOOLEAN", "CURVE")
+    # Marks the sketch's protected origin point (undeletable, auto-restored).
+    ensure_attribute(attributes, "is_origin", "BOOLEAN", "CURVE")
     # Per-point weld identity for the Blender 5.2 "Merge Points" fill path:
     # segment endpoints sharing a junction get the same id (see compute_merge_ids).
     ensure_attribute(attributes, "merge_id", "INT", "POINT")
