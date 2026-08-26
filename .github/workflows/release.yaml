@@ -68,10 +68,14 @@ jobs:
         run: blender --background --command extension validate
         working-directory: ./CAD_Sketcher
 
+      # Platform-specific wheels -> one package per platform (manifest declares
+      # `platforms`). Produces dist/CAD_Sketcher-<version>-<platform>.zip.
       - name: Build Extension
-        run: >-
-          blender --background --command extension build
-          --output-filepath "${{ github.workspace }}/CAD_Sketcher-${{ github.ref_name }}.zip"
+        run: |
+          mkdir -p "${{ github.workspace }}/dist"
+          blender --background --command extension build \
+            --split-platforms \
+            --output-dir "${{ github.workspace }}/dist"
         working-directory: ./CAD_Sketcher
 
       - name: Detect pre-release
@@ -106,7 +110,7 @@ jobs:
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
-          files: CAD_Sketcher-${{ github.ref_name }}.zip
+          files: dist/*.zip
           prerelease: ${{ steps.pre.outputs.prerelease }}
           generate_release_notes: true
           body_path: ${{ github.workspace }}/notes.md
@@ -147,18 +151,19 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           python3 - <<'PY'
-          import json, os, re
+          import json, os
           repo = os.environ["REPO"]
           d = json.load(open("zips/index.json"))
+          # A version yields several per-platform assets (split-platforms), plus
+          # older combined single-file releases. Keep each asset's real filename
+          # and derive its release tag from the entry version ("v" + version),
+          # which holds for every stable tag.
           for e in d.get("data", []):
               fn = os.path.basename(e["archive_url"])
-              m = re.match(r"CAD_Sketcher-(.+)\.zip$", fn)
-              if not m:
-                  raise SystemExit(f"unexpected asset name: {fn}")
-              t = m.group(1)
-              e["archive_url"] = f"https://github.com/{repo}/releases/download/{t}/{fn}"
+              tag = "v" + e["version"]
+              e["archive_url"] = f"https://github.com/{repo}/releases/download/{tag}/{fn}"
           json.dump(d, open("zips/index.json", "w"), indent=2)
-          print("stable:", [e["version"] for e in d["data"]])
+          print("stable:", sorted({e["version"] for e in d["data"]}))
           PY
 
       - name: Publish stable/index.json
@@ -272,22 +277,31 @@ jobs:
         working-directory: ./CAD_Sketcher
 
       - name: Build latest
-        run: >-
-          blender --background --command extension build
-          --output-filepath "${{ github.workspace }}/CAD_Sketcher-latest.zip"
+        run: |
+          mkdir -p "${{ github.workspace }}/dist"
+          blender --background --command extension build \
+            --split-platforms \
+            --output-dir "${{ github.workspace }}/dist"
         working-directory: ./CAD_Sketcher
 
       - name: Update rolling latest release
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
-          gh release view latest --repo "${{ github.repository }}" >/dev/null 2>&1 || \
-            gh release create latest --repo "${{ github.repository }}" --prerelease \
+          gh release view latest --repo "$REPO" >/dev/null 2>&1 || \
+            gh release create latest --repo "$REPO" --prerelease \
               --title "Latest (main)" \
               --notes "Rolling build of the newest main commit. Subscribe via the 'latest' extension channel." \
               --target "${{ github.sha }}"
-          gh release upload latest "${{ github.workspace }}/CAD_Sketcher-latest.zip" \
-            --repo "${{ github.repository }}" --clobber
+          # The per-platform filenames embed the run number, so --clobber can't
+          # replace the previous run's assets; delete them first to avoid pileup.
+          gh release view latest --repo "$REPO" --json assets \
+            --jq '.assets[].name' 2>/dev/null | while read -r a; do
+            [ -n "$a" ] && gh release delete-asset latest "$a" --repo "$REPO" --yes || true
+          done
+          gh release upload latest "${{ github.workspace }}"/dist/*.zip \
+            --repo "$REPO" --clobber
 
       - name: Move the latest tag to this commit
         # --clobber only replaces the asset; force-move the ref so the tag and
@@ -299,10 +313,10 @@ jobs:
       - name: Generate latest listing
         run: |
           mkdir -p zips
-          cp "${{ github.workspace }}/CAD_Sketcher-latest.zip" zips/
+          cp "${{ github.workspace }}"/dist/*.zip zips/
           blender --background --command extension server-generate --repo-dir zips
 
-      - name: Point archive URL at the latest asset
+      - name: Point archive URLs at the latest assets
         env:
           REPO: ${{ github.repository }}
         run: |
@@ -310,12 +324,13 @@ jobs:
           import json, os
           repo = os.environ["REPO"]
           d = json.load(open("zips/index.json"))
+          # One entry per platform; each keeps its own filename under the
+          # rolling "latest" release.
           for e in d.get("data", []):
-              e["archive_url"] = (
-                  f"https://github.com/{repo}/releases/download/latest/CAD_Sketcher-latest.zip"
-              )
+              fn = os.path.basename(e["archive_url"])
+              e["archive_url"] = f"https://github.com/{repo}/releases/download/latest/{fn}"
           json.dump(d, open("zips/index.json", "w"), indent=2)
-          print("latest:", [e["version"] for e in d["data"]])
+          print("latest:", [(e["version"], e.get("platforms")) for e in d["data"]])
           PY
 
       - name: Publish latest/index.json
