@@ -12,16 +12,13 @@ Options:
   --py-version VERSION  Python version to download wheels for (e.g., 3.11, 3.10-3.12)
 """
 
-import os
-import sys
-import json
-import urllib.request
-import urllib.error
-from urllib.parse import urljoin
-import re
-import importlib
-import subprocess
 import argparse
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
 
 # Package name to download
 PACKAGE_NAME = "slvs"
@@ -296,7 +293,7 @@ def download_wheels(test_pypi=False, specific_version=None, py_version='3.11'):
                 downloaded_wheels += 1
                 downloaded_files.append(output_path)
 
-    print(f"\nDownload summary:")
+    print("\nDownload summary:")
     print(f"Source: {source}")
     print(f"Version: {version_to_download}")
     print(f"Total Python compatible wheel files found: {total_wheels}")
