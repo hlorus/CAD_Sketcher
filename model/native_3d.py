@@ -110,9 +110,14 @@ def create_point_3d(sketch, co, construction=False, fixed=False, name=None):
     position = Vector(co).to_3d()
     cid = _allocate(sketch)
     curve_data.add_curves([1])
-    _ensure_attrs(curve_data, len(curve_data.curves) - 1)
-
     curve_idx = len(curve_data.curves) - 1
+    # add_curves() does not promise a linear curve type. Blender's set_types()
+    # default is CATMULL_ROM, and Blender 5.0's rewritten viewport curve drawing
+    # can hit invalid evaluation paths on degenerate 1/2-point spline types.
+    # Native 3D points/lines are intentionally linear, so make that explicit.
+    curve_data.set_types(type="POLY", indices=[curve_idx])
+    _ensure_attrs(curve_data, curve_idx)
+
     curve_slice = curve_data.curves[curve_idx]
     curve_slice.points[0].position = tuple(position)
 
@@ -157,12 +162,17 @@ def create_line_3d(sketch, p1, p2, construction=False, name=None):
     positions = (_local_point_position(p1), _local_point_position(p2))
     cid = _allocate(sketch)
     curve_data.add_curves([2])
-    _ensure_attrs(curve_data, len(curve_data.curves) - 1)
-
     curve_idx = len(curve_data.curves) - 1
+    # Keep the new line explicitly POLY instead of relying on the Curves data
+    # block's implicit/default type. This matters on Blender 5.0 where the
+    # viewport drawing path changed substantially and a two-point non-linear
+    # spline can reach unsafe GPU curve evaluation code.
+    curve_data.set_types(type="POLY", indices=[curve_idx])
+    _ensure_attrs(curve_data, curve_idx)
+
     curve_slice = curve_data.curves[curve_idx]
-    # New curves are POLY by default. Set the raw curve points directly from
-    # referenced native 3D points so Z can never be reconstructed via a 2D API.
+    # Set the raw curve points directly from referenced native 3D points so Z
+    # can never be reconstructed via a 2D API.
     for point, position in zip(curve_slice.points, positions):
         curve_data.points[point.index].position = tuple(position)
 
