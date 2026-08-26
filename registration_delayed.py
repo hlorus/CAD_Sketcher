@@ -1,12 +1,14 @@
-# Use a bpy.app.timer to register stuff that needs a valid context which isn't available during the normal registration
+# Registering the asset library calls bpy.ops and touches preferences, which
+# isn't allowed from the restricted context during add-on register(). Defer it
+# via a timer until a full context is available. (Draw handlers don't need this
+# and are added directly in draw_handler.register().)
 
 import bpy
 
-from . import assets_manager, global_data
+from . import assets_manager
 
 
 def startup_cb(*args):
-    bpy.ops.view3d.slvs_register_draw_cb()
     assets_manager.load()
     return None
 
@@ -16,6 +18,7 @@ def register():
 
 
 def unregister():
-    handle = global_data.draw_handle
-    if handle:
-        bpy.types.SpaceView3D.draw_handler_remove(handle, "WINDOW")
+    # The timer may not have fired yet (add-on disabled right after enabling);
+    # cancel it so it can't run after the modules are gone.
+    if bpy.app.timers.is_registered(startup_cb):
+        bpy.app.timers.unregister(startup_cb)

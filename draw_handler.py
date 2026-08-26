@@ -3,14 +3,12 @@ import logging
 import blf
 import bpy
 import gpu
-from bpy.types import Context, Operator
-from bpy.utils import register_class, unregister_class
+from bpy.types import Context
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from gpu_extras.batch import batch_for_shader
 from mathutils import Matrix, Vector
 
 from . import global_data
-from .declarations import Operators
 from .shaders import Shaders
 from .utilities import preferences
 from .utilities.preferences import get_prefs
@@ -308,60 +306,30 @@ def draw_origin_labels():
     gpu.state.blend_set("NONE")
 
 
-class View3D_OT_slvs_register_draw_cb(Operator):
-    bl_idname = Operators.RegisterDrawCB
-    bl_label = "Register Draw Callback"
-
-    def execute(self, context: Context):
-        from .drawing import constraint_icons
-
-        global_data.draw_handle = bpy.types.SpaceView3D.draw_handler_add(
-            draw_cb, (), "WINDOW", "POST_VIEW"
-        )
-        global_data.hover_draw_handle = bpy.types.SpaceView3D.draw_handler_add(
-            draw_hover_element, (), "WINDOW", "POST_VIEW"
-        )
-        # Constraint icons draw in screen space, batched from one atlas.
-        global_data.icon_draw_handle = bpy.types.SpaceView3D.draw_handler_add(
-            constraint_icons.draw, (), "WINDOW", "POST_PIXEL"
-        )
-        # Origin-plane labels are drawn in the plane, so they need the 3D pass.
-        global_data.origin_label_draw_handle = bpy.types.SpaceView3D.draw_handler_add(
-            draw_origin_labels, (), "WINDOW", "POST_VIEW"
-        )
-
-        return {"FINISHED"}
-
-
-class View3D_OT_slvs_unregister_draw_cb(Operator):
-    bl_idname = Operators.UnregisterDrawCB
-    bl_label = ""
-
-    def execute(self, context: Context):
-        global_data.draw_handler.remove_handle()
-        if global_data.hover_draw_handle is not None:
-            bpy.types.SpaceView3D.draw_handler_remove(
-                global_data.hover_draw_handle, "WINDOW"
-            )
-            global_data.hover_draw_handle = None
-        if getattr(global_data, "icon_draw_handle", None) is not None:
-            bpy.types.SpaceView3D.draw_handler_remove(
-                global_data.icon_draw_handle, "WINDOW"
-            )
-            global_data.icon_draw_handle = None
-        if getattr(global_data, "origin_label_draw_handle", None) is not None:
-            bpy.types.SpaceView3D.draw_handler_remove(
-                global_data.origin_label_draw_handle, "WINDOW"
-            )
-            global_data.origin_label_draw_handle = None
-        return {"FINISHED"}
+# Viewport draw handlers, keyed by their global_data attribute. Order matches
+# the passes: geometry/hover/origin labels in the 3D view, constraint icons in
+# screen space (batched from one atlas).
+_DRAW_HANDLERS = (
+    ("draw_handle", draw_cb, "POST_VIEW"),
+    ("hover_draw_handle", draw_hover_element, "POST_VIEW"),
+    ("origin_label_draw_handle", draw_origin_labels, "POST_VIEW"),
+    ("icon_draw_handle", None, "POST_PIXEL"),  # callback resolved in register()
+)
 
 
 def register():
-    register_class(View3D_OT_slvs_register_draw_cb)
-    register_class(View3D_OT_slvs_unregister_draw_cb)
+    from .drawing import constraint_icons
+
+    callbacks = {"icon_draw_handle": constraint_icons.draw}
+    for attr, cb, pass_type in _DRAW_HANDLERS:
+        cb = cb or callbacks[attr]
+        handle = bpy.types.SpaceView3D.draw_handler_add(cb, (), "WINDOW", pass_type)
+        setattr(global_data, attr, handle)
 
 
 def unregister():
-    unregister_class(View3D_OT_slvs_unregister_draw_cb)
-    unregister_class(View3D_OT_slvs_register_draw_cb)
+    for attr, _cb, _pass in _DRAW_HANDLERS:
+        handle = getattr(global_data, attr, None)
+        if handle is not None:
+            bpy.types.SpaceView3D.draw_handler_remove(handle, "WINDOW")
+            setattr(global_data, attr, None)
