@@ -180,6 +180,11 @@ class CurveRef:
         self._set_attr_value("visible", bool(value))
 
     @property
+    def is_origin(self):
+        """True for the sketch's protected origin point (read-only)."""
+        return bool(self._get_attr_value("is_origin", False))
+
+    @property
     def name(self):
         """User-facing name stored on the curve (falls back to the type)."""
         return self._get_attr_value("name", "") or self._type_label
@@ -409,7 +414,7 @@ class PointRef(CurveRef):
         return mat @ pos
 
     @staticmethod
-    def create(sketch, co, construction=False, fixed=False, name=None):
+    def create(sketch, co, construction=False, fixed=False, name=None, is_origin=False):
         """Create a new point curve and return a PointRef.
 
         Args:
@@ -418,6 +423,7 @@ class PointRef(CurveRef):
             construction: Whether this is a construction point.
             fixed: Whether this point is fixed.
             name: Optional display name; a default is generated when omitted.
+            is_origin: Whether this is the sketch's protected origin point.
 
         Returns:
             PointRef for the new curve.
@@ -443,6 +449,8 @@ class PointRef(CurveRef):
         set_attribute(attrs, "construction", construction, curve_idx)
         set_attribute(attrs, "fixed", fixed, curve_idx)
         set_attribute(attrs, "visible", True, curve_idx)
+        if is_origin:
+            set_attribute(attrs, "is_origin", True, curve_idx)
         set_attribute(attrs, "name",
                       name or default_curve_name(curve_data, SketchCurveType.POINT),
                       curve_idx)

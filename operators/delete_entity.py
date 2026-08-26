@@ -41,6 +41,17 @@ def _get_dependent_curve_ids(sketch, curve_id):
     return deps
 
 
+def _is_origin_curve(sketch, curve_id):
+    """True if curve_id is the sketch's protected origin point."""
+    from ..utilities.curve_data import get_curve_data
+
+    cd, idx, _ = get_curve_data(sketch, curve_id)
+    if cd is None:
+        return False
+    attr = cd.attributes.get("is_origin")
+    return bool(attr.data[idx].value) if attr else False
+
+
 def _get_constraint_indices_for_curve_id(curve_id, context):
     """Find constraints that reference a curve_id."""
     from ..model.sketch_ref import get_active_constraints
@@ -102,6 +113,11 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         return {"FINISHED"}
 
     def _delete_curve(self, context, sketch, curve_id):
+        # The sketch origin is a permanent fixture — silently ignore it,
+        # whether selected directly or reached via a cascade.
+        if _is_origin_curve(sketch, curve_id):
+            return
+
         deps = _get_dependent_curve_ids(sketch, curve_id)
         if deps:
             for dep_cid in deps:
