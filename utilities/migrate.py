@@ -158,9 +158,8 @@ def _migrate_geometry(context, old_sketch, sketch, entity_map):
 
 def _load_node_group(name):
     from ..assets_manager import load_asset
-    from ..global_data import LIB_NAME
 
-    if load_asset(LIB_NAME, "node_groups", name):
+    if load_asset("node_groups", name):
         return bpy.data.node_groups.get(name)
     return None
 
