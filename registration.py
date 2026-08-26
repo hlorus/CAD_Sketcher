@@ -11,8 +11,6 @@ modules = [
     "ui",
     "ui.pie_menu",
     "draw_handler",
-    # Register this as last module
-    "registration_delayed",
 ]
 
 register_modules, unregister_modules = module_register_factory(__package__, modules)
