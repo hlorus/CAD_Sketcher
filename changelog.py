@@ -2,16 +2,17 @@
 
 Shared, on purpose, by two consumers:
 
-- the release workflow, run directly as ``python changelog.py <version> [path]``,
-  which prepends the matching section to the auto-generated GitHub release notes;
-- the add-on's in-app "What's new" dialog, which imports :func:`extract_section`.
+- the add-on's in-app "What's new" dialog, which imports :func:`extract_section`;
+- the release workflow, via ``scripts/changelog_notes.py`` (excluded from the
+  built extension), which imports the same function to prepend the matching
+  section to the auto-generated GitHub release notes.
 
-Kept dependency-free (standard library only) so the workflow can execute it
-without installing anything and the add-on can import it at runtime.
+Kept dependency-free (standard library only) so it can be imported at runtime
+without installing anything. This module is import-only — it has no
+run-as-main entry point (extensions may not ship standalone-runnable files).
 """
 
 import re
-import sys
 
 # Matches "## 0.3.0", "## [0.3.0]", "## v0.3.0", optionally followed by a date.
 _HEADING = re.compile(r"^##\s+\[?v?([0-9]+\.[0-9]+\.[0-9]+)\]?")
@@ -52,20 +53,3 @@ def latest_version(text: str) -> str:
         if m:
             return m.group(1)
     return ""
-
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        sys.stderr.write("usage: changelog.py <version> [changelog_path]\n")
-        raise SystemExit(2)
-
-    version = sys.argv[1]
-    path = sys.argv[2] if len(sys.argv) > 2 else "CHANGELOG.md"
-    with open(path, encoding="utf-8") as f:
-        section = extract_section(version, f.read())
-
-    if not section:
-        sys.stderr.write(f"No CHANGELOG entry for version '{version}' in {path}\n")
-        raise SystemExit(1)
-
-    sys.stdout.write(section + "\n")

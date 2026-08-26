@@ -96,7 +96,7 @@ jobs:
         run: |
           version="${TAG_NAME#v}"
           notes="${{ github.workspace }}/notes.md"
-          if python3 changelog.py "$version" CHANGELOG.md > "$notes"; then
+          if PYTHONPATH=. python3 scripts/changelog_notes.py "$version" CHANGELOG.md > "$notes"; then
             echo "Prepending CHANGELOG.md entry for $version."
           else
             : > "$notes"
