@@ -11,6 +11,16 @@ tags = ["3D View", "Modeling", "Mesh", "Object"]
 blender_version_min = "5.0.0"
 license = ["SPDX:GPL-3.0-or-later"]
 
+# Platform-specific wheels: build with `--split-platforms` to produce one
+# package per platform (see .github/workflows/release.yaml).
+platforms = [
+  "windows-x64",
+  "macos-x64",
+  "macos-arm64",
+  "linux-x64",
+  "linux-arm64",
+]
+
 wheels = [
   "./wheels/slvs-3.2-cp311-cp311-macosx_10_12_x86_64.whl",
   "./wheels/slvs-3.2-cp311-cp311-macosx_11_0_arm64.whl",
