@@ -23,7 +23,6 @@ from mathutils.geometry import intersect_line_line, intersect_line_plane
 
 from ..assets_manager import load_asset
 from ..declarations import BLENDER_SELECT_TOOL, Operators
-from ..global_data import LIB_NAME
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.view import get_picking_origin_dir, get_placement_pos
@@ -476,7 +475,7 @@ class NodeOperator(Operator3d):
 
     def init(self, context, event):
         for rType, rName in self.resources:
-            if not load_asset(LIB_NAME, rType, rName):
+            if not load_asset(rType, rName):
                 self.report({"ERROR"}, f'Cannot load asset "{rName}" from library')
                 return False
 

@@ -9,7 +9,6 @@ import bmesh
 import bpy
 
 from .. import assets_manager as am
-from ..global_data import LIB_NAME
 from ..operators.modifiers import (
     View3D_OT_node_array_linear,
     View3D_OT_node_extrude,
@@ -24,11 +23,6 @@ ARRAY = "CAD Sketcher Linear Array"
 
 
 class TestNodeTools(BgsTestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        am.load()  # register the "CAD Sketcher Assets" library
-
     def tearDown(self):
         for ob in list(self.scene.collection.objects):
             me = ob.data
@@ -405,12 +399,8 @@ class TestNodeTools(BgsTestCase):
         # Array keeps the permissive default (any object).
         self.assertTrue(View3D_OT_node_array_linear.is_valid_target(None, mesh_ob))
 
-    def test_asset_library_registered(self):
-        libs = self.context.preferences.filepaths.asset_libraries
-        self.assertIn(LIB_NAME, [l.name for l in libs])
-
     def test_extrude_adds_thickness(self):
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", EXTRUDE))
+        self.assertTrue(am.load_asset("node_groups", EXTRUDE))
         ob = self._plane()
         z0 = self._extent(self._eval_mesh(ob), "z")
         mod = self._add_node_mod(ob, EXTRUDE)
@@ -424,7 +414,7 @@ class TestNodeTools(BgsTestCase):
         # nothing (the face-only asset silently produced no geometry before).
         from ..utilities.extrude_nodes import ensure_extrude_edge_walls
 
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", EXTRUDE))
+        self.assertTrue(am.load_asset("node_groups", EXTRUDE))
         ensure_extrude_edge_walls(bpy.data.node_groups.get(EXTRUDE))
 
         me = bpy.data.meshes.new("wire")
@@ -442,7 +432,7 @@ class TestNodeTools(BgsTestCase):
         self.assertAlmostEqual(self._extent(out, "z"), 1.5, delta=0.01)
 
     def test_array_multiplies_geometry(self):
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", ARRAY))
+        self.assertTrue(am.load_asset("node_groups", ARRAY))
         ob = self._cube()
         base = self._eval_mesh(ob)
         x0, n0 = self._extent(base, "x"), len(base.vertices)
@@ -456,7 +446,7 @@ class TestNodeTools(BgsTestCase):
 
     def test_extrude_mirror_option(self):
         # Mirror Extrude (Input_3) extrudes both ways -> ~double the span.
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", EXTRUDE))
+        self.assertTrue(am.load_asset("node_groups", EXTRUDE))
         ob = self._plane()
         mod = self._add_node_mod(ob, EXTRUDE)
         set_modifier_input(mod, "Input_2", 1.0)
@@ -468,7 +458,7 @@ class TestNodeTools(BgsTestCase):
 
     def test_array_use_total_distance_option(self):
         # Use Total Distance (Input_24) reinterprets distance as the total span.
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", ARRAY))
+        self.assertTrue(am.load_asset("node_groups", ARRAY))
         ob = self._cube()
         mod = self._add_node_mod(ob, ARRAY)
         set_modifier_input(mod, "Input_21", (1.0, 0.0, 0.0))
