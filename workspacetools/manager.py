@@ -91,7 +91,9 @@ def unregister():
     if bpy.app.background:
         return
     _unregister_tools({ToolGroup.ALWAYS, ToolGroup.SKETCH, ToolGroup.NON_SKETCH})
-    _registry.clear()
+    # Keep _registry: it is populated at import time (via add() calls in
+    # __init__), which does not run again on a same-session disable/enable, so
+    # clearing it here would leave register() with nothing to register.
     _registered.clear()
     global _sketch_active
     _sketch_active = False
