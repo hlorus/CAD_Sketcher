@@ -1,17 +1,7 @@
-import os
-import sys
 import importlib
-from typing import List
+import os
 from traceback import print_exc
-
-
-# From: https://github.com/iyadahmed/bpy_helper/blob/main/bpy_helper/register.py
-def cleanse_modules(parent_module_name):
-    """search for your plugin modules in blender python sys.modules and remove them"""
-
-    for module_name in list(sys.modules.keys()):
-        if module_name.startswith(parent_module_name):
-            del sys.modules[module_name]
+from typing import List
 
 
 def get_path():

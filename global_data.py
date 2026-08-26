@@ -2,8 +2,6 @@ from enum import Enum
 
 from mathutils import Vector
 
-registered = False
-
 entities = {}
 batches = {}
 
