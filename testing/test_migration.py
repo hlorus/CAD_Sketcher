@@ -13,16 +13,19 @@ import bpy
 
 from ..model.sketch_ref import get_sketches
 from ..utilities.migrate import migrate_scene, scene_needs_migration
+from ..versioning import do_versioning
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 DIM_TYPES = {"DISTANCE", "DIAMETER", "ANGLE", "RATIO"}
 
 
 def _open(name):
-    # Migration is manual now (no load handler); run it explicitly on open, the
-    # way the slvs_migrate_legacy operator does.
+    # Migration is manual now (no load/version handlers); run it explicitly on
+    # open exactly the way the slvs_migrate_legacy operator does: patch the
+    # legacy entity data forward, then convert it to curves.
     bpy.ops.wm.open_mainfile(filepath=os.path.join(FIXTURES, name))
     if scene_needs_migration(bpy.context):
+        do_versioning()
         migrate_scene(bpy.context)
 
 
