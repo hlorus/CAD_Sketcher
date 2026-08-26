@@ -1,5 +1,7 @@
-import bpy
 import logging
+
+import bpy
+
 from . import get_addon_version_tuple
 
 logger = logging.getLogger(__name__)
@@ -37,20 +39,17 @@ def recalc_pointers(scene):
         logger.debug("Update entity indices:" + msg)
 
 
-def do_versioning(self):
+def do_versioning():
+    """Patch legacy entity data forward to the current schema.
+
+    Run by the slvs_migrate_legacy operator just before legacy sketches are
+    converted to curves (it is no longer a version_update handler). No-op for
+    scenes without a stored ``sketcher.version`` or already at the current one.
+    """
 
     logger.debug("Check versioning")
 
-    # Current blender version
-    current_version = bpy.context.preferences.version
-    # blender version this file was saved with
-    file_version = bpy.data.version
-    # Current addon version
     current_addon_version = get_addon_version_tuple()
-    # "Blender Version: ", current_version,
-    # "\nFile Blender Version: ", file_version,
-    # "\nAddon Version: ", current_addon_version,
-    # "\nFile Addon Version", file_addon_version,
 
     # NOTE: Versioning is done per scene
 
@@ -104,8 +103,8 @@ def do_versioning(self):
         if version < (0, 27, 4):
             # update distance constraints on only a line
             # to distance constraints on the endpoints of that line.
-            from .model.line_2d import SlvsLine2D
             from .model.distance import SlvsDistance
+            from .model.line_2d import SlvsLine2D
             from .model.point_2d import SlvsPoint2D
             from .model.sketch import SlvsSketch
 

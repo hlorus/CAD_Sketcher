@@ -20,9 +20,13 @@ class VIEW3D_OT_slvs_migrate_legacy(Operator):
 
     def execute(self, context: Context):
         from ..utilities.migrate import migrate_scene, scene_needs_migration
+        from ..versioning import do_versioning
 
         migrated = scene_needs_migration(context)
         if migrated:
+            # Patch old entity data forward to the current schema first, then
+            # convert it to curves (do_versioning used to run on file load).
+            do_versioning()
             summary = migrate_scene(context)
             self.report(
                 {"INFO"},

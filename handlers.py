@@ -18,7 +18,6 @@ _builtin_handlers = {}
 # from event_system import add_builtin_handler
 #
 # add_builtin_handler("save_pre", write_addon_version)
-# add_builtin_handler("version_update", do_versioning)
 
 
 def add_builtin_handler(event: str, callback):
@@ -173,9 +172,11 @@ def on_undo_redo(scene, *args):
 
 
 def _setup_builtin_handlers():
-    from .versioning import do_versioning, write_addon_version
+    from .versioning import write_addon_version
 
-    add_builtin_handler("version_update", do_versioning)
+    # NOTE: entity-data versioning (do_versioning) is NOT a handler -- it runs
+    # inside the manual slvs_migrate_legacy operator, right before the legacy
+    # sketches are converted to curves, so nothing versions data on file load.
     add_builtin_handler("save_pre", write_addon_version)
     add_builtin_handler("load_post", on_load_post)
     add_builtin_handler("depsgraph_update_post", on_depsgraph_update)
