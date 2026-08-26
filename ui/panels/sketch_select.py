@@ -1,9 +1,9 @@
 from bpy.types import Context, UILayout
 
-from .. import declarations
-from . import VIEW3D_PT_sketcher_base
 from ...model.sketch_ref import get_active_sketch, get_sketches
 from ...stateful_operator.constants import Operators as StatefulOps
+from .. import declarations
+from . import VIEW3D_PT_sketcher_base
 
 
 def _draw_detached_warning(layout: UILayout, sketch):
@@ -24,6 +24,28 @@ def _draw_detached_warning(layout: UILayout, sketch):
     row.operator(
         declarations.Operators.MakeWorkplaneFree, text="Make Free", icon="UNLINKED"
     ).empty_name = wp.name
+
+
+def _draw_migration_prompt(context: Context, layout: UILayout):
+    """Offer migration when the file holds legacy (entity-based) sketches.
+
+    Such sketches don't render under the native-curve model, so without this
+    prompt an old file would look empty. The check runs only while this panel is
+    drawn -- never as a file-load handler for every user."""
+    from ...utilities.migrate import scene_needs_migration
+
+    if not scene_needs_migration(context):
+        return
+
+    box = layout.box()
+    box.alert = True
+    box.label(text="Legacy sketches detected", icon="ERROR")
+    box.label(text="Saved by an older CAD Sketcher version.")
+    box.operator(
+        declarations.Operators.MigrateLegacy,
+        text="Migrate to curves",
+        icon="FILE_REFRESH",
+    )
 
 
 def sketch_selector(
@@ -68,6 +90,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
     def draw(self, context: Context):
         layout = self.layout
 
+        _draw_migration_prompt(context, layout)
         sketch_selector(context, layout)
         sketch = get_active_sketch(context)
         layout.use_property_split = True

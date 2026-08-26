@@ -41,6 +41,7 @@ modules = [
     "duplicate",
     "set_curve_flag",
     "custom_attributes",
+    "migrate",
     "test",
 ]
 

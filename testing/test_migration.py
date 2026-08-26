@@ -1,9 +1,9 @@
 """Tests for legacy entity -> native curve migration (utilities.migrate).
 
-Opens old entity-based .blend fixtures; the load_post handler auto-migrates them
-to native curves. Each test asserts the migrated geometry and constraints match
-the known contents of that file (sketch/curve/constraint counts, constraint type
-breakdown, and preserved dimensional values).
+Opens old entity-based .blend fixtures and runs migration (the same call the
+``slvs_migrate_legacy`` operator makes). Each test asserts the migrated geometry
+and constraints match the known contents of that file (sketch/curve/constraint
+counts, constraint type breakdown, and preserved dimensional values).
 """
 
 import os
@@ -12,13 +12,18 @@ import unittest
 import bpy
 
 from ..model.sketch_ref import get_sketches
+from ..utilities.migrate import migrate_scene, scene_needs_migration
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 DIM_TYPES = {"DISTANCE", "DIAMETER", "ANGLE", "RATIO"}
 
 
 def _open(name):
+    # Migration is manual now (no load handler); run it explicitly on open, the
+    # way the slvs_migrate_legacy operator does.
     bpy.ops.wm.open_mainfile(filepath=os.path.join(FIXTURES, name))
+    if scene_needs_migration(bpy.context):
+        migrate_scene(bpy.context)
 
 
 def _summary(context):
@@ -215,10 +220,8 @@ class TestMigration(unittest.TestCase):
 
     def test_idempotent(self):
         # Re-running migration on an already-migrated scene is a no-op.
-        from ..utilities.migrate import migrate_scene, scene_needs_migration
-
         _open("simple_line.blend")
-        self.assertFalse(scene_needs_migration(bpy.context))  # already auto-migrated
+        self.assertFalse(scene_needs_migration(bpy.context))  # _open migrated it
         before = len(list(get_sketches(bpy.context)))
         migrate_scene(bpy.context)
         self.assertEqual(len(list(get_sketches(bpy.context))), before)
