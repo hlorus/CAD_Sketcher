@@ -234,11 +234,6 @@ class Preferences(AddonPreferences):
 
             list_props_recursiv(self.theme_settings)
 
-        from . import whats_new
-
-        layout.separator()
-        whats_new.draw_donation(layout)
-
 
 classes = (
     SKETCHER_MT_theme_presets,

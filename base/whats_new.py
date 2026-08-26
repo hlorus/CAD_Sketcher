@@ -22,11 +22,6 @@ from bpy.types import Operator
 logger = logging.getLogger(__name__)
 
 RELEASES_URL = "https://github.com/hlorus/CAD_Sketcher/releases"
-OPENCOLLECTIVE_URL = "https://opencollective.com/cadsketcher/contribute"
-# Individual developer donation links, mirroring the repo's Donations section.
-CONTRIBUTOR_LINKS = (
-    ("hlorus - Lead Dev", "https://github.com/sponsors/hlorus"),
-)
 _DIALOG_WIDTH = 600
 # Blender labels don't wrap; this many characters fit per ~width unit. Tuned to
 # fill most of the dialog with a small margin against proportional-font variance.
@@ -117,21 +112,6 @@ def _prefs():
     return addon.preferences if addon else None
 
 
-def draw_donation(layout):
-    """Soft donation call-to-action, shared by the dialog and the preferences.
-
-    Open Collective fund first, then the individual contributor links (mirrors
-    the repo's Donations section).
-    """
-    box = layout.box()
-    box.label(text="Enjoying CAD Sketcher?", icon="FUND")
-    box.label(text="Please consider supporting its development:")
-    col = box.column(align=True)
-    col.operator("wm.url_open", text="Open Collective").url = OPENCOLLECTIVE_URL
-    for name, url in CONTRIBUTOR_LINKS:
-        col.operator("wm.url_open", text=name).url = url
-
-
 class VIEW3D_OT_slvs_whats_new(Operator):
     """Show what changed in the latest CAD Sketcher update"""
 
@@ -166,9 +146,6 @@ class VIEW3D_OT_slvs_whats_new(Operator):
         prefs = _prefs()
         if prefs is not None:
             row.prop(prefs, "show_whats_new", text="Show on update")
-
-        layout.separator()
-        draw_donation(layout)
 
     def execute(self, context):
         return {"FINISHED"}
