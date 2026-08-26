@@ -70,7 +70,6 @@ class Operators(str, Enum):
     NodeRevolve = "view3d.slvs_node_revolve"
     NodeBoolean = "view3d.slvs_node_boolean"
     ProjectGeometry = "view3d.slvs_project_geometry"
-    RegisterDrawCB = "view3d.slvs_register_draw_cb"
     RenameCurve = "view3d.slvs_rename_curve"
     Restore = "view3d.slvs_restore"
     HoverCycle = "view3d.slvs_hover_cycle"
@@ -91,7 +90,6 @@ class Operators(str, Enum):
     Bevel = "view3d.slvs_bevel"
     Tweak = "view3d.slvs_tweak"
     TweakConstraintValuePos = "view3d.slvs_tweak_constraint_value_pos"
-    UnregisterDrawCB = "view3d.slvs_unregister_draw_cb"
 
 
 class Macros(str, Enum):
