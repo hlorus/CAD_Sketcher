@@ -51,6 +51,7 @@ class Operators(str, Enum):
     AddTangent = "view3d.slvs_add_tangent"
     AddVertical = "view3d.slvs_add_vertical"
     MakeWorkplaneFree = "view3d.slvs_make_workplane_free"
+    MigrateLegacy = "view3d.slvs_migrate_legacy"
     ReattachWorkplane = "view3d.slvs_reattach_workplane"
     AlignWorkplaneCursor = "view3d.slvs_align_workplane_cursor"
     AlignView = "view3d.slvs_align_view"

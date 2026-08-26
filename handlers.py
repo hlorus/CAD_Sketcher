@@ -62,37 +62,19 @@ def unregister_handlers():
 
 
 def on_load_post(*args):
-    """Migrate legacy entity-based sketches to native curves on file load."""
-    from .utilities.migrate import migrate_scene, scene_needs_migration
+    """Reset transient in-memory state carried over from the previous file.
+
+    Cheap and always safe. Migrating legacy (entity-based) sketches and
+    upgrading a baked revolve node group are NOT done here -- they are the
+    manual ``slvs_migrate_legacy`` operator, surfaced by the Sketcher panel when
+    legacy data is detected, so all users don't pay for it on every file load.
+    """
+    from .drawing import overlay, selection
     from .utilities.validate import reset_cache
 
     reset_cache()
-    from .drawing import overlay, selection
     overlay.invalidate()
     selection.clear()
-    context = bpy.context
-    try:
-        if scene_needs_migration(context):
-            summary = migrate_scene(context)
-            logger.info("Migrated legacy sketches to curves: %s", summary)
-    except Exception:
-        logger.exception("Legacy sketch migration failed")
-
-    # Upgrade a revolve node group baked into the file to the current build, so
-    # existing revolves pick up fixes on open instead of only when re-invoked.
-    # Only touch it when present -- never create it on load for files that have
-    # no revolve. build_revolve_node_group preserves each modifier's settings
-    # across the rebuild (see utilities.revolve_nodes).
-    try:
-        from .utilities.revolve_nodes import (
-            REVOLVE_NODE_GROUP,
-            build_revolve_node_group,
-        )
-
-        if bpy.data.node_groups.get(REVOLVE_NODE_GROUP) is not None:
-            build_revolve_node_group()
-    except Exception:
-        logger.exception("Revolve node group upgrade failed")
 
 
 def on_depsgraph_update(scene, depsgraph):
