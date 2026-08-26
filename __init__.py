@@ -48,7 +48,7 @@ from . import global_data
 from .registration import register_base, unregister_base, register_full, unregister_full
 from .utilities.install import check_module
 from .utilities.register import cleanse_modules
-from .utilities.presets import ensure_addon_presets
+from .utilities.presets import register_addon_presets, unregister_addon_presets
 from .utilities.logging import setup_logger, update_logger
 
 
@@ -62,7 +62,7 @@ def register():
     setup_logger(logger)
 
     # Register base
-    ensure_addon_presets(force_write=True)
+    register_addon_presets()
     register_base()
 
     update_logger(logger)
@@ -96,5 +96,7 @@ def unregister():
         unregister_full()
 
     unregister_base()
+
+    unregister_addon_presets()
 
     cleanse_modules(__package__)
