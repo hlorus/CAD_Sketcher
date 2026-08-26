@@ -1,9 +1,8 @@
 import logging
 
-import bpy
 import addon_utils
+import bpy
 from bpy.app import background
-
 
 # This add-on ships as a Blender extension (Blender 4.3+); blender_manifest.toml
 # is the source of truth for name/version/etc. A literal bl_info is only needed
@@ -45,12 +44,11 @@ if bpy.app.version < get_min_blender_version():
     )
 
 from . import global_data
-from .registration import register_base, unregister_base, register_full, unregister_full
+from .registration import register_base, register_full, unregister_base, unregister_full
 from .utilities.install import check_module
-from .utilities.register import cleanse_modules
-from .utilities.presets import ensure_addon_presets
 from .utilities.logging import setup_logger, update_logger
-
+from .utilities.presets import register_addon_presets, unregister_addon_presets
+from .utilities.register import cleanse_modules
 
 # Globals
 logger = logging.getLogger(__name__)
@@ -62,7 +60,7 @@ def register():
     setup_logger(logger)
 
     # Register base
-    ensure_addon_presets(force_write=True)
+    register_addon_presets()
     register_base()
 
     update_logger(logger)
@@ -96,5 +94,7 @@ def unregister():
         unregister_full()
 
     unregister_base()
+
+    unregister_addon_presets()
 
     cleanse_modules(__package__)
