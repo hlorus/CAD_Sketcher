@@ -94,13 +94,28 @@ def detect_hover(context, coords, types):
     want_face = MeshPolygon in types
 
     if want_vertex or want_edge or want_face:
+        # CURVES objects (sketches / native curves) hover as whole elements --
+        # points, lines, arcs, circles -- via the screen-space reference pick,
+        # taking priority over a raycast hit on a sketch's converted fill mesh.
+        from ..drawing.reference_pick import pick_reference_element
+        from ..model.sketch_ref import get_active_sketch
+
+        active = get_active_sketch(context)
+        ref = pick_reference_element(
+            context, coords, exclude=active.target_object if active else None
+        )
+        if ref is not None:
+            ob, key = ref
+            return ("CURVE_ELEM", ob.name, key)
+
         ob, elem_type, index = get_mesh_element(
             context, coords, vertex=want_vertex, edge=want_edge, face=want_face
         )
         if ob is not None and elem_type in ("VERTEX", "EDGE", "FACE"):
             return (elem_type, ob.name, index)
 
-        # Curves aren't raycastable -> screen-space segment pick for edge states.
+        # Legacy Curve objects (bezier/nurbs) aren't handled by reference_pick
+        # yet; keep the raw segment-hover fallback for them.
         if want_edge:
             from ..utilities.view import curve_segment_under_cursor
 
@@ -126,6 +141,12 @@ class VIEW3D_GGT_slvs_object_hover(GizmoGroup):
 
     @classmethod
     def poll(cls, context):
+        # Stay active during any pick, even when the workspace tool isn't ours:
+        # the redo-panel eyedropper re-pick publishes hover_types without
+        # switching tools, and hover highlight should still work for it. When no
+        # pick is running, fall back to the tool check (which unlinks us).
+        if global_data.hover_types is not None:
+            return True
         return context_mode_check(context, cls.bl_idname)
 
     def setup(self, context):

@@ -1,9 +1,9 @@
 """Tests for legacy entity -> native curve migration (utilities.migrate).
 
-Opens old entity-based .blend fixtures; the load_post handler auto-migrates them
-to native curves. Each test asserts the migrated geometry and constraints match
-the known contents of that file (sketch/curve/constraint counts, constraint type
-breakdown, and preserved dimensional values).
+Opens old entity-based .blend fixtures and runs migration (the same call the
+``slvs_migrate_legacy`` operator makes). Each test asserts the migrated geometry
+and constraints match the known contents of that file (sketch/curve/constraint
+counts, constraint type breakdown, and preserved dimensional values).
 """
 
 import os
@@ -12,13 +12,21 @@ import unittest
 import bpy
 
 from ..model.sketch_ref import get_sketches
+from ..utilities.migrate import migrate_scene, scene_needs_migration
+from ..versioning import do_versioning
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 DIM_TYPES = {"DISTANCE", "DIAMETER", "ANGLE", "RATIO"}
 
 
 def _open(name):
+    # Migration is manual now (no load/version handlers); run it explicitly on
+    # open exactly the way the slvs_migrate_legacy operator does: patch the
+    # legacy entity data forward, then convert it to curves.
     bpy.ops.wm.open_mainfile(filepath=os.path.join(FIXTURES, name))
+    if scene_needs_migration(bpy.context):
+        do_versioning()
+        migrate_scene(bpy.context)
 
 
 def _summary(context):
@@ -131,7 +139,7 @@ class TestMigration(unittest.TestCase):
         # remap boolean cutters onto the migrated sketches, and delete the old
         # meshes so the geometry is not duplicated.
         from ..model.sketch_ref import is_sketch_object
-        from ..operators.modifiers import View3D_OT_node_boolean, get_modifier_input
+        from ..operators.modifiers import boolean_input_ids, get_modifier_input
 
         _open("CAD_Sketcher_Part.blend")
         sketches = list(get_sketches(bpy.context))
@@ -146,7 +154,7 @@ class TestMigration(unittest.TestCase):
                     extrudes += 1
                 elif name == "CAD Sketcher Boolean":
                     booleans += 1
-                    ids = View3D_OT_node_boolean._input_ids(m.node_group)
+                    ids = boolean_input_ids(m.node_group)
                     cutter = get_modifier_input(m, ids["Cutter"])
                     # The cutter is another migrated sketch, not an old mesh.
                     self.assertTrue(
@@ -205,17 +213,18 @@ class TestMigration(unittest.TestCase):
 
         dims = [hi[i] - lo[i] for i in range(3)]
         # A substantial solid, not the flat sketch profile (Extrude + Booleans ran).
-        self.assertGreater(total_v, 1000)
+        # n-gon fills feed cleaner, lower-vertex geometry into the booleans than the
+        # old triangulated fills did, so this stays a loose "not flat" floor -- the
+        # bounds check below is the real 3D assertion.
+        self.assertGreater(total_v, 500)
         # Overall bounds match the legacy dimensions; each axis is real 3D depth.
         for got, want in zip(dims, (150.0, 80.0, 100.0)):
             self.assertAlmostEqual(got, want, delta=1.0)
 
     def test_idempotent(self):
         # Re-running migration on an already-migrated scene is a no-op.
-        from ..utilities.migrate import migrate_scene, scene_needs_migration
-
         _open("simple_line.blend")
-        self.assertFalse(scene_needs_migration(bpy.context))  # already auto-migrated
+        self.assertFalse(scene_needs_migration(bpy.context))  # _open migrated it
         before = len(list(get_sketches(bpy.context)))
         migrate_scene(bpy.context)
         self.assertEqual(len(list(get_sketches(bpy.context))), before)

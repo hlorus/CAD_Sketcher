@@ -180,6 +180,11 @@ class CurveRef:
         self._set_attr_value("visible", bool(value))
 
     @property
+    def is_origin(self):
+        """True for the sketch's protected origin point (read-only)."""
+        return bool(self._get_attr_value("is_origin", False))
+
+    @property
     def name(self):
         """User-facing name stored on the curve (falls back to the type)."""
         return self._get_attr_value("name", "") or self._type_label
@@ -256,11 +261,13 @@ def _allocate(sketch):
 
 
 def _ensure_attrs(curve_data, curve_idx=None):
-    """Ensure all standard attributes exist. Optionally init STRING attrs for a curve."""
+    """Ensure standard and user-defined attributes exist for a new curve."""
     from ..utilities.curve_data import ensure_standard_attributes, init_string_attrs
+    from ..utilities.custom_attributes import initialize_curve_defaults
     ensure_standard_attributes(curve_data)
     if curve_idx is not None:
         init_string_attrs(curve_data, curve_idx)
+        initialize_curve_defaults(curve_data, curve_idx)
 
 
 def _invalidate(sketch):
@@ -407,7 +414,7 @@ class PointRef(CurveRef):
         return mat @ pos
 
     @staticmethod
-    def create(sketch, co, construction=False, fixed=False, name=None):
+    def create(sketch, co, construction=False, fixed=False, name=None, is_origin=False):
         """Create a new point curve and return a PointRef.
 
         Args:
@@ -416,6 +423,7 @@ class PointRef(CurveRef):
             construction: Whether this is a construction point.
             fixed: Whether this point is fixed.
             name: Optional display name; a default is generated when omitted.
+            is_origin: Whether this is the sketch's protected origin point.
 
         Returns:
             PointRef for the new curve.
@@ -441,6 +449,8 @@ class PointRef(CurveRef):
         set_attribute(attrs, "construction", construction, curve_idx)
         set_attribute(attrs, "fixed", fixed, curve_idx)
         set_attribute(attrs, "visible", True, curve_idx)
+        if is_origin:
+            set_attribute(attrs, "is_origin", True, curve_idx)
         set_attribute(attrs, "name",
                       name or default_curve_name(curve_data, SketchCurveType.POINT),
                       curve_idx)
@@ -547,6 +557,11 @@ class LineRef(CurveRef):
 
         set_attribute(attrs, "curve_id", cid, curve_idx)
         set_attribute(attrs, "sketch_type", SketchCurveType.LINE, curve_idx)
+        # A line is a straight two-point Bezier; evaluating it at the Bezier
+        # default resolution (12) tessellates it into 12 collinear segments for no
+        # benefit. Keep it a single segment so the generated mesh matches the
+        # sketch's own vertices (arcs/circles keep their curved resolution).
+        set_attribute(attrs, "resolution", 1, curve_idx)
         set_attribute(attrs, "start_point_id",
                       p1.curve_id if isinstance(p1, CurveRef) else "", curve_idx)
         set_attribute(attrs, "end_point_id",

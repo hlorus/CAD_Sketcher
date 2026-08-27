@@ -35,6 +35,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
     state_index: IntProperty(options={"HIDDEN", "SKIP_SAVE"})
     wait_for_input: BoolProperty(options={"HIDDEN", "SKIP_SAVE"}, default=True)
     continuous_draw: BoolProperty(name="Continuous Draw", default=False)
+    # >= 0 -> re-enter to edit just that state: restore the persisted input, let
+    # the user re-pick that one state, then re-apply idempotently. -1 = normal.
+    edit_state: IntProperty(default=-1, options={"HIDDEN", "SKIP_SAVE"})
 
     executed = False
     # Tool id to activate once the operator succeeds (see _end). Lets a one-off
@@ -294,15 +297,20 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
     def invoke(self, context: Context, event: Event):
         global_data.stateful_op_running = True
-        entered_modal = False
         self._state_data.clear()
-        global_data.hover_types = self.get_states()[0].types
         self._numeric = NumericInput()
+
+        if self.edit_state >= 0:
+            return self._invoke_edit(context, event)
+
+        entered_modal = False
+        global_data.hover_types = self.get_states()[0].types
         self._state_snapshot = self.create_snapshot(context)
         try:
             if hasattr(self, "init"):
                 if not self.init(context, event):
                     return self._end(context, False)
+            self._capture_baseline(context)
 
             retval = {"RUNNING_MODAL"}
             go_modal = True
@@ -337,16 +345,148 @@ class StatefulOperatorLogic(_StateMachineMixin):
             if not entered_modal and global_data.stateful_op_running:
                 global_data.stateful_op_running = False
 
+    # -------------------------------------------------------------------------
+    # Edit-state re-entry (re-pick one state of a finished op, idempotently)
+    # -------------------------------------------------------------------------
+
+    def _invoke_edit(self, context: Context, event: Event):
+        """Re-enter to edit a single state: restore the persisted input, then let
+        the user re-pick just ``edit_state``. Invoked top-level from the redo
+        panel, so the re-applied op becomes the adjustable last operation."""
+        if hasattr(self, "init"):
+            # Load assets etc.; entity ops also set _active_sketch here.
+            if not self.init(context, event):
+                return self._end_edit(context, False)
+        # Rebuild every state from the forwarded/persisted props, then clear the
+        # one being edited so the user picks it fresh. No snapshot -- idempotent
+        # apply (_run_main) replaces this op's own output.
+        self._state_snapshot = None
+        self._restore_pointers()
+        # Let subclasses snapshot pre-re-pick state (the target being edited away
+        # from) before the user changes it -- e.g. node ops relocating a modifier.
+        self._prepare_edit(context)
+        i = self.edit_state
+        self.get_state_data(i).pop("type", None)
+        self.set_state(context, i)
+        global_data.hover_types = self.get_states()[i].types
+        # Make the op's hover/preselection UI available for the re-pick even
+        # though the workspace tool that normally owns it isn't active.
+        self._prepare_pick_ui(context)
+        context.window.cursor_modal_set("EYEDROPPER")
+        self.set_status_text(context)
+        # A modal invoked from a redo-panel button can stall waiting for its first
+        # event (the button-click context delivers none until the mouse moves).
+        # A modal timer keeps it ticking so it becomes responsive immediately.
+        self._edit_timer = context.window_manager.event_timer_add(
+            0.05, window=context.window
+        )
+        context.window_manager.modal_handler_add(self)
+        return {"RUNNING_MODAL"}
+
+    def _modal_edit(self, context: Context, event: Event):
+        # Clicking the eyedropper button in the redo panel makes Blender also
+        # re-run the previous operator's execute()/_end() (an implicit undo +
+        # re-apply). That nulls the shared global_data.hover_types this edit modal
+        # set, and reverts any state _prepare_pick_ui changed (e.g. a hidden
+        # modifier). Re-assert both every event so the pick keeps working.
+        global_data.hover_types = self.get_states()[self.edit_state].types
+        self._maintain_pick_ui(context)
+        if event.type in {"RIGHTMOUSE", "ESC"} and event.value == "PRESS":
+            return self._end_edit(context, False)
+        if event.type == "TIMER":
+            return {"RUNNING_MODAL"}  # just keeps the modal responsive
+        if event.type == "LEFTMOUSE" and event.value == "PRESS":
+            coords = Vector((event.mouse_region_x, event.mouse_region_y))
+            is_picked, values = self._pick_hovered(context, coords, self.state, False)
+            if not is_picked:
+                return {"RUNNING_MODAL"}  # missed a target -- keep waiting
+            self.state_data["is_existing_entity"] = True
+            self.set_state_pointer(values, implicit=True)
+            self._store_pointers()
+            ok = self._reapply(context)
+            if context.area:
+                context.area.tag_redraw()
+            return self._end_edit(context, ok)
+        if event.type == "MOUSEMOVE":
+            # Gizmos don't run their hover test while a modal operator is active,
+            # so drive the hover highlight ourselves for the re-pick.
+            coords = Vector((event.mouse_region_x, event.mouse_region_y))
+            self._update_pick_hover(context, coords)
+        return self._handle_pass_through(context, event)
+
+    def _end_edit(self, context: Context, ok: bool):
+        timer = getattr(self, "_edit_timer", None)
+        if timer is not None:
+            context.window_manager.event_timer_remove(timer)
+            self._edit_timer = None
+        self._finish_pick_ui(context)
+        context.window.cursor_modal_restore()
+        context.workspace.status_text_set(None)
+        global_data.hover_types = None
+        global_data.hover_element = None
+        global_data.stateful_op_running = False
+        return {"FINISHED"} if ok else {"CANCELLED"}
+
     def execute(self, context: Context):
         global_data.stateful_op_running = True
         try:
             self._numeric = NumericInput()
-            self.redo_states(context)
-            ok = self.main(context)
+            ok = self._reapply(context)
             return self._end(context, ok, skip_undo=True)
         finally:
             if global_data.stateful_op_running:
                 global_data.stateful_op_running = False
+
+    def _run_main(self, context: Context):
+        """Invoke ``main``; a hook for subclasses to make apply idempotent
+        (e.g. entity ops that own + replace their created output)."""
+        return self.main(context)
+
+    def _reapply(self, context: Context):
+        """Rebuild everything from persisted state and run main -- the shared
+        execute / redo-panel / edit-re-pick path. Default: redo_states + main.
+        Subclasses that own their output (Operator2d) remove it first so their
+        stable-id recreation doesn't collide with the still-present old copy."""
+        self.redo_states(context)
+        return self._run_main(context)
+
+    def _prepare_edit(self, context: Context):
+        """Hook: called in the edit re-pick invoke, after the persisted state is
+        restored but before the user re-picks edit_state. Lets a subclass capture
+        what it is editing away from (default no-op)."""
+        pass
+
+    def _prepare_pick_ui(self, context: Context):
+        """Hook: called when the edit re-pick modal starts. Lets a subclass make
+        its hover/preselection UI available even though the workspace tool that
+        owns it isn't active (e.g. ensure a gizmo group is linked, or reveal
+        geometry a modifier is hiding). Default no-op."""
+        pass
+
+    def _finish_pick_ui(self, context: Context):
+        """Hook: called when the edit re-pick modal ends. Undo whatever
+        ``_prepare_pick_ui`` set up. Default no-op."""
+        pass
+
+    def _update_pick_hover(self, context: Context, coords):
+        """Hook: called on mouse-move during the edit re-pick to refresh the
+        hover highlight (gizmos don't run their hover test during a modal).
+        Default no-op."""
+        pass
+
+    def _maintain_pick_ui(self, context: Context):
+        """Hook: called on every edit-modal event to re-assert whatever
+        ``_prepare_pick_ui`` set up, since a redo-panel re-run can revert it.
+        Default no-op."""
+        pass
+
+    def _capture_baseline(self, context: Context):
+        """Hook: record the state before the op runs (for output ownership)."""
+        pass
+
+    def _record_committed_output(self, context: Context):
+        """Hook: after a successful commit, record what the op created."""
+        pass
 
     def _handle_pass_through(self, context: Context, event: Event):
         if event.type in {"MIDDLEMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE", "MOUSEMOVE"}:
@@ -354,6 +494,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         return {"RUNNING_MODAL"}
 
     def modal(self, context: Context, event: Event):
+        if self.edit_state >= 0:
+            return self._modal_edit(context, event)
+
         state = self.state
         event_triggered = self.check_event(event)
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
@@ -542,23 +685,135 @@ class StatefulOperatorLogic(_StateMachineMixin):
             raise NotImplementedError(
                 "StatefulOperators need to have a main method defined!"
             )
-        retval = self.main(context)
+        # Capture the picked pointers so a later redo (fresh instance) can
+        # rebuild them; this runs on every live update, keeping it current.
+        self._store_pointers()
+        retval = self._run_main(context)
         self.executed = True
         return retval
 
+    # -------------------------------------------------------------------------
+    # Pointer persistence (survives the redo/execute path)
+    # -------------------------------------------------------------------------
+    #
+    # Each pointer state's identity is stored in hidden, per-state real
+    # properties (registered by register_properties): ``ptr{i}_kind`` (the
+    # picked type's __name__), ``ptr{i}_existing`` (is_existing_entity), and the
+    # implicit value split into a string slot ``ptr{i}_name`` + int slot
+    # ``ptr{i}_index``. Blender persists these across the redo/execute path (a
+    # fresh instance), where the transient _state_data is gone.
+
+    def _pointer_type_registry(self):
+        """Map a pointer type's ``__name__`` back to the class, for redo restore.
+
+        Base is empty; the integration layer adds native Blender types and the
+        extension layer adds its entity/curve-ref types.
+        """
+        return {}
+
+    @staticmethod
+    def _pack_pointer_vals(vals):
+        """Split implicit pointer values into a (name, index) pair for storage.
+
+        Implicit values are at most one string id (object name / curve_id) and
+        one int (mesh element index / entity index); -1 marks "no int".
+        """
+        name, index = "", -1
+        for v in vals:
+            if isinstance(v, bool):
+                continue
+            if isinstance(v, str):
+                name = v
+            elif isinstance(v, int):
+                index = v
+        return name, index
+
+    @staticmethod
+    def _unpack_pointer_vals(name, index):
+        """Rebuild the implicit value list from the stored (name, index) slots.
+
+        The filled slots imply the shape: name+index -> mesh element [name,
+        index]; name only -> object / curve-ref [name]; index only -> entity
+        [index]. Returns None when neither slot is set.
+        """
+        if name and index >= 0:
+            return [name, index]
+        if name:
+            return [name]
+        if index >= 0:
+            return [index]
+        return None
+
+    def _store_pointers(self):
+        """Write each resolved pointer state's identity to its hidden props."""
+        for i, state in enumerate(self.get_states()):
+            if not state.pointer:
+                continue
+            data = self._state_data.get(i)
+            kind, existing, name, index = "", False, "", -1
+            if data and data.get("type"):
+                kind = data["type"].__name__
+                existing = bool(data.get("is_existing_entity", False))
+                name, index = self._pack_pointer_vals(
+                    to_list(self.get_state_pointer(index=i, implicit=True))
+                )
+            # Guarded: duplicate-registration phantoms lack the RNA properties.
+            try:
+                setattr(self, "ptr%d_kind" % i, kind)
+                setattr(self, "ptr%d_existing" % i, existing)
+                setattr(self, "ptr%d_name" % i, name)
+                setattr(self, "ptr%d_index" % i, index)
+            except AttributeError:
+                pass
+
+    def _restore_pointers(self):
+        """Rebuild pointer state data from the hidden props (redo/execute path).
+
+        Only for the fresh-instance execute/redo/edit path (``_state_snapshot is
+        None``). During the interactive modal a snapshot is held and _state_data
+        is resolved live every frame; restoring there would re-inject the last
+        *picked* identity (kind + is_existing_entity) and clobber a subsequent
+        free placement -- e.g. hover a point then move to empty and the endpoint
+        stays stuck on the point. The per-state ``data.get("type")`` guard below
+        is not enough on its own: pick_element nulls ``type`` when hovering empty,
+        which re-opens the door for the stale restore.
+        """
+        if self._state_snapshot is not None:
+            return
+        registry = self._pointer_type_registry()
+        for i, state in enumerate(self.get_states()):
+            if not state.pointer:
+                continue
+            data = self.get_state_data(i)
+            if data.get("type"):
+                continue
+            kind = getattr(self, "ptr%d_kind" % i, "")
+            if not kind:
+                continue
+            ptype = registry.get(kind)
+            if ptype is None:
+                continue
+            data["type"] = ptype
+            data["is_existing_entity"] = bool(getattr(self, "ptr%d_existing" % i, False))
+            vals = self._unpack_pointer_vals(
+                getattr(self, "ptr%d_name" % i, ""),
+                getattr(self, "ptr%d_index" % i, -1),
+            )
+            if vals is not None:
+                self.set_state_pointer(vals, index=i, implicit=True)
+
     def redo_states(self, context: Context):
         """Recreate non-persistent elements for states up to the current one."""
+        # The redo/execute path runs on a fresh instance with empty _state_data;
+        # rebuild the picked pointers from the persisted identity first.
+        self._restore_pointers()
+
         for i, state in enumerate(self.get_states()):
             if i > self.state_index:
                 # TODO: don't depend on active state; ideally going back is possible
                 break
             if state.pointer:
                 data = self._state_data.get(i, {})
-                # The redo/execute path runs on a fresh operator instance, so
-                # the transient per-state data may be gone. Treat a missing
-                # entry as "existing" (nothing to recreate) rather than crash;
-                # operators that need to re-resolve a pointer on redo persist it
-                # in a real property instead (see NodeOperator.target_name).
                 is_existing_entity = data.get("is_existing_entity", True)
                 props = self.get_property(index=i)
                 if props and not is_existing_entity:
@@ -597,6 +852,10 @@ class StatefulOperatorLogic(_StateMachineMixin):
             else:
                 bpy.ops.ed.undo_push(message="Cancelled: " + self.bl_label)
                 bpy.ops.ed.undo()
+        elif succeede:
+            # Record what this commit created (modal path; the execute/edit path
+            # records in _run_main). Enables idempotent re-apply on re-pick.
+            self._record_committed_output(context)
 
         self._state_snapshot = None
         return {"FINISHED"} if succeede else {"CANCELLED"}

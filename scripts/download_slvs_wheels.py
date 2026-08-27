@@ -12,19 +12,20 @@ Options:
   --py-version VERSION  Python version to download wheels for (e.g., 3.11, 3.10-3.12)
 """
 
-import os
-import sys
-import json
-import urllib.request
-import urllib.error
-from urllib.parse import urljoin
-import re
-import importlib
-import subprocess
 import argparse
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
 
 # Package name to download
 PACKAGE_NAME = "slvs"
+
+# CPython versions no Blender release ships, so their wheels would never be used.
+# Blender jumped from 3.11 (5.0/5.1) straight to 3.13 (5.2+), skipping 3.12.
+SKIP_PY_VERSIONS = {(3, 12)}
 
 # Directory paths
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -146,6 +147,11 @@ def is_python_version_compatible(filename, py_version_spec):
                 major = int(version_str[0])
                 minor = int(version_str[1:])
                 wheel_version = (major, minor)
+
+                # Never fetch a version Blender doesn't ship, even if it falls
+                # inside the requested range (e.g. 3.12 within 3.11-3.13).
+                if wheel_version in SKIP_PY_VERSIONS:
+                    return False
 
                 # Check if the wheel version is within the specified range
                 return min_version <= wheel_version <= max_version
@@ -287,7 +293,7 @@ def download_wheels(test_pypi=False, specific_version=None, py_version='3.11'):
                 downloaded_wheels += 1
                 downloaded_files.append(output_path)
 
-    print(f"\nDownload summary:")
+    print("\nDownload summary:")
     print(f"Source: {source}")
     print(f"Version: {version_to_download}")
     print(f"Total Python compatible wheel files found: {total_wheels}")

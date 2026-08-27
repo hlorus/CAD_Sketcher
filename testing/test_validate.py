@@ -84,7 +84,9 @@ class TestValidate(Sketch2dTestCase):
 
     def test_removes_degenerate_line(self):
         from ..model.constants import SketchCurveType
-        self.add_point((0.0, 0.0))
+        # A real sketch always carries its protected origin; tag it so self-heal
+        # doesn't fabricate a replacement and skew the count.
+        self.add_point((0.0, 0.0), fixed=True, is_origin=True)
         self.add_point((1.0, 0.0))
         cd = self.sketch.target_object.data
         # Fake a native endpoint-delete: a 1-point curve typed as a LINE.
@@ -100,3 +102,35 @@ class TestValidate(Sketch2dTestCase):
         set_uuid(self.sketch.target_object.data, "curve_id", 1, p1.curve_id)
         self.assertTrue(validate_sketch(self.sketch))   # fixes dup, caches sig
         self.assertFalse(validate_sketch(self.sketch))  # unchanged -> skip
+
+    def _origin_flags(self):
+        cd = self.sketch.target_object.data
+        attr = cd.attributes.get("is_origin")
+        return [bool(attr.data[i].value) for i in range(len(cd.curves))]
+
+    def test_restores_deleted_origin(self):
+        origin = self.add_point((0.0, 0.0), fixed=True, is_origin=True)
+        self.add_point((1.0, 0.0))
+        # Simulate a native Edit-Mode delete of the origin point.
+        remove_native_curve_by_id(self.sketch, origin.curve_id)
+        reset_cache()
+
+        self.assertTrue(validate_sketch(self.sketch))
+        cd = self.sketch.target_object.data
+        flags = self._origin_flags()
+        self.assertEqual(sum(flags), 1)  # exactly one origin restored
+        idx = flags.index(True)
+        pos = cd.points[cd.curves[idx].points[0].index].position
+        self.assertAlmostEqual(pos[0], 0.0)
+        self.assertAlmostEqual(pos[1], 0.0)
+
+    def test_adopts_untagged_origin_point(self):
+        # Migration: a pre-tag sketch has a fixed point at (0, 0) but no flag.
+        self.add_point((0.0, 0.0), fixed=True)
+        self.add_point((1.0, 0.0))
+        reset_cache()
+
+        self.assertTrue(validate_sketch(self.sketch))
+        # Adopted in place — no fabricated duplicate.
+        self.assertEqual(len(self.sketch.target_object.data.curves), 2)
+        self.assertEqual(self._origin_flags(), [True, False])

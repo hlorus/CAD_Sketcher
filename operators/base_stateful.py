@@ -75,6 +75,36 @@ class GenericEntityOp(StatefulOperator):
             "skip_auto_constraints", False
         )
 
+    def add_auto_constraint(self, context: Context, add, state_data=None, **kwargs):
+        """Add an inferred constraint only if it both solves and constrains.
+
+        A single solve settles it via the sketch's resulting solver state:
+        ``OKAY`` means the constraint is consistent and removed a degree of
+        freedom (keep it); ``REDUNDANT_OK`` means it constrained nothing new, and
+        any other state means it over-constrains. In every non-OKAY case the
+        constraint is removed and the sketch re-solved to restore the prior state.
+
+        This assumes the sketch was consistent before the trial (the common case
+        while drawing); it does not need a baseline solve to compare against.
+        """
+        if not self.use_auto_constraints(context, state_data):
+            return None
+
+        from ..curve_solver import solve_system
+
+        constraint = add(**kwargs)
+        # Validate without committing: solve to read the resulting state but do
+        # not write solved positions back, so drawing never drags existing
+        # geometry. The scene is updated only by the committing solve in fini.
+        solve_system(context, sketch=self.sketch, write=False)
+        if self.sketch.solver_state == "OKAY":
+            return constraint
+
+        self.sketch.constraints.remove(constraint)
+        # Reset solver state after the rejected trial (still without writing).
+        solve_system(context, sketch=self.sketch, write=False)
+        return None
+
     def pick_element(self, context, coords):
         retval = super().pick_element(context, coords)
         if retval is not None:
@@ -100,7 +130,13 @@ class GenericEntityOp(StatefulOperator):
         return hovered.curve_id if hovered else None
 
     def add_coincident(self, context: Context, point, state, state_data):
-        if not self.use_auto_constraints(context, state_data):
+        # A live-projected snap creates its link independently of the "Auto
+        # Constraints" toggle: it is the projection itself, not an inferred
+        # constraint. ``snap_projected`` is set by _maybe_link_projected_snap only
+        # when it actually projected. Every other target (a coincidence onto an
+        # existing sketch entity) still respects the toggle.
+        is_projection = bool(state_data.get("snap_projected"))
+        if not is_projection and not self.use_auto_constraints(context, state_data):
             return
         hovered_cid = state_data.get("hovered", "")
         if hovered_cid and hasattr(self, "sketch") and self.sketch:
@@ -112,10 +148,32 @@ class GenericEntityOp(StatefulOperator):
                 else state_data.get("curve_id", "")
             )
 
-            state_data["coincident"] = self.sketch.constraints.add_coincident(
-                curve_id_1=point_cid,
-                curve_id_2=hovered_cid,
-            )
+            # A snapped edge-midpoint projects the edge as a line and pins the point
+            # to its midpoint; everything else is a plain coincidence (point-point
+            # or point-on-line). Both constraints take (point, target) in order.
+            constraints = self.sketch.constraints
+            if state_data.get("snap_link_kind") == "MIDPOINT":
+                add = constraints.add_midpoint
+            else:
+                add = constraints.add_coincident
+
+            if is_projection:
+                # The projection link IS the snap, so add it unconditionally; it
+                # must not be rolled back by the solve check below.
+                state_data["coincident"] = add(
+                    curve_id_1=point_cid,
+                    curve_id_2=hovered_cid,
+                )
+            else:
+                # An inferred coincidence: keep it only if the sketch still solves,
+                # otherwise it is rolled back (see add_auto_constraint).
+                state_data["coincident"] = self.add_auto_constraint(
+                    context,
+                    add,
+                    state_data,
+                    curve_id_1=point_cid,
+                    curve_id_2=hovered_cid,
+                )
 
     def has_coincident(self):
         for state_index, data in self._state_data.items():

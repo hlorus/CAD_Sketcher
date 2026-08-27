@@ -11,8 +11,7 @@ from bpy.props import (
 )
 from bpy.types import AddonPreferences, Menu, Panel
 
-from .. import global_data, units
-from ..utilities.install import check_module
+from .. import units
 from ..utilities.register import get_name, get_path
 from ..utilities.view import update_cb
 from . import theme
@@ -165,20 +164,6 @@ class Preferences(AddonPreferences):
         layout.use_property_split = True
 
         box = layout.box()
-        box.label(text="Solver Module")
-        if global_data.registered:
-            box.label(text="Registered", icon="CHECKMARK")
-            module = check_module("slvs")
-            if module:
-                module_path = module.__path__[0] if module else ""
-                box.label(text="Path: " + module_path)
-        else:
-            # The solver ships as a bundled wheel, so a failure here means the
-            # install itself is broken rather than a missing dependency.
-            box.label(text="Solver module failed to load", icon="CANCEL")
-            box.label(text="Try restarting Blender or reinstalling the add-on")
-
-        box = layout.box()
         box.label(text="General")
         col = box.column(align=True)
         col.prop(self, "auto_hide_objects")
@@ -220,8 +205,7 @@ class Preferences(AddonPreferences):
 
         subrow = row.row()
         subrow.alignment = "RIGHT"
-        if global_data.registered:
-            SKETCHER_PT_theme_presets.draw_panel_header(subrow)
+        SKETCHER_PT_theme_presets.draw_panel_header(subrow)
 
         if self.show_theme_settings:
             row = box.row()
@@ -249,11 +233,6 @@ class Preferences(AddonPreferences):
                         row.prop(base, prop_name)
 
             list_props_recursiv(self.theme_settings)
-
-        from . import whats_new
-
-        layout.separator()
-        whats_new.draw_donation(layout)
 
 
 classes = (

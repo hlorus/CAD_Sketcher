@@ -3,14 +3,12 @@ import logging
 import blf
 import bpy
 import gpu
-from bpy.types import Context, Operator
-from bpy.utils import register_class, unregister_class
+from bpy.types import Context
 from bpy_extras.view3d_utils import location_3d_to_region_2d
 from gpu_extras.batch import batch_for_shader
 from mathutils import Matrix, Vector
 
 from . import global_data
-from .declarations import Operators
 from .shaders import Shaders
 from .utilities import preferences
 from .utilities.preferences import get_prefs
@@ -138,6 +136,33 @@ def _draw_vertex_hover(context, ob, index, col, scale):
     gpu.state.blend_set("NONE")
 
 
+def _draw_curve_element_hover(ob, key, col, scale):
+    """Highlight one hovered curve element: its segments and/or its point.
+
+    A line highlights its segment, an arc/circle its tessellated segments, a
+    point its position -- so the whole element under the cursor lights up.
+    """
+    from .drawing.reference_pick import element_geometry
+
+    points, segments = element_geometry(ob, key)
+    if segments:
+        lines = []
+        for a, b in segments:
+            lines += [a, b]
+        _draw_lines_hover(lines, col, scale, width=3)
+    if points:
+        shader = Shaders.point_color_3d()
+        shader.bind()
+        gpu.state.blend_set("ALPHA")
+        gpu.state.point_size_set(8 * scale)
+        shader.uniform_float("color", col)
+        batch = batch_for_shader(shader, "POINTS", {"pos": points})
+        batch.draw(shader)
+        gpu.shader.unbind()
+        gpu.state.point_size_set(1)
+        gpu.state.blend_set("NONE")
+
+
 def draw_hover_element():
     """POST_VIEW: highlight the hovered element per its type.
 
@@ -148,10 +173,12 @@ def draw_hover_element():
 
     context = bpy.context
 
-    # Only while a hover tool is active; otherwise clear stale hover so the
-    # highlight doesn't linger after switching tools.
+    # While a hover tool is active, or any pick is in progress (the redo-panel
+    # eyedropper re-pick publishes hover_types without switching tools).
+    # Otherwise clear stale hover so the highlight doesn't linger after switching.
     tool = context.workspace.tools.from_space_view3d_mode(context.mode)
-    if tool is None or tool.widget != GizmoGroups.ObjectHover.value:
+    tool_active = tool is not None and tool.widget == GizmoGroups.ObjectHover.value
+    if not tool_active and global_data.hover_types is None:
         global_data.hover_element = None
         return
 
@@ -175,6 +202,9 @@ def draw_hover_element():
         _draw_face_hover(context, ob, index, col, scale)
     elif kind == "VERTEX":
         _draw_vertex_hover(context, ob, index, col, scale)
+    elif kind == "CURVE_ELEM":
+        # ``index`` is the element key (a curve_id or index tuple).
+        _draw_curve_element_hover(ob, index, col, scale)
 
 
 def draw_origin_labels():
@@ -276,60 +306,30 @@ def draw_origin_labels():
     gpu.state.blend_set("NONE")
 
 
-class View3D_OT_slvs_register_draw_cb(Operator):
-    bl_idname = Operators.RegisterDrawCB
-    bl_label = "Register Draw Callback"
-
-    def execute(self, context: Context):
-        from .drawing import constraint_icons
-
-        global_data.draw_handle = bpy.types.SpaceView3D.draw_handler_add(
-            draw_cb, (), "WINDOW", "POST_VIEW"
-        )
-        global_data.hover_draw_handle = bpy.types.SpaceView3D.draw_handler_add(
-            draw_hover_element, (), "WINDOW", "POST_VIEW"
-        )
-        # Constraint icons draw in screen space, batched from one atlas.
-        global_data.icon_draw_handle = bpy.types.SpaceView3D.draw_handler_add(
-            constraint_icons.draw, (), "WINDOW", "POST_PIXEL"
-        )
-        # Origin-plane labels are drawn in the plane, so they need the 3D pass.
-        global_data.origin_label_draw_handle = bpy.types.SpaceView3D.draw_handler_add(
-            draw_origin_labels, (), "WINDOW", "POST_VIEW"
-        )
-
-        return {"FINISHED"}
-
-
-class View3D_OT_slvs_unregister_draw_cb(Operator):
-    bl_idname = Operators.UnregisterDrawCB
-    bl_label = ""
-
-    def execute(self, context: Context):
-        global_data.draw_handler.remove_handle()
-        if global_data.hover_draw_handle is not None:
-            bpy.types.SpaceView3D.draw_handler_remove(
-                global_data.hover_draw_handle, "WINDOW"
-            )
-            global_data.hover_draw_handle = None
-        if getattr(global_data, "icon_draw_handle", None) is not None:
-            bpy.types.SpaceView3D.draw_handler_remove(
-                global_data.icon_draw_handle, "WINDOW"
-            )
-            global_data.icon_draw_handle = None
-        if getattr(global_data, "origin_label_draw_handle", None) is not None:
-            bpy.types.SpaceView3D.draw_handler_remove(
-                global_data.origin_label_draw_handle, "WINDOW"
-            )
-            global_data.origin_label_draw_handle = None
-        return {"FINISHED"}
+# Viewport draw handlers, keyed by their global_data attribute. Order matches
+# the passes: geometry/hover/origin labels in the 3D view, constraint icons in
+# screen space (batched from one atlas).
+_DRAW_HANDLERS = (
+    ("draw_handle", draw_cb, "POST_VIEW"),
+    ("hover_draw_handle", draw_hover_element, "POST_VIEW"),
+    ("origin_label_draw_handle", draw_origin_labels, "POST_VIEW"),
+    ("icon_draw_handle", None, "POST_PIXEL"),  # callback resolved in register()
+)
 
 
 def register():
-    register_class(View3D_OT_slvs_register_draw_cb)
-    register_class(View3D_OT_slvs_unregister_draw_cb)
+    from .drawing import constraint_icons
+
+    callbacks = {"icon_draw_handle": constraint_icons.draw}
+    for attr, cb, pass_type in _DRAW_HANDLERS:
+        cb = cb or callbacks[attr]
+        handle = bpy.types.SpaceView3D.draw_handler_add(cb, (), "WINDOW", pass_type)
+        setattr(global_data, attr, handle)
 
 
 def unregister():
-    unregister_class(View3D_OT_slvs_unregister_draw_cb)
-    unregister_class(View3D_OT_slvs_register_draw_cb)
+    for attr, _cb, _pass in _DRAW_HANDLERS:
+        handle = getattr(global_data, attr, None)
+        if handle is not None:
+            bpy.types.SpaceView3D.draw_handler_remove(handle, "WINDOW")
+            setattr(global_data, attr, None)

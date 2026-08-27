@@ -158,9 +158,8 @@ def _migrate_geometry(context, old_sketch, sketch, entity_map):
 
 def _load_node_group(name):
     from ..assets_manager import load_asset
-    from ..global_data import LIB_NAME
 
-    if load_asset(LIB_NAME, "node_groups", name):
+    if load_asset("node_groups", name):
         return bpy.data.node_groups.get(name)
     return None
 
@@ -275,6 +274,9 @@ def _translate_solidify(mod, old_mesh, obj):
     ng = _load_node_group("CAD Sketcher Extrude")
     if ng is None:
         return False
+    from .extrude_nodes import ensure_extrude_edge_walls
+
+    ensure_extrude_edge_walls(ng)
     m = obj.modifiers.new("CAD_Sketcher Extrude", "NODES")
     m.node_group = ng
     set_modifier_input(m, "Input_2", float(mod.thickness))  # Size
@@ -294,7 +296,7 @@ def _translate_boolean(mod, old_mesh, obj, cutter_map=None):
     if cutter_map is not None:
         cutter = cutter_map.get(cutter, cutter)
     from ..operators.modifiers import (
-        View3D_OT_node_boolean,
+        boolean_input_ids,
         set_boolean_operation,
         set_modifier_input,
     )
@@ -303,7 +305,7 @@ def _translate_boolean(mod, old_mesh, obj, cutter_map=None):
     ng = build_boolean_node_group()
     m = obj.modifiers.new(f"CAD_Sketcher Boolean {cutter.name}", "NODES")
     m.node_group = ng
-    ids = View3D_OT_node_boolean._input_ids(ng)
+    ids = boolean_input_ids(ng)
     set_modifier_input(m, ids["Cutter"], cutter)
     op = {"DIFFERENCE": "Difference", "UNION": "Union", "INTERSECT": "Intersect"}[
         mod.operation
@@ -346,6 +348,7 @@ def _translate_screw(mod, old_mesh, obj):
     resolution; ignore the params Revolve has no concept of (helical screw
     offset, iterations, axis-object override)."""
     from ..operators.modifiers import set_modifier_input
+    from .revolve_nodes import _input_ids, build_revolve_node_group
 
     axis_dir = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}.get(
         getattr(mod, "axis", "Z")
@@ -353,18 +356,17 @@ def _translate_screw(mod, old_mesh, obj):
     if axis_dir is None:
         return False
 
-    ng = _load_node_group("CAD Sketcher Revolve")
-    if ng is None:
-        return False
+    ng = build_revolve_node_group()
     angle = float(getattr(mod, "angle", 6.283185307179586))
     steps = max(1, int(getattr(mod, "steps", 16)))
 
     m = obj.modifiers.new("CAD_Sketcher Revolve", "NODES")
     m.node_group = ng
-    set_modifier_input(m, "Socket_1", (0.0, 0.0, 0.0))  # Axis Origin (local)
-    set_modifier_input(m, "Socket_2", axis_dir)  # Axis Direction
-    set_modifier_input(m, "Socket_3", angle)  # Angle
-    set_modifier_input(m, "Socket_4", abs(angle) / steps)  # Angular Resolution
+    ids = _input_ids(ng)
+    set_modifier_input(m, ids["Axis Origin"], (0.0, 0.0, 0.0))  # local origin
+    set_modifier_input(m, ids["Axis Direction"], axis_dir)
+    set_modifier_input(m, ids["Angle"], angle)
+    set_modifier_input(m, ids["Angular Resolution"], abs(angle) / steps)
     return True
 
 

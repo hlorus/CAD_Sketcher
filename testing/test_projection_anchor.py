@@ -8,10 +8,14 @@ from ..utilities.projection_anchor import (
     PROJECT_VERTEX_INDEX_ATTR,
     VERTEX_ID_ATTR,
     find_projected_point,
+    project_curves_element,
     project_curves_object,
+    project_mesh_edge,
     project_mesh_element,
     project_mesh_object,
+    project_mesh_vertex,
     refresh_projection_for_sketch,
+    resolve_source_vertex_index,
 )
 from .utils import Sketch2dTestCase
 
@@ -259,3 +263,189 @@ class TestProjectionAnchor(Sketch2dTestCase):
         # The standalone point landed at its position.
         self.assertTrue(any((p.co - Vector((3.0, 4.0))).length < 1e-6 for p in points))
         self.assertEqual(skipped, 1, "the arc must be counted as skipped")
+
+    def test_project_single_vertex_dedup_and_live(self):
+        # The granular snap path: one vertex -> one live point, reused on repeat.
+        source = self._mesh_object()
+
+        point = project_mesh_vertex(self.sketch, source, 1, construction=True)
+        self.assertIsNotNone(point)
+        self.assertTrue(point.fixed)
+        self.assertTrue(point.construction)
+        self.assertLess((point.co - Vector((2.0, 0.0))).length, 1e-6)
+
+        # Snapping the same vertex again must reuse the existing point, not stack
+        # a second projected reference on top of it.
+        again = project_mesh_vertex(self.sketch, source, 1, construction=True)
+        self.assertEqual(again.curve_id, point.curve_id)
+
+        # A different vertex gets its own point.
+        other = project_mesh_vertex(self.sketch, source, 0, construction=True)
+        self.assertNotEqual(other.curve_id, point.curve_id)
+
+        # Out-of-range index is a no-op rather than a crash.
+        self.assertIsNone(project_mesh_vertex(self.sketch, source, 99))
+
+        # The live link tracks source edits, same as a full projection.
+        source.data.vertices[1].co = (4.0, 1.0, 1.0)
+        source.data.update()
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertLess((point.co - Vector((4.0, 1.0))).length, 1e-5)
+
+    def test_translating_source_object_reprojects_bound_point(self):
+        # The snap workflow's real payoff: moving the whole source OBJECT (its
+        # matrix_world changes, its mesh data does not) must drag the bound point
+        # along. This is a different depsgraph path than editing a vertex .co, and
+        # it must fire without force -- only via the object being in ``changed``.
+        source = self._mesh_object()
+        point = project_mesh_vertex(self.sketch, source, 1, construction=True)
+        self.assertLess((point.co - Vector((2.0, 0.0))).length, 1e-6)
+
+        # Translate the object by +3 on X (no mesh edit at all).
+        source.location = (3.0, 0.0, 0.0)
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+
+        # Mimic the depsgraph handler: object translation puts the object (not its
+        # mesh) in the changed set. No force -- change-detection must catch it.
+        refresh_projection_for_sketch(self.sketch, depsgraph, changed={source})
+
+        # The bound point follows the object's new world position (2 + 3 = 5 on X).
+        self.assertLess((point.co - Vector((5.0, 0.0))).length, 1e-5)
+
+    def test_project_mesh_edge_returns_live_line(self):
+        # Snapping along an edge projects it as a live LINE (bound endpoints), so a
+        # placed point can coincide onto it and slide along the edge.
+        from ..model.curve_ref import LineRef
+
+        source = self._mesh_object()  # edge 0: v0 (0,0,1) -- v1 (2,0,1)
+        line = project_mesh_edge(self.sketch, source, 0, 1, construction=True)
+        self.assertIsInstance(line, LineRef)
+        self.assertTrue(line.construction)
+        # Both endpoints are live-bound to their source vertices.
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 0))
+        self.assertIsNotNone(find_projected_point(self.sketch, source, 1))
+
+        # Re-snapping the same edge reuses the same line (no duplicate).
+        again = project_mesh_edge(self.sketch, source, 1, 0, construction=True)
+        self.assertEqual(again.curve_id, line.curve_id)
+
+        # Degenerate / out-of-range inputs are no-ops.
+        self.assertIsNone(project_mesh_edge(self.sketch, source, 1, 1))
+        self.assertIsNone(project_mesh_edge(self.sketch, source, 0, 99))
+
+    def test_project_mesh_edge_skips_plane_perpendicular_edge(self):
+        # An edge going straight through the sketch plane collapses to a point;
+        # there is no usable line, so the projection bails (static fallback).
+        mesh = self.data.meshes.new("PerpEdge")
+        mesh.from_pydata([(1.0, 1.0, 0.0), (1.0, 1.0, 2.0)], [(0, 1)], [])
+        mesh.update()
+        source = self.data.objects.new("PerpEdge", mesh)
+        self.scene.collection.objects.link(source)
+        self.assertIsNone(project_mesh_edge(self.sketch, source, 0, 1))
+
+    def test_projected_edge_line_tracks_object_translation(self):
+        # The projected edge's endpoints (and thus the line) follow the object.
+        source = self._mesh_object()
+        line = project_mesh_edge(self.sketch, source, 0, 1, construction=True)
+        p1_before = Vector(line.p1.co)
+
+        source.location = (5.0, 0.0, 0.0)
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, changed={source})
+        self.assertLess((line.p1.co - (p1_before + Vector((5.0, 0.0)))).length, 1e-5)
+
+    def test_project_mesh_vertex_places_at_snapped_world_co(self):
+        # A snap hands the evaluated world position; the point lands there rather
+        # than at the (possibly modifier-shifted) original vertex coordinate.
+        source = self._mesh_object()
+        point = project_mesh_vertex(
+            self.sketch, source, 1, construction=True, world_co=(5.0, 6.0, 1.0)
+        )
+        self.assertIsNotNone(point)
+        self.assertLess((point.co - Vector((5.0, 6.0))).length, 1e-6)
+
+    def test_resolve_source_vertex_index(self):
+        source = self._mesh_object()
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        eval_source = source.evaluated_get(depsgraph)
+
+        # No modifier: the evaluated index maps straight through (count matches).
+        self.assertEqual(resolve_source_vertex_index(source, eval_source, 1), 1)
+        # An out-of-range evaluated index resolves to nothing rather than crash.
+        self.assertIsNone(resolve_source_vertex_index(source, eval_source, 99))
+
+    def test_project_single_sketch_line_element(self):
+        # Project just one picked line of a source sketch (Phase 3 of the tool).
+        from ..model.curve_ref import LineRef, PointRef
+
+        src = self.new_sketch()
+        p1 = PointRef.create(src, (0.0, 0.0))
+        p2 = PointRef.create(src, (2.0, 3.0))
+        line = LineRef.create(src, p1, p2)
+
+        points, lines, skipped = project_curves_element(
+            self.sketch, src.target_object, line.curve_id
+        )
+        self.assertEqual(len(points), 2)
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(skipped, 0)
+        self.assertTrue(all(p.fixed for p in points))
+
+        # Idempotent: re-projecting the same line reuses its endpoints, adds none.
+        p_again, l_again, _ = project_curves_element(
+            self.sketch, src.target_object, line.curve_id
+        )
+        self.assertEqual(len(p_again), 0)
+        self.assertEqual(len(l_again), 0)
+
+    def test_project_single_sketch_arc_element_is_skipped(self):
+        from ..model.curve_ref import ArcRef, PointRef
+
+        src = self.new_sketch()
+        center = PointRef.create(src, (0.0, 0.0))
+        start = PointRef.create(src, (1.0, 0.0))
+        end = PointRef.create(src, (0.0, 1.0))
+        arc = ArcRef.create(src, center, start, end)
+
+        points, lines, skipped = project_curves_element(
+            self.sketch, src.target_object, arc.curve_id
+        )
+        self.assertEqual((len(points), len(lines), skipped), (0, 0, 1))
+
+    def test_project_element_rejects_non_sketch_key(self):
+        # A raw-Curves index key is hoverable but not projectable yet.
+        src = self.new_sketch()
+        self.assertEqual(
+            project_curves_element(self.sketch, src.target_object, ("point", 0)),
+            ([], [], 1),
+        )
+
+    def test_snap_projection_primitives_accept_a_curve_source(self):
+        # The #619 draw-snap projection reuses project_mesh_vertex/edge; these must
+        # now accept a Curves source so snapping onto a sketch/curve live-projects
+        # its control point or segment (not just meshes).
+        import bpy
+
+        cu = bpy.data.hair_curves.new("SnapSrc")
+        cu.add_curves([2])
+        cu.points[0].position = (0.0, 0.0, 0.0)
+        cu.points[1].position = (2.0, 0.0, 0.0)
+        src = bpy.data.objects.new("SnapSrcCurve", cu)
+        self.scene.collection.objects.link(src)
+
+        # Vertex: binds a fixed, source-tracked point to control point 0, deduped.
+        pv = project_mesh_vertex(self.sketch, src, 0, construction=True)
+        self.assertIsNotNone(pv)
+        self.assertTrue(pv.fixed)
+        self.assertIsNotNone(find_projected_point(self.sketch, src, 0))
+        self.assertEqual(project_mesh_vertex(self.sketch, src, 0).curve_id, pv.curve_id)
+
+        # Edge: projects a live line bound to both control points.
+        line = project_mesh_edge(self.sketch, src, 0, 1, construction=True)
+        self.assertIsNotNone(line)
+        self.assertIsNotNone(find_projected_point(self.sketch, src, 1))

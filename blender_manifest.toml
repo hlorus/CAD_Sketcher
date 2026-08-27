@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "CAD_Sketcher"
-version = "0.30.1"
+version = "0.31.0-rc.1"
 name = "CAD Sketcher"
 tagline = "Parametric, constraint-based geometry sketcher"
 maintainer = "hlorus <dave19924@gmail.com>"
@@ -11,30 +11,25 @@ tags = ["3D View", "Modeling", "Mesh", "Object"]
 blender_version_min = "5.0.0"
 license = ["SPDX:GPL-3.0-or-later"]
 
+# Platform-specific wheels: build with `--split-platforms` to produce one
+# package per platform (see .github/workflows/release.yaml).
+platforms = [
+  "windows-x64",
+  "macos-x64",
+  "macos-arm64",
+  "linux-x64",
+]
+
 wheels = [
   "./wheels/slvs-3.2-cp311-cp311-macosx_10_12_x86_64.whl",
   "./wheels/slvs-3.2-cp311-cp311-macosx_11_0_arm64.whl",
-  "./wheels/slvs-3.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl",
   "./wheels/slvs-3.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
-  "./wheels/slvs-3.2-cp311-cp311-musllinux_1_2_aarch64.whl",
   "./wheels/slvs-3.2-cp311-cp311-musllinux_1_2_x86_64.whl",
-  "./wheels/slvs-3.2-cp311-cp311-win32.whl",
   "./wheels/slvs-3.2-cp311-cp311-win_amd64.whl",
-  "./wheels/slvs-3.2-cp312-cp312-macosx_10_13_x86_64.whl",
-  "./wheels/slvs-3.2-cp312-cp312-macosx_11_0_arm64.whl",
-  "./wheels/slvs-3.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl",
-  "./wheels/slvs-3.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
-  "./wheels/slvs-3.2-cp312-cp312-musllinux_1_2_aarch64.whl",
-  "./wheels/slvs-3.2-cp312-cp312-musllinux_1_2_x86_64.whl",
-  "./wheels/slvs-3.2-cp312-cp312-win32.whl",
-  "./wheels/slvs-3.2-cp312-cp312-win_amd64.whl",
   "./wheels/slvs-3.2-cp313-cp313-macosx_10_13_x86_64.whl",
   "./wheels/slvs-3.2-cp313-cp313-macosx_11_0_arm64.whl",
-  "./wheels/slvs-3.2-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl",
   "./wheels/slvs-3.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
-  "./wheels/slvs-3.2-cp313-cp313-musllinux_1_2_aarch64.whl",
   "./wheels/slvs-3.2-cp313-cp313-musllinux_1_2_x86_64.whl",
-  "./wheels/slvs-3.2-cp313-cp313-win32.whl",
   "./wheels/slvs-3.2-cp313-cp313-win_amd64.whl",
 ]
 

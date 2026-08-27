@@ -18,7 +18,6 @@ _builtin_handlers = {}
 # from event_system import add_builtin_handler
 #
 # add_builtin_handler("save_pre", write_addon_version)
-# add_builtin_handler("version_update", do_versioning)
 
 
 def add_builtin_handler(event: str, callback):
@@ -62,21 +61,19 @@ def unregister_handlers():
 
 
 def on_load_post(*args):
-    """Migrate legacy entity-based sketches to native curves on file load."""
-    from .utilities.migrate import migrate_scene, scene_needs_migration
+    """Reset transient in-memory state carried over from the previous file.
+
+    Cheap and always safe. Migrating legacy (entity-based) sketches and
+    upgrading a baked revolve node group are NOT done here -- they are the
+    manual ``slvs_migrate_legacy`` operator, surfaced by the Sketcher panel when
+    legacy data is detected, so all users don't pay for it on every file load.
+    """
+    from .drawing import overlay, selection
     from .utilities.validate import reset_cache
 
     reset_cache()
-    from .drawing import overlay, selection
     overlay.invalidate()
     selection.clear()
-    context = bpy.context
-    try:
-        if scene_needs_migration(context):
-            summary = migrate_scene(context)
-            logger.info("Migrated legacy sketches to curves: %s", summary)
-    except Exception:
-        logger.exception("Legacy sketch migration failed")
 
 
 def on_depsgraph_update(scene, depsgraph):
@@ -179,9 +176,11 @@ def on_undo_redo(scene, *args):
 
 
 def _setup_builtin_handlers():
-    from .versioning import do_versioning, write_addon_version
+    from .versioning import write_addon_version
 
-    add_builtin_handler("version_update", do_versioning)
+    # NOTE: entity-data versioning (do_versioning) is NOT a handler -- it runs
+    # inside the manual slvs_migrate_legacy operator, right before the legacy
+    # sketches are converted to curves, so nothing versions data on file load.
     add_builtin_handler("save_pre", write_addon_version)
     add_builtin_handler("load_post", on_load_post)
     add_builtin_handler("depsgraph_update_post", on_depsgraph_update)

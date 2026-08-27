@@ -40,8 +40,6 @@ def _select_keymap_for_group(group):
     from ..keymaps import tool_access, tool_base_keymap, tool_select
     from .keymaps_3d import tool_access_3d
 
-    # ``tool_select`` is base + 2D access + selection/picking actions. Reuse the
-    # common selection tail and swap only the sketch-family tool access entries.
     common = tool_select[len(tool_base_keymap) + len(tool_access) :]
     access = tool_access_3d if group == ToolGroup.SKETCH_3D else tool_access
     return (*tool_base_keymap, *access, *common)
@@ -100,6 +98,7 @@ def leave_sketch_mode():
 
     if _sketch_group is not None:
         _unregister_tools({_sketch_group})
+
     _sketch_active = False
     _sketch_group = None
     _register_tools({ToolGroup.NON_SKETCH})
@@ -132,6 +131,7 @@ def register():
 def unregister():
     if bpy.app.background:
         return
+
     _unregister_tools(
         {
             ToolGroup.ALWAYS,
@@ -140,8 +140,11 @@ def unregister():
             ToolGroup.NON_SKETCH,
         }
     )
-    _registry.clear()
+
+    # Keep _registry: it is populated at import time (via add() calls in
+    # __init__), which does not run again on a same-session disable/enable.
     _registered.clear()
+
     global _sketch_active, _sketch_group
     _sketch_active = False
     _sketch_group = None

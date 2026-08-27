@@ -44,17 +44,40 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
         return not Sketch(obj).is_3d
 
     def main(self, context: Context):
+        from ..model.curve_ref import curve_ref
+
         sketch = self.sketch
         construction = context.scene.sketcher.use_construction
+        state_data = self.state_data
 
-        self.target = PointRef.create(sketch, self.coordinates, construction=construction)
+        # Entity picking wins over geometry snapping. Add Point is a coordinate
+        # state with no pick_element, so re-derive the hovered sketch entity each
+        # call: a pickable entity under the cursor (a point, an already-projected
+        # reference, or a constrainable curve) is preferred to projecting the mesh
+        # behind it. Only when nothing is pickable do we live-project the snap.
+        picked = selection.hover
+        ref = curve_ref(sketch, picked) if picked else None
+        if ref is not None and ref.valid:
+            state_data["hovered"] = picked
+            state_data["snap_link_kind"] = "COINCIDENT"
+            # A projected reference forces its link (bypasses Auto Constraints); a
+            # plain pick respects the toggle. Anchored only if the target is fixed.
+            state_data["snap_projected"] = self._is_projected_reference(picked)
+            state_data["snap_anchored"] = bool(getattr(ref, "fixed", False))
+        else:
+            state_data["hovered"] = ""
+            self._maybe_link_projected_snap(context, state_data)
 
-        # Store hovered curve_id for auto-coincident
-        hovered = selection.hover
-        if hovered and self._check_constrain(context, hovered):
-            self.state_data["hovered"] = hovered
+        # A point snapped to external geometry is fixed to hold it there; one
+        # pinned by a coincident constraint (sketch entity or projected ref) is
+        # not, so the constraint drives it.
+        fixed = state_data.get("snapped", False) and not state_data.get("hovered")
 
-        self.add_coincident(context, self.target, self.state, self.state_data)
+        self.target = PointRef.create(
+            sketch, self.coordinates, construction=construction, fixed=fixed
+        )
+
+        self.add_coincident(context, self.target, self.state, state_data)
         return True
 
     def fini(self, context: Context, succeede: bool):

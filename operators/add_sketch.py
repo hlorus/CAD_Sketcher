@@ -45,7 +45,7 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
 
     sketch = Sketch(sketch_obj)
 
-    origin = PointRef.create(sketch, (0.0, 0.0), fixed=True)
+    origin = PointRef.create(sketch, (0.0, 0.0), fixed=True, is_origin=True)
     assert origin is not None, "Failed to create origin point"
 
     activate_sketch(context, sketch_obj, operator)

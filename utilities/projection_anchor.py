@@ -85,6 +85,12 @@ _MESH_SOURCE = {"MESH"}
 _CURVE_SOURCE = {"CURVES", "CURVE"}
 
 
+def _source_point_count(source):
+    """Number of source elements (mesh vertices or curve control points)."""
+    data = source.data
+    return len(data.vertices if source.type in _MESH_SOURCE else data.points)
+
+
 def _source_point_index(source, vertex_index):
     """Local position of source element ``vertex_index`` (mesh vert or curve point)."""
     if source.type in _MESH_SOURCE:
@@ -320,20 +326,53 @@ def update_projected_geometry(context, depsgraph):
         global_data.needs_redraw = True
 
 
+def find_projected_vertex_point(sketch, source, vertex_id):
+    """Return an existing live point bound to ``source``'s ``vertex_id``, or None.
+
+    The single dedup used by both the projection tool and the snap path: matches
+    on the persistent source vertex id, which survives topology edits that
+    reshuffle indices, rather than the creation-time index.
+    """
+    for (
+        curve_id,
+        bound_source,
+        bound_vid,
+        _fallback,
+        _last_co,
+    ) in iter_projected_point_bindings(sketch):
+        if bound_source == source and bound_vid == vertex_id:
+            existing = PointRef(sketch, curve_id)
+            if existing.valid:
+                return existing
+    return None
+
+
 def find_projected_point(sketch, source, vertex_index):
     """Return an existing valid ``PointRef`` bound to ``(source, vertex_index)``.
 
-    Lets repeated element picks reuse a shared corner instead of stacking
-    duplicate points, so an edge and an adjacent face project as one connected
-    outline. Matched on the fallback vertex index (stable at creation time).
+    Resolves the vertex to its persistent source id and matches on that (via
+    :func:`find_projected_vertex_point`), so repeated element picks reuse a
+    shared corner even after topology edits shuffle the raw indices.
     """
-    for curve_id, bound_source, _vid, fallback, _last in iter_projected_point_bindings(
-        sketch
-    ):
-        if bound_source == source and fallback == int(vertex_index):
-            point = PointRef(sketch, curve_id)
-            if point.valid:
-                return point
+    vertex_id = ensure_vertex_id(source.data, int(vertex_index))
+    return find_projected_vertex_point(sketch, source, vertex_id)
+
+
+def _line_curve_id_between(sketch, p1, p2):
+    """curve_id of a native line connecting ``p1`` and ``p2`` (either order), or None."""
+    curve_data = sketch.data
+    type_attr = curve_data.attributes.get("sketch_type")
+    if not type_attr:
+        return None
+    starts = read_uuid_list(curve_data, "start_point_id")
+    ends = read_uuid_list(curve_data, "end_point_id")
+    curve_ids = read_curve_id_list(curve_data)
+    wanted = {p1.curve_id, p2.curve_id}
+    for index in range(len(curve_data.curves)):
+        if type_attr.data[index].value != SketchCurveType.LINE:
+            continue
+        if {starts[index], ends[index]} == wanted:
+            return curve_ids[index]
     return None
 
 
@@ -343,19 +382,7 @@ def _line_exists_between(sketch, p1, p2):
     Re-projecting the same edge or face reuses its already-projected points, so
     without this the connecting lines would stack a fresh duplicate every time.
     """
-    curve_data = sketch.data
-    type_attr = curve_data.attributes.get("sketch_type")
-    if not type_attr:
-        return False
-    starts = read_uuid_list(curve_data, "start_point_id")
-    ends = read_uuid_list(curve_data, "end_point_id")
-    wanted = {p1.curve_id, p2.curve_id}
-    for index in range(len(curve_data.curves)):
-        if type_attr.data[index].value != SketchCurveType.LINE:
-            continue
-        if {starts[index], ends[index]} == wanted:
-            return True
-    return False
+    return _line_curve_id_between(sketch, p1, p2) is not None
 
 
 def project_mesh_element(sketch, source, elem_type, elem_index, construction=True):
@@ -435,6 +462,135 @@ def project_mesh_element(sketch, source, elem_type, elem_index, construction=Tru
             raise ValueError(f"Unsupported element type: {elem_type!r}")
 
     return counters["points"], counters["lines"]
+
+
+def resolve_source_vertex_index(source, eval_source, eval_vertex_index):
+    """Map an evaluated-mesh vertex index back to the original mesh vertex.
+
+    Snapping picks a vertex on the *evaluated* mesh, but a live projection must
+    bind the *original* vertex. When the evaluated mesh carries the persistent
+    vertex id (already-tagged / previously projected vertices), match on that so
+    the binding is index-independent and survives index-shuffling modifiers.
+    Otherwise the index only corresponds when the modifier stack preserves vertex
+    order, which we approximate by an equal vertex count. Returns the original
+    index, or None when the correspondence can't be trusted.
+    """
+    orig_mesh = source.data
+    eval_mesh = eval_source.data
+    if not (0 <= eval_vertex_index < len(eval_mesh.vertices)):
+        return None
+
+    eval_attr = eval_mesh.attributes.get(VERTEX_ID_ATTR)
+    if eval_attr is not None and eval_attr.domain == "POINT":
+        vid = int(eval_attr.data[eval_vertex_index].value)
+        if vid:
+            orig_attr = orig_mesh.attributes.get(VERTEX_ID_ATTR)
+            if orig_attr is not None and orig_attr.domain == "POINT":
+                for index, item in enumerate(orig_attr.data):
+                    if int(item.value) == vid and index < len(orig_mesh.vertices):
+                        return index
+
+    # No id to match on: trust the index only when topology is preserved.
+    if len(eval_mesh.vertices) == len(orig_mesh.vertices):
+        return eval_vertex_index
+    return None
+
+
+def project_mesh_vertex(sketch, source, vertex_index, construction=True, world_co=None):
+    """Project a single source mesh vertex onto ``sketch`` as a live point.
+
+    Unlike :func:`project_mesh_object` (which projects a whole mesh), this is the
+    granular path used by snapping: a point snapped to one vertex gets one live
+    projected reference. Repeated snaps to the same vertex are deduplicated so
+    they share a single projected point (and thus become coincident). Returns the
+    ``PointRef`` (fixed, driven by the source vertex), or None if the index is out
+    of range.
+
+    ``world_co`` is the world-space position to place the point at, typically the
+    snap's evaluated hit. Passing it avoids a one-frame jump when the source has a
+    vertex-moving modifier (the original vertex position differs from the snapped,
+    evaluated one). It defaults to the original vertex position.
+    """
+    if source is None or source.type not in (_MESH_SOURCE | _CURVE_SOURCE):
+        raise TypeError("Source must be a mesh or curve object")
+    if not (0 <= vertex_index < _source_point_count(source)):
+        return None
+
+    vertex_id = ensure_vertex_id(source.data, vertex_index)
+    existing = find_projected_vertex_point(sketch, source, vertex_id)
+    if existing is not None:
+        return existing
+
+    owner = sketch.target_object
+    if world_co is not None:
+        local = owner.matrix_world.inverted() @ Vector(world_co)
+    else:
+        local = owner.matrix_world.inverted() @ (
+            source.matrix_world @ _source_point_index(source, vertex_index)
+        )
+    with batch_update(sketch):
+        point = PointRef.create(
+            sketch,
+            (local.x, local.y),
+            construction=construction,
+            fixed=True,
+            name="Projected Point",
+        )
+        bind_projected_point(sketch, point, source, vertex_index)
+    return point
+
+
+def project_mesh_edge(sketch, source, vertex_index, vertex_index_2, construction=True):
+    """Project a source edge onto ``sketch`` as a live line, returning its ``LineRef``.
+
+    The snap counterpart for snapping *along* an edge (not at a vertex or the
+    midpoint): the edge is projected as a live construction line bound to both
+    endpoints, and the caller coincides the placed point onto that line so it
+    slides along the edge instead of being pinned. Endpoints and the line are
+    deduplicated, so re-snapping the same edge reuses them. Returns None if an
+    index is out of range, the indices coincide, or the edge collapses to a point
+    on the sketch plane (a zero-length line the solver cannot use).
+    """
+    if source is None or source.type not in (_MESH_SOURCE | _CURVE_SOURCE):
+        raise TypeError("Source must be a mesh or curve object")
+    n = _source_point_count(source)
+    if not (0 <= vertex_index < n and 0 <= vertex_index_2 < n):
+        return None
+    if vertex_index == vertex_index_2:
+        return None
+
+    owner = sketch.target_object
+    inv = owner.matrix_world.inverted()
+
+    def _endpoint(index):
+        existing = find_projected_point(sketch, source, index)
+        if existing is not None:
+            return existing
+        local = inv @ (source.matrix_world @ _source_point_index(source, index))
+        point = PointRef.create(
+            sketch,
+            (local.x, local.y),
+            construction=construction,
+            fixed=True,
+            name="Projected Point",
+        )
+        bind_projected_point(sketch, point, source, index)
+        return point
+
+    with batch_update(sketch):
+        p0 = _endpoint(vertex_index)
+        p1 = _endpoint(vertex_index_2)
+        # An edge perpendicular to the sketch plane collapses to a point; a
+        # zero-length line is useless to the solver and to a point-on-line
+        # coincidence, so bail to the static fallback.
+        if (p0.co - p1.co).length < 1e-6:
+            return None
+        existing_line = _line_curve_id_between(sketch, p0, p1)
+        if existing_line:
+            return LineRef(sketch, existing_line)
+        return LineRef.create(
+            sketch, p0, p1, construction=construction, name="Projected Line"
+        )
 
 
 def project_mesh_object(sketch, source, construction=True):
@@ -575,3 +731,70 @@ def project_curves_object(sketch, source, construction=True):
                 skipped_curves += 1
 
     return points, lines, skipped_curves
+
+
+def project_curves_element(sketch, source, curve_id, construction=True):
+    """Project a single line or point of a source sketch into ``sketch``.
+
+    ``curve_id`` is a source sketch element's id (what the reference pick returns
+    for a sketch). Returns ``(points, lines, skipped)``: ``skipped`` is 1 when the
+    element has no planar-line projection yet (arc/circle) or the key is not a
+    sketch element (e.g. a raw Curves index) -- both are hoverable but not
+    projectable. Endpoints are reused across calls via ``find_projected_point``,
+    so re-projecting the same element is idempotent.
+    """
+    if source is None or source.type not in _CURVE_SOURCE:
+        raise TypeError("Source must be a sketch or curve object")
+    if not isinstance(curve_id, str):
+        return [], [], 1  # a raw Curves index key: not projectable yet
+
+    from ..model.constants import SketchCurveType
+    from ..model.curve_ref import LineRef as _LineRef
+    from ..model.sketch_ref import Sketch
+    from ..utilities.curve_data import get_curve_type
+
+    src_sketch = Sketch(source)
+    src_type = get_curve_type(src_sketch, curve_id)
+    owner = sketch.target_object
+    inv = owner.matrix_world.inverted()
+    points, lines = [], []
+
+    def _project(src_point):
+        flat_index = _source_point_flat_index(src_point)
+        if flat_index is None:
+            return None
+        existing = find_projected_point(sketch, source, flat_index)
+        if existing is not None:
+            return existing
+        local = inv @ src_point.location
+        projected = PointRef.create(
+            sketch,
+            (local.x, local.y),
+            construction=construction,
+            fixed=True,
+            name="Projected Point",
+        )
+        bind_projected_point(sketch, projected, source, flat_index)
+        points.append(projected)
+        return projected
+
+    with batch_update(sketch):
+        if src_type == SketchCurveType.LINE:
+            src_line = _LineRef(src_sketch, curve_id)
+            p1_src, p2_src = src_line.p1, src_line.p2
+            if p1_src is None or p2_src is None:
+                return points, lines, 0
+            p1 = _project(p1_src)
+            p2 = _project(p2_src)
+            if p1 and p2 and not _line_exists_between(sketch, p1, p2):
+                lines.append(
+                    LineRef.create(
+                        sketch, p1, p2, construction=construction, name="Projected Line"
+                    )
+                )
+            return points, lines, 0
+        if src_type == SketchCurveType.POINT:
+            _project(PointRef(src_sketch, curve_id))
+            return points, lines, 0
+        # Arc / circle: hoverable, but no native planar-line projection yet.
+        return points, lines, 1

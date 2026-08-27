@@ -2,14 +2,15 @@ from enum import Enum
 
 from mathutils import Vector
 
-registered = False
-
 entities = {}
 batches = {}
 
 # Typed hover element under the cursor for object/mesh-picking tools, published
 # by the hover gizmo and rendered by the draw handler. One of:
-#   ("OBJECT", name, None) | ("VERTEX"|"EDGE"|"FACE", name, index) | None
+#   ("OBJECT", name, None) | ("VERTEX"|"EDGE"|"FACE", name, index)
+#   | ("CURVE_ELEM", name, element_key) | None
+# CURVE_ELEM is a whole curve element (line/arc/circle/point) of a Curves object;
+# element_key is its curve_id (sketch) or index tuple (raw), see reference_pick.
 hover_element = None
 # Accepted pick types of the current stateful-operator state (or None), so the
 # hover gizmo detects/highlights what this state will actually pick.
@@ -95,6 +96,3 @@ solver_state_items = [
         5,
     ),
 ]
-
-# Name of the asset library used for CAD Sketcher assets
-LIB_NAME = "CAD Sketcher Assets"

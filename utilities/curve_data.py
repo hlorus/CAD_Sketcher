@@ -278,6 +278,8 @@ def ensure_standard_attributes(curve_data):
     ensure_attribute(attributes, "construction", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "fixed", "BOOLEAN", "CURVE")
     ensure_attribute(attributes, "visible", "BOOLEAN", "CURVE")
+    # Marks the sketch's protected origin point (undeletable, auto-restored).
+    ensure_attribute(attributes, "is_origin", "BOOLEAN", "CURVE")
     # Per-point weld identity for the Blender 5.2 "Merge Points" fill path:
     # segment endpoints sharing a junction get the same id (see compute_merge_ids).
     ensure_attribute(attributes, "merge_id", "INT", "POINT")
@@ -474,20 +476,15 @@ def _ensure_convert_modifier(ob):
 
 
 def _get_convert_node_group():
-    """The convert node group: identity-weld build on Blender 5.2+, else the
-    shipped merge-by-distance asset (which is all older Blender can express)."""
-    if bpy.app.version >= (5, 2, 0):
-        from .convert_nodes import build_convert_node_group
+    """The convert node group, built programmatically for every Blender version.
 
-        return build_convert_node_group()
+    The build is identical apart from the weld: Blender 5.2+ welds sketch
+    endpoints by identity (Merge Points), older Blender merges coincident
+    endpoints by distance (all it can express). Building both keeps the two
+    paths in lockstep instead of shipping a separate, drift-prone asset."""
+    from .convert_nodes import build_convert_node_group
 
-    from .. import global_data
-    from ..assets_manager import load_asset
-    from .convert_nodes import ensure_generated_id_nodes
-
-    load_asset(global_data.LIB_NAME, "node_groups", "CAD Sketcher Convert")
-    group = bpy.data.node_groups.get("CAD Sketcher Convert")
-    return ensure_generated_id_nodes(group) if group else None
+    return build_convert_node_group()
 
 
 def ensure_sketch_curve_object(sketch):
@@ -772,14 +769,19 @@ def compute_merge_ids(sketch):
     # id), so read the raw id tuples and skip the per-curve hex formatting.
     sp_ids = read_uuid_raw_list(cd, "start_point_id")
     ep_ids = read_uuid_raw_list(cd, "end_point_id")
+    # A standalone point entity's own curve_id is the id that segments reference
+    # through start/end_point_id, so it joins the same junction and welds onto the
+    # shared corner instead of sitting as a duplicate vertex.
+    curve_ids = read_uuid_raw_list(cd, "curve_id")
 
     ids = np.zeros(n_points, dtype=np.int32)
     dense = {}
 
     def junction(u):
-        # 1-based so 0 stays the "no weld" default for interior/point/circle.
+        # 1-based so 0 stays the "no weld" default for interior/circle vertices.
         return dense.setdefault(u, len(dense) + 1)
 
+    # First, junctions from the segments' referenced endpoints.
     for i in range(len(cd.curves)):
         t = type_attr.data[i].value
         if t not in (SketchCurveType.LINE, SketchCurveType.ARC):
@@ -792,6 +794,19 @@ def compute_merge_ids(sketch):
             ids[cv.points[0].index] = junction(sp_ids[i])
         if any(ep_ids[i]):
             ids[cv.points[npt - 1].index] = junction(ep_ids[i])
+
+    # Then weld each standalone point entity onto its coincident corner -- but
+    # only when a segment actually references it. A lone point or an arc/circle
+    # center that no segment endpoint uses stays 0 (never welded).
+    for i in range(len(cd.curves)):
+        if type_attr.data[i].value != SketchCurveType.POINT:
+            continue
+        cv = cd.curves[i]
+        if cv.points_length < 1:
+            continue
+        jid = dense.get(curve_ids[i])
+        if jid is not None:
+            ids[cv.points[0].index] = jid
 
     attr = cd.attributes.get("merge_id")
     if attr is None:
@@ -812,9 +827,7 @@ def compute_generated_id_seeds(sketch):
 
     attrs = cd.attributes
     curve_attr = ensure_attribute(attrs, SOURCE_CURVE_ID_ATTR, "INT", "CURVE")
-    endpoint_attr = ensure_attribute(
-        attrs, SOURCE_ENDPOINT_ID_ATTR, "INT", "POINT"
-    )
+    endpoint_attr = ensure_attribute(attrs, SOURCE_ENDPOINT_ID_ATTR, "INT", "POINT")
     type_attr = attrs.get("sketch_type")
     if not curve_attr or not endpoint_attr or not type_attr:
         return False
@@ -828,15 +841,17 @@ def compute_generated_id_seeds(sketch):
     endpoint_seeds = np.zeros(len(cd.points), dtype=np.int32)
 
     for index, curve in enumerate(cd.curves):
-        if type_attr.data[index].value not in (
-            SketchCurveType.LINE,
-            SketchCurveType.ARC,
-        ) or curve.points_length < 2:
+        if (
+            type_attr.data[index].value
+            not in (
+                SketchCurveType.LINE,
+                SketchCurveType.ARC,
+            )
+            or curve.points_length < 2
+        ):
             continue
         if any(start_ids[index]):
-            endpoint_seeds[curve.points[0].index] = _stable_source_id(
-                start_ids[index]
-            )
+            endpoint_seeds[curve.points[0].index] = _stable_source_id(start_ids[index])
         if any(end_ids[index]):
             endpoint_seeds[curve.points[curve.points_length - 1].index] = (
                 _stable_source_id(end_ids[index])

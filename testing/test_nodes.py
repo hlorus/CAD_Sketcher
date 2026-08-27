@@ -8,28 +8,21 @@ operators/modifiers.py, asserting the evaluated geometry actually changes.
 import bmesh
 import bpy
 
-from .utils import BgsTestCase
 from .. import assets_manager as am
-from ..global_data import LIB_NAME
 from ..operators.modifiers import (
+    View3D_OT_node_array_linear,
+    View3D_OT_node_extrude,
+    View3D_OT_node_revolve,
     is_2d_profile,
     set_modifier_input,
-    View3D_OT_node_extrude,
-    View3D_OT_node_array_linear,
-    View3D_OT_node_revolve,
 )
+from .utils import BgsTestCase
 
 EXTRUDE = "CAD Sketcher Extrude"
 ARRAY = "CAD Sketcher Linear Array"
-REVOLVE = "CAD Sketcher Revolve"
 
 
 class TestNodeTools(BgsTestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        am.load()  # register the "CAD Sketcher Assets" library
-
     def tearDown(self):
         for ob in list(self.scene.collection.objects):
             me = ob.data
@@ -124,12 +117,16 @@ class TestNodeTools(BgsTestCase):
         return ob
 
     def _revolve(self, ob, angle, angle_step, axis=(0.0, 0.0, 1.0), origin=(0.0, 0.0, 0.0)):
+        from ..utilities.revolve_nodes import _input_ids, build_revolve_node_group
+
+        ng = build_revolve_node_group()
         mod = ob.modifiers.new("rev", "NODES")
-        mod.node_group = bpy.data.node_groups.get(REVOLVE)
-        set_modifier_input(mod, "Socket_1", origin)      # Axis Origin
-        set_modifier_input(mod, "Socket_2", axis)        # Axis Direction
-        set_modifier_input(mod, "Socket_3", angle)       # Angle
-        set_modifier_input(mod, "Socket_4", angle_step)  # Angle Step (max/segment)
+        mod.node_group = ng
+        ids = _input_ids(ng)
+        set_modifier_input(mod, ids["Axis Origin"], origin)
+        set_modifier_input(mod, ids["Axis Direction"], axis)
+        set_modifier_input(mod, ids["Angle"], angle)
+        set_modifier_input(mod, ids["Angular Resolution"], angle_step)
         return mod
 
     def test_revolve_target_gate(self):
@@ -156,7 +153,6 @@ class TestNodeTools(BgsTestCase):
     def test_revolve_mesh_profile(self):
         # A mesh edge-path profile revolves too (Mesh to Curve at the input).
         import math
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", REVOLVE))
         ob = self._profile_mesh(n=5, radius=2.0, height=1.0)
         self._revolve(ob, math.tau, math.tau / 16)
         me = self._eval_mesh(ob)
@@ -166,7 +162,6 @@ class TestNodeTools(BgsTestCase):
 
     def test_revolve_creates_surface(self):
         import math
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", REVOLVE))
         ob = self._profile_curve(n=5, radius=2.0, height=1.0)
         steps = 16  # angle_step = tau/16 -> ceil(tau / (tau/16)) = 16 steps
         self._revolve(ob, math.tau, math.tau / steps)
@@ -186,7 +181,6 @@ class TestNodeTools(BgsTestCase):
 
     def test_revolve_angle_step_controls_resolution(self):
         import math
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", REVOLVE))
         ob = self._profile_curve()
         self._revolve(ob, math.tau, math.tau / 8)   # coarse: ~8 steps
         n_low = len(self._eval_mesh(ob).vertices)
@@ -198,7 +192,6 @@ class TestNodeTools(BgsTestCase):
     def test_revolve_angle_step_scales_with_angle(self):
         # Same angle step -> a quarter turn uses ~1/4 the steps of a full turn.
         import math
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", REVOLVE))
         step = math.radians(6)
         ob = self._profile_curve()
         self._revolve(ob, math.tau, step)
@@ -212,30 +205,28 @@ class TestNodeTools(BgsTestCase):
         # A full revolve of a closed profile sweeps its closing segment (cyclic
         # wrap) and welds the seam -> a watertight solid (no boundary edges).
         import math
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", REVOLVE))
         ob = self._closed_profile()
         self._revolve(ob, math.tau, math.radians(10))
         me = self._eval_mesh(ob)
         self.assertGreater(len(me.polygons), 0)
         self.assertEqual(self._boundary_edges(me), 0)
 
-    def test_revolve_partial_closed_profile_is_capped(self):
-        # A partial revolve of a closed profile caps both angular ends (filled
-        # in a plane-aligned copy then transformed back), giving a watertight
-        # solid -- no boundary edges/holes.
+    def test_revolve_partial_unfilled_profile_stays_open(self):
+        # A partial revolve of an *unfilled* closed profile has no face to cap
+        # with, so its two angular ends stay open (boundary edges present) -- a
+        # valid surface without end caps, matching the non-filled spec. (End caps
+        # only appear when the profile is filled; see test_revolve_nodes.py.)
         import math
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", REVOLVE))
         ob = self._closed_profile()
         self._revolve(ob, math.pi / 2, math.radians(10))
         me = self._eval_mesh(ob)
         self.assertGreater(len(me.polygons), 0)
-        self.assertEqual(self._boundary_edges(me), 0)
+        self.assertGreater(self._boundary_edges(me), 0)
 
     def test_revolve_negative_angle_matches_positive(self):
         # The step count derives from |angle|, so revolving the other direction
         # keeps the same resolution (the per-step angle stays signed).
         import math
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", REVOLVE))
         ob = self._profile_curve()
         self._revolve(ob, math.pi / 2, math.radians(10))
         n_pos = len(self._eval_mesh(ob).vertices)
@@ -246,7 +237,6 @@ class TestNodeTools(BgsTestCase):
 
     def test_revolve_partial_angle(self):
         import math
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", REVOLVE))
         ob = self._profile_curve(radius=2.0)
         self._revolve(ob, math.pi / 2, math.radians(6))  # quarter turn
         me = self._eval_mesh(ob)
@@ -260,7 +250,6 @@ class TestNodeTools(BgsTestCase):
         # the target + axis from those and edit the *existing* modifier rather
         # than crash or spawn a duplicate.
         import math
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", REVOLVE))
         ob = self._profile_mesh(n=3, radius=2.0, height=1.0)
         for o in self.scene.collection.objects:
             o.select_set(False)
@@ -286,19 +275,97 @@ class TestNodeTools(BgsTestCase):
         n = len([m for m in ob.modifiers if m.name == "CAD_Sketcher Revolve"])
         self.assertEqual(n, 1)
 
+    def test_repoint_moves_modifier_to_the_new_object(self):
+        # Re-pointing the object with the eyedropper stamps previous_target/
+        # previous_modifier for what it edited away from; re-apply then MOVES the
+        # modifier to the new object instead of orphaning it on the old one.
+        import math
+
+        a, b = self._cube(), self._cube()
+        a.name, b.name = "TargetA", "TargetB"
+        common = dict(
+            axis_origin=(0.0, 0.0, 0.0),
+            axis_direction=(0.0, 0.0, 1.0),
+            angle=math.pi,
+            angular_resolution=math.radians(30),
+            flip=False,
+        )
+        self.assertEqual(
+            bpy.ops.view3d.slvs_node_revolve(
+                "EXEC_DEFAULT", target_name="TargetA", **common
+            ),
+            {"FINISHED"},
+        )
+        self.assertIsNotNone(a.modifiers.get("CAD_Sketcher Revolve"))
+
+        self.assertEqual(
+            bpy.ops.view3d.slvs_node_revolve(
+                "EXEC_DEFAULT",
+                target_name="TargetB",
+                previous_target="TargetA",
+                previous_modifier="CAD_Sketcher Revolve",
+                **common,
+            ),
+            {"FINISHED"},
+        )
+        self.assertIsNone(
+            a.modifiers.get("CAD_Sketcher Revolve"), "old target kept its modifier"
+        )
+        self.assertIsNotNone(
+            b.modifiers.get("CAD_Sketcher Revolve"), "new target missing modifier"
+        )
+
+    def test_boolean_repoint_cutter_removes_old_modifier(self):
+        # A boolean modifier is named per cutter, so re-pointing the cutter changes
+        # the name; the old-named modifier must be removed, not left beside the new.
+        body, c, d = self._cube(), self._cube(), self._cube()
+        body.name, c.name, d.name = "Body", "CutC", "CutD"
+
+        self.assertEqual(
+            bpy.ops.view3d.slvs_node_boolean(
+                "EXEC_DEFAULT", target_name="Body", cutter_name="CutC"
+            ),
+            {"FINISHED"},
+        )
+        self.assertIsNotNone(body.modifiers.get("CAD_Sketcher Boolean CutC"))
+
+        self.assertEqual(
+            bpy.ops.view3d.slvs_node_boolean(
+                "EXEC_DEFAULT",
+                target_name="Body",
+                cutter_name="CutD",
+                previous_target="Body",
+                previous_modifier="CAD_Sketcher Boolean CutC",
+            ),
+            {"FINISHED"},
+        )
+        names = [
+            m.name for m in body.modifiers
+            if m.name.startswith("CAD_Sketcher Boolean")
+        ]
+        self.assertEqual(names, ["CAD_Sketcher Boolean CutD"], f"got {names}")
+
     def test_revolve_readback_seeds_props_from_modifier(self):
         # Re-invoking on an object that already has the modifier should start
         # from its current values, not the defaults. read_props pulls the angle
         # + resolution sockets back onto the operator.
         import math
+
         from ..operators.modifiers import get_modifier_input
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", REVOLVE))
+        from ..utilities.revolve_nodes import _input_ids
         ob = self._profile_mesh(n=3)
         mod = self._revolve(ob, math.pi / 3, math.radians(15))
 
         # The version-aware getter round-trips what _revolve set.
-        self.assertAlmostEqual(get_modifier_input(mod, "Socket_3"), math.pi / 3, places=5)
-        self.assertAlmostEqual(get_modifier_input(mod, "Socket_4"), math.radians(15), places=5)
+        ids = _input_ids(mod.node_group)
+        self.assertAlmostEqual(
+            get_modifier_input(mod, ids["Angle"]), math.pi / 3, places=5
+        )
+        self.assertAlmostEqual(
+            get_modifier_input(mod, ids["Angular Resolution"]),
+            math.radians(15),
+            places=5,
+        )
 
         # read_props only assigns self.angle/self.angular_resolution, so a plain
         # stand-in captures them without needing a live modal operator.
@@ -332,12 +399,8 @@ class TestNodeTools(BgsTestCase):
         # Array keeps the permissive default (any object).
         self.assertTrue(View3D_OT_node_array_linear.is_valid_target(None, mesh_ob))
 
-    def test_asset_library_registered(self):
-        libs = self.context.preferences.filepaths.asset_libraries
-        self.assertIn(LIB_NAME, [l.name for l in libs])
-
     def test_extrude_adds_thickness(self):
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", EXTRUDE))
+        self.assertTrue(am.load_asset("node_groups", EXTRUDE))
         ob = self._plane()
         z0 = self._extent(self._eval_mesh(ob), "z")
         mod = self._add_node_mod(ob, EXTRUDE)
@@ -345,8 +408,31 @@ class TestNodeTools(BgsTestCase):
         z1 = self._extent(self._eval_mesh(ob), "z")
         self.assertGreater(z1, z0 + 0.5)
 
+    def test_extrude_unfilled_wire_becomes_walls(self):
+        # A non-filled profile converts to a face-less wire; the extrude tool must
+        # extrude its edges into open walls with real thickness instead of doing
+        # nothing (the face-only asset silently produced no geometry before).
+        from ..utilities.extrude_nodes import ensure_extrude_edge_walls
+
+        self.assertTrue(am.load_asset("node_groups", EXTRUDE))
+        ensure_extrude_edge_walls(bpy.data.node_groups.get(EXTRUDE))
+
+        me = bpy.data.meshes.new("wire")
+        me.from_pydata(
+            [(0, 0, 0), (2, 0, 0), (2, 2, 0), (0, 2, 0)],
+            [(0, 1), (1, 2), (2, 3), (3, 0)],
+            [],
+        )
+        me.update()
+        ob = self._link("wire", me)
+        mod = self._add_node_mod(ob, EXTRUDE)
+        set_modifier_input(mod, "Input_2", 1.5)  # Size
+        out = self._eval_mesh(ob)
+        self.assertGreater(len(out.polygons), 0, "no walls created from wire")
+        self.assertAlmostEqual(self._extent(out, "z"), 1.5, delta=0.01)
+
     def test_array_multiplies_geometry(self):
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", ARRAY))
+        self.assertTrue(am.load_asset("node_groups", ARRAY))
         ob = self._cube()
         base = self._eval_mesh(ob)
         x0, n0 = self._extent(base, "x"), len(base.vertices)
@@ -360,7 +446,7 @@ class TestNodeTools(BgsTestCase):
 
     def test_extrude_mirror_option(self):
         # Mirror Extrude (Input_3) extrudes both ways -> ~double the span.
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", EXTRUDE))
+        self.assertTrue(am.load_asset("node_groups", EXTRUDE))
         ob = self._plane()
         mod = self._add_node_mod(ob, EXTRUDE)
         set_modifier_input(mod, "Input_2", 1.0)
@@ -372,7 +458,7 @@ class TestNodeTools(BgsTestCase):
 
     def test_array_use_total_distance_option(self):
         # Use Total Distance (Input_24) reinterprets distance as the total span.
-        self.assertTrue(am.load_asset(LIB_NAME, "node_groups", ARRAY))
+        self.assertTrue(am.load_asset("node_groups", ARRAY))
         ob = self._cube()
         mod = self._add_node_mod(ob, ARRAY)
         set_modifier_input(mod, "Input_21", (1.0, 0.0, 0.0))
