@@ -56,7 +56,7 @@ REVOLVE_NODE_GROUP = "CAD Sketcher Revolve"
 # Bump whenever the built tree changes so groups baked into existing files -- or a
 # stale same-named binary asset -- are rebuilt in place on next use, keeping
 # modifiers bound to the same name.
-REVOLVE_VERSION = 6
+REVOLVE_VERSION = 7
 
 # Weld tolerance for the sweep seams and the cap-to-lateral join. The welded
 # points are produced by the *same* profile sample and rotation, so they are
@@ -301,6 +301,11 @@ def build_revolve_node_group(name: str = REVOLVE_NODE_GROUP):
     #    new face coherent with its neighbour, so no winding fix-up is needed.
     repeat_in = nodes.new("GeometryNodeRepeatInput")
     repeat_out = nodes.new("GeometryNodeRepeatOutput")
+    # Create the "Geometry" repeat item explicitly rather than relying on the
+    # Repeat Zone's default: some Blender 5.2 builds create the zone empty, so
+    # repeat_in.inputs["Geometry"] would KeyError on invoke (issue #663).
+    repeat_out.repeat_items.clear()
+    repeat_out.repeat_items.new("GEOMETRY", "Geometry")
     repeat_in.pair_with_output(repeat_out)
     links.new(steps, repeat_in.inputs["Iterations"])
     links.new(seed_geo, repeat_in.inputs["Geometry"])
