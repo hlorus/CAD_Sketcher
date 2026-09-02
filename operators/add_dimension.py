@@ -144,11 +144,16 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         angle = SlvsAngle._get_angle(l1.direction_vec(), l2.direction_vec())
         return angle < tol_deg or angle > 180.0 - tol_deg
 
-    def _distance_exists(self, context: Context, cids) -> bool:
-        """True if a distance constraint already spans exactly ``cids``."""
+    def _constraint_exists(self, context: Context, constraint_type, cids) -> bool:
+        """True if a constraint of ``constraint_type`` already spans exactly ``cids``.
+
+        Compared against explicit curve ids rather than the base ``exists`` (which
+        only reads entity1..entity4) so it also covers a partner adopted during
+        placement via ``_second_ref``, and blocks a second identical dimension.
+        """
         want = set(cids)
         for c in get_active_constraints(context).all:
-            if isinstance(c, SlvsDistance) and set(c.curve_id_placements()) == want:
+            if isinstance(c, constraint_type) and set(c.curve_id_placements()) == want:
                 return True
         return False
 
@@ -179,7 +184,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
 
         if e2 is None:
             if isinstance(e1, (CircleRef, ArcRef)):
-                if not self.exists(context, SlvsDiameter):
+                if not self._constraint_exists(context, SlvsDiameter, (e1.curve_id,)):
                     self.target = constraints.add_diameter(
                         init=init, curve_id_1=e1.curve_id
                     )
@@ -188,11 +193,8 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                 # The native solver needs two point ids, so measure the line as
                 # the distance between its own endpoints.
                 p1, p2 = e1.p1, e1.p2
-                if (
-                    p1
-                    and p2
-                    and not self._distance_exists(context, (p1.curve_id, p2.curve_id))
-                ):
+                cids = (p1.curve_id, p2.curve_id) if p1 and p2 else None
+                if cids and not self._constraint_exists(context, SlvsDistance, cids):
                     self.target = constraints.add_distance(
                         init=init, curve_id_1=p1.curve_id, curve_id_2=p2.curve_id
                     )
@@ -206,7 +208,8 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                 # infinity), so measure the perpendicular gap instead: a
                 # point-to-line distance from one line's endpoint to the other.
                 p = e1.p1
-                if p and not self._distance_exists(context, (p.curve_id, e2.curve_id)):
+                cids = (p.curve_id, e2.curve_id) if p else None
+                if cids and not self._constraint_exists(context, SlvsDistance, cids):
                     self.target = constraints.add_distance(
                         init=init, curve_id_1=p.curve_id, curve_id_2=e2.curve_id
                     )
@@ -215,7 +218,9 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                         p.curve_id,
                         e2.curve_id,
                     )
-            elif not self.exists(context, SlvsAngle):
+            elif not self._constraint_exists(
+                context, SlvsAngle, (e1.curve_id, e2.curve_id)
+            ):
                 self.target = constraints.add_angle(
                     init=init, curve_id_1=e1.curve_id, curve_id_2=e2.curve_id
                 )
@@ -228,10 +233,9 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             # ordered point-first to measure the point-to-line distance.
             if isinstance(e1, LineRef) and isinstance(e2, PointRef):
                 e1, e2 = e2, e1
-            max_constraints = (
-                2 if isinstance(e1, PointRef) and isinstance(e2, PointRef) else 1
-            )
-            if not self.exists(context, SlvsDistance, max_constraints):
+            if not self._constraint_exists(
+                context, SlvsDistance, (e1.curve_id, e2.curve_id)
+            ):
                 self.target = constraints.add_distance(
                     init=init, curve_id_1=e1.curve_id, curve_id_2=e2.curve_id
                 )
