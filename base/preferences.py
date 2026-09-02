@@ -84,6 +84,11 @@ class Preferences(AddonPreferences):
         description="Hide entity-based drawing (shows only native curve overlay)",
         default=False,
     )
+    constraint_grid_view: BoolProperty(
+        name="Constraint Grid View",
+        description="Show the constraint tools as a compact icon grid instead of a list",
+        default=True,
+    )
 
     decimal_precision: IntProperty(
         name="Decimal Precision",
