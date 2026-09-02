@@ -178,6 +178,9 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
             self.matrix_basis = mat
 
     def test_select(self, context, location):
+        # Don't intercept hover/picking while a stateful operator is running.
+        if global_data.stateful_op_running:
+            return -1
         location = Vector(location).to_3d()
         location -= self.matrix_basis.translation
         location *= 1.0 / self.scale_basis
@@ -190,8 +193,6 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         constraint = self._get_constraint(context)
         if not constraint or not constraint.visible:
             return
-        # Don't intercept hover/picking while a stateful operator is running.
-        self.hide_select = global_data.stateful_op_running
         # Keep colors + matrix_basis current so test_select stays accurate; the
         # icon itself is rendered in one batched pass (drawing.constraint_icons)
         # to avoid a textured draw per constraint (Vulkan descriptor pressure).
@@ -210,6 +211,9 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
     __slots__ = ("type", "index", "width", "height")
 
     def test_select(self, context, location):
+        # Don't intercept hover/picking while a stateful operator is running.
+        if global_data.stateful_op_running:
+            return -1
         coords = Vector(location) - self.matrix_basis.translation.to_2d()
 
         width, height = self.width, self.height
@@ -225,9 +229,6 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         # over-constrained sketch) -- skip drawing rather than dereference None.
         if not constr or not constr.visible or not hasattr(constr, "value_placement"):
             return
-
-        # Don't intercept hover/picking while a stateful operator is running.
-        self.hide_select = global_data.stateful_op_running
 
         color = get_color(Color.Text, self.is_highlight)
         text = _get_formatted_value(context, constr)

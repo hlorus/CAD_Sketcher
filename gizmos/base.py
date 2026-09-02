@@ -65,10 +65,6 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
         constr = self._get_constraint(context)
         if not constr or not constr.visible:
             return
-        # While a stateful operator runs, the dimension label follows the cursor;
-        # keep it drawing but out of hover/picking so it can't swallow a click
-        # meant for the geometry underneath (e.g. picking a second entity).
-        self.hide_select = global_data.stateful_op_running
         self._set_colors(context, constr)
         self._update_matrix_basis(constr)
 
@@ -85,6 +81,12 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
         self.draw_custom_shape(self.custom_shape)
 
     def draw_select(self, context, select_id):
+        # While a stateful operator runs, stay out of the gizmo select buffer so
+        # the dimension label (which follows the cursor) neither highlights nor
+        # swallows a click meant for the geometry underneath -- gating the select
+        # pass directly avoids the one-frame lag/flicker of toggling hide_select.
+        if global_data.stateful_op_running:
+            return
         constr = self._get_constraint(context)
         if not constr or not constr.visible:
             return
