@@ -11,8 +11,6 @@ from ..model.angle import SlvsAngle
 from ..model.arc import SlvsArc
 from ..model.circle import SlvsCircle
 from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef, curve_ref
-from ..model.diameter import SlvsDiameter
-from ..model.distance import SlvsDistance
 from ..model.line_2d import SlvsLine2D
 from ..model.point_2d import SlvsPoint2D
 from ..model.sketch_ref import get_active_constraints
@@ -144,17 +142,22 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         angle = SlvsAngle._get_angle(l1.direction_vec(), l2.direction_vec())
         return angle < tol_deg or angle > 180.0 - tol_deg
 
-    def _constraint_exists(self, context: Context, constraint_type, cids) -> bool:
-        """True if a constraint of ``constraint_type`` already spans exactly ``cids``.
+    def _is_duplicate(self, context: Context, target) -> bool:
+        """True if another constraint already matches ``target``'s type + curve ids.
 
-        Compared against explicit curve ids rather than the base ``exists`` (which
-        only reads entity1..entity4) so it also covers a partner adopted during
-        placement via ``_second_ref``, and blocks a second identical dimension.
+        Checked at commit rather than while creating, because the inferred type
+        can still change during placement (e.g. picking an already-length-
+        constrained line, then a second line, to add an *angle*): a premature
+        check would block the tentative length and its preview. Counting > 1
+        means one besides ``target`` itself exists.
         """
-        want = set(cids)
+        want = set(target.curve_id_placements())
+        count = 0
         for c in get_active_constraints(context).all:
-            if isinstance(c, constraint_type) and set(c.curve_id_placements()) == want:
-                return True
+            if type(c) is type(target) and set(c.curve_id_placements()) == want:
+                count += 1
+                if count > 1:
+                    return True
         return False
 
     def _clear_target(self, context: Context):
@@ -182,19 +185,19 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         # label), so always initialise it from the current geometry.
         init = True
 
+        # No dedup here -- see _is_duplicate (checked at fini). The tentative
+        # constraint is always created so it previews and can still change type.
         if e2 is None:
             if isinstance(e1, (CircleRef, ArcRef)):
-                if not self._constraint_exists(context, SlvsDiameter, (e1.curve_id,)):
-                    self.target = constraints.add_diameter(
-                        init=init, curve_id_1=e1.curve_id
-                    )
-                    logger.debug("Dimension -> diameter on %s", e1.curve_id)
+                self.target = constraints.add_diameter(
+                    init=init, curve_id_1=e1.curve_id
+                )
+                logger.debug("Dimension -> diameter on %s", e1.curve_id)
             elif isinstance(e1, LineRef):
                 # The native solver needs two point ids, so measure the line as
                 # the distance between its own endpoints.
                 p1, p2 = e1.p1, e1.p2
-                cids = (p1.curve_id, p2.curve_id) if p1 and p2 else None
-                if cids and not self._constraint_exists(context, SlvsDistance, cids):
+                if p1 and p2:
                     self.target = constraints.add_distance(
                         init=init, curve_id_1=p1.curve_id, curve_id_2=p2.curve_id
                     )
@@ -208,8 +211,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                 # infinity), so measure the perpendicular gap instead: a
                 # point-to-line distance from one line's endpoint to the other.
                 p = e1.p1
-                cids = (p.curve_id, e2.curve_id) if p else None
-                if cids and not self._constraint_exists(context, SlvsDistance, cids):
+                if p:
                     self.target = constraints.add_distance(
                         init=init, curve_id_1=p.curve_id, curve_id_2=e2.curve_id
                     )
@@ -218,9 +220,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                         p.curve_id,
                         e2.curve_id,
                     )
-            elif not self._constraint_exists(
-                context, SlvsAngle, (e1.curve_id, e2.curve_id)
-            ):
+            else:
                 self.target = constraints.add_angle(
                     init=init, curve_id_1=e1.curve_id, curve_id_2=e2.curve_id
                 )
@@ -233,13 +233,10 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             # ordered point-first to measure the point-to-line distance.
             if isinstance(e1, LineRef) and isinstance(e2, PointRef):
                 e1, e2 = e2, e1
-            if not self._constraint_exists(
-                context, SlvsDistance, (e1.curve_id, e2.curve_id)
-            ):
-                self.target = constraints.add_distance(
-                    init=init, curve_id_1=e1.curve_id, curve_id_2=e2.curve_id
-                )
-                logger.debug("Dimension -> distance %s -> %s", e1.curve_id, e2.curve_id)
+            self.target = constraints.add_distance(
+                init=init, curve_id_1=e1.curve_id, curve_id_2=e2.curve_id
+            )
+            logger.debug("Dimension -> distance %s -> %s", e1.curve_id, e2.curve_id)
 
         # Give the freshly created label a sensible default offset so it is
         # visible before the first placement move (overwritten while dragging).
@@ -385,9 +382,21 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
     def fini(self, context: Context, succeede: bool):
         # Placement happens in this operator's own placement state, so there is no
         # hand-off to the standalone tweak modal (unlike GenericConstraintOp).
+        target = getattr(self, "target", None)
+
+        # Duplicate check happens here, at commit: the tentative constraint may
+        # have changed type during placement, so only its final form matters.
+        if succeede and target is not None and self._is_duplicate(context, target):
+            logger.debug("Dimension: discarding duplicate %s", target)
+            self._clear_target(context)
+            if self.sketch and solve_system(context, sketch=self.sketch):
+                refresh_curve_geometry(self.sketch)
+            if hasattr(self, "report"):
+                self.report({"INFO"}, "Dimension already exists")
+            target = None
+
         # Make sure gizmos end up visible and the label reflects the final offset.
         refresh(context)
-        target = getattr(self, "target", None)
         if target is not None:
             logger.debug("Dimension committed: %s (succeeded=%s)", target, succeede)
 

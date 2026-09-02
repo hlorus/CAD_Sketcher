@@ -88,39 +88,53 @@ class TestDimensionOp(Sketch2dTestCase):
         h.op._create_constraint(self.context)
         self.assertIsInstance(h.op.target, SlvsDistance)
 
-    def test_no_duplicate_line_length(self):
+    def test_duplicate_discarded_at_fini(self):
+        # The tentative constraint is always created (so it previews and can still
+        # change type); a duplicate is only discarded at commit (fini).
         from ..model.distance import SlvsDistance
 
         line = self._line((0.0, 0.0), (4.0, 0.0))
         self.assertIsInstance(self._dispatch(line), SlvsDistance)
         n1 = len(list(self.sketch.constraints.all))
-        # A second run on the same line must not add another length.
+
         self._select(line)
         h = self._harness()
         h.prefill()
         h.finish(run_fini=False)
+        # Tentative duplicate exists before commit ...
+        self.assertIsInstance(h.op.target, SlvsDistance)
+        self.assertEqual(len(list(self.sketch.constraints.all)), n1 + 1)
+        # ... and is discarded at fini.
+        h.op.fini(self.context, True)
         self.assertIsNone(h.op.target)
         self.assertEqual(len(list(self.sketch.constraints.all)), n1)
 
-    def test_no_duplicate_angle_via_switch(self):
-        # The switch path stores the partner in _second_ref (not entity2), so
-        # dedup must compare curve ids explicitly -- this is the case the base
-        # ``exists`` missed.
+    def test_duplicate_angle_via_switch_discarded_at_fini(self):
+        # The switch path stores the partner in _second_ref (not entity2); dedup
+        # must compare curve ids explicitly -- the case the base ``exists`` missed.
         from ..model.angle import SlvsAngle
         from ..model.curve_ref import curve_ref
 
         l1 = self._line((0.0, 0.0), (4.0, 0.0))
         l2 = self._line((0.0, 0.0), (3.0, 3.0))
-        for expected_none in (False, True):
-            self._select(l1)
-            h = self._harness()
-            h.prefill()
-            h.op._second_ref = curve_ref(self.sketch, l2.curve_id)
-            h.op._create_constraint(self.context)
-            if expected_none:
-                self.assertIsNone(h.op.target)
-            else:
-                self.assertIsInstance(h.op.target, SlvsAngle)
+
+        self._select(l1)
+        h = self._harness()
+        h.prefill()
+        h.op._second_ref = curve_ref(self.sketch, l2.curve_id)
+        h.op._create_constraint(self.context)
+        self.assertIsInstance(h.op.target, SlvsAngle)
+        n1 = len(list(self.sketch.constraints.all))
+
+        self._select(l1)
+        h2 = self._harness()
+        h2.prefill()
+        h2.op._second_ref = curve_ref(self.sketch, l2.curve_id)
+        h2.op._create_constraint(self.context)
+        self.assertIsInstance(h2.op.target, SlvsAngle)  # tentative created
+        h2.op.fini(self.context, True)
+        self.assertIsNone(h2.op.target)  # discarded at commit
+        self.assertEqual(len(list(self.sketch.constraints.all)), n1)
 
     def test_placement_value_entry_sets_value(self):
         # Typing a value during placement sets the constraint's value (routed
