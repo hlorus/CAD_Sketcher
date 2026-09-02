@@ -36,12 +36,20 @@ class TestDimensionOp(Sketch2dTestCase):
         line = self._line((0.0, 0.0), (4.0, 0.0))
         self.assertIsInstance(self._dispatch(line), SlvsDistance)
 
-    def test_two_lines_infer_angle(self):
+    def test_line_second_line_switches_to_angle(self):
+        # A line drops into placement as a length; adopting a second line during
+        # placement (a click, simulated here via _second_ref) switches to angle.
         from ..model.angle import SlvsAngle
+        from ..model.curve_ref import curve_ref
 
         l1 = self._line((0.0, 0.0), (4.0, 0.0))
         l2 = self._line((0.0, 0.0), (3.0, 3.0))
-        self.assertIsInstance(self._dispatch(l1, l2), SlvsAngle)
+        self._select(l1)
+        h = self._harness()
+        h.prefill()
+        h.op._second_ref = curve_ref(self.sketch, l2.curve_id)
+        h.op._create_constraint(self.context)
+        self.assertIsInstance(h.op.target, SlvsAngle)
 
     def test_two_points_infer_distance(self):
         from ..model.distance import SlvsDistance

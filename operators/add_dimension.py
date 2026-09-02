@@ -1,14 +1,16 @@
 import logging
 
 from bpy.props import FloatProperty
-from bpy.types import Context, Operator
+from bpy.types import Context, Event, Operator
+from mathutils import Vector
 from mathutils.geometry import intersect_line_plane
 
+from ..curve_solver import solve_system
 from ..declarations import Operators
 from ..model.angle import SlvsAngle
 from ..model.arc import SlvsArc
 from ..model.circle import SlvsCircle
-from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef
+from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef, curve_ref
 from ..model.diameter import SlvsDiameter
 from ..model.distance import SlvsDistance
 from ..model.line_2d import SlvsLine2D
@@ -16,6 +18,7 @@ from ..model.point_2d import SlvsPoint2D
 from ..model.sketch_ref import get_active_constraints
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.curve_data import refresh_curve_geometry
 from ..utilities.view import get_picking_origin_end, refresh
 from .base_constraint import GenericConstraintOp
 
@@ -25,19 +28,20 @@ _PLACEMENT_STATE = "Placement"
 
 
 class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
-    """Add a dimension.
+    """Add a dimension, inferring the constraint type from the geometry.
 
-    The concrete constraint type is inferred from the selected geometry, so the
-    user does not have to choose between distance, angle and diameter up front:
+    The user does not choose between distance, angle and diameter up front:
 
-    - a single line              -> distance (its length)
-    - two lines                  -> angle
-    - a circle or arc            -> diameter
-    - two points / point + line  -> distance
+    - a line              -> distance (its length); click a second line while
+                             placing to switch to an angle, or a point for a
+                             point-to-line distance
+    - a circle or arc     -> diameter
+    - two points          -> distance
 
-    After the geometry is picked the same operator stays live in a final
-    placement state where the dimension label is dragged into place (display
-    only, no re-solve) and confirmed with a click.
+    A line/circle/arc drops straight into an interactive placement state after
+    the first pick, where the label is dragged into place (display only, no
+    re-solve) and confirmed with a click. A point needs a partner, so it takes a
+    required second pick before placement.
     """
 
     bl_idname = Operators.AddDimension
@@ -55,30 +59,10 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
     # display-only side effect; the property itself is only a confirm carrier.
     placement: FloatProperty(options={"SKIP_SAVE", "HIDDEN"})
 
-    @staticmethod
-    def _second_slot(operator):
-        """Return ``(types, optional)`` for the second pick, given the first.
-
-        The second slot is narrowed by what the first entity was: a line pairs
-        with another line (angle) or a point/line (distance); a point needs a
-        partner to be dimensionable at all; a circle/arc needs nothing more.
-        ``optional`` marks whether the operator can finish on the first pick.
-        """
-        e1 = getattr(operator, "entity1", None) if operator else None
-        if isinstance(e1, (CircleRef, ArcRef)):
-            # Diameter needs no second entity.
-            return (), False
-        if isinstance(e1, PointRef):
-            # A lone point cannot be dimensioned -- require a partner.
-            return (SlvsPoint2D, SlvsLine2D), False
-        if isinstance(e1, LineRef):
-            # A single line already has a length; a second line switches to angle.
-            return (SlvsLine2D, SlvsPoint2D), True
-        return (SlvsPoint2D, SlvsLine2D), True
-
     @classmethod
     def states(cls, operator=None):
-        """Build the pick states, then a terminal interactive placement state."""
+        """Pick the first entity (+ a required partner for a lone point), then a
+        terminal interactive placement state."""
         first_types = (SlvsPoint2D, SlvsLine2D, SlvsCircle, SlvsArc)
         states = [
             state_from_args(
@@ -90,16 +74,21 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             )
         ]
 
-        second_types, optional = cls._second_slot(operator)
-        if second_types:
+        # Add a partner-pick state when the first entity needs one (a lone point)
+        # or when it isn't known yet -- the latter lets a pre-selected pair (e.g.
+        # two points) prefill a second entity. A known line/circle/arc goes
+        # straight to placement; a line gains its optional partner by a click
+        # during placement instead.
+        e1 = getattr(operator, "entity1", None) if operator else None
+        if e1 is None or isinstance(e1, PointRef):
             states.append(
                 state_from_args(
                     "Entity 2",
-                    description="Optionally pick a second entity to dimension against.",
+                    description="Pick the entity to measure to.",
                     pointer="entity2",
-                    types=second_types,
+                    types=(SlvsPoint2D, SlvsLine2D),
                     use_create=False,
-                    optional=optional,
+                    optional=e1 is None,
                 )
             )
 
@@ -119,8 +108,13 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         )
         return states
 
+    def _second_entity(self):
+        """The partner entity, from the state machine (point flow) or from a
+        click made during placement (line flow)."""
+        return getattr(self, "entity2", None) or getattr(self, "_second_ref", None)
+
     def _available_entities(self):
-        return [getattr(self, "entity1", None), getattr(self, "entity2", None)]
+        return [getattr(self, "entity1", None), self._second_entity()]
 
     def _is_placement_state(self) -> bool:
         return self.state.name == _PLACEMENT_STATE
@@ -152,9 +146,9 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
     def _clear_target(self, context: Context):
         """Drop a previously created constraint before re-inferring the type.
 
-        Picking a second line after a first turns a tentative length into an
-        angle; without a snapshot in the placement path we remove the stale one
-        explicitly so the two never coexist.
+        Adopting a second entity turns a tentative length into an angle/distance;
+        the placement path suppresses the snapshot, so remove the stale one
+        explicitly rather than relying on an undo to do it.
         """
         target = getattr(self, "target", None)
         if target is None:
@@ -168,9 +162,11 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
     def _create_constraint(self, context: Context):
         """Infer and create the dimensional constraint from the current picks."""
         e1 = self.entity1
-        e2 = getattr(self, "entity2", None)
+        e2 = self._second_entity()
         constraints = self.sketch.constraints
-        init = not self.initialized
+        # The dimension value is always the measured geometry (drag only moves the
+        # label), so always initialise it from the current geometry.
+        init = True
 
         if e2 is None:
             if isinstance(e1, (CircleRef, ArcRef)):
@@ -233,7 +229,6 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         """
         target = getattr(self, "target", None)
         if not target or not hasattr(target, "update_draw_offset"):
-            logger.debug("Placement: no target to place")
             return None
 
         origin, end_point = get_picking_origin_end(context, coords)
@@ -243,23 +238,64 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             target.update_draw_offset(pos, context.preferences.system.ui_scale)
             # Full refresh (show_gizmo + redraw) so the gizmo re-reads the offset.
             refresh(context)
-        # Per-move diagnostic (throttled): confirms _place_dimension keeps being
-        # called as the cursor moves and that draw_offset actually changes, and
-        # whether the target's index stays stable (a churned index would leave
-        # the gizmo bound to a stale constraint).
-        self._place_calls = getattr(self, "_place_calls", 0) + 1
-        if self._place_calls % 4 == 1:
-            constraints = get_active_constraints(context)
-            logger.debug(
-                "Placement #%d: draw_offset=%.3f outset=%.3f target=%s idx=%s n=%d",
-                self._place_calls,
-                getattr(target, "draw_offset", 0.0),
-                getattr(target, "draw_outset", 0.0),
-                target.type,
-                constraints.get_index(target) if constraints else -1,
-                len(list(constraints.all)) if constraints else -1,
-            )
         return None
+
+    def _pick_second(self, context: Context, event: Event):
+        """A compatible entity under the cursor to dimension the line against.
+
+        Only meaningful for a line first pick: another line gives an angle, a
+        point gives a point-to-line distance. The line's own endpoints and the
+        already-adopted partner are excluded.
+        """
+        e1 = self.entity1
+        if not isinstance(e1, LineRef):
+            return None
+
+        from ..drawing import picking
+
+        coords = Vector((event.mouse_region_x, event.mouse_region_y))
+        cid = picking.update_hover(context, coords)
+        if not cid:
+            return None
+
+        excluded = {e1.curve_id}
+        for p in (e1.p1, e1.p2):
+            if p:
+                excluded.add(p.curve_id)
+        current = getattr(self, "_second_ref", None)
+        if current is not None:
+            excluded.add(current.curve_id)
+        if cid in excluded:
+            return None
+
+        ref = curve_ref(self.sketch, cid)
+        return ref if isinstance(ref, (LineRef, PointRef)) else None
+
+    def _switch_second(self, context: Context, ref):
+        """Adopt a second entity mid-placement and rebuild as the new type."""
+        self._second_ref = ref
+        self._clear_target(context)
+        self._create_constraint(context)
+        if self.sketch:
+            solve_system(context, sketch=self.sketch)
+            refresh_curve_geometry(self.sketch)
+        refresh(context)
+        logger.debug("Dimension: adopted second entity %s", ref.curve_id)
+
+    def modal(self, context: Context, event: Event):
+        # During placement a click on a second compatible entity switches the
+        # inferred dimension (line length -> angle / point-to-line distance) and
+        # keeps dragging, instead of confirming. Anything else defers to the base.
+        if (
+            self._is_placement_state()
+            and event.type == "LEFTMOUSE"
+            and event.value == "PRESS"
+        ):
+            ref = self._pick_second(context, event)
+            if ref is not None:
+                self._switch_second(context, ref)
+                return {"RUNNING_MODAL"}
+        return super().modal(context, event)
 
     def main(self, context: Context):
         e1 = getattr(self, "entity1", None)
@@ -277,8 +313,8 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         return super().main(context)
 
     def fini(self, context: Context, succeede: bool):
-        # Placement now happens in this operator's own placement state, so there
-        # is no hand-off to the standalone tweak modal (unlike GenericConstraintOp).
+        # Placement happens in this operator's own placement state, so there is no
+        # hand-off to the standalone tweak modal (unlike GenericConstraintOp).
         # Make sure gizmos end up visible and the label reflects the final offset.
         refresh(context)
         target = getattr(self, "target", None)
