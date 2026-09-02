@@ -35,8 +35,9 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
     The user does not choose between distance, angle and diameter up front:
 
     - a line              -> distance (its length); click a second line while
-                             placing to switch to an angle, or a point for a
-                             point-to-line distance
+                             placing to switch to an angle (or the perpendicular
+                             distance if the two lines are parallel), or a point
+                             for a point-to-line distance
     - a circle or arc     -> diameter
     - two points          -> distance
 
@@ -137,6 +138,12 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             return
         super()._apply_undo(context)
 
+    @staticmethod
+    def _lines_parallel(l1: LineRef, l2: LineRef, tol_deg: float = 0.5) -> bool:
+        """True if two lines are (anti-)parallel, i.e. their angle is ~0/180."""
+        angle = SlvsAngle._get_angle(l1.direction_vec(), l2.direction_vec())
+        return angle < tol_deg or angle > 180.0 - tol_deg
+
     def _distance_exists(self, context: Context, cids) -> bool:
         """True if a distance constraint already spans exactly ``cids``."""
         want = set(cids)
@@ -194,7 +201,21 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                 logger.debug("Dimension: point %s needs a second entity", e1.curve_id)
                 return
         elif isinstance(e1, LineRef) and isinstance(e2, LineRef):
-            if not self.exists(context, SlvsAngle):
+            if self._lines_parallel(e1, e2):
+                # Parallel lines have no angle vertex (their intersection is at
+                # infinity), so measure the perpendicular gap instead: a
+                # point-to-line distance from one line's endpoint to the other.
+                p = e1.p1
+                if p and not self._distance_exists(context, (p.curve_id, e2.curve_id)):
+                    self.target = constraints.add_distance(
+                        init=init, curve_id_1=p.curve_id, curve_id_2=e2.curve_id
+                    )
+                    logger.debug(
+                        "Dimension -> distance (parallel lines) %s -> %s",
+                        p.curve_id,
+                        e2.curve_id,
+                    )
+            elif not self.exists(context, SlvsAngle):
                 self.target = constraints.add_angle(
                     init=init, curve_id_1=e1.curve_id, curve_id_2=e2.curve_id
                 )

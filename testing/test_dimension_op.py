@@ -73,6 +73,21 @@ class TestDimensionOp(Sketch2dTestCase):
         target = self._dispatch(line)
         self.assertEqual(set(target.curve_id_placements()), {p1.curve_id, p2.curve_id})
 
+    def test_parallel_second_line_uses_distance(self):
+        # Two parallel lines have no angle vertex -> the tool measures the
+        # perpendicular gap as a point-to-line distance, not an angle.
+        from ..model.curve_ref import curve_ref
+        from ..model.distance import SlvsDistance
+
+        l1 = self._line((0.0, 0.0), (4.0, 0.0))
+        l2 = self._line((0.0, 2.0), (4.0, 2.0))
+        self._select(l1)
+        h = self._harness()
+        h.prefill()
+        h.op._second_ref = curve_ref(self.sketch, l2.curve_id)
+        h.op._create_constraint(self.context)
+        self.assertIsInstance(h.op.target, SlvsDistance)
+
     def test_placement_value_entry_sets_value(self):
         # Typing a value during placement sets the constraint's value (routed
         # through the constraint's own subtype-aware ``value`` property).
