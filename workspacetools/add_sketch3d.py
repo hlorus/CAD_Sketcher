@@ -3,7 +3,6 @@ from bpy.types import WorkSpaceTool
 from ..declarations import Operators, WorkSpaceTools
 from ..keymaps import tool_node
 from ..stateful_operator.tool import GenericStateTool
-from ..stateful_operator.utilities.keymap import operator_access
 
 
 class VIEW3D_T_slvs_add_sketch3d(GenericStateTool, WorkSpaceTool):
@@ -15,5 +14,9 @@ class VIEW3D_T_slvs_add_sketch3d(GenericStateTool, WorkSpaceTool):
     bl_icon = "ops.mesh.primitive_grid_add_gizmo"
     bl_keymap = (
         *tool_node,
-        *operator_access(Operators.AddSketch3D),
+        (
+            Operators.AddSketch3D,
+            {"type": "LEFTMOUSE", "value": "PRESS", "any": True},
+            None,
+        ),
     )
