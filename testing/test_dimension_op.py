@@ -99,10 +99,20 @@ class TestDimensionOp(Sketch2dTestCase):
         # The curve must be entity1 for the native distance solver.
         self.assertEqual(target.curve_id_1, c.curve_id)
 
-    def test_curve_to_curve_unsupported(self):
-        c1 = self.add_circle(self.add_point((0.0, 0.0)), 2.0)
-        c2 = self.add_circle(self.add_point((6.0, 0.0)), 1.0)
-        self.assertIsNone(self._switch(c1, c2))
+    def test_curve_to_curve_is_center_distance(self):
+        # No edge-to-edge distance in the solver; two curves measure their
+        # center-to-center distance (hole spacing).
+        from ..model.distance import SlvsDistance
+
+        ct1 = self.add_point((0.0, 0.0))
+        ct2 = self.add_point((6.0, 0.0))
+        c1 = self.add_circle(ct1, 2.0)
+        c2 = self.add_circle(ct2, 1.0)
+        target = self._switch(c1, c2)
+        self.assertIsInstance(target, SlvsDistance)
+        self.assertEqual(
+            set(target.curve_id_placements()), {c1.ct.curve_id, c2.ct.curve_id}
+        )
 
     def test_line_length_spans_endpoints(self):
         # The native solver needs two point ids, so a lone line is measured as

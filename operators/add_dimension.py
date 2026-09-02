@@ -42,12 +42,12 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
     - two points          -> distance
     - point + line        -> point-to-line distance
     - point/line + circle/arc -> edge distance (measured from the curve's edge)
+    - circle/arc + circle/arc -> center-to-center distance
 
     A line/circle/arc drops straight into an interactive placement state after
     the first pick, where the label is dragged into place (display only, no
     re-solve) and confirmed with a click. A point needs a partner, so it takes a
-    required second pick before placement. Curve-to-curve distance is not
-    supported by the solver.
+    required second pick before placement.
     """
 
     bl_idname = Operators.AddDimension
@@ -154,12 +154,16 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
 
         The solver measures a curve (circle/arc) from its edge and requires it as
         entity1; a point/line pair measures point-to-line, so the point goes
-        first. Curve-to-curve distance is not supported.
+        first. Two curves have no edge-to-edge distance in the solver, so they are
+        measured center-to-center (the common hole-spacing dimension) by pairing
+        their center points.
         """
         c1 = isinstance(e1, (CircleRef, ArcRef))
         c2 = isinstance(e2, (CircleRef, ArcRef))
         if c1 and c2:
-            return None
+            ct1 = getattr(e1, "ct", None)
+            ct2 = getattr(e2, "ct", None)
+            return (ct1, ct2) if ct1 is not None and ct2 is not None else None
         if c2:
             return e2, e1
         if c1:
@@ -329,13 +333,11 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         if cid in excluded:
             return None
 
+        # A line pairs with a line (angle/parallel) or anything for a distance; a
+        # curve pairs with a point/line (edge distance) or another curve
+        # (center-to-center). So any dimensionable entity is a valid partner.
         ref = curve_ref(self.sketch, cid)
-        if isinstance(e1, LineRef):
-            allowed = (LineRef, PointRef, CircleRef, ArcRef)
-        else:
-            # A curve dimensions only against a point or line (no curve-to-curve).
-            allowed = (LineRef, PointRef)
-        return ref if isinstance(ref, allowed) else None
+        return ref if isinstance(ref, (LineRef, PointRef, CircleRef, ArcRef)) else None
 
     def _switch_second(self, context: Context, ref):
         """Adopt a second entity mid-placement and rebuild as the new type."""
