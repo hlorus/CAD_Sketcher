@@ -4,7 +4,7 @@ import blf
 from bpy.types import Gizmo, GizmoGroup
 from mathutils import Matrix, Vector
 
-from .. import units
+from .. import global_data, units
 from ..declarations import GizmoGroups, Gizmos, Operators
 from ..utilities.preferences import get_prefs
 from ..utilities.view import get_2d_coords, get_scale_from_pos
@@ -178,6 +178,9 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
             self.matrix_basis = mat
 
     def test_select(self, context, location):
+        # Don't intercept hover/picking while a stateful operator is running.
+        if global_data.stateful_op_running:
+            return -1
         location = Vector(location).to_3d()
         location -= self.matrix_basis.translation
         location *= 1.0 / self.scale_basis
@@ -208,6 +211,9 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
     __slots__ = ("type", "index", "width", "height")
 
     def test_select(self, context, location):
+        # Don't intercept hover/picking while a stateful operator is running.
+        if global_data.stateful_op_running:
+            return -1
         coords = Vector(location) - self.matrix_basis.translation.to_2d()
 
         width, height = self.width, self.height
