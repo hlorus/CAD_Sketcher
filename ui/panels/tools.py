@@ -22,9 +22,15 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
 
         layout.label(text="Constraints:")
-        col = layout.column(align=True)
+        # Icon-only buttons in a grid; the name still shows in the tooltip. Scale
+        # up a little so the constraint symbols are easier to read.
+        grid = layout.grid_flow(
+            row_major=True, columns=4, even_columns=True, even_rows=True, align=True
+        )
+        grid.scale_x = 1.4
+        grid.scale_y = 1.4
         for op in declarations.ConstraintOperators:
-            col.operator(op, icon_value=icon_manager.get_constraint_icon(op))
+            grid.operator(op, text="", icon_value=icon_manager.get_constraint_icon(op))
 
         layout.separator()
 
