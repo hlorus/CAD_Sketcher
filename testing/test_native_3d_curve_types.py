@@ -55,8 +55,7 @@ class TestNative3DCurveTypes(BgsTestCase):
             curve_type = curve_data.attributes.get("curve_type")
             self.assertIsNotNone(curve_type)
             positions = [
-                tuple(curve_data.points[point.index].position)
-                for point in curve.points
+                tuple(curve_data.points[point.index].position) for point in curve.points
             ]
             return curve_type.data[curve_idx].value, positions
 
