@@ -33,6 +33,7 @@ modules = [
     "add_distance",
     "add_diameter",
     "add_angle",
+    "add_dimension",
     "add_geometric_constraints",
     "align_workplane",
     "align_view",
