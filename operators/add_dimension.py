@@ -17,6 +17,8 @@ from ..model.line_2d import SlvsLine2D
 from ..model.point_2d import SlvsPoint2D
 from ..model.sketch_ref import get_active_constraints
 from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.keymap import is_numeric_input, is_unit_input
+from ..stateful_operator.utilities.numeric import NumericInput, parse_numeric
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.curve_data import refresh_curve_geometry
 from ..utilities.view import get_picking_origin_end, refresh
@@ -282,19 +284,62 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         refresh(context)
         logger.debug("Dimension: adopted second entity %s", ref.curve_id)
 
+    def _value_input(self) -> NumericInput:
+        """Lazily-created numeric buffer for typing the dimension value during
+        placement (kept separate from the state machine's own ``_numeric``, which
+        stays idle because the placement state has no property)."""
+        numeric = getattr(self, "_value_numeric", None)
+        if numeric is None:
+            numeric = self._value_numeric = NumericInput()
+            numeric.is_active = True
+        return numeric
+
+    def _apply_value(self, context: Context):
+        """Set the dimension value from the typed buffer, then re-solve.
+
+        Routes through the constraint's own ``value`` property so the differing
+        subtypes/units (distance, angle, diameter) are parsed correctly -- the
+        same reason the standalone tweak modal reads the constraint directly.
+        """
+        target = getattr(self, "target", None)
+        if target is None:
+            return
+        prop = target.rna_type.properties.get("value")
+        if prop is None:
+            return
+        value = parse_numeric(
+            prop, self._value_numeric.current, context.scene.unit_settings.system
+        )
+        if value is None:
+            # Empty or mid-typing/invalid -- keep the current value.
+            return
+        target.value = value
+        if self.sketch and solve_system(context, sketch=self.sketch):
+            refresh_curve_geometry(self.sketch)
+        refresh(context)
+        context.workspace.status_text_set(
+            "Value: {}".format(self._value_numeric.current)
+        )
+
     def modal(self, context: Context, event: Event):
-        # During placement a click on a second compatible entity switches the
-        # inferred dimension (line length -> angle / point-to-line distance) and
-        # keeps dragging, instead of confirming. Anything else defers to the base.
-        if (
-            self._is_placement_state()
-            and event.type == "LEFTMOUSE"
-            and event.value == "PRESS"
-        ):
-            ref = self._pick_second(context, event)
-            if ref is not None:
-                self._switch_second(context, ref)
+        if self._is_placement_state():
+            # Numeric value entry: type a number (with units) to set the
+            # dimension value, independent of the label drag -- mirrors the tweak
+            # modal and the dimensional constraint operators.
+            if event.value == "PRESS" and (
+                is_numeric_input(event) or is_unit_input(event)
+            ):
+                self._value_input().evaluate_event(event)
+                self._apply_value(context)
                 return {"RUNNING_MODAL"}
+            # A click on a second compatible entity switches the inferred
+            # dimension (line length -> angle / point-to-line distance) and keeps
+            # dragging, instead of confirming.
+            if event.type == "LEFTMOUSE" and event.value == "PRESS":
+                ref = self._pick_second(context, event)
+                if ref is not None:
+                    self._switch_second(context, ref)
+                    return {"RUNNING_MODAL"}
         return super().modal(context, event)
 
     def main(self, context: Context):

@@ -73,6 +73,20 @@ class TestDimensionOp(Sketch2dTestCase):
         target = self._dispatch(line)
         self.assertEqual(set(target.curve_id_placements()), {p1.curve_id, p2.curve_id})
 
+    def test_placement_value_entry_sets_value(self):
+        # Typing a value during placement sets the constraint's value (routed
+        # through the constraint's own subtype-aware ``value`` property).
+        line = self._line((0.0, 0.0), (4.0, 0.0))
+        self._select(line)
+        h = self._harness()
+        h.prefill()
+        h.finish(run_fini=False)
+        target = h.op.target
+        self.assertIsNotNone(target)
+        h.op._value_input().current = "10"
+        h.op._apply_value(self.context)
+        self.assertAlmostEqual(target.value, 10.0, places=3)
+
     def test_states_end_with_placement(self):
         from ..operators.add_dimension import VIEW3D_OT_slvs_add_dimension
 
