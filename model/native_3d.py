@@ -16,12 +16,90 @@ from .sketch_ref import Sketch, stamp_sketch_props
 
 SKETCH_3D_TAG = "is_3d_sketch"
 SKETCH_3D_ORIGIN_TAG = "is_3d_sketch_origin"
+CONVERT_3D_NODE_GROUP = "CAD Sketcher Convert 3D Wire"
+CONVERT_3D_WIRE_LOCK_VERSION = 1
+
+
+def _lock_3d_convert_to_wire(modifier):
+    """Bind a native 3D sketch to a converter that cannot execute Fill Curve.
+
+    The shared 2D converter exposes a Fill socket. Merely flipping that socket
+    back off from ``depsgraph_update_post`` is too late: Blender may already have
+    evaluated the planar Fill Curve branch for the frame. Native free-3D sketches
+    therefore use a private copy of the same converter with its geometry switch
+    hard-wired to the wire branch. The Fill socket is hidden as well, so the
+    modifier UI cannot offer an operation that is unsupported for free-3D data.
+    """
+    if modifier is None or modifier.node_group is None:
+        return False
+
+    current = modifier.node_group
+    if (
+        current.get("cad_sketcher_3d_wire_lock_version")
+        == CONVERT_3D_WIRE_LOCK_VERSION
+    ):
+        return True
+
+    node_group = bpy.data.node_groups.get(CONVERT_3D_NODE_GROUP)
+    if (
+        node_group is None
+        or node_group.get("cad_sketcher_3d_wire_lock_version")
+        != CONVERT_3D_WIRE_LOCK_VERSION
+    ):
+        node_group = current.copy()
+        node_group.name = CONVERT_3D_NODE_GROUP
+
+        fill_socket = next(
+            (
+                item
+                for item in node_group.interface.items_tree
+                if getattr(item, "item_type", "") == "SOCKET"
+                and getattr(item, "in_out", "") == "INPUT"
+                and item.name == "Fill"
+            ),
+            None,
+        )
+        if fill_socket is not None:
+            fill_socket.default_value = False
+            if hasattr(fill_socket, "hide_in_modifier"):
+                fill_socket.hide_in_modifier = True
+
+        geometry_switch = next(
+            (
+                node
+                for node in node_group.nodes
+                if node.bl_idname == "GeometryNodeSwitch"
+                and getattr(node, "input_type", "") == "GEOMETRY"
+            ),
+            None,
+        )
+        if geometry_switch is None:
+            return False
+
+        switch_input = geometry_switch.inputs.get("Switch")
+        if switch_input is None:
+            return False
+        for link in list(switch_input.links):
+            node_group.links.remove(link)
+        switch_input.default_value = False
+        node_group["cad_sketcher_3d_wire_lock_version"] = (
+            CONVERT_3D_WIRE_LOCK_VERSION
+        )
+
+    modifier.node_group = node_group
+    return True
 
 
 def _set_convert_fill(modifier, value):
-    """Set the shared converter's Fill input across Blender versions."""
+    """Set the converter Fill input, forcing native 3D sketches to wire mode."""
     if modifier is None or modifier.node_group is None:
         return False
+
+    owner = getattr(modifier, "id_data", None)
+    if owner is not None and bool(owner.get(SKETCH_3D_TAG, False)):
+        if not _lock_3d_convert_to_wire(modifier):
+            return False
+        value = False
 
     fill_socket = next(
         (
@@ -42,12 +120,9 @@ def _set_convert_fill(modifier, value):
     else:
         modifier[fill_socket.identifier] = bool(value)
 
-    # When the guard resets Fill from inside depsgraph_update_post, changing the
-    # modifier input alone can leave the already-evaluated Fill Curve result in
-    # the viewport until some unrelated edit dirties the object. Explicitly tag
-    # the modifier owner so Blender schedules a fresh Geometry Nodes evaluation
-    # with Fill=False on the next depsgraph pass.
-    owner = getattr(modifier, "id_data", None)
+    # Rebinding the node group or changing a modifier input from inside a
+    # depsgraph handler must explicitly dirty the owner so the viewport drops any
+    # already-evaluated planar result and schedules the wire-only tree.
     if owner is not None:
         owner.update_tag()
     return True
@@ -82,11 +157,9 @@ def create_3d_sketch(context, name="3D Sketch", matrix=None):
     from ..utilities.curve_data import _ensure_convert_modifier
 
     modifier = _ensure_convert_modifier(obj)
-    # A free-3D sketch is not a planar profile. The shared converter defaults
-    # Fill on for normal 2D sketches, but Fill Curve necessarily planarizes a
-    # non-coplanar loop and makes Blender's evaluated geometry diverge from the
-    # native XYZ overlay. Keep 3D sketches wire/free-space by default; users can
-    # constrain geometry to a plane before opting into profile-style operations.
+    # A free-3D sketch is not a planar profile. Bind it to the wire-only copy of
+    # the converter at creation time so Blender never evaluates Fill Curve for
+    # this object, rather than correcting a shared Fill toggle after evaluation.
     _set_convert_fill(modifier, False)
 
     obj.parent = origin
