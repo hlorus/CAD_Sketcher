@@ -1,6 +1,7 @@
 from . import manager
 from .add_arc2d import VIEW3D_T_slvs_add_arc2d
 from .add_circle2d import VIEW3D_T_slvs_add_circle2d
+from .add_dimension import VIEW3D_T_slvs_add_dimension
 from .add_line2d import VIEW3D_T_slvs_add_line2d
 from .add_line3d import VIEW3D_T_slvs_add_line3d
 from .add_point2d import VIEW3D_T_slvs_add_point2d
@@ -30,6 +31,12 @@ add(VIEW3D_T_slvs_bevel, visibility=ToolGroup.SKETCH_2D, separator=False, group=
 add(VIEW3D_T_slvs_offset, visibility=ToolGroup.SKETCH_2D, separator=False, group=False)
 add(
     VIEW3D_T_slvs_project_geometry,
+    visibility=ToolGroup.SKETCH_2D,
+    separator=True,
+    group=False,
+)
+add(
+    VIEW3D_T_slvs_add_dimension,
     visibility=ToolGroup.SKETCH_2D,
     separator=True,
     group=False,
