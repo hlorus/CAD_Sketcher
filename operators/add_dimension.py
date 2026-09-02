@@ -125,6 +125,22 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
     def _is_placement_state(self) -> bool:
         return self.state.name == _PLACEMENT_STATE
 
+    def _apply_undo(self, context: Context):
+        """Keep label placement out of the state machine's per-move undo cycle.
+
+        Once the geometry is picked the constraint is stable and only its display
+        offset changes. The framework otherwise restores its snapshot on every
+        move here -- which deletes the constraint (main() is guarded, so nothing
+        recreates it) and resets the offset, leaving the gizmo nothing to track.
+        Suppressing it makes placement behave like the standalone tweak modal: a
+        single live constraint whose gizmo follows the cursor. Outside placement
+        the normal undo/redo still runs so each pick can re-infer the type.
+        """
+        if self._is_placement_state():
+            self._undo = False
+            return
+        super()._apply_undo(context)
+
     def _distance_exists(self, context: Context, cids) -> bool:
         """True if a distance constraint already spans exactly ``cids``."""
         want = set(cids)
