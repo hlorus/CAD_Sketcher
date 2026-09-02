@@ -25,16 +25,20 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         prefs = preferences.get_prefs()
         header = layout.row(align=True)
         header.label(text="Constraints:")
-        # Right-aligned so the toggle stays a normal-size button (not stretched to
-        # fill the row). The icon shows the view it switches *to* (list icon while
-        # the grid is active); emboss=False drops the button box (otherwise the
-        # active toggle shows a persistent grey fill).
+        # Right-aligned, box-less icon that shows the view it switches *to* (list
+        # icon while the grid is active). Use an operator rather than a prop toggle:
+        # an emboss=False toggle would tint the icon by its on/off state (white vs
+        # black), whereas an operator icon always follows the theme.
         toggle = header.row()
         toggle.alignment = "RIGHT"
-        toggle.prop(
-            prefs, "constraint_grid_view", text="",
+        op = toggle.operator(
+            "wm.context_toggle", text="",
             icon="LONGDISPLAY" if prefs.constraint_grid_view else "IMGDISPLAY",
-            toggle=True, emboss=False,
+            emboss=False,
+        )
+        op.data_path = (
+            f'preferences.addons["{preferences.get_name()}"]'
+            ".preferences.constraint_grid_view"
         )
 
         if prefs.constraint_grid_view:
