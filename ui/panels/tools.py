@@ -26,13 +26,14 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         header = layout.row(align=True)
         header.label(text="Constraints:")
         # Right-aligned so the toggle stays a normal-size button (not stretched to
-        # fill the row). The icon reflects the current view; emboss=False drops the
-        # button box (otherwise the active toggle shows a persistent grey fill).
+        # fill the row). The icon shows the view it switches *to* (list icon while
+        # the grid is active); emboss=False drops the button box (otherwise the
+        # active toggle shows a persistent grey fill).
         toggle = header.row()
         toggle.alignment = "RIGHT"
         toggle.prop(
             prefs, "constraint_grid_view", text="",
-            icon="IMGDISPLAY" if prefs.constraint_grid_view else "LONGDISPLAY",
+            icon="LONGDISPLAY" if prefs.constraint_grid_view else "IMGDISPLAY",
             toggle=True, emboss=False,
         )
 
