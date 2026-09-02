@@ -34,10 +34,7 @@ def _lock_3d_convert_to_wire(modifier):
         return False
 
     current = modifier.node_group
-    if (
-        current.get("cad_sketcher_3d_wire_lock_version")
-        == CONVERT_3D_WIRE_LOCK_VERSION
-    ):
+    if current.get("cad_sketcher_3d_wire_lock_version") == CONVERT_3D_WIRE_LOCK_VERSION:
         return True
 
     node_group = bpy.data.node_groups.get(CONVERT_3D_NODE_GROUP)
@@ -82,9 +79,7 @@ def _lock_3d_convert_to_wire(modifier):
         for link in list(switch_input.links):
             node_group.links.remove(link)
         switch_input.default_value = False
-        node_group["cad_sketcher_3d_wire_lock_version"] = (
-            CONVERT_3D_WIRE_LOCK_VERSION
-        )
+        node_group["cad_sketcher_3d_wire_lock_version"] = CONVERT_3D_WIRE_LOCK_VERSION
 
     modifier.node_group = node_group
     return True
