@@ -31,6 +31,36 @@ class TestNative3DFillGuard(BgsTestCase):
             and item.name == "Fill"
         )
 
+    def test_native_3d_converter_hardwires_wire_branch(self):
+        """A 3D sketch must never evaluate the planar Fill Curve branch."""
+        from ..model.native_3d import CONVERT_3D_WIRE_LOCK_VERSION
+        from ..utilities.curve_data import CONVERT_MODIFIER_NAME
+
+        modifier = self.sketch.target_object.modifiers.get(CONVERT_MODIFIER_NAME)
+        self.assertIsNotNone(modifier)
+        node_group = modifier.node_group
+        self.assertIsNotNone(node_group)
+        self.assertEqual(
+            node_group.get("cad_sketcher_3d_wire_lock_version"),
+            CONVERT_3D_WIRE_LOCK_VERSION,
+        )
+
+        fill_socket = self._fill_socket(modifier)
+        self.assertFalse(fill_socket.default_value)
+        if hasattr(fill_socket, "hide_in_modifier"):
+            self.assertTrue(fill_socket.hide_in_modifier)
+
+        geometry_switch = next(
+            node
+            for node in node_group.nodes
+            if node.bl_idname == "GeometryNodeSwitch"
+            and getattr(node, "input_type", "") == "GEOMETRY"
+        )
+        switch_input = geometry_switch.inputs.get("Switch")
+        self.assertIsNotNone(switch_input)
+        self.assertFalse(switch_input.is_linked)
+        self.assertFalse(switch_input.default_value)
+
     def test_manual_fill_toggle_is_rejected_for_native_3d_sketch(self):
         """Free-3D sketches must never enter Blender's planar Fill Curve path."""
         from ..handlers import _disable_unsupported_3d_fill
@@ -44,8 +74,10 @@ class TestNative3DFillGuard(BgsTestCase):
         fill_socket = self._fill_socket(modifier)
         self.assertFalse(get_modifier_input(modifier, fill_socket.identifier))
 
-        # Reproduce the UI regression reported on PR #608: the user manually
-        # enables Fill on the shared convert modifier of a free-3D sketch.
+        # Reproduce the UI regression reported on PR #608. Even if an old file or
+        # script writes the hidden Fill input back to true, the geometry switch is
+        # already hard-wired to wire mode and the compatibility guard restores the
+        # stored value to false.
         set_modifier_input(modifier, fill_socket.identifier, True)
         self.assertTrue(get_modifier_input(modifier, fill_socket.identifier))
 
@@ -54,20 +86,21 @@ class TestNative3DFillGuard(BgsTestCase):
         self.assertFalse(get_modifier_input(modifier, fill_socket.identifier))
 
     def test_rejected_fill_dirties_modifier_owner_for_gn_re_evaluation(self):
-        """Resetting Fill from the depsgraph guard must invalidate the GN result.
-
-        Blender cannot materialize a Curves object's evaluated GN mesh through
-        ``new_from_object`` in background mode (the same limitation documented by
-        the existing fill regression), so test the critical contract directly:
-        after changing the Fill socket, the modifier owner is explicitly tagged
-        for another depsgraph/Geometry-Nodes evaluation.
-        """
+        """Resetting Fill from the depsgraph guard must invalidate the GN result."""
         from ..model.native_3d import _set_convert_fill
 
         fill_socket = SimpleNamespace(
             item_type="SOCKET", in_out="INPUT", name="Fill", identifier="fill"
         )
-        owner = Mock()
+
+        class FakeOwner:
+            def __init__(self):
+                self.update_tag = Mock()
+
+            def get(self, _name, default=None):
+                return default
+
+        owner = FakeOwner()
 
         class FakeModifier(dict):
             pass
