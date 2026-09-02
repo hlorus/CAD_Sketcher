@@ -379,24 +379,58 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         self._create_constraint(context)
         return super().main(context)
 
-    def fini(self, context: Context, succeede: bool):
-        # Placement happens in this operator's own placement state, so there is no
-        # hand-off to the standalone tweak modal (unlike GenericConstraintOp).
-        target = getattr(self, "target", None)
+    def _should_reject(self, context: Context, target):
+        """Return ``(report_level, message)`` if the committed dimension must be
+        dropped, else ``None``.
 
-        # Duplicate check happens here, at commit: the tentative constraint may
-        # have changed type during placement, so only its final form matters.
-        if succeede and target is not None and self._is_duplicate(context, target):
-            logger.debug("Dimension: discarding duplicate %s", target)
+        On rejection the target is already removed and the sketch re-solved; on
+        keep, the target stays and the sketch is solved. Rejects an exact
+        duplicate, and a dimension that leaves the sketch unsolvable -- but the
+        latter only when removing it restores solvability, so an inconsistency
+        that pre-dates this dimension doesn't discard the user's work.
+        """
+        if self._is_duplicate(context, target):
             self._clear_target(context)
             if self.sketch and solve_system(context, sketch=self.sketch):
                 refresh_curve_geometry(self.sketch)
-            if hasattr(self, "report"):
-                self.report({"INFO"}, "Dimension already exists")
-            target = None
+            return "INFO", "Dimension already exists"
+
+        if self.sketch is None:
+            return None
+
+        if solve_system(context, sketch=self.sketch):
+            refresh_curve_geometry(self.sketch)
+            return None
+
+        # Unsolvable with the new dimension -- reject only if removing it helps.
+        self._clear_target(context)
+        if solve_system(context, sketch=self.sketch):
+            refresh_curve_geometry(self.sketch)
+            return "WARNING", "Dimension conflicts with the existing constraints"
+
+        # Pre-existing inconsistency: restore the user's dimension and keep it.
+        self._create_constraint(context)
+        if solve_system(context, sketch=self.sketch):
+            refresh_curve_geometry(self.sketch)
+        return None
+
+    def fini(self, context: Context, succeede: bool):
+        # Placement happens in this operator's own placement state, so there is no
+        # hand-off to the standalone tweak modal (unlike GenericConstraintOp).
+        #
+        # Both the duplicate and solvability checks happen here, at commit: the
+        # tentative constraint may change type and value during placement, so only
+        # its final form matters.
+        if succeede and getattr(self, "target", None) is not None:
+            reason = self._should_reject(context, self.target)
+            if reason is not None:
+                logger.debug("Dimension: rejected -- %s", reason[1])
+                if hasattr(self, "report"):
+                    self.report({reason[0]}, reason[1])
 
         # Make sure gizmos end up visible and the label reflects the final offset.
         refresh(context)
+        target = getattr(self, "target", None)
         if target is not None:
             logger.debug("Dimension committed: %s (succeeded=%s)", target, succeede)
 

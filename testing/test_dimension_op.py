@@ -136,6 +136,27 @@ class TestDimensionOp(Sketch2dTestCase):
         self.assertIsNone(h2.op.target)  # discarded at commit
         self.assertEqual(len(list(self.sketch.constraints.all)), n1)
 
+    def test_conflicting_value_rejected_at_fini(self):
+        # Two fixed points are 3 apart; a length dimension typed to 5 can't solve,
+        # so it must be rejected (and removed) at commit.
+        p0 = self.add_point((0.0, 0.0), fixed=True)
+        p1 = self.add_point((3.0, 0.0), fixed=True)
+        n0 = len(list(self.sketch.constraints.all))
+
+        self._select(p0, p1)
+        h = self._harness()
+        h.prefill()
+        h.finish(run_fini=False)
+        self.assertIsNotNone(h.op.target)
+        self.assertEqual(len(list(self.sketch.constraints.all)), n0 + 1)
+
+        h.op._value_input().current = "5"
+        h.op._apply_value(self.context)  # forces distance 5 -> inconsistent
+
+        h.op.fini(self.context, True)
+        self.assertIsNone(h.op.target)
+        self.assertEqual(len(list(self.sketch.constraints.all)), n0)
+
     def test_placement_value_entry_sets_value(self):
         # Typing a value during placement sets the constraint's value (routed
         # through the constraint's own subtype-aware ``value`` property).
