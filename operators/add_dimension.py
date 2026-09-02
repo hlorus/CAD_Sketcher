@@ -311,6 +311,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
 
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
         cid = picking.update_hover(context, coords)
+        logger.debug("_pick_second: hover cid=%s", cid or None)
         if not cid:
             return None
 
@@ -399,6 +400,10 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             # dragging, instead of confirming.
             if event.type == "LEFTMOUSE" and event.value == "PRESS":
                 ref = self._pick_second(context, event)
+                logger.debug(
+                    "Placement LEFTMOUSE: pick_second -> %s",
+                    ref.curve_id if ref else None,
+                )
                 if ref is not None:
                     self._switch_second(context, ref)
                     return {"RUNNING_MODAL"}
