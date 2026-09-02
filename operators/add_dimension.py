@@ -32,17 +32,22 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
 
     The user does not choose between distance, angle and diameter up front:
 
-    - a line              -> distance (its length); click a second line while
-                             placing to switch to an angle (or the perpendicular
-                             distance if the two lines are parallel), or a point
-                             for a point-to-line distance
-    - a circle or arc     -> diameter
+    - a line              -> distance (its length); click a second entity while
+                             placing to switch: a line -> angle (or the
+                             perpendicular distance if the two are parallel), a
+                             point -> point-to-line distance, a circle/arc ->
+                             edge-to-line distance
+    - a circle or arc     -> diameter; click a point or line while placing to
+                             switch to an edge-to-point / edge-to-line distance
     - two points          -> distance
+    - point + line        -> point-to-line distance
+    - point/line + circle/arc -> edge distance (measured from the curve's edge)
 
     A line/circle/arc drops straight into an interactive placement state after
     the first pick, where the label is dragged into place (display only, no
     re-solve) and confirmed with a click. A point needs a partner, so it takes a
-    required second pick before placement.
+    required second pick before placement. Curve-to-curve distance is not
+    supported by the solver.
     """
 
     bl_idname = Operators.AddDimension
@@ -87,7 +92,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                     "Entity 2",
                     description="Pick the entity to measure to.",
                     pointer="entity2",
-                    types=(SlvsPoint2D, SlvsLine2D),
+                    types=(SlvsPoint2D, SlvsLine2D, SlvsCircle, SlvsArc),
                     use_create=False,
                     optional=e1 is None,
                 )
@@ -141,6 +146,27 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         """True if two lines are (anti-)parallel, i.e. their angle is ~0/180."""
         angle = SlvsAngle._get_angle(l1.direction_vec(), l2.direction_vec())
         return angle < tol_deg or angle > 180.0 - tol_deg
+
+    @staticmethod
+    def _distance_pair(e1, e2):
+        """Order two entities as the native distance solver needs, or return None
+        if the pair isn't a supported distance.
+
+        The solver measures a curve (circle/arc) from its edge and requires it as
+        entity1; a point/line pair measures point-to-line, so the point goes
+        first. Curve-to-curve distance is not supported.
+        """
+        c1 = isinstance(e1, (CircleRef, ArcRef))
+        c2 = isinstance(e2, (CircleRef, ArcRef))
+        if c1 and c2:
+            return None
+        if c2:
+            return e2, e1
+        if c1:
+            return e1, e2
+        if isinstance(e1, LineRef) and isinstance(e2, PointRef):
+            return e2, e1
+        return e1, e2
 
     def _is_duplicate(self, context: Context, target) -> bool:
         """True if another constraint already matches ``target``'s type + curve ids.
@@ -228,15 +254,19 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                     "Dimension -> angle between %s and %s", e1.curve_id, e2.curve_id
                 )
         else:
-            # Distance's natural form is point-to-line/point. The model collapses
-            # a *line* entity1 to its endpoints, so a line+point pair must be
-            # ordered point-first to measure the point-to-line distance.
-            if isinstance(e1, LineRef) and isinstance(e2, PointRef):
-                e1, e2 = e2, e1
+            # A mixed pair -> a distance. Order it as the solver needs (curve or
+            # point first); an unsupported pair (curve-to-curve) makes nothing.
+            pair = self._distance_pair(e1, e2)
+            if pair is None:
+                logger.debug(
+                    "Dimension: unsupported pair %s + %s", e1.curve_id, e2.curve_id
+                )
+                return
+            a, b = pair
             self.target = constraints.add_distance(
-                init=init, curve_id_1=e1.curve_id, curve_id_2=e2.curve_id
+                init=init, curve_id_1=a.curve_id, curve_id_2=b.curve_id
             )
-            logger.debug("Dimension -> distance %s -> %s", e1.curve_id, e2.curve_id)
+            logger.debug("Dimension -> distance %s -> %s", a.curve_id, b.curve_id)
 
         # Give the freshly created label a sensible default offset so it is
         # visible before the first placement move (overwritten while dragging).
@@ -265,14 +295,16 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         return None
 
     def _pick_second(self, context: Context, event: Event):
-        """A compatible entity under the cursor to dimension the line against.
+        """A compatible entity under the cursor to dimension the first pick against.
 
-        Only meaningful for a line first pick: another line gives an angle, a
-        point gives a point-to-line distance. The line's own endpoints and the
-        already-adopted partner are excluded.
+        Meaningful for a line, circle or arc first pick. A line can pair with a
+        line (angle / perpendicular distance), a point or a curve (distance). A
+        circle/arc can pair with a point or a line (edge distance) -- not another
+        curve. The first entity's own sub-parts and the adopted partner are
+        excluded.
         """
         e1 = self.entity1
-        if not isinstance(e1, LineRef):
+        if not isinstance(e1, (LineRef, CircleRef, ArcRef)):
             return None
 
         from ..drawing import picking
@@ -283,9 +315,14 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             return None
 
         excluded = {e1.curve_id}
-        for p in (e1.p1, e1.p2):
-            if p:
-                excluded.add(p.curve_id)
+        if isinstance(e1, LineRef):
+            for p in (e1.p1, e1.p2):
+                if p:
+                    excluded.add(p.curve_id)
+        else:  # circle/arc -- don't dimension it against its own center
+            ct = getattr(e1, "ct", None)
+            if ct is not None:
+                excluded.add(ct.curve_id)
         current = getattr(self, "_second_ref", None)
         if current is not None:
             excluded.add(current.curve_id)
@@ -293,7 +330,12 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             return None
 
         ref = curve_ref(self.sketch, cid)
-        return ref if isinstance(ref, (LineRef, PointRef)) else None
+        if isinstance(e1, LineRef):
+            allowed = (LineRef, PointRef, CircleRef, ArcRef)
+        else:
+            # A curve dimensions only against a point or line (no curve-to-curve).
+            allowed = (LineRef, PointRef)
+        return ref if isinstance(ref, allowed) else None
 
     def _switch_second(self, context: Context, ref):
         """Adopt a second entity mid-placement and rebuild as the new type."""

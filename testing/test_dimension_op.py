@@ -64,6 +64,46 @@ class TestDimensionOp(Sketch2dTestCase):
         c = self.add_circle(self.add_point((0.0, 0.0)), 2.0)
         self.assertIsInstance(self._dispatch(c), SlvsDiameter)
 
+    def _switch(self, first, second):
+        """Pick ``first``, adopt ``second`` mid-placement, return the target."""
+        from ..model.curve_ref import curve_ref
+
+        self._select(first)
+        h = self._harness()
+        h.prefill()
+        h.op._second_ref = curve_ref(self.sketch, second.curve_id)
+        h.op._create_constraint(self.context)
+        return h.op.target
+
+    def test_circle_plus_point_is_distance(self):
+        from ..model.distance import SlvsDistance
+
+        c = self.add_circle(self.add_point((0.0, 0.0)), 2.0)
+        p = self.add_point((5.0, 0.0))
+        self.assertIsInstance(self._switch(c, p), SlvsDistance)
+
+    def test_circle_plus_line_is_distance(self):
+        from ..model.distance import SlvsDistance
+
+        c = self.add_circle(self.add_point((0.0, 0.0)), 2.0)
+        line = self._line((5.0, -3.0), (5.0, 3.0))
+        self.assertIsInstance(self._switch(c, line), SlvsDistance)
+
+    def test_line_plus_circle_orders_curve_first(self):
+        from ..model.distance import SlvsDistance
+
+        c = self.add_circle(self.add_point((6.0, 0.0)), 2.0)
+        line = self._line((0.0, 0.0), (0.0, 4.0))
+        target = self._switch(line, c)
+        self.assertIsInstance(target, SlvsDistance)
+        # The curve must be entity1 for the native distance solver.
+        self.assertEqual(target.curve_id_1, c.curve_id)
+
+    def test_curve_to_curve_unsupported(self):
+        c1 = self.add_circle(self.add_point((0.0, 0.0)), 2.0)
+        c2 = self.add_circle(self.add_point((6.0, 0.0)), 1.0)
+        self.assertIsNone(self._switch(c1, c2))
+
     def test_line_length_spans_endpoints(self):
         # The native solver needs two point ids, so a lone line is measured as
         # the distance between its own endpoints.
