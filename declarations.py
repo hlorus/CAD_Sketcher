@@ -137,10 +137,13 @@ class WorkSpaceTools(str, Enum):
     Revolve = "sketcher.slvs_node_revolve"
 
 
-ConstraintOperators = (
+DimensionalConstraintOperators = (
     Operators.AddDistance,
     Operators.AddDiameter,
     Operators.AddAngle,
+)
+
+GeometricConstraintOperators = (
     Operators.AddCoincident,
     Operators.AddEqual,
     Operators.AddVertical,
@@ -152,3 +155,5 @@ ConstraintOperators = (
     Operators.AddRatio,
     Operators.AddSymmetry,
 )
+
+ConstraintOperators = DimensionalConstraintOperators + GeometricConstraintOperators
