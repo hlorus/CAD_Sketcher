@@ -56,6 +56,23 @@ class TestDimensionOp(Sketch2dTestCase):
         c = self.add_circle(self.add_point((0.0, 0.0)), 2.0)
         self.assertIsInstance(self._dispatch(c), SlvsDiameter)
 
+    def test_line_length_spans_endpoints(self):
+        # The native solver needs two point ids, so a lone line is measured as
+        # the distance between its own endpoints.
+        p1 = self.add_point((0.0, 0.0))
+        p2 = self.add_point((4.0, 0.0))
+        line = self.add_line(p1, p2)
+        target = self._dispatch(line)
+        self.assertEqual(set(target.curve_id_placements()), {p1.curve_id, p2.curve_id})
+
+    def test_states_end_with_placement(self):
+        from ..operators.add_dimension import VIEW3D_OT_slvs_add_dimension
+
+        states = VIEW3D_OT_slvs_add_dimension.states()
+        self.assertEqual(states[-1].name, "Placement")
+        self.assertTrue(states[-1].optional)
+        self.assertIsNone(states[-1].property)
+
     def tearDown(self):
         selection.selected.clear()
         return super().tearDown()

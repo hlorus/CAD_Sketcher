@@ -1,6 +1,8 @@
 import logging
 
+from bpy.props import FloatProperty
 from bpy.types import Context, Operator
+from mathutils.geometry import intersect_line_plane
 
 from ..declarations import Operators
 from ..model.angle import SlvsAngle
@@ -11,49 +13,72 @@ from ..model.diameter import SlvsDiameter
 from ..model.distance import SlvsDistance
 from ..model.line_2d import SlvsLine2D
 from ..model.point_2d import SlvsPoint2D
+from ..model.sketch_ref import get_active_constraints
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.view import get_picking_origin_end
 from .base_constraint import GenericConstraintOp
 
 logger = logging.getLogger(__name__)
 
+_PLACEMENT_STATE = "Placement"
+
 
 class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
-    """Add a dimension. The constraint type (distance, diameter or angle) is
-    inferred from the selected geometry, so the user doesn't pick it up front."""
+    """Add a dimension.
+
+    The concrete constraint type is inferred from the selected geometry, so the
+    user does not have to choose between distance, angle and diameter up front:
+
+    - a single line              -> distance (its length)
+    - two lines                  -> angle
+    - a circle or arc            -> diameter
+    - two points / point + line  -> distance
+
+    After the geometry is picked the same operator stays live in a final
+    placement state where the dimension label is dragged into place (display
+    only, no re-solve) and confirmed with a click.
+    """
 
     bl_idname = Operators.AddDimension
     bl_label = "Dimension"
     bl_options = {"UNDO", "REGISTER"}
 
-    # No single constraint type -- dispatched at runtime in main(). Both
-    # states()/_available_entities() are overridden so cls.type is never used.
+    # GenericConstraintOp keys off a single constraint ``type``; this operator
+    # spans several, so it drives ``states``/creation itself and never resolves a
+    # type from the base machinery.
     type = None
     property_keys = ()
     has_value_state = False
 
+    # Live label offset. Filled by the placement state's ``state_func`` as a
+    # display-only side effect; the property itself is only a confirm carrier.
+    placement: FloatProperty(options={"SKIP_SAVE", "HIDDEN"})
+
     @staticmethod
     def _second_slot(operator):
-        """(types, optional) for the second pick, narrowed by the first entity.
+        """Return ``(types, optional)`` for the second pick, given the first.
 
-        A lone point can't be dimensioned so its second pick is required; a line
-        or curve can (length / diameter), so theirs is optional -- picking a
-        second entity then switches the inferred type (e.g. line -> angle).
+        The second slot is narrowed by what the first entity was: a line pairs
+        with another line (angle) or a point/line (distance); a point needs a
+        partner to be dimensionable at all; a circle/arc needs nothing more.
+        ``optional`` marks whether the operator can finish on the first pick.
         """
         e1 = getattr(operator, "entity1", None) if operator else None
+        if isinstance(e1, (CircleRef, ArcRef)):
+            # Diameter needs no second entity.
+            return (), False
         if isinstance(e1, PointRef):
+            # A lone point cannot be dimensioned -- require a partner.
             return (SlvsPoint2D, SlvsLine2D), False
         if isinstance(e1, LineRef):
-            # + line -> angle, + point -> point/line distance, none -> length.
+            # A single line already has a length; a second line switches to angle.
             return (SlvsLine2D, SlvsPoint2D), True
-        if isinstance(e1, (CircleRef, ArcRef)):
-            # + line/point -> distance, none -> diameter/radius.
-            return (SlvsLine2D, SlvsPoint2D), True
-        # Before the first pick: offer a generic optional second entity.
         return (SlvsPoint2D, SlvsLine2D), True
 
     @classmethod
     def states(cls, operator=None):
+        """Build the pick states, then a terminal interactive placement state."""
         first_types = (SlvsPoint2D, SlvsLine2D, SlvsCircle, SlvsArc)
         states = [
             state_from_args(
@@ -64,6 +89,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                 use_create=False,
             )
         ]
+
         second_types, optional = cls._second_slot(operator)
         if second_types:
             states.append(
@@ -76,56 +102,90 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                     optional=optional,
                 )
             )
+
+        # Placement: no property/pointer, so it neither re-solves nor snapshots
+        # per move -- its ``state_func`` just drags the label offset, and a click
+        # confirms via the optional-state skip in the state machine.
+        states.append(
+            state_from_args(
+                _PLACEMENT_STATE,
+                description="Move to place the dimension label, click to confirm.",
+                property=None,
+                state_func="_place_dimension",
+                interactive=True,
+                optional=True,
+                allow_prefill=False,
+            )
+        )
         return states
 
     def _available_entities(self):
         return [getattr(self, "entity1", None), getattr(self, "entity2", None)]
 
-    def _add_line_length(self, context):
-        """Distance = a line's length: expand the line to its two endpoints and
-        constrain their distance (mirrors VIEW3D_OT_slvs_add_distance)."""
+    def _is_placement_state(self) -> bool:
+        return self.state.name == _PLACEMENT_STATE
+
+    def _distance_exists(self, context: Context, cids) -> bool:
+        """True if a distance constraint already spans exactly ``cids``."""
+        want = set(cids)
+        for c in get_active_constraints(context).all:
+            if isinstance(c, SlvsDistance) and set(c.curve_id_placements()) == want:
+                return True
+        return False
+
+    def _clear_target(self, context: Context):
+        """Drop a previously created constraint before re-inferring the type.
+
+        Picking a second line after a first turns a tentative length into an
+        angle; without a snapshot in the placement path we remove the stale one
+        explicitly so the two never coexist.
+        """
+        target = getattr(self, "target", None)
+        if target is None:
+            return
+        try:
+            self.sketch.constraints.remove(target)
+        except (ValueError, RuntimeError):
+            pass
+        self.target = None
+
+    def _create_constraint(self, context: Context):
+        """Infer and create the dimensional constraint from the current picks."""
         e1 = self.entity1
-        p1, p2 = e1.p1, e1.p2
-        if p1 and p2:
-            for i, pt in enumerate((p1, p2)):
-                state_data = self.get_state_data(i)
-                state_data["hovered"] = 0
-                state_data["type"] = PointRef
-                state_data["is_existing_entity"] = True
-                state_data["curve_id"] = pt.curve_id
-            self.next_state(context)
-        e1, e2 = self.entity1, self.entity2
-        if not self.exists(context, SlvsDistance, max_constraints=2):
-            self.target = self.sketch.constraints.add_distance(
-                init=not self.initialized,
-                curve_id_1=e1.curve_id if e1 else "",
-                curve_id_2=e2.curve_id if e2 else "",
-            )
-
-    def main(self, context):
-        e1, e2 = self.entity1, self.entity2
-        if e1 is None:
-            return False
-
+        e2 = getattr(self, "entity2", None)
         constraints = self.sketch.constraints
+        init = not self.initialized
 
         if e2 is None:
             if isinstance(e1, (CircleRef, ArcRef)):
                 if not self.exists(context, SlvsDiameter):
                     self.target = constraints.add_diameter(
-                        init=not self.initialized, curve_id_1=e1.curve_id
+                        init=init, curve_id_1=e1.curve_id
                     )
+                    logger.debug("Dimension -> diameter on %s", e1.curve_id)
             elif isinstance(e1, LineRef):
-                self._add_line_length(context)
+                # The native solver needs two point ids, so measure the line as
+                # the distance between its own endpoints.
+                p1, p2 = e1.p1, e1.p2
+                if (
+                    p1
+                    and p2
+                    and not self._distance_exists(context, (p1.curve_id, p2.curve_id))
+                ):
+                    self.target = constraints.add_distance(
+                        init=init, curve_id_1=p1.curve_id, curve_id_2=p2.curve_id
+                    )
+                    logger.debug("Dimension -> line length on %s", e1.curve_id)
             else:
-                self.report({"WARNING"}, "Select a second entity to add a dimension")
-                return False
+                logger.debug("Dimension: point %s needs a second entity", e1.curve_id)
+                return
         elif isinstance(e1, LineRef) and isinstance(e2, LineRef):
             if not self.exists(context, SlvsAngle):
                 self.target = constraints.add_angle(
-                    init=not self.initialized,
-                    curve_id_1=e1.curve_id,
-                    curve_id_2=e2.curve_id,
+                    init=init, curve_id_1=e1.curve_id, curve_id_2=e2.curve_id
+                )
+                logger.debug(
+                    "Dimension -> angle between %s and %s", e1.curve_id, e2.curve_id
                 )
         else:
             max_constraints = (
@@ -133,18 +193,57 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             )
             if not self.exists(context, SlvsDistance, max_constraints):
                 self.target = constraints.add_distance(
-                    init=not self.initialized,
-                    curve_id_1=e1.curve_id,
-                    curve_id_2=e2.curve_id,
+                    init=init, curve_id_1=e1.curve_id, curve_id_2=e2.curve_id
                 )
+                logger.debug("Dimension -> distance %s -> %s", e1.curve_id, e2.curve_id)
 
+        # Give the freshly created label a sensible default offset so it is
+        # visible before the first placement move (overwritten while dragging).
+        target = getattr(self, "target", None)
+        if target and context.region_data:
+            target.draw_offset = 0.05 * context.region_data.view_distance
+
+    def _place_dimension(self, context: Context, coords):
+        """Drag the dimension label onto the cursor, display only.
+
+        Projects the cursor onto the constraint's draw plane and offsets the
+        label there. Returns ``None`` so the placement state stores no value and
+        never triggers a re-solve; confirmation happens via the state click.
+        """
+        target = getattr(self, "target", None)
+        if not target or not hasattr(target, "update_draw_offset"):
+            return None
+
+        origin, end_point = get_picking_origin_end(context, coords)
+        pos = intersect_line_plane(origin, end_point, *target.draw_plane())
+        if pos is not None:
+            pos = target.matrix_basis().inverted() @ pos
+            target.update_draw_offset(pos, context.preferences.system.ui_scale)
+            if context.area:
+                context.area.tag_redraw()
+        return None
+
+    def main(self, context: Context):
+        e1 = getattr(self, "entity1", None)
+        if e1 is None:
+            return False
+
+        # While placing the label the geometry is fixed and only ``draw_offset``
+        # changes, so skip the recreate/solve and keep the existing constraint.
+        if self.initialized and self._is_placement_state():
+            return bool(getattr(self, "target", None))
+
+        # An entity pick changed the inference -- rebuild the constraint.
+        self._clear_target(context)
+        self._create_constraint(context)
         return super().main(context)
 
     def fini(self, context: Context, succeede: bool):
-        # Default label offset before the placement handoff (see add_distance).
-        if getattr(self, "target", None):
-            self.target.draw_offset = 0.1 * context.region_data.view_distance
-        super().fini(context, succeede)
+        # Placement now happens in this operator's own placement state, so there
+        # is no hand-off to the standalone tweak modal (unlike GenericConstraintOp).
+        target = getattr(self, "target", None)
+        if target is not None:
+            logger.debug("Dimension committed: %s (succeeded=%s)", target, succeede)
 
 
 register, unregister = register_stateops_factory((VIEW3D_OT_slvs_add_dimension,))
