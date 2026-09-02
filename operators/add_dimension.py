@@ -204,6 +204,11 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                     "Dimension -> angle between %s and %s", e1.curve_id, e2.curve_id
                 )
         else:
+            # Distance's natural form is point-to-line/point. The model collapses
+            # a *line* entity1 to its endpoints, so a line+point pair must be
+            # ordered point-first to measure the point-to-line distance.
+            if isinstance(e1, LineRef) and isinstance(e2, PointRef):
+                e1, e2 = e2, e1
             max_constraints = (
                 2 if isinstance(e1, PointRef) and isinstance(e2, PointRef) else 1
             )
@@ -238,14 +243,21 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             target.update_draw_offset(pos, context.preferences.system.ui_scale)
             # Full refresh (show_gizmo + redraw) so the gizmo re-reads the offset.
             refresh(context)
-        # One line per placement session tells us whether this runs and whether
-        # the offset actually moves (drop the counter once the drag is confirmed).
-        if not getattr(self, "_placement_logged", False):
-            self._placement_logged = True
+        # Per-move diagnostic (throttled): confirms _place_dimension keeps being
+        # called as the cursor moves and that draw_offset actually changes, and
+        # whether the target's index stays stable (a churned index would leave
+        # the gizmo bound to a stale constraint).
+        self._place_calls = getattr(self, "_place_calls", 0) + 1
+        if self._place_calls % 4 == 1:
+            constraints = get_active_constraints(context)
             logger.debug(
-                "Placement active: pos=%s draw_offset=%s",
-                None if pos is None else tuple(round(v, 3) for v in pos),
-                round(getattr(target, "draw_offset", 0.0), 4),
+                "Placement #%d: draw_offset=%.3f outset=%.3f target=%s idx=%s n=%d",
+                self._place_calls,
+                getattr(target, "draw_offset", 0.0),
+                getattr(target, "draw_outset", 0.0),
+                target.type,
+                constraints.get_index(target) if constraints else -1,
+                len(list(constraints.all)) if constraints else -1,
             )
         return None
 
@@ -259,9 +271,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         if self.initialized and self._is_placement_state():
             return bool(getattr(self, "target", None))
 
-        # An entity pick changed the inference -- rebuild the constraint. Reset
-        # the once-per-session placement log so it re-arms after a type switch.
-        self._placement_logged = False
+        # An entity pick changed the inference -- rebuild the constraint.
         self._clear_target(context)
         self._create_constraint(context)
         return super().main(context)
