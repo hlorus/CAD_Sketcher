@@ -21,15 +21,22 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         layout.operator(declarations.Operators.MergePoints)
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
 
+        # Icon-only buttons; the constraint name still shows in the tooltip.
+        # Dimensional constraints (value-based) get their own row, kept separate
+        # from the geometric ones below.
         layout.label(text="Constraints:")
-        # Icon-only buttons in a grid; the name still shows in the tooltip. Scale
-        # up a little so the constraint symbols are easier to read.
+        row = layout.row(align=True)
+        row.scale_x = 1.2
+        row.scale_y = 1.2
+        for op in declarations.DimensionalConstraintOperators:
+            row.operator(op, text="", icon_value=icon_manager.get_constraint_icon(op))
+
         grid = layout.grid_flow(
-            row_major=True, columns=4, even_columns=True, even_rows=True, align=True
+            row_major=True, columns=5, even_columns=True, even_rows=True, align=True
         )
-        grid.scale_x = 1.4
-        grid.scale_y = 1.4
-        for op in declarations.ConstraintOperators:
+        grid.scale_x = 1.2
+        grid.scale_y = 1.2
+        for op in declarations.GeometricConstraintOperators:
             grid.operator(op, text="", icon_value=icon_manager.get_constraint_icon(op))
 
         layout.separator()
