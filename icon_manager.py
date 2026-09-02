@@ -9,6 +9,12 @@ from bpy.app import background
 from .declarations import Operators
 
 preview_icons = None
+# Custom preview icons are blitted as-is (Blender never themes them), so the white
+# icons vanish on light UI themes. Keep a dark-tinted copy and pick the set that
+# contrasts the panel: Blender guarantees the widget text colour contrasts the
+# panel background, so matching the icon lightness to the text colour works.
+preview_icons_dark = None
+_DARK_TINT = 0.15
 
 # Single texture atlas holding every constraint icon, so all icons render in one
 # batched draw (one sampler bind) instead of one textured draw per constraint.
@@ -95,6 +101,7 @@ def load():
         return
 
     load_preview_icons()
+    _build_dark_previews()
     _build_atlas()
 
 
@@ -122,8 +129,35 @@ def load_preview_icons():
         preview_icons.load(operator, str(icon_path), 'IMAGE')
 
 
+def _build_dark_previews():
+    """Derive a dark-tinted copy of each icon for use on light UI themes."""
+    global preview_icons_dark
+
+    if preview_icons_dark or not preview_icons:
+        return
+
+    preview_icons_dark = bpy.utils.previews.new()
+    for operator in _operator_types:
+        light = preview_icons.get(operator)
+        if not light:
+            continue
+        w, h = light.icon_size
+        if w == 0 or h == 0:
+            continue
+        pixels = np.asarray(light.icon_pixels_float, dtype=np.float32).reshape(-1, 4)
+        pixels[:, :3] *= _DARK_TINT  # darken the shape, keep the alpha (edges)
+        dark = preview_icons_dark.new(operator)
+        dark.icon_size = (w, h)
+        dark.icon_pixels_float.foreach_set(pixels.ravel())
+
+
 def unload_preview_icons():
-    global preview_icons
+    global preview_icons, preview_icons_dark
+
+    if preview_icons_dark:
+        preview_icons_dark.clear()
+        bpy.utils.previews.remove(preview_icons_dark)
+        preview_icons_dark = None
 
     if not preview_icons:
         return
@@ -133,11 +167,24 @@ def unload_preview_icons():
     preview_icons = None
 
 
+def _use_dark_icons():
+    """True on a light theme -- decided by the widget text colour, which Blender
+    keeps contrasting with the panel background (dark text => light panel)."""
+    try:
+        text = bpy.context.preferences.themes[0].user_interface.wcol_regular.text
+        return (0.2126 * text[0] + 0.7152 * text[1] + 0.0722 * text[2]) < 0.5
+    except Exception:
+        return False
+
+
 def get_constraint_icon(operator: str):
-    if not preview_icons:
+    icons = preview_icons
+    if preview_icons_dark and _use_dark_icons():
+        icons = preview_icons_dark
+    if not icons:
         return -1
 
-    icon = preview_icons.get(operator)
+    icon = icons.get(operator)
 
     if not icon:
         return -1
