@@ -34,6 +34,7 @@ class Operators(str, Enum):
     AddCircle2D = "view3d.slvs_add_circle2d"
     AddCoincident = "view3d.slvs_add_coincident"
     AddDiameter = "view3d.slvs_add_diameter"
+    AddDimension = "view3d.slvs_add_dimension"
     AddDistance = "view3d.slvs_add_distance"
     AddEqual = "view3d.slvs_add_equal"
     AddHorizontal = "view3d.slvs_add_horizontal"
@@ -120,6 +121,7 @@ class VisibilityTypes(str, Enum):
 class WorkSpaceTools(str, Enum):
     AddArc2D = "sketcher.slvs_add_arc2d"
     AddCircle2D = "sketcher.slvs_add_circle2d"
+    AddDimension = "sketcher.slvs_add_dimension"
     AddLine2D = "sketcher.slvs_add_line2d"
     AddLine3D = "sketcher.slvs_add_line3d"
     AddPoint2D = "sketcher.slvs_add_point2d"
