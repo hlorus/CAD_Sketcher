@@ -99,20 +99,29 @@ class TestDimensionOp(Sketch2dTestCase):
         # The curve must be entity1 for the native distance solver.
         self.assertEqual(target.curve_id_1, c.curve_id)
 
-    def test_curve_to_curve_is_center_distance(self):
-        # No edge-to-edge distance in the solver; two curves measure their
-        # center-to-center distance (hole spacing).
+    def test_curve_to_curve_is_edge_distance(self):
+        # Two curves measure edge-to-edge along the line of centres: centres are
+        # 6 apart with radii 2 and 1, so the gap is 3.
         from ..model.distance import SlvsDistance
 
-        ct1 = self.add_point((0.0, 0.0))
-        ct2 = self.add_point((6.0, 0.0))
-        c1 = self.add_circle(ct1, 2.0)
-        c2 = self.add_circle(ct2, 1.0)
+        c1 = self.add_circle(self.add_point((0.0, 0.0)), 2.0)
+        c2 = self.add_circle(self.add_point((6.0, 0.0)), 1.0)
         target = self._switch(c1, c2)
         self.assertIsInstance(target, SlvsDistance)
-        self.assertEqual(
-            set(target.curve_id_placements()), {c1.ct.curve_id, c2.ct.curve_id}
-        )
+        # The constraint references the curves themselves (so the solver adds
+        # both radii), not their centres.
+        self.assertEqual(set(target.curve_id_placements()), {c1.curve_id, c2.curve_id})
+        self.assertAlmostEqual(target.value, 3.0, places=3)
+
+    def test_curve_to_curve_edge_distance_solves(self):
+        # Enforcing an edge gap of 5 with radii 2 and 1 must place the centres 8
+        # apart (the solver constrains centre-to-centre = value + r1 + r2).
+        c1 = self.add_circle(self.add_point((0.0, 0.0), fixed=True), 2.0)
+        c2 = self.add_circle(self.add_point((6.0, 0.0)), 1.0)
+        target = self._switch(c1, c2)
+        target.value = 5.0
+        self.assertTrue(self.sketch.solve(self.context))
+        self.assertAlmostEqual((c2.ct.co - c1.ct.co).length, 8.0, places=2)
 
     def test_line_length_spans_endpoints(self):
         # The native solver needs two point ids, so a lone line is measured as

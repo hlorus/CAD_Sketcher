@@ -42,7 +42,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
     - two points          -> distance
     - point + line        -> point-to-line distance
     - point/line + circle/arc -> edge distance (measured from the curve's edge)
-    - circle/arc + circle/arc -> center-to-center distance
+    - circle/arc + circle/arc -> edge-to-edge distance (along the line of centres)
 
     A line/circle/arc drops straight into an interactive placement state after
     the first pick, where the label is dragged into place (display only, no
@@ -154,16 +154,12 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
 
         The solver measures a curve (circle/arc) from its edge and requires it as
         entity1; a point/line pair measures point-to-line, so the point goes
-        first. Two curves have no edge-to-edge distance in the solver, so they are
-        measured center-to-center (the common hole-spacing dimension) by pairing
-        their center points.
+        first. Two curves are measured edge-to-edge along the line of centres.
         """
         c1 = isinstance(e1, (CircleRef, ArcRef))
         c2 = isinstance(e2, (CircleRef, ArcRef))
         if c1 and c2:
-            ct1 = getattr(e1, "ct", None)
-            ct2 = getattr(e2, "ct", None)
-            return (ct1, ct2) if ct1 is not None and ct2 is not None else None
+            return e1, e2
         if c2:
             return e2, e1
         if c1:

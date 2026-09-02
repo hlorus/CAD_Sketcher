@@ -1,31 +1,34 @@
 import logging
 import math
 
+from bpy.props import (
+    BoolProperty,
+    EnumProperty,
+    FloatProperty,
+    StringProperty,
+)
 from bpy.types import PropertyGroup
-from .sketch_ref import get_active_sketch
-from bpy.props import BoolProperty, FloatProperty, EnumProperty, IntProperty, StringProperty
 from bpy.utils import register_classes_factory
-from mathutils import Vector, Matrix
-from mathutils.geometry import distance_point_to_plane, intersect_point_line
+from mathutils import Matrix, Vector
+from mathutils.geometry import intersect_point_line
 
 from ..curve_solver import Solver
-from ..utilities import preferences
 from ..global_data import WpReq
-from ..utilities.view import location_3d_to_region_2d
+from ..utilities import preferences
+from ..utilities.bpy import bpyEnum
 from ..utilities.math import range_2pi
-from .base_constraint import DimensionalConstraint
-from .utilities import slvs_entity_pointer
-from .categories import POINT, LINE, POINT2D, CURVE
 from ..utilities.solver import update_system_cb
-from ..utilities.bpy import setprop, bpyEnum
-
-from .workplane import SlvsWorkplane
-from .point_3d import SlvsPoint3D
+from ..utilities.view import location_3d_to_region_2d
+from .arc import SlvsArc
+from .base_constraint import DimensionalConstraint
+from .categories import CURVE, LINE, POINT, POINT2D
+from .circle import SlvsCircle
+from .line_2d import SlvsLine2D
 from .line_3d import SlvsLine3D
 from .point_2d import SlvsPoint2D
-from .line_2d import SlvsLine2D
-from .arc import SlvsArc
-from .circle import SlvsCircle
+from .point_3d import SlvsPoint3D
+from .utilities import slvs_entity_pointer
+from .workplane import SlvsWorkplane
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +56,13 @@ align_items = [
     ("VERTICAL", "Vertical", "", 2),
 ]
 
+
 def _get_value(self):
     if self.is_reference:
         val = self.init_props(align=self.align)["value"]
         return self.to_displayed_value(val)
     import bpy
+
     scene = bpy.context.scene
     uid = getattr(self, "constraint_uid", "")
     if scene is not None and uid:
@@ -140,9 +145,9 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     curve_id_2: StringProperty(name="Curve ID 2", default="")
 
     def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
-        from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
+
         from ..model.constants import SketchCurveType
-        import bpy
+        from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
 
         h1 = handle_map.get(self.curve_id_1)
         h2 = handle_map.get(self.curve_id_2)
@@ -169,18 +174,35 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             if h1 is None:
                 return None
 
-        # Curve/arc entity1 → distance from center + radius offset
+        # Curve/arc entity1 → measure from its edge, i.e. constrain the centre a
+        # radius further out. A curve entity2 adds its own radius too, so the
+        # value is the edge-to-edge gap along the line of centres.
         if t1 in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
-            ct_id = get_uuid(cd, "center_point_id", idx1)
-            ct_handle = handle_map.get(ct_id)
-            ct_pos = get_curve_position(sketch, ct_id)
-            if ct_handle and ct_pos:
-                from mathutils import Vector
-                curve_slice = cd.curves[idx1]
-                edge_pos = Vector(cd.points[curve_slice.points[0].index].position)
-                radius = (edge_pos - Vector(ct_pos)).length
-                return solvesys.distance(group, ct_handle, h2, value + radius, wp)
-            return None
+            from mathutils import Vector
+
+            def _center_radius(index):
+                cid = get_uuid(cd, "center_point_id", index)
+                handle = handle_map.get(cid)
+                pos = get_curve_position(sketch, cid)
+                if not handle or not pos:
+                    return None, 0.0
+                slice_ = cd.curves[index]
+                edge = Vector(cd.points[slice_.points[0].index].position)
+                return handle, (edge - Vector(pos)).length
+
+            ct1_handle, r1 = _center_radius(idx1)
+            if ct1_handle is None:
+                return None
+
+            if t2 in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
+                ct2_handle, r2 = _center_radius(idx2)
+                if ct2_handle is None:
+                    return None
+                return solvesys.distance(
+                    group, ct1_handle, ct2_handle, value + r1 + r2, wp
+                )
+
+            return solvesys.distance(group, ct1_handle, h2, value + r1, wp)
 
         # Point-to-line or point-to-point
         if t2 == SketchCurveType.LINE:
@@ -277,25 +299,18 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             func = solvesys.distance
         elif type(e2) in POINT:
             if align and all([e.is_2d() for e in (e1, e2)]):
-
                 # Get Point in between
                 p1, p2 = e1.co, e2.co
                 coords = (p2.x, p1.y)
 
                 p = solvesys.add_point_2d(group, *coords, wp)
 
-                handles.append(
-                    solvesys.horizontal(group, p, wp, entityB=e2.py_data)
-                )
-                handles.append(
-                    solvesys.vertical(group, p, wp, entityB=e1.py_data)
-                )
+                handles.append(solvesys.horizontal(group, p, wp, entityB=e2.py_data))
+                handles.append(solvesys.vertical(group, p, wp, entityB=e1.py_data))
 
                 base_point = e1 if alignment == "VERTICAL" else e2
                 handles.append(
-                    solvesys.distance(
-                        group, p, base_point.py_data, value, wp
-                    )
+                    solvesys.distance(group, p, base_point.py_data, value, wp)
                 )
                 return handles
             else:
@@ -320,6 +335,20 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         alignment = self.align
         align = self.is_align()
         angle = 0
+
+        # Curve-to-curve: the gap is measured edge-to-edge along the line of
+        # centres, so place the label between the two facing edge points.
+        if e1.is_curve() and e2 is not None and e2.is_curve():
+            c1, c2 = e1.ct.co, e2.ct.co
+            axis = c2 - c1
+            axis = axis.normalized() if axis.length else x_axis
+            edge1 = c1 + e1.radius * axis
+            edge2 = c2 - e2.radius * axis
+            rot = axis.angle_signed(x_axis) if axis.length else 0.0
+            mat_rot = Matrix.Rotation(rot, 2, "Z")
+            v_translation = (edge1 + edge2) / 2
+            mat_local = Matrix.Translation(v_translation.to_3d()) @ mat_rot.to_4x4()
+            return wp_mat @ mat_local
 
         # Resolve p1 and p2 as 2D positions
         if e1.is_curve():
@@ -392,6 +421,9 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             return _get_aligned_distance(r1.p1, r1.p2, alignment)
         if r1.is_curve():
             centerpoint = r1.ct.co
+            # Curve-to-curve: edge-to-edge gap along the line of centres.
+            if r2 and r2.is_curve():
+                return (centerpoint - r2.ct.co).length - r1.radius - r2.radius
             if r2 and r2.is_line():
                 endpoint, _ = intersect_point_line(centerpoint, r2.p1.co, r2.p2.co)
             elif r2 and r2.is_point():
