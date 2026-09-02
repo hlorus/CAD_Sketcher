@@ -113,6 +113,23 @@ class TestDimensionOp(Sketch2dTestCase):
         self.assertEqual(set(target.curve_id_placements()), {c1.curve_id, c2.curve_id})
         self.assertAlmostEqual(target.value, 3.0, places=3)
 
+    def test_circle_line_keeps_side(self):
+        # A circle above a line must stay above it after solving (no jump across).
+        c = self.add_circle(self.add_point((0.0, 3.0)), 1.0)
+        line = self._line((-5.0, 0.0), (5.0, 0.0))
+        self._switch(c, line)
+        self.assertTrue(self.sketch.solve(self.context))
+        self.assertGreater(c.ct.co.y, 0.0)
+
+    def test_two_circles_prefill_distance(self):
+        # Pre-selecting two circles and pressing D must dimension the distance
+        # between them (not just diameter the first).
+        from ..model.distance import SlvsDistance
+
+        c1 = self.add_circle(self.add_point((0.0, 0.0)), 2.0)
+        c2 = self.add_circle(self.add_point((6.0, 0.0)), 1.0)
+        self.assertIsInstance(self._dispatch(c1, c2), SlvsDistance)
+
     def test_curve_to_curve_edge_distance_solves(self):
         # Enforcing an edge gap of 5 with radii 2 and 1 must place the centres 8
         # apart (the solver constrains centre-to-centre = value + r1 + r2).

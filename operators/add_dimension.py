@@ -7,6 +7,7 @@ from mathutils.geometry import intersect_line_plane
 
 from ..curve_solver import solve_system
 from ..declarations import Operators
+from ..drawing import selection
 from ..model.angle import SlvsAngle
 from ..model.arc import SlvsArc
 from ..model.circle import SlvsCircle
@@ -114,10 +115,57 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         )
         return states
 
+    def init(self, context: Context, event: Event):
+        if not super().init(context, event):
+            return False
+        # Snapshot the pre-selection: a first-pick type that goes straight to
+        # placement (line/circle/arc) has no E2 slot, so a pre-selected partner
+        # is adopted from here in _create_constraint rather than via a state.
+        self._prefill_selection = list(selection.selected)
+        return True
+
     def _second_entity(self):
         """The partner entity, from the state machine (point flow) or from a
         click made during placement (line flow)."""
         return getattr(self, "entity2", None) or getattr(self, "_second_ref", None)
+
+    def _prefill_second(self):
+        """Adopt a pre-selected partner for a line/circle/arc first pick.
+
+        Prefill fills only ``entity1`` for these types (their dynamic states drop
+        the E2 slot once the type is known), so a pre-selected pair would only
+        dimension the first entity. Pull a compatible second from the snapshot.
+        """
+        if self._second_entity() is not None:
+            return
+        e1 = getattr(self, "entity1", None)
+        if not isinstance(e1, (LineRef, CircleRef, ArcRef)):
+            return
+
+        excluded = {e1.curve_id}
+        if isinstance(e1, LineRef):
+            for p in (e1.p1, e1.p2):
+                if p:
+                    excluded.add(p.curve_id)
+        else:
+            ct = getattr(e1, "ct", None)
+            if ct is not None:
+                excluded.add(ct.curve_id)
+
+        # Prefer the init snapshot; fall back to the live selection (the test
+        # harness drives the op without invoke/init). _create_constraint runs
+        # before the deselect in super().main(), so the selection is still intact.
+        candidates = getattr(self, "_prefill_selection", None)
+        if candidates is None:
+            candidates = list(selection.selected)
+
+        for cid in candidates:
+            if cid in excluded:
+                continue
+            ref = curve_ref(self.sketch, cid)
+            if isinstance(ref, (LineRef, PointRef, CircleRef, ArcRef)):
+                self._second_ref = ref
+                return
 
     def _available_entities(self):
         return [getattr(self, "entity1", None), self._second_entity()]
@@ -204,6 +252,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
 
     def _create_constraint(self, context: Context):
         """Infer and create the dimensional constraint from the current picks."""
+        self._prefill_second()
         e1 = self.entity1
         e2 = self._second_entity()
         constraints = self.sketch.constraints

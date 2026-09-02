@@ -202,6 +202,13 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
                     group, ct1_handle, ct2_handle, value + r1 + r2, wp
                 )
 
+            if t2 == SketchCurveType.LINE:
+                # Point-to-line distance is signed (see use_flipping): keep the
+                # radius on the same side as the centre so the circle doesn't jump
+                # across the line.
+                r1_signed = -r1 if self.flip else r1
+                return solvesys.distance(group, ct1_handle, h2, value + r1_signed, wp)
+
             return solvesys.distance(group, ct1_handle, h2, value + r1, wp)
 
         # Point-to-line or point-to-point
@@ -232,11 +239,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         return WpReq.OPTIONAL
 
     def use_flipping(self):
-        # Only use flipping for constraint between point and line/workplane
+        # A distance to a line is signed so the point/curve keeps its side of the
+        # line; without it the solver may flip the entity across.
         r1, r2 = self.ref(1), self.ref(2)
         if not r1 or not r2:
-            return False
-        if r1.is_curve():
             return False
         return r2.is_line()
 
@@ -425,12 +431,16 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
             if r2 and r2.is_curve():
                 return (centerpoint - r2.ct.co).length - r1.radius - r2.radius
             if r2 and r2.is_line():
+                # Signed by the centre's side of the line, so init sets ``flip``
+                # and the circle keeps its side (matching point-to-line below).
                 endpoint, _ = intersect_point_line(centerpoint, r2.p1.co, r2.p2.co)
-            elif r2 and r2.is_point():
-                endpoint = r2.co
-            else:
-                return 0.0
-            return (centerpoint - endpoint).length - r1.radius
+                gap = (centerpoint - endpoint).length - r1.radius
+                return math.copysign(
+                    gap, get_side_of_line(r2.p1.co, r2.p2.co, centerpoint)
+                )
+            if r2 and r2.is_point():
+                return (centerpoint - r2.co).length - r1.radius
+            return 0.0
         if r2 and r2.is_line():
             orig = r2.p1.co
             end = r2.p2.co - orig
