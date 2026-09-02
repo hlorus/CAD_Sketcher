@@ -203,22 +203,6 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         if target and context.region_data:
             target.draw_offset = 0.05 * context.region_data.view_distance
 
-    def _ensure_gizmo(self, context: Context):
-        """Nudge the persistent constraint gizmo group to rebuild for the new
-        dimension.
-
-        The label is drawn by a persistent gizmo group whose ``setup`` only runs
-        on a gizmo-map refresh, which Blender does not do on its own while our
-        modal is running -- so a constraint created mid-modal starts with no
-        gizmo and its label can't be dragged. Toggling ``show_gizmo`` off here
-        lets the placement state's ``refresh`` (which turns it back on) drive the
-        off->on transition that re-runs the group's setup. ``gizmo_group_type_ensure``
-        cannot be used for this -- it rejects PERSISTENT groups.
-        """
-        space = context.space_data
-        if space and getattr(space, "type", None) == "VIEW_3D":
-            space.show_gizmo = False
-
     def _place_dimension(self, context: Context, coords):
         """Drag the dimension label onto the cursor, display only.
 
@@ -228,6 +212,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         """
         target = getattr(self, "target", None)
         if not target or not hasattr(target, "update_draw_offset"):
+            logger.debug("Placement: no target to place")
             return None
 
         origin, end_point = get_picking_origin_end(context, coords)
@@ -237,6 +222,15 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             target.update_draw_offset(pos, context.preferences.system.ui_scale)
             # Full refresh (show_gizmo + redraw) so the gizmo re-reads the offset.
             refresh(context)
+        # One line per placement session tells us whether this runs and whether
+        # the offset actually moves (drop the counter once the drag is confirmed).
+        if not getattr(self, "_placement_logged", False):
+            self._placement_logged = True
+            logger.debug(
+                "Placement active: pos=%s draw_offset=%s",
+                None if pos is None else tuple(round(v, 3) for v in pos),
+                round(getattr(target, "draw_offset", 0.0), 4),
+            )
         return None
 
     def main(self, context: Context):
@@ -249,20 +243,17 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         if self.initialized and self._is_placement_state():
             return bool(getattr(self, "target", None))
 
-        # An entity pick changed the inference -- rebuild the constraint.
+        # An entity pick changed the inference -- rebuild the constraint. Reset
+        # the once-per-session placement log so it re-arms after a type switch.
+        self._placement_logged = False
         self._clear_target(context)
         self._create_constraint(context)
-        result = super().main(context)
-        # Force the gizmo group to pick up the new constraint so its label can be
-        # dragged in the placement state that follows.
-        self._ensure_gizmo(context)
-        return result
+        return super().main(context)
 
     def fini(self, context: Context, succeede: bool):
         # Placement now happens in this operator's own placement state, so there
         # is no hand-off to the standalone tweak modal (unlike GenericConstraintOp).
-        # Always leave gizmos visible: _ensure_gizmo may have toggled show_gizmo
-        # off, and on cancel the placement refresh never turns it back on.
+        # Make sure gizmos end up visible and the label reflects the final offset.
         refresh(context)
         target = getattr(self, "target", None)
         if target is not None:
