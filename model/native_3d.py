@@ -41,6 +41,15 @@ def _set_convert_fill(modifier, value):
         getattr(props.inputs, fill_socket.identifier).value = bool(value)
     else:
         modifier[fill_socket.identifier] = bool(value)
+
+    # When the guard resets Fill from inside depsgraph_update_post, changing the
+    # modifier input alone can leave the already-evaluated Fill Curve result in
+    # the viewport until some unrelated edit dirties the object. Explicitly tag
+    # the modifier owner so Blender schedules a fresh Geometry Nodes evaluation
+    # with Fill=False on the next depsgraph pass.
+    owner = getattr(modifier, "id_data", None)
+    if owner is not None:
+        owner.update_tag()
     return True
 
 
