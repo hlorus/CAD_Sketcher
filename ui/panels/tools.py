@@ -24,8 +24,12 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         prefs = preferences.get_prefs()
         header = layout.row(align=True)
         header.label(text="Constraints:")
-        header.prop(
-            prefs, "constraint_grid_view", text="", icon="MESH_GRID", toggle=True
+        # Right-aligned so the toggle stays a normal-size square button (not
+        # stretched to fill the row like the scaled constraint icons below).
+        toggle = header.row()
+        toggle.alignment = "RIGHT"
+        toggle.prop(
+            prefs, "constraint_grid_view", text="", icon="IMGDISPLAY", toggle=True
         )
 
         if prefs.constraint_grid_view:
@@ -49,7 +53,10 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
             _icon_grid(declarations.GeometricConstraintOperators)
         else:
             col = layout.column(align=True)
-            for op in declarations.ConstraintOperators:
+            for op in declarations.DimensionalConstraintOperators:
+                col.operator(op, icon_value=icon_manager.get_constraint_icon(op))
+            col.separator()
+            for op in declarations.GeometricConstraintOperators:
                 col.operator(op, icon_value=icon_manager.get_constraint_icon(op))
 
         layout.separator()
