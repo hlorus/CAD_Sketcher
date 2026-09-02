@@ -1,8 +1,8 @@
 from pathlib import Path
 
-import gpu
 import bpy
 import bpy.utils.previews
+import gpu
 import numpy as np
 from bpy.app import background
 
