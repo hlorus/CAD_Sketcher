@@ -21,6 +21,7 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         layout.operator(declarations.Operators.MergePoints)
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
 
+        layout.separator()
         prefs = preferences.get_prefs()
         header = layout.row(align=True)
         header.label(text="Constraints:")
@@ -42,8 +43,11 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
             # scale so the buttons are identically sized.
             def _icon_grid(operators):
                 grid = layout.grid_flow(
-                    row_major=True, columns=5, even_columns=True,
-                    even_rows=True, align=True,
+                    row_major=True,
+                    columns=5,
+                    even_columns=True,
+                    even_rows=True,
+                    align=True,
                 )
                 grid.scale_x = 1.2
                 grid.scale_y = 1.2
