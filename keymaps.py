@@ -174,6 +174,11 @@ tool_access = (
     ),
     tool_invoke_kmi("O", WorkSpaceTools.Offset, Operators.Offset),
     tool_invoke_kmi(
+        "D",
+        WorkSpaceTools.AddDimension,
+        Operators.AddDimension,
+    ),
+    tool_invoke_kmi(
         "S",
         WorkSpaceTools.AddSketch,
         Operators.AddSketch,

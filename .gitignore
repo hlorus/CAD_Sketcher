@@ -142,3 +142,4 @@ nul
 # Blender auto-backup files
 *.blend1
 CLAUDE.md
+.bltest/

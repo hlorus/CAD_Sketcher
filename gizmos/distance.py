@@ -23,11 +23,13 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
     bl_idname = Gizmos.Distance
     type = SlvsDistance.type
 
-    bl_target_properties = ({
-        "id": "offset",
-        "type": "FLOAT",
-        "array_length": 1,
-    },)
+    bl_target_properties = (
+        {
+            "id": "offset",
+            "type": "FLOAT",
+            "array_length": 1,
+        },
+    )
 
     __slots__ = (
         "custom_shape",
@@ -41,7 +43,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
         offset = self.target_get_value("offset")
         entity1, entity2 = constr.ref(1), constr.ref(2)
         if entity1 is None or entity2 is None:
-            return ((0,0,0),) * 4
+            return ((0, 0, 0),) * 4
         if entity1.is_line():
             entity1, entity2 = entity1.p1, entity1.p2
 
@@ -65,20 +67,36 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
                 targetpoint, _ = intersect_point_line(
                     centerpoint, entity2.p1.co, entity2.p2.co
                 )
+            elif entity2.is_curve():
+                targetpoint = entity2.ct.co
             else:
                 # TODO: Handle the case for SlvsWorkplane
-                pass
+                targetpoint = centerpoint
 
             targetvec = targetpoint - centerpoint
-            points_local.append(get_local(
-                centerpoint + entity1.radius * targetvec / targetvec.length
-            ))
+            if targetvec.length:
+                points_local.append(
+                    get_local(
+                        centerpoint + entity1.radius * targetvec / targetvec.length
+                    )
+                )
+            else:
+                points_local.append(get_local(centerpoint))
 
         else:
             points_local.append(get_local(entity1.location))
 
         # Add endpoint for entity2 helpline
-        if entity2.is_point():
+        if entity2.is_curve():
+            # Edge of the second curve facing the first (line of centres).
+            centervec = entity2.ct.co - entity1.ct.co
+            if centervec.length:
+                edge = entity2.ct.co - entity2.radius * centervec / centervec.length
+            else:
+                edge = entity2.ct.co
+            points_local.append(get_local(edge))
+
+        elif entity2.is_point():
             points_local.append(get_local(entity2.location))
 
         elif entity2.is_line():
@@ -103,7 +121,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
 
         # Pick the points based on their x location
         if len(points_local) < 2:
-            return ((0,0,0),) * 4
+            return ((0, 0, 0),) * 4
         if points_local[0].x > points_local[1].x:
             point_right, point_left = points_local
         else:
@@ -133,10 +151,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
             p1, p2 = p2, p1
         p1_global, p2_global = [self.matrix_world @ p for p in (p1, p2)]
 
-        scale_1, scale_2 = [
-            get_scale_from_pos(p, rv3d)
-            for p in (p1_global, p2_global)
-        ]
+        scale_1, scale_2 = [get_scale_from_pos(p, rv3d) for p in (p1_global, p2_global)]
 
         arrow_1 = get_arrow_size(half_dist, scale_1)
         arrow_2 = get_arrow_size(half_dist, scale_2)
@@ -166,9 +181,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
                 # jitter back and forth to extend leader line for
                 # text_outside case but it is unnecessary work for
                 # text_inside case
-                Vector(
-                    (outset, offset, 0)
-                ),
+                Vector((outset, offset, 0)),
                 p1,
                 p2,
                 *draw_arrow_shape(

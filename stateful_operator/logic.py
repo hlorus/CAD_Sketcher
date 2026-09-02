@@ -669,6 +669,14 @@ class StatefulOperatorLogic(_StateMachineMixin):
         context.area.tag_redraw()
 
         if triggered and not ok:
+            # An optional state whose overall requirements are already met can be
+            # skipped rather than cancelled: advance to the next state (e.g. the
+            # dimension tool leaving its optional "second entity" pick to fall
+            # through to label placement), or finish if it was the last one.
+            if state.optional and self.check_props():
+                if not self.next_state(context):
+                    return self._end(context, succeede)
+                return {"RUNNING_MODAL"}
             # Triggered on non-valid target — cancel to avoid confusion
             return self._end(context, False)
 
@@ -794,7 +802,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
             if ptype is None:
                 continue
             data["type"] = ptype
-            data["is_existing_entity"] = bool(getattr(self, "ptr%d_existing" % i, False))
+            data["is_existing_entity"] = bool(
+                getattr(self, "ptr%d_existing" % i, False)
+            )
             vals = self._unpack_pointer_vals(
                 getattr(self, "ptr%d_name" % i, ""),
                 getattr(self, "ptr%d_index" % i, -1),
