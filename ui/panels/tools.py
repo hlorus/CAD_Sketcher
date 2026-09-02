@@ -12,7 +12,7 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
 
     bl_label = "Tools"
     bl_idname = declarations.Panels.SketcherTools
-    bl_options = {"DEFAULT_CLOSED"}
+    bl_options = set()  # expanded by default
 
     def _draw_sketch_tools(self, context: Context):
         """Tools that only make sense while editing a sketch."""
@@ -22,22 +22,23 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
 
         # Icon-only buttons; the constraint name still shows in the tooltip.
-        # Dimensional constraints (value-based) get their own row, kept separate
-        # from the geometric ones below.
-        layout.label(text="Constraints:")
-        row = layout.row(align=True)
-        row.scale_x = 1.2
-        row.scale_y = 1.2
-        for op in declarations.DimensionalConstraintOperators:
-            row.operator(op, text="", icon_value=icon_manager.get_constraint_icon(op))
+        # Dimensional constraints (value-based) go in their own grid, kept separate
+        # from the geometric ones. Both use the same column count and scale so the
+        # buttons are identically sized.
+        def _icon_grid(operators):
+            grid = layout.grid_flow(
+                row_major=True, columns=5, even_columns=True, even_rows=True, align=True
+            )
+            grid.scale_x = 1.2
+            grid.scale_y = 1.2
+            for op in operators:
+                grid.operator(
+                    op, text="", icon_value=icon_manager.get_constraint_icon(op)
+                )
 
-        grid = layout.grid_flow(
-            row_major=True, columns=5, even_columns=True, even_rows=True, align=True
-        )
-        grid.scale_x = 1.2
-        grid.scale_y = 1.2
-        for op in declarations.GeometricConstraintOperators:
-            grid.operator(op, text="", icon_value=icon_manager.get_constraint_icon(op))
+        layout.label(text="Constraints:")
+        _icon_grid(declarations.DimensionalConstraintOperators)
+        _icon_grid(declarations.GeometricConstraintOperators)
 
         layout.separator()
 
