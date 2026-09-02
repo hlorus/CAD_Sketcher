@@ -38,3 +38,38 @@ class TestNative3DCurveTypes(BgsTestCase):
             self.assertIsNotNone(curve_type)
             self.assertEqual(curve_type.domain, "CURVE")
             self.assertEqual(curve_type.data[curve_idx].value, 1)
+
+    def test_refresh_preserves_poly_curve_types_and_xyz(self):
+        """The shared topology refresh must not planarize or retype free-3D data."""
+        from ..model.native_3d import create_line_3d, create_point_3d
+        from ..utilities.curve_data import get_curve_data, refresh_curve_geometry
+
+        p1 = create_point_3d(self.sketch, (1.25, -2.5, 3.75), fixed=True)
+        p2 = create_point_3d(self.sketch, (-4.5, 5.25, 6.5))
+        line = create_line_3d(self.sketch, p1, p2)
+        refs = (p1, p2, line)
+
+        def snapshot(ref):
+            curve_data, curve_idx, curve = get_curve_data(self.sketch, ref.curve_id)
+            self.assertIsNotNone(curve_data)
+            curve_type = curve_data.attributes.get("curve_type")
+            self.assertIsNotNone(curve_type)
+            positions = [
+                tuple(curve_data.points[point.index].position)
+                for point in curve.points
+            ]
+            return curve_type.data[curve_idx].value, positions
+
+        before = {ref.curve_id: snapshot(ref) for ref in refs}
+
+        refresh_curve_geometry(self.sketch)
+
+        for ref in refs:
+            curve_type, positions = snapshot(ref)
+            before_type, before_positions = before[ref.curve_id]
+            self.assertEqual(before_type, 1)
+            self.assertEqual(curve_type, 1)
+            self.assertEqual(len(positions), len(before_positions))
+            for actual, expected in zip(positions, before_positions):
+                for actual_axis, expected_axis in zip(actual, expected):
+                    self.assertAlmostEqual(actual_axis, expected_axis, places=6)
