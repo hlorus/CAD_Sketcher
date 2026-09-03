@@ -15,13 +15,13 @@ class VIEW3D_MT_slvs_add_sketch(Menu):
 
     def draw(self, context: Context):
         layout = self.layout
-        props = layout.operator(
-            StatefulOps.InvokeTool.value,
+        # The 3D-sketch operator creates immediately (no placement gizmo), so it
+        # is invoked directly rather than through a workspace tool.
+        layout.operator(
+            declarations.Operators.AddSketch3D.value,
             text="Add 3D Sketch",
             icon="ADD",
         )
-        props.tool_name = declarations.WorkSpaceTools.AddSketch3D.value
-        props.operator = declarations.Operators.AddSketch3D.value
 
 
 def _draw_detached_warning(layout: UILayout, sketch):
