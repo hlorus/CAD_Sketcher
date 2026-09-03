@@ -1,9 +1,27 @@
-from bpy.types import Context, UILayout
+from bpy.types import Context, Menu, UILayout
 
 from ...model.sketch_ref import get_active_sketch, get_sketches
 from ...stateful_operator.constants import Operators as StatefulOps
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
+
+
+class VIEW3D_MT_slvs_add_sketch(Menu):
+    """Extra sketch-creation modes, kept out of the main row (currently the
+    less-common free-3D sketch)."""
+
+    bl_idname = declarations.Menus.AddSketch.value
+    bl_label = "Add Sketch"
+
+    def draw(self, context: Context):
+        layout = self.layout
+        props = layout.operator(
+            StatefulOps.InvokeTool.value,
+            text="Add 3D Sketch",
+            icon="ADD",
+        )
+        props.tool_name = declarations.WorkSpaceTools.AddSketch3D.value
+        props.operator = declarations.Operators.AddSketch3D.value
 
 
 def _draw_detached_warning(layout: UILayout, sketch):
@@ -57,10 +75,9 @@ def sketch_selector(
     active_sketch = get_active_sketch(context)
 
     if not active_sketch:
-        # Keep both creation modes explicit in the sidebar. The workspace tools
-        # remain grouped in the toolbar, but relying on that fly-out alone makes
-        # the native 3D entry point effectively undiscoverable from the panel
-        # and operator search on some Blender versions.
+        # The common 2D sketch stays the prominent button; the free-3D mode is
+        # demoted to a small dropdown beside it (still discoverable from the
+        # panel, not just the toolbar fly-out / operator search).
         props = row.operator(
             StatefulOps.InvokeTool.value,
             text="Add Sketch",
@@ -69,13 +86,7 @@ def sketch_selector(
         props.tool_name = declarations.WorkSpaceTools.AddSketch.value
         props.operator = declarations.Operators.AddSketch.value
 
-        props_3d = row.operator(
-            StatefulOps.InvokeTool.value,
-            text="Add 3D Sketch",
-            icon="ADD",
-        )
-        props_3d.tool_name = declarations.WorkSpaceTools.AddSketch3D.value
-        props_3d.operator = declarations.Operators.AddSketch3D.value
+        row.menu(declarations.Menus.AddSketch.value, text="", icon="DOWNARROW_HLT")
 
     else:
         row.operator(
