@@ -49,6 +49,27 @@ def _bulk_int(attr, n):
     return out
 
 
+def _world_matrix(sketch):
+    """Return the transform that owns a sketch's local curve coordinates.
+
+    A native free-3D sketch deliberately keeps its Curves child at identity and
+    uses the parent origin Empty as the movable/rotatable frame. Reading the
+    origin directly here makes overlay/picking follow an interactive origin
+    transform immediately instead of depending on when Blender refreshes the
+    child's derived ``matrix_world`` in the depsgraph. Other sketches keep their
+    existing object-matrix behavior.
+    """
+    obj = sketch.target_object
+    if (
+        getattr(sketch, "is_3d", False)
+        and obj is not None
+        and obj.parent is not None
+        and obj.parent.get("is_3d_sketch_origin", False)
+    ):
+        return obj.parent.matrix_world
+    return obj.matrix_world
+
+
 def curve_color(ts, selected, hover, fixed, active=True):
     """Theme color for a curve given its state (mirrors the legacy drawing)."""
     if not active:
@@ -66,16 +87,14 @@ def geometry_signature(sketch):
     """Fingerprint of the geometry that determines pickable positions.
 
     Positions + the persistent curve attributes (type/construction/visible/...),
-    the object's world matrix, plus counts. Excludes transient selection/hover --
-    those change colours (the overlay), not the projected points/segments
-    (picking), so picking can cache its extraction against this and skip
-    rebuilding while the cursor just hovers.
+    the sketch's effective world matrix, plus counts. Excludes transient
+    selection/hover -- those change colours (the overlay), not the projected
+    points/segments (picking), so picking can cache its extraction against this
+    and skip rebuilding while the cursor just hovers.
 
-    ``build`` bakes ``matrix_world`` into every point/segment position, so it
-    must be part of the fingerprint: a sketch on a workplane whose transform
-    moves (or settles as the depsgraph first evaluates a parented sketch) changes
-    the world positions without touching any local attribute -- omitting it left
-    the pick/overlay cache serving stale world coordinates.
+    ``build`` bakes the effective world transform into every point/segment
+    position, so it must be part of the fingerprint. For native 3D sketches that
+    transform is the origin Empty; for normal sketches it is the Curves object.
     """
     cd = sketch.data
     n_curves = len(cd.curves)
@@ -90,9 +109,7 @@ def geometry_signature(sketch):
     for name in ("construction", "fixed", "visible", "cyclic"):
         parts.append(_bulk_bool(cd.attributes.get(name), n_curves).tobytes())
     parts.append(_bulk_int(cd.attributes.get("sketch_type"), n_curves).tobytes())
-    parts.append(
-        np.array(sketch.target_object.matrix_world, dtype=np.float32).tobytes()
-    )
+    parts.append(np.array(_world_matrix(sketch), dtype=np.float32).tobytes())
     # curve_id is the pick result build() returns; the validate self-heal can
     # re-mint ids in place (same count/positions), so it belongs in the key too.
     parts.append("".join(read_curve_id_list(cd)).encode())
@@ -198,7 +215,7 @@ def build(sketch, ts, is_active):
     hover = selection.hover
     highlighted = set(selection.highlight_curve_ids)
 
-    mat = sketch.target_object.matrix_world
+    mat = _world_matrix(sketch)
     cp_present = has_uuid_field(cd, "center_point_id")
 
     for i in range(n_curves):

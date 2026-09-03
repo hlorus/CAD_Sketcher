@@ -12,6 +12,7 @@ from .. import global_data
 _TAG = "is_cad_sketch"
 _SOLVER_STATE = "solver_state"
 _DOF = "dof"
+_IS_3D = "is_3d_sketch"
 
 
 class Sketch:
@@ -31,6 +32,11 @@ class Sketch:
     @property
     def workplane_object(self):
         return self._obj.parent
+
+    @property
+    def is_3d(self):
+        """Whether this sketch is free in 3D instead of workplane-bound."""
+        return bool(self._obj.get(_IS_3D, False))
 
     @property
     def data(self):
@@ -103,8 +109,18 @@ class Sketch:
     # -- Cleanup --
 
     def remove_objects(self):
-        if self._obj:
-            bpy.data.objects.remove(self._obj)
+        if not self._obj:
+            return
+
+        obj = self._obj
+        parent = obj.parent
+        remove_origin = bool(
+            self.is_3d and parent and parent.get("is_3d_sketch_origin", False)
+        )
+
+        bpy.data.objects.remove(obj)
+        if remove_origin and parent.name in bpy.data.objects:
+            bpy.data.objects.remove(parent)
 
     # -- Identity --
 
