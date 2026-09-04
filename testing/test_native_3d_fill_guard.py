@@ -44,6 +44,14 @@ class TestNative3DFillGuard(BgsTestCase):
             node_group.get("cad_sketcher_3d_wire_lock_version"),
             CONVERT_3D_WIRE_LOCK_VERSION,
         )
+        # The wire copy is tied to the 2D converter it was built from: it carries
+        # the source convert version and its name embeds both versions, so a
+        # CONVERT_VERSION bump rebuilds it instead of silently going stale.
+        from ..model.native_3d import _wire_group_name
+        from ..utilities.convert_nodes import CONVERT_VERSION
+
+        self.assertEqual(node_group.get("cad_convert_version"), CONVERT_VERSION)
+        self.assertEqual(node_group.name, _wire_group_name())
 
         fill_socket = self._fill_socket(modifier)
         self.assertFalse(fill_socket.default_value)

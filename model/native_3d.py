@@ -20,6 +20,24 @@ CONVERT_3D_NODE_GROUP = "CAD Sketcher Convert 3D Wire"
 CONVERT_3D_WIRE_LOCK_VERSION = 1
 
 
+def _wire_group_name():
+    """Datablock name for the wire converter, keyed on both versions.
+
+    The wire converter is a copy of the 2D converter, so it can't be rebuilt in
+    place like the 2D group. Instead its name embeds the source
+    ``CONVERT_VERSION`` and the wire-lock version: bumping either yields a new
+    name, so the next 3D sketch builds a fresh copy from the current 2D converter
+    rather than silently reusing a stale one. Old sketches keep their old-named
+    group (still wire-locked); unused copies are purged on save. This ties the
+    two node groups together without having to remember to bump a second constant.
+    """
+    from ..utilities.convert_nodes import CONVERT_VERSION
+
+    return (
+        f"{CONVERT_3D_NODE_GROUP} (v{CONVERT_VERSION}.{CONVERT_3D_WIRE_LOCK_VERSION})"
+    )
+
+
 def _lock_3d_convert_to_wire(modifier):
     """Bind a native 3D sketch to a converter that cannot execute Fill Curve.
 
@@ -33,18 +51,23 @@ def _lock_3d_convert_to_wire(modifier):
     if modifier is None or modifier.node_group is None:
         return False
 
+    name = _wire_group_name()
     current = modifier.node_group
-    if current.get("cad_sketcher_3d_wire_lock_version") == CONVERT_3D_WIRE_LOCK_VERSION:
+    if current.name == name:
         return True
 
-    node_group = bpy.data.node_groups.get(CONVERT_3D_NODE_GROUP)
-    if (
-        node_group is None
-        or node_group.get("cad_sketcher_3d_wire_lock_version")
-        != CONVERT_3D_WIRE_LOCK_VERSION
-    ):
-        node_group = current.copy()
-        node_group.name = CONVERT_3D_NODE_GROUP
+    node_group = bpy.data.node_groups.get(name)
+    if node_group is None:
+        # Copy from the CURRENT 2D converter (not ``current``, which may already
+        # be an older wire group) so 2D converter changes propagate. The copy
+        # inherits ``cad_convert_version`` from the source, tying the versions.
+        from ..utilities.curve_data import _get_convert_node_group
+
+        source = _get_convert_node_group()
+        if source is None:
+            return False
+        node_group = source.copy()
+        node_group.name = name
 
         fill_socket = next(
             (
