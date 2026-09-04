@@ -18,6 +18,14 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         """Tools that only make sense while editing a sketch."""
         layout = self.layout
 
+        sketch = get_active_sketch(context)
+        is_3d = sketch is not None and sketch.is_3d
+
+        def _constraint_supported(op) -> bool:
+            # In a free-3D sketch only the constraints the solver dispatches are
+            # available; the rest are drawn disabled (see declarations).
+            return not is_3d or op in declarations.Supported3DConstraintOperators
+
         layout.operator(declarations.Operators.MergePoints)
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
 
@@ -32,7 +40,8 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         toggle = header.row()
         toggle.alignment = "RIGHT"
         op = toggle.operator(
-            "wm.context_toggle", text="",
+            "wm.context_toggle",
+            text="",
             icon="LONGDISPLAY" if prefs.constraint_grid_view else "IMGDISPLAY",
             emboss=False,
         )
@@ -57,7 +66,9 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
                 grid.scale_x = 1.2
                 grid.scale_y = 1.2
                 for op in operators:
-                    grid.operator(
+                    cell = grid.row(align=True)
+                    cell.enabled = _constraint_supported(op)
+                    cell.operator(
                         op, text="", icon_value=icon_manager.get_constraint_icon(op)
                     )
 
@@ -66,10 +77,14 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         else:
             col = layout.column(align=True)
             for op in declarations.DimensionalConstraintOperators:
-                col.operator(op, icon_value=icon_manager.get_constraint_icon(op))
+                row = col.row(align=True)
+                row.enabled = _constraint_supported(op)
+                row.operator(op, icon_value=icon_manager.get_constraint_icon(op))
             col.separator()
             for op in declarations.GeometricConstraintOperators:
-                col.operator(op, icon_value=icon_manager.get_constraint_icon(op))
+                row = col.row(align=True)
+                row.enabled = _constraint_supported(op)
+                row.operator(op, icon_value=icon_manager.get_constraint_icon(op))
 
         layout.separator()
 

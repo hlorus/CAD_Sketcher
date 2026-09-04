@@ -159,3 +159,8 @@ GeometricConstraintOperators = (
 )
 
 ConstraintOperators = DimensionalConstraintOperators + GeometricConstraintOperators
+
+# Constraints the native free-3D solver can currently apply. Everything else is
+# shown disabled while a 3D sketch is active (the solver only dispatches
+# DISTANCE for 3D sketches today; other types would be silently ignored).
+Supported3DConstraintOperators = (Operators.AddDistance,)
