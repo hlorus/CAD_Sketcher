@@ -13,11 +13,27 @@ from ..utilities.geometry import face_bounds_in_plane, face_workplane_matrix
 from ..utilities.preferences import get_prefs
 from ..utilities.workplane import (
     ORIGIN_AXIS_COLOR,
+    ensure_origin_workplane_empties,
     iter_wp_empties,
     resolve_sketch_base,
     wp_plane_bounds,
 )
 from .utilities import context_mode_check
+
+
+def _ensure_origin_planes_deferred():
+    """One-shot timer that creates the origin workplane empties if missing.
+
+    The Add Sketch tool can be activated straight from the toolbar icon, which
+    only sets up this gizmo group and never invokes the operator that normally
+    creates the origin planes. ``setup`` cannot write ID data (see the note
+    there, #595), so creation is deferred here where the context is unrestricted,
+    making the planes visible immediately on tool activation.
+    """
+    sketcher = getattr(bpy.context.scene, "sketcher", None)
+    if sketcher and sketcher.show_origin and not sketcher.wp_xy:
+        ensure_origin_workplane_empties(bpy.context)
+    return None  # don't repeat
 
 
 class VIEW3D_GGT_slvs_workplane(GizmoGroup):
@@ -46,6 +62,18 @@ class VIEW3D_GGT_slvs_workplane(GizmoGroup):
         # drifted/flattened planes (#571) in a safe context, so nothing is needed
         # here beyond creating the gizmo.
         self.gizmo = self.gizmos.new(VIEW3D_GT_slvs_workplane.bl_idname)
+
+        # The origin planes are created lazily by the Add Sketch operator, but
+        # activating the tool from the toolbar icon never runs it -- so make sure
+        # they exist (deferred, since setup can't write ID data). Guarded so it
+        # runs at most once per activation and only while they're actually shown.
+        sketcher = context.scene.sketcher
+        if (
+            sketcher.show_origin
+            and not sketcher.wp_xy
+            and not app.timers.is_registered(_ensure_origin_planes_deferred)
+        ):
+            app.timers.register(_ensure_origin_planes_deferred)
 
 
 class VIEW3D_GT_slvs_workplane(Gizmo):
