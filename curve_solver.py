@@ -155,9 +155,7 @@ class CurveSolver:
             pos = curve_data.points[pt_idx].position
 
             if is_3d:
-                handle = self.solvesys.add_point_3d(
-                    group, *map(float, pos[:3])
-                )
+                handle = self.solvesys.add_point_3d(group, *map(float, pos[:3]))
             else:
                 u, v = float(pos[0]), float(pos[1])
                 handle = self.solvesys.add_point_2d(group, u, v, wp)
@@ -284,6 +282,11 @@ class CurveSolver:
             c.failed = False
 
             if getattr(sketch, "is_3d", False) and getattr(c, "type", "") != "DISTANCE":
+                # Free-3D sketches only support distance today. Flag anything else
+                # as failed so the UI marks it unsatisfied instead of silently
+                # ignoring it (a constraint reporting itself satisfied while doing
+                # nothing is worse than a visible error).
+                c.failed = True
                 continue
 
             if not getattr(c, "curve_id_1", ""):

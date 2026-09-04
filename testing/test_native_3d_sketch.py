@@ -240,3 +240,22 @@ class TestNative3DSketch(BgsTestCase):
         dimension_axis = Vector(matrix.col[0][:3]).normalized()
         solved_axis = (p2.location - p1.location).normalized()
         self.assertAlmostEqual(abs(dimension_axis.dot(solved_axis)), 1.0, places=5)
+
+    def test_unsupported_3d_constraint_is_flagged_failed(self):
+        # Only distance is dispatched in free-3D; any other constraint must be
+        # flagged failed after a solve rather than silently ignored.
+        from ..model.native_3d import create_point_3d
+
+        p1 = create_point_3d(self.sketch, (0.0, 0.0, 0.0), fixed=True)
+        p2 = create_point_3d(self.sketch, (1.0, 0.0, 0.0))
+        coincident = self.sketch.constraints.add_coincident(
+            curve_id_1=p1.curve_id, curve_id_2=p2.curve_id
+        )
+        distance = self.sketch.constraints.add_distance(
+            curve_id_1=p1.curve_id, curve_id_2=p2.curve_id, value=2.0
+        )
+
+        self.sketch.solve(self.context)
+
+        self.assertTrue(coincident.failed, "unsupported 3D constraint not flagged")
+        self.assertFalse(distance.failed, "supported distance wrongly flagged")
