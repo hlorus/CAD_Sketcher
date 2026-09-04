@@ -36,12 +36,9 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
     @classmethod
     def poll(cls, context: Context):
         """Never let a stale 2D hotkey/operator path mutate a 3D sketch."""
-        obj = context.scene.sketcher.active_sketch_object
-        if obj is None:
-            return False
-        from ..model.sketch_ref import Sketch
+        from ..model.sketch_ref import poll_active_2d_sketch
 
-        return not Sketch(obj).is_3d
+        return poll_active_2d_sketch(context)
 
     def main(self, context: Context):
         from ..model.curve_ref import curve_ref

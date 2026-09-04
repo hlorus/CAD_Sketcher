@@ -18,6 +18,24 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         """Tools that only make sense while editing a sketch."""
         layout = self.layout
 
+        sketch = get_active_sketch(context)
+        is_3d = sketch is not None and sketch.is_3d
+
+        def _supported(operators):
+            # A free-3D sketch only supports the constraints the solver dispatches;
+            # hide the rest (see declarations). Hidden rather than disabled so the
+            # icon grid keeps its seamless merged layout for the buttons shown.
+            if not is_3d:
+                return operators
+            return tuple(
+                op
+                for op in operators
+                if op in declarations.Supported3DConstraintOperators
+            )
+
+        dimensional = _supported(declarations.DimensionalConstraintOperators)
+        geometric = _supported(declarations.GeometricConstraintOperators)
+
         layout.operator(declarations.Operators.MergePoints)
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
 
@@ -32,7 +50,8 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         toggle = header.row()
         toggle.alignment = "RIGHT"
         op = toggle.operator(
-            "wm.context_toggle", text="",
+            "wm.context_toggle",
+            text="",
             icon="LONGDISPLAY" if prefs.constraint_grid_view else "IMGDISPLAY",
             emboss=False,
         )
@@ -47,6 +66,8 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
             # separate from the geometric ones. Both use the same column count and
             # scale so the buttons are identically sized.
             def _icon_grid(operators):
+                if not operators:
+                    return
                 grid = layout.grid_flow(
                     row_major=True,
                     columns=5,
@@ -61,14 +82,15 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
                         op, text="", icon_value=icon_manager.get_constraint_icon(op)
                     )
 
-            _icon_grid(declarations.DimensionalConstraintOperators)
-            _icon_grid(declarations.GeometricConstraintOperators)
+            _icon_grid(dimensional)
+            _icon_grid(geometric)
         else:
             col = layout.column(align=True)
-            for op in declarations.DimensionalConstraintOperators:
+            for op in dimensional:
                 col.operator(op, icon_value=icon_manager.get_constraint_icon(op))
-            col.separator()
-            for op in declarations.GeometricConstraintOperators:
+            if dimensional and geometric:
+                col.separator()
+            for op in geometric:
                 col.operator(op, icon_value=icon_manager.get_constraint_icon(op))
 
         layout.separator()

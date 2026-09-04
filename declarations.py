@@ -103,6 +103,7 @@ class Macros(str, Enum):
 
 class Menus(str, Enum):
     SelectedMenu = "VIEW3D_MT_selected_menu"
+    AddSketch = "VIEW3D_MT_slvs_add_sketch"
 
 
 class Panels(str, Enum):
@@ -132,7 +133,6 @@ class WorkSpaceTools(str, Enum):
     Trim = "sketcher.slvs_trim"
     Bevel = "sketcher.slvs_bevel"
     AddSketch = "sketcher.slvs_add_sketch"
-    AddSketch3D = "sketcher.slvs_add_sketch3d"
     ProjectGeometry = "sketcher.slvs_project_geometry"
     Extrude = "sketcher.slvs_node_extrude"
     ArrayLinear = "sketcher.slvs_node_array_linear"
@@ -159,3 +159,8 @@ GeometricConstraintOperators = (
 )
 
 ConstraintOperators = DimensionalConstraintOperators + GeometricConstraintOperators
+
+# Constraints the native free-3D solver can currently apply. Everything else is
+# shown disabled while a 3D sketch is active (the solver only dispatches
+# DISTANCE for 3D sketches today; other types would be silently ignored).
+Supported3DConstraintOperators = (Operators.AddDistance,)

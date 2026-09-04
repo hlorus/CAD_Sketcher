@@ -18,6 +18,7 @@ from ..utilities.math import pol2cart, range_2pi
 # Base
 # ---------------------------------------------------------------------------
 
+
 class CurveRef:
     """Base accessor for a curve element within a sketch.
 
@@ -38,6 +39,7 @@ class CurveRef:
 
     def _resolve(self):
         from ..utilities.curve_data import get_curve_data
+
         cd, idx, cs = get_curve_data(self._sketch, self._curve_id)
         if cd is None:
             self._curve_data = None
@@ -105,6 +107,7 @@ class CurveRef:
         if not self._resolve():
             return default
         from ..utilities.curve_data import UUID_FIELDS, get_uuid, has_uuid_field
+
         if attr_name in UUID_FIELDS:
             if not has_uuid_field(self._curve_data, attr_name):
                 return default
@@ -119,6 +122,7 @@ class CurveRef:
         if not self._resolve():
             return
         from ..utilities.curve_data import set_attribute
+
         set_attribute(self._curve_data.attributes, attr_name, value, self._idx)
 
     def _get_related_ref(self, attr_name):
@@ -220,6 +224,7 @@ class CurveRef:
         from ..utilities.curve_data import (
             remove_native_curve_by_id,
         )
+
         remove_native_curve_by_id(self._sketch, self._curve_id)
         self._curve_data = None
         self._idx = None
@@ -241,22 +246,27 @@ class CurveRef:
         return self._type_label
 
     def __repr__(self):
-        return f"{type(self).__name__}(sketch={self._sketch.name!r}, id={self._curve_id})"
+        return (
+            f"{type(self).__name__}(sketch={self._sketch.name!r}, id={self._curve_id})"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Shared creation helpers
 # ---------------------------------------------------------------------------
 
+
 def _ensure_curve_data(sketch):
     """Ensure sketch has a curve object, return curve_data."""
     from ..utilities.curve_data import ensure_sketch_curve_object
+
     return ensure_sketch_curve_object(sketch)
 
 
 def _allocate(sketch):
     """Allocate a new curve_id."""
     from ..utilities.curve_data import _allocate_curve_id
+
     return _allocate_curve_id(sketch)
 
 
@@ -264,6 +274,7 @@ def _ensure_attrs(curve_data, curve_idx=None):
     """Ensure standard and user-defined attributes exist for a new curve."""
     from ..utilities.curve_data import ensure_standard_attributes, init_string_attrs
     from ..utilities.custom_attributes import initialize_curve_defaults
+
     ensure_standard_attributes(curve_data)
     if curve_idx is not None:
         init_string_attrs(curve_data, curve_idx)
@@ -323,7 +334,9 @@ def _build_arc_bezier(curve_data, curve_idx, center, start_co, end_co, is_cyclic
     positions = []
     for i in range(n_points):
         a = start_angle + angle_per_segment * i
-        positions.append(center_2d + Vector((radius * math.cos(a), radius * math.sin(a))))
+        positions.append(
+            center_2d + Vector((radius * math.cos(a), radius * math.sin(a)))
+        )
 
     # Set positions
     for i in range(n_points):
@@ -344,6 +357,7 @@ def _build_arc_bezier(curve_data, curve_idx, center, start_co, end_co, is_cyclic
         bezier_indices.append(first)
 
     from mathutils import Matrix as _Matrix
+
     for seg in range(segment_count):
         loc1, loc2 = locations[seg], locations[seg + 1]
         b1_idx, b2_idx = bezier_indices[seg], bezier_indices[seg + 1]
@@ -381,6 +395,7 @@ def _build_arc_bezier(curve_data, curve_idx, center, start_co, end_co, is_cyclic
 # PointRef
 # ---------------------------------------------------------------------------
 
+
 class PointRef(CurveRef):
     """Accessor for a point curve (1-point curve)."""
 
@@ -401,8 +416,13 @@ class PointRef(CurveRef):
         if not self._resolve():
             return
         pt_idx = self._curve_slice.points[0].index
-        self._curve_data.points[pt_idx].position = (float(value[0]), float(value[1]), 0.0)
+        self._curve_data.points[pt_idx].position = (
+            float(value[0]),
+            float(value[1]),
+            0.0,
+        )
         from ..utilities.curve_data import is_batching, rebuild_segments
+
         if not is_batching(self._sketch):
             rebuild_segments(self._sketch)
 
@@ -410,8 +430,7 @@ class PointRef(CurveRef):
     def location(self):
         """World-space 3D position."""
         pos = self._first_point_3d()
-        mat = self._sketch.target_object.matrix_world
-        return mat @ pos
+        return self._sketch.world_matrix @ pos
 
     @staticmethod
     def create(sketch, co, construction=False, fixed=False, name=None, is_origin=False):
@@ -451,9 +470,12 @@ class PointRef(CurveRef):
         set_attribute(attrs, "visible", True, curve_idx)
         if is_origin:
             set_attribute(attrs, "is_origin", True, curve_idx)
-        set_attribute(attrs, "name",
-                      name or default_curve_name(curve_data, SketchCurveType.POINT),
-                      curve_idx)
+        set_attribute(
+            attrs,
+            "name",
+            name or default_curve_name(curve_data, SketchCurveType.POINT),
+            curve_idx,
+        )
 
         _invalidate(sketch)
         curve_data.update_tag()
@@ -463,6 +485,7 @@ class PointRef(CurveRef):
 # ---------------------------------------------------------------------------
 # LineRef
 # ---------------------------------------------------------------------------
+
 
 class LineRef(CurveRef):
     """Accessor for a line curve (2-point curve with start/end relationships)."""
@@ -562,16 +585,27 @@ class LineRef(CurveRef):
         # benefit. Keep it a single segment so the generated mesh matches the
         # sketch's own vertices (arcs/circles keep their curved resolution).
         set_attribute(attrs, "resolution", 1, curve_idx)
-        set_attribute(attrs, "start_point_id",
-                      p1.curve_id if isinstance(p1, CurveRef) else "", curve_idx)
-        set_attribute(attrs, "end_point_id",
-                      p2.curve_id if isinstance(p2, CurveRef) else "", curve_idx)
+        set_attribute(
+            attrs,
+            "start_point_id",
+            p1.curve_id if isinstance(p1, CurveRef) else "",
+            curve_idx,
+        )
+        set_attribute(
+            attrs,
+            "end_point_id",
+            p2.curve_id if isinstance(p2, CurveRef) else "",
+            curve_idx,
+        )
         set_attribute(attrs, "construction", construction, curve_idx)
         set_attribute(attrs, "fixed", False, curve_idx)
         set_attribute(attrs, "visible", True, curve_idx)
-        set_attribute(attrs, "name",
-                      name or default_curve_name(curve_data, SketchCurveType.LINE),
-                      curve_idx)
+        set_attribute(
+            attrs,
+            "name",
+            name or default_curve_name(curve_data, SketchCurveType.LINE),
+            curve_idx,
+        )
 
         _invalidate(sketch)
         curve_data.update_tag()
@@ -581,6 +615,7 @@ class LineRef(CurveRef):
 # ---------------------------------------------------------------------------
 # ArcRef
 # ---------------------------------------------------------------------------
+
 
 class ArcRef(CurveRef):
     """Accessor for an arc curve (multi-point bezier with center, start, end)."""
@@ -706,9 +741,12 @@ class ArcRef(CurveRef):
         set_attribute(attrs, "construction", construction, curve_idx)
         set_attribute(attrs, "fixed", False, curve_idx)
         set_attribute(attrs, "visible", True, curve_idx)
-        set_attribute(attrs, "name",
-                      name or default_curve_name(curve_data, SketchCurveType.ARC),
-                      curve_idx)
+        set_attribute(
+            attrs,
+            "name",
+            name or default_curve_name(curve_data, SketchCurveType.ARC),
+            curve_idx,
+        )
 
         # Compute bezier geometry
         _build_arc_bezier(curve_data, curve_idx, center, start.co, end.co)
@@ -721,6 +759,7 @@ class ArcRef(CurveRef):
 # ---------------------------------------------------------------------------
 # CircleRef
 # ---------------------------------------------------------------------------
+
 
 class CircleRef(CurveRef):
     """Accessor for a circle curve (cyclic bezier with center)."""
@@ -802,14 +841,19 @@ class CircleRef(CurveRef):
         set_attribute(attrs, "construction", construction, curve_idx)
         set_attribute(attrs, "fixed", False, curve_idx)
         set_attribute(attrs, "visible", True, curve_idx)
-        set_attribute(attrs, "name",
-                      name or default_curve_name(curve_data, SketchCurveType.CIRCLE),
-                      curve_idx)
+        set_attribute(
+            attrs,
+            "name",
+            name or default_curve_name(curve_data, SketchCurveType.CIRCLE),
+            curve_idx,
+        )
 
         # Compute bezier geometry — use start point at (center.x + radius, center.y)
         center = ct.co
         start_co = Vector((center.x + radius, center.y))
-        _build_arc_bezier(curve_data, curve_idx, center, start_co, start_co, is_cyclic=True)
+        _build_arc_bezier(
+            curve_data, curve_idx, center, start_co, start_co, is_cyclic=True
+        )
 
         _invalidate(sketch)
         curve_data.update_tag()
@@ -819,6 +863,7 @@ class CircleRef(CurveRef):
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
+
 
 def curve_ref(sketch, curve_id):
     """Create the appropriate typed CurveRef subclass for a curve_id.

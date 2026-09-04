@@ -34,6 +34,24 @@ class Sketch:
         return self._obj.parent
 
     @property
+    def world_matrix(self):
+        """The sketch's world frame for placing and reading geometry.
+
+        A free-3D sketch is anchored by a parent origin Empty; the Curves child's
+        own derived ``matrix_world`` can lag the parent between depsgraph updates
+        (e.g. while the origin is being dragged), so read the parent -- the
+        movable frame. 2D sketches keep the child matrix (it is their workplane).
+        """
+        obj = self._obj
+        if (
+            self.is_3d
+            and obj.parent is not None
+            and obj.parent.get("is_3d_sketch_origin", False)
+        ):
+            return obj.parent.matrix_world
+        return obj.matrix_world
+
+    @property
     def is_3d(self):
         """Whether this sketch is free in 3D instead of workplane-bound."""
         return bool(self._obj.get(_IS_3D, False))
@@ -49,6 +67,7 @@ class Sketch:
     @property
     def topology(self):
         from ..utilities.topology import SketchTopology
+
         return SketchTopology(self)
 
     @property
@@ -100,10 +119,12 @@ class Sketch:
 
     def get_solver_state(self):
         from ..utilities.bpy import bpyEnum
+
         return bpyEnum(global_data.solver_state_items, identifier=self.solver_state)
 
     def solve(self, context):
         from ..curve_solver import solve_system
+
         return solve_system(context, sketch=self)
 
     # -- Cleanup --
@@ -146,6 +167,7 @@ class Sketch:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def stamp_sketch_props(obj):
     """Stamp custom properties on a Curves object to mark it as a sketch."""
     obj[_TAG] = True
@@ -157,12 +179,16 @@ def stamp_sketch_props(obj):
 
 def is_sketch_object(obj):
     """Check if a Blender object is a CAD Sketcher sketch."""
-    return obj and obj.type == 'CURVES' and obj.get(_TAG, False)
+    return obj and obj.type == "CURVES" and obj.get(_TAG, False)
 
 
 def get_sketches(context_or_scene):
     """Yield Sketch accessors for all sketches in the scene."""
-    scene = context_or_scene if hasattr(context_or_scene, 'objects') else context_or_scene.scene
+    scene = (
+        context_or_scene
+        if hasattr(context_or_scene, "objects")
+        else context_or_scene.scene
+    )
     for obj in scene.objects:
         if is_sketch_object(obj):
             yield Sketch(obj)
@@ -182,6 +208,19 @@ def get_active_sketch(context):
     if obj and is_sketch_object(obj):
         return Sketch(obj)
     return None
+
+
+def poll_active_2d_sketch(context) -> bool:
+    """Poll for 2D-only drawing operators: an active sketch that isn't free-3D.
+
+    Shared so every 2D drawing op (point/line/circle/arc/rectangle) rejects a
+    stale hotkey/operator path that would otherwise write planar XY geometry into
+    a free-3D sketch.
+    """
+    obj = context.scene.sketcher.active_sketch_object
+    if obj is None:
+        return False
+    return not Sketch(obj).is_3d
 
 
 def set_active_sketch(context, sketch_or_obj):

@@ -52,22 +52,12 @@ def _bulk_int(attr, n):
 def _world_matrix(sketch):
     """Return the transform that owns a sketch's local curve coordinates.
 
-    A native free-3D sketch deliberately keeps its Curves child at identity and
-    uses the parent origin Empty as the movable/rotatable frame. Reading the
-    origin directly here makes overlay/picking follow an interactive origin
-    transform immediately instead of depending on when Blender refreshes the
-    child's derived ``matrix_world`` in the depsgraph. Other sketches keep their
-    existing object-matrix behavior.
+    Delegates to ``Sketch.world_matrix`` (the single source of truth): a native
+    free-3D sketch keeps its Curves child at identity and uses the parent origin
+    Empty as the movable frame, so overlay/picking follow an interactive origin
+    transform immediately instead of the child's lagging derived matrix.
     """
-    obj = sketch.target_object
-    if (
-        getattr(sketch, "is_3d", False)
-        and obj is not None
-        and obj.parent is not None
-        and obj.parent.get("is_3d_sketch_origin", False)
-    ):
-        return obj.parent.matrix_world
-    return obj.matrix_world
+    return sketch.world_matrix
 
 
 def curve_color(ts, selected, hover, fixed, active=True):

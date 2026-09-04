@@ -44,6 +44,14 @@ class TestNative3DFillGuard(BgsTestCase):
             node_group.get("cad_sketcher_3d_wire_lock_version"),
             CONVERT_3D_WIRE_LOCK_VERSION,
         )
+        # The wire copy is tied to the 2D converter it was built from: it carries
+        # the source convert version and its name embeds both versions, so a
+        # CONVERT_VERSION bump rebuilds it instead of silently going stale.
+        from ..model.native_3d import _wire_group_name
+        from ..utilities.convert_nodes import CONVERT_VERSION
+
+        self.assertEqual(node_group.get("cad_convert_version"), CONVERT_VERSION)
+        self.assertEqual(node_group.name, _wire_group_name())
 
         fill_socket = self._fill_socket(modifier)
         self.assertFalse(fill_socket.default_value)
@@ -61,9 +69,10 @@ class TestNative3DFillGuard(BgsTestCase):
         self.assertFalse(switch_input.is_linked)
         self.assertFalse(switch_input.default_value)
 
-    def test_manual_fill_toggle_is_rejected_for_native_3d_sketch(self):
-        """Free-3D sketches must never enter Blender's planar Fill Curve path."""
-        from ..handlers import _disable_unsupported_3d_fill
+    def test_manual_fill_toggle_cannot_reach_the_fill_branch(self):
+        """Even if the hidden Fill input is forced true, the severed geometry
+        switch means the planar Fill Curve branch is never evaluated -- so no
+        runtime guard is needed to correct the socket value."""
         from ..operators.modifiers import get_modifier_input, set_modifier_input
         from ..utilities.curve_data import CONVERT_MODIFIER_NAME
 
@@ -72,18 +81,21 @@ class TestNative3DFillGuard(BgsTestCase):
         self.assertIsNotNone(modifier.node_group)
 
         fill_socket = self._fill_socket(modifier)
-        self.assertFalse(get_modifier_input(modifier, fill_socket.identifier))
-
-        # Reproduce the UI regression reported on PR #608. Even if an old file or
-        # script writes the hidden Fill input back to true, the geometry switch is
-        # already hard-wired to wire mode and the compatibility guard restores the
-        # stored value to false.
         set_modifier_input(modifier, fill_socket.identifier, True)
         self.assertTrue(get_modifier_input(modifier, fill_socket.identifier))
 
-        _disable_unsupported_3d_fill(self.context.scene)
-
-        self.assertFalse(get_modifier_input(modifier, fill_socket.identifier))
+        # The switch that selects the Fill vs wire branch ignores the socket: its
+        # link is removed and its value hard-wired to False, so wire is produced
+        # regardless of the Fill input.
+        geometry_switch = next(
+            node
+            for node in modifier.node_group.nodes
+            if node.bl_idname == "GeometryNodeSwitch"
+            and getattr(node, "input_type", "") == "GEOMETRY"
+        )
+        switch_input = geometry_switch.inputs.get("Switch")
+        self.assertFalse(switch_input.is_linked)
+        self.assertFalse(switch_input.default_value)
 
     def test_rejected_fill_dirties_modifier_owner_for_gn_re_evaluation(self):
         """Resetting Fill from the depsgraph guard must invalidate the GN result."""

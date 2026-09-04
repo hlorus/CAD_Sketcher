@@ -21,6 +21,13 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
     bl_label = "Add Rectangle"
     bl_options = {"REGISTER", "UNDO"}
 
+    @classmethod
+    def poll(cls, context: Context):
+        """A rectangle is planar geometry -- reject it in a free-3D sketch."""
+        from ..model.sketch_ref import poll_active_2d_sketch
+
+        return poll_active_2d_sketch(context)
+
     rect_state1_doc = ("Startpoint", "Pick or place starting point.")
     rect_state2_doc = ("Endpoint", "Pick or place ending point.")
 
