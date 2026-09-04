@@ -76,62 +76,17 @@ def on_load_post(*args):
     selection.clear()
 
 
-def _disable_unsupported_3d_fill(scene):
-    """Keep the shared converter in wire mode for native free-3D sketches.
-
-    Blender's Fill Curve node always produces geometry flattened to local Z=0.
-    A free-3D sketch has no canonical profile plane, so allowing the shared Fill
-    input to remain enabled would silently planarize valid XYZ geometry. 3D
-    sketches already default Fill off at creation; this guard also catches a
-    manual modifier toggle and restores the supported wire conversion path.
-    """
-    from .model.native_3d import SKETCH_3D_TAG, _set_convert_fill
-    from .utilities.curve_data import CONVERT_MODIFIER_NAME
-
-    for obj in scene.objects:
-        if not bool(obj.get(SKETCH_3D_TAG, False)):
-            continue
-
-        modifier = obj.modifiers.get(CONVERT_MODIFIER_NAME)
-        if modifier is None or modifier.node_group is None:
-            continue
-
-        fill_socket = next(
-            (
-                item
-                for item in modifier.node_group.interface.items_tree
-                if getattr(item, "item_type", "") == "SOCKET"
-                and getattr(item, "in_out", "") == "INPUT"
-                and item.name == "Fill"
-            ),
-            None,
-        )
-        if fill_socket is None:
-            continue
-
-        props = getattr(modifier, "properties", None)
-        if props is not None and hasattr(props, "inputs"):
-            current = bool(getattr(props.inputs, fill_socket.identifier).value)
-        else:
-            current = bool(modifier.get(fill_socket.identifier, False))
-
-        if current:
-            _set_convert_fill(modifier, False)
-
-
 def on_depsgraph_update(scene, depsgraph):
     from . import global_data
 
-    # Free-3D sketches are not planar profiles. Keep their shared converter's
-    # Fill input off even if it is toggled manually in the modifier UI.
-    _disable_unsupported_3d_fill(scene)
-
     # Keep face-anchored workplanes on their mesh face as geometry changes.
     from .utilities.face_anchor import update_face_workplanes
+
     update_face_workplanes(bpy.context, depsgraph)
 
     # Keep projected native points attached to their source mesh vertices.
     from .utilities.projection_anchor import update_projected_geometry
+
     update_projected_geometry(bpy.context, depsgraph)
 
     # Repair invariants if a built-in tool edited our curve data outside the
@@ -139,6 +94,7 @@ def on_depsgraph_update(scene, depsgraph):
     # keeps invariants itself).
     if not global_data.stateful_op_running:
         from .utilities.validate import validate_all_sketches
+
         if validate_all_sketches(scene):
             global_data.needs_solve = True
 
@@ -146,6 +102,7 @@ def on_depsgraph_update(scene, depsgraph):
         # then stack into a mushy overlap, #571); re-assert their transforms.
         # Only rewrites when drifted, so this settles in one pass.
         from .utilities.workplane import repair_origin_workplanes
+
         repair_origin_workplanes(bpy.context)
 
     if depsgraph.id_type_updated("SCENE"):
@@ -188,6 +145,7 @@ def on_frame_change(scene, depsgraph=None):
     geometry is refreshed first so animated source objects stay attached too.
     """
     from . import global_data
+
     if global_data.stateful_op_running:
         return
 
