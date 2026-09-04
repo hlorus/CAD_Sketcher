@@ -26,6 +26,13 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
     bl_label = "Add Solvespace 2D Arc"
     bl_options = {"REGISTER", "UNDO"}
 
+    @classmethod
+    def poll(cls, context: Context):
+        """An arc is planar geometry -- reject it in a free-3D sketch."""
+        from ..model.sketch_ref import poll_active_2d_sketch
+
+        return poll_active_2d_sketch(context)
+
     arc_state1_doc = ("Center", "Pick or place center point.")
     arc_state2_doc = ("Startpoint", "Pick or place starting point.")
     arc_state3_doc = ("Endpoint", "Pick or place ending point.")

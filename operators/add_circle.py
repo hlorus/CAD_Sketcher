@@ -25,6 +25,13 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
     bl_label = "Add Solvespace 2D Circle"
     bl_options = {"REGISTER", "UNDO"}
 
+    @classmethod
+    def poll(cls, context: Context):
+        """A circle is planar geometry -- reject it in a free-3D sketch."""
+        from ..model.sketch_ref import poll_active_2d_sketch
+
+        return poll_active_2d_sketch(context)
+
     circle_state1_doc = ("Center", "Pick or place circle's center point.")
     circle_state2_doc = ("Radius", "Set circle's radius.")
 
@@ -83,7 +90,9 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
         sketch = self.sketch
         construction = context.scene.sketcher.use_construction
 
-        self.target = CircleRef.create(sketch, ct, self.radius, construction=construction)
+        self.target = CircleRef.create(
+            sketch, ct, self.radius, construction=construction
+        )
         ignore_hover(self.target.curve_id)
         return True
 
