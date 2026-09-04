@@ -7,14 +7,17 @@ prepended to that version's GitHub release notes, and it is shown in the in-app
 rejects a stable release that has no matching entry.
 
 ## 0.31.0
-This release adds nondestructive Boolean modeling, custom sketch attributes and refines the Extrude, Revolve and Projection tools.
+This release adds a unified Dimension tool, native 3D sketches, nondestructive Boolean modeling and custom sketch attributes, and refines the Extrude, Revolve and Projection tools.
 
 New
+- Dimension tool: a single tool that adds the right dimensional constraint for what you select — line length, distance, angle, diameter, or edge-to-edge — then drag to place the label or type a value
+- Native 3D sketches: draw points and lines freely in 3D space, anchored to an origin instead of a workplane
 - Nondestructive Boolean modeling: Extrude and Revolve can cut, union or intersect their result into overlapping bodies, with automatic target detection
 - Custom sketch attributes
 - Live Snapping: pick existing curve and mesh elements as references while drawing, they will be implicitly projected and update after future geometry changes
 
 Improved
+- Constraints are shown as an icon grid in the sidebar, split into dimensional and geometric, with theme-aware icons
 - Revolve can now build from a source object, with automatic boolean detection
 - Project Geometry is now a dedicated tool, and can project individual elements and sketch sources
 - Node tools (Extrude, Revolve, Array) return to the Select tool after finishing
