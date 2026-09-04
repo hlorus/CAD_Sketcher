@@ -241,6 +241,22 @@ class TestNative3DSketch(BgsTestCase):
         solved_axis = (p2.location - p1.location).normalized()
         self.assertAlmostEqual(abs(dimension_axis.dot(solved_axis)), 1.0, places=5)
 
+    def test_3d_point_location_follows_origin_frame(self):
+        # A 3D point's world location must resolve through the parent origin
+        # frame (not the child's lagging derived matrix), so it tracks an origin
+        # transform immediately.
+        from mathutils import Matrix
+
+        from ..model.native_3d import create_point_3d
+
+        p = create_point_3d(self.sketch, (1.0, 0.0, 0.0))
+        origin = self.sketch.target_object.parent
+
+        self.assertEqual(self.sketch.world_matrix, origin.matrix_world)
+
+        origin.matrix_world = Matrix.Translation((10.0, 0.0, 0.0))
+        self.assertLess((p.location - Vector((11.0, 0.0, 0.0))).length, 1e-4)
+
     def test_unsupported_3d_constraint_is_flagged_failed(self):
         # Only distance is dispatched in free-3D; any other constraint must be
         # flagged failed after a solve rather than silently ignored.

@@ -112,7 +112,7 @@ class View3D_OT_slvs_tweak(Operator):
         if not curve_slice.points_length:
             return False
 
-        local = self.sketch.target_object.matrix_world.inverted_safe() @ pos
+        local = self.sketch.world_matrix.inverted_safe() @ pos
         point_index = curve_slice.points[0].index
         curve_data.points[point_index].position = tuple(local)
         rebuild_3d_lines(self.sketch)

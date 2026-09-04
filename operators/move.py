@@ -121,7 +121,9 @@ class View3D_OT_slvs_move(Operator, Operator2d):
                     sketch.target_object.parent.matrix_world.translation.copy()
                 )
             else:
-                self._move_anchor_world = sketch.target_object.matrix_world.translation.copy()
+                self._move_anchor_world = (
+                    sketch.target_object.matrix_world.translation.copy()
+                )
 
             _origin, direction = get_picking_origin_dir(context, coords)
             self._move_view_normal = Vector(direction).normalized()
@@ -158,7 +160,7 @@ class View3D_OT_slvs_move(Operator, Operator2d):
                 constrained[self._axis_lock] = delta_world[self._axis_lock]
                 delta_world = constrained
 
-            basis = self.sketch.target_object.matrix_world.to_3x3()
+            basis = self.sketch.world_matrix.to_3x3()
             return basis.inverted_safe() @ delta_world
 
         wp = self._get_wp()

@@ -34,6 +34,24 @@ class Sketch:
         return self._obj.parent
 
     @property
+    def world_matrix(self):
+        """The sketch's world frame for placing and reading geometry.
+
+        A free-3D sketch is anchored by a parent origin Empty; the Curves child's
+        own derived ``matrix_world`` can lag the parent between depsgraph updates
+        (e.g. while the origin is being dragged), so read the parent -- the
+        movable frame. 2D sketches keep the child matrix (it is their workplane).
+        """
+        obj = self._obj
+        if (
+            self.is_3d
+            and obj.parent is not None
+            and obj.parent.get("is_3d_sketch_origin", False)
+        ):
+            return obj.parent.matrix_world
+        return obj.matrix_world
+
+    @property
     def is_3d(self):
         """Whether this sketch is free in 3D instead of workplane-bound."""
         return bool(self._obj.get(_IS_3D, False))
