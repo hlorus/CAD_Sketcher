@@ -90,7 +90,8 @@ class View3D_OT_slvs_set_point_coords(Operator):
 
     bl_idname = Operators.SetPointCoords
     bl_label = "Set Coordinates"
-    bl_options = {"UNDO"}
+    # REGISTER so the Adjust Last Operation panel can also tweak the coordinates.
+    bl_options = {"REGISTER", "UNDO"}
 
     curve_id: StringProperty()
     coords: FloatVectorProperty(name="Coordinates", size=3, subtype="XYZ")
