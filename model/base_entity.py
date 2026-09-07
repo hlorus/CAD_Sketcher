@@ -12,8 +12,8 @@ from bpy.props import BoolProperty, IntProperty, StringProperty
 from bpy.types import Context
 
 from .. import global_data
-from ..drawing import selection
 from ..declarations import Operators
+from ..drawing import selection
 from ..shaders import Shaders
 from ..utilities import preferences
 from ..utilities.index import breakdown_index, index_to_rgb
@@ -186,6 +186,8 @@ class SlvsGenericEntity:
         if preferences.use_experimental("all_entities_selectable", False):
             return True
 
+        from .sketch_ref import get_active_sketch
+
         active_sketch = get_active_sketch(context)
         if active_sketch and hasattr(self, "sketch"):
             # Allow to select entities that share the active sketch's workplane
@@ -201,6 +203,7 @@ class SlvsGenericEntity:
         prefs = get_prefs()
         ts = prefs.theme_settings
         from .sketch_ref import get_active_sketch
+
         active = self.is_active(get_active_sketch(context))
         highlight = self.is_highlight()
         fixed = self.fixed
@@ -426,6 +429,7 @@ class Entity2D(SlvsGenericEntity):
         if self.sketch.wp:
             return self.sketch.wp.matrix_basis
         from mathutils import Matrix
+
         return Matrix.Identity(4)
 
     @classmethod
