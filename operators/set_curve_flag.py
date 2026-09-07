@@ -1,4 +1,4 @@
-from bpy.props import BoolProperty, FloatVectorProperty, StringProperty
+from bpy.props import BoolProperty, FloatProperty, StringProperty
 from bpy.types import Context, Event, Operator
 from bpy.utils import register_classes_factory
 
@@ -94,7 +94,11 @@ class View3D_OT_slvs_set_point_coords(Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     curve_id: StringProperty()
-    coords: FloatVectorProperty(name="Coordinates", size=3, subtype="XYZ")
+    # Separate scalar fields: drawing one vector prop as per-index rows in the
+    # dialog left the Y/Z rows uncommitted, so only X ever moved.
+    x: FloatProperty(name="X")
+    y: FloatProperty(name="Y")
+    z: FloatProperty(name="Z")
     # 3D sketches expose a Z component; 2D sketches keep the point on the plane.
     use_z: BoolProperty(default=False, options={"SKIP_SAVE"})
 
@@ -109,16 +113,16 @@ class View3D_OT_slvs_set_point_coords(Operator):
             return {"CANCELLED"}
 
         pos = ref._first_point_3d()
-        self.coords = (pos.x, pos.y, pos.z)
+        self.x, self.y, self.z = pos.x, pos.y, pos.z
         self.use_z = bool(sketch.is_3d)
         return context.window_manager.invoke_props_dialog(self)
 
     def draw(self, context: Context):
         col = self.layout.column()
-        col.prop(self, "coords", index=0, text="X")
-        col.prop(self, "coords", index=1, text="Y")
+        col.prop(self, "x")
+        col.prop(self, "y")
         if self.use_z:
-            col.prop(self, "coords", index=2, text="Z")
+            col.prop(self, "z")
 
     def execute(self, context: Context):
         from ..model.native_3d import rebuild_3d_lines
@@ -138,11 +142,11 @@ class View3D_OT_slvs_set_point_coords(Operator):
                 return {"CANCELLED"}
             curve_data = sketch.target_object.data
             pt_idx = ref._curve_slice.points[0].index
-            curve_data.points[pt_idx].position = tuple(self.coords)
+            curve_data.points[pt_idx].position = (self.x, self.y, self.z)
             rebuild_3d_lines(sketch)
             curve_data.update_tag()
         else:
-            ref.co = (self.coords[0], self.coords[1])
+            ref.co = (self.x, self.y)
 
         _solve_and_refresh(context, sketch)
         return {"FINISHED"}

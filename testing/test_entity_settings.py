@@ -28,11 +28,21 @@ class TestEntitySettings(Sketch2dTestCase):
     def test_set_point_coords_moves_point(self):
         pt = self.add_point((0.0, 0.0))
         result = bpy.ops.view3d.slvs_set_point_coords(
-            "EXEC_DEFAULT", curve_id=pt.curve_id, coords=(1.5, -2.5, 0.0)
+            "EXEC_DEFAULT", curve_id=pt.curve_id, x=1.5, y=-2.5
         )
         self.assertEqual(result, {"FINISHED"})
         self.assertAlmostEqual(pt.co.x, 1.5, places=5)
         self.assertAlmostEqual(pt.co.y, -2.5, places=5)
+
+    def test_set_point_coords_y_only(self):
+        """Editing just Y (X left at its current value) must move only Y."""
+        pt = self.add_point((7.0, 0.0))
+        result = bpy.ops.view3d.slvs_set_point_coords(
+            "EXEC_DEFAULT", curve_id=pt.curve_id, x=7.0, y=9.0
+        )
+        self.assertEqual(result, {"FINISHED"})
+        self.assertAlmostEqual(pt.co.x, 7.0, places=5)
+        self.assertAlmostEqual(pt.co.y, 9.0, places=5)
 
     def test_flip_arc_gives_complementary_sweep(self):
         ct = self.add_point((0.0, 0.0))
@@ -92,7 +102,7 @@ class TestPointCoords3D(BgsTestCase):
 
         pt = create_point_3d(self.sketch, (1.0, 2.0, 3.0))
         result = bpy.ops.view3d.slvs_set_point_coords(
-            "EXEC_DEFAULT", curve_id=pt.curve_id, coords=(4.0, 5.0, 6.0)
+            "EXEC_DEFAULT", curve_id=pt.curve_id, x=4.0, y=5.0, z=6.0
         )
         self.assertEqual(result, {"FINISHED"})
         pos = pt._first_point_3d()
