@@ -138,6 +138,12 @@ class View3D_OT_slvs_set_point_coords(Operator):
         if not ref.valid or not ref.is_point():
             return {"CANCELLED"}
 
+        # TEMP DIAGNOSTIC: what did the popup actually pass in?
+        before = tuple(round(c, 3) for c in ref._first_point_3d())
+        msg = f"SetCoords recv x={self.x:.3f} y={self.y:.3f} z={self.z:.3f} is3d={sketch.is_3d} before={before}"
+        print("[CAD_Sketcher]", msg)
+        self.report({"INFO"}, msg)
+
         if sketch.is_3d:
             # 3D points carry a real local Z, so write the position directly
             # (the 2D co setter would flatten it) and rebuild the wire display.
