@@ -209,6 +209,32 @@ def resolve_sketch_base(context, coords):
 # ---------------------------------------------------------------------------
 
 
+def _hide_managed_empty(empty, scene):
+    """Hide an addon-managed workplane empty without dropping it from eval.
+
+    ``hide_viewport`` (the monitor icon) excludes the object from depsgraph
+    evaluation, so its ``matrix_world`` is never recomputed from its
+    rotation/parent after a file load or when driven/animated. That left every
+    orthogonal plane's ``matrix_world`` stale at identity, collapsing them onto
+    XY (#670). The eye-icon hide keeps the object evaluated, so use that (in
+    every view layer) plus ``hide_select`` so it can't be clicked, and clear any
+    legacy ``hide_viewport`` so old files re-evaluate. The empty must already be
+    linked to the view layer.
+    """
+    empty.hide_viewport = False
+    empty.hide_select = True
+    for view_layer in scene.view_layers:
+        empty.hide_set(True, view_layer=view_layer)
+
+
+def _managed_empty_needs_hide(empty, scene):
+    """Whether ``empty`` has drifted from the hidden state ``_hide_managed_empty``
+    enforces (undo/redo or a new view layer can unhide it)."""
+    if empty.hide_viewport or not empty.hide_select:
+        return True
+    return any(not empty.hide_get(view_layer=vl) for vl in scene.view_layers)
+
+
 def ensure_workplane_empty(sketch):
     """Ensure the sketch has a workplane empty object.
 
@@ -226,7 +252,6 @@ def ensure_workplane_empty(sketch):
     name = f"WP_{sketch.name}"
     empty = bpy.data.objects.new(name, None)
     empty.empty_display_type = "SINGLE_ARROW"
-    empty.hide_viewport = True
     empty.lock_location = (True, True, True)
     empty.lock_rotation = (True, True, True)
     empty.lock_scale = (True, True, True)
@@ -235,6 +260,9 @@ def ensure_workplane_empty(sketch):
     scene = bpy.context.scene
     if empty.name not in scene.collection.objects:
         scene.collection.objects.link(empty)
+
+    # Hide only after linking: hide_set needs the object in the view layer.
+    _hide_managed_empty(empty, scene)
 
     sketch.workplane_object = empty
     return empty
@@ -258,7 +286,7 @@ def _target_matrix(euler_tuple):
     return Euler(euler_tuple).to_matrix().to_4x4()
 
 
-def _enforce_origin_empty(empty, euler_tuple):
+def _enforce_origin_empty(empty, euler_tuple, scene):
     """Re-assert an origin empty's fixed transform and hidden state.
 
     Undo/redo can leave these at identity (all three then stack flat -> the
@@ -269,18 +297,19 @@ def _enforce_origin_empty(empty, euler_tuple):
     target = _target_matrix(euler_tuple)
     if _matrix_differs(empty.matrix_world, target):
         empty.matrix_world = target
-    if not empty.hide_viewport:
-        empty.hide_viewport = True
+    if _managed_empty_needs_hide(empty, scene):
+        _hide_managed_empty(empty, scene)
 
 
 def repair_origin_workplanes(context):
     """Fix the transform/visibility of existing origin empties (no creation)."""
     sketcher = context.scene.sketcher
+    scene = context.scene
     for prop_name, _name, euler_tuple, wp_id in _ORIGIN_WP_CONFIGS:
         existing = getattr(sketcher, prop_name)
         if existing:
             WP_ID_MAP[wp_id] = existing
-            _enforce_origin_empty(existing, euler_tuple)
+            _enforce_origin_empty(existing, euler_tuple, scene)
 
 
 def ensure_origin_workplane_empties(context):
@@ -293,19 +322,21 @@ def ensure_origin_workplane_empties(context):
         existing = getattr(sketcher, prop_name)
         if existing:
             WP_ID_MAP[wp_id] = existing
-            _enforce_origin_empty(existing, euler_tuple)
+            _enforce_origin_empty(existing, euler_tuple, scene)
             continue
 
         empty = bpy.data.objects.new(name, None)
         empty.empty_display_type = "SINGLE_ARROW"
         empty.matrix_world = _target_matrix(euler_tuple)
-        empty.hide_viewport = True
         empty.lock_location = (True, True, True)
         empty.lock_rotation = (True, True, True)
         empty.lock_scale = (True, True, True)
 
         if empty.name not in scene.collection.objects:
             scene.collection.objects.link(empty)
+
+        # Hide only after linking: hide_set needs the object in the view layer.
+        _hide_managed_empty(empty, scene)
 
         setattr(sketcher, prop_name, empty)
         WP_ID_MAP[wp_id] = empty
