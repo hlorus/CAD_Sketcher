@@ -1,4 +1,4 @@
-from bpy.props import BoolProperty, FloatProperty, StringProperty
+from bpy.props import BoolProperty, FloatVectorProperty, StringProperty
 from bpy.types import Context, Event, Operator
 from bpy.utils import register_classes_factory
 
@@ -94,13 +94,9 @@ class View3D_OT_slvs_set_point_coords(Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     curve_id: StringProperty()
-    # Separate scalar fields: drawing one vector prop as per-index rows in the
-    # dialog left the Y/Z rows uncommitted, so only X ever moved.
-    x: FloatProperty(name="X")
-    y: FloatProperty(name="Y")
-    z: FloatProperty(name="Z")
-    # 3D sketches expose a Z component; 2D sketches keep the point on the plane.
-    use_z: BoolProperty(default=False, options={"SKIP_SAVE"})
+    # A single vector drawn as one multi-field widget: all components commit
+    # together, unlike separate per-row fields where only the first committed.
+    coords: FloatVectorProperty(name="Coordinates", size=3, subtype="XYZ")
 
     def invoke(self, context: Context, event: Event):
         from ..model.sketch_ref import get_active_sketch
@@ -112,20 +108,19 @@ class View3D_OT_slvs_set_point_coords(Operator):
         if not ref.valid or not ref.is_point():
             return {"CANCELLED"}
 
-        pos = ref._first_point_3d()
-        self.x, self.y, self.z = pos.x, pos.y, pos.z
-        self.use_z = bool(sketch.is_3d)
+        self.coords = ref._first_point_3d()
         # props_popup (not props_dialog): it executes live on each field change,
         # so the point tracks every edit. A dialog only commits on OK and can
         # drop the value of the field still being edited when OK is pressed.
         return context.window_manager.invoke_props_popup(self, event)
 
     def draw(self, context: Context):
+        # Draw the whole vector in a single prop() call so all components commit
+        # together. Splitting it into per-component prop() calls (separate
+        # widgets) left every field but the first uncommitted. On a planar (2D)
+        # sketch Z is shown but ignored on write; the point stays on the plane.
         col = self.layout.column()
-        col.prop(self, "x")
-        col.prop(self, "y")
-        if self.use_z:
-            col.prop(self, "z")
+        col.prop(self, "coords", text="")
 
     def execute(self, context: Context):
         from ..model.native_3d import rebuild_3d_lines
@@ -138,12 +133,6 @@ class View3D_OT_slvs_set_point_coords(Operator):
         if not ref.valid or not ref.is_point():
             return {"CANCELLED"}
 
-        # TEMP DIAGNOSTIC: what did the popup actually pass in?
-        before = tuple(round(c, 3) for c in ref._first_point_3d())
-        msg = f"SetCoords recv x={self.x:.3f} y={self.y:.3f} z={self.z:.3f} is3d={sketch.is_3d} before={before}"
-        print("[CAD_Sketcher]", msg)
-        self.report({"INFO"}, msg)
-
         if sketch.is_3d:
             # 3D points carry a real local Z, so write the position directly
             # (the 2D co setter would flatten it) and rebuild the wire display.
@@ -151,11 +140,11 @@ class View3D_OT_slvs_set_point_coords(Operator):
                 return {"CANCELLED"}
             curve_data = sketch.target_object.data
             pt_idx = ref._curve_slice.points[0].index
-            curve_data.points[pt_idx].position = (self.x, self.y, self.z)
+            curve_data.points[pt_idx].position = tuple(self.coords)
             rebuild_3d_lines(sketch)
             curve_data.update_tag()
         else:
-            ref.co = (self.x, self.y)
+            ref.co = (self.coords[0], self.coords[1])
 
         _solve_and_refresh(context, sketch)
         return {"FINISHED"}
