@@ -115,7 +115,10 @@ class View3D_OT_slvs_set_point_coords(Operator):
         pos = ref._first_point_3d()
         self.x, self.y, self.z = pos.x, pos.y, pos.z
         self.use_z = bool(sketch.is_3d)
-        return context.window_manager.invoke_props_dialog(self)
+        # props_popup (not props_dialog): it executes live on each field change,
+        # so the point tracks every edit. A dialog only commits on OK and can
+        # drop the value of the field still being edited when OK is pressed.
+        return context.window_manager.invoke_props_popup(self, event)
 
     def draw(self, context: Context):
         col = self.layout.column()
