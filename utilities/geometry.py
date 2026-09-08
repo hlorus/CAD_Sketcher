@@ -7,43 +7,39 @@ from mathutils import Matrix, Vector
 
 
 def face_workplane_matrix(context, ob, face_index):
-    """World matrix of the workplane a mesh face would produce.
+    """World matrix of the workplane a face would produce.
 
     Shared by the Add Sketch operator (creating the empty) and the workplane
-    gizmo (previewing it on hover) so both agree exactly.
+    gizmo (previewing it on hover) so both agree exactly. Works for mesh objects
+    and for Curves sketches (whose extrude/fill mesh is on a depsgraph instance).
     """
-    from ..stateful_operator.utilities.geometry import get_evaluated_obj
+    from ..stateful_operator.utilities.geometry import evaluated_surface_mesh
 
-    eval_ob = get_evaluated_obj(context, ob)
-    mesh = eval_ob.data
-    face = mesh.polygons[face_index]
-
-    quat = get_face_orientation(mesh, face)
-    quat.rotate(ob.matrix_world)
-    pos = ob.matrix_world @ face.center
-    return Matrix.LocRotScale(pos, quat, None)
+    with evaluated_surface_mesh(context, ob) as (mesh, mw):
+        face = mesh.polygons[face_index]
+        quat = get_face_orientation(mesh, face)
+        quat.rotate(mw)
+        pos = mw @ face.center
+        return Matrix.LocRotScale(pos, quat, None)
 
 
 def face_bounds_in_plane(context, ob, face_index, mat):
-    """2D bounding box of a mesh face in a workplane's local frame.
+    """2D bounding box of a face in a workplane's local frame.
 
     ``mat`` is the plane's world matrix (see :func:`face_workplane_matrix`).
     Returns (min_x, min_y, max_x, max_y).
     """
-    from ..stateful_operator.utilities.geometry import get_evaluated_obj
+    from ..stateful_operator.utilities.geometry import evaluated_surface_mesh
 
-    eval_ob = get_evaluated_obj(context, ob)
-    mesh = eval_ob.data
-    face = mesh.polygons[face_index]
-
-    inv = mat.inverted()
-    mw = ob.matrix_world
-    xs, ys = [], []
-    for vi in face.vertices:
-        local = inv @ (mw @ mesh.vertices[vi].co)
-        xs.append(local.x)
-        ys.append(local.y)
-    return min(xs), min(ys), max(xs), max(ys)
+    with evaluated_surface_mesh(context, ob) as (mesh, mw):
+        face = mesh.polygons[face_index]
+        inv = mat.inverted()
+        xs, ys = [], []
+        for vi in face.vertices:
+            local = inv @ (mw @ mesh.vertices[vi].co)
+            xs.append(local.x)
+            ys.append(local.y)
+        return min(xs), min(ys), max(xs), max(ys)
 
 
 def orientation_from_normal(normal):
