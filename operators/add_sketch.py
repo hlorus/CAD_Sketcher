@@ -30,8 +30,9 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
     sketch_obj = bpy.data.objects.new("Sketch", curve)
 
     scene = context.scene
-    if sketch_obj.name not in scene.collection.objects:
-        scene.collection.objects.link(sketch_obj)
+    from ..utilities.collections import link_object
+
+    link_object(sketch_obj, scene)
 
     stamp_sketch_props(sketch_obj)
     _ensure_convert_modifier(sketch_obj)
@@ -118,7 +119,9 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         empty = bpy.data.objects.new("Workplane", None)
         empty.empty_display_type = "PLAIN_AXES"
         empty.empty_display_size = 0.5
-        context.scene.collection.objects.link(empty)
+        from ..utilities.collections import link_object
+
+        link_object(empty, context.scene)
 
         empty.matrix_world = face_workplane_matrix(context, ob, face_index)
 
