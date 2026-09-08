@@ -26,9 +26,16 @@ class TestEntitySettings(Sketch2dTestCase):
         return cd.curves[idx].points_length
 
     def _editor(self):
-        from ..model.group_sketcher import seed_coord_editor
+        from ..model.group_sketcher import seed_entity_editor
 
-        return seed_coord_editor, self.context.scene.sketcher.coord_editor
+        return seed_entity_editor, self.context.scene.sketcher.coord_editor
+
+    def test_editor_renames_entity(self):
+        line = self.add_line(self.add_point((0.0, 0.0)), self.add_point((1.0, 0.0)))
+        seed, editor = self._editor()
+        seed(self.context, line)
+        editor.name = "Base edge"
+        self.assertEqual(line.name, "Base edge")
 
     def test_editor_writes_both_components(self):
         pt = self.add_point((0.0, 0.0))
@@ -112,11 +119,11 @@ class TestPointCoords3D(BgsTestCase):
         return super().tearDown()
 
     def test_editor_writes_xyz(self):
-        from ..model.group_sketcher import seed_coord_editor
+        from ..model.group_sketcher import seed_entity_editor
         from ..model.native_3d import create_point_3d
 
         pt = create_point_3d(self.sketch, (1.0, 2.0, 3.0))
-        seed_coord_editor(self.context, pt)
+        seed_entity_editor(self.context, pt)
         editor = self.context.scene.sketcher.coord_editor
         editor.co_3d = (4.0, 5.0, 6.0)
         pos = pt._first_point_3d()

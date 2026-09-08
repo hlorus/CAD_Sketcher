@@ -73,14 +73,35 @@ def _update_coord_editor(self, context: Context) -> None:
         context.area.tag_redraw()
 
 
-class SlvsCoordEditor(PropertyGroup):
-    """Editable coordinates for the point currently shown in the context menu.
+def _update_entity_name(self, context: Context) -> None:
+    """Rename the edited entity through its curve ``name`` attribute."""
+    if _SEEDING_COORDS:
+        return
 
-    ``co_2d`` is drawn for planar sketches (X/Y only) and ``co_3d`` for free-3D
-    sketches; both write through ``_update_coord_editor``.
+    from ..model.curve_ref import curve_ref
+    from ..model.sketch_ref import get_active_sketch
+
+    sketch = get_active_sketch(context)
+    if not sketch or not self.curve_id:
+        return
+    ref = curve_ref(sketch, self.curve_id)
+    if not ref.valid:
+        return
+    ref.name = self.name
+    if context.area:
+        context.area.tag_redraw()
+
+
+class SlvsCoordEditor(PropertyGroup):
+    """Editable settings for the entity currently shown in the context menu.
+
+    ``name`` applies to any entity; ``co_2d`` is drawn for a point on a planar
+    sketch (X/Y only) and ``co_3d`` for a point on a free-3D sketch. Each writes
+    straight through to the curve via its update callback.
     """
 
     curve_id: StringProperty(options={"SKIP_SAVE"})
+    name: StringProperty(name="Name", update=_update_entity_name)
     co_2d: FloatVectorProperty(
         name="Coordinates", subtype="XYZ", size=2, update=_update_coord_editor
     )
@@ -89,17 +110,23 @@ class SlvsCoordEditor(PropertyGroup):
     )
 
 
-def seed_coord_editor(context: Context, ref) -> None:
-    """Aim the coordinate editor at ``ref`` and load its current position."""
+def seed_entity_editor(context: Context, ref) -> None:
+    """Aim the entity editor at ``ref`` and load its current settings.
+
+    Loads the name for any entity and the position for points; guarded so
+    seeding does not fire the write-through callbacks.
+    """
     global _SEEDING_COORDS
 
-    pos = ref._first_point_3d()
     editor = context.scene.sketcher.coord_editor
     _SEEDING_COORDS = True
     try:
         editor.curve_id = ref.curve_id
-        editor.co_2d = (pos.x, pos.y)
-        editor.co_3d = (pos.x, pos.y, pos.z)
+        editor.name = ref.name
+        if ref.is_point():
+            pos = ref._first_point_3d()
+            editor.co_2d = (pos.x, pos.y)
+            editor.co_3d = (pos.x, pos.y, pos.z)
     finally:
         _SEEDING_COORDS = False
 

@@ -67,12 +67,11 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
                     ref = curve_ref(sketch, hover)
                     if ref.valid:
                         element = ref
-                        # Load the point's position into the inline coordinate
-                        # editor drawn by PointRef.draw_settings.
-                        if ref.is_point():
-                            from ..model.group_sketcher import seed_coord_editor
+                        # Load the entity's settings (name, and point position)
+                        # into the inline editor drawn by draw_props/draw_settings.
+                        from ..model.group_sketcher import seed_entity_editor
 
-                            seed_coord_editor(context, ref)
+                        seed_entity_editor(context, ref)
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column()

@@ -200,9 +200,13 @@ class CurveRef:
     # -- UI --
 
     def draw_props(self, layout):
+        import bpy
+
         from ..declarations import Operators
 
-        layout.label(text=str(self))
+        # Editable name (write-through property seeded by the context menu).
+        editor = bpy.context.scene.sketcher.coord_editor
+        layout.prop(editor, "name", text="")
         layout.separator()
 
         # Type-specific settings (coordinates, direction, ...) go above the flags.
