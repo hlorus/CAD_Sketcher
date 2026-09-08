@@ -45,7 +45,10 @@ class TestMigrateModifiers(Sketch2dTestCase):
             for m in self._sketch_mods()
             if m.node_group.name == "CAD Sketcher Extrude"
         )
-        self.assertAlmostEqual(get_modifier_input(extrude, "Input_2"), 0.3, places=5)
+        from ..utilities.extrude_nodes import _input_ids
+
+        ids = _input_ids(extrude.node_group)
+        self.assertAlmostEqual(get_modifier_input(extrude, ids["Size"]), 0.3, places=5)
 
     def test_boolean_becomes_boolean_node_group(self):
         old = self._old_mesh()
@@ -86,8 +89,13 @@ class TestMigrateModifiers(Sketch2dTestCase):
             for m in self._sketch_mods()
             if m.node_group.name == "CAD Sketcher Linear Array"
         )
-        self.assertEqual(int(get_modifier_input(arr, "Input_22")), 4)  # Count
-        self.assertAlmostEqual(get_modifier_input(arr, "Input_23"), 3.0, places=4)
+        from ..utilities.array_nodes import _input_ids
+
+        ids = _input_ids(arr.node_group)
+        self.assertEqual(int(get_modifier_input(arr, ids["Count"])), 4)
+        self.assertAlmostEqual(
+            get_modifier_input(arr, ids["Spacing / Total distance"]), 3.0, places=4
+        )
 
     def test_screw_becomes_revolve(self):
         import math

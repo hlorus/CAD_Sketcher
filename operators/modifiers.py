@@ -21,7 +21,6 @@ from bpy.types import (
 from mathutils import Vector
 from mathutils.geometry import intersect_line_line, intersect_line_plane
 
-from ..assets_manager import load_asset
 from ..declarations import BLENDER_SELECT_TOOL, Operators
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
@@ -474,16 +473,13 @@ class NodeOperator(Operator3d):
         return super().invoke(context, event)
 
     def init(self, context, event):
-        for rType, rName in self.resources:
-            if not load_asset(rType, rName):
-                self.report({"ERROR"}, f'Cannot load asset "{rName}" from library')
-                return False
-
+        # Concrete tools build their node group in their own init() (all groups
+        # are code-built now); this base is the framework's init() fallback.
         # Don't push undo on the eyedropper re-pick path (edit_state >= 0):
         # calling ed.undo_push while entering a modal from the redo panel hangs
-        # Blender. init still loads the asset so the re-apply has the group.
+        # Blender.
         if self.edit_state < 0:
-            bpy.ops.ed.undo_push(message=f'Load Asset "{rName}"')
+            bpy.ops.ed.undo_push(message=f"Add {self.bl_label}")
         return True
 
     def _modifier_name(self):
@@ -557,29 +553,15 @@ class NodeOperator(Operator3d):
         pass
 
 
-class View3D_OT_node_fill(Operator, NodeOperator):
-    """Add a fill modifier node group to the object"""
-
-    bl_idname = Operators.NodeFill
-    bl_label = "Fill Profile"
-
-    resources = (("node_groups", "Fill Mesh and Curve"),)
-
-    states = BASE_STATES
-
-    @property
-    def NODEGROUP_NAME(self):
-        return "Fill Mesh and Curve"
-
-
 class View3D_OT_node_extrude(Operator, BooleanFromToolMixin, NodeOperator):
     """Add an extrude modifier node group"""
 
     bl_idname = Operators.NodeExtrude
     bl_label = "Extrude"
 
-    resources = (("node_groups", "CAD Sketcher Extrude"),)
     NODEGROUP_NAME = "CAD Sketcher Extrude"
+    # Built programmatically (not shipped as an asset); see init().
+    resources = ()
     return_to_tool = BLENDER_SELECT_TOOL
 
     invalid_target_msg = "Select a sketch or curve to extrude (2D profile)"
@@ -613,13 +595,18 @@ class View3D_OT_node_extrude(Operator, BooleanFromToolMixin, NodeOperator):
         return delta
 
     def init(self, context: Context, event: Event):
-        if not super().init(context, event):
-            return False
-        # Teach the shipped face-extrude asset to turn a non-filled (wire) profile
-        # into open walls; a no-op on groups already carrying the patch.
-        from ..utilities.extrude_nodes import ensure_extrude_edge_walls
+        # Build the extrude node group in place of loading an asset, then teach it
+        # to turn a non-filled (wire) profile into open walls (a no-op on groups
+        # already carrying the patch).
+        from ..utilities.extrude_nodes import (
+            build_extrude_node_group,
+            ensure_extrude_edge_walls,
+        )
 
+        build_extrude_node_group()
         ensure_extrude_edge_walls(bpy.data.node_groups.get(self.NODEGROUP_NAME))
+        if self.edit_state < 0:  # not on the eyedropper re-pick (see NodeOperator.init)
+            bpy.ops.ed.undo_push(message="Add Extrude")
         self.reset_booleans()
         return True
 
@@ -628,11 +615,16 @@ class View3D_OT_node_extrude(Operator, BooleanFromToolMixin, NodeOperator):
             self.finish_booleans(context)
 
     def set_props(self):
+        from ..utilities.extrude_nodes import _input_ids
+
         m = self.modifier
-        set_modifier_input(m, "Input_2", self.offset)  # Size
-        set_modifier_input(m, "Input_3", self.mirror)  # Mirror Extrude
-        set_modifier_input(m, "Input_4", self.asymmetry)  # Asymmetry Override
-        set_modifier_input(m, "Input_5", self.asymmetry_distance)  # Asymmetry Distance
+        # Resolve by socket name: a code-built group assigns its own identifiers,
+        # so the old baked-in "Input_N" strings no longer apply.
+        ids = _input_ids(m.node_group)
+        set_modifier_input(m, ids["Size"], self.offset)
+        set_modifier_input(m, ids["Mirror Extrude"], self.mirror)
+        set_modifier_input(m, ids["Asymmetry Override"], self.asymmetry)
+        set_modifier_input(m, ids["Asymmetry Distance"], self.asymmetry_distance)
         return True
 
     def draw_settings(self, context):
@@ -652,8 +644,17 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
     bl_label = "Linear Array"
 
     NODEGROUP_NAME = "CAD Sketcher Linear Array"
-    resources = (("node_groups", "CAD Sketcher Linear Array"),)
+    # Built programmatically (not shipped as an asset); see init().
+    resources = ()
     return_to_tool = BLENDER_SELECT_TOOL
+
+    def init(self, context: Context, event: Event):
+        from ..utilities.array_nodes import build_array_node_group
+
+        build_array_node_group()
+        if self.edit_state < 0:  # not on the eyedropper re-pick (see NodeOperator.init)
+            bpy.ops.ed.undo_push(message="Add Linear Array")
+        return True
 
     # Array offset in the object's local space (direction * spacing), captured
     # by a single interactive drag; direction and distance derive from it.
@@ -732,15 +733,21 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
             direction = Vector((1.0, 0.0, 0.0))
             distance = 0.0
 
+        from ..utilities.array_nodes import _input_ids
+
         m = self.modifier
-        set_modifier_input(m, "Input_21", tuple(direction))  # Direction
-        set_modifier_input(m, "Input_22", self.count)  # Count
-        set_modifier_input(m, "Input_23", distance)  # Spacing / Total distance
-        set_modifier_input(m, "Input_24", self.use_total_distance)  # Use Total Distance
-        set_modifier_input(m, "Input_25", self.align_rotation)  # Align Rotation
-        set_modifier_input(m, "Input_26", self.merge)  # Merge by Distance
-        set_modifier_input(m, "Input_29", self.merge_distance)  # Merge Distance
-        set_modifier_input(m, "Input_30", self.flip)  # Flip Direction
+        # Resolve by socket name: a code-built group assigns its own identifiers,
+        # so the old baked-in "Input_N" strings no longer apply. ("Flip Direciton"
+        # keeps the asset's original misspelling to stay socket-compatible.)
+        ids = _input_ids(m.node_group)
+        set_modifier_input(m, ids["Direction"], tuple(direction))
+        set_modifier_input(m, ids["Count"], self.count)
+        set_modifier_input(m, ids["Spacing / Total distance"], distance)
+        set_modifier_input(m, ids["Use Total Distance"], self.use_total_distance)
+        set_modifier_input(m, ids["Align Rotation"], self.align_rotation)
+        set_modifier_input(m, ids["Merge by Distance"], self.merge)
+        set_modifier_input(m, ids["Merge Distance"], self.merge_distance)
+        set_modifier_input(m, ids["Flip Direciton"], self.flip)
         return True
 
     def draw_settings(self, context):
