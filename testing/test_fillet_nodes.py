@@ -69,6 +69,26 @@ class TestFilletNodes(TestCase):
         finally:
             bpy.data.objects.remove(ob, do_unlink=True)
 
+    def test_amount_controls_width(self):
+        """A larger Amount bevels more -- guards the bug where Amount was wired to
+        Mesh Bevel's inert 'Offset' instead of the per-side offsets, so editing it
+        did nothing."""
+
+        def beveled_area(amount):
+            bpy.ops.mesh.primitive_cube_add(size=2)
+            ob = bpy.context.active_object
+            try:
+                self._add(ob, amount, affect=2)  # Edges
+                return self._eval(ob)[2]
+            finally:
+                bpy.data.objects.remove(ob, do_unlink=True)
+
+        small = beveled_area(0.1)
+        large = beveled_area(0.5)
+        self.assertLess(
+            large, small, "a larger Amount must bevel more (less surface area)"
+        )
+
     def test_3d_solid_rounds_edges(self):
         """The case that broke the curve pipeline: a cube's edges round."""
         bpy.ops.mesh.primitive_cube_add(size=2)

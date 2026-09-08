@@ -21,7 +21,7 @@ or an angle threshold) is the intended way to fillet specific elements.
 import bpy
 
 FILLET_NODE_GROUP = "CAD Sketcher Fillet"
-FILLET_VERSION = 4  # Mesh Bevel; bounding-box auto-detect (no mesh-only probes)
+FILLET_VERSION = 5  # drive Mesh Bevel per-side offsets so Amount controls width
 
 # ``Affect`` values. An int, not a menu socket: menu sockets don't evaluate
 # reliably as modifier inputs on Blender 5.0/5.1 (see boolean_nodes).
@@ -97,6 +97,17 @@ def _is_flat(nodes, links, geometry):
     return cmp.outputs["Result"]
 
 
+# Mesh Bevel's width comes from the four per-side offsets, not the "Offset"
+# input -- "Offset" only mirrors into them when set as a node default, so a
+# *linked* Offset is ignored (Amount then had no effect). Drive the per-sides.
+_BEVEL_OFFSETS = (
+    "Start Left Offset",
+    "Start Right Offset",
+    "End Left Offset",
+    "End Right Offset",
+)
+
+
 def _bevel(nodes, links, geometry, selection, amount, segments, affect_kind):
     """One Mesh Bevel branch with a round profile (a fillet, not a chamfer)."""
     node = nodes.new("GeometryNodeMeshBevel")
@@ -105,7 +116,13 @@ def _bevel(nodes, links, geometry, selection, amount, segments, affect_kind):
         node.inputs["Shape"].default_value = 0.5  # round arc
     links.new(geometry, node.inputs["Mesh"])
     links.new(selection, node.inputs["Selection"])
-    links.new(amount, node.inputs["Offset"])
+    names = [s.name for s in node.inputs]
+    for side in _BEVEL_OFFSETS:
+        if side in names:
+            links.new(amount, node.inputs[side])
+    # Keep Offset driven too for any build/mode that reads it directly.
+    if "Offset" in names:
+        links.new(amount, node.inputs["Offset"])
     links.new(segments, node.inputs["Segments"])
     return node.outputs["Mesh"]
 
