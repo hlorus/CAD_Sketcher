@@ -46,7 +46,6 @@ modules = [
     "set_curve_flag",
     "custom_attributes",
     "migrate",
-    "test",
 ]
 
 

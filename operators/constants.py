@@ -1,4 +1,6 @@
-from ..model.categories import POINT3D, POINT2D
+import bpy
+
+from ..model.categories import POINT2D, POINT3D
 
 types_point_3d = (
     *POINT3D,
