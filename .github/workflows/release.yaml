@@ -24,8 +24,24 @@ permissions:
   contents: write
 
 jobs:
+  # Gate every build on a whole-tree pyflakes check. Unlike the PR lint
+  # (.github/workflows/lint.yml), which is scoped to a PR's changed files, this
+  # runs `ruff check --select F` over the ENTIRE codebase so a latent
+  # undefined-name / unused-import in an untouched file (the kind that reached
+  # the extensions.blender.org reviewer in 0.31.0-rc.1) can't ship. F rules
+  # only: import ordering and formatting stay diff-scoped in the PR lint.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ruff
+        run: pipx install ruff
+      - name: Ruff pyflakes check (whole tree)
+        run: ruff check --select F --output-format=github .
+
   # === Stable channel: version tag -> GitHub Release ===
   release:
+    needs: lint
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
@@ -244,6 +260,7 @@ jobs:
 
   # === Latest channel: every main commit -> rolling build ===
   latest:
+    needs: lint
     if: >-
       github.ref == 'refs/heads/main' ||
       (github.event_name == 'workflow_dispatch' && inputs.run_latest)
