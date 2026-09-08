@@ -38,7 +38,6 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
 
         layout.operator(declarations.Operators.MergePoints)
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
-        layout.operator(declarations.Operators.AddFillet, icon="MOD_BEVEL")
 
         layout.separator()
         prefs = preferences.get_prefs()
@@ -109,6 +108,7 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         col.operator(declarations.Operators.NodeRevolve)
         col.operator(declarations.Operators.NodeArrayLinear)
         col.operator(declarations.Operators.NodeBoolean)
+        col.operator(declarations.Operators.AddFillet, icon="MOD_BEVEL")
 
     def draw(self, context: Context):
         # Mirror the workspace toolbar: sketch tools while a sketch is active,
