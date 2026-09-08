@@ -818,6 +818,11 @@ def build_array_node_group(name: str = ARRAY_NODE_GROUP):
     _build_graph(ng)
     if _skips:
         print("CAD Sketcher array build: unresolved sockets:\n  " + "\n  ".join(_skips))
+        print("CAD Sketcher array socket layout:")
+        for node in ng.nodes:
+            ins = ",".join(s.name for s in node.inputs)
+            outs = ",".join(s.name for s in node.outputs)
+            print(f"  DUMP {node.name} <{node.bl_idname}> in=[{ins}] out=[{outs}]")
     _restore_modifier_inputs(ng, saved)
     ng["cad_array_version"] = ARRAY_VERSION
     return ng

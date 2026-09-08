@@ -12,6 +12,7 @@ along local +Z by ``Size`` into open walls, honouring ``Mirror Extrude``. Filled
 input is untouched -- it flows through the original face-extrude path.
 """
 
+import bpy
 
 EXTRUDE_NODE_GROUP = "CAD Sketcher Extrude"
 # Bump when the built graph changes so groups baked into saved files rebuild.
