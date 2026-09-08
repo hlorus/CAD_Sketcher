@@ -25,10 +25,7 @@ class TestGeneratedIds(TestCase):
         self.assertEqual(stores[VERTEX_ID_ATTR].domain, "POINT")
         self.assertEqual(stores[FACE_ID_ATTR].domain, "FACE")
         self.assertFalse(
-            any(
-                node.bl_idname == "GeometryNodeInputIndex"
-                for node in group.nodes
-            ),
+            any(node.bl_idname == "GeometryNodeInputIndex" for node in group.nodes),
             "generated ids must not depend on topology-global Index",
         )
 
@@ -55,9 +52,7 @@ class TestGeneratedIds(TestCase):
         nodes, links = group.nodes, group.links
         group_input = nodes.new("NodeGroupInput")
         group_output = nodes.new("NodeGroupOutput")
-        geometry = add_generated_id_nodes(
-            nodes, links, group_input.outputs["Geometry"]
-        )
+        geometry = add_generated_id_nodes(nodes, links, group_input.outputs["Geometry"])
         links.new(geometry, group_output.inputs["Geometry"])
 
         mesh = bpy.data.meshes.new("test_stable_generated_ids")
@@ -73,9 +68,7 @@ class TestGeneratedIds(TestCase):
                     mesh.attributes.remove(attribute)
             mesh.clear_geometry()
             mesh.from_pydata(vertices, [], faces)
-            curve_source = mesh.attributes.new(
-                SOURCE_CURVE_ID_ATTR, "INT", "POINT"
-            )
+            curve_source = mesh.attributes.new(SOURCE_CURVE_ID_ATTR, "INT", "POINT")
             endpoint_source = mesh.attributes.new(
                 SOURCE_ENDPOINT_ID_ATTR, "INT", "POINT"
             )
@@ -88,16 +81,15 @@ class TestGeneratedIds(TestCase):
             depsgraph = bpy.context.evaluated_depsgraph_get()
             depsgraph.update()
             evaluated = obj.evaluated_get(depsgraph)
-            result = bpy.data.meshes.new_from_object(
-                evaluated, depsgraph=depsgraph
-            )
+            result = bpy.data.meshes.new_from_object(evaluated, depsgraph=depsgraph)
             try:
                 self.assertIn("id", result.attributes)
                 vertex_ids = result.attributes[VERTEX_ID_ATTR]
                 face_ids = result.attributes[FACE_ID_ATTR]
                 vertices = {
-                    tuple(round(value, 4) for value in vertex.co):
-                    vertex_ids.data[vertex.index].value
+                    tuple(round(value, 4) for value in vertex.co): vertex_ids.data[
+                        vertex.index
+                    ].value
                     for vertex in result.vertices
                 }
                 faces = {
@@ -222,10 +214,7 @@ class TestConvertNodeGroup(TestCase):
             self.assertEqual(stores[FACE_ID_ATTR].domain, "FACE")
 
             self.assertFalse(
-                any(
-                    node.bl_idname == "GeometryNodeInputIndex"
-                    for node in ng.nodes
-                )
+                any(node.bl_idname == "GeometryNodeInputIndex" for node in ng.nodes)
             )
             accumulates = [
                 node
@@ -252,3 +241,108 @@ class TestConvertNodeGroup(TestCase):
             self.assertEqual(ng.get("cad_convert_version"), CONVERT_VERSION)
         finally:
             bpy.data.node_groups.remove(ng)
+
+
+class TestFillWinding(TestCase):
+    """Fill Curve (N-gons) is winding-sensitive: a hole vanishes when its loop is
+    wound opposite the container. Mesh to Curve derives winding from edge order,
+    which is not stable, so _normalize_winding must pin all loops to one winding
+    and make the ring deterministic regardless of input winding/order."""
+
+    import math as _math
+
+    RECT = [(-4, -2, 0), (4, -2, 0), (4, 2, 0), (-4, 2, 0)]
+    RECT_AREA = 32.0
+    CIRCLE_R = 1.5
+    RING_AREA = 32.0 - _math.pi * 1.5**2
+
+    def _circle(self, reverse):
+        import math
+
+        n = 32
+        v = [
+            (
+                self.CIRCLE_R * math.cos(2 * math.pi * k / n),
+                self.CIRCLE_R * math.sin(2 * math.pi * k / n),
+                0,
+            )
+            for k in range(n)
+        ]
+        return list(reversed(v)) if reverse else v
+
+    def _loops_object(self, rect_rev, circ_rev, circle_first):
+        rect = list(reversed(self.RECT)) if rect_rev else list(self.RECT)
+        loops = (
+            [self._circle(circ_rev), rect]
+            if circle_first
+            else [rect, self._circle(circ_rev)]
+        )
+        verts, edges = [], []
+        for vs in loops:
+            base = len(verts)
+            verts += vs
+            edges += [(base + i, base + (i + 1) % len(vs)) for i in range(len(vs))]
+        me = bpy.data.meshes.new("winding_loops")
+        me.from_pydata(verts, edges, [])
+        me.update()
+        ob = bpy.data.objects.new("winding_loops", me)
+        bpy.context.scene.collection.objects.link(ob)
+        return ob
+
+    def _fill_group(self):
+        from ..utilities.convert_nodes import _normalize_winding
+
+        ng = bpy.data.node_groups.new("test_fill_winding", "GeometryNodeTree")
+        ng.interface.new_socket(
+            "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+        )
+        ng.interface.new_socket(
+            "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+        )
+        n, links = ng.nodes, ng.links
+        gi, go = n.new("NodeGroupInput"), n.new("NodeGroupOutput")
+        m2c = n.new("GeometryNodeMeshToCurve")
+        fc = n.new("GeometryNodeFillCurve")
+        try:
+            fc.inputs["Mode"].default_value = "N-gons"
+        except Exception:
+            pass
+        links.new(gi.outputs["Geometry"], m2c.inputs["Mesh"])
+        links.new(
+            _normalize_winding(n, links, m2c.outputs["Curve"]), fc.inputs["Curve"]
+        )
+        links.new(fc.outputs["Mesh"], go.inputs["Geometry"])
+        return ng
+
+    def test_ring_is_winding_independent(self):
+        ng = self._fill_group()
+        created = [ng]
+        try:
+            for circle_first in (False, True):
+                for rect_rev in (False, True):
+                    for circ_rev in (False, True):
+                        ob = self._loops_object(rect_rev, circ_rev, circle_first)
+                        created.append(ob)
+                        mod = ob.modifiers.new("fill", "NODES")
+                        mod.node_group = ng
+                        dg = bpy.context.evaluated_depsgraph_get()
+                        ev = ob.evaluated_get(dg)
+                        me = ev.to_mesh()
+                        area = sum(p.area for p in me.polygons)
+                        ev.to_mesh_clear()
+                        self.assertAlmostEqual(
+                            area,
+                            self.RING_AREA,
+                            delta=0.5,
+                            msg=(
+                                f"circle_first={circle_first} rect_rev={rect_rev} "
+                                f"circ_rev={circ_rev}: area {area:.3f} is not the ring "
+                                f"{self.RING_AREA:.3f} -> winding flipped the fill"
+                            ),
+                        )
+        finally:
+            for d in created:
+                if isinstance(d, bpy.types.Object):
+                    bpy.data.objects.remove(d, do_unlink=True)
+                else:
+                    bpy.data.node_groups.remove(d)
