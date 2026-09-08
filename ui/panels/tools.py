@@ -38,6 +38,7 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
 
         layout.operator(declarations.Operators.MergePoints)
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
+        layout.operator(declarations.Operators.AddFillet, icon="MOD_BEVEL")
 
         layout.separator()
         prefs = preferences.get_prefs()
