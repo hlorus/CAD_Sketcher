@@ -192,6 +192,8 @@ def _build_graph(ng):
     x.name = "Vector Math.002"
     n["Vector Math.002"] = x
     _set(x, "operation", "SCALE")
+    _seti(x, "Vector", 1, (0.0, 0.0, 0.0))
+    _seti(x, "Vector", 2, (0.0, 0.0, 0.0))
     _seti(x, "Scale", 0, -1.0)
     x = nodes.new("NodeReroute")
     x.name = "Reroute.022"
@@ -243,15 +245,21 @@ def _build_graph(ng):
     x.name = "Math"
     n["Math"] = x
     _set(x, "operation", "SUBTRACT")
+    _set(x, "use_clamp", False)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("ShaderNodeMath")
     x.name = "Math.004"
     n["Math.004"] = x
     _set(x, "operation", "DIVIDE")
+    _set(x, "use_clamp", False)
     _seti(x, "Value", 1, 2.0)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("ShaderNodeMath")
     x.name = "Math.005"
     n["Math.005"] = x
+    _set(x, "operation", "ADD")
     _set(x, "use_clamp", True)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("NodeReroute")
     x.name = "Reroute.005"
     n["Reroute.005"] = x
@@ -264,22 +272,34 @@ def _build_graph(ng):
     x.name = "Math.008"
     n["Math.008"] = x
     _set(x, "operation", "MULTIPLY")
+    _set(x, "use_clamp", False)
     _seti(x, "Value", 1, -1.0)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("ShaderNodeMath")
     x.name = "Math.002"
     n["Math.002"] = x
     _set(x, "operation", "SUBTRACT")
+    _set(x, "use_clamp", False)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("GeometryNodeAttributeStatistic")
     x.name = "Attribute Statistic.002"
     n["Attribute Statistic.002"] = x
+    _set(x, "data_type", "FLOAT")
+    _set(x, "domain", "POINT")
+    _seti(x, "Selection", 0, True)
     x = nodes.new("ShaderNodeMath")
     x.name = "Math.009"
     n["Math.009"] = x
     _set(x, "operation", "DIVIDE")
+    _set(x, "use_clamp", False)
     _seti(x, "Value", 1, 2.0)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("ShaderNodeMath")
     x.name = "Math.010"
     n["Math.010"] = x
+    _set(x, "operation", "ADD")
+    _set(x, "use_clamp", False)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("NodeReroute")
     x.name = "Reroute.007"
     n["Reroute.007"] = x
@@ -292,17 +312,27 @@ def _build_graph(ng):
     x.name = "Math.003"
     n["Math.003"] = x
     _set(x, "operation", "SUBTRACT")
+    _set(x, "use_clamp", False)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("GeometryNodeAttributeStatistic")
     x.name = "Attribute Statistic.003"
     n["Attribute Statistic.003"] = x
+    _set(x, "data_type", "FLOAT")
+    _set(x, "domain", "POINT")
+    _seti(x, "Selection", 0, True)
     x = nodes.new("ShaderNodeMath")
     x.name = "Math.017"
     n["Math.017"] = x
     _set(x, "operation", "DIVIDE")
+    _set(x, "use_clamp", False)
     _seti(x, "Value", 1, 2.0)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("ShaderNodeMath")
     x.name = "Math.018"
     n["Math.018"] = x
+    _set(x, "operation", "ADD")
+    _set(x, "use_clamp", False)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("NodeReroute")
     x.name = "Reroute.009"
     n["Reroute.009"] = x
@@ -315,24 +345,37 @@ def _build_graph(ng):
     x.name = "Math.019"
     n["Math.019"] = x
     _set(x, "operation", "MULTIPLY")
+    _set(x, "use_clamp", False)
     _seti(x, "Value", 1, -1.0)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("GeometryNodeAttributeStatistic")
     x.name = "Attribute Statistic.001"
     n["Attribute Statistic.001"] = x
+    _set(x, "data_type", "FLOAT")
+    _set(x, "domain", "POINT")
+    _seti(x, "Selection", 0, True)
     x = nodes.new("ShaderNodeMath")
     x.name = "Math.012"
     n["Math.012"] = x
     _set(x, "operation", "MULTIPLY")
+    _set(x, "use_clamp", False)
     _seti(x, "Value", 1, -1.0)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("GeometryNodeSwitch")
     x.name = "Switch.004"
     n["Switch.004"] = x
+    _set(x, "input_type", "FLOAT")
+    _seti(x, "False", 0, 0.0)
     x = nodes.new("GeometryNodeSwitch")
     x.name = "Switch.006"
     n["Switch.006"] = x
+    _set(x, "input_type", "FLOAT")
+    _seti(x, "False", 0, 0.0)
     x = nodes.new("GeometryNodeSwitch")
     x.name = "Switch.007"
     n["Switch.007"] = x
+    _set(x, "input_type", "FLOAT")
+    _seti(x, "False", 0, 0.0)
     x = nodes.new("FunctionNodeInputBool")
     x.name = "Boolean"
     n["Boolean"] = x
@@ -340,6 +383,7 @@ def _build_graph(ng):
     x = nodes.new("FunctionNodeInputBool")
     x.name = "Boolean.001"
     n["Boolean.001"] = x
+    _set(x, "boolean", False)
     x = nodes.new("FunctionNodeInputBool")
     x.name = "Boolean.002"
     n["Boolean.002"] = x
@@ -358,6 +402,9 @@ def _build_graph(ng):
     x = nodes.new("GeometryNodeTransform")
     x.name = "Transform"
     n["Transform"] = x
+    _seti(x, "Mode", 0, "Components")
+    _seti(x, "Rotation", 0, (0.0, 0.0, 0.0))
+    _seti(x, "Scale", 0, (1.0, 1.0, 1.0))
     x = nodes.new("NodeReroute")
     x.name = "Reroute.028"
     n["Reroute.028"] = x
@@ -370,6 +417,8 @@ def _build_graph(ng):
     x.name = "Vector Math.001"
     n["Vector Math.001"] = x
     _set(x, "operation", "SCALE")
+    _seti(x, "Vector", 1, (0.0, 0.0, 0.0))
+    _seti(x, "Vector", 2, (0.0, 0.0, 0.0))
     x = nodes.new("NodeReroute")
     x.name = "Reroute.031"
     n["Reroute.031"] = x
@@ -381,10 +430,17 @@ def _build_graph(ng):
     x = nodes.new("GeometryNodeMeshLine")
     x.name = "Mesh Line.002"
     n["Mesh Line.002"] = x
+    _set(x, "mode", "OFFSET")
+    _set(x, "count_mode", "TOTAL")
+    _seti(x, "Resolution", 0, 1.0)
+    _seti(x, "Start Location", 0, (0.0, 0.0, 0.0))
     x = nodes.new("GeometryNodeMeshLine")
     x.name = "Mesh Line.003"
     n["Mesh Line.003"] = x
     _set(x, "mode", "END_POINTS")
+    _set(x, "count_mode", "TOTAL")
+    _seti(x, "Resolution", 0, 1.0)
+    _seti(x, "Start Location", 0, (0.0, 0.0, 0.0))
     x = nodes.new("NodeReroute")
     x.name = "Reroute.033"
     n["Reroute.033"] = x
@@ -404,9 +460,18 @@ def _build_graph(ng):
     x = nodes.new("FunctionNodeAlignEulerToVector")
     x.name = "Align Euler to Vector"
     n["Align Euler to Vector"] = x
+    _set(x, "axis", "X")
+    _set(x, "pivot_axis", "AUTO")
+    _seti(x, "Rotation", 0, (0.0, 0.0, 0.0))
+    _seti(x, "Factor", 0, 1.0)
     x = nodes.new("GeometryNodeInstanceOnPoints")
     x.name = "Instance on Points.001"
     n["Instance on Points.001"] = x
+    _seti(x, "Selection", 0, True)
+    _seti(x, "Pick Instance", 0, False)
+    _seti(x, "Instance Index", 0, 0)
+    _seti(x, "Rotation", 0, (0.0, 0.0, 0.0))
+    _seti(x, "Scale", 0, (1.0, 1.0, 1.0))
     x = nodes.new("GeometryNodeSwitch")
     x.name = "Switch.002"
     n["Switch.002"] = x
@@ -414,6 +479,9 @@ def _build_graph(ng):
     x = nodes.new("GeometryNodeRotateInstances")
     x.name = "Rotate Instances"
     n["Rotate Instances"] = x
+    _seti(x, "Selection", 0, True)
+    _seti(x, "Pivot Point", 0, (0.0, 0.0, 0.0))
+    _seti(x, "Local Space", 0, True)
     x = nodes.new("NodeGroupInput")
     x.name = "Group Input.001"
     n["Group Input.001"] = x
@@ -425,6 +493,9 @@ def _build_graph(ng):
     x.name = "Realize Instances"
     n["Realize Instances"] = x
     _set(x, "realize_to_point_domain", True)
+    _seti(x, "Selection", 0, True)
+    _seti(x, "Realize All", 0, True)
+    _seti(x, "Depth", 0, 0)
     x = nodes.new("NodeGroupInput")
     x.name = "Group Input.002"
     n["Group Input.002"] = x
@@ -435,12 +506,16 @@ def _build_graph(ng):
     x = nodes.new("GeometryNodeMergeByDistance")
     x.name = "Merge by Distance"
     n["Merge by Distance"] = x
+    _seti(x, "Selection", 0, True)
+    _seti(x, "Mode", 0, "All")
     x = nodes.new("NodeGroupInput")
     x.name = "Group Input.003"
     n["Group Input.003"] = x
     x = nodes.new("GeometryNodeSetPosition")
     x.name = "Set Position"
     n["Set Position"] = x
+    _seti(x, "Selection", 0, True)
+    _seti(x, "Position", 0, (0.0, 0.0, 0.0))
     x = nodes.new("NodeReroute")
     x.name = "Reroute.014"
     n["Reroute.014"] = x
@@ -466,6 +541,8 @@ def _build_graph(ng):
     x = nodes.new("GeometryNodeSetPosition")
     x.name = "Set Position.001"
     n["Set Position.001"] = x
+    _seti(x, "Selection", 0, True)
+    _seti(x, "Position", 0, (0.0, 0.0, 0.0))
     x = nodes.new("NodeReroute")
     x.name = "Reroute.002"
     n["Reroute.002"] = x
@@ -484,7 +561,9 @@ def _build_graph(ng):
     x.name = "Math.001"
     n["Math.001"] = x
     _set(x, "operation", "MULTIPLY")
+    _set(x, "use_clamp", False)
     _seti(x, "Value", 0, -1.0)
+    _seti(x, "Value", 2, 0.5)
     x = nodes.new("NodeReroute")
     x.name = "Reroute.016"
     n["Reroute.016"] = x
@@ -501,9 +580,13 @@ def _build_graph(ng):
     x.name = "Vector Math"
     n["Vector Math"] = x
     _set(x, "operation", "NORMALIZE")
+    _seti(x, "Vector", 1, (0.0, 0.0, 0.0))
+    _seti(x, "Vector", 2, (0.0, 0.0, 0.0))
+    _seti(x, "Scale", 0, 1.0)
     x = nodes.new("GeometryNodeSwitch")
     x.name = "Switch.008"
     n["Switch.008"] = x
+    _set(x, "input_type", "FLOAT")
     x = nodes.new("NodeReroute")
     x.name = "Reroute.018"
     n["Reroute.018"] = x
@@ -818,11 +901,6 @@ def build_array_node_group(name: str = ARRAY_NODE_GROUP):
     _build_graph(ng)
     if _skips:
         print("CAD Sketcher array build: unresolved sockets:\n  " + "\n  ".join(_skips))
-        print("CAD Sketcher array socket layout:")
-        for node in ng.nodes:
-            ins = ",".join(s.name for s in node.inputs)
-            outs = ",".join(s.name for s in node.outputs)
-            print(f"  DUMP {node.name} <{node.bl_idname}> in=[{ins}] out=[{outs}]")
     _restore_modifier_inputs(ng, saved)
     ng["cad_array_version"] = ARRAY_VERSION
     return ng
