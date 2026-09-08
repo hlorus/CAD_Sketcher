@@ -8,8 +8,8 @@ on any mesh.
 
 Inputs: ``Amount`` (width), ``Segments`` (roundness), ``Affect`` (Auto / Vertices
 / Edges) and a ``Selection`` field to fillet only chosen elements. ``Auto`` picks
-Vertices for a flat/open mesh (it has boundary edges) and Edges for a closed
-solid; the same choice via a per-element ``Selection`` gives "fillet specific
+Vertices for a planar profile (a degenerate bounding box) and Edges for a solid;
+the same choice via a per-element ``Selection`` gives "fillet specific
 edges/corners".
 
 Limitation: a global vertex fillet rounds *every* corner, including the dense
@@ -21,11 +21,19 @@ or an angle threshold) is the intended way to fillet specific elements.
 import bpy
 
 FILLET_NODE_GROUP = "CAD Sketcher Fillet"
-FILLET_VERSION = 2  # rebuilt on Mesh Bevel (was the curve-fillet pipeline)
+FILLET_VERSION = 3  # Mesh Bevel; Amount/Segments forced to plain values
 
 # ``Affect`` values. An int, not a menu socket: menu sockets don't evaluate
 # reliably as modifier inputs on Blender 5.0/5.1 (see boolean_nodes).
 AFFECT_AUTO, AFFECT_VERTICES, AFFECT_EDGES = 0, 1, 2
+
+
+def _force_value(socket):
+    """Forbid the field/attribute toggle so the input is a plain editable value."""
+    try:
+        socket.force_non_field = True
+    except Exception:
+        pass
 
 
 def _compare(nodes, links, data_type, operation, a_socket, b_value):
@@ -45,6 +53,56 @@ def _bool(nodes, links, operation, a, b):
     links.new(a, node.inputs[0])
     links.new(b, node.inputs[1])
     return node.outputs["Boolean"]
+
+
+def _math(nodes, links, operation, a, b):
+    node = nodes.new("ShaderNodeMath")
+    node.operation = operation
+    links.new(a, node.inputs[0])
+    if hasattr(b, "bl_idname") or hasattr(b, "node"):
+        links.new(b, node.inputs[1])
+    else:
+        node.inputs[1].default_value = b
+    return node.outputs["Value"]
+
+
+def _is_flat(nodes, links, geometry):
+    """Boolean: is the geometry planar (min bounding-box extent ~ 0)?
+
+    Scale-independent (compares the smallest extent to the largest) and safe on
+    any geometry -- Bounding Box never errors, so this can run under Auto without
+    tripping a node warning that would grey the modifier inputs.
+    """
+    bbox = nodes.new("GeometryNodeBoundBox")
+    links.new(geometry, bbox.inputs["Geometry"])
+    size = nodes.new("ShaderNodeVectorMath")
+    size.operation = "SUBTRACT"
+    links.new(bbox.outputs["Max"], size.inputs[0])
+    links.new(bbox.outputs["Min"], size.inputs[1])
+    sep = nodes.new("ShaderNodeSeparateXYZ")
+    links.new(size.outputs["Vector"], sep.inputs["Vector"])
+    max_extent = _math(
+        nodes,
+        links,
+        "MAXIMUM",
+        sep.outputs["X"],
+        _math(nodes, links, "MAXIMUM", sep.outputs["Y"], sep.outputs["Z"]),
+    )
+    min_extent = _math(
+        nodes,
+        links,
+        "MINIMUM",
+        sep.outputs["X"],
+        _math(nodes, links, "MINIMUM", sep.outputs["Y"], sep.outputs["Z"]),
+    )
+    threshold = _math(nodes, links, "MULTIPLY", max_extent, 1e-3)
+    cmp = nodes.new("FunctionNodeCompare")
+    cmp.data_type = "FLOAT"
+    cmp.operation = "LESS_THAN"
+    ins = [s for s in cmp.inputs if s.enabled and s.type == "VALUE"]
+    links.new(min_extent, ins[0])
+    links.new(threshold, ins[1])
+    return cmp.outputs["Result"]
 
 
 def _bevel(nodes, links, geometry, selection, amount, segments, affect_kind):
@@ -79,6 +137,10 @@ def build_fillet_node_group(name: str = FILLET_NODE_GROUP):
     amount = iface.new_socket("Amount", in_out="INPUT", socket_type="NodeSocketFloat")
     amount.default_value = 0.1
     amount.min_value = 0.0
+    # Plain value, never an attribute/field toggle -- these are global settings,
+    # and leaving them field-capable makes the modifier show an attribute box
+    # (which reads as "can't edit the value").
+    _force_value(amount)
     try:
         amount.subtype = "DISTANCE"
     except Exception:
@@ -87,6 +149,7 @@ def build_fillet_node_group(name: str = FILLET_NODE_GROUP):
     segments.default_value = 4
     segments.min_value = 1
     segments.description = "Segments per rounded corner/edge"
+    _force_value(segments)
     affect = iface.new_socket("Affect", in_out="INPUT", socket_type="NodeSocketInt")
     affect.default_value = AFFECT_AUTO
     affect.min_value = 0
@@ -95,6 +158,7 @@ def build_fillet_node_group(name: str = FILLET_NODE_GROUP):
         "0 = Auto (corners on a flat profile, edges on a solid), "
         "1 = Vertices, 2 = Edges"
     )
+    _force_value(affect)
     selection = iface.new_socket(
         "Selection", in_out="INPUT", socket_type="NodeSocketBool"
     )
@@ -115,15 +179,13 @@ def build_fillet_node_group(name: str = FILLET_NODE_GROUP):
     verts = _bevel(nodes, links, geo, sel, amt, seg, "Vertices")
     edges = _bevel(nodes, links, geo, sel, amt, seg, "Edges")
 
-    # Auto-detect flatness: a flat/open mesh has at least one boundary edge (an
-    # edge touching fewer than two faces); a closed solid has none.
-    neighbors = nodes.new("GeometryNodeInputMeshEdgeNeighbors")
-    stat = nodes.new("GeometryNodeAttributeStatistic")
-    stat.data_type = "FLOAT"
-    stat.domain = "EDGE"
-    links.new(geo, stat.inputs["Geometry"])
-    links.new(neighbors.outputs["Face Count"], stat.inputs["Attribute"])
-    is_flat = _compare(nodes, links, "FLOAT", "LESS_THAN", stat.outputs["Min"], 2.0)
+    # Auto-detect flatness from the bounding box: a flat profile is degenerate
+    # along one axis (min extent ~ 0), a solid has volume in all three. Bounding
+    # Box works on any geometry and never errors -- unlike mesh-only probes
+    # (Edge Neighbors / Attribute Statistic), which warn on a curve/non-mesh input
+    # and, because Auto is the only path that evaluates them, would grey the
+    # modifier's inputs at Affect = 0 only.
+    is_flat = _is_flat(nodes, links, geo)
 
     # use_vertices = (Affect == Vertices) or (Affect == Auto and is_flat)
     eq_vertices = _compare(
