@@ -22,9 +22,9 @@ class View3D_OT_slvs_add_fillet(Operator):
     bl_label = "Add Fillet"
     bl_options = {"REGISTER", "UNDO"}
 
-    radius: FloatProperty(
-        name="Radius",
-        description="Corner radius",
+    amount: FloatProperty(
+        name="Amount",
+        description="Fillet width",
         default=0.1,
         min=0.0,
         subtype="DISTANCE",
@@ -40,7 +40,7 @@ class View3D_OT_slvs_add_fillet(Operator):
         group = build_fillet_node_group()
         modifier = ob.modifiers.new("CAD Sketcher Fillet", "NODES")
         modifier.node_group = group
-        set_modifier_input(modifier, fillet_input_ids(group)["Radius"], self.radius)
+        set_modifier_input(modifier, fillet_input_ids(group)["Amount"], self.amount)
         return {"FINISHED"}
 
 
