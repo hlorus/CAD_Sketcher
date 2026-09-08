@@ -31,8 +31,6 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
         nm (SlvsNormal3D): Normal which defines the orientation
     """
 
-    size = 0.4
-
     def dependencies(self) -> List[SlvsGenericEntity]:
         return [self.p1, self.nm]
 
@@ -43,8 +41,6 @@ class SlvsWorkplane(SlvsGenericEntity, PropertyGroup):
     def update(self):
         if bpy.app.background:
             return
-
-        p1, nm = self.p1, self.nm
 
         coords = draw_rect_2d(0, 0, self.size, self.size)
         coords = [(Vector(co))[:] for co in coords]

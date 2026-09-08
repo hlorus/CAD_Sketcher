@@ -1,13 +1,10 @@
 import logging
 import secrets
-from typing import Union
 
 from bpy.types import PropertyGroup
 from bpy.props import CollectionProperty
 from bpy.utils import register_classes_factory
 
-from .base_entity import SlvsGenericEntity
-from .sketch import SlvsSketch
 
 from .base_constraint import GenericConstraint
 from .distance import SlvsDistance

@@ -450,7 +450,6 @@ class SlvsEntities(PropertyGroup):
     @property
     def selected_all(self):
         """Return all selected entities, might include invisible entities"""
-        context = bpy.context
         items = []
         for index in selection.selected:
             if index is None:

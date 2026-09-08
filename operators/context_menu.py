@@ -41,13 +41,10 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
 
     def execute(self, context: Context):
         is_entity = True
-        entity_index = None
-        constraint_index = None
         element = None
 
         # Constraints
         if self.properties.is_property_set("type"):
-            constraint_index = self.index
             constraints = get_active_constraints(context)
             element = constraints.get_from_type_index(self.type, self.index)
             is_entity = False

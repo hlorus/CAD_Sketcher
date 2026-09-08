@@ -143,8 +143,6 @@ def create_bezier_curve_attributes(
 # NOTE: When tweaking, it's necessary to constrain a point that is only temporary available
 # and has no SlvsPoint representation
 def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
-    from .categories import LINE, CURVE, POINT
-    from .workplane import SlvsWorkplane
 
     kwargs = {}
     if wp:

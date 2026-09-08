@@ -7,7 +7,6 @@ from bpy.types import UILayout, Property, Context
 
 from ..global_data import WpReq
 from ..utilities import preferences
-from ..declarations import Operators
 from .constants import ENTITY_PROP_NAMES
 from .base_entity import SlvsGenericEntity
 from ..utilities.view import update_cb, refresh

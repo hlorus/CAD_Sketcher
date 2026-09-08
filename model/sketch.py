@@ -3,7 +3,7 @@ from typing import List
 
 import bpy
 from bpy.types import PropertyGroup
-from bpy.props import EnumProperty, BoolProperty, IntProperty, PointerProperty
+from bpy.props import EnumProperty, IntProperty, PointerProperty
 from bpy.utils import register_classes_factory
 
 from .. import global_data

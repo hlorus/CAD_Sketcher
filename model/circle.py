@@ -84,12 +84,6 @@ class SlvsCircle(Entity2D, PropertyGroup):
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         self.param_distance = solvesys.add_distance(group, self.radius, self.wp.py_data)
 
-        nm = None
-        if self.nm != -1:
-            nm = self.nm
-        else:
-            nm = self.wp.nm
-
         handle = solvesys.add_circle(
             group,
             self.wp.nm.py_data,

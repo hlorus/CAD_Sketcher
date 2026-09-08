@@ -25,7 +25,6 @@ from .utilities import (
     create_bezier_curve,
     round_v,
 )
-from ..utilities.math import range_2pi, pol2cart
 
 logger = logging.getLogger(__name__)
 
@@ -233,7 +232,7 @@ class SlvsArc(Entity2D, PropertyGroup):
         # Get midpoint positions
         segment_count = len(midpoints) + 1
         curve_angle = self.angle
-        radius, center, start = self.radius, self.ct.co, self.start.co
+        radius, center = self.radius, self.ct.co
 
         midpoint_positions = get_bezier_curve_midpoint_positions(
             self, segment_count, midpoints, curve_angle
@@ -279,8 +278,6 @@ class SlvsArc(Entity2D, PropertyGroup):
         p = coords - ct
         p1 = self.start.co - ct
         p2 = self.end.co - ct
-
-        x_axis = Vector((1, 0))
 
         # angle_signed interprets clockwise as positive, so invert..
         a1 = range_2pi(p.angle_signed(p1))

@@ -1,8 +1,7 @@
 import logging
 
-from bpy.types import Operator, Context
+from bpy.types import Operator
 from bpy.props import FloatProperty
-from mathutils import Vector
 
 from ..drawing import selection
 from ..model.curve_ref import PointRef, LineRef, ArcRef, CircleRef, CurveRef, curve_ref

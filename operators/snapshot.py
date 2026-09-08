@@ -1,4 +1,3 @@
-import bpy
 from bpy.types import Operator, Context
 from bpy.utils import register_classes_factory
 

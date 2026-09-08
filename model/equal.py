@@ -10,7 +10,6 @@ from .utilities import slvs_entity_pointer
 from .categories import LINE, CURVE
 from .line_2d import SlvsLine2D
 from .arc import SlvsArc
-from .circle import SlvsCircle
 
 logger = logging.getLogger(__name__)
 

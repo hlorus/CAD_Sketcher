@@ -9,7 +9,6 @@ from ..global_data import WpReq
 from .base_constraint import GenericConstraint
 from .utilities import slvs_entity_pointer
 from .line_2d import SlvsLine2D
-from .utilities import get_connection_point
 
 logger = logging.getLogger(__name__)
 

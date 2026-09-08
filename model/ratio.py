@@ -1,7 +1,7 @@
 import logging
 
 from bpy.types import PropertyGroup
-from bpy.props import FloatProperty, IntProperty, StringProperty
+from bpy.props import FloatProperty, StringProperty
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver

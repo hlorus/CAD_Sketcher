@@ -173,7 +173,6 @@ class BgsTestCase(TestCase):
             return
 
         # Delete scene
-        context = cls.context
         data = cls.data
         data.scenes.remove(cls.scene)
 
@@ -232,7 +231,7 @@ class Sketch2dTestCase(BgsTestCase):
     def setUp(self) -> None:
         self.sketch = self.new_sketch()
         self.sketch.name = self._testMethodName
-        from ..model.sketch_ref import set_active_sketch, Sketch
+        from ..model.sketch_ref import set_active_sketch
         if hasattr(self.sketch, 'target_object'):
             set_active_sketch(self.context, self.sketch.target_object)
         return super().setUp()

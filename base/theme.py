@@ -1,5 +1,5 @@
 import bpy
-from bpy.props import PointerProperty, FloatVectorProperty, FloatProperty
+from bpy.props import PointerProperty, FloatVectorProperty
 from bpy.types import PropertyGroup
 
 

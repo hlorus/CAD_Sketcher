@@ -1,6 +1,5 @@
 """Tests for the bevel operator."""
 
-import math
 from mathutils import Vector
 from .utils import Sketch2dTestCase
 
@@ -70,7 +69,7 @@ class TestBevel(Sketch2dTestCase):
         topo = self.sketch.topology
 
         # Create bevel points and replace
-        ct = self.add_point((3, 1))
+        self.add_point((3, 1))
         bp1 = self.add_point((3, 0))
         bp2 = self.add_point((4, 1))
 

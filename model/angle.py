@@ -2,7 +2,7 @@ import logging
 
 import math
 from bpy.types import PropertyGroup, Context
-from bpy.props import BoolProperty, FloatProperty, IntProperty, StringProperty
+from bpy.props import BoolProperty, FloatProperty, StringProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 

@@ -7,11 +7,11 @@ projection, and modification.
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import List
 
 from .curve_data import get_uuid, has_uuid_field
 
-from mathutils import Vector, Matrix
+from mathutils import Vector
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 
 from ..model.constants import SketchCurveType

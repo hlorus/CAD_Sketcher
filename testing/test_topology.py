@@ -218,7 +218,7 @@ class TestTopologyPathWalking(Sketch2dTestCase):
         p2 = self.add_point((3, 0))
         p3 = self.add_point((3, 4))
         l1 = self.add_line(p1, p2)
-        l2 = self.add_line(p2, p3)
+        self.add_line(p2, p3)
 
         topo = self.sketch.topology
         path = topo.walk_path(l1)
@@ -230,8 +230,8 @@ class TestTopologyPathWalking(Sketch2dTestCase):
         p2 = self.add_point((3, 0))
         p3 = self.add_point((1.5, 3))
         l1 = self.add_line(p1, p2)
-        l2 = self.add_line(p2, p3)
-        l3 = self.add_line(p3, p1)
+        self.add_line(p2, p3)
+        self.add_line(p3, p1)
 
         topo = self.sketch.topology
         path = topo.walk_path(l1)
@@ -243,7 +243,7 @@ class TestTopologyPathWalking(Sketch2dTestCase):
         p2 = self.add_point((3, 0))
         p3 = self.add_point((6, 0))
         l1 = self.add_line(p1, p2)
-        l2 = self.add_line(p2, p3)
+        self.add_line(p2, p3)
 
         topo = self.sketch.topology
         path = topo.walk_path(l1)
@@ -259,8 +259,8 @@ class TestTopologyPathWalking(Sketch2dTestCase):
         p2 = self.add_point((3, 0))
         p3 = self.add_point((5, 5))
         p4 = self.add_point((8, 5))
-        l1 = self.add_line(p1, p2)
-        l2 = self.add_line(p3, p4)
+        self.add_line(p1, p2)
+        self.add_line(p3, p4)
 
         topo = self.sketch.topology
         paths = topo.walk_all_paths()

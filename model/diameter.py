@@ -2,14 +2,14 @@ import logging
 
 import math
 from bpy.types import PropertyGroup
-from bpy.props import BoolProperty, FloatProperty, IntProperty, StringProperty
+from bpy.props import BoolProperty, FloatProperty, StringProperty
 from bpy.utils import register_classes_factory
 from mathutils import Vector, Matrix
 
 from ..curve_solver import Solver
 from ..global_data import WpReq
 from ..utilities.view import location_3d_to_region_2d
-from ..utilities.math import range_2pi, pol2cart
+from ..utilities.math import pol2cart
 from .base_constraint import DimensionalConstraint
 from .utilities import slvs_entity_pointer
 from .categories import CURVE

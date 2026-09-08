@@ -1,5 +1,4 @@
 from bpy.types import Operator, Context
-from bpy.props import BoolProperty
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
