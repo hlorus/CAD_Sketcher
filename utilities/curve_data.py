@@ -754,6 +754,12 @@ def compute_merge_ids(sketch):
     id -- gated to true endpoints via vertex valence -- closing loops by identity
     instead of by proximity: tolerance-free and independent of sketch scale.
 
+    Endpoints tied only by a coincidence *constraint* belong to distinct point
+    entities at one location (e.g. a rectangle drawn as four separate lines), so
+    those point ids are unioned first: the corner then welds and the loop closes.
+    Without this the identity weld would leave such corners open and the shape
+    would not fill.
+
     Interior, point and circle vertices keep id 0; they are never welded (their
     valence is not 1), so their id is irrelevant. Returns True if anything ran.
     """
@@ -774,12 +780,46 @@ def compute_merge_ids(sketch):
     # shared corner instead of sitting as a duplicate vertex.
     curve_ids = read_uuid_raw_list(cd, "curve_id")
 
+    # Union-find over point ids so coincidence-constrained endpoints share a
+    # junction. Keyed on the raw id tuple, matching junction()'s keys below.
+    _parent = {}
+
+    def _find(x):
+        _parent.setdefault(x, x)
+        root = x
+        while _parent[root] != root:
+            root = _parent[root]
+        while _parent[x] != root:
+            _parent[x], x = root, _parent[x]
+        return root
+
+    def _union(a, b):
+        ra, rb = _find(a), _find(b)
+        if ra != rb:
+            _parent[ra] = rb
+
+    constraints = getattr(cd, "sketch_constraints", None)
+    if constraints is not None:
+        # Coincidence constraints carry hex ids; map the point entities they can
+        # reference back to their raw tuple so unions share junction()'s key space.
+        curve_ids_hex = read_uuid_list(cd, "curve_id")
+        hex_to_raw = {
+            curve_ids_hex[i]: curve_ids[i]
+            for i in range(len(cd.curves))
+            if type_attr.data[i].value == SketchCurveType.POINT and curve_ids_hex[i]
+        }
+        for c in constraints.coincident:
+            a = hex_to_raw.get(c.curve_id_1)
+            b = hex_to_raw.get(c.curve_id_2)
+            if a is not None and b is not None:
+                _union(a, b)
+
     ids = np.zeros(n_points, dtype=np.int32)
     dense = {}
 
     def junction(u):
         # 1-based so 0 stays the "no weld" default for interior/circle vertices.
-        return dense.setdefault(u, len(dense) + 1)
+        return dense.setdefault(_find(u), len(dense) + 1)
 
     # First, junctions from the segments' referenced endpoints.
     for i in range(len(cd.curves)):
@@ -804,7 +844,7 @@ def compute_merge_ids(sketch):
         cv = cd.curves[i]
         if cv.points_length < 1:
             continue
-        jid = dense.get(curve_ids[i])
+        jid = dense.get(_find(curve_ids[i]))
         if jid is not None:
             ids[cv.points[0].index] = jid
 

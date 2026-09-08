@@ -23,7 +23,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 20
+CONVERT_VERSION = 21
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -211,6 +211,71 @@ def _store_int_attribute(nodes, links, geometry, value, name, domain):
     return store.outputs["Geometry"]
 
 
+def _normalize_winding(nodes, links, curve):
+    """Give every spline a consistent (CCW) winding before Fill Curve.
+
+    Fill Curve's ``N-gons`` mode decides outer-vs-hole from winding, not a pure
+    even-odd rule: a loop wound opposite its container loses its hole and fills
+    solid. Mesh to Curve derives each loop's winding from edge-traversal order,
+    which is not stable across evaluations (it shifts when vertex indices change,
+    e.g. as entities are added), so the fill would otherwise flip between a ring
+    and a solid face. Reversing every spline whose signed area is negative pins
+    all loops to one winding, making the fill deterministic.
+
+    Signed area is the shoelace sum ``sum(cross(P, P_next).z)`` over each spline
+    (its sign is all we need); ``P_next`` wraps within the spline for cyclic
+    loops. Open (non-cyclic) splines aren't filled, so their sign is harmless.
+    """
+    # Per-spline group id, derived WITHOUT the topology-global Index (generated
+    # ids must not depend on it; see test_generated_id_nodes_use_source_local...).
+    # Spline Parameter's Index is 0 at each spline's first point, so a running
+    # count of those starts numbers the splines, constant within each.
+    spline_param = nodes.new("GeometryNodeSplineParameter")
+    is_start, is_start_a = _int_compare(nodes, links, "EQUAL", 0)
+    links.new(spline_param.outputs["Index"], is_start_a)
+    spline_id = nodes.new("GeometryNodeAccumulateField")
+    spline_id.data_type = "INT"
+    spline_id.domain = "POINT"
+    links.new(is_start.outputs["Result"], spline_id.inputs["Value"])
+
+    # P and the next point's position within the same spline (cyclic wrap).
+    pos = nodes.new("GeometryNodeInputPosition")
+    offset = nodes.new("GeometryNodeOffsetPointInCurve")
+    offset.inputs["Offset"].default_value = 1
+    next_pos = nodes.new("GeometryNodeSampleIndex")
+    next_pos.data_type = "FLOAT_VECTOR"
+    next_pos.domain = "POINT"
+    links.new(curve, next_pos.inputs["Geometry"])
+    links.new(pos.outputs["Position"], next_pos.inputs["Value"])
+    links.new(offset.outputs["Point Index"], next_pos.inputs["Index"])
+
+    # cross(P, P_next).z = P.x * Pn.y - P.y * Pn.x -- the shoelace term.
+    cross = nodes.new("ShaderNodeVectorMath")
+    cross.operation = "CROSS_PRODUCT"
+    links.new(pos.outputs["Position"], cross.inputs[0])
+    links.new(next_pos.outputs["Value"], cross.inputs[1])
+    sep = nodes.new("ShaderNodeSeparateXYZ")
+    links.new(cross.outputs["Vector"], sep.inputs["Vector"])
+
+    # Sum the term per spline; negative total => clockwise => reverse it.
+    acc = nodes.new("GeometryNodeAccumulateField")
+    acc.data_type = "FLOAT"
+    acc.domain = "POINT"
+    links.new(sep.outputs["Z"], acc.inputs["Value"])
+    links.new(spline_id.outputs["Leading"], acc.inputs["Group ID"])
+
+    cw = nodes.new("FunctionNodeCompare")
+    cw.data_type = "FLOAT"
+    cw.operation = "LESS_THAN"
+    a_in = next(s for s in cw.inputs if s.enabled and s.type == "VALUE")
+    links.new(acc.outputs["Total"], a_in)
+
+    reverse = nodes.new("GeometryNodeReverseCurve")
+    links.new(curve, reverse.inputs["Curve"])
+    links.new(cw.outputs["Result"], reverse.inputs["Selection"])
+    return reverse.outputs["Curve"]
+
+
 def add_generated_id_nodes(nodes, links, geometry):
     """Append stable generated vertex/face ids and return the new geometry."""
     curve_source = _named_int(nodes, SOURCE_CURVE_ID_ATTR)
@@ -376,7 +441,8 @@ def build_convert_node_group(
         fill_curve.inputs["Mode"].default_value = "N-gons"
     except Exception:
         pass
-    links.new(to_curve.outputs["Curve"], fill_curve.inputs["Curve"])
+    normalized = _normalize_winding(nodes, links, to_curve.outputs["Curve"])
+    links.new(normalized, fill_curve.inputs["Curve"])
     # Fill Curve drops named attributes; re-establish them on the filled mesh from
     # the pre-fill welded mesh by nearest element (POINT and per-segment EDGE).
     filled = _transfer_attributes_after_fill(
