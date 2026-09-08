@@ -85,6 +85,26 @@ def link_origin_workplane(obj, scene):
     return coll
 
 
+def nest_workplane(workplane, sketch_obj):
+    """Move a dedicated (face/custom) workplane empty into its sketch's collection.
+
+    A workplane created for one sketch otherwise clutters the root; grouping it
+    with the sketch it belongs to keeps the tree tidy. Skipped for origin planes
+    (shared, kept in the Origin collection) and for a workplane already grouped
+    with another sketch (don't steal a shared custom plane).
+    """
+    if workplane is None:
+        return
+    for coll in workplane.users_collection:
+        if coll.get(_ORIGIN_MARKER) or coll.get(_SKETCH_MARKER):
+            return
+    sub = next((c for c in sketch_obj.users_collection if c.get(_SKETCH_MARKER)), None)
+    if sub is None or workplane.name in sub.objects:
+        return
+    _clear_object_collections(workplane)
+    sub.objects.link(workplane)
+
+
 def link_sketch_object(obj, scene):
     """Put a sketch's curve object in its own sub-collection under the CAD root.
 

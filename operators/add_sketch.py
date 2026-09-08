@@ -44,6 +44,11 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
     sketch_obj.lock_rotation = (True, True, True)
     sketch_obj.lock_scale = (True, True, True)
 
+    # Tuck a dedicated (face/custom) workplane in with its sketch, not at the root.
+    from ..utilities.collections import nest_workplane
+
+    nest_workplane(wp_orig, sketch_obj)
+
     sketch = Sketch(sketch_obj)
 
     origin = PointRef.create(sketch, (0.0, 0.0), fixed=True, is_origin=True)

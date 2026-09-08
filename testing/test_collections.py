@@ -65,6 +65,37 @@ class TestManagedCollection(Sketch2dTestCase):
             self.assertNotIn(ob.name, root.objects)
             self.assertNotIn(ob.name, self.context.scene.collection.objects)
 
+    def test_dedicated_workplane_nests_with_its_sketch(self):
+        from ..utilities.collections import link_object, nest_workplane
+
+        ob = self.sketch.target_object
+        sub = self._sketch_subcollection(ob)
+        root = self._cad_collection()
+
+        wp = bpy.data.objects.new("Workplane", None)
+        link_object(wp, self.context.scene)  # a face workplane starts at the root
+        self.assertIn(wp.name, root.objects)
+
+        ob.parent = wp
+        nest_workplane(wp, ob)
+        try:
+            self.assertIn(wp.name, sub.objects, "workplane should nest with its sketch")
+            self.assertNotIn(wp.name, root.objects, "and leave the root")
+        finally:
+            bpy.data.objects.remove(wp)
+
+    def test_origin_plane_is_not_stolen_into_a_sketch(self):
+        from ..utilities.collections import nest_workplane
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        ensure_origin_workplane_empties(self.context)
+        origin = next(
+            c for c in self._cad_collection().children if c.get("cad_origin_collection")
+        )
+        wp_xy = next(iter(origin.objects))
+        nest_workplane(wp_xy, self.sketch.target_object)
+        self.assertIn(wp_xy.name, origin.objects, "origin plane must stay in Origin")
+
     def test_cutter_nests_under_the_body_it_feeds(self):
         from ..operators.modifiers import apply_boolean, boolean_cutters
         from ..utilities.collections import organize_part_nesting
