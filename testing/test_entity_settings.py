@@ -55,6 +55,24 @@ class TestEntitySettings(Sketch2dTestCase):
         self.assertAlmostEqual(pt.co.x, 7.0, places=5)
         self.assertAlmostEqual(pt.co.y, 9.0, places=5)
 
+    def test_constrained_but_movable_point_keeps_position(self):
+        """A point that is horizontally constrained (Y pinned) but free in X
+        keeps the typed X; only the constrained axis follows the constraint,
+        instead of the whole edit being snapped back by the re-solve."""
+        anchor = self.add_point((0.0, 0.0), fixed=True)
+        p = self.add_point((2.0, 0.0))
+        self.sketch.constraints.add_horizontal(
+            curve_id_1=anchor.curve_id, curve_id_2=p.curve_id
+        )
+        self.solve()
+
+        seed, editor = self._editor()
+        seed(self.context, p)
+        editor.co_2d = (5.0, 3.0)
+
+        self.assertAlmostEqual(p.co.x, 5.0, places=3)  # movable X preserved
+        self.assertAlmostEqual(p.co.y, 0.0, places=3)  # constrained Y
+
     def test_seed_does_not_move_point(self):
         """Seeding the editor loads current values without triggering a write."""
         pt = self.add_point((3.0, -1.0))

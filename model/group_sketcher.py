@@ -33,6 +33,16 @@ _EP_PREFIX = "slvs:c:"
 _SEEDING_COORDS = False
 
 
+def _solver_wp_matrix(sketch):
+    """The workplane matrix the solver uses, for placing a drag target."""
+    from mathutils import Matrix
+
+    wp_obj = sketch.workplane_object
+    if not wp_obj and sketch.target_object:
+        wp_obj = sketch.target_object.parent
+    return wp_obj.matrix_world if wp_obj else Matrix.Identity(4)
+
+
 def _update_coord_editor(self, context: Context) -> None:
     """Write the edited coordinate straight through to the point and re-solve.
 
@@ -43,6 +53,9 @@ def _update_coord_editor(self, context: Context) -> None:
     if _SEEDING_COORDS:
         return
 
+    from mathutils import Vector
+
+    from ..curve_solver import CurveSolver, solve_system
     from ..model.curve_ref import curve_ref
     from ..model.native_3d import rebuild_3d_lines
     from ..model.sketch_ref import get_active_sketch
@@ -55,7 +68,9 @@ def _update_coord_editor(self, context: Context) -> None:
     if not ref.valid or not ref.is_point():
         return
 
+    sketch.geometry_solved = False
     if sketch.is_3d:
+        # The 3D solver has no drag support; write the position and solve.
         if not ref._resolve():
             return
         curve_data = sketch.target_object.data
@@ -63,11 +78,19 @@ def _update_coord_editor(self, context: Context) -> None:
         curve_data.points[pt_idx].position = tuple(self.co_3d)
         rebuild_3d_lines(sketch)
         curve_data.update_tag()
+        solve_system(context, sketch=sketch)
     else:
         ref.co = (self.co_2d[0], self.co_2d[1])
+        # Pin the point at the typed position with a drag, so a still-movable
+        # (under-constrained) point stays where the user placed it instead of
+        # being snapped back by the re-solve. A fully-constrained point can't
+        # move: the solver drops the drag and keeps the constrained solution.
+        wp_mat = _solver_wp_matrix(sketch)
+        target = wp_mat @ Vector((self.co_2d[0], self.co_2d[1], 0.0))
+        solver = CurveSolver(context, sketch)
+        solver.tweak(self.curve_id, target)
+        solver.solve()
 
-    sketch.geometry_solved = False
-    solve_system(context, sketch=sketch)
     refresh_curve_geometry(sketch)
     if context.area:
         context.area.tag_redraw()
