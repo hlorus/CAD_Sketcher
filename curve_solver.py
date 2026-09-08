@@ -281,6 +281,14 @@ class CurveSolver:
             group = self.group_sketch
             c.failed = False
 
+            # Reference ("measure only") dimensions report a measurement; they must
+            # never drive the solver. Submitting them consumes a DOF and, when the
+            # quantity is already implied, forces REDUNDANT_OK and flags the group
+            # failed (issue #674). The pre-native-curves solver gated these in
+            # DimensionalConstraint.py_data(); restore the gate on the curve path.
+            if getattr(c, "is_reference", False):
+                continue
+
             if getattr(sketch, "is_3d", False) and getattr(c, "type", "") != "DISTANCE":
                 # Free-3D sketches only support distance today. Flag anything else
                 # as failed so the UI marks it unsatisfied instead of silently
