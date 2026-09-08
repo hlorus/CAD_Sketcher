@@ -76,6 +76,7 @@ class Operators(str, Enum):
     NodeBoolean = "view3d.slvs_node_boolean"
     ProjectGeometry = "view3d.slvs_project_geometry"
     RenameCurve = "view3d.slvs_rename_curve"
+    FlipArc = "view3d.slvs_flip_arc"
     Restore = "view3d.slvs_restore"
     HoverCycle = "view3d.slvs_hover_cycle"
     Select = "view3d.slvs_select"

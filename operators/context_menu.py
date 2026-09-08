@@ -1,12 +1,12 @@
 import bpy
-from ..model.sketch_ref import get_active_constraints
+from bpy.props import BoolProperty, IntProperty, StringProperty
+from bpy.types import Context, Event, Operator, PropertyGroup
 from bpy.utils import register_classes_factory
-from bpy.props import StringProperty, BoolProperty, IntProperty
-from bpy.types import Operator, Context, Event, PropertyGroup
 
-from ..drawing import selection
-from ..utilities.highlighting import HighlightElement
 from ..declarations import Operators
+from ..drawing import selection
+from ..model.sketch_ref import get_active_constraints
+from ..utilities.highlighting import HighlightElement
 
 
 class View3D_OT_slvs_context_menu(Operator, HighlightElement):
@@ -41,13 +41,10 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
 
     def execute(self, context: Context):
         is_entity = True
-        entity_index = None
-        constraint_index = None
         element = None
 
         # Constraints
         if self.properties.is_property_set("type"):
-            constraint_index = self.index
             constraints = get_active_constraints(context)
             element = constraints.get_from_type_index(self.type, self.index)
             is_entity = False
@@ -62,12 +59,19 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
             if hover:
                 # Try as curve_id — show CurveRef info
                 from ..model.sketch_ref import get_active_sketch
+
                 sketch = get_active_sketch(context)
                 if sketch:
                     from ..model.curve_ref import curve_ref
+
                     ref = curve_ref(sketch, hover)
                     if ref.valid:
                         element = ref
+                        # Load the entity's settings (name, and point position)
+                        # into the inline editor drawn by draw_props/draw_settings.
+                        from ..model.group_sketcher import seed_entity_editor
+
+                        seed_entity_editor(context, ref)
 
         def draw_context_menu(self, context: Context):
             col = self.layout.column()
