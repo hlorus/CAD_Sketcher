@@ -98,8 +98,11 @@ def _set(node, attr, value):
     """Set a node property, ignoring it if this Blender lacks it."""
     try:
         setattr(node, attr, value)
-    except Exception:
-        pass
+    except Exception as e:
+        # socket_idname on a reroute is retyped by its links, so a rejection there
+        # is harmless; anything else that can't be set is a real portability gap.
+        if attr != "socket_idname":
+            _skips.append(f"prop {node.name}.{attr}={value!r} ({type(e).__name__})")
 
 
 def _seti(node, name, occurrence, value):
