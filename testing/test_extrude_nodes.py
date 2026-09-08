@@ -44,6 +44,23 @@ def _wire():
     return obj
 
 
+def _disc(radius, segments=48):
+    """A single filled n-gon face of ``radius``, finely tessellated so adjacent
+    boundary verts sit well under a millimetre once scaled down."""
+    import math
+
+    verts = [
+        (radius * math.cos(t), radius * math.sin(t), 0.0)
+        for i in range(segments)
+        for t in (2 * math.pi * i / segments,)
+    ]
+    mesh = bpy.data.meshes.new("disc")
+    mesh.from_pydata(verts, [], [tuple(range(segments))])
+    obj = bpy.data.objects.new("disc", mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
 class TestExtrudeNodeGroup(BgsTestCase):
     def _group(self):
         group = build_extrude_node_group()
@@ -143,3 +160,44 @@ class TestExtrudeNodeGroup(BgsTestCase):
             self._stats(_wire, Size=0.6, **{"Mirror Extrude": True}),
             (9, 12, 4, 4.8),
         )
+
+    # -- issue #670: the seam weld must be scale-independent --------------
+
+    def test_extrude_is_scale_independent(self):
+        # A finely tessellated disc extruded at metre scale and at millimetre
+        # scale must yield the same topology. The retired 1 mm seam weld fused
+        # the sub-millimetre boundary verts of the small disc (faceted holes,
+        # chamfered corners, issue #670); the identity weld does not.
+        big = self._stats(lambda: _disc(1.0), Size=0.3)
+        small = self._stats(lambda: _disc(0.0005), Size=0.00015)  # ~1 mm disc
+        self.assertEqual(big[:3], small[:3])
+        # 48-gon face -> 48 boundary verts, doubled by the extrude (top + bottom),
+        # seam welded back to one ring: 96 verts, fully preserved at both scales.
+        self.assertEqual(big[0], 96)
+
+    def test_small_extrude_is_watertight(self):
+        # The welded millimetre-scale solid is manifold: every edge borders two
+        # faces (no boundary edges from an unfused seam).
+        group = self._group()
+        obj = _disc(0.0005)
+        try:
+            mod = obj.modifiers.new("E", "NODES")
+            mod.node_group = group
+            ids = {
+                s.name: s.identifier
+                for s in group.interface.items_tree
+                if getattr(s, "in_out", "") == "INPUT"
+            }
+            set_modifier_input(mod, ids["Size"], 0.00015)
+            bpy.context.view_layer.update()
+            evaluated = obj.evaluated_get(bpy.context.evaluated_depsgraph_get())
+            mesh = evaluated.to_mesh()
+            uses = {}
+            for poly in mesh.polygons:
+                for edge_key in poly.edge_keys:
+                    uses[edge_key] = uses.get(edge_key, 0) + 1
+            boundary = sum(1 for c in uses.values() if c == 1)
+            evaluated.to_mesh_clear()
+            self.assertEqual(boundary, 0, "unfused seam left boundary edges")
+        finally:
+            bpy.data.objects.remove(obj, do_unlink=True)

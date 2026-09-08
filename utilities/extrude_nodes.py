@@ -16,14 +16,22 @@ import bpy
 
 EXTRUDE_NODE_GROUP = "CAD Sketcher Extrude"
 # Bump when the built graph changes so groups baked into saved files rebuild.
-EXTRUDE_VERSION = 1
+EXTRUDE_VERSION = 2
 # Bump when the patched sub-graph changes so groups baked into saved files upgrade.
 EXTRUDE_EDGE_WALLS_VERSION = 1
 
-# The seam weld after each Extrude/Join. Kept at the asset's historical 1 mm for a
-# behaviour-identical migration; issue #670 (this value eats sub-1mm detail on
-# mm-scale models) is addressed in a follow-up, not here.
-_SEAM_WELD_DISTANCE = 0.001
+# Fallback seam-weld distance for Blender < 5.2 (no Merge Points identity weld).
+# The seam is two bit-identical copies of the boundary loop, so a micron epsilon
+# fuses it and nothing else. The shipped asset hardcoded 1 mm here, which also
+# collapsed genuinely distinct sub-millimetre detail on small models -- faceted
+# holes and chamfered corners (issue #670). On 5.2+ the weld is by identity and
+# fully scale-independent; see build_extrude_node_group.weld.
+_SEAM_WELD_DISTANCE = 1e-6
+
+
+def _identity_weld_available() -> bool:
+    """Whether the Merge Points node (identity weld) exists (Blender 5.2+)."""
+    return bpy.app.version >= (5, 2, 0)
 
 
 def _input_ids(node_group):
@@ -132,6 +140,36 @@ def build_extrude_node_group(name: str = EXTRUDE_NODE_GROUP):
     asym_on = gi.outputs["Asymmetry Override"]
     asym_d = gi.outputs["Asymmetry Distance"]
 
+    # Per-branch identity stamps consumed by the seam weld below. Hidden ("."-
+    # prefixed) so they don't leak onto the output mesh; stripped after welding.
+    SEAM_ID = ".cad_extrude_seam_id"
+    SEAM_TOP = ".cad_extrude_seam_top"
+
+    def _store(geo, name, data_type, value_socket):
+        n = nodes.new("GeometryNodeStoreNamedAttribute")
+        n.data_type = data_type
+        n.domain = "POINT"
+        n.inputs["Name"].default_value = name
+        links.new(geo, n.inputs["Geometry"])
+        links.new(value_socket, n.inputs["Value"])
+        return n.outputs["Geometry"]
+
+    def _index():
+        return nodes.new("GeometryNodeInputIndex").outputs["Index"]
+
+    def _const_bool(value):
+        n = nodes.new("FunctionNodeInputBool")
+        n.boolean = value
+        return n.outputs["Boolean"]
+
+    def _stamp(geo, top_socket):
+        # seam_id = vertex index (base verts of an extrude keep the source order,
+        # so a base vertex carries the same id in every branch); seam_top marks
+        # the extruded cap so the weld can leave it alone.
+        geo = _store(geo, SEAM_TOP, "BOOLEAN", top_socket)
+        geo = _store(geo, SEAM_ID, "INT", _index())
+        return geo
+
     def extrude(geo, scale):
         n = nodes.new("GeometryNodeExtrudeMesh")
         n.mode = "FACES"
@@ -141,7 +179,12 @@ def build_extrude_node_group(name: str = EXTRUDE_NODE_GROUP):
         n.inputs["Individual"].default_value = False
         links.new(geo, n.inputs["Mesh"])
         links.new(scale, n.inputs["Offset Scale"])
-        return n.outputs["Mesh"]
+        # Stamp before any downstream flip (flip preserves attributes and order).
+        return _stamp(n.outputs["Mesh"], n.outputs["Top"])
+
+    def base(geo):
+        # A non-extruded branch (the untouched source loop): all base, no cap.
+        return _stamp(geo, _const_bool(False))
 
     def flip(geo):
         n = nodes.new("GeometryNodeFlipFaces")
@@ -154,18 +197,48 @@ def build_extrude_node_group(name: str = EXTRUDE_NODE_GROUP):
             links.new(g, n.inputs["Geometry"])
         return n.outputs["Geometry"]
 
+    def _strip(geo):
+        for name in (SEAM_ID, SEAM_TOP):
+            n = nodes.new("GeometryNodeRemoveAttribute")
+            n.inputs["Name"].default_value = name
+            links.new(geo, n.inputs["Geometry"])
+            geo = n.outputs["Geometry"]
+        return geo
+
     def weld(geo):
-        n = nodes.new("GeometryNodeMergeByDistance")
-        links.new(geo, n.inputs["Geometry"])
-        n.inputs["Distance"].default_value = _SEAM_WELD_DISTANCE
-        # Weld across disconnected components (the extrude cap joined to the source
-        # loop): the seam pieces are separate islands, so "Connected" would miss
-        # them. Matches the asset's mode. Guard for older/renamed sockets.
-        try:
-            n.inputs["Mode"].default_value = "ALL"
-        except Exception:
-            pass
-        return n.outputs["Geometry"]
+        # Fuse the seam: after the join the boundary loop exists twice as two
+        # bit-identical copies. On Blender 5.2+ weld them by identity -- the base
+        # verts of both branches share seam_id, and Selection = not seam_top keeps
+        # the (id-colliding) caps apart -- so the result is scale-independent.
+        # Older Blender has no Merge Points; fall back to a tiny distance weld,
+        # which fuses the exactly-coincident seam and nothing else (issue #670: the
+        # asset's 1 mm here ate sub-millimetre detail on small models).
+        if _identity_weld_available():
+            seam_id = nodes.new("GeometryNodeInputNamedAttribute")
+            seam_id.data_type = "INT"
+            seam_id.inputs["Name"].default_value = SEAM_ID
+            seam_top = nodes.new("GeometryNodeInputNamedAttribute")
+            seam_top.data_type = "BOOLEAN"
+            seam_top.inputs["Name"].default_value = SEAM_TOP
+            not_top = nodes.new("FunctionNodeBooleanMath")
+            not_top.operation = "NOT"
+            links.new(seam_top.outputs["Attribute"], not_top.inputs[0])
+
+            n = nodes.new("GeometryNodeMergePoints")
+            links.new(geo, n.inputs["Geometry"])
+            links.new(seam_id.outputs["Attribute"], n.inputs["Merge ID"])
+            links.new(not_top.outputs["Boolean"], n.inputs["Selection"])
+            out = n.outputs["Geometry"]
+        else:
+            n = nodes.new("GeometryNodeMergeByDistance")
+            links.new(geo, n.inputs["Geometry"])
+            n.inputs["Distance"].default_value = _SEAM_WELD_DISTANCE
+            try:
+                n.inputs["Mode"].default_value = "ALL"
+            except Exception:
+                pass
+            out = n.outputs["Geometry"]
+        return _strip(out)
 
     def switch(cond, false_geo, true_geo):
         n = nodes.new("GeometryNodeSwitch")
@@ -193,8 +266,8 @@ def build_extrude_node_group(name: str = EXTRUDE_NODE_GROUP):
     # decides which piece gets flipped so the caps always face outward.
     simple = switch(
         is_negative(size_o),
-        weld(join(extrude(geom, size_o), flip(geom))),
-        weld(join(flip(extrude(geom, size_o)), geom)),
+        weld(join(extrude(geom, size_o), base(flip(geom)))),
+        weld(join(flip(extrude(geom, size_o)), base(geom))),
     )
 
     # Mirror: extrude both +Size and -Size from the source loop, flipping the
