@@ -9,12 +9,15 @@ distance and fills the resulting closed curve, so the fill only works when the
 coincided endpoints actually solve to the *same* position. Under the native
 curve model they do; this guards that precondition.
 
-Note: the filled mesh itself is produced by the GN modifier on a Curves-type
-object, which Blender cannot convert to a readable mesh in ``--background``
-(``to_mesh``/``new_from_object`` support mesh objects only). The fill is verified
-interactively; here we assert the merge precondition that was actually broken.
+Note: ``to_mesh``/``new_from_object`` can't read a Curves-type object in
+``--background``, but ``bpy.ops.object.convert(target="MESH")`` on a copy applies
+the GN modifier and yields a readable mesh -- so the end-to-end tests here
+measure the actual filled area, not just the merge precondition.
 """
 
+import math
+
+import bpy
 from mathutils import Vector
 
 from ..model.constants import SketchCurveType
@@ -39,6 +42,26 @@ class TestFillCoincident(Sketch2dTestCase):
                 curve_id_2=lines[(i + 1) % 4][0].curve_id,
             )
         return lines
+
+    def _filled_area(self):
+        """Total area of the real GN fill for the active sketch.
+
+        ``to_mesh`` can't read a Curves object headless, but converting a copy to
+        a mesh applies the same ``CAD Sketcher Convert`` modifier and is readable.
+        """
+        ob = self.sketch.target_object
+        scene = self.context.scene
+        dup = ob.copy()
+        dup.data = ob.data.copy()
+        scene.collection.objects.link(dup)
+        for other in scene.collection.objects:
+            other.select_set(False)
+        dup.select_set(True)
+        self.context.view_layer.objects.active = dup
+        bpy.ops.object.convert(target="MESH")
+        area = sum(p.area for p in dup.data.polygons)
+        bpy.data.objects.remove(dup, do_unlink=True)
+        return area
 
     def _endpoint_merge_id(self, point_curve_id):
         """The weld id of the segment endpoint vertex referencing ``point_curve_id``."""
@@ -105,3 +128,45 @@ class TestFillCoincident(Sketch2dTestCase):
                 f"corner {i} coincided endpoints have different merge_ids "
                 f"({end_id} != {start_id}) -> corner never welds, square will not fill",
             )
+
+    def test_coincided_square_actually_fills(self):
+        """End-to-end: the coincidence-joined square produces a filled face.
+
+        Reads the real GN fill (not just the weld precondition); before the
+        merge_id union fix the corners stayed open and the area was ~0.
+        """
+        self._build_coincided_square()
+        self.solve()
+        refresh_curve_geometry(self.sketch)
+
+        self.assertAlmostEqual(
+            self._filled_area(),
+            16.0,  # 4 x 4 square
+            delta=0.1,
+            msg="coincidence-joined square did not fill (loop stayed open)",
+        )
+
+    def test_rectangle_with_inner_circle_fills_as_ring(self):
+        """End-to-end: a rectangle with an inner circle fills as a ring.
+
+        Exercises the winding normalization through the real convert group: the
+        square minus the circular hole, independent of loop winding/order.
+        """
+        # Rectangle from four lines sharing corner points (rectangle-tool style).
+        corners = [(0, 0), (6, 0), (6, 4), (0, 4)]
+        pts = [self.add_point(c) for c in corners]
+        for i in range(4):
+            self.add_line(pts[i], pts[(i + 1) % 4])
+        center = self.add_point((3, 2))
+        self.add_circle(center, 1.0)
+
+        self.solve()
+        refresh_curve_geometry(self.sketch)
+
+        ring = 6 * 4 - math.pi * 1.0**2
+        self.assertAlmostEqual(
+            self._filled_area(),
+            ring,
+            delta=0.2,
+            msg="rectangle+circle did not fill as a ring (winding flip or open loop)",
+        )
