@@ -1,14 +1,15 @@
-"""Managed collection for CAD Sketcher's internal objects.
+"""Managed collections for CAD Sketcher.
 
-Groups the add-on's objects -- sketch curve objects and workplane empties --
-under one collection per scene instead of scattering them through the scene's
-master collection, so the outliner stays clean and the internals are easy to
-find or hide as a group.
+Layout is *project-centric*, not addon-centric: each part is its own collection
+at the **scene level** (where users expect their models), with cutter sketches
+nested under the body they feed. Only genuinely shared internals -- the three
+origin planes and any not-yet-claimed workplane empties -- live in a small
+``CAD Sketcher`` collection; parts are never nested inside it.
 
-Critical invariant: the collection is **hidden, never excluded**. Excluding it
-from the view layer removes its objects from the depsgraph, which stops the
-convert modifier and drops the fill (the curve object is both source and
-consumable). Visibility is a display concern; evaluation must keep running.
+Critical invariant: nothing is **excluded** from the view layer. Excluding a
+collection removes its objects from the depsgraph, which stops the convert
+modifier and drops the fill (the curve object is both source and consumable).
+Visibility is a display concern; evaluation must keep running.
 """
 
 import bpy
@@ -29,11 +30,11 @@ def _find_cad_collection(scene):
 
 
 def ensure_cad_collection(scene):
-    """Return this scene's CAD Sketcher collection, creating+linking it once.
+    """Return this scene's shared-internals collection, creating+linking it once.
 
-    Found by a marker among the scene's own child collections (not by a global
-    name) so each scene owns its own collection -- shared datablocks would leak
-    one scene's sketches into another.
+    Holds only shared internals (origin planes, transient workplanes) -- parts
+    live at the scene level, not inside it. Found by a marker among the scene's
+    own child collections (not by a global name) so each scene owns its own.
     """
     coll = _find_cad_collection(scene)
     if coll is not None:
@@ -116,11 +117,11 @@ def link_sketch_object(obj, scene):
     for coll in obj.users_collection:
         if coll.get(_SKETCH_MARKER):
             return coll
-    root = ensure_cad_collection(scene)
     sub = bpy.data.collections.new(obj.name)
     sub[_SKETCH_MARKER] = True
     sub[_SYNCED_NAME] = obj.name
-    root.children.link(sub)
+    # Part collections live at the scene level, not inside the internals wrapper.
+    scene.collection.children.link(sub)
     _clear_object_collections(obj)
     sub.objects.link(obj)
     return sub
@@ -134,10 +135,7 @@ def sync_sketch_collection_names(scene):
     collision -- where Blender appends a numeric suffix -- can't spin a rename
     loop; only writes on an actual change, settling in one pass.
     """
-    root = _find_cad_collection(scene)
-    if root is None:
-        return
-    for sub in _walk_sketch_collections(root):
+    for sub in _walk_sketch_collections(scene.collection):
         obj = next((o for o in sub.objects if o.type == "CURVES"), None)
         if obj is None:
             continue
@@ -147,11 +145,8 @@ def sync_sketch_collection_names(scene):
 
 
 def cleanup_sketch_collections(scene):
-    """Remove empty per-sketch sub-collections (e.g. after a sketch is deleted)."""
-    root = _find_cad_collection(scene)
-    if root is None:
-        return
-    for sub in _walk_sketch_collections(root):
+    """Remove empty per-sketch collections (e.g. after a sketch is deleted)."""
+    for sub in _walk_sketch_collections(scene.collection):
         if not sub.objects and not sub.children:
             bpy.data.collections.remove(sub)
 
@@ -168,9 +163,12 @@ def _walk_sketch_collections(root):
 
 
 def _reparent_collection(coll, parent):
-    """Move ``coll`` to be a direct child of ``parent`` (single parent)."""
+    """Move ``coll`` to be the single direct child of ``parent``."""
     if coll.name in parent.children:
         return
+    for scene in bpy.data.scenes:
+        if coll.name in scene.collection.children:
+            scene.collection.children.unlink(coll)
     for other in bpy.data.collections:
         if coll.name in other.children:
             other.children.unlink(coll)
@@ -181,18 +179,17 @@ def organize_part_nesting(scene):
     """Nest each cutter sketch's collection under the body it feeds.
 
     Rebuilt from the boolean dependency graph, so it converges no matter the order
-    booleans were added or removed. The graph is a DAG (the boolean tool refuses
-    cycles), so the collection tree can't cycle either. A cutter feeding several
-    bodies nests under one of them -- Blender has no clean multi-parent tree; the
-    other bodies still reference it, which is harmless.
+    booleans were added or removed. Parts live at the scene level; a cutter's
+    collection moves under the body's. The graph is a DAG (the boolean tool
+    refuses cycles), so the tree can't cycle. A cutter feeding several bodies
+    nests under one -- Blender has no clean multi-parent tree; the others still
+    reference it, which is harmless.
     """
-    root = _find_cad_collection(scene)
-    if root is None:
-        return
     from ..operators.modifiers import boolean_cutters
 
+    container = scene.collection
     by_obj = {}
-    for coll in _walk_sketch_collections(root):
+    for coll in _walk_sketch_collections(container):
         for obj in coll.objects:
             by_obj[obj] = coll
 
@@ -203,10 +200,10 @@ def organize_part_nesting(scene):
             if cutter_coll is not None and cutter_coll is not body_coll:
                 parent_of[cutter_coll] = body_coll
 
-    # Flatten to root first so nesting can't transiently form a descendant cycle.
+    # Flatten to the scene root first so nesting can't transiently form a cycle.
     subs = set(by_obj.values())
     for coll in subs:
-        _reparent_collection(coll, root)
+        _reparent_collection(coll, container)
     for coll in subs:
         target = parent_of.get(coll)
         if target is not None:

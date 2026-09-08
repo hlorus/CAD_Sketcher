@@ -8,7 +8,7 @@ object is both source and consumable).
 
 import bpy
 
-from ..utilities.collections import CAD_COLLECTION_NAME, ensure_cad_collection
+from ..utilities.collections import ensure_cad_collection
 from ..utilities.curve_data import refresh_curve_geometry
 from .utils import Sketch2dTestCase
 
@@ -26,19 +26,19 @@ class TestManagedCollection(Sketch2dTestCase):
                 return coll
         return None
 
-    def test_sketch_object_lands_in_its_own_subcollection(self):
+    def test_part_collection_is_at_the_scene_level(self):
         ob = self.sketch.target_object
-        root = self._cad_collection()
-        self.assertIsNotNone(root, "CAD Sketcher collection was not created")
-        self.assertEqual(root.name.split(".")[0], CAD_COLLECTION_NAME)
-
         sub = self._sketch_subcollection(ob)
-        self.assertIsNotNone(sub, "sketch object not in a per-sketch sub-collection")
-        self.assertIn(sub.name, root.children, "sub-collection not under the CAD root")
+        self.assertIsNotNone(sub, "sketch object not in a per-sketch collection")
+        self.assertIn(
+            sub.name,
+            self.context.scene.collection.children,
+            "part collection should be at the scene level, not under a wrapper",
+        )
         self.assertNotIn(
             ob.name,
             self.context.scene.collection.objects,
-            "sketch object should not stay in the scene master collection",
+            "sketch object should not sit loose in the scene master collection",
         )
 
     def test_each_sketch_gets_a_distinct_subcollection(self):
@@ -70,10 +70,10 @@ class TestManagedCollection(Sketch2dTestCase):
 
         ob = self.sketch.target_object
         sub = self._sketch_subcollection(ob)
-        root = self._cad_collection()
 
         wp = bpy.data.objects.new("Workplane", None)
-        link_object(wp, self.context.scene)  # a face workplane starts at the root
+        link_object(wp, self.context.scene)  # a face workplane starts in internals
+        root = self._cad_collection()
         self.assertIn(wp.name, root.objects)
 
         ob.parent = wp
@@ -104,8 +104,8 @@ class TestManagedCollection(Sketch2dTestCase):
         cutter_obj = self.new_sketch().target_object
         body_coll = self._sketch_subcollection(body_obj)
         cutter_coll = self._sketch_subcollection(cutter_obj)
-        root = self._cad_collection()
-        self.assertIn(cutter_coll.name, root.children)
+        scene_children = self.context.scene.collection.children
+        self.assertIn(cutter_coll.name, scene_children)
 
         mod = apply_boolean(body_obj, cutter_obj)
         self.assertIsNotNone(mod, "boolean was refused (cycle?)")
@@ -113,12 +113,12 @@ class TestManagedCollection(Sketch2dTestCase):
 
         organize_part_nesting(self.context.scene)
         self.assertIn(cutter_coll.name, body_coll.children, "cutter did not nest")
-        self.assertNotIn(cutter_coll.name, root.children)
+        self.assertNotIn(cutter_coll.name, scene_children)
 
-        # Removing the boolean un-nests it back to the root.
+        # Removing the boolean un-nests it back to the scene level.
         body_obj.modifiers.remove(mod)
         organize_part_nesting(self.context.scene)
-        self.assertIn(cutter_coll.name, root.children, "cutter did not un-nest")
+        self.assertIn(cutter_coll.name, scene_children, "cutter did not un-nest")
         self.assertNotIn(cutter_coll.name, body_coll.children)
 
     def test_renaming_a_sketch_syncs_its_collection(self):
@@ -144,15 +144,17 @@ class TestManagedCollection(Sketch2dTestCase):
         name = sub.name
         bpy.data.objects.remove(extra.target_object)
         cleanup_sketch_collections(self.context.scene)
-        self.assertNotIn(name, {c.name for c in self._cad_collection().children})
+        self.assertNotIn(name, {c.name for c in self.context.scene.collection.children})
 
-    def test_collection_is_linked_but_not_excluded(self):
-        """The collection must stay in the view layer so its objects evaluate."""
-        coll = self._cad_collection()
+    def test_internals_collection_is_linked_but_not_excluded(self):
+        """The internals collection must stay in the view layer (never excluded)."""
+        coll = ensure_cad_collection(self.context.scene)
         self.assertIn(coll.name, self.context.scene.collection.children)
         layer_coll = self.context.view_layer.layer_collection.children.get(coll.name)
         self.assertIsNotNone(layer_coll)
-        self.assertFalse(layer_coll.exclude, "managed collection must not be excluded")
+        self.assertFalse(
+            layer_coll.exclude, "internals collection must not be excluded"
+        )
 
     def test_fill_still_evaluates_from_the_collection(self):
         corners = [(-2, -2), (2, -2), (2, 2), (-2, 2)]
