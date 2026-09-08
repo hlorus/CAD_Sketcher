@@ -25,24 +25,38 @@ class TestEntitySettings(Sketch2dTestCase):
         cd, idx, _ = get_curve_data(self.sketch, arc.curve_id)
         return cd.curves[idx].points_length
 
-    def test_set_point_coords_moves_point(self):
+    def _editor(self):
+        from ..model.group_sketcher import seed_coord_editor
+
+        return seed_coord_editor, self.context.scene.sketcher.coord_editor
+
+    def test_editor_writes_both_components(self):
         pt = self.add_point((0.0, 0.0))
-        result = bpy.ops.view3d.slvs_set_point_coords(
-            "EXEC_DEFAULT", curve_id=pt.curve_id, coords=(1.5, -2.5, 0.0)
-        )
-        self.assertEqual(result, {"FINISHED"})
+        seed, editor = self._editor()
+        seed(self.context, pt)
+        # Editing the field fires the update callback (as a UI edit would).
+        editor.co_2d = (1.5, -2.5)
         self.assertAlmostEqual(pt.co.x, 1.5, places=5)
         self.assertAlmostEqual(pt.co.y, -2.5, places=5)
 
-    def test_set_point_coords_y_only(self):
+    def test_editor_y_only(self):
         """Editing just Y (X left at its current value) must move only Y."""
         pt = self.add_point((7.0, 0.0))
-        result = bpy.ops.view3d.slvs_set_point_coords(
-            "EXEC_DEFAULT", curve_id=pt.curve_id, coords=(7.0, 9.0, 0.0)
-        )
-        self.assertEqual(result, {"FINISHED"})
+        seed, editor = self._editor()
+        seed(self.context, pt)
+        editor.co_2d = (editor.co_2d[0], 9.0)
         self.assertAlmostEqual(pt.co.x, 7.0, places=5)
         self.assertAlmostEqual(pt.co.y, 9.0, places=5)
+
+    def test_seed_does_not_move_point(self):
+        """Seeding the editor loads current values without triggering a write."""
+        pt = self.add_point((3.0, -1.0))
+        seed, editor = self._editor()
+        seed(self.context, pt)
+        self.assertAlmostEqual(editor.co_2d[0], 3.0, places=5)
+        self.assertAlmostEqual(editor.co_2d[1], -1.0, places=5)
+        self.assertAlmostEqual(pt.co.x, 3.0, places=5)
+        self.assertAlmostEqual(pt.co.y, -1.0, places=5)
 
     def test_flip_arc_gives_complementary_sweep(self):
         ct = self.add_point((0.0, 0.0))
@@ -97,14 +111,14 @@ class TestPointCoords3D(BgsTestCase):
         self.sketch.remove_objects()
         return super().tearDown()
 
-    def test_set_point_coords_writes_z(self):
+    def test_editor_writes_xyz(self):
+        from ..model.group_sketcher import seed_coord_editor
         from ..model.native_3d import create_point_3d
 
         pt = create_point_3d(self.sketch, (1.0, 2.0, 3.0))
-        result = bpy.ops.view3d.slvs_set_point_coords(
-            "EXEC_DEFAULT", curve_id=pt.curve_id, coords=(4.0, 5.0, 6.0)
-        )
-        self.assertEqual(result, {"FINISHED"})
+        seed_coord_editor(self.context, pt)
+        editor = self.context.scene.sketcher.coord_editor
+        editor.co_3d = (4.0, 5.0, 6.0)
         pos = pt._first_point_3d()
         self.assertAlmostEqual(pos.x, 4.0, places=5)
         self.assertAlmostEqual(pos.y, 5.0, places=5)

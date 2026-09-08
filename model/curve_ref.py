@@ -413,18 +413,20 @@ class PointRef(CurveRef):
         return True
 
     def draw_settings(self, layout):
-        """Show an editable-coordinates entry point."""
-        from ..declarations import Operators
+        """Draw inline, editable coordinates for this point.
 
-        # The context menu is a popup_menu, whose buttons default to EXEC; force
-        # INVOKE so the operator's coordinate dialog opens instead of running
-        # execute with unset (zeroed) coordinates.
-        sub = layout.column()
-        sub.operator_context = "INVOKE_DEFAULT"
-        op = sub.operator(
-            Operators.SetPointCoords, text="Set Coordinates", icon="TRANSFORM_ORIGINS"
-        )
-        op.curve_id = self._curve_id
+        A real property with a write-through update callback (seeded by the
+        context menu) commits every field reliably from the popup, which an
+        operator dialog did not.
+        """
+        import bpy
+
+        editor = bpy.context.scene.sketcher.coord_editor
+        col = layout.column()
+        if self._sketch.is_3d:
+            col.prop(editor, "co_3d", text="")
+        else:
+            col.prop(editor, "co_2d", text="")
         layout.separator()
 
     @property
