@@ -20,17 +20,44 @@ class TestManagedCollection(Sketch2dTestCase):
                 return child
         return None
 
-    def test_sketch_object_lands_in_managed_collection(self):
+    def _sketch_subcollection(self, ob):
+        for coll in ob.users_collection:
+            if coll.get("cad_sketch_collection"):
+                return coll
+        return None
+
+    def test_sketch_object_lands_in_its_own_subcollection(self):
         ob = self.sketch.target_object
-        coll = self._cad_collection()
-        self.assertIsNotNone(coll, "CAD Sketcher collection was not created")
-        self.assertEqual(coll.name.split(".")[0], CAD_COLLECTION_NAME)
-        self.assertIn(ob.name, coll.objects, "sketch object not in the collection")
+        root = self._cad_collection()
+        self.assertIsNotNone(root, "CAD Sketcher collection was not created")
+        self.assertEqual(root.name.split(".")[0], CAD_COLLECTION_NAME)
+
+        sub = self._sketch_subcollection(ob)
+        self.assertIsNotNone(sub, "sketch object not in a per-sketch sub-collection")
+        self.assertIn(sub.name, root.children, "sub-collection not under the CAD root")
         self.assertNotIn(
             ob.name,
             self.context.scene.collection.objects,
             "sketch object should not stay in the scene master collection",
         )
+
+    def test_each_sketch_gets_a_distinct_subcollection(self):
+        first = self._sketch_subcollection(self.sketch.target_object)
+        second_sketch = self.new_sketch()
+        second = self._sketch_subcollection(second_sketch.target_object)
+        self.assertIsNotNone(second)
+        self.assertIsNot(first, second, "two sketches must not share a sub-collection")
+
+    def test_deleting_a_sketch_removes_its_empty_collection(self):
+        from ..utilities.collections import cleanup_sketch_collections
+
+        extra = self.new_sketch()
+        sub = self._sketch_subcollection(extra.target_object)
+        self.assertIsNotNone(sub)
+        name = sub.name
+        bpy.data.objects.remove(extra.target_object)
+        cleanup_sketch_collections(self.context.scene)
+        self.assertNotIn(name, {c.name for c in self._cad_collection().children})
 
     def test_collection_is_linked_but_not_excluded(self):
         """The collection must stay in the view layer so its objects evaluate."""

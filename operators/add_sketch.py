@@ -30,9 +30,9 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
     sketch_obj = bpy.data.objects.new("Sketch", curve)
 
     scene = context.scene
-    from ..utilities.collections import link_object
+    from ..utilities.collections import link_sketch_object
 
-    link_object(sketch_obj, scene)
+    link_sketch_object(sketch_obj, scene)
 
     stamp_sketch_props(sketch_obj)
     _ensure_convert_modifier(sketch_obj)

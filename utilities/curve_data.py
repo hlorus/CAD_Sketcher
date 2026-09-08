@@ -511,9 +511,9 @@ def ensure_sketch_curve_object(sketch):
 
         scene = bpy.context.scene
         assert scene is not None, "No active scene"
-        from .collections import link_object
+        from .collections import link_sketch_object
 
-        link_object(ob, scene)
+        link_sketch_object(ob, scene)
 
         _ensure_convert_modifier(ob)
 

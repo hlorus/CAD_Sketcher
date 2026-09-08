@@ -61,9 +61,9 @@ def _create_sketch_object(context, empty, name):
 
     curve = bpy.data.hair_curves.new(name)
     obj = bpy.data.objects.new(name, curve)
-    from .collections import link_object
+    from .collections import link_sketch_object
 
-    link_object(obj, context.scene)
+    link_sketch_object(obj, context.scene)
     stamp_sketch_props(obj)
     _ensure_convert_modifier(obj)
     obj.parent = empty

@@ -159,7 +159,7 @@ def create_3d_sketch(context, name="3D Sketch", matrix=None):
     remains free in XYZ and the Empty provides the stable origin required by
     placement/editing helpers.
     """
-    from ..utilities.collections import link_object
+    from ..utilities.collections import link_object, link_sketch_object
 
     origin = bpy.data.objects.new(f"{name} Origin", None)
     origin.empty_display_type = "PLAIN_AXES"
@@ -170,7 +170,7 @@ def create_3d_sketch(context, name="3D Sketch", matrix=None):
 
     curve = bpy.data.hair_curves.new(name)
     obj = bpy.data.objects.new(name, curve)
-    link_object(obj, context.scene)
+    link_sketch_object(obj, context.scene)
     stamp_sketch_props(obj)
     obj[SKETCH_3D_TAG] = True
 
