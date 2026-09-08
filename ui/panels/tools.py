@@ -50,7 +50,6 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
 
         layout.operator(declarations.Operators.MergePoints)
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
-        layout.operator(declarations.Operators.AddFillet, icon="MOD_BEVEL")
 
         layout.separator()
         prefs = preferences.get_prefs()
@@ -123,6 +122,7 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         col.operator(declarations.Operators.NodeRevolve)
         col.operator(declarations.Operators.NodeArrayLinear)
         col.operator(declarations.Operators.NodeBoolean)
+        col.operator(declarations.Operators.AddFillet, icon="MOD_BEVEL")
 
         # Grouping and reusing parts acts on whole objects, so it belongs with the
         # other object-level tools rather than inside a sketch.
