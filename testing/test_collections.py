@@ -48,6 +48,31 @@ class TestManagedCollection(Sketch2dTestCase):
         self.assertIsNotNone(second)
         self.assertIsNot(first, second, "two sketches must not share a sub-collection")
 
+    def test_cutter_nests_under_the_body_it_feeds(self):
+        from ..operators.modifiers import apply_boolean, boolean_cutters
+        from ..utilities.collections import organize_part_nesting
+
+        body_obj = self.sketch.target_object
+        cutter_obj = self.new_sketch().target_object
+        body_coll = self._sketch_subcollection(body_obj)
+        cutter_coll = self._sketch_subcollection(cutter_obj)
+        root = self._cad_collection()
+        self.assertIn(cutter_coll.name, root.children)
+
+        mod = apply_boolean(body_obj, cutter_obj)
+        self.assertIsNotNone(mod, "boolean was refused (cycle?)")
+        self.assertIn(cutter_obj, boolean_cutters(body_obj))
+
+        organize_part_nesting(self.context.scene)
+        self.assertIn(cutter_coll.name, body_coll.children, "cutter did not nest")
+        self.assertNotIn(cutter_coll.name, root.children)
+
+        # Removing the boolean un-nests it back to the root.
+        body_obj.modifiers.remove(mod)
+        organize_part_nesting(self.context.scene)
+        self.assertIn(cutter_coll.name, root.children, "cutter did not un-nest")
+        self.assertNotIn(cutter_coll.name, body_coll.children)
+
     def test_deleting_a_sketch_removes_its_empty_collection(self):
         from ..utilities.collections import cleanup_sketch_collections
 

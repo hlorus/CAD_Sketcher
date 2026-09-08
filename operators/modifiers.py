@@ -246,6 +246,11 @@ class BooleanFromToolMixin:
 
         self._apply_boolean_targets(cutter)
 
+        # Nest the cutter's collection under the bodies it now feeds.
+        from ..utilities.collections import organize_part_nesting
+
+        organize_part_nesting(context.scene)
+
     def _apply_boolean_targets(self, cutter):
         name = boolean_modifier_name(cutter)
         enabled_bodies = set()
