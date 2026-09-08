@@ -90,6 +90,10 @@ def _socket(sockets, name, occurrence):
     return None
 
 
+# Records sockets a build couldn't resolve on this Blender (see build_array_node_group).
+_skips = []
+
+
 def _set(node, attr, value):
     """Set a node property, ignoring it if this Blender lacks it."""
     try:
@@ -106,6 +110,8 @@ def _seti(node, name, occurrence, value):
             socket.default_value = value
         except Exception:
             pass
+    else:
+        _skips.append(f"default {node.name}.in[{name!r}#{occurrence}]")
 
 
 def _link(links, from_node, from_name, from_occ, to_node, to_name, to_occ):
@@ -114,6 +120,13 @@ def _link(links, from_node, from_name, from_occ, to_node, to_name, to_occ):
     b = _socket(to_node.inputs, to_name, to_occ)
     if a is not None and b is not None:
         links.new(a, b)
+    else:
+        miss = []
+        if a is None:
+            miss.append(f"{from_node.name}.out[{from_name!r}#{from_occ}]")
+        if b is None:
+            miss.append(f"{to_node.name}.in[{to_name!r}#{to_occ}]")
+        _skips.append("link " + " -> ".join(miss))
 
 
 def _build_graph(ng):
@@ -798,7 +811,10 @@ def build_array_node_group(name: str = ARRAY_NODE_GROUP):
     ng.nodes.clear()
     ng.links.clear()
     ng.interface.clear()
+    _skips.clear()
     _build_graph(ng)
+    if _skips:
+        print("CAD Sketcher array build: unresolved sockets:\n  " + "\n  ".join(_skips))
     _restore_modifier_inputs(ng, saved)
     ng["cad_array_version"] = ARRAY_VERSION
     return ng
