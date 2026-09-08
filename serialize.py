@@ -1,6 +1,4 @@
-import pickle
-from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict
 
 from bpy.types import Scene
 
@@ -133,36 +131,6 @@ def _get_indices(elements):
 
     [l.sort() for l in indices.values()]
     return indices
-
-
-def save(file: Union[str, Path], scene: Optional[Scene] = None):
-    """Saves CAD Sketcher data of scene into file"""
-    if not scene:
-        import bpy
-
-        scene = bpy.context.scene
-
-    with open(file, "wb") as picklefile:
-        pickler = pickle.Pickler(picklefile)
-
-        # Convert to dict to avoid pickling PropertyGroup instances
-        dict = scene_to_dict(scene)
-        pickler.dump(dict)
-        picklefile.close()
-
-
-def load(file: Union[str, Path], scene: Optional[Scene] = None):
-    """Overwrites scene with entities and constraints stored in file"""
-    if not scene:
-        import bpy
-
-        scene = bpy.context.scene
-
-    with open(file, "rb") as picklefile:
-        unpickler = pickle.Unpickler(picklefile)
-        load_dict = unpickler.load()
-
-        update_scene_from_dict(scene, load_dict)
 
 
 def paste(context, dictionary):

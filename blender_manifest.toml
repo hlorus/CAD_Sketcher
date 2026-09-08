@@ -33,9 +33,6 @@ wheels = [
   "./wheels/slvs-3.2-cp313-cp313-win_amd64.whl",
 ]
 
-[permissions]
-files = "Used to load CAD Sketcher assets"
-
 [build]
 # Ship only the runtime add-on. Everything below is dev tooling, docs, tests,
 # or local build cruft that must not end up in the released extension.
