@@ -1,8 +1,8 @@
-from bpy.types import Operator, Context
+from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
-from ..serialize import scene_to_dict, scene_from_dict
+from ..serialize import scene_from_dict, scene_to_dict
 
 # Buffer to store snapshot data
 _snapshot_buffer = None

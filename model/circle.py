@@ -1,27 +1,26 @@
 import logging
 import math
 from typing import List
-from .sketch_ref import get_active_sketch
 
 import bpy
-from bpy.types import PropertyGroup
 from bpy.props import FloatProperty
-from gpu_extras.batch import batch_for_shader
-from mathutils import Vector, Matrix
-from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
+from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
+from gpu_extras.batch import batch_for_shader
+from mathutils import Matrix, Vector
+from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 
 from ..curve_solver import Solver
-from ..utilities.math import range_2pi, pol2cart
-from .base_entity import SlvsGenericEntity, tag_update
-from .base_entity import Entity2D
-from .utilities import slvs_entity_pointer
-from .constants import CURVE_RESOLUTION
-from ..utilities.constants import HALF_TURN, FULL_TURN
+from ..utilities.constants import FULL_TURN, HALF_TURN
 from ..utilities.draw import coords_arc_2d
+from ..utilities.math import pol2cart, range_2pi
+from .base_entity import Entity2D, SlvsGenericEntity, tag_update
+from .constants import CURVE_RESOLUTION
+from .sketch_ref import get_active_sketch
 from .utilities import (
-    get_bezier_curve_midpoint_positions,
     create_bezier_curve,
+    get_bezier_curve_midpoint_positions,
+    slvs_entity_pointer,
 )
 
 logger = logging.getLogger(__name__)

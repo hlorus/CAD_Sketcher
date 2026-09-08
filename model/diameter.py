@@ -1,20 +1,19 @@
 import logging
-
 import math
-from bpy.types import PropertyGroup
+
 from bpy.props import BoolProperty, FloatProperty, StringProperty
+from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
-from mathutils import Vector, Matrix
+from mathutils import Matrix, Vector
 
 from ..curve_solver import Solver
 from ..global_data import WpReq
-from ..utilities.view import location_3d_to_region_2d
 from ..utilities.math import pol2cart
-from .base_constraint import DimensionalConstraint
-from .utilities import slvs_entity_pointer
-from .categories import CURVE
 from ..utilities.solver import update_system_cb
-
+from ..utilities.view import location_3d_to_region_2d
+from .base_constraint import DimensionalConstraint
+from .categories import CURVE
+from .utilities import slvs_entity_pointer
 
 logger = logging.getLogger(__name__)
 

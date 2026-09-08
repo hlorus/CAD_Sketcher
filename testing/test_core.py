@@ -1,7 +1,7 @@
 from testing.utils import BgsTestCase
+
 from ..model.types import SlvsPoint3D
 from ..model.utilities import slvs_entity_pointer
-
 
 
 class TestEntities(BgsTestCase):
@@ -15,9 +15,9 @@ class TestEntities(BgsTestCase):
 
     def test_entity_pointer(self):
         import bpy
+        from bpy.props import PointerProperty
         from bpy.types import PropertyGroup
         from bpy.utils import register_class, unregister_class
-        from bpy.props import PointerProperty
 
         class PointerTest(PropertyGroup):
             pass

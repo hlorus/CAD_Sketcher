@@ -1,7 +1,9 @@
 """Tests for SketchTopology — connectivity, geometry, path walking, modification."""
 
 import math
+
 from mathutils import Vector
+
 from .utils import Sketch2dTestCase
 
 

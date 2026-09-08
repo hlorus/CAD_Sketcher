@@ -1,12 +1,12 @@
 import bpy
-from ..model.sketch_ref import get_active_constraints
+from bpy.props import BoolProperty, IntProperty, StringProperty
+from bpy.types import Context, Event, Operator, PropertyGroup
 from bpy.utils import register_classes_factory
-from bpy.props import StringProperty, BoolProperty, IntProperty
-from bpy.types import Operator, Context, Event, PropertyGroup
 
-from ..drawing import selection
-from ..utilities.highlighting import HighlightElement
 from ..declarations import Operators
+from ..drawing import selection
+from ..model.sketch_ref import get_active_constraints
+from ..utilities.highlighting import HighlightElement
 
 
 class View3D_OT_slvs_context_menu(Operator, HighlightElement):

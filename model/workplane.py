@@ -3,20 +3,19 @@ from typing import List
 
 import bpy
 import gpu
-from mathutils import Vector, Matrix
 from bpy.types import PropertyGroup
-from gpu_extras.batch import batch_for_shader
 from bpy.utils import register_classes_factory
+from gpu_extras.batch import batch_for_shader
+from mathutils import Matrix, Vector
 
-from ..declarations import Operators
 from .. import global_data
-from ..utilities.draw import draw_rect_2d
+from ..curve_solver import Solver
+from ..declarations import Operators
 from ..shaders import Shaders
 from ..utilities import preferences
-from ..curve_solver import Solver
+from ..utilities.draw import draw_rect_2d
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
-
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,7 @@
 """Tests for the bevel operator."""
 
 from mathutils import Vector
+
 from .utils import Sketch2dTestCase
 
 
@@ -24,7 +25,7 @@ class TestBevel(Sketch2dTestCase):
 
         # Simulate what bevel does: find center, tangent points, create arc
         radius = 1.0
-        from ..utilities.intersect import get_intersections, ElementTypes
+        from ..utilities.intersect import ElementTypes, get_intersections
 
         def _offset(ref, offset):
             if ref.is_line():

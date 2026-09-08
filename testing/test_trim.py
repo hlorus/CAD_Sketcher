@@ -1,6 +1,7 @@
 """Tests for the trim operator logic."""
 
 from mathutils import Vector
+
 from .utils import Sketch2dTestCase
 
 

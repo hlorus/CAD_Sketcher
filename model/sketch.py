@@ -2,15 +2,15 @@ import logging
 from typing import List
 
 import bpy
-from bpy.types import PropertyGroup
 from bpy.props import EnumProperty, IntProperty, PointerProperty
+from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
 from .. import global_data
 from ..curve_solver import Solver, solve_system
+from ..utilities.bpy import bpyEnum
 from .base_entity import SlvsGenericEntity
 from .utilities import slvs_entity_pointer
-from ..utilities.bpy import bpyEnum
 
 logger = logging.getLogger(__name__)
 

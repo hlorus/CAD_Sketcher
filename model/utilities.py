@@ -1,10 +1,10 @@
 import logging
+import math
 
 import bpy
 from bpy.props import IntProperty
 from bpy.types import Context
-import math
-from mathutils import Vector, Matrix
+from mathutils import Matrix, Vector
 
 logger = logging.getLogger(__name__)
 

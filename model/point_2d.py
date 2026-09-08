@@ -2,15 +2,15 @@ import logging
 from typing import List
 
 import bpy
-from bpy.types import PropertyGroup
 from bpy.props import FloatVectorProperty
+from bpy.types import PropertyGroup
+from bpy.utils import register_classes_factory
 from gpu_extras.batch import batch_for_shader
 from mathutils import Matrix, Vector
-from bpy.utils import register_classes_factory
 
-from ..utilities.draw import draw_rect_2d
 from ..curve_solver import Solver
-from .base_entity import SlvsGenericEntity, Entity2D, tag_update
+from ..utilities.draw import draw_rect_2d
+from .base_entity import Entity2D, SlvsGenericEntity, tag_update
 from .utilities import slvs_entity_pointer
 
 logger = logging.getLogger(__name__)

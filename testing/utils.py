@@ -15,8 +15,9 @@ def make_operator_double(real_cls):
     (``continuous_draw: BoolProperty(...)``) are inert, so a test sets a plain attribute
     where a value is needed. UI sinks touched by the state machine are stubbed to no-ops.
     """
-    import bpy
     import types
+
+    import bpy
 
     def _noop(self, *args, **kwargs):
         return None
