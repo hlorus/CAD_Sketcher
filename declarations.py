@@ -69,7 +69,6 @@ class Operators(str, Enum):
     Paste = "view3d.slvs_paste"
     Move = "view3d.slvs_move"
     Offset = "view3d.slvs_offset"
-    NodeFill = "view3d.slvs_node_fill"
     NodeExtrude = "view3d.slvs_node_extrude"
     NodeArrayLinear = "view3d.slvs_node_array_linear"
     NodeRevolve = "view3d.slvs_node_revolve"

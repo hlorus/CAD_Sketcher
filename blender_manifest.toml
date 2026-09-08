@@ -51,6 +51,7 @@ paths_exclude_pattern = [
     "/ruff.toml",
     "/.blender_ext/",
     "/.claude/",
+    "/.bltest/",
     "/CONTRIBUTING.md",
     "/.gitignore",
     "/testing/",

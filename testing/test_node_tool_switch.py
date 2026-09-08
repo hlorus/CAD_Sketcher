@@ -12,7 +12,6 @@ from ..operators.add_sketch import View3D_OT_slvs_add_sketch
 from ..operators.modifiers import (
     View3D_OT_node_array_linear,
     View3D_OT_node_extrude,
-    View3D_OT_node_fill,
     View3D_OT_node_revolve,
 )
 
@@ -31,7 +30,3 @@ class TestReturnToTool(TestCase):
         self.assertEqual(
             View3D_OT_slvs_add_sketch.return_to_tool, WorkSpaceTools.Select
         )
-
-    def test_fill_stays_active(self):
-        # Fill has no workspacetool, so it must not steal the active tool.
-        self.assertIsNone(View3D_OT_node_fill.return_to_tool)

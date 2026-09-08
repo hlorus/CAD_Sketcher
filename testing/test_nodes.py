@@ -1,14 +1,13 @@
 """Tests for the node tools (extrude / linear array).
 
-Exercises the real code paths the operators use: asset loading via
-assets_manager and the geometry-nodes modifier + input setting from
-operators/modifiers.py, asserting the evaluated geometry actually changes.
+Exercises the real code paths the operators use: the code-built node groups and
+the geometry-nodes modifier + input setting from operators/modifiers.py,
+asserting the evaluated geometry actually changes.
 """
 
 import bmesh
 import bpy
 
-from .. import assets_manager as am
 from ..operators.modifiers import (
     View3D_OT_node_array_linear,
     View3D_OT_node_extrude,
@@ -16,10 +15,20 @@ from ..operators.modifiers import (
     is_2d_profile,
     set_modifier_input,
 )
+from ..utilities.array_nodes import build_array_node_group
+from ..utilities.extrude_nodes import build_extrude_node_group
 from .utils import BgsTestCase
 
 EXTRUDE = "CAD Sketcher Extrude"
 ARRAY = "CAD Sketcher Linear Array"
+
+
+def _ids(group):
+    return {
+        s.name: s.identifier
+        for s in group.interface.items_tree
+        if getattr(s, "in_out", "") == "INPUT"
+    }
 
 
 class TestNodeTools(BgsTestCase):
@@ -79,6 +88,7 @@ class TestNodeTools(BgsTestCase):
     @staticmethod
     def _boundary_edges(me):
         import bmesh
+
         bm = bmesh.new()
         bm.from_mesh(me)
         n = sum(1 for e in bm.edges if len(e.link_faces) == 1)
@@ -91,7 +101,9 @@ class TestNodeTools(BgsTestCase):
         sp = cu.splines.new("POLY")
         sp.points.add(3)
         sp.use_cyclic_u = True
-        for i, (x, z) in enumerate(((radius, 0), (radius + 1, 0), (radius + 1, 1), (radius, 1))):
+        for i, (x, z) in enumerate(
+            ((radius, 0), (radius + 1, 0), (radius + 1, 1), (radius, 1))
+        ):
             sp.points[i].co = (x, 0.0, z, 1.0)
         ob = bpy.data.objects.new("closed", cu)
         self.scene.collection.objects.link(ob)
@@ -116,7 +128,9 @@ class TestNodeTools(BgsTestCase):
         self.scene.collection.objects.link(ob)
         return ob
 
-    def _revolve(self, ob, angle, angle_step, axis=(0.0, 0.0, 1.0), origin=(0.0, 0.0, 0.0)):
+    def _revolve(
+        self, ob, angle, angle_step, axis=(0.0, 0.0, 1.0), origin=(0.0, 0.0, 0.0)
+    ):
         from ..utilities.revolve_nodes import _input_ids, build_revolve_node_group
 
         ng = build_revolve_node_group()
@@ -153,6 +167,7 @@ class TestNodeTools(BgsTestCase):
     def test_revolve_mesh_profile(self):
         # A mesh edge-path profile revolves too (Mesh to Curve at the input).
         import math
+
         ob = self._profile_mesh(n=5, radius=2.0, height=1.0)
         self._revolve(ob, math.tau, math.tau / 16)
         me = self._eval_mesh(ob)
@@ -162,6 +177,7 @@ class TestNodeTools(BgsTestCase):
 
     def test_revolve_creates_surface(self):
         import math
+
         ob = self._profile_curve(n=5, radius=2.0, height=1.0)
         steps = 16  # angle_step = tau/16 -> ceil(tau / (tau/16)) = 16 steps
         self._revolve(ob, math.tau, math.tau / steps)
@@ -181,8 +197,9 @@ class TestNodeTools(BgsTestCase):
 
     def test_revolve_angle_step_controls_resolution(self):
         import math
+
         ob = self._profile_curve()
-        self._revolve(ob, math.tau, math.tau / 8)   # coarse: ~8 steps
+        self._revolve(ob, math.tau, math.tau / 8)  # coarse: ~8 steps
         n_low = len(self._eval_mesh(ob).vertices)
         ob.modifiers.clear()
         self._revolve(ob, math.tau, math.tau / 32)  # fine: ~32 steps
@@ -192,6 +209,7 @@ class TestNodeTools(BgsTestCase):
     def test_revolve_angle_step_scales_with_angle(self):
         # Same angle step -> a quarter turn uses ~1/4 the steps of a full turn.
         import math
+
         step = math.radians(6)
         ob = self._profile_curve()
         self._revolve(ob, math.tau, step)
@@ -205,6 +223,7 @@ class TestNodeTools(BgsTestCase):
         # A full revolve of a closed profile sweeps its closing segment (cyclic
         # wrap) and welds the seam -> a watertight solid (no boundary edges).
         import math
+
         ob = self._closed_profile()
         self._revolve(ob, math.tau, math.radians(10))
         me = self._eval_mesh(ob)
@@ -217,6 +236,7 @@ class TestNodeTools(BgsTestCase):
         # valid surface without end caps, matching the non-filled spec. (End caps
         # only appear when the profile is filled; see test_revolve_nodes.py.)
         import math
+
         ob = self._closed_profile()
         self._revolve(ob, math.pi / 2, math.radians(10))
         me = self._eval_mesh(ob)
@@ -227,6 +247,7 @@ class TestNodeTools(BgsTestCase):
         # The step count derives from |angle|, so revolving the other direction
         # keeps the same resolution (the per-step angle stays signed).
         import math
+
         ob = self._profile_curve()
         self._revolve(ob, math.pi / 2, math.radians(10))
         n_pos = len(self._eval_mesh(ob).vertices)
@@ -237,6 +258,7 @@ class TestNodeTools(BgsTestCase):
 
     def test_revolve_partial_angle(self):
         import math
+
         ob = self._profile_curve(radius=2.0)
         self._revolve(ob, math.pi / 2, math.radians(6))  # quarter turn
         me = self._eval_mesh(ob)
@@ -250,6 +272,7 @@ class TestNodeTools(BgsTestCase):
         # the target + axis from those and edit the *existing* modifier rather
         # than crash or spawn a duplicate.
         import math
+
         ob = self._profile_mesh(n=3, radius=2.0, height=1.0)
         for o in self.scene.collection.objects:
             o.select_set(False)
@@ -340,8 +363,7 @@ class TestNodeTools(BgsTestCase):
             {"FINISHED"},
         )
         names = [
-            m.name for m in body.modifiers
-            if m.name.startswith("CAD_Sketcher Boolean")
+            m.name for m in body.modifiers if m.name.startswith("CAD_Sketcher Boolean")
         ]
         self.assertEqual(names, ["CAD_Sketcher Boolean CutD"], f"got {names}")
 
@@ -353,6 +375,7 @@ class TestNodeTools(BgsTestCase):
 
         from ..operators.modifiers import get_modifier_input
         from ..utilities.revolve_nodes import _input_ids
+
         ob = self._profile_mesh(n=3)
         mod = self._revolve(ob, math.pi / 3, math.radians(15))
 
@@ -400,22 +423,24 @@ class TestNodeTools(BgsTestCase):
         self.assertTrue(View3D_OT_node_array_linear.is_valid_target(None, mesh_ob))
 
     def test_extrude_adds_thickness(self):
-        self.assertTrue(am.load_asset("node_groups", EXTRUDE))
+        group = build_extrude_node_group()
+        ids = _ids(group)
         ob = self._plane()
         z0 = self._extent(self._eval_mesh(ob), "z")
         mod = self._add_node_mod(ob, EXTRUDE)
-        set_modifier_input(mod, "Input_2", 1.5)  # Size (as the operator's set_props sets it)
+        set_modifier_input(mod, ids["Size"], 1.5)  # as the operator's set_props sets it
         z1 = self._extent(self._eval_mesh(ob), "z")
         self.assertGreater(z1, z0 + 0.5)
 
     def test_extrude_unfilled_wire_becomes_walls(self):
         # A non-filled profile converts to a face-less wire; the extrude tool must
         # extrude its edges into open walls with real thickness instead of doing
-        # nothing (the face-only asset silently produced no geometry before).
+        # nothing (the face-only group silently produced no geometry before).
         from ..utilities.extrude_nodes import ensure_extrude_edge_walls
 
-        self.assertTrue(am.load_asset("node_groups", EXTRUDE))
-        ensure_extrude_edge_walls(bpy.data.node_groups.get(EXTRUDE))
+        group = build_extrude_node_group()
+        ensure_extrude_edge_walls(group)
+        ids = _ids(group)
 
         me = bpy.data.meshes.new("wire")
         me.from_pydata(
@@ -426,46 +451,49 @@ class TestNodeTools(BgsTestCase):
         me.update()
         ob = self._link("wire", me)
         mod = self._add_node_mod(ob, EXTRUDE)
-        set_modifier_input(mod, "Input_2", 1.5)  # Size
+        set_modifier_input(mod, ids["Size"], 1.5)
         out = self._eval_mesh(ob)
         self.assertGreater(len(out.polygons), 0, "no walls created from wire")
         self.assertAlmostEqual(self._extent(out, "z"), 1.5, delta=0.01)
 
     def test_array_multiplies_geometry(self):
-        self.assertTrue(am.load_asset("node_groups", ARRAY))
+        group = build_array_node_group()
+        ids = _ids(group)
         ob = self._cube()
         base = self._eval_mesh(ob)
         x0, n0 = self._extent(base, "x"), len(base.vertices)
         mod = self._add_node_mod(ob, ARRAY)
-        set_modifier_input(mod, "Input_21", (1.0, 0.0, 0.0))  # Direction
-        set_modifier_input(mod, "Input_23", 3.0)  # Spacing
-        set_modifier_input(mod, "Input_22", 3)  # Count
+        set_modifier_input(mod, ids["Direction"], (1.0, 0.0, 0.0))
+        set_modifier_input(mod, ids["Spacing / Total distance"], 3.0)
+        set_modifier_input(mod, ids["Count"], 3)
         me = self._eval_mesh(ob)
         self.assertGreater(len(me.vertices), n0)
         self.assertGreater(self._extent(me, "x"), x0 + 2.0)
 
     def test_extrude_mirror_option(self):
-        # Mirror Extrude (Input_3) extrudes both ways -> ~double the span.
-        self.assertTrue(am.load_asset("node_groups", EXTRUDE))
+        # Mirror Extrude extrudes both ways -> ~double the span.
+        group = build_extrude_node_group()
+        ids = _ids(group)
         ob = self._plane()
         mod = self._add_node_mod(ob, EXTRUDE)
-        set_modifier_input(mod, "Input_2", 1.0)
-        set_modifier_input(mod, "Input_3", False)
+        set_modifier_input(mod, ids["Size"], 1.0)
+        set_modifier_input(mod, ids["Mirror Extrude"], False)
         z1 = self._extent(self._eval_mesh(ob), "z")
-        set_modifier_input(mod, "Input_3", True)
+        set_modifier_input(mod, ids["Mirror Extrude"], True)
         z2 = self._extent(self._eval_mesh(ob), "z")
         self.assertGreater(z2, z1 * 1.6)
 
     def test_array_use_total_distance_option(self):
-        # Use Total Distance (Input_24) reinterprets distance as the total span.
-        self.assertTrue(am.load_asset("node_groups", ARRAY))
+        # Use Total Distance reinterprets distance as the total span.
+        group = build_array_node_group()
+        ids = _ids(group)
         ob = self._cube()
         mod = self._add_node_mod(ob, ARRAY)
-        set_modifier_input(mod, "Input_21", (1.0, 0.0, 0.0))
-        set_modifier_input(mod, "Input_22", 4)
-        set_modifier_input(mod, "Input_23", 6.0)
-        set_modifier_input(mod, "Input_24", False)
+        set_modifier_input(mod, ids["Direction"], (1.0, 0.0, 0.0))
+        set_modifier_input(mod, ids["Count"], 4)
+        set_modifier_input(mod, ids["Spacing / Total distance"], 6.0)
+        set_modifier_input(mod, ids["Use Total Distance"], False)
         x_spacing = self._extent(self._eval_mesh(ob), "x")
-        set_modifier_input(mod, "Input_24", True)
+        set_modifier_input(mod, ids["Use Total Distance"], True)
         x_total = self._extent(self._eval_mesh(ob), "x")
         self.assertLess(x_total, x_spacing - 2.0)

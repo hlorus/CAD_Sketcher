@@ -156,14 +156,6 @@ def _migrate_geometry(context, old_sketch, sketch, entity_map):
 # ---------------------------------------------------------------------------
 
 
-def _load_node_group(name):
-    from ..assets_manager import load_asset
-
-    if load_asset("node_groups", name):
-        return bpy.data.node_groups.get(name)
-    return None
-
-
 def _add_gn_modifier(obj, name, build):
     """Add a GN modifier wrapping a small built-in node construction.
 
@@ -270,16 +262,17 @@ def _translate_mirror(mod, old_mesh, obj):
 def _translate_solidify(mod, old_mesh, obj):
     """Solidify gives a profile thickness -- the same as the Extrude tool."""
     from ..operators.modifiers import set_modifier_input
+    from .extrude_nodes import (
+        _input_ids,
+        build_extrude_node_group,
+        ensure_extrude_edge_walls,
+    )
 
-    ng = _load_node_group("CAD Sketcher Extrude")
-    if ng is None:
-        return False
-    from .extrude_nodes import ensure_extrude_edge_walls
-
+    ng = build_extrude_node_group()
     ensure_extrude_edge_walls(ng)
     m = obj.modifiers.new("CAD_Sketcher Extrude", "NODES")
     m.node_group = ng
-    set_modifier_input(m, "Input_2", float(mod.thickness))  # Size
+    set_modifier_input(m, _input_ids(ng)["Size"], float(mod.thickness))
     return True
 
 
@@ -332,14 +325,15 @@ def _translate_array(mod, old_mesh, obj):
     if offset.length < 1e-9:
         return False  # no derivable direction
 
-    ng = _load_node_group("CAD Sketcher Linear Array")
-    if ng is None:
-        return False
+    from .array_nodes import _input_ids, build_array_node_group
+
+    ng = build_array_node_group()
     m = obj.modifiers.new("CAD_Sketcher Linear Array", "NODES")
     m.node_group = ng
-    set_modifier_input(m, "Input_21", tuple(offset.normalized()))  # Direction
-    set_modifier_input(m, "Input_22", int(mod.count))  # Count
-    set_modifier_input(m, "Input_23", offset.length)  # Spacing
+    ids = _input_ids(ng)
+    set_modifier_input(m, ids["Direction"], tuple(offset.normalized()))
+    set_modifier_input(m, ids["Count"], int(mod.count))
+    set_modifier_input(m, ids["Spacing / Total distance"], offset.length)
     return True
 
 
