@@ -21,19 +21,11 @@ or an angle threshold) is the intended way to fillet specific elements.
 import bpy
 
 FILLET_NODE_GROUP = "CAD Sketcher Fillet"
-FILLET_VERSION = 3  # Mesh Bevel; Amount/Segments forced to plain values
+FILLET_VERSION = 4  # Mesh Bevel; bounding-box auto-detect (no mesh-only probes)
 
 # ``Affect`` values. An int, not a menu socket: menu sockets don't evaluate
 # reliably as modifier inputs on Blender 5.0/5.1 (see boolean_nodes).
 AFFECT_AUTO, AFFECT_VERTICES, AFFECT_EDGES = 0, 1, 2
-
-
-def _force_value(socket):
-    """Forbid the field/attribute toggle so the input is a plain editable value."""
-    try:
-        socket.force_non_field = True
-    except Exception:
-        pass
 
 
 def _compare(nodes, links, data_type, operation, a_socket, b_value):
@@ -137,10 +129,6 @@ def build_fillet_node_group(name: str = FILLET_NODE_GROUP):
     amount = iface.new_socket("Amount", in_out="INPUT", socket_type="NodeSocketFloat")
     amount.default_value = 0.1
     amount.min_value = 0.0
-    # Plain value, never an attribute/field toggle -- these are global settings,
-    # and leaving them field-capable makes the modifier show an attribute box
-    # (which reads as "can't edit the value").
-    _force_value(amount)
     try:
         amount.subtype = "DISTANCE"
     except Exception:
@@ -149,7 +137,6 @@ def build_fillet_node_group(name: str = FILLET_NODE_GROUP):
     segments.default_value = 4
     segments.min_value = 1
     segments.description = "Segments per rounded corner/edge"
-    _force_value(segments)
     affect = iface.new_socket("Affect", in_out="INPUT", socket_type="NodeSocketInt")
     affect.default_value = AFFECT_AUTO
     affect.min_value = 0
@@ -158,7 +145,6 @@ def build_fillet_node_group(name: str = FILLET_NODE_GROUP):
         "0 = Auto (corners on a flat profile, edges on a solid), "
         "1 = Vertices, 2 = Edges"
     )
-    _force_value(affect)
     selection = iface.new_socket(
         "Selection", in_out="INPUT", socket_type="NodeSocketBool"
     )
@@ -182,9 +168,9 @@ def build_fillet_node_group(name: str = FILLET_NODE_GROUP):
     # Auto-detect flatness from the bounding box: a flat profile is degenerate
     # along one axis (min extent ~ 0), a solid has volume in all three. Bounding
     # Box works on any geometry and never errors -- unlike mesh-only probes
-    # (Edge Neighbors / Attribute Statistic), which warn on a curve/non-mesh input
-    # and, because Auto is the only path that evaluates them, would grey the
-    # modifier's inputs at Affect = 0 only.
+    # (Edge Neighbors / Attribute Statistic), which warn on a curve/non-mesh input;
+    # because Auto is the only Affect value that evaluates the detection (the
+    # others constant-fold it away), that warning greyed the inputs at Affect=0.
     is_flat = _is_flat(nodes, links, geo)
 
     # use_vertices = (Affect == Vertices) or (Affect == Auto and is_flat)
