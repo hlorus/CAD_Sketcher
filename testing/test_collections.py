@@ -48,6 +48,23 @@ class TestManagedCollection(Sketch2dTestCase):
         self.assertIsNotNone(second)
         self.assertIsNot(first, second, "two sketches must not share a sub-collection")
 
+    def test_origin_planes_go_in_the_origin_collection(self):
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        ensure_origin_workplane_empties(self.context)
+        root = self._cad_collection()
+        origin = next(
+            (c for c in root.children if c.get("cad_origin_collection")), None
+        )
+        self.assertIsNotNone(origin, "Origin sub-collection not created")
+        self.assertGreaterEqual(
+            len(origin.objects), 3, "the three origin planes should be grouped here"
+        )
+        # And not scattered in the CAD root or the scene master.
+        for ob in origin.objects:
+            self.assertNotIn(ob.name, root.objects)
+            self.assertNotIn(ob.name, self.context.scene.collection.objects)
+
     def test_cutter_nests_under_the_body_it_feeds(self):
         from ..operators.modifiers import apply_boolean, boolean_cutters
         from ..utilities.collections import organize_part_nesting

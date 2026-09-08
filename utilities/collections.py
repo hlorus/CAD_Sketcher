@@ -14,8 +14,10 @@ consumable). Visibility is a display concern; evaluation must keep running.
 import bpy
 
 CAD_COLLECTION_NAME = "CAD Sketcher"
+ORIGIN_COLLECTION_NAME = "Origin"
 _MARKER = "is_cad_sketcher"
 _SKETCH_MARKER = "cad_sketch_collection"
+_ORIGIN_MARKER = "cad_origin_collection"
 
 
 def _find_cad_collection(scene):
@@ -58,6 +60,28 @@ def link_object(obj, scene):
     master = scene.collection
     if obj.name in master.objects:
         master.objects.unlink(obj)
+    return coll
+
+
+def origin_collection(scene):
+    """Sub-collection under the CAD root that holds the three origin planes."""
+    root = ensure_cad_collection(scene)
+    for child in root.children:
+        if child.get(_ORIGIN_MARKER):
+            return child
+    coll = bpy.data.collections.new(ORIGIN_COLLECTION_NAME)
+    coll[_ORIGIN_MARKER] = True
+    root.children.link(coll)
+    return coll
+
+
+def link_origin_workplane(obj, scene):
+    """Group the XY/XZ/YZ origin empties in their own 'Origin' sub-collection."""
+    coll = origin_collection(scene)
+    if obj.name in coll.objects:
+        return coll
+    _clear_object_collections(obj)
+    coll.objects.link(obj)
     return coll
 
 

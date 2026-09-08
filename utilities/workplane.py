@@ -333,9 +333,9 @@ def ensure_origin_workplane_empties(context):
         empty.lock_rotation = (True, True, True)
         empty.lock_scale = (True, True, True)
 
-        from .collections import link_object
+        from .collections import link_origin_workplane
 
-        link_object(empty, scene)
+        link_origin_workplane(empty, scene)
 
         # Hide only after linking: hide_set needs the object in the view layer.
         _hide_managed_empty(empty, scene)
