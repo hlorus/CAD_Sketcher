@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from typing import Optional
 
 from bpy.types import Context, Object, RegionView3D
@@ -26,6 +27,53 @@ def get_scale_from_pos(co: Vector, rv3d: RegionView3D) -> Vector:
 
 def get_evaluated_obj(context: Context, object: Object):
     return object.evaluated_get(context.evaluated_depsgraph_get())
+
+
+def instance_origin(inst) -> Optional[Object]:
+    """Original object a depsgraph instance belongs to (its emitter, if instanced)."""
+    if inst.is_instance and inst.parent is not None:
+        return inst.parent.original
+    return inst.object.original
+
+
+@contextmanager
+def evaluated_surface_mesh(context: Context, ob: Object):
+    """Yield ``(mesh, matrix_world)`` for ``ob``'s evaluated surface, else ``(None, None)``.
+
+    A mesh object exposes its evaluated mesh directly on ``obj_eval.data``. A
+    Curves object whose geometry-nodes modifier outputs a mesh (an extruded or
+    filled CAD Sketcher sketch) exposes that mesh only as a depsgraph *instance*,
+    not on the evaluated object, and ``to_mesh`` on the evaluated object raises
+    "does not have geometry data". So fall back to scanning instances. Any
+    temporary mesh created for the instance case is freed on exit, so callers
+    must use the yielded mesh only inside the ``with`` block.
+    """
+    depsgraph = context.evaluated_depsgraph_get()
+    obj_eval = ob.evaluated_get(depsgraph)
+    data = obj_eval.data
+    if hasattr(data, "polygons"):
+        yield data, obj_eval.matrix_world
+        return
+
+    owner = None
+    try:
+        for inst in depsgraph.object_instances:
+            if instance_origin(inst) != ob.original:
+                continue
+            try:
+                mesh = inst.object.to_mesh()
+            except RuntimeError:
+                mesh = None
+            if mesh is not None and len(mesh.polygons):
+                owner = inst.object
+                yield mesh, inst.matrix_world.copy()
+                return
+            if mesh is not None:
+                inst.object.to_mesh_clear()
+        yield None, None
+    finally:
+        if owner is not None:
+            owner.to_mesh_clear()
 
 
 def get_mesh_element(
@@ -72,18 +120,6 @@ def get_mesh_element(
     if not (vertex or edge or face):
         return ob, Object, None
 
-    obj_eval = get_evaluated_obj(context, ob)
-
-    me = obj_eval.data
-    if not hasattr(me, "polygons"):
-        return None, None, None
-
-    closest_type = ""
-    closest_dist = None
-
-    loc = obj_eval.matrix_world.inverted() @ loc
-    polygon = me.polygons[face_index]
-
     def get_closest(deltas):
         index_min = min(range(len(deltas)), key=deltas.__getitem__)
         if deltas[index_min] > threshold:
@@ -97,34 +133,48 @@ def get_mesh_element(
             return True
         return False
 
-    if vertex:
-        i, dist = get_closest(
-            [(me.vertices[i].co - loc).length for i in polygon.vertices]
-        )
-        if i is not None:
-            closest_type = "VERTEX"
-            closest_index = polygon.vertices[i]
-            closest_dist = dist
+    # Read the evaluated surface mesh. For a Curves sketch (its extrude/fill
+    # modifier outputs a mesh) that mesh lives on a depsgraph instance rather
+    # than obj_eval.data, so go through the shared helper instead of reading
+    # .data directly -- otherwise curve-object faces can't be picked.
+    with evaluated_surface_mesh(context, ob) as (me, mw):
+        if me is None or face_index >= len(me.polygons):
+            return None, None, None
 
-    if edge:
-        face_edge_map = {ek: me.edges[i] for i, ek in enumerate(me.edge_keys)}
-        i, dist = get_closest(
-            [
-                (((me.vertices[start].co + me.vertices[end].co) / 2) - loc).length
-                for start, end in polygon.edge_keys
-            ]
-        )
-        if i is not None and is_closer(dist, closest_dist):
-            closest_type = "EDGE"
-            closest_index = face_edge_map[polygon.edge_keys[i]].index
-            closest_dist = dist
+        closest_type = ""
+        closest_dist = None
 
-    if face:
-        # Check if face midpoint is closest
-        if is_closer((polygon.center - loc).length, closest_dist):
-            closest_type = "FACE"
-            closest_index = face_index
+        loc_local = mw.inverted() @ loc
+        polygon = me.polygons[face_index]
 
-    if closest_type:
-        return ob, closest_type, closest_index
-    return ob, Object, None
+        if vertex:
+            i, dist = get_closest(
+                [(me.vertices[i].co - loc_local).length for i in polygon.vertices]
+            )
+            if i is not None:
+                closest_type = "VERTEX"
+                closest_index = polygon.vertices[i]
+                closest_dist = dist
+
+        if edge:
+            face_edge_map = {ek: me.edges[i] for i, ek in enumerate(me.edge_keys)}
+            i, dist = get_closest(
+                [
+                    (((me.vertices[s].co + me.vertices[e].co) / 2) - loc_local).length
+                    for s, e in polygon.edge_keys
+                ]
+            )
+            if i is not None and is_closer(dist, closest_dist):
+                closest_type = "EDGE"
+                closest_index = face_edge_map[polygon.edge_keys[i]].index
+                closest_dist = dist
+
+        if face:
+            # Check if face midpoint is closest
+            if is_closer((polygon.center - loc_local).length, closest_dist):
+                closest_type = "FACE"
+                closest_index = face_index
+
+        if closest_type:
+            return ob, closest_type, closest_index
+        return ob, Object, None

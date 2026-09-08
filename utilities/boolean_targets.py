@@ -51,15 +51,13 @@ def _world_geometry_map(depsgraph, wanted):
     have geometry data" there). Objects yielding no faces (a flat, unextruded
     profile) are simply absent from the map.
     """
+    from ..stateful_operator.utilities.geometry import instance_origin
+
     wanted = set(wanted)
     accum = {}  # origin object -> ([world verts], [poly index tuples])
     for inst in depsgraph.object_instances:
         ob = inst.object
-        origin = (
-            inst.parent.original
-            if inst.is_instance and inst.parent is not None
-            else ob.original
-        )
+        origin = instance_origin(inst)
         if origin not in wanted:
             continue
         try:
