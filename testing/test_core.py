@@ -1,14 +1,11 @@
-from unittest import skip
 from testing.utils import BgsTestCase
+
 from ..model.types import SlvsPoint3D
 from ..model.utilities import slvs_entity_pointer
-
-from sys import float_info
 
 
 class TestEntities(BgsTestCase):
     def test_point_3d(self):
-        sketcher = self.sketcher
         entities = self.entities
 
         # Point at origin
@@ -18,9 +15,9 @@ class TestEntities(BgsTestCase):
 
     def test_entity_pointer(self):
         import bpy
+        from bpy.props import PointerProperty
         from bpy.types import PropertyGroup
         from bpy.utils import register_class, unregister_class
-        from bpy.props import PointerProperty
 
         class PointerTest(PropertyGroup):
             pass

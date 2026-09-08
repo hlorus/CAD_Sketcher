@@ -1,5 +1,4 @@
-from bpy.types import Operator, Context
-from bpy.props import BoolProperty
+from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
@@ -11,8 +10,8 @@ class VIEW3D_OT_update(Operator):
     bl_label = "Force Update"
 
     def execute(self, context: Context):
-        from ..model.sketch_ref import get_sketches
         from ..curve_solver import solve_system
+        from ..model.sketch_ref import get_sketches
         for sketch in get_sketches(context):
             solve_system(context, sketch=sketch)
             refresh_curve_geometry(sketch)

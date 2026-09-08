@@ -1,7 +1,7 @@
 import bpy
-from bpy.types import Context, Event
+from bpy.types import Context
 
-from ..model.types import SlvsPoint3D, SlvsLine3D, SlvsWorkplane
+from ..model.types import SlvsLine3D, SlvsPoint3D, SlvsWorkplane
 from ..utilities.view import get_placement_pos
 from .base_stateful import GenericEntityOp
 from .utilities import ignore_hover

@@ -1,7 +1,7 @@
 """Tests for the trim operator logic."""
 
-import math
 from mathutils import Vector
+
 from .utils import Sketch2dTestCase
 
 
@@ -72,7 +72,6 @@ class TestTrimLogic(Sketch2dTestCase):
     def test_trim_creates_segments(self):
         """Trim should create new segments and remove the trimmed part."""
         from ..utilities.trimming import TrimSegment
-        from ..model.curve_ref import curve_ref
 
         # Two crossing lines
         p1 = self.add_point((0, 0))

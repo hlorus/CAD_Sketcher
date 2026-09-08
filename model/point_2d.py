@@ -2,18 +2,16 @@ import logging
 from typing import List
 
 import bpy
-from bpy.types import PropertyGroup
 from bpy.props import FloatVectorProperty
+from bpy.types import PropertyGroup
+from bpy.utils import register_classes_factory
 from gpu_extras.batch import batch_for_shader
 from mathutils import Matrix, Vector
-from bpy.utils import register_classes_factory
 
-from ..utilities.draw import draw_rect_2d
 from ..curve_solver import Solver
-from .base_entity import SlvsGenericEntity, Entity2D, tag_update
-from .utilities import slvs_entity_pointer, make_coincident
-from .line_2d import SlvsLine2D
-from ..utilities.constants import HALF_TURN
+from ..utilities.draw import draw_rect_2d
+from .base_entity import Entity2D, SlvsGenericEntity, tag_update
+from .utilities import slvs_entity_pointer
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +32,6 @@ class Point2D(Entity2D):
         size = 0.1
         coords = draw_rect_2d(0, 0, size, size)
         coords = [(mat @ Vector(co))[:] for co in coords]
-        indices = ((0, 1, 2), (0, 2, 3))
         pos = self.location
         self._batch = batch_for_shader(self._shader, "POINTS", {"pos": (pos[:],)})
         self.is_dirty = False

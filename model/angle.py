@@ -1,23 +1,21 @@
 import logging
-
 import math
-from bpy.types import PropertyGroup, Context
-from bpy.props import BoolProperty, FloatProperty, IntProperty, StringProperty
-from bpy.utils import register_classes_factory
-from mathutils import Vector, Matrix
 
-from ..utilities.math import pol2cart
-from ..utilities.constants import HALF_TURN, QUARTER_TURN
-from ..utilities.math import range_2pi
+from bpy.props import BoolProperty, FloatProperty, StringProperty
+from bpy.types import Context, PropertyGroup
+from bpy.utils import register_classes_factory
+from mathutils import Matrix, Vector
+
 from ..curve_solver import Solver
 from ..global_data import WpReq
+from ..utilities.constants import HALF_TURN, QUARTER_TURN
+from ..utilities.geometry import get_line_intersection, line_abc_form
+from ..utilities.math import pol2cart, range_2pi
+from ..utilities.solver import update_system_cb
 from ..utilities.view import location_3d_to_region_2d
 from .base_constraint import DimensionalConstraint
 from .line_2d import SlvsLine2D
 from .utilities import slvs_entity_pointer
-from ..utilities.geometry import line_abc_form, get_line_intersection
-from ..utilities.solver import update_system_cb
-
 
 logger = logging.getLogger(__name__)
 

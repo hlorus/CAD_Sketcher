@@ -1,7 +1,6 @@
 import logging
 import math
 from typing import Tuple, Type, Union
-from .sketch_ref import get_active_sketch
 
 import bpy
 from bpy.props import CollectionProperty
@@ -22,6 +21,7 @@ from .normal_3d import SlvsNormal3D
 from .point_2d import SlvsPoint2D
 from .point_3d import SlvsPoint3D
 from .sketch import SlvsSketch
+from .sketch_ref import get_active_sketch
 from .utilities import slvs_entity_pointer, update_pointers
 from .workplane import SlvsWorkplane
 
@@ -450,7 +450,6 @@ class SlvsEntities(PropertyGroup):
     @property
     def selected_all(self):
         """Return all selected entities, might include invisible entities"""
-        context = bpy.context
         items = []
         for index in selection.selected:
             if index is None:

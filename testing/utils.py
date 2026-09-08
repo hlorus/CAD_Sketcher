@@ -15,8 +15,9 @@ def make_operator_double(real_cls):
     (``continuous_draw: BoolProperty(...)``) are inert, so a test sets a plain attribute
     where a value is needed. UI sinks touched by the state machine are stubbed to no-ops.
     """
-    import bpy
     import types
+
+    import bpy
 
     def _noop(self, *args, **kwargs):
         return None
@@ -173,7 +174,6 @@ class BgsTestCase(TestCase):
             return
 
         # Delete scene
-        context = cls.context
         data = cls.data
         data.scenes.remove(cls.scene)
 
@@ -232,7 +232,7 @@ class Sketch2dTestCase(BgsTestCase):
     def setUp(self) -> None:
         self.sketch = self.new_sketch()
         self.sketch.name = self._testMethodName
-        from ..model.sketch_ref import set_active_sketch, Sketch
+        from ..model.sketch_ref import set_active_sketch
         if hasattr(self.sketch, 'target_object'):
             set_active_sketch(self.context, self.sketch.target_object)
         return super().setUp()

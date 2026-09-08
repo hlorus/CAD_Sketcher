@@ -4,10 +4,8 @@ from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver
-from .base_entity import SlvsGenericEntity
-from .utilities import slvs_entity_pointer
 from .base_entity import Entity2D
-
+from .utilities import slvs_entity_pointer
 
 logger = logging.getLogger(__name__)
 

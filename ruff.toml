@@ -24,3 +24,6 @@ select = ["F", "I", "E9"]
 [lint.per-file-ignores]
 # Package __init__ files intentionally re-export symbols.
 "**/__init__.py" = ["F401"]
+# model/types.py is a re-export hub: it imports every entity/constraint class so
+# the rest of the codebase can do `from ..model.types import Slvs...`.
+"model/types.py" = ["F401"]

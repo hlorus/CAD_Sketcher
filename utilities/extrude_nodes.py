@@ -11,7 +11,6 @@ into open walls, honouring the ``Mirror Extrude`` toggle. Filled input is
 untouched -- it still flows through the original face-extrude path.
 """
 
-import bpy
 
 EXTRUDE_NODE_GROUP = "CAD Sketcher Extrude"
 # Bump when the patched sub-graph changes so groups baked into saved files upgrade.

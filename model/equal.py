@@ -1,16 +1,15 @@
 import logging
 
-from bpy.types import PropertyGroup
 from bpy.props import StringProperty
+from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver
-from .base_constraint import GenericConstraint
-from .utilities import slvs_entity_pointer
-from .categories import LINE, CURVE
-from .line_2d import SlvsLine2D
 from .arc import SlvsArc
-from .circle import SlvsCircle
+from .base_constraint import GenericConstraint
+from .categories import CURVE, LINE
+from .line_2d import SlvsLine2D
+from .utilities import slvs_entity_pointer
 
 logger = logging.getLogger(__name__)
 

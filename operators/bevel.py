@@ -1,19 +1,18 @@
 import logging
 
-from bpy.types import Operator, Context
 from bpy.props import FloatProperty
-from mathutils import Vector
+from bpy.types import Operator
 
-from ..drawing import selection
-from ..model.curve_ref import PointRef, LineRef, ArcRef, CircleRef, CurveRef, curve_ref
-from ..utilities.view import refresh
 from ..curve_solver import solve_system
 from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
-from ..stateful_operator.state import state_from_args
-from ..utilities.intersect import get_intersections, ElementTypes
-from .base_2d import Operator2d
+from ..drawing import selection
 from ..model.categories import POINT2D, SEGMENT
+from ..model.curve_ref import ArcRef, CircleRef, CurveRef, LineRef, PointRef, curve_ref
+from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.intersect import ElementTypes, get_intersections
+from ..utilities.view import refresh
+from .base_2d import Operator2d
 
 logger = logging.getLogger(__name__)
 

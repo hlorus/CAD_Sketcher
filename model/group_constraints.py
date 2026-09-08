@@ -1,28 +1,24 @@
 import logging
 import secrets
-from typing import Union
 
-from bpy.types import PropertyGroup
 from bpy.props import CollectionProperty
+from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
-from .base_entity import SlvsGenericEntity
-from .sketch import SlvsSketch
-
-from .base_constraint import GenericConstraint
-from .distance import SlvsDistance
 from .angle import SlvsAngle
-from .diameter import SlvsDiameter
+from .base_constraint import GenericConstraint
 from .coincident import SlvsCoincident
+from .diameter import SlvsDiameter
+from .distance import SlvsDistance
 from .equal import SlvsEqual
-from .vertical import SlvsVertical
 from .horizontal import SlvsHorizontal
+from .midpoint import SlvsMidpoint
 from .parallel import SlvsParallel
 from .perpendicular import SlvsPerpendicular
-from .tangent import SlvsTangent
-from .midpoint import SlvsMidpoint
 from .ratio import SlvsRatio
 from .symmetry import SlvsSymmetry
+from .tangent import SlvsTangent
+from .vertical import SlvsVertical
 
 logger = logging.getLogger(__name__)
 

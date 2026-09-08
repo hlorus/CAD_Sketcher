@@ -1,16 +1,16 @@
 import logging
 
+from bpy.props import FloatProperty, StringProperty
 from bpy.types import PropertyGroup
-from bpy.props import FloatProperty, IntProperty, StringProperty
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver
 from ..global_data import WpReq
+from ..utilities.solver import update_system_cb
 from .base_constraint import DimensionalConstraint
-from .utilities import slvs_entity_pointer
 from .categories import LINE
 from .line_2d import SlvsLine2D
-from ..utilities.solver import update_system_cb
+from .utilities import slvs_entity_pointer
 
 logger = logging.getLogger(__name__)
 
