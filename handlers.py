@@ -105,6 +105,12 @@ def on_depsgraph_update(scene, depsgraph):
 
         repair_origin_workplanes(bpy.context)
 
+        # Sketches rename through a plain name field; keep their collections in
+        # step (drift-reconcile, settles in one pass like the workplane repair).
+        from .utilities.collections import sync_sketch_collection_names
+
+        sync_sketch_collection_names(scene)
+
     if depsgraph.id_type_updated("SCENE"):
         global_data.needs_solve = True
 

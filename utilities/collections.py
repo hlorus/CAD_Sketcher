@@ -18,6 +18,7 @@ ORIGIN_COLLECTION_NAME = "Origin"
 _MARKER = "is_cad_sketcher"
 _SKETCH_MARKER = "cad_sketch_collection"
 _ORIGIN_MARKER = "cad_origin_collection"
+_SYNCED_NAME = "cad_synced_name"
 
 
 def _find_cad_collection(scene):
@@ -118,10 +119,31 @@ def link_sketch_object(obj, scene):
     root = ensure_cad_collection(scene)
     sub = bpy.data.collections.new(obj.name)
     sub[_SKETCH_MARKER] = True
+    sub[_SYNCED_NAME] = obj.name
     root.children.link(sub)
     _clear_object_collections(obj)
     sub.objects.link(obj)
     return sub
+
+
+def sync_sketch_collection_names(scene):
+    """Reconcile each per-sketch sub-collection's name with its sketch object.
+
+    Sketches rename through a plain name field (no callback), so drift is fixed
+    here (from the depsgraph handler). The last intended name is tracked so a
+    collision -- where Blender appends a numeric suffix -- can't spin a rename
+    loop; only writes on an actual change, settling in one pass.
+    """
+    root = _find_cad_collection(scene)
+    if root is None:
+        return
+    for sub in _walk_sketch_collections(root):
+        obj = next((o for o in sub.objects if o.type == "CURVES"), None)
+        if obj is None:
+            continue
+        if sub.get(_SYNCED_NAME) != obj.name:
+            sub.name = obj.name
+            sub[_SYNCED_NAME] = obj.name
 
 
 def cleanup_sketch_collections(scene):

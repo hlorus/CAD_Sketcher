@@ -121,6 +121,20 @@ class TestManagedCollection(Sketch2dTestCase):
         self.assertIn(cutter_coll.name, root.children, "cutter did not un-nest")
         self.assertNotIn(cutter_coll.name, body_coll.children)
 
+    def test_renaming_a_sketch_syncs_its_collection(self):
+        from ..utilities.collections import sync_sketch_collection_names
+
+        ob = self.sketch.target_object
+        sub = self._sketch_subcollection(ob)
+        ob.name = "Renamed Sketch"
+        sync_sketch_collection_names(self.context.scene)
+        self.assertEqual(sub.name, "Renamed Sketch", "collection did not follow rename")
+
+        # Runs again with no change: no rename loop.
+        prev = sub.name
+        sync_sketch_collection_names(self.context.scene)
+        self.assertEqual(sub.name, prev, "sync must be stable, not re-rename")
+
     def test_deleting_a_sketch_removes_its_empty_collection(self):
         from ..utilities.collections import cleanup_sketch_collections
 
