@@ -62,6 +62,24 @@ class TestMeshOutput(Sketch2dTestCase):
         # Sketch is on the XY origin plane -> world centroid at (3, 2, 0).
         self.assertLess((centroid - LOCAL_CENTROID).length, 0.2)
 
+    def test_mesh_output_lands_in_the_sketch_collection(self):
+        """The companion groups with its source sketch's collection, not the root."""
+        from ..utilities.collections import sketch_collection
+
+        self._build_rectangle_with_hole()
+        self.solve()
+        refresh_curve_geometry(self.sketch)
+
+        sub = sketch_collection(self.sketch.target_object)
+        self.assertIsNotNone(sub, "sketch is not in a managed collection")
+        ob = self._create_output()
+        self.assertIn(ob.name, sub.objects, "mesh output not grouped with its sketch")
+        self.assertNotIn(
+            ob.name,
+            self.context.scene.collection.objects,
+            "mesh output should not sit loose in the scene root",
+        )
+
     def test_mesh_output_follows_a_transformed_sketch(self):
         """On a non-XY-placed sketch the mesh lands at the correct world position.
 

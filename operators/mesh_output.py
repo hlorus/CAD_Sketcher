@@ -42,8 +42,10 @@ class View3D_OT_slvs_create_mesh_output(Operator):
         # planar in this object's local space (pleasant to edit) but world-correct.
         ob.matrix_world = source.matrix_world.copy()
 
-        for collection in source.users_collection or (context.scene.collection,):
-            collection.objects.link(ob)
+        # Group the mesh output with its source sketch's collection.
+        from ..utilities.collections import place_with_sketch
+
+        place_with_sketch(ob, source)
 
         group = build_mesh_output_node_group()
         modifier = ob.modifiers.new("CAD Sketcher Mesh", "NODES")
