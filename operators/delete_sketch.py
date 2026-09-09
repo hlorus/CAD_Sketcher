@@ -1,6 +1,6 @@
 import bpy
-from bpy.types import Operator, Context
 from bpy.props import StringProperty
+from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
