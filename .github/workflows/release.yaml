@@ -160,6 +160,15 @@ jobs:
           zip=$(ls "$out"/*.zip | head -1)
           notes=$(cat "$NOTES")
           [ -n "$notes" ] || notes="CAD Sketcher ${TAG_NAME#v}"
+          # The platform caps release_notes at 1024 characters. Our changelog
+          # sections run longer, so trim to whole lines under a conservative
+          # byte budget (bytes >= chars, so this stays under the char cap even
+          # with multi-byte characters) and link to the full changelog.
+          if [ "$(printf '%s' "$notes" | wc -c)" -gt 1000 ]; then
+            link="Full changelog: https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md"
+            trimmed="$(printf '%s' "$notes" | head -c 850 | sed '$d')"
+            notes="$(printf '%s\n\n%s' "$trimmed" "$link")"
+          fi
           echo "Submitting $(basename "$zip") to extensions.blender.org/$EXTENSION"
           curl --fail-with-body -X POST \
             "https://extensions.blender.org/api/v1/extensions/${EXTENSION}/versions/upload/" \
