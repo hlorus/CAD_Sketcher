@@ -48,9 +48,11 @@ def _create_workplane_empty(context, wp, name):
     empty.lock_location = (True, True, True)
     empty.lock_rotation = (True, True, True)
     empty.lock_scale = (True, True, True)
-    from .collections import link_object
+    # A legacy workplane can be shared by several sketches, so keep it at the
+    # scene level rather than nesting it under one sketch.
+    from .collections import link_loose_workplane
 
-    link_object(empty, context.scene)
+    link_loose_workplane(empty, context.scene)
     empty.matrix_world = wp.matrix_basis
     return empty
 

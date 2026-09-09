@@ -124,9 +124,9 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         empty = bpy.data.objects.new("Workplane", None)
         empty.empty_display_type = "PLAIN_AXES"
         empty.empty_display_size = 0.5
-        from ..utilities.collections import link_object
+        from ..utilities.collections import link_loose_workplane
 
-        link_object(empty, context.scene)
+        link_loose_workplane(empty, context.scene)
 
         empty.matrix_world = face_workplane_matrix(context, ob, face_index)
 

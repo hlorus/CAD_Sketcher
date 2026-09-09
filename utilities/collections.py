@@ -2,9 +2,9 @@
 
 Layout is *project-centric*, not addon-centric: each part is its own collection
 at the **scene level** (where users expect their models), with cutter sketches
-nested under the body they feed. Only genuinely shared internals -- the three
-origin planes and any not-yet-claimed workplane empties -- live in a small
-``CAD Sketcher`` collection; parts are never nested inside it.
+nested under the body they feed and each sketch's own workplane grouped inside
+it. The only genuinely shared thing -- the three origin planes -- lives in a
+scene-level ``Origin`` collection. There is no addon wrapper collection.
 
 Critical invariant: nothing is **excluded** from the view layer. Excluding a
 collection removes its objects from the depsgraph, which stops the convert
@@ -14,35 +14,10 @@ Visibility is a display concern; evaluation must keep running.
 
 import bpy
 
-CAD_COLLECTION_NAME = "CAD Sketcher"
 ORIGIN_COLLECTION_NAME = "Origin"
-_MARKER = "is_cad_sketcher"
 _SKETCH_MARKER = "cad_sketch_collection"
 _ORIGIN_MARKER = "cad_origin_collection"
 _SYNCED_NAME = "cad_synced_name"
-
-
-def _find_cad_collection(scene):
-    for child in scene.collection.children:
-        if child.get(_MARKER):
-            return child
-    return None
-
-
-def ensure_cad_collection(scene):
-    """Return this scene's shared-internals collection, creating+linking it once.
-
-    Holds only shared internals (origin planes, transient workplanes) -- parts
-    live at the scene level, not inside it. Found by a marker among the scene's
-    own child collections (not by a global name) so each scene owns its own.
-    """
-    coll = _find_cad_collection(scene)
-    if coll is not None:
-        return coll
-    coll = bpy.data.collections.new(CAD_COLLECTION_NAME)
-    coll[_MARKER] = True
-    scene.collection.children.link(coll)
-    return coll
 
 
 def _clear_object_collections(obj):
@@ -50,35 +25,36 @@ def _clear_object_collections(obj):
         coll.objects.unlink(obj)
 
 
-def link_object(obj, scene):
-    """Link ``obj`` into the scene's CAD Sketcher root collection, and nowhere else.
+def link_loose_workplane(obj, scene):
+    """Link a not-yet-claimed workplane empty at the scene level (transient home).
 
-    Used for shared internals (workplane empties). Safe on a freshly created
-    object; also relocates one linked into the scene master collection.
+    Used for a workplane created before its sketch exists (e.g. a face pick);
+    ``nest_workplane`` moves it into the sketch's collection once that's created.
+    A workplane that never gets a sketch simply stays a scene-level object.
     """
-    coll = ensure_cad_collection(scene)
-    if obj.name not in coll.objects:
-        coll.objects.link(obj)
-    master = scene.collection
-    if obj.name in master.objects:
-        master.objects.unlink(obj)
-    return coll
+    if obj.name not in scene.collection.objects:
+        _clear_object_collections(obj)
+        scene.collection.objects.link(obj)
+    return scene.collection
 
 
 def origin_collection(scene):
-    """Sub-collection under the CAD root that holds the three origin planes."""
-    root = ensure_cad_collection(scene)
-    for child in root.children:
+    """Scene-level ``Origin`` collection holding the three origin planes.
+
+    The only shared internals; found by a marker among the scene's own children
+    so each scene owns its own.
+    """
+    for child in scene.collection.children:
         if child.get(_ORIGIN_MARKER):
             return child
     coll = bpy.data.collections.new(ORIGIN_COLLECTION_NAME)
     coll[_ORIGIN_MARKER] = True
-    root.children.link(coll)
+    scene.collection.children.link(coll)
     return coll
 
 
 def link_origin_workplane(obj, scene):
-    """Group the XY/XZ/YZ origin empties in their own 'Origin' sub-collection."""
+    """Group the XY/XZ/YZ origin empties in the scene-level 'Origin' collection."""
     coll = origin_collection(scene)
     if obj.name in coll.objects:
         return coll
@@ -88,31 +64,33 @@ def link_origin_workplane(obj, scene):
 
 
 def nest_workplane(workplane, sketch_obj):
-    """Move a dedicated (face/custom) workplane empty into its sketch's collection.
+    """Move a dedicated workplane empty into its sketch's collection.
 
-    A workplane created for one sketch otherwise clutters the root; grouping it
-    with the sketch it belongs to keeps the tree tidy. Skipped for origin planes
-    (shared, kept in the Origin collection) and for a workplane already grouped
-    with another sketch (don't steal a shared custom plane).
+    A workplane made for one sketch (face, entity, or free-3D origin) otherwise
+    clutters the scene root; grouping it with its sketch keeps the tree tidy.
+    Skipped for origin planes (shared) and for a workplane already grouped with a
+    sketch (don't steal a shared custom plane). Returns the collection, or None.
     """
     if workplane is None:
-        return
+        return None
     for coll in workplane.users_collection:
         if coll.get(_ORIGIN_MARKER) or coll.get(_SKETCH_MARKER):
-            return
+            return None
     sub = next((c for c in sketch_obj.users_collection if c.get(_SKETCH_MARKER)), None)
-    if sub is None or workplane.name in sub.objects:
-        return
-    _clear_object_collections(workplane)
-    sub.objects.link(workplane)
+    if sub is None:
+        return None
+    if workplane.name not in sub.objects:
+        _clear_object_collections(workplane)
+        sub.objects.link(workplane)
+    return sub
 
 
 def link_sketch_object(obj, scene):
-    """Put a sketch's curve object in its own sub-collection under the CAD root.
+    """Put a sketch's curve object in its own scene-level collection.
 
-    One collection per sketch keeps the outliner readable; workplanes stay in the
-    root (they're shared and hidden). Idempotent: an object already in a sketch
-    sub-collection is left where it is.
+    One collection per sketch keeps the outliner readable; the sketch's workplane
+    nests in here too. Idempotent: an object already in a sketch collection is
+    left where it is.
     """
     for coll in obj.users_collection:
         if coll.get(_SKETCH_MARKER):

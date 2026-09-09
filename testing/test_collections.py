@@ -1,22 +1,21 @@
-"""CAD Sketcher objects live in a managed, still-evaluating collection.
+"""Project-centric managed collections for CAD Sketcher.
 
-Guards P1: sketch curve objects and workplane empties go into a per-scene
-"CAD Sketcher" collection instead of the scene master collection, and that
-collection is never excluded -- excluding it would drop the fill (the curve
-object is both source and consumable).
+Each sketch/part is its own scene-level collection (its workplane nested inside);
+cutters nest under the body they feed; only the shared origin planes live in a
+scene-level "Origin" collection. Nothing is excluded from the view layer --
+excluding would drop the fill (the curve object is both source and consumable).
 """
 
 import bpy
 
-from ..utilities.collections import ensure_cad_collection
 from ..utilities.curve_data import refresh_curve_geometry
 from .utils import Sketch2dTestCase
 
 
 class TestManagedCollection(Sketch2dTestCase):
-    def _cad_collection(self):
+    def _origin_collection(self):
         for child in self.context.scene.collection.children:
-            if child.get("is_cad_sketcher"):
+            if child.get("cad_origin_collection"):
                 return child
         return None
 
@@ -48,50 +47,65 @@ class TestManagedCollection(Sketch2dTestCase):
         self.assertIsNotNone(second)
         self.assertIsNot(first, second, "two sketches must not share a sub-collection")
 
-    def test_origin_planes_go_in_the_origin_collection(self):
+    def test_origin_planes_go_in_a_scene_level_origin_collection(self):
         from ..utilities.workplane import ensure_origin_workplane_empties
 
         ensure_origin_workplane_empties(self.context)
-        root = self._cad_collection()
-        origin = next(
-            (c for c in root.children if c.get("cad_origin_collection")), None
+        origin = self._origin_collection()
+        self.assertIsNotNone(origin, "Origin collection not created")
+        self.assertIn(
+            origin.name,
+            self.context.scene.collection.children,
+            "Origin should be a scene-level collection (no wrapper)",
         )
-        self.assertIsNotNone(origin, "Origin sub-collection not created")
         self.assertGreaterEqual(
             len(origin.objects), 3, "the three origin planes should be grouped here"
         )
-        # And not scattered in the CAD root or the scene master.
         for ob in origin.objects:
-            self.assertNotIn(ob.name, root.objects)
             self.assertNotIn(ob.name, self.context.scene.collection.objects)
 
     def test_dedicated_workplane_nests_with_its_sketch(self):
-        from ..utilities.collections import link_object, nest_workplane
+        from ..utilities.collections import link_loose_workplane, nest_workplane
 
         ob = self.sketch.target_object
         sub = self._sketch_subcollection(ob)
 
         wp = bpy.data.objects.new("Workplane", None)
-        link_object(wp, self.context.scene)  # a face workplane starts in internals
-        root = self._cad_collection()
-        self.assertIn(wp.name, root.objects)
+        link_loose_workplane(wp, self.context.scene)  # starts loose at scene level
+        self.assertIn(wp.name, self.context.scene.collection.objects)
 
         ob.parent = wp
         nest_workplane(wp, ob)
         try:
             self.assertIn(wp.name, sub.objects, "workplane should nest with its sketch")
-            self.assertNotIn(wp.name, root.objects, "and leave the root")
+            self.assertNotIn(
+                wp.name,
+                self.context.scene.collection.objects,
+                "and leave the scene root",
+            )
         finally:
             bpy.data.objects.remove(wp)
+
+    def test_free_3d_origin_nests_with_its_sketch(self):
+        from ..model.native_3d import create_3d_sketch
+
+        sketch = create_3d_sketch(self.context, "Free3D")
+        obj = sketch.target_object
+        origin = obj.parent
+        self.assertIsNotNone(origin, "free-3D sketch has no origin empty")
+        sub = self._sketch_subcollection(obj)
+        self.assertIsNotNone(sub)
+        self.assertIn(
+            origin.name, sub.objects, "free-3D origin should nest with its sketch"
+        )
+        self.assertNotIn(origin.name, self.context.scene.collection.objects)
 
     def test_origin_plane_is_not_stolen_into_a_sketch(self):
         from ..utilities.collections import nest_workplane
         from ..utilities.workplane import ensure_origin_workplane_empties
 
         ensure_origin_workplane_empties(self.context)
-        origin = next(
-            c for c in self._cad_collection().children if c.get("cad_origin_collection")
-        )
+        origin = self._origin_collection()
         wp_xy = next(iter(origin.objects))
         nest_workplane(wp_xy, self.sketch.target_object)
         self.assertIn(wp_xy.name, origin.objects, "origin plane must stay in Origin")
@@ -146,15 +160,15 @@ class TestManagedCollection(Sketch2dTestCase):
         cleanup_sketch_collections(self.context.scene)
         self.assertNotIn(name, {c.name for c in self.context.scene.collection.children})
 
-    def test_internals_collection_is_linked_but_not_excluded(self):
-        """The internals collection must stay in the view layer (never excluded)."""
-        coll = ensure_cad_collection(self.context.scene)
+    def test_origin_collection_is_linked_but_not_excluded(self):
+        """The Origin collection must stay in the view layer (never excluded)."""
+        from ..utilities.collections import origin_collection
+
+        coll = origin_collection(self.context.scene)
         self.assertIn(coll.name, self.context.scene.collection.children)
         layer_coll = self.context.view_layer.layer_collection.children.get(coll.name)
         self.assertIsNotNone(layer_coll)
-        self.assertFalse(
-            layer_coll.exclude, "internals collection must not be excluded"
-        )
+        self.assertFalse(layer_coll.exclude, "Origin collection must not be excluded")
 
     def test_fill_still_evaluates_from_the_collection(self):
         corners = [(-2, -2), (2, -2), (2, 2), (-2, 2)]
@@ -181,15 +195,17 @@ class TestManagedCollection(Sketch2dTestCase):
             area, 16.0, delta=0.01, msg="fill did not evaluate -> collection excluded?"
         )
 
-    def test_ensure_collection_is_idempotent_and_per_scene(self):
+    def test_origin_collection_is_idempotent_and_per_scene(self):
+        from ..utilities.collections import origin_collection
+
         scene = self.context.scene
-        a = ensure_cad_collection(scene)
-        b = ensure_cad_collection(scene)
-        self.assertIs(a, b, "ensure_cad_collection must reuse the scene's collection")
+        a = origin_collection(scene)
+        b = origin_collection(scene)
+        self.assertIs(a, b, "origin_collection must reuse the scene's collection")
 
         other = bpy.data.scenes.new("other_scene")
         try:
-            c = ensure_cad_collection(other)
-            self.assertIsNot(c, a, "each scene must own its own collection")
+            c = origin_collection(other)
+            self.assertIsNot(c, a, "each scene must own its own Origin collection")
         finally:
             bpy.data.scenes.remove(other)

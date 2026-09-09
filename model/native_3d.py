@@ -159,12 +159,12 @@ def create_3d_sketch(context, name="3D Sketch", matrix=None):
     remains free in XYZ and the Empty provides the stable origin required by
     placement/editing helpers.
     """
-    from ..utilities.collections import link_object, link_sketch_object
+    from ..utilities.collections import link_loose_workplane, link_sketch_object
 
     origin = bpy.data.objects.new(f"{name} Origin", None)
     origin.empty_display_type = "PLAIN_AXES"
     origin.empty_display_size = 0.5
-    link_object(origin, context.scene)
+    link_loose_workplane(origin, context.scene)
     origin.matrix_world = matrix.copy() if matrix is not None else Matrix.Identity(4)
     origin[SKETCH_3D_ORIGIN_TAG] = True
 
@@ -188,6 +188,11 @@ def create_3d_sketch(context, name="3D Sketch", matrix=None):
     obj.lock_location = (True, True, True)
     obj.lock_rotation = (True, True, True)
     obj.lock_scale = (True, True, True)
+
+    # The origin empty is dedicated to this sketch; group it with the sketch.
+    from ..utilities.collections import nest_workplane
+
+    nest_workplane(origin, obj)
     return Sketch(obj)
 
 
