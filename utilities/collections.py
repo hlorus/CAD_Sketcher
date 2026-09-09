@@ -85,6 +85,24 @@ def nest_workplane(workplane, sketch_obj):
     return sub
 
 
+def sketch_collection(sketch_obj):
+    """The per-sketch collection ``sketch_obj`` lives in, or None."""
+    return next((c for c in sketch_obj.users_collection if c.get(_SKETCH_MARKER)), None)
+
+
+def place_with_sketch(obj, sketch_obj):
+    """Group a companion object (e.g. a mesh output) with its source sketch.
+
+    Links ``obj`` into the sketch's own collection so it stays with the part;
+    falls back to the scene collection if the sketch isn't in a managed
+    collection (e.g. a legacy file). Returns the collection it linked into.
+    """
+    target = sketch_collection(sketch_obj) or bpy.context.scene.collection
+    _clear_object_collections(obj)
+    target.objects.link(obj)
+    return target
+
+
 def link_sketch_object(obj, scene):
     """Put a sketch's curve object in its own scene-level collection.
 
