@@ -258,8 +258,13 @@ def ensure_workplane_empty(sketch):
     empty.matrix_world = sketch.wp.matrix_basis
 
     scene = bpy.context.scene
-    if empty.name not in scene.collection.objects:
-        scene.collection.objects.link(empty)
+    from .collections import link_loose_workplane, nest_workplane
+
+    # Group the workplane with its sketch when the sketch object exists; otherwise
+    # keep it at the scene level until a sketch claims it.
+    target = getattr(sketch, "target_object", None)
+    if target is None or nest_workplane(empty, target) is None:
+        link_loose_workplane(empty, scene)
 
     # Hide only after linking: hide_set needs the object in the view layer.
     _hide_managed_empty(empty, scene)
@@ -332,8 +337,9 @@ def ensure_origin_workplane_empties(context):
         empty.lock_rotation = (True, True, True)
         empty.lock_scale = (True, True, True)
 
-        if empty.name not in scene.collection.objects:
-            scene.collection.objects.link(empty)
+        from .collections import link_origin_workplane
+
+        link_origin_workplane(empty, scene)
 
         # Hide only after linking: hide_set needs the object in the view layer.
         _hide_managed_empty(empty, scene)

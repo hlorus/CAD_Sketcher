@@ -1,6 +1,6 @@
 import bpy
-from bpy.types import Operator, Context
 from bpy.props import StringProperty
+from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
@@ -29,6 +29,11 @@ class View3D_OT_slvs_delete_sketch(Operator):
 
         # Remove the object (handler cleans up orphan constraints)
         bpy.data.objects.remove(ob)
+
+        # Drop the now-empty per-sketch collection.
+        from ..utilities.collections import cleanup_sketch_collections
+
+        cleanup_sketch_collections(context.scene)
         return {"FINISHED"}
 
 

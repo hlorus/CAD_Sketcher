@@ -30,8 +30,9 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
     sketch_obj = bpy.data.objects.new("Sketch", curve)
 
     scene = context.scene
-    if sketch_obj.name not in scene.collection.objects:
-        scene.collection.objects.link(sketch_obj)
+    from ..utilities.collections import link_sketch_object
+
+    link_sketch_object(sketch_obj, scene)
 
     stamp_sketch_props(sketch_obj)
     _ensure_convert_modifier(sketch_obj)
@@ -42,6 +43,11 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
     sketch_obj.lock_location = (True, True, True)
     sketch_obj.lock_rotation = (True, True, True)
     sketch_obj.lock_scale = (True, True, True)
+
+    # Tuck a dedicated (face/custom) workplane in with its sketch, not at the root.
+    from ..utilities.collections import nest_workplane
+
+    nest_workplane(wp_orig, sketch_obj)
 
     sketch = Sketch(sketch_obj)
 
@@ -118,7 +124,9 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         empty = bpy.data.objects.new("Workplane", None)
         empty.empty_display_type = "PLAIN_AXES"
         empty.empty_display_size = 0.5
-        context.scene.collection.objects.link(empty)
+        from ..utilities.collections import link_loose_workplane
+
+        link_loose_workplane(empty, context.scene)
 
         empty.matrix_world = face_workplane_matrix(context, ob, face_index)
 
