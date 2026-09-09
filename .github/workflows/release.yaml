@@ -131,6 +131,42 @@ jobs:
           generate_release_notes: true
           body_path: ${{ github.workspace }}/notes.md
 
+      # Submit the same version to the official extensions.blender.org platform.
+      # This only queues it: a human moderator still approves it before it goes
+      # live, so this can't publish on its own. The self-hosted stable/latest
+      # channels above are independent and unaffected. Runs after the GitHub
+      # release is out, so a platform hiccup never blocks the release. Inert
+      # until the repo variable EXTENSIONS_BLENDER_ID (the extension slug) is set;
+      # the token lives in the EXTENSIONS_BLENDER_TOKEN secret.
+      - name: Submit to extensions.blender.org
+        if: ${{ vars.EXTENSIONS_BLENDER_ID != '' }}
+        working-directory: ./CAD_Sketcher
+        env:
+          TOKEN: ${{ secrets.EXTENSIONS_BLENDER_TOKEN }}
+          EXTENSION: ${{ vars.EXTENSIONS_BLENDER_ID }}
+          NOTES: ${{ github.workspace }}/notes.md
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TOKEN" ]; then
+            echo "::error::EXTENSIONS_BLENDER_TOKEN secret is not set"; exit 1
+          fi
+          # One combined package (all platform wheels): the platform serves the
+          # right wheel per OS. Separate from the split-platform zips used for
+          # the self-hosted GitHub-release listing.
+          out="${{ github.workspace }}/blender_ext"
+          mkdir -p "$out"
+          blender --background --command extension build --output-dir "$out"
+          zip=$(ls "$out"/*.zip | head -1)
+          notes=$(cat "$NOTES")
+          [ -n "$notes" ] || notes="CAD Sketcher ${TAG_NAME#v}"
+          echo "Submitting $(basename "$zip") to extensions.blender.org/$EXTENSION"
+          curl --fail-with-body -X POST \
+            "https://extensions.blender.org/api/v1/extensions/${EXTENSION}/versions/upload/" \
+            -H "Authorization: bearer ${TOKEN}" \
+            -F "version_file=@${zip}" \
+            -F "release_notes=${notes}"
+
   # Rebuild stable/index.json from the tagged (non-pre-release) releases.
   publish-stable:
     needs: release
