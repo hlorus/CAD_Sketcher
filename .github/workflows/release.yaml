@@ -131,22 +131,33 @@ jobs:
           generate_release_notes: true
           body_path: ${{ github.workspace }}/notes.md
 
-      # Submit the same version to the official extensions.blender.org platform.
-      # This only queues it: a human moderator still approves it before it goes
-      # live, so this can't publish on its own. The self-hosted stable/latest
-      # channels are independent and unaffected. continue-on-error keeps a
-      # platform hiccup from failing the release job (which would skip the
-      # publish-stable and bump-version jobs that depend on it). Inert until the
-      # repo variable EXTENSIONS_BLENDER_ID (the extension slug) is set; the
-      # token lives in the EXTENSIONS_BLENDER_TOKEN secret.
+  # Submit the tagged version to the official extensions.blender.org platform.
+  # Its own job (not a step in `release`) on purpose: a platform-side failure
+  # then shows up as a red run, but does NOT skip publish-stable / bump-version,
+  # which depend only on `release`. Submitting only queues the version; a human
+  # moderator still approves it before it goes live, and the self-hosted
+  # stable/latest channels are independent. Inert until the repo variable
+  # EXTENSIONS_BLENDER_ID (the extension slug) is set; the token is in the
+  # EXTENSIONS_BLENDER_TOKEN secret.
+  submit-blender:
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/') && vars.EXTENSIONS_BLENDER_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Addon
+        uses: actions/checkout@v4
+        with:
+          path: CAD_Sketcher
+
+      - uses: moguri/setup-blender@v1
+        with:
+          blender-version: "5.0"
+
       - name: Submit to extensions.blender.org
-        if: ${{ vars.EXTENSIONS_BLENDER_ID != '' }}
-        continue-on-error: true
         working-directory: ./CAD_Sketcher
         env:
           TOKEN: ${{ secrets.EXTENSIONS_BLENDER_TOKEN }}
           EXTENSION: ${{ vars.EXTENSIONS_BLENDER_ID }}
-          NOTES: ${{ github.workspace }}/notes.md
           TAG_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
@@ -154,14 +165,15 @@ jobs:
             echo "::error::EXTENSIONS_BLENDER_TOKEN secret is not set"; exit 1
           fi
           # One combined package (all platform wheels): the platform serves the
-          # right wheel per OS. Separate from the split-platform zips used for
-          # the self-hosted GitHub-release listing.
+          # right wheel per OS.
           out="${{ github.workspace }}/blender_ext"
           mkdir -p "$out"
           blender --background --command extension build --output-dir "$out"
           zip=$(ls "$out"/*.zip | head -1)
-          notes=$(cat "$NOTES")
-          [ -n "$notes" ] || notes="CAD Sketcher ${TAG_NAME#v}"
+
+          version="${TAG_NAME#v}"
+          notes="$(PYTHONPATH=. python3 scripts/changelog_notes.py "$version" CHANGELOG.md || true)"
+          [ -n "$notes" ] || notes="CAD Sketcher ${version}"
           # The platform caps release_notes at 1024 characters. Our changelog
           # sections run longer, so trim to whole lines under a conservative
           # byte budget (bytes >= chars, so this stays under the char cap even
@@ -171,6 +183,7 @@ jobs:
             trimmed="$(printf '%s' "$notes" | head -c 850 | sed '$d')"
             notes="$(printf '%s\n\n%s' "$trimmed" "$link")"
           fi
+
           echo "Submitting $(basename "$zip") to extensions.blender.org/$EXTENSION"
           curl --fail-with-body -X POST \
             "https://extensions.blender.org/api/v1/extensions/${EXTENSION}/versions/upload/" \
