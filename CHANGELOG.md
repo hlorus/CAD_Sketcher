@@ -2,9 +2,10 @@
 
 Notes here feed two places automatically: the entry matching a release is
 prepended to that version's GitHub release notes, and it is shown in the in-app
-"What's new" dialog after the add-on updates. Before tagging a release, add a
-`## X.Y.Z` section (matching the manifest version) with a short summary — CI
-rejects a stable release that has no matching entry.
+"What's new" dialog after the add-on updates. Add a `## X.Y.Z` section (matching
+the manifest version) with a short summary for anything user-facing. It is
+optional: a release with no matching entry just uses GitHub's auto-generated
+notes and shows no "What's new" (e.g. a packaging-only patch).
 
 ## 0.31.0
 This release adds a unified Dimension tool, native 3D sketches, nondestructive Boolean modeling and custom sketch attributes, organizes a project's objects into clean collections, and refines the Extrude, Revolve and Projection tools.
