@@ -164,12 +164,14 @@ jobs:
           if [ -z "$TOKEN" ]; then
             echo "::error::EXTENSIONS_BLENDER_TOKEN secret is not set"; exit 1
           fi
-          # One combined package (all platform wheels): the platform serves the
-          # right wheel per OS.
+          # One package per platform (matching the self-hosted channel), so users
+          # download only their OS's wheel instead of one combined all-wheels
+          # zip. Uploading each split zip to the same endpoint groups them under
+          # one version: the platform matches equal name+version with differing
+          # platform into a single version with per-OS downloads.
           out="${{ github.workspace }}/blender_ext"
           mkdir -p "$out"
-          blender --background --command extension build --output-dir "$out"
-          zip=$(ls "$out"/*.zip | head -1)
+          blender --background --command extension build --split-platforms --output-dir "$out"
 
           version="${TAG_NAME#v}"
           notes="$(PYTHONPATH=. python3 scripts/changelog_notes.py "$version" CHANGELOG.md || true)"
@@ -184,12 +186,17 @@ jobs:
             notes="$(printf '%s\n\n%s' "$trimmed" "$link")"
           fi
 
-          echo "Submitting $(basename "$zip") to extensions.blender.org/$EXTENSION"
-          curl --fail-with-body -X POST \
-            "https://extensions.blender.org/api/v1/extensions/${EXTENSION}/versions/upload/" \
-            -H "Authorization: bearer ${TOKEN}" \
-            -F "version_file=@${zip}" \
-            -F "release_notes=${notes}"
+          rc=0
+          for zip in "$out"/*.zip; do
+            echo "Submitting $(basename "$zip") to extensions.blender.org/$EXTENSION"
+            curl --fail-with-body -X POST \
+              "https://extensions.blender.org/api/v1/extensions/${EXTENSION}/versions/upload/" \
+              -H "Authorization: bearer ${TOKEN}" \
+              -F "version_file=@${zip}" \
+              -F "release_notes=${notes}" || rc=1
+            echo
+          done
+          exit "$rc"
 
   # Rebuild stable/index.json from the tagged (non-pre-release) releases.
   publish-stable:
