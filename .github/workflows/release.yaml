@@ -134,12 +134,14 @@ jobs:
       # Submit the same version to the official extensions.blender.org platform.
       # This only queues it: a human moderator still approves it before it goes
       # live, so this can't publish on its own. The self-hosted stable/latest
-      # channels above are independent and unaffected. Runs after the GitHub
-      # release is out, so a platform hiccup never blocks the release. Inert
-      # until the repo variable EXTENSIONS_BLENDER_ID (the extension slug) is set;
-      # the token lives in the EXTENSIONS_BLENDER_TOKEN secret.
+      # channels are independent and unaffected. continue-on-error keeps a
+      # platform hiccup from failing the release job (which would skip the
+      # publish-stable and bump-version jobs that depend on it). Inert until the
+      # repo variable EXTENSIONS_BLENDER_ID (the extension slug) is set; the
+      # token lives in the EXTENSIONS_BLENDER_TOKEN secret.
       - name: Submit to extensions.blender.org
         if: ${{ vars.EXTENSIONS_BLENDER_ID != '' }}
+        continue-on-error: true
         working-directory: ./CAD_Sketcher
         env:
           TOKEN: ${{ secrets.EXTENSIONS_BLENDER_TOKEN }}
