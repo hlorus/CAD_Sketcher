@@ -115,12 +115,11 @@ jobs:
           if PYTHONPATH=. python3 scripts/changelog_notes.py "$version" CHANGELOG.md > "$notes"; then
             echo "Prepending CHANGELOG.md entry for $version."
           else
+            # A missing entry is allowed (e.g. a packaging-only patch that
+            # shouldn't trigger the in-app "What's New"). Fall back to GitHub's
+            # auto-generated notes rather than failing the release.
             : > "$notes"
-            if [[ "$version" != *-* ]]; then
-              echo "::error::No CHANGELOG.md entry for stable release $version. Add a '## $version' section before tagging."
-              exit 1
-            fi
-            echo "No changelog entry for pre-release $version; using auto-generated notes only."
+            echo "::warning::No CHANGELOG.md entry for $version; using auto-generated notes only."
           fi
 
       - name: Publish Release
