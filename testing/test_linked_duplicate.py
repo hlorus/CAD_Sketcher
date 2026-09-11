@@ -79,6 +79,12 @@ class TestLinkedDuplicate(Sketch2dTestCase):
         self.assertIsNotNone(info)
         self.assertEqual(info.transform_space, "ORIGINAL")
 
+        # ...and its transform must be unlocked (sketches lock theirs), so the
+        # usual Alt+D-then-move works.
+        self.assertEqual(tuple(b.lock_location), (False, False, False))
+        self.assertEqual(tuple(b.lock_rotation), (False, False, False))
+        self.assertEqual(tuple(b.lock_scale), (False, False, False))
+
         # The churn/leak is gone.
         before = n_keys()
         for _ in range(5):

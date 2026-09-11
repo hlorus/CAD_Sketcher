@@ -76,6 +76,13 @@ def demote_to_consumable(copy: bpy.types.Object, source: bpy.types.Object) -> No
         if key in copy:
             del copy[key]
 
+    # Sketches lock their transform (placement comes from the parent workplane),
+    # and Alt+D copies that lock. A consumable is a free-standing object, so
+    # unlock it, otherwise it can't be grabbed and moved after the duplicate.
+    copy.lock_location = (False, False, False)
+    copy.lock_rotation = (False, False, False)
+    copy.lock_scale = (False, False, False)
+
     # Own, empty data: stops sharing the source's sketch datablock (which is what
     # made the self-heal churn) while keeping ``copy`` a Curves object.
     copy.data = bpy.data.hair_curves.new(copy.name)
