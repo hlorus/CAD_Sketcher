@@ -14,6 +14,11 @@ _SOLVER_STATE = "solver_state"
 _DOF = "dof"
 _IS_3D = "is_3d_sketch"
 
+# Object name of a sketch datablock's owning object, stamped on the Curves *data*
+# so a linked duplicate (which shares the data) can be told from its source (see
+# utilities.consumable).
+_OWNER = "slvs:sketch_owner"
+
 
 class Sketch:
     """Lightweight accessor wrapping a Blender Curves Object as a sketch."""
@@ -175,6 +180,11 @@ def stamp_sketch_props(obj):
         obj[_SOLVER_STATE] = "OKAY"
     if _DOF not in obj:
         obj[_DOF] = 0
+    # Record the owning object on the *data*, so a later linked duplicate (which
+    # shares this data) can be recognised as a copy of ``obj``. Only claim it if
+    # unset, a copy stamped over shared data must not steal ownership.
+    if obj.data is not None and _OWNER not in obj.data:
+        obj.data[_OWNER] = obj.name
 
 
 def is_sketch_object(obj):
