@@ -50,7 +50,12 @@ def _consume_node_group(source: bpy.types.Object) -> bpy.types.NodeTree:
         gout = ng.nodes.new("NodeGroupOutput")
         info = ng.nodes.new("GeometryNodeObjectInfo")
         info.name = "source_info"
-        info.transform_space = "RELATIVE"
+        # ORIGINAL (not RELATIVE): emit the source's geometry in its local space
+        # so the *consumable's own* object transform places it. The Alt+D copy
+        # inherits the source's matrix, so it starts overlapping the source and
+        # can then be grabbed and moved like any object. RELATIVE would glue it
+        # to the source's world position, making it impossible to move.
+        info.transform_space = "ORIGINAL"
         realize = ng.nodes.new("GeometryNodeRealizeInstances")
         ng.links.new(info.outputs["Geometry"], realize.inputs[0])
         ng.links.new(realize.outputs[0], gout.inputs[0])

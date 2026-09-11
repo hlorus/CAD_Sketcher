@@ -71,6 +71,14 @@ class TestLinkedDuplicate(Sketch2dTestCase):
         self.assertIsNot(a.data, b.data)
         self.assertIn(_CONSUME_MODIFIER, [m.name for m in b.modifiers])
 
+        # The consumable must be movable: its Object Info reads the source in
+        # ORIGINAL space so the object's own transform places it (RELATIVE would
+        # glue it to the source and make it impossible to move).
+        ng = b.modifiers[_CONSUME_MODIFIER].node_group
+        info = ng.nodes.get("source_info")
+        self.assertIsNotNone(info)
+        self.assertEqual(info.transform_space, "ORIGINAL")
+
         # The churn/leak is gone.
         before = n_keys()
         for _ in range(5):
