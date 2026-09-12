@@ -13,32 +13,36 @@ invalidate a batch.
 """
 
 import gpu
-from gpu_extras.batch import batch_for_shader
+import numpy as np
 from bpy.types import Context
+from gpu_extras.batch import batch_for_shader
 
+from ..model.sketch_ref import get_sketches
+from ..shaders import Shaders
 from ..utilities import preferences
 from ..utilities.preferences import get_prefs
-from ..shaders import Shaders
-from ..model.sketch_ref import get_sketches
 from . import render_data as rd
-
 
 # obj_name -> (signature, point_batch, line_batch, dashed_batch)
 _cache = {}
 
 # Two triangles covering [-1, 1]^2, for expanding a point into a screen quad.
-_QUAD_CORNERS = [
-    (-1, -1), (1, -1), (1, 1),
-    (-1, -1), (1, 1), (-1, 1),
-]
+_QUAD_CORNERS = np.array(
+    [(-1, -1), (1, -1), (1, 1), (-1, -1), (1, 1), (-1, 1)], dtype=np.float32
+)
 
 
 def _theme_signature(ts):
     return tuple(
         tuple(getattr(ts, name))
         for name in (
-            "default", "highlight", "selected", "selected_highlight",
-            "fixed", "inactive", "inactive_selected",
+            "default",
+            "highlight",
+            "selected",
+            "selected_highlight",
+            "fixed",
+            "inactive",
+            "inactive_selected",
         )
     )
 
@@ -56,38 +60,65 @@ def _build_batches(data):
     # (GL_POINTS didn't apply it on the Vulkan backend). Each point contributes
     # 6 vertices sharing the same center/color; the per-point size factor is
     # baked into `corner` so hovered/selected points draw bigger in the same
-    # batch.
+    # batch. Built with repeat/tile rather than Python list building -- the
+    # buckets arrive as arrays and batch_for_shader takes arrays directly.
     pverts, pcols, pcorners = [], [], []
-    for color, entries in data.point_buckets.items():
-        for pos, psize in entries:
-            pverts += [pos] * 6
-            pcols += [color] * 6
-            pcorners += [(cx * psize, cy * psize) for cx, cy in _QUAD_CORNERS]
+    for color, (centres, sizes) in data.point_buckets.items():
+        if len(centres) == 0:
+            continue
+        pverts.append(np.repeat(centres, 6, axis=0))
+        pcols.append(
+            np.tile(np.asarray(color, dtype=np.float32), (len(centres) * 6, 1))
+        )
+        # Each point repeats the 6 corners in order, scaled by its own size
+        # factor: tile the corners per point, repeat each size across its 6.
+        pcorners.append(
+            np.tile(_QUAD_CORNERS, (len(centres), 1)) * np.repeat(sizes, 6)[:, None]
+        )
     point_batch = (
-        batch_for_shader(Shaders.point_sprite_color_3d(), "TRIS",
-                         {"pos": pverts, "color": pcols, "corner": pcorners})
-        if pverts else None
+        batch_for_shader(
+            Shaders.point_sprite_color_3d(),
+            "TRIS",
+            {
+                "pos": np.concatenate(pverts),
+                "color": np.concatenate(pcols),
+                "corner": np.concatenate(pcorners),
+            },
+        )
+        if pverts
+        else None
     )
 
     sverts, scols, dverts, dcols = [], [], [], []
-    for (construction, color), verts in data.line_buckets.items():
+    for (construction, color), chunks in data.line_buckets.items():
+        verts = [c.reshape(-1, 3) for c in chunks if len(c)]
         if not verts:
             continue
+        merged = np.concatenate(verts)
+        cols = np.tile(np.asarray(color, dtype=np.float32), (len(merged), 1))
         if construction:
-            dverts += verts
-            dcols += [color] * len(verts)
+            dverts.append(merged)
+            dcols.append(cols)
         else:
-            sverts += verts
-            scols += [color] * len(verts)
+            sverts.append(merged)
+            scols.append(cols)
     line_batch = (
-        batch_for_shader(Shaders.polyline_flat_color_3d(), "LINES",
-                         {"pos": sverts, "color": scols})
-        if sverts else None
+        batch_for_shader(
+            Shaders.polyline_flat_color_3d(),
+            "LINES",
+            {"pos": np.concatenate(sverts), "color": np.concatenate(scols)},
+        )
+        if sverts
+        else None
     )
     dashed_batch = (
-        batch_for_shader(Shaders.dashed_flat_color_line_3d(), "LINES",
-                         {"pos": dverts, "color": dcols})
-        if dverts else None
+        batch_for_shader(
+            Shaders.dashed_flat_color_line_3d(),
+            "LINES",
+            {"pos": np.concatenate(dverts), "color": np.concatenate(dcols)},
+        )
+        if dverts
+        else None
     )
     return point_batch, line_batch, dashed_batch
 
@@ -175,8 +206,10 @@ def draw(context: Context):
     # Drop cache entries for sketches that no longer exist / are hidden.
     for stale in [n for n in _cache if n not in seen]:
         del _cache[stale]
+        rd._geometry_cache.pop(stale, None)
 
 
 def invalidate():
     """Force a full rebuild on the next draw (e.g. on unregister/file load)."""
     _cache.clear()
+    rd.invalidate()

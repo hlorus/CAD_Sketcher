@@ -15,7 +15,7 @@ Supported sources:
 Legacy ``Curve`` (bezier/nurbs) objects are not handled yet; they return empty.
 """
 
-from mathutils import Vector
+import numpy as np
 
 from ..utilities.curve_data import has_uuid_field
 from . import picking
@@ -29,57 +29,84 @@ def _is_sketch(curve_data) -> bool:
     )
 
 
-def _sketch_geometry(obj):
-    """Pickable points/segments of a sketch, keyed by ``curve_id``.
+def _sketch_geometry(obj) -> picking.PickSet:
+    """Pickable geometry of a sketch, keyed by ``curve_id``.
 
-    Reuses ``render_data.build``, which already projects points and tessellates
-    lines/arcs/circles into ``point_ids`` / ``segment_ids`` for picking.
+    Reuses the shared, cached extraction, which already projects points and
+    tessellates lines/arcs/circles. Colours are irrelevant here, so this skips the
+    colour pass -- reference picking walks every visible curve object, so it would
+    otherwise pay for it once per object per mouse-move.
     """
     from ..model.sketch_ref import Sketch
-    from ..utilities.preferences import get_prefs
     from . import render_data
 
-    sketch = Sketch(obj)
-    ts = get_prefs().theme_settings.entity
-    rd = render_data.build(sketch, ts, is_active=False)
-    return rd.point_ids, rd.segment_ids
+    geo = render_data.geometry(Sketch(obj))
+    return picking.PickSet(
+        geo.point_cids, geo.point_co, geo.seg_cids, geo.seg_co, geo.seg_owner
+    )
 
 
-def _raw_curves_geometry(obj):
-    """Pickable points/segments of a raw Curves object, keyed by index.
+def _raw_curves_geometry(obj) -> picking.PickSet:
+    """Pickable geometry of a raw Curves object, keyed by index.
 
     Each control point is a pickable point; each span between consecutive points
     of a curve is a pickable segment. No arc concept exists on a raw Curves
     object, so its curves are treated as polylines.
     """
     data = obj.data
-    mat = obj.matrix_world
-    points, segments = [], []
+    n_points = len(data.points)
+    if n_points == 0:
+        return picking.EMPTY_PICKSET
+
+    local = np.empty(n_points * 3, dtype=np.float32)
+    data.points.foreach_get("position", local)
+    world = _to_world(local.reshape(-1, 3), obj.matrix_world)
+
+    point_keys, seg_keys, spans = [], [], []
     for ci, curve in enumerate(data.curves):
         n = curve.points_length
         if n == 0:
             continue
         first = curve.points[0].index
-        world = [(mat @ Vector(data.points[first + k].position))[:] for k in range(n)]
         for k in range(n):
-            points.append((("point", first + k), world[k]))
+            point_keys.append(("point", first + k))
         for k in range(n - 1):
-            segments.append((("seg", ci, k), world[k], world[k + 1]))
-    return points, segments
+            seg_keys.append(("seg", ci, k))
+            spans.append((first + k, first + k + 1))
+
+    point_co = (
+        world[[i for _t, i in point_keys]]
+        if point_keys
+        else picking.EMPTY_PICKSET.point_co
+    )
+    if spans:
+        idx = np.asarray(spans, dtype=np.intp)
+        seg_co = world[idx.ravel()].reshape(-1, 2, 3)
+        seg_owner = np.arange(len(spans), dtype=np.intp)
+    else:
+        seg_co = picking.EMPTY_PICKSET.seg_co
+        seg_owner = picking.EMPTY_PICKSET.seg_owner
+    return picking.PickSet(point_keys, point_co, seg_keys, seg_co, seg_owner)
 
 
-def extract_pickable_geometry(obj):
-    """Return ``(points, segments)`` of a curve object in world space.
+def _to_world(local, mat):
+    """Transform an ``(N, 3)`` array of local points into world space."""
+    homogeneous = np.empty((len(local), 4), dtype=np.float64)
+    homogeneous[:, :3] = local
+    homogeneous[:, 3] = 1.0
+    world = homogeneous @ np.asarray(mat, dtype=np.float64).T
+    return world[:, :3].astype(np.float32, copy=False)
 
-    ``points``:   ``[(key, world_pos), ...]``
-    ``segments``: ``[(key, world_a, world_b), ...]`` (arcs/circles tessellated)
 
-    ``key`` identifies the source element: a sketch's ``curve_id`` string, or an
+def extract_pickable_geometry(obj) -> picking.PickSet:
+    """Return a curve object's pickable geometry in world space.
+
+    Keys identify the source element: a sketch's ``curve_id`` string, or an
     index-based tuple for a raw Curves object. Non-Curves or legacy ``Curve``
-    objects return empty (legacy bezier/nurbs support is a later slice).
+    objects return an empty set (legacy bezier/nurbs support is a later slice).
     """
     if obj is None or obj.type != "CURVES" or obj.data is None:
-        return [], []
+        return picking.EMPTY_PICKSET
     if _is_sketch(obj.data):
         return _sketch_geometry(obj)
     return _raw_curves_geometry(obj)
@@ -87,8 +114,7 @@ def extract_pickable_geometry(obj):
 
 def pick_object_ranked(obj, context, coords):
     """Keys of ``obj``'s elements under ``coords``, nearest first (points first)."""
-    points, segments = extract_pickable_geometry(obj)
-    return picking.rank_hits(points, segments, context, coords)
+    return picking.rank_hits(extract_pickable_geometry(obj), context, coords)
 
 
 def pick_reference_element(context, coords, exclude=None):
@@ -99,18 +125,34 @@ def pick_reference_element(context, coords, exclude=None):
     ``exclude`` skips an object (e.g. the active sketch, to avoid self-reference).
     """
     objs = {}
-    point_items, seg_items = [], []
+    point_keys, point_co = [], []
+    seg_keys, seg_co, seg_owner = [], [], []
     for ob in context.visible_objects:
         if ob.type != "CURVES" or ob == exclude:
             continue
-        pts, segs = extract_pickable_geometry(ob)
-        if not pts and not segs:
+        pick = extract_pickable_geometry(ob)
+        if not len(pick.point_co) and not len(pick.seg_co):
             continue
         objs[ob.name] = ob
-        point_items += [((ob.name, key), pos) for key, pos in pts]
-        seg_items += [((ob.name, key), a, b) for key, a, b in segs]
+        # Keys are namespaced per object, and the owner indices shift by however
+        # many curves were merged already. Both are per-curve, not per-segment.
+        point_keys += [(ob.name, key) for key in pick.point_keys]
+        point_co.append(pick.point_co)
+        seg_owner.append(pick.seg_owner + len(seg_keys))
+        seg_keys += [(ob.name, key) for key in pick.seg_keys]
+        seg_co.append(pick.seg_co)
 
-    ranked = picking.rank_hits(point_items, seg_items, context, coords)
+    if not objs:
+        return None
+    merged = picking.PickSet(
+        point_keys,
+        np.concatenate(point_co) if point_co else picking.EMPTY_PICKSET.point_co,
+        seg_keys,
+        np.concatenate(seg_co) if seg_co else picking.EMPTY_PICKSET.seg_co,
+        np.concatenate(seg_owner) if seg_owner else picking.EMPTY_PICKSET.seg_owner,
+    )
+
+    ranked = picking.rank_hits(merged, context, coords)
     if not ranked:
         return None
     obj_name, key = ranked[0]
@@ -121,9 +163,15 @@ def element_geometry(obj, key):
     """World-space ``(points, segments)`` of just element ``key`` of ``obj``.
 
     Used to highlight one hovered element: a point returns its position, a line
-    its single segment, an arc/circle its tessellated segments.
+    its single segment, an arc/circle its tessellated segments. Returns plain
+    tuples -- this is one element, and the hover draw code wants sequences.
     """
-    pts, segs = extract_pickable_geometry(obj)
-    points = [pos for k, pos in pts if k == key]
-    segments = [(a, b) for k, a, b in segs if k == key]
+    pick = extract_pickable_geometry(obj)
+    points = [
+        tuple(pick.point_co[i]) for i, k in enumerate(pick.point_keys) if k == key
+    ]
+    segments = []
+    if key in pick.seg_keys:
+        rows = pick.seg_co[pick.seg_owner == pick.seg_keys.index(key)]
+        segments = [(tuple(a), tuple(b)) for a, b in rows]
     return points, segments

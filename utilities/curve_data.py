@@ -746,7 +746,72 @@ def _resegment_arcs(sketch, cd, point_ids=None):
     return True
 
 
-def compute_merge_ids(sketch):
+# object name -> connectivity signature at the last merge-id computation. Weld
+# ids and source seeds are derived purely from connectivity (which point curves a
+# segment references, plus coincidence constraints), never from positions, so a
+# position-only change -- every solve, every drag frame -- cannot alter them.
+_merge_signatures = {}
+
+
+def reset_merge_cache():
+    """Drop the merge-id signature cache (e.g. on file load)."""
+    _merge_signatures.clear()
+
+
+def _connectivity_signature(cd):
+    """Fingerprint of everything ``compute_merge_ids`` actually reads.
+
+    Identity ids, curve types, per-curve point counts (which fix the point
+    indices a junction lands on) and the coincidence constraint pairs. Positions
+    are deliberately absent: that is the whole point of the gate.
+    """
+    n_curves = len(cd.curves)
+    n_points = len(cd.points)
+    parts = []
+    for field in ("curve_id", "start_point_id", "end_point_id"):
+        for half in ("lo", "hi"):
+            buf = np.zeros(n_curves * 2, dtype=np.int32)
+            attr = cd.attributes.get(f".{field}_{half}")
+            if attr:
+                attr.data.foreach_get("value", buf)
+            parts.append(buf.tobytes())
+
+    types = np.zeros(n_curves, dtype=np.int32)
+    type_attr = cd.attributes.get("sketch_type")
+    if type_attr:
+        type_attr.data.foreach_get("value", types)
+    parts.append(types.tobytes())
+
+    # Arc resegmentation changes point counts, which shifts every later point
+    # index, so the counts belong in the key even though no id changed.
+    counts = np.zeros(n_curves, dtype=np.int32)
+    cd.curves.foreach_get("points_length", counts)
+    parts.append(counts.tobytes())
+
+    constraints = getattr(cd, "sketch_constraints", None)
+    coincident = ()
+    if constraints is not None:
+        coincident = tuple(
+            sorted((c.curve_id_1, c.curve_id_2) for c in constraints.coincident)
+        )
+
+    return (n_curves, n_points, coincident, hash(b"".join(parts)))
+
+
+def _merge_outputs_present(cd):
+    """Whether the attributes the merge pass writes already exist.
+
+    The signature says the *inputs* are unchanged; it says nothing about a fresh
+    datablock that has never had the outputs written. Never skip in that case.
+    """
+    return (
+        cd.attributes.get("merge_id") is not None
+        and cd.attributes.get(SOURCE_CURVE_ID_ATTR) is not None
+        and cd.attributes.get(SOURCE_ENDPOINT_ID_ATTR) is not None
+    )
+
+
+def compute_merge_ids(sketch, force=False):
     """Assign each curve point a weld id derived from segment connectivity.
 
     A segment endpoint gets a dense id for the point curve it references
@@ -763,13 +828,25 @@ def compute_merge_ids(sketch):
 
     Interior, point and circle vertices keep id 0; they are never welded (their
     valence is not 1), so their id is irrelevant. Returns True if anything ran.
+
+    Skipped when the sketch's connectivity is unchanged since the last run, since
+    positions cannot affect the result -- pass ``force=True`` to recompute anyway.
     """
     if not sketch or not sketch.target_object or not sketch.target_object.data:
         return False
-    cd = sketch.target_object.data
+    obj = sketch.target_object
+    cd = obj.data
     n_points = len(cd.points)
     type_attr = cd.attributes.get("sketch_type")
     if n_points == 0 or not type_attr:
+        return False
+
+    signature = _connectivity_signature(cd)
+    if (
+        not force
+        and _merge_signatures.get(obj.name) == signature
+        and _merge_outputs_present(cd)
+    ):
         return False
 
     # Only equality of endpoint ids matters here (shared junction -> shared weld
@@ -854,6 +931,7 @@ def compute_merge_ids(sketch):
         attr = cd.attributes.new("merge_id", "INT", "POINT")
     attr.data.foreach_set("value", ids)
     compute_generated_id_seeds(sketch)
+    _merge_signatures[obj.name] = signature
     return True
 
 

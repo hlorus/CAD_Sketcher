@@ -130,14 +130,17 @@ class TestPicking(Sketch2dTestCase):
         self.assertNotEqual(picking.pick(self.ctx, (40, 0)), self.b.curve_id)
 
     def test_cache_reuses_on_hover_and_refreshes_on_geometry_change(self):
-        # First pick populates the cache; a second pick (mouse just moved, no
-        # geometry change) must reuse the same extracted data, not rebuild.
-        picking._pick_cache.clear()
+        # A second pick (mouse just moved, no geometry change) must reuse the same
+        # extracted data, not rebuild it. The extraction is shared with the
+        # overlay, so identity of the returned object is the thing to check.
+        from ..drawing import render_data
+
+        render_data.invalidate()
         picking.pick(self.ctx, (40, 0))
-        cached = picking._pick_cache[self.sketch.target_object.name][1]
+        cached = picking._active_data(self.ctx)
         picking.pick(self.ctx, (20, 0))
         self.assertIs(
-            picking._pick_cache[self.sketch.target_object.name][1],
+            picking._active_data(self.ctx),
             cached,
             "hover rebuilt pick data despite unchanged geometry",
         )
@@ -147,5 +150,104 @@ class TestPicking(Sketch2dTestCase):
         line2 = self.add_line(self.b, c)
         self.solve()
         self.assertEqual(picking.pick(self.ctx, (40, 40)), c.curve_id)
-        self.assertIsNot(picking._pick_cache[self.sketch.target_object.name][1], cached)
+        self.assertIsNot(picking._active_data(self.ctx), cached)
         self.assertTrue(line2.valid)
+
+    def test_overlay_and_picking_share_one_extraction(self):
+        """A changed-geometry frame must extract once, not once per consumer.
+
+        The overlay and the picker each used to run their own ``build``, so every
+        frame of a drag paid for the extraction twice (issue #342).
+        """
+        from ..drawing import render_data
+        from ..utilities.preferences import get_prefs
+
+        render_data.invalidate()
+        calls = []
+        real = render_data._extract_geometry
+
+        def spy(sketch):
+            calls.append(sketch)
+            return real(sketch)
+
+        import unittest.mock as mock
+
+        with mock.patch.object(render_data, "_extract_geometry", spy):
+            # One "frame": the picker resolves hover, then the overlay draws.
+            picking.pick(self.ctx, (40, 0))
+            render_data.build(self.sketch, get_prefs().theme_settings.entity, True)
+        self.assertEqual(
+            len(calls), 1, "geometry was extracted more than once for one frame"
+        )
+
+    def test_hover_does_not_re_extract_geometry(self):
+        """Selection/hover changes must only redo colours, not the extraction."""
+        from ..drawing import render_data
+        from ..utilities.preferences import get_prefs
+
+        ts = get_prefs().theme_settings.entity
+        render_data.invalidate()
+        render_data.build(self.sketch, ts, True)  # warm
+
+        calls = []
+        real = render_data._extract_geometry
+
+        def spy(sketch):
+            calls.append(sketch)
+            return real(sketch)
+
+        import unittest.mock as mock
+
+        with mock.patch.object(render_data, "_extract_geometry", spy):
+            for cid in (self.a.curve_id, self.b.curve_id, ""):
+                selection.hover = cid
+                render_data.build(self.sketch, ts, True)
+        selection.hover = ""
+        self.assertEqual(calls, [], "a hover change re-extracted the geometry")
+
+
+class TestSegmentDistance(Sketch2dTestCase):
+    """``_dist_to_segments`` replaced a per-segment Python loop.
+
+    It runs on every mouse-move over every tessellated segment, so it is
+    vectorized; these pin it against the straightforward scalar formula it
+    replaced, including the degenerate and clamped cases.
+    """
+
+    @staticmethod
+    def _scalar(a, b, px, py):
+        """Point-to-segment distance, written out directly."""
+        abx, aby = b[0] - a[0], b[1] - a[1]
+        seg2 = abx * abx + aby * aby
+        if seg2 < 1e-9:
+            return ((px - a[0]) ** 2 + (py - a[1]) ** 2) ** 0.5
+        t = ((px - a[0]) * abx + (py - a[1]) * aby) / seg2
+        t = min(1.0, max(0.0, t))
+        cx, cy = a[0] + t * abx, a[1] + t * aby
+        return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5
+
+    def test_matches_the_scalar_formula(self):
+        rng = np.random.default_rng(20260912)
+        screen = rng.random((500, 2, 2)) * 1000.0
+        px, py = 500.0, 500.0
+        got = picking._dist_to_segments(screen, px, py)
+        want = [self._scalar(s[0], s[1], px, py) for s in screen]
+        np.testing.assert_allclose(got, want, rtol=1e-9, atol=1e-9)
+
+    def test_handles_degenerate_and_clamped_cases(self):
+        screen = np.array(
+            [
+                [[0.0, 0.0], [0.0, 0.0]],  # zero-length: distance to the point
+                [[0.0, 0.0], [10.0, 0.0]],  # perpendicular foot inside
+                [[0.0, 0.0], [1.0, 0.0]],  # foot beyond the end -> clamps to b
+                [[20.0, 0.0], [30.0, 0.0]],  # foot before the start -> clamps to a
+            ]
+        )
+        got = picking._dist_to_segments(screen, 5.0, 5.0)
+        want = [self._scalar(s[0], s[1], 5.0, 5.0) for s in screen]
+        np.testing.assert_allclose(got, want, rtol=1e-9, atol=1e-9)
+        # the specific expectations, spelled out
+        self.assertAlmostEqual(float(got[0]), (50.0) ** 0.5, places=9)
+        self.assertAlmostEqual(float(got[1]), 5.0, places=9)
+        self.assertAlmostEqual(float(got[2]), (16.0 + 25.0) ** 0.5, places=9)
+        self.assertAlmostEqual(float(got[3]), (225.0 + 25.0) ** 0.5, places=9)

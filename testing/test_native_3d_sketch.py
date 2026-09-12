@@ -168,7 +168,6 @@ class TestNative3DSketch(BgsTestCase):
     def test_origin_transform_moves_rendered_3d_geometry(self):
         from ..drawing import render_data
         from ..model.native_3d import create_line_3d, create_point_3d
-        from ..utilities.preferences import get_prefs
 
         p1 = create_point_3d(self.sketch, (1.0, 0.0, 0.0), fixed=True)
         p2 = create_point_3d(self.sketch, (0.0, 2.0, 1.0), fixed=True)
@@ -189,29 +188,24 @@ class TestNative3DSketch(BgsTestCase):
 
         expected_p1 = origin.matrix_world @ local_p1
         expected_p2 = origin.matrix_world @ local_p2
-        data = render_data.build(
-            self.sketch,
-            get_prefs().theme_settings.entity,
-            is_active=True,
-        )
-        point_world = {cid: Vector(pos) for cid, pos in data.point_ids}
+        data = render_data.geometry(self.sketch)
+        point_world = dict(zip(data.point_cids, (Vector(p) for p in data.point_co)))
         self.assertLess((point_world[p1.curve_id] - expected_p1).length, 1e-5)
         self.assertLess((point_world[p2.curve_id] - expected_p2).length, 1e-5)
 
-        segment = next(item for item in data.segment_ids if item[0] == line.curve_id)
-        self.assertLess((Vector(segment[1]) - expected_p1).length, 1e-5)
-        self.assertLess((Vector(segment[2]) - expected_p2).length, 1e-5)
+        seg_rows = data.seg_co[data.seg_owner == data.seg_cids.index(line.curve_id)]
+        start, end = seg_rows[0]
+        self.assertLess((Vector(start) - expected_p1).length, 1e-5)
+        self.assertLess((Vector(end) - expected_p2).length, 1e-5)
 
         # A solve/depsgraph pass must not bake the origin transform back into the
         # native coordinates or visually reset the sketch to its old position.
         self.assertTrue(self.sketch.solve(self.context))
         self.context.view_layer.update()
-        solved = render_data.build(
-            self.sketch,
-            get_prefs().theme_settings.entity,
-            is_active=True,
+        solved = render_data.geometry(self.sketch)
+        solved_world = dict(
+            zip(solved.point_cids, (Vector(p) for p in solved.point_co))
         )
-        solved_world = {cid: Vector(pos) for cid, pos in solved.point_ids}
         self.assertLess((solved_world[p1.curve_id] - expected_p1).length, 1e-5)
         self.assertLess((solved_world[p2.curve_id] - expected_p2).length, 1e-5)
 
