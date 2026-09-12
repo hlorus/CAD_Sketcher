@@ -6,6 +6,10 @@ extracted into the right buckets and that the change-signature both stays stable
 and detects the changes that must invalidate cached batches.
 """
 
+import math
+
+from mathutils import Vector
+
 from ..drawing import render_data, selection
 from ..utilities.curve_data import read_uuid_list, refresh_curve_geometry
 from ..utilities.preferences import get_prefs
@@ -113,5 +117,99 @@ class TestRenderData(Sketch2dTestCase):
             self.assertNotEqual(
                 active, render_data.overlay_signature(self.sketch, True, ())
             )
+        finally:
+            selection.clear()
+
+
+class TestArcTessellation(Sketch2dTestCase):
+    """Arcs and circles are tessellated for all curves in one vectorized pass.
+
+    Guards the geometry that batching must not change: every vertex on the
+    circle, the chain closed with no duplicate/zero-length segment, and an open
+    arc still starting and ending exactly on its defining points.
+    """
+
+    RADIUS = 1.5
+
+    def _segments(self, is_active=True):
+        data = render_data.build(
+            self.sketch, get_prefs().theme_settings.entity, is_active
+        )
+        return data, [(Vector(a), Vector(b)) for _cid, a, b in data.segment_ids]
+
+    def _local(self, co):
+        """A sketch-local 2D point in the world space build() emits."""
+        return self.sketch.world_matrix @ Vector((co[0], co[1], 0.0))
+
+    def test_circle_vertices_lie_on_the_circle(self):
+        circle = self.add_circle(self.add_point((2, -1)), self.RADIUS)
+        self.solve()
+        refresh_curve_geometry(self.sketch)
+
+        data, segments = self._segments()
+        centre = self._local((2, -1))
+        for a, b in segments:
+            for v in (a, b):
+                self.assertAlmostEqual((v - centre).length, self.RADIUS, places=4)
+        self.assertTrue(all(cid == circle.curve_id for cid, _a, _b in data.segment_ids))
+
+    def test_circle_closes_without_a_degenerate_segment(self):
+        self.add_circle(self.add_point((0, 0)), self.RADIUS)
+        self.solve()
+        refresh_curve_geometry(self.sketch)
+
+        _data, segments = self._segments()
+        self.assertEqual(len(segments), render_data.ARC_SEGMENTS)
+        for i, (_a, b) in enumerate(segments):
+            nxt = segments[(i + 1) % len(segments)][0]
+            self.assertAlmostEqual((b - nxt).length, 0.0, places=5)
+        for a, b in segments:
+            self.assertGreater((b - a).length, 1e-6, "zero-length segment emitted")
+
+    def test_arc_spans_its_defining_points(self):
+        for degrees in (30, 90, 200, 350):
+            with self.subTest(degrees=degrees):
+                self.setUp()
+                angle = math.radians(degrees)
+                end_co = (self.RADIUS * math.cos(angle), self.RADIUS * math.sin(angle))
+                self.add_arc(
+                    self.add_point((0, 0)),
+                    self.add_point((self.RADIUS, 0)),
+                    self.add_point(end_co),
+                )
+                self.solve()
+                refresh_curve_geometry(self.sketch)
+
+                _data, segments = self._segments()
+                expected = max(int(angle / math.tau * render_data.ARC_SEGMENTS), 4)
+                self.assertEqual(len(segments), expected)
+                self.assertAlmostEqual(
+                    (segments[0][0] - self._local((self.RADIUS, 0))).length,
+                    0.0,
+                    places=4,
+                )
+                self.assertAlmostEqual(
+                    (segments[-1][1] - self._local(end_co)).length, 0.0, places=4
+                )
+
+    def test_construction_and_selection_split_buckets(self):
+        """Batching files arcs per (construction, colour); both must still split."""
+        solid = self.add_circle(self.add_point((0, 0)), 1.0)
+        self.add_circle(self.add_point((4, 0)), 1.0, construction=True)
+        self.solve()
+        refresh_curve_geometry(self.sketch)
+
+        data, _segments = self._segments()
+        self.assertEqual(sorted(k[0] for k in data.line_buckets), [False, True])
+        n_verts = sum(len(v) for v in data.line_buckets.values())
+        self.assertEqual(len(data.segment_ids), n_verts // 2)
+
+        before = set(data.line_buckets)
+        selection.clear()
+        selection.selected.append(solid.curve_id)
+        try:
+            selected, _ = self._segments()
+            self.assertNotEqual(before, set(selected.line_buckets))
+            self.assertEqual(len(selected.segment_ids), len(data.segment_ids))
         finally:
             selection.clear()

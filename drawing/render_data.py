@@ -12,6 +12,7 @@ the overlay can skip rebuilding batches when nothing changed.
 """
 
 import math
+from itertools import chain, repeat
 
 import numpy as np
 from mathutils import Vector
@@ -19,9 +20,9 @@ from mathutils import Vector
 from ..model.constants import SketchCurveType
 from ..utilities.curve_data import (
     get_curve_data,
-    get_uuid,
     has_uuid_field,
     read_curve_id_list,
+    read_uuid_list,
 )
 from ..utilities.math import range_2pi
 from . import selection
@@ -143,23 +144,107 @@ def overlay_signature(sketch, is_active, theme_sig):
     )
 
 
-def _arc_points(center, radius, start_angle, arc_angle, segments, mat):
-    pts = []
-    for i in range(segments + 1):
-        a = start_angle + arc_angle * i / segments
-        pts.append(
-            (
-                mat
-                @ Vector(
-                    (
-                        center.x + radius * math.cos(a),
-                        center.y + radius * math.sin(a),
-                        0,
-                    )
-                )
-            )[:]
-        )
-    return pts
+def _tessellate_arcs(params, cyclic, mat):
+    """World-space segment endpoints for *every* arc/circle, in one vectorized pass.
+
+    ``params`` holds one ``_arc_params`` tuple per curve and ``cyclic`` the
+    matching flags. Returns ``(pairs, nseg)``: an ``(S, 2, 3)`` array of
+    per-segment endpoints, and how many of those segments each arc owns. Segments
+    stay grouped by arc, so arc ``a`` owns one contiguous slice of ``pairs``.
+
+    Tessellating arc by arc was the single biggest cost in ``build`` -- a Python
+    loop doing one ``mat @ Vector(...)`` per point, ~58% of the call on a
+    circle-heavy sketch. Vectorizing one arc at a time is *slower* (49 points is
+    too few to amortize the numpy setup), so all arcs are flattened into one
+    angle array and transformed with a single matmul instead.
+
+    A cyclic curve emits ``segments`` points over ``[0, tau)`` and wraps, so a
+    circle yields exactly ``ARC_SEGMENTS`` segments; the per-arc version closed
+    the loop with a duplicate point and a zero-length segment.
+    """
+    n = len(params)
+    p = np.asarray(params, dtype=np.float64)  # (n, 6)
+    cx, cy, radius, start, sweep = (p[:, k] for k in range(5))
+    nseg = p[:, 5].astype(np.intp)
+    cyc = np.asarray(cyclic, dtype=bool)
+
+    # An open arc needs its closing point; a cyclic one wraps to its first.
+    npts = nseg + ~cyc
+    pt_off = np.concatenate(([0], np.cumsum(npts)[:-1]))
+
+    # Flatten every arc's points into one angle array: which arc each point
+    # belongs to (pt_arc) and its position within that arc (pt_j).
+    pt_arc = np.repeat(np.arange(n), npts)
+    pt_j = np.arange(npts.sum()) - np.repeat(pt_off, npts)
+    ang = start[pt_arc] + sweep[pt_arc] * pt_j / nseg[pt_arc]
+
+    local = np.empty((len(pt_arc), 4))
+    local[:, 0] = cx[pt_arc] + radius[pt_arc] * np.cos(ang)
+    local[:, 1] = cy[pt_arc] + radius[pt_arc] * np.sin(ang)
+    local[:, 2] = 0.0
+    local[:, 3] = 1.0
+    world = local @ np.asarray(mat, dtype=np.float64).T
+
+    # Segments join consecutive points, wrapping to the first on a cyclic curve.
+    seg_arc = np.repeat(np.arange(n), nseg)
+    seg_off = np.concatenate(([0], np.cumsum(nseg)[:-1]))
+    seg_j = np.arange(nseg.sum()) - np.repeat(seg_off, nseg)
+    i0 = np.repeat(pt_off, nseg) + seg_j
+    i1 = i0 + 1
+    wrap = cyc[seg_arc] & (seg_j == nseg[seg_arc] - 1)
+    i1[wrap] = np.repeat(pt_off, nseg)[wrap]
+
+    pairs = world[np.stack((i0, i1), axis=1).ravel(), :3].reshape(-1, 2, 3)
+    return pairs, nseg
+
+
+def _contiguous_runs(arcs, offsets, counts):
+    """Merge ascending arc indices into ``(lo, hi)`` segment index bounds."""
+    runs = []
+    start = 0
+    while start < len(arcs):
+        end = start
+        while end + 1 < len(arcs) and arcs[end + 1] == arcs[end] + 1:
+            end += 1
+        runs.append((offsets[arcs[start]], offsets[arcs[end]] + counts[arcs[end]]))
+        start = end + 1
+    return runs
+
+
+def _emit_arcs(rd, params, cyclic, meta, mat):
+    """Tessellate the collected arcs/circles and file them into ``rd``."""
+    if not params:
+        return
+    pairs, nseg = _tessellate_arcs(params, cyclic, mat)
+
+    # One trip out of numpy, flattened to bare endpoints: the very same vertex
+    # lists land in ``line_buckets`` and in ``segment_ids``, so each vertex is
+    # allocated once. Keeping the (S, 2, 3) nesting here would allocate a wrapper
+    # list per segment on top of that, which at a few thousand segments costs
+    # more than the tessellation itself.
+    verts = pairs.reshape(-1, 3).tolist()
+    counts = nseg.tolist()
+    offsets = np.concatenate(([0], np.cumsum(nseg)[:-1])).tolist()
+
+    by_bucket = {}
+    for idx, (_cid, construction, col) in enumerate(meta):
+        by_bucket.setdefault((construction, tuple(col)), []).append(idx)
+    for key, arcs in by_bucket.items():
+        bucket = rd.line_buckets.setdefault(key, [])
+        # Each arc owns a contiguous run of segments and ``arcs`` is ascending, so
+        # neighbouring arcs in one bucket merge into a single slice. With nothing
+        # selected every arc shares a bucket, making this one extend.
+        for lo, hi in _contiguous_runs(arcs, offsets, counts):
+            bucket.extend(verts[lo * 2 : hi * 2])
+
+    # ``segment_ids`` keeps picking's (curve_id, a, b) shape; repeat/chain expands
+    # the per-arc ids without indexing ``meta`` once per segment.
+    cids = chain.from_iterable(
+        repeat(cid, counts[idx]) for idx, (cid, _c, _col) in enumerate(meta)
+    )
+    rd.segment_ids.extend(
+        (cid, verts[i * 2], verts[i * 2 + 1]) for i, cid in enumerate(cids)
+    )
 
 
 class SketchRenderData:
@@ -208,6 +293,20 @@ def build(sketch, ts, is_active):
     mat = _world_matrix(sketch)
     cp_present = has_uuid_field(cd, "center_point_id")
 
+    # Endpoint ids come from the cached bulk lists, not a per-curve get_uuid
+    # (2 attribute lookups plus a hex conversion each) inside the loop.
+    has_arcs = cp_present and bool(
+        np.isin(types, (SketchCurveType.ARC, SketchCurveType.CIRCLE)).any()
+    )
+    if has_arcs:
+        cp_ids = read_uuid_list(cd, "center_point_id")
+        sp_ids = read_uuid_list(cd, "start_point_id")
+        ep_ids = read_uuid_list(cd, "end_point_id")
+
+    # Arcs/circles are only *measured* in the loop; they are tessellated together
+    # afterwards, which is far cheaper than one Python loop per arc.
+    arc_params, arc_cyclic, arc_meta = [], [], []
+
     for i in range(n_curves):
         if not vis[i]:
             continue
@@ -234,36 +333,36 @@ def build(sketch, ts, is_active):
             bucket += [p1, p2]
             rd.segment_ids.append((cid, p1, p2))
 
-        elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE) and cp_present:
-            arc_pts = _arc_points_for_curve(
-                sketch, cd, i, curve_slice, bool(cyc[i]), mat
+        elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE) and has_arcs:
+            params = _arc_params(
+                sketch, cd, i, curve_slice, bool(cyc[i]), cp_ids, sp_ids, ep_ids
             )
-            if arc_pts and len(arc_pts) >= 2:
-                bucket = rd._line_bucket(bool(con[i]), col)
-                for j in range(len(arc_pts) - 1):
-                    bucket += [arc_pts[j], arc_pts[j + 1]]
-                    rd.segment_ids.append((cid, arc_pts[j], arc_pts[j + 1]))
-                if cyc[i]:
-                    bucket += [arc_pts[-1], arc_pts[0]]
-                    rd.segment_ids.append((cid, arc_pts[-1], arc_pts[0]))
+            if params is not None:
+                arc_params.append(params)
+                arc_cyclic.append(bool(cyc[i]))
+                arc_meta.append((cid, bool(con[i]), col))
 
+    _emit_arcs(rd, arc_params, arc_cyclic, arc_meta, mat)
     return rd
 
 
-def _arc_points_for_curve(sketch, cd, curve_idx, curve_slice, is_cyclic, mat):
-    cp_cid = get_uuid(cd, "center_point_id", curve_idx)
-    _, _, cp_slice = get_curve_data(sketch, cp_cid)
+def _arc_params(sketch, cd, curve_idx, curve_slice, is_cyclic, cp_ids, sp_ids, ep_ids):
+    """Measure one arc/circle, or ``None`` when its defining points are missing.
+
+    Returns ``(center_x, center_y, radius, start_angle, sweep, segments)`` in the
+    sketch's local 2D frame. Only the measuring happens per curve; the points
+    themselves come from ``_tessellate_arcs``, which does every arc at once.
+    """
+    _, _, cp_slice = get_curve_data(sketch, cp_ids[curve_idx])
     if not cp_slice:
         return None
     center = Vector(cd.points[cp_slice.points[0].index].position[:2])
 
     if is_cyclic:
         edge = Vector(cd.points[curve_slice.points[0].index].position[:2])
-        radius = (edge - center).length
-        return _arc_points(center, radius, 0, math.tau, ARC_SEGMENTS, mat)
+        return (center.x, center.y, (edge - center).length, 0.0, math.tau, ARC_SEGMENTS)
 
-    sp_cid = get_uuid(cd, "start_point_id", curve_idx)
-    ep_cid = get_uuid(cd, "end_point_id", curve_idx)
+    sp_cid, ep_cid = sp_ids[curve_idx], ep_ids[curve_idx]
     _, _, s_slice = get_curve_data(sketch, sp_cid) if sp_cid else (None, None, None)
     _, _, e_slice = get_curve_data(sketch, ep_cid) if ep_cid else (None, None, None)
     if not (s_slice and e_slice):
@@ -271,8 +370,7 @@ def _arc_points_for_curve(sketch, cd, curve_idx, curve_slice, is_cyclic, mat):
 
     start = Vector(cd.points[s_slice.points[0].index].position[:2])
     end = Vector(cd.points[e_slice.points[0].index].position[:2])
-    radius = (start - center).length
     s_angle = math.atan2((start - center).y, (start - center).x)
     arc_angle = range_2pi(math.atan2((end - center).y, (end - center).x) - s_angle)
     segments = max(int(arc_angle / math.tau * ARC_SEGMENTS), 4)
-    return _arc_points(center, radius, s_angle, arc_angle, segments, mat)
+    return (center.x, center.y, (start - center).length, s_angle, arc_angle, segments)
