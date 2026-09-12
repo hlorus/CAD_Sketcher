@@ -32,17 +32,16 @@ def _is_sketch(curve_data) -> bool:
 def _sketch_geometry(obj):
     """Pickable points/segments of a sketch, keyed by ``curve_id``.
 
-    Reuses ``render_data.build``, which already projects points and tessellates
-    lines/arcs/circles into ``point_ids`` / ``segment_ids`` for picking.
+    Reuses the shared, cached extraction, which already projects points and
+    tessellates lines/arcs/circles into ``point_ids`` / ``segment_ids``. Colours
+    are irrelevant here, so this deliberately skips the colour pass -- reference
+    picking walks every visible curve object, so it would pay for it per object.
     """
     from ..model.sketch_ref import Sketch
-    from ..utilities.preferences import get_prefs
     from . import render_data
 
-    sketch = Sketch(obj)
-    ts = get_prefs().theme_settings.entity
-    rd = render_data.build(sketch, ts, is_active=False)
-    return rd.point_ids, rd.segment_ids
+    geo = render_data.geometry(Sketch(obj))
+    return geo.point_ids, geo.segment_ids
 
 
 def _raw_curves_geometry(obj):

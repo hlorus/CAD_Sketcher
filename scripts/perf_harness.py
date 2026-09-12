@@ -212,14 +212,43 @@ def _metrics():
     )
 
     # 20 hovers on unchanged geometry must trigger ONE extraction (the first),
-    # not 20 -- the picking cache. If it breaks, this jumps to 20. (No cache on a
-    # pre-optimization base: _active_data rebuilds each hover, so it reads ~20.)
+    # not 20 -- the shared geometry cache. If it breaks, this jumps to 20.
     def _hover20():
-        if hasattr(picking, "_pick_cache"):
-            picking._pick_cache.clear()
-        return _call_count(lambda: picking._active_data(bpy.context), 20, "build")
+        rd.invalidate()
+        return _call_count(
+            lambda: picking._active_data(bpy.context), 20, "_extract_geometry"
+        )
 
-    _safe(metrics, "hover20_build_calls", _hover20)
+    _safe(metrics, "hover20_extract_calls", _hover20)
+
+    # The overlay and the picker share one extraction, so a frame in which the
+    # geometry changed must extract ONCE, not once per consumer. If the split
+    # regresses, this reads 2.
+    def _frame_extract_calls():
+        def frame():
+            rd.invalidate()
+            picking._active_data(bpy.context)
+            rd.build(sk, ts, True)
+
+        return _call_count(frame, 5, "_extract_geometry") / 5
+
+    _safe(metrics, "frame_extract_calls", _frame_extract_calls)
+
+    # A selection change must redo colours only, never the extraction.
+    def _hover_extract_calls():
+        selection = importlib.import_module(PKG + ".drawing.selection")
+        rd.build(sk, ts, True)  # warm
+
+        def hovers():
+            for cid in ("a", "b", ""):
+                selection.hover = cid
+                rd.build(sk, ts, True)
+
+        count = _call_count(hovers, 5, "_extract_geometry")
+        selection.hover = ""
+        return count
+
+    _safe(metrics, "hover_extract_calls", _hover_extract_calls)
 
     # A solve resolves segment endpoints from a position map, not a PointRef
     # (double curve-data resolve) each. If rebuild_segments reverts to per-

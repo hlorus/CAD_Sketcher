@@ -198,53 +198,58 @@ def _tessellate_arcs(params, cyclic, mat):
     return pairs, nseg
 
 
-def _contiguous_runs(arcs, offsets, counts):
-    """Merge ascending arc indices into ``(lo, hi)`` segment index bounds."""
-    runs = []
-    start = 0
-    while start < len(arcs):
-        end = start
-        while end + 1 < len(arcs) and arcs[end + 1] == arcs[end] + 1:
-            end += 1
-        runs.append((offsets[arcs[start]], offsets[arcs[end]] + counts[arcs[end]]))
-        start = end + 1
-    return runs
-
-
-def _emit_arcs(rd, params, cyclic, meta, mat):
-    """Tessellate the collected arcs/circles and file them into ``rd``."""
+def _emit_arcs(geo, params, cyclic, meta, mat):
+    """Tessellate the collected arcs/circles and append them to ``geo``."""
     if not params:
         return
     pairs, nseg = _tessellate_arcs(params, cyclic, mat)
 
     # One trip out of numpy, flattened to bare endpoints: the very same vertex
-    # lists land in ``line_buckets`` and in ``segment_ids``, so each vertex is
-    # allocated once. Keeping the (S, 2, 3) nesting here would allocate a wrapper
-    # list per segment on top of that, which at a few thousand segments costs
-    # more than the tessellation itself.
+    # lists are sliced into the colour buckets and referenced by ``segment_ids``,
+    # so each vertex is allocated once. Keeping the (S, 2, 3) nesting would
+    # allocate a wrapper list per segment on top of that, which at a few thousand
+    # segments costs more than the tessellation itself.
     verts = pairs.reshape(-1, 3).tolist()
     counts = nseg.tolist()
-    offsets = np.concatenate(([0], np.cumsum(nseg)[:-1])).tolist()
 
-    by_bucket = {}
-    for idx, (_cid, construction, col) in enumerate(meta):
-        by_bucket.setdefault((construction, tuple(col)), []).append(idx)
-    for key, arcs in by_bucket.items():
-        bucket = rd.line_buckets.setdefault(key, [])
-        # Each arc owns a contiguous run of segments and ``arcs`` is ascending, so
-        # neighbouring arcs in one bucket merge into a single slice. With nothing
-        # selected every arc shares a bucket, making this one extend.
-        for lo, hi in _contiguous_runs(arcs, offsets, counts):
-            bucket.extend(verts[lo * 2 : hi * 2])
+    offset = len(geo.seg_verts)
+    geo.seg_verts.extend(verts)
+    for idx, (cid, construction, fixed) in enumerate(meta):
+        width = counts[idx] * 2
+        geo.seg_ranges.append((cid, construction, fixed, offset, offset + width))
+        offset += width
 
     # ``segment_ids`` keeps picking's (curve_id, a, b) shape; repeat/chain expands
     # the per-arc ids without indexing ``meta`` once per segment.
     cids = chain.from_iterable(
-        repeat(cid, counts[idx]) for idx, (cid, _c, _col) in enumerate(meta)
+        repeat(cid, counts[idx]) for idx, (cid, _c, _f) in enumerate(meta)
     )
-    rd.segment_ids.extend(
+    geo.segment_ids.extend(
         (cid, verts[i * 2], verts[i * 2 + 1]) for i, cid in enumerate(cids)
     )
+
+
+class SketchGeometry:
+    """A sketch's renderable geometry, independent of selection and theme.
+
+    Everything here is a function of the curve data alone, so it survives hover
+    and selection changes and is cached against ``geometry_signature``. Only
+    ``colorize`` has to rerun when the selection changes, which is what lets the
+    overlay and the picker share one extraction instead of building their own.
+
+    ``seg_ranges`` carries ``(curve_id, construction, fixed, lo, hi)`` per segment
+    curve, where ``lo``/``hi`` bound that curve's vertices in ``seg_verts``. Curves
+    stay in order, so neighbouring curves of one colour merge into a single slice.
+    """
+
+    __slots__ = ("point_entries", "point_ids", "seg_verts", "seg_ranges", "segment_ids")
+
+    def __init__(self):
+        self.point_entries = []  # [(curve_id, pos, fixed), ...]
+        self.point_ids = []  # [(curve_id, pos), ...]  (for picking)
+        self.seg_verts = []  # flat LINES endpoints, 2 per segment
+        self.seg_ranges = []  # [(curve_id, construction, fixed, lo, hi), ...]
+        self.segment_ids = []  # [(curve_id, p0, p1), ...] (for picking)
 
 
 class SketchRenderData:
@@ -258,21 +263,109 @@ class SketchRenderData:
         self.point_ids = []  # [(curve_id, pos), ...]  (for picking)
         self.segment_ids = []  # [(curve_id, p0, p1), ...] (for picking)
 
-    def _line_bucket(self, construction, col):
-        return self.line_buckets.setdefault((construction, tuple(col)), [])
+
+# obj name -> (geometry_signature, SketchGeometry). Shared by the overlay and by
+# picking: both used to run their own extraction, so every frame in which the
+# geometry changed paid for it twice (issue #342).
+_geometry_cache = {}
+
+# Cache entries are keyed by object name, so a renamed or deleted sketch leaves
+# one behind. Prune against the real datablocks once the cache grows past this.
+_CACHE_PRUNE_AT = 64
 
 
-def build(sketch, ts, is_active):
-    """Extract ``SketchRenderData`` for one sketch (no GPU work)."""
+def invalidate():
+    """Drop the shared geometry cache (file load, unregister, theme reload)."""
+    _geometry_cache.clear()
+
+
+def _prune_cache():
+    import bpy
+
+    for name in [n for n in _geometry_cache if n not in bpy.data.objects]:
+        del _geometry_cache[name]
+
+
+def geometry(sketch) -> SketchGeometry:
+    """Cached, selection-independent extraction for one sketch."""
+    obj = sketch.target_object
+    if obj is None:
+        return SketchGeometry()
+
+    name = obj.name
+    sig = geometry_signature(sketch)
+    cached = _geometry_cache.get(name)
+    if cached is not None and cached[0] == sig:
+        return cached[1]
+
+    if len(_geometry_cache) >= _CACHE_PRUNE_AT:
+        _prune_cache()
+    geo = _extract_geometry(sketch)
+    _geometry_cache[name] = (sig, geo)
+    return geo
+
+
+def colorize(geo: SketchGeometry, ts, is_active: bool) -> SketchRenderData:
+    """Assign theme colours to a cached extraction and bucket it for drawing.
+
+    The only part that depends on selection/hover/theme, so it is all that reruns
+    on a mouse-move over unchanged geometry. Vertex lists are shared with ``geo``
+    rather than copied -- nothing mutates them.
+    """
     rd = SketchRenderData()
+    rd.point_ids = geo.point_ids
+    rd.segment_ids = geo.segment_ids
+
+    # Selection/hover are transient runtime state (not persisted attributes).
+    selected_set = set(selection.selected)
+    hover = selection.hover
+    highlighted = set(selection.highlight_curve_ids)
+
+    for cid, pos, fixed in geo.point_entries:
+        is_sel = cid in selected_set
+        is_hov = cid == hover or cid in highlighted
+        col = curve_color(ts, is_sel, is_hov, fixed, active=is_active)
+        psize = POINT_SIZE_SELECTED if is_sel else (POINT_SIZE_HOVER if is_hov else 1.0)
+        rd.point_buckets.setdefault(tuple(col), []).append((pos, psize))
+
+    # Merge runs of consecutive curves that land in the same bucket into one slice
+    # copy. With nothing selected the whole sketch is one run, so this is a single
+    # extend instead of one per curve.
+    key = None
+    run_lo = run_hi = 0
+    for cid, construction, fixed, lo, hi in geo.seg_ranges:
+        is_sel = cid in selected_set
+        is_hov = cid == hover or cid in highlighted
+        col = curve_color(ts, is_sel, is_hov, fixed, active=is_active)
+        entry = (construction, tuple(col))
+        if entry == key and lo == run_hi:
+            run_hi = hi
+            continue
+        if key is not None:
+            rd.line_buckets.setdefault(key, []).extend(geo.seg_verts[run_lo:run_hi])
+        key, run_lo, run_hi = entry, lo, hi
+    if key is not None:
+        rd.line_buckets.setdefault(key, []).extend(geo.seg_verts[run_lo:run_hi])
+
+    return rd
+
+
+def build(sketch, ts, is_active) -> SketchRenderData:
+    """Extract ``SketchRenderData`` for one sketch (no GPU work)."""
+    return colorize(geometry(sketch), ts, is_active)
+
+
+def _extract_geometry(sketch) -> SketchGeometry:
+    """Pull a sketch's curve data into a ``SketchGeometry`` (no colour work)."""
+    geo = SketchGeometry()
     cd = sketch.data
     n_curves = len(cd.curves)
     if n_curves == 0:
-        return rd
+        return geo
 
     type_attr = cd.attributes.get("sketch_type")
     if type_attr is None or not has_uuid_field(cd, "curve_id"):
-        return rd
+        return geo
 
     con = _bulk_bool(cd.attributes.get("construction"), n_curves)
     fix = _bulk_bool(cd.attributes.get("fixed"), n_curves)
@@ -284,11 +377,6 @@ def build(sketch, ts, is_active):
     cyc = _bulk_bool(cd.attributes.get("cyclic"), n_curves)
     types = _bulk_int(type_attr, n_curves)
     cids = read_curve_id_list(cd)
-
-    # Selection/hover are transient runtime state (not persisted attributes).
-    selected_set = set(selection.selected)
-    hover = selection.hover
-    highlighted = set(selection.highlight_curve_ids)
 
     mat = _world_matrix(sketch)
     cp_present = has_uuid_field(cd, "center_point_id")
@@ -312,26 +400,21 @@ def build(sketch, ts, is_active):
             continue
         ctype = types[i]
         cid = cids[i]
-        is_sel = cid in selected_set
-        is_hov = cid == hover or cid in highlighted
-        col = curve_color(ts, is_sel, is_hov, bool(fix[i]), active=is_active)
         curve_slice = cd.curves[i]
 
         if ctype == SketchCurveType.POINT:
             pos = (mat @ Vector(cd.points[curve_slice.points[0].index].position))[:]
-            psize = (
-                POINT_SIZE_SELECTED if is_sel else (POINT_SIZE_HOVER if is_hov else 1.0)
-            )
-            rd.point_buckets.setdefault(tuple(col), []).append((pos, psize))
-            rd.point_ids.append((cid, pos))
+            geo.point_entries.append((cid, pos, bool(fix[i])))
+            geo.point_ids.append((cid, pos))
 
         elif ctype == SketchCurveType.LINE and curve_slice.points_length >= 2:
             first = curve_slice.points[0].index
             p1 = (mat @ Vector(cd.points[first].position))[:]
             p2 = (mat @ Vector(cd.points[first + 1].position))[:]
-            bucket = rd._line_bucket(bool(con[i]), col)
-            bucket += [p1, p2]
-            rd.segment_ids.append((cid, p1, p2))
+            lo = len(geo.seg_verts)
+            geo.seg_verts += [p1, p2]
+            geo.seg_ranges.append((cid, bool(con[i]), bool(fix[i]), lo, lo + 2))
+            geo.segment_ids.append((cid, p1, p2))
 
         elif ctype in (SketchCurveType.ARC, SketchCurveType.CIRCLE) and has_arcs:
             params = _arc_params(
@@ -340,10 +423,10 @@ def build(sketch, ts, is_active):
             if params is not None:
                 arc_params.append(params)
                 arc_cyclic.append(bool(cyc[i]))
-                arc_meta.append((cid, bool(con[i]), col))
+                arc_meta.append((cid, bool(con[i]), bool(fix[i])))
 
-    _emit_arcs(rd, arc_params, arc_cyclic, arc_meta, mat)
-    return rd
+    _emit_arcs(geo, arc_params, arc_cyclic, arc_meta, mat)
+    return geo
 
 
 def _arc_params(sketch, cd, curve_idx, curve_slice, is_cyclic, cp_ids, sp_ids, ep_ids):

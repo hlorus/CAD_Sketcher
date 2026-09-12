@@ -12,7 +12,7 @@ curves in ``selection.ignore_list`` are skipped, matching the old behavior.
 import numpy as np
 
 from ..model.sketch_ref import get_active_sketch
-from ..utilities.preferences import get_prefs, get_scale
+from ..utilities.preferences import get_scale
 from ..utilities.view import _project_points_to_region
 from . import render_data, selection
 
@@ -22,28 +22,19 @@ _POINT_RADIUS = 11.0
 _EDGE_RADIUS = 8.0
 
 
-# (sketch object name) -> (geometry_signature, point_ids, segment_ids). Picking
-# only needs the projected points/segments, which depend on geometry, not on the
-# hover/selection state that changes every mouse-move -- so we rebuild the
-# extraction only when the geometry actually changes, not on every hover.
-_pick_cache = {}
-
-
 def _active_data(context):
+    """The active sketch's pickable geometry, from the shared extraction cache.
+
+    Picking needs only the projected points and segments, which depend on the
+    geometry and not on the hover/selection state that changes every mouse-move.
+    ``render_data.geometry`` caches exactly that against the geometry signature,
+    and the overlay draws from the same entry, so a frame in which the geometry
+    changed extracts once rather than once here and once for the overlay.
+    """
     sketch = get_active_sketch(context)
     if not sketch or not sketch.is_visible(context):
         return None
-
-    obj = sketch.target_object
-    sig = render_data.geometry_signature(sketch)
-    cached = _pick_cache.get(obj.name)
-    if cached is not None and cached[0] == sig:
-        return cached[1]
-
-    ts = get_prefs().theme_settings.entity
-    data = render_data.build(sketch, ts, is_active=True)
-    _pick_cache[obj.name] = (sig, data)
-    return data
+    return render_data.geometry(sketch)
 
 
 def _points_screen(items, region, rv3d):

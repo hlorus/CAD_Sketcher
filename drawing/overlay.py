@@ -13,23 +13,26 @@ invalidate a batch.
 """
 
 import gpu
-from gpu_extras.batch import batch_for_shader
 from bpy.types import Context
+from gpu_extras.batch import batch_for_shader
 
+from ..model.sketch_ref import get_sketches
+from ..shaders import Shaders
 from ..utilities import preferences
 from ..utilities.preferences import get_prefs
-from ..shaders import Shaders
-from ..model.sketch_ref import get_sketches
 from . import render_data as rd
-
 
 # obj_name -> (signature, point_batch, line_batch, dashed_batch)
 _cache = {}
 
 # Two triangles covering [-1, 1]^2, for expanding a point into a screen quad.
 _QUAD_CORNERS = [
-    (-1, -1), (1, -1), (1, 1),
-    (-1, -1), (1, 1), (-1, 1),
+    (-1, -1),
+    (1, -1),
+    (1, 1),
+    (-1, -1),
+    (1, 1),
+    (-1, 1),
 ]
 
 
@@ -37,8 +40,13 @@ def _theme_signature(ts):
     return tuple(
         tuple(getattr(ts, name))
         for name in (
-            "default", "highlight", "selected", "selected_highlight",
-            "fixed", "inactive", "inactive_selected",
+            "default",
+            "highlight",
+            "selected",
+            "selected_highlight",
+            "fixed",
+            "inactive",
+            "inactive_selected",
         )
     )
 
@@ -64,9 +72,13 @@ def _build_batches(data):
             pcols += [color] * 6
             pcorners += [(cx * psize, cy * psize) for cx, cy in _QUAD_CORNERS]
     point_batch = (
-        batch_for_shader(Shaders.point_sprite_color_3d(), "TRIS",
-                         {"pos": pverts, "color": pcols, "corner": pcorners})
-        if pverts else None
+        batch_for_shader(
+            Shaders.point_sprite_color_3d(),
+            "TRIS",
+            {"pos": pverts, "color": pcols, "corner": pcorners},
+        )
+        if pverts
+        else None
     )
 
     sverts, scols, dverts, dcols = [], [], [], []
@@ -80,14 +92,20 @@ def _build_batches(data):
             sverts += verts
             scols += [color] * len(verts)
     line_batch = (
-        batch_for_shader(Shaders.polyline_flat_color_3d(), "LINES",
-                         {"pos": sverts, "color": scols})
-        if sverts else None
+        batch_for_shader(
+            Shaders.polyline_flat_color_3d(), "LINES", {"pos": sverts, "color": scols}
+        )
+        if sverts
+        else None
     )
     dashed_batch = (
-        batch_for_shader(Shaders.dashed_flat_color_line_3d(), "LINES",
-                         {"pos": dverts, "color": dcols})
-        if dverts else None
+        batch_for_shader(
+            Shaders.dashed_flat_color_line_3d(),
+            "LINES",
+            {"pos": dverts, "color": dcols},
+        )
+        if dverts
+        else None
     )
     return point_batch, line_batch, dashed_batch
 
@@ -175,8 +193,10 @@ def draw(context: Context):
     # Drop cache entries for sketches that no longer exist / are hidden.
     for stale in [n for n in _cache if n not in seen]:
         del _cache[stale]
+        rd._geometry_cache.pop(stale, None)
 
 
 def invalidate():
     """Force a full rebuild on the next draw (e.g. on unregister/file load)."""
     _cache.clear()
+    rd.invalidate()

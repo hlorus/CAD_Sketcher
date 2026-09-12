@@ -130,14 +130,17 @@ class TestPicking(Sketch2dTestCase):
         self.assertNotEqual(picking.pick(self.ctx, (40, 0)), self.b.curve_id)
 
     def test_cache_reuses_on_hover_and_refreshes_on_geometry_change(self):
-        # First pick populates the cache; a second pick (mouse just moved, no
-        # geometry change) must reuse the same extracted data, not rebuild.
-        picking._pick_cache.clear()
+        # A second pick (mouse just moved, no geometry change) must reuse the same
+        # extracted data, not rebuild it. The extraction is shared with the
+        # overlay, so identity of the returned object is the thing to check.
+        from ..drawing import render_data
+
+        render_data.invalidate()
         picking.pick(self.ctx, (40, 0))
-        cached = picking._pick_cache[self.sketch.target_object.name][1]
+        cached = picking._active_data(self.ctx)
         picking.pick(self.ctx, (20, 0))
         self.assertIs(
-            picking._pick_cache[self.sketch.target_object.name][1],
+            picking._active_data(self.ctx),
             cached,
             "hover rebuilt pick data despite unchanged geometry",
         )
@@ -147,5 +150,57 @@ class TestPicking(Sketch2dTestCase):
         line2 = self.add_line(self.b, c)
         self.solve()
         self.assertEqual(picking.pick(self.ctx, (40, 40)), c.curve_id)
-        self.assertIsNot(picking._pick_cache[self.sketch.target_object.name][1], cached)
+        self.assertIsNot(picking._active_data(self.ctx), cached)
         self.assertTrue(line2.valid)
+
+    def test_overlay_and_picking_share_one_extraction(self):
+        """A changed-geometry frame must extract once, not once per consumer.
+
+        The overlay and the picker each used to run their own ``build``, so every
+        frame of a drag paid for the extraction twice (issue #342).
+        """
+        from ..drawing import render_data
+        from ..utilities.preferences import get_prefs
+
+        render_data.invalidate()
+        calls = []
+        real = render_data._extract_geometry
+
+        def spy(sketch):
+            calls.append(sketch)
+            return real(sketch)
+
+        import unittest.mock as mock
+
+        with mock.patch.object(render_data, "_extract_geometry", spy):
+            # One "frame": the picker resolves hover, then the overlay draws.
+            picking.pick(self.ctx, (40, 0))
+            render_data.build(self.sketch, get_prefs().theme_settings.entity, True)
+        self.assertEqual(
+            len(calls), 1, "geometry was extracted more than once for one frame"
+        )
+
+    def test_hover_does_not_re_extract_geometry(self):
+        """Selection/hover changes must only redo colours, not the extraction."""
+        from ..drawing import render_data
+        from ..utilities.preferences import get_prefs
+
+        ts = get_prefs().theme_settings.entity
+        render_data.invalidate()
+        render_data.build(self.sketch, ts, True)  # warm
+
+        calls = []
+        real = render_data._extract_geometry
+
+        def spy(sketch):
+            calls.append(sketch)
+            return real(sketch)
+
+        import unittest.mock as mock
+
+        with mock.patch.object(render_data, "_extract_geometry", spy):
+            for cid in (self.a.curve_id, self.b.curve_id, ""):
+                selection.hover = cid
+                render_data.build(self.sketch, ts, True)
+        selection.hover = ""
+        self.assertEqual(calls, [], "a hover change re-extracted the geometry")
