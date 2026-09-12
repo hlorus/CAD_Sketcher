@@ -32,14 +32,20 @@ class TestRenderData(Sketch2dTestCase):
         self._build_point_line_circle()
         data = render_data.build(self.sketch, self._ts(), is_active=True)
 
-        n_points = sum(len(v) for v in data.point_buckets.values())
-        n_line_verts = sum(len(v) for v in data.line_buckets.values())
+        n_points = sum(len(centres) for centres, _sizes in data.point_buckets.values())
+        n_segments = sum(
+            sum(len(chunk) for chunk in chunks) for chunks in data.line_buckets.values()
+        )
 
         self.assertEqual(n_points, 3)  # the three point curves
-        self.assertEqual(len(data.point_ids), 3)
-        self.assertGreater(n_line_verts, 2)  # line + tessellated circle
-        self.assertEqual(n_line_verts % 2, 0)  # LINES come in pairs
-        self.assertEqual(len(data.segment_ids), n_line_verts // 2)
+        geo = render_data.geometry(self.sketch)
+        self.assertEqual(len(geo.point_cids), 3)
+        self.assertGreater(n_segments, 1)  # line + tessellated circle
+        # Every bucket chunk is (M, 2, 3): a segment carries both its endpoints.
+        for chunks in data.line_buckets.values():
+            for chunk in chunks:
+                self.assertEqual(chunk.shape[1:], (2, 3))
+        self.assertEqual(n_segments, len(geo.seg_co))
 
     def test_signature_stable_and_invalidates(self):
         self._build_point_line_circle()
@@ -135,7 +141,8 @@ class TestArcTessellation(Sketch2dTestCase):
         data = render_data.build(
             self.sketch, get_prefs().theme_settings.entity, is_active
         )
-        return data, [(Vector(a), Vector(b)) for _cid, a, b in data.segment_ids]
+        geo = render_data.geometry(self.sketch)
+        return data, [(Vector(a), Vector(b)) for a, b in geo.seg_co]
 
     def _local(self, co):
         """A sketch-local 2D point in the world space build() emits."""
@@ -151,7 +158,8 @@ class TestArcTessellation(Sketch2dTestCase):
         for a, b in segments:
             for v in (a, b):
                 self.assertAlmostEqual((v - centre).length, self.RADIUS, places=4)
-        self.assertTrue(all(cid == circle.curve_id for cid, _a, _b in data.segment_ids))
+        geo = render_data.geometry(self.sketch)
+        self.assertEqual(set(geo.seg_cids), {circle.curve_id})
 
     def test_circle_closes_without_a_degenerate_segment(self):
         self.add_circle(self.add_point((0, 0)), self.RADIUS)
@@ -199,17 +207,27 @@ class TestArcTessellation(Sketch2dTestCase):
         self.solve()
         refresh_curve_geometry(self.sketch)
 
-        data, _segments = self._segments()
+        data, segments = self._segments()
         self.assertEqual(sorted(k[0] for k in data.line_buckets), [False, True])
-        n_verts = sum(len(v) for v in data.line_buckets.values())
-        self.assertEqual(len(data.segment_ids), n_verts // 2)
+        n_segments = sum(
+            sum(len(chunk) for chunk in chunks) for chunks in data.line_buckets.values()
+        )
+        self.assertEqual(n_segments, len(segments))
 
         before = set(data.line_buckets)
         selection.clear()
         selection.selected.append(solid.curve_id)
         try:
-            selected, _ = self._segments()
+            selected, sel_segments = self._segments()
             self.assertNotEqual(before, set(selected.line_buckets))
-            self.assertEqual(len(selected.segment_ids), len(data.segment_ids))
+            self.assertEqual(len(sel_segments), len(segments))
+            # Selection recolours; it must not change how much is drawn.
+            self.assertEqual(
+                sum(
+                    sum(len(chunk) for chunk in chunks)
+                    for chunks in selected.line_buckets.values()
+                ),
+                n_segments,
+            )
         finally:
             selection.clear()

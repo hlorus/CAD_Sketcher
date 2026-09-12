@@ -204,3 +204,50 @@ class TestPicking(Sketch2dTestCase):
                 render_data.build(self.sketch, ts, True)
         selection.hover = ""
         self.assertEqual(calls, [], "a hover change re-extracted the geometry")
+
+
+class TestSegmentDistance(Sketch2dTestCase):
+    """``_dist_to_segments`` replaced a per-segment Python loop.
+
+    It runs on every mouse-move over every tessellated segment, so it is
+    vectorized; these pin it against the straightforward scalar formula it
+    replaced, including the degenerate and clamped cases.
+    """
+
+    @staticmethod
+    def _scalar(a, b, px, py):
+        """Point-to-segment distance, written out directly."""
+        abx, aby = b[0] - a[0], b[1] - a[1]
+        seg2 = abx * abx + aby * aby
+        if seg2 < 1e-9:
+            return ((px - a[0]) ** 2 + (py - a[1]) ** 2) ** 0.5
+        t = ((px - a[0]) * abx + (py - a[1]) * aby) / seg2
+        t = min(1.0, max(0.0, t))
+        cx, cy = a[0] + t * abx, a[1] + t * aby
+        return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5
+
+    def test_matches_the_scalar_formula(self):
+        rng = np.random.default_rng(20260912)
+        screen = rng.random((500, 2, 2)) * 1000.0
+        px, py = 500.0, 500.0
+        got = picking._dist_to_segments(screen, px, py)
+        want = [self._scalar(s[0], s[1], px, py) for s in screen]
+        np.testing.assert_allclose(got, want, rtol=1e-9, atol=1e-9)
+
+    def test_handles_degenerate_and_clamped_cases(self):
+        screen = np.array(
+            [
+                [[0.0, 0.0], [0.0, 0.0]],  # zero-length: distance to the point
+                [[0.0, 0.0], [10.0, 0.0]],  # perpendicular foot inside
+                [[0.0, 0.0], [1.0, 0.0]],  # foot beyond the end -> clamps to b
+                [[20.0, 0.0], [30.0, 0.0]],  # foot before the start -> clamps to a
+            ]
+        )
+        got = picking._dist_to_segments(screen, 5.0, 5.0)
+        want = [self._scalar(s[0], s[1], 5.0, 5.0) for s in screen]
+        np.testing.assert_allclose(got, want, rtol=1e-9, atol=1e-9)
+        # the specific expectations, spelled out
+        self.assertAlmostEqual(float(got[0]), (50.0) ** 0.5, places=9)
+        self.assertAlmostEqual(float(got[1]), 5.0, places=9)
+        self.assertAlmostEqual(float(got[2]), (16.0 + 25.0) ** 0.5, places=9)
+        self.assertAlmostEqual(float(got[3]), (225.0 + 25.0) ** 0.5, places=9)

@@ -9,6 +9,8 @@ Only the active sketch is pickable (other sketches are read-only reference), and
 curves in ``selection.ignore_list`` are skipped, matching the old behavior.
 """
 
+from typing import NamedTuple
+
 import numpy as np
 
 from ..model.sketch_ref import get_active_sketch
@@ -20,6 +22,30 @@ from . import render_data, selection
 # and take priority, so a vertex is easy to hit even when it sits on a line.
 _POINT_RADIUS = 11.0
 _EDGE_RADIUS = 8.0
+
+
+class PickSet(NamedTuple):
+    """Pickable geometry in the array form the screen projection consumes.
+
+    ``point_keys`` is aligned with ``point_co`` rows. Segment identity is per
+    *curve*: ``seg_keys`` holds one key per curve and ``seg_owner`` maps each row
+    of ``seg_co`` back into it, so a 48-segment circle carries one key, not 48.
+    """
+
+    point_keys: list
+    point_co: np.ndarray  # (P, 3)
+    seg_keys: list
+    seg_co: np.ndarray  # (M, 2, 3)
+    seg_owner: np.ndarray  # (M,) -> index into seg_keys
+
+
+EMPTY_PICKSET = PickSet(
+    [],
+    np.zeros((0, 3), dtype=np.float32),
+    [],
+    np.zeros((0, 2, 3), dtype=np.float32),
+    np.zeros(0, dtype=np.intp),
+)
 
 
 def _active_data(context):
@@ -37,40 +63,65 @@ def _active_data(context):
     return render_data.geometry(sketch)
 
 
-def _points_screen(items, region, rv3d):
-    """Project [(cid, world_pos), ...] -> (cids, screen (N,2), valid (N,))."""
-    cids = [cid for cid, _ in items]
-    world = np.array([p for _, p in items], dtype=np.float64)
-    screen, valid = _project_points_to_region(world, region, rv3d)
-    return cids, screen, valid
+def _active_pickset(context):
+    """``PickSet`` for the active sketch, honouring ``selection.ignore_list``."""
+    geo = _active_data(context)
+    if geo is None:
+        return None
+
+    pick = PickSet(
+        geo.point_cids, geo.point_co, geo.seg_cids, geo.seg_co, geo.seg_owner
+    )
+    ignore = selection.ignore_list
+    if not ignore:
+        # The common case: the arrays are handed straight through, no filtering.
+        return pick
+    return _without(pick, ignore)
 
 
-def _seg_screen(items, region, rv3d):
-    """Project [(cid, a, b), ...] -> (cids, screen (N,2,2), valid (N,2))."""
-    cids = [cid for cid, _, _ in items]
-    world = np.array([[a, b] for _, a, b in items], dtype=np.float64).reshape(-1, 3)
-    screen, valid = _project_points_to_region(world, region, rv3d)
-    n = len(items)
-    return cids, screen.reshape(n, 2, 2), valid.reshape(n, 2)
+def _without(pick, ignore):
+    """Drop every point/segment whose key is in ``ignore``."""
+    keep_pts = [i for i, k in enumerate(pick.point_keys) if k not in ignore]
+    drop_curves = {c for c, k in enumerate(pick.seg_keys) if k in ignore}
+    if drop_curves:
+        keep_rows = ~np.isin(pick.seg_owner, list(drop_curves))
+        seg_co = pick.seg_co[keep_rows]
+        seg_owner = pick.seg_owner[keep_rows]
+    else:
+        seg_co, seg_owner = pick.seg_co, pick.seg_owner
+    return PickSet(
+        [pick.point_keys[i] for i in keep_pts],
+        pick.point_co[keep_pts],
+        pick.seg_keys,
+        seg_co,
+        seg_owner,
+    )
 
 
-def _dist_to_segment(a, b, px, py):
-    abx, aby = b[0] - a[0], b[1] - a[1]
-    seg2 = abx * abx + aby * aby
-    if seg2 < 1e-9:
-        return ((px - a[0]) ** 2 + (py - a[1]) ** 2) ** 0.5
-    t = ((px - a[0]) * abx + (py - a[1]) * aby) / seg2
-    t = min(1.0, max(0.0, t))
-    cx, cy = a[0] + t * abx, a[1] + t * aby
-    return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5
+def _dist_to_segments(screen, cx, cy):
+    """Perpendicular distance from ``(cx, cy)`` to each of N screen segments.
+
+    ``screen`` is ``(N, 2, 2)``. Vectorized: the per-segment Python loop this
+    replaces ran once per tessellated segment, so a sketch of circles paid for it
+    thousands of times per mouse-move.
+    """
+    a = screen[:, 0]
+    b = screen[:, 1]
+    ab = b - a
+    seg2 = (ab * ab).sum(axis=1)
+    ap = np.stack((cx - a[:, 0], cy - a[:, 1]), axis=1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        t = np.where(seg2 > 1e-9, (ap * ab).sum(axis=1) / seg2, 0.0)
+    t = np.clip(t, 0.0, 1.0)
+    closest = a + t[:, None] * ab
+    return np.hypot(closest[:, 0] - cx, closest[:, 1] - cy)
 
 
-def rank_hits(point_items, seg_items, context, coords):
-    """Ranked element keys from generic ``(key, world)`` datasets under ``coords``.
+def rank_hits(pick, context, coords):
+    """Ranked element keys from a ``PickSet`` under ``coords``.
 
-    ``point_items``: ``[(key, world_pos), ...]``; ``seg_items``: ``[(key, a, b),
-    ...]``. Points take priority over segments, then nearest first, and keys are
-    deduped. Shared by the active-sketch picker and reference curve-object picking
+    Points take priority over segments, then nearest first, and keys are deduped.
+    Shared by the active-sketch picker and reference curve-object picking
     (``reference_pick``), so it must stay independent of any sketch specifics.
     """
     region, rv3d = context.region, context.region_data
@@ -79,29 +130,31 @@ def rank_hits(point_items, seg_items, context, coords):
 
     scale = get_scale()
     cx, cy = float(coords[0]), float(coords[1])
-    hits = []  # (priority, distance, key)
+    order = []  # (priority, distance, key), gathered vectorized then sorted
 
-    if point_items:
-        keys, screen, valid = _points_screen(point_items, region, rv3d)
+    if len(pick.point_co):
+        screen, valid = _project_points_to_region(pick.point_co, region, rv3d)
         d = np.hypot(screen[:, 0] - cx, screen[:, 1] - cy)
-        r = _POINT_RADIUS * scale
-        for i, key in enumerate(keys):
-            if valid[i] and d[i] <= r:
-                hits.append((0, float(d[i]), key))
+        hit = valid & (d <= _POINT_RADIUS * scale)
+        for i in np.flatnonzero(hit).tolist():
+            order.append((0, float(d[i]), pick.point_keys[i]))
 
-    if seg_items:
-        keys, screen, valid = _seg_screen(seg_items, region, rv3d)
-        r = _EDGE_RADIUS * scale
-        for i, key in enumerate(keys):
-            if not (valid[i, 0] and valid[i, 1]):
-                continue
-            dist = _dist_to_segment(screen[i, 0], screen[i, 1], cx, cy)
-            if dist <= r:
-                hits.append((1, float(dist), key))
+    if len(pick.seg_co):
+        n = len(pick.seg_co)
+        screen, valid = _project_points_to_region(
+            pick.seg_co.reshape(-1, 3), region, rv3d
+        )
+        screen = screen.reshape(n, 2, 2)
+        valid = valid.reshape(n, 2).all(axis=1)
+        d = _dist_to_segments(screen, cx, cy)
+        hit = valid & (d <= _EDGE_RADIUS * scale)
+        owners = pick.seg_owner
+        for i in np.flatnonzero(hit).tolist():
+            order.append((1, float(d[i]), pick.seg_keys[owners[i]]))
 
-    hits.sort(key=lambda h: (h[0], h[1]))
+    order.sort(key=lambda h: (h[0], h[1]))
     ranked, seen = [], set()
-    for _, _, key in hits:
+    for _, _, key in order:
         if key not in seen:
             seen.add(key)
             ranked.append(key)
@@ -115,13 +168,10 @@ def pick_ranked(context, coords):
     by screen distance. Unlike ``pick`` this keeps *all* candidates within the hit
     radius, so overlapping entities can be cycled through instead of only ever
     getting the topmost one (issue #50)."""
-    data = _active_data(context)
-    if data is None:
+    pick = _active_pickset(context)
+    if pick is None:
         return []
-    ignore = selection.ignore_list
-    pts = [(cid, p) for cid, p in data.point_ids if cid not in ignore]
-    segs = [(cid, a, b) for cid, a, b in data.segment_ids if cid not in ignore]
-    return rank_hits(pts, segs, context, coords)
+    return rank_hits(pick, context, coords)
 
 
 def pick(context, coords):
@@ -171,20 +221,18 @@ def _seg_intersects_box(a, b, x0, y0, x1, y1):
 
 def pick_box(context, min_co, max_co):
     """curve_ids of the active sketch whose geometry overlaps the screen box."""
-    data = _active_data(context)
+    pick = _active_pickset(context)
     region, rv3d = context.region, context.region_data
-    if data is None or region is None or rv3d is None:
+    if pick is None or region is None or rv3d is None:
         return []
 
-    ignore = selection.ignore_list
     x0, x1 = sorted((float(min_co[0]), float(max_co[0])))
     y0, y1 = sorted((float(min_co[1]), float(max_co[1])))
 
     found, seen = [], set()
 
-    pts = [(cid, p) for cid, p in data.point_ids if cid not in ignore]
-    if pts:
-        cids, screen, valid = _points_screen(pts, region, rv3d)
+    if len(pick.point_co):
+        screen, valid = _project_points_to_region(pick.point_co, region, rv3d)
         inside = (
             valid
             & (screen[:, 0] >= x0)
@@ -192,19 +240,26 @@ def pick_box(context, min_co, max_co):
             & (screen[:, 1] >= y0)
             & (screen[:, 1] <= y1)
         )
-        for i, cid in enumerate(cids):
-            if inside[i] and cid not in seen:
-                seen.add(cid)
-                found.append(cid)
+        for i in np.flatnonzero(inside).tolist():
+            key = pick.point_keys[i]
+            if key not in seen:
+                seen.add(key)
+                found.append(key)
 
-    segs = [(cid, a, b) for cid, a, b in data.segment_ids if cid not in ignore]
-    if segs:
-        cids, screen, valid = _seg_screen(segs, region, rv3d)
-        for i, cid in enumerate(cids):
-            if cid in seen or not (valid[i, 0] and valid[i, 1]):
+    if len(pick.seg_co):
+        n = len(pick.seg_co)
+        screen, valid = _project_points_to_region(
+            pick.seg_co.reshape(-1, 3), region, rv3d
+        )
+        screen = screen.reshape(n, 2, 2)
+        valid = valid.reshape(n, 2).all(axis=1)
+        owners = pick.seg_owner
+        for i in np.flatnonzero(valid).tolist():
+            key = pick.seg_keys[owners[i]]
+            if key in seen:
                 continue
             if _seg_intersects_box(screen[i, 0], screen[i, 1], x0, y0, x1, y1):
-                seen.add(cid)
-                found.append(cid)
+                seen.add(key)
+                found.append(key)
 
     return found

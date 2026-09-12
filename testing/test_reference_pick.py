@@ -15,9 +15,9 @@ class TestReferencePickGeometry(Sketch2dTestCase):
         line = self.add_line(p0, p1)
         standalone = self.add_point((1.0, 1.0))
 
-        points, segments = extract_pickable_geometry(self.sketch.target_object)
-        pkeys = {k for k, _ in points}
-        skeys = {k for k, _, _ in segments}
+        pick = extract_pickable_geometry(self.sketch.target_object)
+        pkeys = set(pick.point_keys)
+        skeys = set(pick.seg_keys)
 
         self.assertIn(standalone.curve_id, pkeys)
         self.assertIn(p0.curve_id, pkeys)
@@ -32,9 +32,10 @@ class TestReferencePickGeometry(Sketch2dTestCase):
         end = self.add_point((0.0, 1.0))
         arc = self.add_arc(ct, start, end)
 
-        _, segments = extract_pickable_geometry(self.sketch.target_object)
-        arc_segments = [k for k, _, _ in segments if k == arc.curve_id]
-        self.assertGreater(len(arc_segments), 1)
+        pick = extract_pickable_geometry(self.sketch.target_object)
+        self.assertIn(arc.curve_id, pick.seg_keys)
+        rows = pick.seg_owner == pick.seg_keys.index(arc.curve_id)
+        self.assertGreater(int(rows.sum()), 1)  # tessellated into several
 
     def test_raw_curves_object_extraction(self):
         # A raw Curves object (no sketch attributes) extracts control points and
@@ -47,10 +48,10 @@ class TestReferencePickGeometry(Sketch2dTestCase):
         obj = bpy.data.objects.new("raw", cu)
         self.scene.collection.objects.link(obj)
 
-        points, segments = extract_pickable_geometry(obj)
-        self.assertEqual(len(points), 3)  # 3 control points
-        self.assertEqual(len(segments), 2)  # 3 points -> 2 spans
-        got = sorted(tuple(round(c, 3) for c in p) for _, p in points)
+        pick = extract_pickable_geometry(obj)
+        self.assertEqual(len(pick.point_keys), 3)  # 3 control points
+        self.assertEqual(len(pick.seg_co), 2)  # 3 points -> 2 spans
+        got = sorted(tuple(round(float(c), 3) for c in p) for p in pick.point_co)
         self.assertEqual(got, [(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0)])
 
     def test_non_curve_object_returns_empty(self):
@@ -58,7 +59,9 @@ class TestReferencePickGeometry(Sketch2dTestCase):
         me.from_pydata([(0.0, 0.0, 0.0)], [], [])
         ob = self.data.objects.new("m", me)
         self.scene.collection.objects.link(ob)
-        self.assertEqual(extract_pickable_geometry(ob), ([], []))
+        pick = extract_pickable_geometry(ob)
+        self.assertEqual(len(pick.point_co), 0)
+        self.assertEqual(len(pick.seg_co), 0)
 
     def test_element_geometry_isolates_one_element_for_highlight(self):
         # element_geometry returns only the requested element's geometry, so the
