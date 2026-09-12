@@ -16,6 +16,7 @@ from ..model.base_constraint import (
     _data_owner_cache,
     _resolve_data_owner,
     reset_data_owner_cache,
+    sketch_resolution,
 )
 from .utils import Sketch2dTestCase
 
@@ -137,3 +138,92 @@ class TestConstraintSketchResolution(Sketch2dTestCase):
         finally:
             for ob in fillers:
                 bpy.data.objects.remove(ob, do_unlink=True)
+
+
+class TestSketchResolutionOverride(Sketch2dTestCase):
+    """The solver publishes the sketch it is solving; the guard makes that safe.
+
+    ``sketch_resolution`` lets a constraint skip re-deriving its sketch, but only
+    when the constraint's own ``id_data`` is that sketch's data. Without the guard
+    a constraint from another sketch would silently resolve to the wrong geometry,
+    which would be a wrong solve rather than an error.
+    """
+
+    def _constrained_pair(self):
+        p0 = self.add_point((0, 0), fixed=True)
+        p1 = self.add_point((2, 0))
+        self.add_line(p0, p1)
+        c = self.sketch.constraints.add_distance(
+            init=True, curve_id_1=p0.curve_id, curve_id_2=p1.curve_id
+        )
+        c.value = 2.0
+        self.solve()
+        return p0, p1, c
+
+    def test_override_is_used_for_its_own_constraints(self):
+        _p0, _p1, c = self._constrained_pair()
+        with sketch_resolution(self.sketch):
+            self.assertIs(c._get_sketch().target_object, self.sketch.target_object)
+
+    def test_override_is_refused_for_another_sketch(self):
+        """The guard: a foreign constraint must ignore the published sketch."""
+        first = self.sketch
+        _p0, _p1, c_first = self._constrained_pair()
+
+        second = self.new_sketch()
+        self.sketch = second
+        _q0, _q1, c_second = self._constrained_pair()
+
+        # Publish the FIRST sketch, then resolve the SECOND sketch's constraint.
+        with sketch_resolution(first):
+            resolved = c_second._get_sketch()
+        self.assertIs(
+            resolved.target_object,
+            second.target_object,
+            "a constraint resolved to the published sketch instead of its own",
+        )
+        with sketch_resolution(second):
+            self.assertIs(c_first._get_sketch().target_object, first.target_object)
+
+    def test_override_nests_and_restores(self):
+        first = self.sketch
+        _p0, _p1, c = self._constrained_pair()
+        second = self.new_sketch()
+
+        with sketch_resolution(first):
+            self.assertIs(c._get_sketch().target_object, first.target_object)
+            with sketch_resolution(second):
+                # Still first: the guard refuses second for this constraint.
+                self.assertIs(c._get_sketch().target_object, first.target_object)
+            self.assertIs(c._get_sketch().target_object, first.target_object)
+
+    def test_override_is_cleared_after_an_exception(self):
+        from ..model import base_constraint
+
+        self.assertIsNone(base_constraint._sketch_resolution_override)
+        with self.assertRaises(RuntimeError):
+            with sketch_resolution(self.sketch):
+                raise RuntimeError("boom")
+        self.assertIsNone(
+            base_constraint._sketch_resolution_override,
+            "the override leaked out of a failed block",
+        )
+
+    def test_two_sketches_solve_independently(self):
+        """End to end: solving one sketch must not disturb the other."""
+        first = self.sketch
+        _p0, p1, _c1 = self._constrained_pair()
+
+        second = self.new_sketch()
+        self.sketch = second
+        _q0, q1, c2 = self._constrained_pair()
+        c2.value = 5.0
+        self.assertTrue(second.solve(self.context))
+
+        # Pull each off its constrained length, solve each, check both land right.
+        p1.co = (9.0, 1.0)
+        q1.co = (1.0, 1.0)
+        self.assertTrue(first.solve(self.context))
+        self.assertTrue(second.solve(self.context))
+        self.assertAlmostEqual((p1.co - _p0.co).length, 2.0, places=3)
+        self.assertAlmostEqual((q1.co - _q0.co).length, 5.0, places=3)

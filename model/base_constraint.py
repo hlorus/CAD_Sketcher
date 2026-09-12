@@ -1,4 +1,5 @@
 import logging
+from contextlib import contextmanager
 from typing import List
 
 import bpy
@@ -14,6 +15,32 @@ from .base_entity import SlvsGenericEntity
 from .constants import ENTITY_PROP_NAMES
 
 logger = logging.getLogger(__name__)
+
+
+# The sketch currently being solved, published by the solver so the constraints it
+# is building do not each re-derive it. A constraint has no back-pointer to its
+# sketch, so _get_sketch resolves one from its id_data -- several times per
+# constraint, ~2800 times per solve on a 400-constraint sketch, which is 21% of
+# the solve even with the owner lookup cached.
+_sketch_resolution_override = None
+
+
+@contextmanager
+def sketch_resolution(sketch):
+    """Publish ``sketch`` as the answer for its own constraints while active.
+
+    Honoured only for a constraint whose ``id_data`` *is* this sketch's data, so
+    it can never resolve a constraint to the wrong sketch: anything from elsewhere
+    falls through to the normal lookup. Re-entrant, and restores the previous
+    value, so a nested solve of another sketch behaves.
+    """
+    global _sketch_resolution_override
+    previous = _sketch_resolution_override
+    _sketch_resolution_override = sketch
+    try:
+        yield
+    finally:
+        _sketch_resolution_override = previous
 
 
 # Curves datablock name -> the Object that owns it.
@@ -294,10 +321,20 @@ class GenericConstraint:
         sketch = self.sketch if hasattr(self, "sketch") and self.sketch else None
         if sketch:
             return sketch
+
+        id_data = getattr(self, "id_data", None)
+
+        # The solver publishes the sketch it is building; accept it only when this
+        # constraint really belongs to that sketch's data.
+        override = _sketch_resolution_override
+        if override is not None and id_data is not None:
+            obj = override.target_object
+            if obj is not None and obj.data is id_data:
+                return override
+
         # Resolve from Curves id_data (native curves path)
         import bpy
 
-        id_data = getattr(self, "id_data", None)
         if id_data and hasattr(id_data, "sketch_constraints"):
             obj = _resolve_data_owner(id_data)
             if obj is not None:

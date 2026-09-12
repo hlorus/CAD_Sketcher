@@ -15,6 +15,7 @@ import numpy as np
 from mathutils import Matrix as _Matrix
 from mathutils import Vector
 
+from .model.base_constraint import sketch_resolution
 from .model.constants import SketchCurveType
 from .utilities.constants import FULL_TURN, HALF_TURN
 from .utilities.curve_data import (
@@ -272,6 +273,15 @@ class CurveSolver:
                 # For lines/arcs/circles: coincident point-on-entity
                 self.solvesys.coincident(self.group_sketch, drag_pt, tweak_handle, wp)
                 self.solvesys.dragged(self.group_sketch, drag_pt, wp)
+
+    def _resolution_sketch(self):
+        """``self.sketch`` as a Sketch accessor, for ``sketch_resolution``."""
+        sketch = self.sketch
+        if sketch is None or hasattr(sketch, "target_object"):
+            return sketch
+        from .model.sketch_ref import Sketch
+
+        return Sketch(sketch)
 
     def _init_constraints(self):
         """Initialize constraints using curve_id handles."""
@@ -606,7 +616,10 @@ class CurveSolver:
 
         self._init_workplane()
         self._init_geometry()
-        self._init_constraints()
+        # Publish the sketch so the constraints being built (and the dimension
+        # values they read) resolve it for free instead of each re-deriving it.
+        with sketch_resolution(self._resolution_sketch()):
+            self._init_constraints()
 
         result = self.solvesys.solve_sketch(self.group_sketch, True)
 
