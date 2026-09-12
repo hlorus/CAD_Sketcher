@@ -99,12 +99,12 @@ def on_depsgraph_update(scene, depsgraph):
             global_data.needs_solve = True
 
         # A linked duplicate (Alt+D) leaves two objects sharing one sketch
-        # datablock; demote the copy to a live consumable of the source instead
-        # of a second (churning) sketch. Deferred to a timer since it swaps the
-        # object's data and modifiers, which can't happen mid-evaluation.
-        from .utilities.consumable import schedule_linked_duplicate_demotions
+        # datablock; drop the copy's sketch role so it stops showing as a second
+        # sketch and churning the self-heal (it stays a plain linked object).
+        from .utilities.consumable import reconcile_linked_duplicates
 
-        schedule_linked_duplicate_demotions(scene)
+        if reconcile_linked_duplicates(scene):
+            global_data.needs_solve = True
 
         # Undo/redo can flatten the origin workplane empties to identity (they
         # then stack into a mushy overlap, #571); re-assert their transforms.

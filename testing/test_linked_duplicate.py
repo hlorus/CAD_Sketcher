@@ -1,18 +1,15 @@
-"""Alt+D (linked duplicate) of a sketch demotes the copy to a consumable.
+"""Alt+D (linked duplicate) of a sketch drops the copy's sketch role.
 
 A linked duplicate shares the Curves datablock, which made the self-heal churn
-(re-minting a shared constraint uid forever, leaking scene keys). The copy is
-demoted to a dumb linked consumable of the source instead: own data, no sketch
-tag, driven by an Object Info node. A full duplicate (Shift+D) copies the data
+(re-minting a shared constraint uid forever, leaking scene keys) and showed a
+second sketch entry. The copy is untagged and unlocked so it stops being a
+sketch, while keeping the shared data + modifiers (still shows the result,
+native linked-duplicate behaviour). A full duplicate (Shift+D) copies the data
 and stays an independent sketch.
 """
 
 from ..model.sketch_ref import _TAG, is_sketch_object, stamp_sketch_props
-from ..utilities.consumable import (
-    _CONSUME_MODIFIER,
-    demote_to_consumable,
-    plan_linked_duplicates,
-)
+from ..utilities.consumable import reconcile_linked_duplicates
 from ..utilities.validate import validate_all_sketches
 from .utils import Sketch2dTestCase
 
@@ -25,10 +22,10 @@ class TestLinkedDuplicate(Sketch2dTestCase):
         self.sketch.constraints.add_distance(
             init=True, value=2.0, curve_id_1=line.curve_id
         )
-        # The depsgraph handler continually refreshes datablock ownership while a
-        # sketch is single-user; simulate that so the owner is current (the test
-        # harness renames the object after creation).
-        plan_linked_duplicates(self.context.scene)
+        # The handler continually refreshes datablock ownership while a sketch is
+        # single-user; run it once so the owner is current (the harness renames
+        # the object after creation).
+        reconcile_linked_duplicates(self.context.scene)
 
     def _link_duplicate(self):
         """Mimic Alt+D: copy the object, share its data."""
@@ -38,15 +35,23 @@ class TestLinkedDuplicate(Sketch2dTestCase):
         stamp_sketch_props(b)  # Alt+D copies the tag; emulate that
         return a, b
 
-    def test_linked_copy_is_planned_for_demotion(self):
+    def test_linked_copy_is_demoted(self):
         self._dimensioned_sketch()
         a, b = self._link_duplicate()
         self.assertIs(a.data, b.data)
+        self.assertTrue(is_sketch_object(b))
 
-        plan = plan_linked_duplicates(self.context.scene)
-        # The owner (a) is kept; the copy (b) is queued for demotion.
-        self.assertIn((b.name, a.name), plan)
-        self.assertNotIn((a.name, b.name), plan)
+        self.assertTrue(reconcile_linked_duplicates(self.context.scene))
+
+        # The copy is no longer a sketch, is unlocked, and still shares the data
+        # (native linked-duplicate: it keeps showing the source's result).
+        self.assertFalse(is_sketch_object(b))
+        self.assertNotIn(_TAG, b)
+        self.assertIs(a.data, b.data)
+        self.assertTrue(is_sketch_object(a), "the original stays a sketch")
+        self.assertEqual(tuple(b.lock_location), (False, False, False))
+        self.assertEqual(tuple(b.lock_rotation), (False, False, False))
+        self.assertEqual(tuple(b.lock_scale), (False, False, False))
 
     def test_demotion_stops_the_churn(self):
         self._dimensioned_sketch()
@@ -63,29 +68,8 @@ class TestLinkedDuplicate(Sketch2dTestCase):
             validate_all_sketches(self.context.scene)
         self.assertGreater(n_keys(), start, "linked-dup should churn before the fix")
 
-        demote_to_consumable(b, a)
+        reconcile_linked_duplicates(self.context.scene)
 
-        # b is no longer a sketch and no longer shares a's data.
-        self.assertFalse(is_sketch_object(b))
-        self.assertNotIn(_TAG, b)
-        self.assertIsNot(a.data, b.data)
-        self.assertIn(_CONSUME_MODIFIER, [m.name for m in b.modifiers])
-
-        # The consumable must be movable: its Object Info reads the source in
-        # ORIGINAL space so the object's own transform places it (RELATIVE would
-        # glue it to the source and make it impossible to move).
-        ng = b.modifiers[_CONSUME_MODIFIER].node_group
-        info = ng.nodes.get("source_info")
-        self.assertIsNotNone(info)
-        self.assertEqual(info.transform_space, "ORIGINAL")
-
-        # ...and its transform must be unlocked (sketches lock theirs), so the
-        # usual Alt+D-then-move works.
-        self.assertEqual(tuple(b.lock_location), (False, False, False))
-        self.assertEqual(tuple(b.lock_rotation), (False, False, False))
-        self.assertEqual(tuple(b.lock_scale), (False, False, False))
-
-        # The churn/leak is gone.
         before = n_keys()
         for _ in range(5):
             validate_all_sketches(self.context.scene)
@@ -100,6 +84,5 @@ class TestLinkedDuplicate(Sketch2dTestCase):
         stamp_sketch_props(c)
 
         # A full copy owns its own data, so it is never demoted.
-        plan = plan_linked_duplicates(self.context.scene)
-        self.assertNotIn(c.name, [copy for copy, _ in plan])
+        reconcile_linked_duplicates(self.context.scene)
         self.assertTrue(is_sketch_object(c))
