@@ -1,9 +1,9 @@
 from bpy.types import Context, UILayout
 
-from .. import declarations
-from .. import types
-from . import VIEW3D_PT_sketcher_base
+from ... import icon_manager
 from ...model.sketch_ref import get_active_sketch
+from .. import declarations, types
+from . import VIEW3D_PT_sketcher_base
 
 
 def draw_constraint_listitem(
@@ -24,8 +24,13 @@ def draw_constraint_listitem(
         emboss=False,
     )
 
-    # Editable name
-    row.prop(constraint, "name", text="")
+    # Editable name, prefixed by the constraint type icon
+    row.prop(
+        constraint,
+        "name",
+        text="",
+        icon_value=icon_manager.get_constraint_icon_for_type(constraint.type),
+    )
 
     # Editable value(s). Dimensional constraints store their value in a scene
     # custom property (scene["slvs:c:{uid}"]); draw that endpoint so it stays

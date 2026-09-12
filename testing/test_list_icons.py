@@ -1,4 +1,4 @@
-"""Tests for the entity type icons shown in the entities list.
+"""Tests for the type icons shown in the entities and constraints lists.
 
 The icons are loose PNGs resolved by name, so a renamed or missing file fails
 silently (the row simply loses its icon). These tests pin the naming contract.
@@ -8,6 +8,7 @@ from unittest import TestCase
 
 from .. import icon_manager
 from ..model.constants import SketchCurveType
+from ..model.group_constraints import SlvsConstraints
 
 TYPES = (
     SketchCurveType.POINT,
@@ -52,3 +53,19 @@ class TestEntityIcons(TestCase):
     def test_unknown_type_falls_back_to_no_icon(self):
         self.assertEqual(icon_manager.get_entity_icon_name(-1), "")
         self.assertEqual(icon_manager.get_entity_icon(-1), 0)
+
+
+class TestConstraintIcons(TestCase):
+    def test_every_constraint_type_has_an_icon(self):
+        # A new constraint type is easy to add without an icon; this catches it.
+        for cls in SlvsConstraints._constraints:
+            self.assertTrue(
+                icon_manager.get_constraint_icon_name(cls.type),
+                f"no icon mapped for constraint type {cls.type}",
+            )
+            path = icon_manager.get_folder_path() / f"{cls.type}.png"
+            self.assertTrue(path.exists(), f"missing icon: {path.name}")
+
+    def test_unknown_type_falls_back_to_no_icon(self):
+        self.assertEqual(icon_manager.get_constraint_icon_name("NOPE"), "")
+        self.assertEqual(icon_manager.get_constraint_icon_for_type("NOPE"), 0)

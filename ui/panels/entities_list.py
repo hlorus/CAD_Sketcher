@@ -89,14 +89,16 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             props.flag = "visible"
             props.value = not visible
 
-            # Entity type icon, dashed for construction geometry
-            lead.label(icon_value=icon_manager.get_entity_icon(ctype, construction))
-
-            # Name — click to rename (left-aligned, hugging the leading icons)
+            # Name — click to rename, prefixed by the entity type icon (dashed
+            # for construction geometry). Left-aligned, so the icon and the name
+            # line up across rows.
             name_row = row.row()
             name_row.alignment = "LEFT"
             props = name_row.operator(
-                declarations.Operators.RenameCurve, text=name, emboss=False
+                declarations.Operators.RenameCurve,
+                text=name,
+                emboss=False,
+                icon_value=icon_manager.get_entity_icon(ctype, construction),
             )
             props.curve_id = cid
             props.new_name = name

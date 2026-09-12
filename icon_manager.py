@@ -39,6 +39,10 @@ _operator_types = {
 }
 
 
+# The constraint list draws by type, the tool grid by operator; the icons are
+# stored per operator, so keep the reverse lookup next to the forward one.
+_constraint_operators = {type: operator for operator, type in _operator_types.items()}
+
 # Entity-type icons for the entities list, one per sketch_type with a dashed
 # variant for construction geometry. Drawn in the selected-entity orange, which
 # reads on light and dark themes alike (preview icons are blitted untinted).
@@ -159,8 +163,8 @@ def _build_dark_previews():
         return
 
     preview_icons_dark = bpy.utils.previews.new()
-    for operator in _operator_types:
-        light = preview_icons.get(operator)
+    for name in preview_icons.keys():
+        light = preview_icons.get(name)
         if not light:
             continue
         w, h = light.icon_size
@@ -168,7 +172,7 @@ def _build_dark_previews():
             continue
         pixels = np.asarray(light.icon_pixels_float, dtype=np.float32).reshape(-1, 4)
         pixels[:, :3] *= _DARK_TINT  # darken the shape, keep the alpha (edges)
-        dark = preview_icons_dark.new(operator)
+        dark = preview_icons_dark.new(name)
         dark.icon_size = (w, h)
         dark.icon_pixels_float.foreach_set(pixels.ravel())
 
@@ -199,10 +203,15 @@ def _use_dark_icons():
         return False
 
 
-def get_constraint_icon(operator: str):
-    icons = preview_icons
+def _themed_icons():
+    """The icon set that contrasts the current theme, or None when unloaded."""
     if preview_icons_dark and _use_dark_icons():
-        icons = preview_icons_dark
+        return preview_icons_dark
+    return preview_icons
+
+
+def get_constraint_icon(operator: str):
+    icons = _themed_icons()
     if not icons:
         return -1
 
@@ -231,10 +240,29 @@ def get_entity_icon(curve_type: int, construction: bool = False) -> int:
     0 is Blender's "no icon", so the result can be passed to icon_value as is.
     """
     name = get_entity_icon_name(curve_type, construction)
+    icons = _themed_icons()
 
-    if not preview_icons or not name:
+    if not icons or not name:
         return 0
 
-    icon = preview_icons.get(name)
+    icon = icons.get(name)
 
     return icon.icon_id if icon else 0
+
+
+def get_constraint_icon_name(type: str) -> str:
+    """Icon name for a constraint type ("DISTANCE", ...), empty when it has none."""
+    return type if type in _constraint_operators else ""
+
+
+def get_constraint_icon_for_type(type: str) -> int:
+    """Preview icon id for a constraint type, 0 when there is none.
+
+    0 is Blender's "no icon", so the result can be passed to icon_value as is.
+    """
+    operator = _constraint_operators.get(type)
+
+    if not operator:
+        return 0
+
+    return max(get_constraint_icon(operator), 0)

@@ -17,10 +17,9 @@ SS = 8
 SIZE = 64
 S = SIZE * SS
 
-# Blender's active orange, the colour selected entities already use in the
-# viewport. Readable on both light and dark themes, which matters because
-# preview icons are blitted untinted.
-COLOR: Tuple[int, int, int, int] = (255, 152, 66, 255)
+# The same near-white as the constraint icons; icon_manager derives the dark
+# variant used on light themes from it.
+COLOR: Tuple[int, int, int, int] = (236, 236, 236, 255)
 
 STROKE = 6 * SS  # line weight of the drawn shapes
 MARGIN = 12 * SS
