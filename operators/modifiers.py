@@ -226,10 +226,8 @@ class BooleanFromToolMixin:
 
         sketch = Sketch(cutter) if cutter.type == "CURVES" else None
 
-        from ..utilities.preferences import get_prefs
-
         if not self.boolean_detected:
-            if get_prefs().use_auto_boolean:
+            if context.scene.sketcher.use_auto_boolean:
                 has_source = (
                     sketch is not None and sketch_source_body(sketch) is not None
                 )

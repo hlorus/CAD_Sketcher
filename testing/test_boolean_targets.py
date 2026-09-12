@@ -173,15 +173,15 @@ class TestBooleanTargets(BgsTestCase):
         )
 
     def test_auto_boolean_off_skips_boolean(self):
-        # With the Auto Boolean preference off, finishing an extrude/revolve must
-        # not boolean the new solid into an overlapping body (issue: new sketches
-        # auto-booling into existing ones). The user can still opt in per-tool.
+        # With Auto Boolean off, finishing an extrude/revolve must not boolean the
+        # new solid into an overlapping body (issue: new sketches auto-booling into
+        # existing ones). The user can still opt in per-tool.
         from ..operators.modifiers import (
             BooleanFromToolMixin,
             boolean_modifier_name,
         )
-        from ..utilities.preferences import get_prefs
 
+        sketcher = self.context.scene.sketcher
         cutter = self._gn_solid("Cutter", (0, 0, 0))  # [-1,1]^3 GN solid
         body = self._box("Body", (1, 1, 1))  # overlaps
 
@@ -207,7 +207,7 @@ class TestBooleanTargets(BgsTestCase):
 
         name = boolean_modifier_name(cutter)
 
-        get_prefs().use_auto_boolean = False
+        sketcher.use_auto_boolean = False
         try:
             BooleanFromToolMixin.finish_booleans(fake, self.context)
             self.assertEqual(fake.operation, "None")
@@ -215,4 +215,4 @@ class TestBooleanTargets(BgsTestCase):
                 body.modifiers.get(name), "auto boolean off must not apply a boolean"
             )
         finally:
-            get_prefs().use_auto_boolean = True
+            sketcher.use_auto_boolean = True

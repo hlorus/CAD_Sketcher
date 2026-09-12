@@ -4,7 +4,6 @@ from ..declarations import GizmoGroups, Operators, WorkSpaceTools
 from ..keymaps import tool_node
 from ..stateful_operator.tool import GenericStateTool
 from ..stateful_operator.utilities.keymap import operator_access
-from ..utilities.preferences import get_prefs
 
 
 class VIEW3D_T_slvs_node_extrude(GenericStateTool, WorkSpaceTool):
@@ -21,6 +20,6 @@ class VIEW3D_T_slvs_node_extrude(GenericStateTool, WorkSpaceTool):
     )
 
     def draw_settings(context, layout, tool):
-        # Shared across the boolean-capable tools: the single addon preference
-        # gating whether a new solid auto-booleans into overlapping bodies.
-        layout.prop(get_prefs(), "use_auto_boolean")
+        # Shared across the boolean-capable tools (scene.sketcher): whether a new
+        # solid auto-booleans into overlapping bodies. Saved per-file.
+        layout.prop(context.scene.sketcher, "use_auto_boolean")

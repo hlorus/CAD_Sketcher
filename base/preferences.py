@@ -111,15 +111,6 @@ class Preferences(AddonPreferences):
         description="Fade curves/meshes while in sketch mode",
         default=True,
     )
-    use_auto_boolean: BoolProperty(
-        name="Auto Boolean",
-        description=(
-            "Automatically boolean a new Extrude/Revolve result into overlapping "
-            "bodies. Turn off to keep new solids separate; you can still choose a "
-            "boolean operation per tool in its redo panel"
-        ),
-        default=True,
-    )
     entity_scale: FloatProperty(
         name="Entity Scale", default=1.0, min=0.1, soft_max=3.0, update=theme.update
     )

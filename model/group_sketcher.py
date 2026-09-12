@@ -204,6 +204,15 @@ class SketcherProps(PropertyGroup):
         options={"SKIP_SAVE"},
         update=update_cb,
     )
+    use_auto_boolean: BoolProperty(
+        name="Auto Boolean",
+        description=(
+            "Automatically boolean a new Extrude/Revolve result into overlapping "
+            "bodies. Turn off to keep new solids separate; you can still choose a "
+            "boolean operation per tool in its redo panel"
+        ),
+        default=True,
+    )
     version: IntVectorProperty(
         name="Extension Version",
         description="CAD Sketcher extension version this scene was saved with",
