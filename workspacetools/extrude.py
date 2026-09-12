@@ -18,3 +18,8 @@ class VIEW3D_T_slvs_node_extrude(GenericStateTool, WorkSpaceTool):
         *tool_node,
         *operator_access(Operators.NodeExtrude),
     )
+
+    def draw_settings(context, layout, tool):
+        # Shared across the boolean-capable tools (scene.sketcher): whether a new
+        # solid auto-booleans into overlapping bodies. Saved per-file.
+        layout.prop(context.scene.sketcher, "use_auto_boolean")
