@@ -1,9 +1,9 @@
 from bpy.types import Context, UILayout
 
-from .. import declarations
-from .. import types
-from . import VIEW3D_PT_sketcher_base
+from ... import icon_manager
 from ...model.sketch_ref import get_active_sketch
+from .. import declarations, types
+from . import VIEW3D_PT_sketcher_base
 
 
 def draw_constraint_listitem(
@@ -23,6 +23,10 @@ def draw_constraint_listitem(
         icon=("HIDE_OFF" if constraint.visible else "HIDE_ON"),
         emboss=False,
     )
+
+    # Constraint type icon, kept outside the name field so the field stays a
+    # plain editable box (entity names are renamed through a popup instead).
+    row.label(icon_value=icon_manager.get_constraint_icon_for_type(constraint.type))
 
     # Editable name
     row.prop(constraint, "name", text="")
