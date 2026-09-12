@@ -11,6 +11,7 @@ Constraints still come from PropertyGroups (referencing entities for now).
 import logging
 import math
 
+import numpy as np
 from mathutils import Matrix as _Matrix
 from mathutils import Vector
 
@@ -24,6 +25,19 @@ from .utilities.curve_data import (
 from .utilities.workplane import ensure_workplane_empty
 
 logger = logging.getLogger(__name__)
+
+
+def _stored_differs(current, new) -> bool:
+    """Whether writing ``new`` over ``current`` would change the stored floats.
+
+    Positions are float32 attributes, so the comparison is done at that precision
+    rather than against the solver's doubles (see ``_write_results``).
+    """
+    return bool(
+        (
+            np.asarray(new, dtype=np.float32) != np.asarray(current, dtype=np.float32)
+        ).any()
+    )
 
 
 class CurveSolver:
@@ -456,7 +470,20 @@ class CurveSolver:
         cid_list = read_uuid_list(curve_data, "curve_id")
         cp_list = read_uuid_list(curve_data, "center_point_id")
 
+        # Point curves whose solved position actually differs from what is stored.
+        # The third pass rebuilds only the segments referencing these, instead of
+        # re-deriving every arc/circle bezier in the sketch on every solve -- a
+        # drag moves a handful of points out of hundreds (issue #342).
+        #
+        # A segment's geometry is a pure function of its referenced point
+        # positions, so a point the solver rewrites with an unchanged value cannot
+        # change any segment and is deliberately left out. That relies on the
+        # invariant every writer of point positions already maintains: whoever
+        # moves a point rebuilds its segments (see batch_update).
+        moved_point_ids = set()
+
         # First pass: update all point positions
+        solved_indices, solved_positions, solved_cids = [], [], []
         for curve_idx in range(n_curves):
             ctype = type_attr.data[curve_idx].value
             cid = cid_list[curve_idx]
@@ -464,8 +491,23 @@ class CurveSolver:
             if ctype == SketchCurveType.POINT:
                 pos = self._get_solved_point_position(cid)
                 if pos:
-                    pt_idx = curve_data.curves[curve_idx].points[0].index
-                    curve_data.points[pt_idx].position = pos
+                    solved_indices.append(curve_data.curves[curve_idx].points[0].index)
+                    solved_positions.append(pos)
+                    solved_cids.append(cid)
+
+        if solved_indices:
+            # Compare as float32, the attribute's own storage: the solver works in
+            # double, so a solved value that merely round-trips would never equal
+            # the stored one under an exact double compare, and every point would
+            # look moved. Comparing what would actually be *stored* makes "moved"
+            # mean "the bytes change", with no tolerance to tune.
+            stored = np.empty(len(curve_data.points) * 3, dtype=np.float32)
+            curve_data.points.foreach_get("position", stored)
+            current = stored.reshape(-1, 3)[solved_indices]
+            incoming = np.asarray(solved_positions, dtype=np.float32)
+            for k in np.flatnonzero((incoming != current).any(axis=1)).tolist():
+                curve_data.points[solved_indices[k]].position = solved_positions[k]
+                moved_point_ids.add(solved_cids[k])
 
         # Second pass: update circle/arc edge positions from solved radius
         for curve_idx in range(n_curves):
@@ -485,11 +527,19 @@ class CurveSolver:
                         # Update first edge point at new radius
                         curve_slice = curve_data.curves[curve_idx]
                         first = curve_slice.points[0].index
-                        curve_data.points[first].position = (
+                        edge = (
                             ct_pos[0] + solved_radius,
                             ct_pos[1],
                             ct_pos[2],
                         )
+                        point = curve_data.points[first]
+                        if _stored_differs(point.position, edge):
+                            point.position = edge
+                            # This circle's radius changed but its centre may not
+                            # have moved, so nothing above would have flagged it.
+                            # rebuild_segments matches a circle through the centre
+                            # point it references, so that is the id to add.
+                            moved_point_ids.add(cp_id)
 
         # Third pass: rebuild segments from updated point positions.
         if getattr(sketch, "is_3d", False):
@@ -497,9 +547,13 @@ class CurveSolver:
 
             rebuild_3d_lines(sketch)
         else:
-            from .utilities.curve_data import rebuild_segments
+            from .utilities.curve_data import compute_merge_ids, rebuild_segments
 
-            rebuild_segments(sketch)
+            rebuild_segments(sketch, point_ids=moved_point_ids)
+            # A scoped rebuild skips merge ids (they track connectivity, which a
+            # move cannot change). A solve reaches here after topology edits too,
+            # so keep recomputing them exactly as the unscoped call used to.
+            compute_merge_ids(sketch)
 
         # Sync entity.co from solved curve positions (bridge for gizmo positioning)
         # TODO: Remove when gizmos read from curve data directly
