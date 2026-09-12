@@ -98,6 +98,14 @@ def on_depsgraph_update(scene, depsgraph):
         if validate_all_sketches(scene):
             global_data.needs_solve = True
 
+        # A linked duplicate (Alt+D) leaves two objects sharing one sketch
+        # datablock; drop the copy's sketch role so it stops showing as a second
+        # sketch and churning the self-heal (it stays a plain linked object).
+        from .utilities.consumable import reconcile_linked_duplicates
+
+        if reconcile_linked_duplicates(scene):
+            global_data.needs_solve = True
+
         # Undo/redo can flatten the origin workplane empties to identity (they
         # then stack into a mushy overlap, #571); re-assert their transforms.
         # Only rewrites when drifted, so this settles in one pass.
