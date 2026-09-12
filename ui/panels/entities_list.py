@@ -1,5 +1,6 @@
 from bpy.types import Context
 
+from ... import icon_manager
 from ...drawing import selection
 from ...model.constants import SketchCurveType
 from ...model.sketch_ref import get_active_sketch
@@ -40,6 +41,7 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
         n = len(curve_data.curves)
         type_attr = curve_data.attributes.get("sketch_type")
         vis_attr = curve_data.attributes.get("visible")
+        construction_attr = curve_data.attributes.get("construction")
         name_attr = curve_data.attributes.get("name")
         if not has_uuid_field(curve_data, "curve_id") or not type_attr:
             return
@@ -51,6 +53,9 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
 
             ctype = type_attr.data[i].value
             visible = vis_attr.data[i].value if vis_attr else True
+            construction = (
+                construction_attr.data[i].value if construction_attr else False
+            )
             selected = cid in selection.selected
             # Stored name (set at creation), falling back to the type label.
             name = (get_str_attr(name_attr, i) if name_attr else "") or _TYPE_NAMES.get(
@@ -83,6 +88,9 @@ class VIEW3D_PT_sketcher_entities(VIEW3D_PT_sketcher_base):
             props.curve_id = cid
             props.flag = "visible"
             props.value = not visible
+
+            # Entity type icon, dashed for construction geometry
+            lead.label(icon_value=icon_manager.get_entity_icon(ctype, construction))
 
             # Name — click to rename (left-aligned, hugging the leading icons)
             name_row = row.row()

@@ -7,6 +7,7 @@ import numpy as np
 from bpy.app import background
 
 from .declarations import Operators
+from .model.constants import SketchCurveType
 
 preview_icons = None
 # Custom preview icons are blitted as-is (Blender never themes them), so the white
@@ -35,6 +36,17 @@ _operator_types = {
     Operators.AddMidPoint: "MIDPOINT",
     Operators.AddRatio: "RATIO",
     Operators.AddSymmetry: "SYMMETRY",
+}
+
+
+# Entity-type icons for the entities list, one per sketch_type with a dashed
+# variant for construction geometry. Drawn in the selected-entity orange, which
+# reads on light and dark themes alike (preview icons are blitted untinted).
+_entity_types = {
+    SketchCurveType.POINT: "POINT",
+    SketchCurveType.LINE: "LINE",
+    SketchCurveType.ARC: "ARC",
+    SketchCurveType.CIRCLE: "CIRCLE",
 }
 
 
@@ -128,6 +140,16 @@ def load_preview_icons():
 
         preview_icons.load(operator, str(icon_path), 'IMAGE')
 
+    for type in _entity_types.values():
+        for construction in (False, True):
+            name = _entity_icon_name_for(type, construction)
+            icon_path = get_folder_path() / f"{name}.png"
+
+            if not icon_path.exists():
+                continue
+
+            preview_icons.load(name, str(icon_path), 'IMAGE')
+
 
 def _build_dark_previews():
     """Derive a dark-tinted copy of each icon for use on light UI themes."""
@@ -190,3 +212,29 @@ def get_constraint_icon(operator: str):
         return -1
 
     return icon.icon_id
+
+
+def _entity_icon_name_for(type: str, construction: bool) -> str:
+    return f"ENTITY_{type}_CONSTRUCTION" if construction else f"ENTITY_{type}"
+
+
+def get_entity_icon_name(curve_type: int, construction: bool = False) -> str:
+    """Icon name for a sketch entity type, empty when the type has none."""
+    type = _entity_types.get(curve_type)
+
+    return _entity_icon_name_for(type, construction) if type else ""
+
+
+def get_entity_icon(curve_type: int, construction: bool = False) -> int:
+    """Preview icon id for a sketch entity type, 0 when there is none.
+
+    0 is Blender's "no icon", so the result can be passed to icon_value as is.
+    """
+    name = get_entity_icon_name(curve_type, construction)
+
+    if not preview_icons or not name:
+        return 0
+
+    icon = preview_icons.get(name)
+
+    return icon.icon_id if icon else 0
