@@ -181,7 +181,6 @@ class Preferences(AddonPreferences):
         box.label(text="General")
         col = box.column(align=True)
         col.prop(self, "auto_hide_objects")
-        col.prop(self, "use_auto_boolean")
         col.prop(self, "use_align_view")
 
         col.prop(self, "entity_scale")
