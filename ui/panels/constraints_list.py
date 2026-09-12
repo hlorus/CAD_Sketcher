@@ -24,13 +24,12 @@ def draw_constraint_listitem(
         emboss=False,
     )
 
-    # Editable name, prefixed by the constraint type icon
-    row.prop(
-        constraint,
-        "name",
-        text="",
-        icon_value=icon_manager.get_constraint_icon_for_type(constraint.type),
-    )
+    # Constraint type icon, kept outside the name field so the field stays a
+    # plain editable box (entity names are renamed through a popup instead).
+    row.label(icon_value=icon_manager.get_constraint_icon_for_type(constraint.type))
+
+    # Editable name
+    row.prop(constraint, "name", text="")
 
     # Editable value(s). Dimensional constraints store their value in a scene
     # custom property (scene["slvs:c:{uid}"]); draw that endpoint so it stays
