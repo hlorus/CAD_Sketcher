@@ -16,13 +16,67 @@ from .constants import ENTITY_PROP_NAMES
 logger = logging.getLogger(__name__)
 
 
+# Curves datablock name -> the Object that owns it.
+#
+# Resolving the owner by scanning bpy.data.objects is O(scene), and _get_sketch
+# runs several times per constraint per solve (700 times for 100 constraints), so
+# the scan made solve time scale with how many *unrelated* objects the file
+# contained: one identical sketch solved 8x slower in a 1000-object scene than in
+# an empty one.
+#
+# The cache holds the Object itself, not its name: ``bpy.data.objects.get(name)``
+# is ALSO a linear scan (0.8us at 10 objects, 49us at 2000), so looking the owner
+# up by name would keep the very cost this removes.
+_data_owner_cache = {}
+
+
+def reset_data_owner_cache():
+    """Drop the datablock-owner cache (e.g. on file load)."""
+    _data_owner_cache.clear()
+
+
+def _resolve_data_owner(id_data):
+    """The Object whose data is ``id_data``, or ``None``.
+
+    Correctness does not rely on the cache being fresh: a cached Object is
+    *verified* to still own ``id_data`` under the same conditions the scan accepts
+    (identity, or a name match -- evaluated data has a different identity than its
+    original, which is why the name fallback exists). A stale entry therefore
+    costs a rescan and can never return the wrong object. Blender invalidates
+    references to removed IDs, so reading one raises rather than returning garbage.
+    """
+    import bpy
+
+    cached = _data_owner_cache.get(id_data.name)
+    if cached is not None:
+        try:
+            data = cached.data
+        except ReferenceError:  # the object was removed since we cached it
+            del _data_owner_cache[id_data.name]
+        else:
+            if data is id_data or (data is not None and data.name == id_data.name):
+                return cached
+
+    for obj in bpy.data.objects:
+        if obj.data is id_data:
+            _data_owner_cache[id_data.name] = obj
+            return obj
+    for obj in bpy.data.objects:
+        if obj.data and obj.data.name == id_data.name:
+            _data_owner_cache[id_data.name] = obj
+            return obj
+    return None
+
+
 class GenericConstraint:
     if bpy.app.version >= (5, 0):
+
         def _name_get_transform(self, curr_value, is_set):
             return curr_value if is_set else str(self)
 
         name: StringProperty(name="Name", get_transform=_name_get_transform)
     else:
+
         def _name_getter(self):
             return self.get("name", str(self))
 
@@ -105,6 +159,7 @@ class GenericConstraint:
     def is_orphan(self):
         """Check if this constraint's sketch object has been deleted."""
         import bpy
+
         c_sketch_name = self.get("_sketch_object", "")
         if c_sketch_name:
             return bpy.data.objects.get(c_sketch_name) is None
@@ -126,7 +181,11 @@ class GenericConstraint:
         # Compare by sketch object name (new) or entity pointer (legacy)
         c_sketch_name = self.get("_sketch_object", "")
         if c_sketch_name and active_sketch:
-            active_obj = active_sketch.target_object if hasattr(active_sketch, 'target_object') else active_sketch
+            active_obj = (
+                active_sketch.target_object
+                if hasattr(active_sketch, "target_object")
+                else active_sketch
+            )
             if active_obj:
                 return c_sketch_name == active_obj.name
         return self.sketch == active_sketch
@@ -134,18 +193,18 @@ class GenericConstraint:
     def draw_plane(self):
         from mathutils import Vector
 
-        sketch = self._get_sketch() if hasattr(self, '_get_sketch') else None
+        sketch = self._get_sketch() if hasattr(self, "_get_sketch") else None
         if not sketch and self.sketch_i != -1 and self.sketch:
             sketch = self.sketch
 
         if sketch:
-            wp_obj = getattr(sketch, 'workplane_object', None)
-            if not wp_obj and hasattr(sketch, 'target_object') and sketch.target_object:
+            wp_obj = getattr(sketch, "workplane_object", None)
+            if not wp_obj and hasattr(sketch, "target_object") and sketch.target_object:
                 wp_obj = sketch.target_object.parent
             if wp_obj:
                 mat = wp_obj.matrix_world
                 return mat.translation.copy(), Vector(mat.col[2][:3]).normalized()
-            wp = getattr(sketch, 'wp', None)
+            wp = getattr(sketch, "wp", None)
             if wp:
                 return wp.p1.location, wp.normal
 
@@ -155,6 +214,7 @@ class GenericConstraint:
     def copy(self, context, entities):
         # copy itself to another set of entities
         from .sketch_ref import get_active_constraints
+
         c = get_active_constraints(context).new_from_type(self.type)
         if hasattr(self, "sketch"):
             c.sketch = self.sketch
@@ -212,11 +272,11 @@ class GenericConstraint:
         Override for constraints with special placement logic.
         """
         ids = []
-        if getattr(self, 'curve_id_1', ""):
+        if getattr(self, "curve_id_1", ""):
             ids.append(self.curve_id_1)
-        if getattr(self, 'curve_id_2', ""):
+        if getattr(self, "curve_id_2", ""):
             ids.append(self.curve_id_2)
-        if getattr(self, 'curve_id_3', ""):
+        if getattr(self, "curve_id_3", ""):
             ids.append(self.curve_id_3)
         return ids
 
@@ -236,19 +296,17 @@ class GenericConstraint:
             return sketch
         # Resolve from Curves id_data (native curves path)
         import bpy
+
         id_data = getattr(self, "id_data", None)
         if id_data and hasattr(id_data, "sketch_constraints"):
-            for obj in bpy.data.objects:
-                if obj.data is id_data:
-                    from .sketch_ref import Sketch
-                    return Sketch(obj)
-            # Fallback: match by name (evaluated data has different identity)
-            for obj in bpy.data.objects:
-                if obj.data and obj.data.name == id_data.name:
-                    from .sketch_ref import Sketch
-                    return Sketch(obj)
+            obj = _resolve_data_owner(id_data)
+            if obj is not None:
+                from .sketch_ref import Sketch
+
+                return Sketch(obj)
         # Last resort: use active sketch from context
         from .sketch_ref import get_active_sketch
+
         return get_active_sketch(bpy.context)
 
     def ref(self, n=1):
@@ -260,6 +318,7 @@ class GenericConstraint:
         if not sketch:
             return None
         from .curve_ref import curve_ref
+
         return curve_ref(sketch, cid)
 
     def create_slvs_data(self, solvesys, **kwargs):
@@ -270,7 +329,6 @@ class GenericConstraint:
 
 
 class DimensionalConstraint(GenericConstraint):
-
     value: Property
     setting: BoolProperty
 
@@ -283,6 +341,7 @@ class DimensionalConstraint(GenericConstraint):
 
     def _get_scene(self):
         import bpy
+
         return bpy.context.scene
 
     def _set_value_force(self, value: float):
@@ -375,6 +434,7 @@ class DimensionalConstraint(GenericConstraint):
             col = sub.column()
             col.enabled = not self.is_reference
             import bpy
+
             scene = bpy.context.scene
             uid = getattr(self, "constraint_uid", "")
             key = None

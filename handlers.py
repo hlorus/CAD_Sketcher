@@ -69,11 +69,13 @@ def on_load_post(*args):
     legacy data is detected, so all users don't pay for it on every file load.
     """
     from .drawing import overlay, selection
+    from .model.base_constraint import reset_data_owner_cache
     from .utilities.curve_data import reset_merge_cache
     from .utilities.validate import reset_cache
 
     reset_cache()
     reset_merge_cache()
+    reset_data_owner_cache()
     overlay.invalidate()
     selection.clear()
 
