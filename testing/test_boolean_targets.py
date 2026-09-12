@@ -171,3 +171,48 @@ class TestBooleanTargets(BgsTestCase):
         self.assertIsNone(
             dropped.modifiers.get(name), "dropped body's stale boolean is removed"
         )
+
+    def test_auto_boolean_off_skips_boolean(self):
+        # With the Auto Boolean preference off, finishing an extrude/revolve must
+        # not boolean the new solid into an overlapping body (issue: new sketches
+        # auto-booling into existing ones). The user can still opt in per-tool.
+        from ..operators.modifiers import (
+            BooleanFromToolMixin,
+            boolean_modifier_name,
+        )
+        from ..utilities.preferences import get_prefs
+
+        cutter = self._gn_solid("Cutter", (0, 0, 0))  # [-1,1]^3 GN solid
+        body = self._box("Body", (1, 1, 1))  # overlaps
+
+        class _Coll(list):
+            def add(self):
+                item = types.SimpleNamespace(name="", enabled=True)
+                self.append(item)
+                return item
+
+        fake = types.SimpleNamespace(
+            _obj=cutter,
+            operation="Difference",
+            boolean_detected=False,
+            boolean_targets=_Coll(),
+            offset=1.0,
+        )
+        fake._boolean_offset = types.MethodType(
+            BooleanFromToolMixin._boolean_offset, fake
+        )
+        fake._apply_boolean_targets = types.MethodType(
+            BooleanFromToolMixin._apply_boolean_targets, fake
+        )
+
+        name = boolean_modifier_name(cutter)
+
+        get_prefs().use_auto_boolean = False
+        try:
+            BooleanFromToolMixin.finish_booleans(fake, self.context)
+            self.assertEqual(fake.operation, "None")
+            self.assertIsNone(
+                body.modifiers.get(name), "auto boolean off must not apply a boolean"
+            )
+        finally:
+            get_prefs().use_auto_boolean = True

@@ -226,14 +226,27 @@ class BooleanFromToolMixin:
 
         sketch = Sketch(cutter) if cutter.type == "CURVES" else None
 
-        # The solid must be evaluated before the overlap test can see it.
-        context.view_layer.update()
-        targets = detect_targets(context, cutter, sketch)
+        from ..utilities.preferences import get_prefs
 
         if not self.boolean_detected:
-            has_source = sketch is not None and sketch_source_body(sketch) is not None
-            self.operation = default_operation(self._boolean_offset(), has_source)
+            if get_prefs().use_auto_boolean:
+                has_source = (
+                    sketch is not None and sketch_source_body(sketch) is not None
+                )
+                self.operation = default_operation(self._boolean_offset(), has_source)
+            else:
+                # Auto boolean is off: leave the new solid standalone. The user can
+                # still pick an operation in the redo panel to boolean on demand.
+                self.operation = "None"
             self.boolean_detected = True
+
+        # The solid must be evaluated before the overlap test can see it. Skip the
+        # overlap detection entirely when there is no operation to apply.
+        if self.operation != "None":
+            context.view_layer.update()
+            targets = detect_targets(context, cutter, sketch)
+        else:
+            targets = []
 
         # Preserve exclusions across redo while adding newly-overlapping bodies; a
         # target that drops out of detection loses its (now moot) boolean anyway.
