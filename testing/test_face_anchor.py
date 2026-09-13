@@ -226,3 +226,52 @@ class TestFaceAnchor(BgsTestCase):
         self.ob.data.update()
 
         self.assertIsNone(self._recompute())
+
+    # -- duplicated anchors -----------------------------------------------
+
+    def _duplicate_empty(self):
+        # Object.copy() carries custom properties, exactly like Shift+D.
+        dup = self.empty.copy()
+        self.scene.collection.objects.link(dup)
+        return dup
+
+    def _place_on_face(self, empty):
+        empty[fa.KEY_LAST_CO] = [-1.0, 0.0, 0.0]
+        empty.matrix_world.translation = (-1.0, 0.0, 0.0)
+
+    def test_duplicate_right_after_copy_frees_the_copy(self):
+        self._place_on_face(self.empty)
+        dup = self._duplicate_empty()
+        self.context.view_layer.update()
+
+        # The depsgraph handler may already have run on the update; either way
+        # the end state must be the same.
+        fa.free_duplicate_anchors(self.scene)
+
+        self.assertIn(fa.KEY_FACE_ID, self.empty)
+        self.assertNotIn(fa.KEY_FACE_ID, dup)
+        self.assertNotIn(fa.KEY_SOURCE, dup)
+        # The kept empty still uses the face, so the mesh id must survive.
+        fa.reconcile_orphan_anchors(self.scene)
+        self.assertEqual(self._count_id_faces(), 1)
+        bpy.data.objects.remove(dup, do_unlink=True)
+
+    def test_duplicate_keeps_the_empty_on_the_face(self):
+        self._place_on_face(self.empty)
+        dup = self._duplicate_empty()
+        # The original was moved away; the copy still sits on the face.
+        self.empty.matrix_world.translation = (5.0, 5.0, 5.0)
+        dup.matrix_world.translation = (-1.0, 0.0, 0.0)
+        self.context.view_layer.update()
+
+        fa.free_duplicate_anchors(self.scene)
+
+        self.assertNotIn(fa.KEY_FACE_ID, self.empty)
+        self.assertIn(fa.KEY_FACE_ID, dup)
+        # Freed empties stay where the user put them.
+        self.assertAlmostEqual(self.empty.matrix_world.translation.x, 5.0)
+        bpy.data.objects.remove(dup, do_unlink=True)
+
+    def test_single_anchor_untouched(self):
+        self.assertEqual(fa.free_duplicate_anchors(self.scene), [])
+        self.assertIn(fa.KEY_FACE_ID, self.empty)

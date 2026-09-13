@@ -438,7 +438,9 @@ class NodeOperator(Operator3d):
 
     def is_valid_target(self, obj):
         """Whether ``obj`` may receive this node modifier. Override to restrict."""
-        return obj is not None
+        # Only geometry objects: an empty (e.g. a workplane) would otherwise take
+        # a Geometry Nodes modifier that does nothing but clutter it.
+        return obj is not None and obj.type in {"MESH", "CURVE", "CURVES"}
 
     def gather_selection(self, context):
         # Source for the framework's prefill-from-selection: the base Object

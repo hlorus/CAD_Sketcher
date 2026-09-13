@@ -24,23 +24,37 @@ class VIEW3D_MT_slvs_add_sketch(Menu):
         )
 
 
-def _draw_detached_warning(layout: UILayout, sketch):
-    """Warn when the sketch's workplane lost its anchoring mesh face."""
-    from ...utilities.face_anchor import KEY_DETACHED
+def _draw_face_anchor(layout: UILayout, sketch):
+    """Show which mesh face the sketch's workplane follows, with a way out.
+
+    An anchored workplane is moved back onto its face whenever the mesh updates,
+    so a manual move silently reverts. Surfacing the anchor (not only once it
+    breaks) lets the user see why and free the workplane.
+    """
+    from ...utilities.face_anchor import KEY_DETACHED, KEY_FACE_ID, KEY_SOURCE
 
     wp = sketch.workplane_object
-    if not wp or not wp.get(KEY_DETACHED):
+    if not wp or KEY_FACE_ID not in wp:
         return
 
-    box = layout.box()
-    box.alert = True
-    box.label(text="Workplane detached from mesh face", icon="ERROR")
-    row = box.row(align=True)
+    ops = declarations.Operators
+    if wp.get(KEY_DETACHED):
+        box = layout.box()
+        box.alert = True
+        box.label(text="Workplane detached from mesh face", icon="ERROR")
+        row = box.row(align=True)
+        row.operator(
+            ops.ReattachWorkplane, text="Re-attach", icon="EYEDROPPER"
+        ).empty_name = wp.name
+    else:
+        source = wp.get(KEY_SOURCE)
+        row = layout.row(align=True)
+        row.label(
+            text=f"Anchored to {source.name if source else 'mesh face'}",
+            icon="SNAP_FACE",
+        )
     row.operator(
-        declarations.Operators.ReattachWorkplane, text="Re-attach", icon="EYEDROPPER"
-    ).empty_name = wp.name
-    row.operator(
-        declarations.Operators.MakeWorkplaneFree, text="Make Free", icon="UNLINKED"
+        ops.MakeWorkplaneFree, text="Make Free", icon="UNLINKED"
     ).empty_name = wp.name
 
 
@@ -136,7 +150,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 dof_icon = "CHECKMARK" if dof_ok else "ERROR"
                 row.label(text=dof_msg, icon=dof_icon)
 
-            _draw_detached_warning(layout, sketch)
+            _draw_face_anchor(layout, sketch)
 
             layout.separator()
 

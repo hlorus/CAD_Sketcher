@@ -21,11 +21,15 @@ anchor (subdivide/extrude/inset all keep the id). We therefore look the face up
   - Deleting the anchor face removes the id -> flagged detached.
 """
 
+import logging
+
 import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
 from .geometry import orientation_from_normal_ref
+
+logger = logging.getLogger(__name__)
 
 # FACE-domain INT attribute stamped on the source mesh.
 FACE_ID_ATTR = "slvs_face_id"
@@ -134,9 +138,57 @@ def clear_anchor(empty):
     if source is not None and source.type == "MESH" and face_id is not None:
         clear_face_id(source.data, face_id)
         _live_anchors.discard((source.data.name, face_id))
+    _strip_anchor_props(empty)
+
+
+def _strip_anchor_props(empty):
     for key in (KEY_SOURCE, KEY_FACE_ID, KEY_DETACHED, KEY_LAST_CO, KEY_REF):
         if key in empty:
             del empty[key]
+
+
+def free_duplicate_anchors(scene: bpy.types.Scene) -> list:
+    """Free all but one of several empties anchored to the same face.
+
+    Duplicating an anchored workplane (Shift+D) copies its custom properties, so
+    the copy silently claims the same face and every source update snaps all of
+    them onto it. Only one empty can own a face: keep the one sitting closest to
+    the face (ties, as right after a duplicate, go to the older object) and
+    turn the rest into free workplanes where they are. The face id stays on the
+    mesh since the kept empty still uses it.
+
+    Returns the freed empties.
+    """
+    groups = {}
+    for empty in iter_face_workplanes(scene):
+        source = empty.get(KEY_SOURCE)
+        if source is None:
+            continue
+        groups.setdefault((source.name, empty[KEY_FACE_ID]), []).append(empty)
+
+    freed = []
+    for empties in groups.values():
+        if len(empties) < 2:
+            continue
+        source = empties[0][KEY_SOURCE]
+        last_co = empties[0].get(KEY_LAST_CO)
+        anchor = source.matrix_world @ Vector(last_co) if last_co else None
+
+        def rank(e):
+            dist = (
+                (e.matrix_world.translation - anchor).length
+                if anchor is not None
+                else 0.0
+            )
+            # Round so float noise can't beat the age tie-break.
+            return (round(dist, 6), e.session_uid)
+
+        keep = min(empties, key=rank)
+        for e in empties:
+            if e is not keep:
+                _strip_anchor_props(e)
+                freed.append(e)
+    return freed
 
 
 def reconcile_orphan_anchors(scene):
@@ -268,10 +320,13 @@ def update_face_workplanes(context, depsgraph):
 
     scene = context.scene
 
-    # Clear ids left behind by deleted workplane empties (writes to mesh data,
-    # so guard against the resulting depsgraph re-entry).
+    # Free copies of duplicated anchored empties, then clear ids left behind by
+    # deleted workplane empties (both write ID data, so guard against the
+    # resulting depsgraph re-entry).
     global_data.updating_face_wp = True
     try:
+        for empty in free_duplicate_anchors(scene):
+            logger.info("Freed duplicated face anchor on workplane %s", empty.name)
         reconcile_orphan_anchors(scene)
     finally:
         global_data.updating_face_wp = False
