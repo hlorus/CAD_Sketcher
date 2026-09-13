@@ -308,7 +308,7 @@ class TestFaceAnchor(BgsTestCase):
 
     def test_panel_shows_anchor_on_shared_workplane(self):
         from ..model.sketch_ref import Sketch, stamp_sketch_props
-        from ..ui.panels.sketch_select import _draw_face_anchor
+        from ..ui.panels.sketch_select import _draw_workplane
 
         sketches = []
         for i in range(2):
@@ -336,19 +336,85 @@ class TestFaceAnchor(BgsTestCase):
 
         try:
             layout = _Layout()
-            _draw_face_anchor(self.context, layout, Sketch(sketches[0]))
+            _draw_workplane(self.context, layout, Sketch(sketches[0]))
             self.assertEqual(
                 layout.labels,
                 ["Workplane anchored to anchor_cube (shared by 2 sketches)"],
             )
-            self.assertEqual(layout.ops, ["Change Face", "Make Free"])
+            self.assertEqual(layout.ops, ["Change Workplane", "Make Free"])
 
             fa.clear_anchor(self.empty)
             layout = _Layout()
-            _draw_face_anchor(self.context, layout, Sketch(sketches[0]))
-            self.assertEqual(layout.ops, ["Anchor to Face"])
+            _draw_workplane(self.context, layout, Sketch(sketches[0]))
+            self.assertEqual(layout.labels, [])
+            self.assertEqual(layout.ops, ["Change Workplane"])
         finally:
             for ob in sketches:
                 data = ob.data
                 bpy.data.objects.remove(ob, do_unlink=True)
                 bpy.data.hair_curves.remove(data)
+
+    # -- changing a sketch's workplane --------------------------------------
+
+    def _sketch_on(self, parent, name="wp_sketch"):
+        from ..model.sketch_ref import stamp_sketch_props
+
+        ob = bpy.data.objects.new(name, bpy.data.hair_curves.new(name))
+        self.scene.collection.objects.link(ob)
+        stamp_sketch_props(ob)
+        ob.parent = parent
+        return ob
+
+    def _remove(self, ob):
+        data = ob.data
+        bpy.data.objects.remove(ob, do_unlink=True)
+        bpy.data.hair_curves.remove(data)
+
+    def test_set_sketch_workplane_moves_sketch_onto_plane(self):
+        from ..operators.add_sketch import set_sketch_workplane
+
+        target = bpy.data.objects.new("target_wp", None)
+        self.scene.collection.objects.link(target)
+        target.matrix_world = Matrix.Translation((3.0, 4.0, 5.0))
+        sk = self._sketch_on(self.empty)
+        other = self._sketch_on(self.empty, "other_sketch")
+        try:
+            self.assertTrue(set_sketch_workplane(self.context, sk, target))
+            self.context.view_layer.update()
+            self.assertIs(sk.parent, target)
+            self.assertAlmostEqual(
+                (sk.matrix_world.translation - target.matrix_world.translation).length,
+                0.0,
+            )
+            # The old workplane is still used by another sketch: keep its anchor.
+            self.assertIn(self.empty.name, bpy.data.objects)
+            self.assertIn(fa.KEY_FACE_ID, self.empty)
+            # Picking the current workplane again is a no-op.
+            self.assertFalse(set_sketch_workplane(self.context, sk, target))
+        finally:
+            self._remove(sk)
+            self._remove(other)
+            bpy.data.objects.remove(target, do_unlink=True)
+
+    def test_set_sketch_workplane_removes_unused_face_workplane(self):
+        from ..operators.add_sketch import set_sketch_workplane
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        ensure_origin_workplane_empties(self.context)
+        wp_xy = self.scene.sketcher.wp_xy
+        old = self.empty
+        sk = self._sketch_on(old)
+        try:
+            self.assertTrue(set_sketch_workplane(self.context, sk, wp_xy))
+            # The face workplane was only used by this sketch: gone, with its id.
+            self.assertNotIn("WP", bpy.data.objects)
+            self.assertIsNone(self.ob.data.attributes.get(fa.FACE_ID_ATTR))
+            # Moving off an origin plane must never delete it.
+            back = bpy.data.objects.new("WP", None)
+            self.scene.collection.objects.link(back)
+            self.empty = back  # tearDown removes it
+            self.assertTrue(set_sketch_workplane(self.context, sk, back))
+            self.assertIs(self.scene.sketcher.wp_xy, wp_xy)
+            self.assertIn(wp_xy.name, bpy.data.objects)
+        finally:
+            self._remove(sk)

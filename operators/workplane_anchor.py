@@ -1,10 +1,10 @@
-"""Operators to anchor a workplane to a mesh face, change that face, or free it."""
+"""Operators to move a sketch to another workplane and manage face anchors."""
 
 import logging
 
 import bpy
 from bpy.props import StringProperty
-from bpy.types import Context, Event, Operator
+from bpy.types import Context, Event, Operator, SpaceView3D
 from bpy.utils import register_classes_factory
 from mathutils import Vector
 
@@ -112,6 +112,120 @@ class View3D_OT_slvs_reattach_workplane(Operator):
         return {"PASS_THROUGH"}
 
 
+# Key -> origin plane, by the axis normal to it (same as the Add Sketch tool).
+_ORIGIN_PLANE_KEYS = {"Z": "wp_xy", "Y": "wp_xz", "X": "wp_yz"}
+
+
+class View3D_OT_slvs_change_sketch_workplane(Operator):
+    """Pick a workplane or mesh face to move the active sketch onto. The sketch keeps its geometry and constraints"""
+
+    bl_idname = Operators.ChangeSketchWorkplane
+    bl_label = "Change Sketch Workplane"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        from ..model.sketch_ref import get_active_sketch
+
+        if context.area is None or context.area.type != "VIEW_3D":
+            return False
+        sketch = get_active_sketch(context)
+        return sketch is not None and not sketch.is_3d
+
+    def invoke(self, context: Context, event: Event):
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        ensure_origin_workplane_empties(context)
+        self._hover, self._preview = "", None
+        # The Add Sketch gizmo only exists while its tool is active, which isn't
+        # available in sketch mode, so draw the same picker from here.
+        self._draw_handle = SpaceView3D.draw_handler_add(
+            self._draw, (), "WINDOW", "POST_VIEW"
+        )
+        context.window.cursor_modal_set("EYEDROPPER")
+        context.workspace.status_text_set(
+            "Pick a workplane or mesh face   |   X/Y/Z: origin plane   |   "
+            "Esc/RMB: cancel"
+        )
+        context.window_manager.modal_handler_add(self)
+        return {"RUNNING_MODAL"}
+
+    def _draw(self):
+        from ..gizmos.workplane import draw_workplane_picker
+
+        draw_workplane_picker(bpy.context, self._hover, self._preview)
+
+    def _end(self, context: Context):
+        SpaceView3D.draw_handler_remove(self._draw_handle, "WINDOW")
+        context.window.cursor_modal_restore()
+        context.workspace.status_text_set(None)
+        context.area.tag_redraw()
+
+    def _pick(self, context: Context, event: Event):
+        """The workplane empty a click resolves to, creating a face one if needed."""
+        from ..utilities.workplane import resolve_sketch_base
+        from .add_sketch import create_face_workplane
+
+        coords = Vector((event.mouse_region_x, event.mouse_region_y))
+        kind, a, b = resolve_sketch_base(context, coords)
+        if kind in ("border", "interior"):
+            return b
+        if kind == "mesh":
+            return create_face_workplane(context, a, b)
+        return None
+
+    def _apply(self, context: Context, empty):
+        from ..model.sketch_ref import get_active_sketch
+        from ..utilities.preferences import get_prefs
+        from .add_sketch import set_sketch_workplane
+
+        sketch = get_active_sketch(context)
+        self._end(context)
+        if sketch is None:
+            return {"CANCELLED"}
+        if not set_sketch_workplane(context, sketch.target_object, empty):
+            self.report({"INFO"}, "Sketch is already on this workplane")
+            return {"CANCELLED"}
+        if get_prefs().use_align_view:
+            bpy.ops.view3d.slvs_align_view(use_active=True)
+        self.report({"INFO"}, f"Moved {sketch.name} to {empty.name}")
+        return {"FINISHED"}
+
+    def modal(self, context: Context, event: Event):
+        if event.type in {"RIGHTMOUSE", "ESC"} and event.value == "PRESS":
+            self._end(context)
+            return {"CANCELLED"}
+
+        if event.type == "MOUSEMOVE":
+            from ..gizmos.workplane import resolve_picker_hover
+
+            state = resolve_picker_hover(
+                context, (event.mouse_region_x, event.mouse_region_y)
+            )
+            if state != (self._hover, self._preview):
+                self._hover, self._preview = state
+                context.area.tag_redraw()
+            return {"PASS_THROUGH"}
+
+        if event.value == "PRESS" and event.type in _ORIGIN_PLANE_KEYS:
+            empty = getattr(context.scene.sketcher, _ORIGIN_PLANE_KEYS[event.type])
+            if empty is not None:
+                return self._apply(context, empty)
+            return {"RUNNING_MODAL"}
+
+        if event.type == "LEFTMOUSE" and event.value == "PRESS":
+            empty = self._pick(context, event)
+            if empty is None:
+                return {"RUNNING_MODAL"}  # missed, keep waiting
+            return self._apply(context, empty)
+
+        return {"PASS_THROUGH"}
+
+
 register, unregister = register_classes_factory(
-    (View3D_OT_slvs_make_workplane_free, View3D_OT_slvs_reattach_workplane)
+    (
+        View3D_OT_slvs_make_workplane_free,
+        View3D_OT_slvs_reattach_workplane,
+        View3D_OT_slvs_change_sketch_workplane,
+    )
 )

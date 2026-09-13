@@ -24,51 +24,38 @@ class VIEW3D_MT_slvs_add_sketch(Menu):
         )
 
 
-def _draw_face_anchor(context: Context, layout: UILayout, sketch):
-    """Show which mesh face the sketch's workplane follows, with ways to change it.
+def _draw_workplane(context: Context, layout: UILayout, sketch):
+    """Let the user move the sketch to another workplane, and show its anchor.
 
     An anchored workplane is moved back onto its face whenever the mesh updates,
     so a manual move silently reverts. Surfacing the anchor (not only once it
-    breaks) lets the user see why, pick another face or free the workplane. The
-    anchor belongs to the workplane, so say so when other sketches share it.
+    breaks) lets the user see why and free the workplane. The anchor belongs to
+    the workplane, so say so when other sketches share it.
     """
-    from ...utilities.face_anchor import (
-        KEY_DETACHED,
-        KEY_FACE_ID,
-        KEY_SOURCE,
-        is_origin_workplane,
-    )
+    from ...utilities.face_anchor import KEY_DETACHED, KEY_FACE_ID, KEY_SOURCE
 
-    wp = sketch.workplane_object
-    if sketch.is_3d or not wp or is_origin_workplane(context.scene, wp):
+    if sketch.is_3d:
         return
-
-    shared = sum(1 for s in get_sketches(context) if s.workplane_object == wp)
-    suffix = f" (shared by {shared} sketches)" if shared > 1 else ""
+    wp = sketch.workplane_object
     ops = declarations.Operators
-    anchored = KEY_FACE_ID in wp
+    anchored = wp is not None and KEY_FACE_ID in wp
 
-    if anchored and wp.get(KEY_DETACHED):
-        container = layout.box()
-        container.alert = True
-        container.label(text="Workplane detached from mesh face" + suffix, icon="ERROR")
-    elif anchored:
-        container = layout
-        source = wp.get(KEY_SOURCE)
-        container.label(
-            text=f"Workplane anchored to {source.name if source else 'mesh face'}"
-            + suffix,
-            icon="SNAP_FACE",
-        )
-    else:
-        container = layout
+    container = layout
+    if anchored:
+        shared = sum(1 for s in get_sketches(context) if s.workplane_object == wp)
+        suffix = f" (shared by {shared} sketches)" if shared > 1 else ""
+        if wp.get(KEY_DETACHED):
+            container = layout.box()
+            container.alert = True
+            text, icon = "Workplane detached from mesh face", "ERROR"
+        else:
+            source = wp.get(KEY_SOURCE)
+            name = source.name if source else "mesh face"
+            text, icon = f"Workplane anchored to {name}", "SNAP_FACE"
+        container.label(text=text + suffix, icon=icon)
 
     row = container.row(align=True)
-    row.operator(
-        ops.ReattachWorkplane,
-        text="Change Face" if anchored else "Anchor to Face",
-        icon="EYEDROPPER",
-    ).empty_name = wp.name
+    row.operator(ops.ChangeSketchWorkplane, text="Change Workplane", icon="EYEDROPPER")
     if anchored:
         row.operator(
             ops.MakeWorkplaneFree, text="Make Free", icon="UNLINKED"
@@ -167,7 +154,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 dof_icon = "CHECKMARK" if dof_ok else "ERROR"
                 row.label(text=dof_msg, icon=dof_icon)
 
-            _draw_face_anchor(context, layout, sketch)
+            _draw_workplane(context, layout, sketch)
 
             layout.separator()
 

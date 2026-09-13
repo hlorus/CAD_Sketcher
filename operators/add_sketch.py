@@ -58,6 +58,70 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
     return sketch
 
 
+def create_face_workplane(context: Context, ob, face_index: int):
+    """Create a workplane Empty anchored to a mesh face.
+
+    The empty is not parented to the mesh; instead it is anchored to the face
+    via a persistent id and the depsgraph handler re-derives its transform from
+    the evaluated mesh, so it follows edits and deformation (see
+    utilities/face_anchor).
+    """
+    from ..stateful_operator.utilities.geometry import get_evaluated_obj
+    from ..utilities.collections import link_loose_workplane
+    from ..utilities.face_anchor import can_anchor_face, stamp_face_anchor
+
+    empty = bpy.data.objects.new("Workplane", None)
+    empty.empty_display_type = "PLAIN_AXES"
+    empty.empty_display_size = 0.5
+    link_loose_workplane(empty, context.scene)
+
+    empty.matrix_world = face_workplane_matrix(context, ob, face_index)
+
+    # When a modifier changed the topology the picked face can't be anchored;
+    # leave the empty as a plain fixed workplane (issue #342-adjacent crash on
+    # box.blend meshes).
+    if can_anchor_face(ob, get_evaluated_obj(context, ob)):
+        stamp_face_anchor(empty, ob, face_index)
+    return empty
+
+
+def set_sketch_workplane(context: Context, sketch_obj, wp_empty) -> bool:
+    """Move a 2D sketch onto another workplane, keeping its 2D geometry.
+
+    The sketch's curves live in its workplane's local frame, so reparenting
+    carries the whole sketch (and its constraints) rigidly onto the new plane.
+    The old workplane is deleted when nothing uses it any more and CAD Sketcher
+    made it from a face; any other unused workplane moves to the scene level.
+    Returns False when ``wp_empty`` already is the sketch's workplane.
+    """
+    from .. import global_data
+    from ..utilities.collections import link_loose_workplane, nest_workplane
+    from ..utilities.face_anchor import KEY_FACE_ID, clear_anchor, is_origin_workplane
+
+    wp_empty = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
+    old = sketch_obj.parent
+    if old == wp_empty:
+        return False
+
+    sketch_obj.parent = wp_empty
+    sketch_obj.matrix_parent_inverse.identity()
+    nest_workplane(wp_empty, sketch_obj)
+
+    if (
+        old is not None
+        and not old.children
+        and not is_origin_workplane(context.scene, old)
+    ):
+        if KEY_FACE_ID in old:
+            clear_anchor(old)
+            bpy.data.objects.remove(old, do_unlink=True)
+        else:
+            link_loose_workplane(old, context.scene)
+
+    global_data.needs_solve = True
+    return True
+
+
 # TODO:
 # - Draw sketches
 class View3D_OT_slvs_add_sketch(Operator, Operator3d):
@@ -104,38 +168,11 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
             return self._use_workplane(b)
 
         if kind == "mesh":
-            empty = self._create_wp_empty_from_face(context, a, b)
+            empty = create_face_workplane(context, a, b)
             if empty:
                 return self._use_workplane(empty)
 
         return None
-
-    def _create_wp_empty_from_face(self, context, ob, face_index):
-        """Create a workplane Empty anchored to a mesh face.
-
-        The empty is not parented to the mesh; instead it is anchored to the
-        face via a persistent id and the depsgraph handler re-derives its
-        transform from the evaluated mesh, so it follows edits and deformation
-        (see utilities/face_anchor).
-        """
-        from ..stateful_operator.utilities.geometry import get_evaluated_obj
-        from ..utilities.face_anchor import can_anchor_face, stamp_face_anchor
-
-        empty = bpy.data.objects.new("Workplane", None)
-        empty.empty_display_type = "PLAIN_AXES"
-        empty.empty_display_size = 0.5
-        from ..utilities.collections import link_loose_workplane
-
-        link_loose_workplane(empty, context.scene)
-
-        empty.matrix_world = face_workplane_matrix(context, ob, face_index)
-
-        # When a modifier changed the topology the picked face can't be anchored;
-        # leave the empty as a plain fixed workplane (issue #342-adjacent crash
-        # on box.blend meshes).
-        if can_anchor_face(ob, get_evaluated_obj(context, ob)):
-            stamp_face_anchor(empty, ob, face_index)
-        return empty
 
     def prepare_origin_elements(self, context):
         ensure_origin_workplane_empties(context)
