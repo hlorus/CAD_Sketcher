@@ -11,8 +11,8 @@ import bmesh
 import bpy
 from mathutils import Matrix
 
-from .utils import BgsTestCase
 from ..utilities import face_anchor as fa
+from .utils import BgsTestCase
 
 
 class TestFaceAnchor(BgsTestCase):
@@ -33,12 +33,14 @@ class TestFaceAnchor(BgsTestCase):
         # records the frame's X as the in-plane reference, so an identity frame
         # would store an axis parallel to the normal — degenerate, and the
         # recomputed frame could never stay rigid with the mesh.
-        self.empty.matrix_world = Matrix((
-            (0.0, 0.0, -1.0, -1.0),
-            (0.0, 1.0, 0.0, 0.0),
-            (1.0, 0.0, 0.0, 0.0),
-            (0.0, 0.0, 0.0, 1.0),
-        ))
+        self.empty.matrix_world = Matrix(
+            (
+                (0.0, 0.0, -1.0, -1.0),
+                (0.0, 1.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0, 0.0),
+                (0.0, 0.0, 0.0, 1.0),
+            )
+        )
         fa.stamp_face_anchor(self.empty, self.ob, 0)
         self.face_id = self.empty[fa.KEY_FACE_ID]
 
@@ -56,7 +58,9 @@ class TestFaceAnchor(BgsTestCase):
         dg.update()
         eval_ob = self.ob.evaluated_get(dg)
         res = fa.recompute_anchor_matrix(
-            eval_ob, self.face_id, self.empty.get(fa.KEY_LAST_CO),
+            eval_ob,
+            self.face_id,
+            self.empty.get(fa.KEY_LAST_CO),
             self.empty.get(fa.KEY_REF),
         )
         if res is None:
@@ -71,8 +75,9 @@ class TestFaceAnchor(BgsTestCase):
         attr = self.ob.data.attributes.get(fa.FACE_ID_ATTR)
         if attr is None:
             return 0
-        return sum(1 for p in self.ob.data.polygons
-                   if attr.data[p.index].value == self.face_id)
+        return sum(
+            1 for p in self.ob.data.polygons if attr.data[p.index].value == self.face_id
+        )
 
     def _select_id_faces(self, bm):
         layer = bm.faces.layers.int.get(fa.FACE_ID_ATTR)
@@ -126,6 +131,7 @@ class TestFaceAnchor(BgsTestCase):
         # object rotation. (The world-up heuristic fails this — it re-solves the
         # in-plane direction from world Z, so a drawn line swings.)
         import math
+
         from mathutils import Euler
 
         m0 = self._recompute()

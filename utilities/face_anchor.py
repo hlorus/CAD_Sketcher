@@ -31,16 +31,17 @@ from .geometry import orientation_from_normal_ref
 FACE_ID_ATTR = "slvs_face_id"
 
 # ID custom-property keys on the workplane empty.
-KEY_SOURCE = "slvs_wp_source"      # source Object (ID reference)
-KEY_FACE_ID = "slvs_wp_face_id"    # int id anchored to
+KEY_SOURCE = "slvs_wp_source"  # source Object (ID reference)
+KEY_FACE_ID = "slvs_wp_face_id"  # int id anchored to
 KEY_DETACHED = "slvs_wp_detached"  # bool, set when the id can't be found
-KEY_LAST_CO = "slvs_wp_last_co"    # last cluster centroid in source-local space
-KEY_REF = "slvs_wp_ref"            # in-plane X axis in source-local space
+KEY_LAST_CO = "slvs_wp_last_co"  # last cluster centroid in source-local space
+KEY_REF = "slvs_wp_ref"  # in-plane X axis in source-local space
 
 
 # ---------------------------------------------------------------------------
 # Creation
 # ---------------------------------------------------------------------------
+
 
 def _allocate_face_id(mesh):
     """A face id unique within ``mesh`` (max existing + 1)."""
@@ -91,10 +92,11 @@ def stamp_face_anchor(empty, source_ob, face_index):
 # Iteration
 # ---------------------------------------------------------------------------
 
+
 def iter_face_workplanes(scene):
     """Yield empties that are anchored to a mesh face."""
     for obj in scene.objects:
-        if obj.type == 'EMPTY' and KEY_FACE_ID in obj:
+        if obj.type == "EMPTY" and KEY_FACE_ID in obj:
             yield obj
 
 
@@ -129,7 +131,7 @@ def clear_anchor(empty):
     """
     source = empty.get(KEY_SOURCE)
     face_id = empty.get(KEY_FACE_ID)
-    if source is not None and source.type == 'MESH' and face_id is not None:
+    if source is not None and source.type == "MESH" and face_id is not None:
         clear_face_id(source.data, face_id)
         _live_anchors.discard((source.data.name, face_id))
     for key in (KEY_SOURCE, KEY_FACE_ID, KEY_DETACHED, KEY_LAST_CO, KEY_REF):
@@ -142,7 +144,7 @@ def reconcile_orphan_anchors(scene):
     live = set()
     for empty in iter_face_workplanes(scene):
         source = empty.get(KEY_SOURCE)
-        if source is not None and source.type == 'MESH':
+        if source is not None and source.type == "MESH":
             live.add((source.data.name, empty[KEY_FACE_ID]))
 
     for mesh_name, face_id in _live_anchors - live:
@@ -157,6 +159,7 @@ def reconcile_orphan_anchors(scene):
 # ---------------------------------------------------------------------------
 # Recompute
 # ---------------------------------------------------------------------------
+
 
 def _clusters(mesh, idxs):
     """Group face indices that are connected through shared vertices."""
@@ -211,7 +214,7 @@ def recompute_anchor_matrix(eval_ob, face_id, last_co, ref_local=None):
     """
     mesh = eval_ob.data
     attr = mesh.attributes.get(FACE_ID_ATTR)
-    if attr is None or attr.domain != 'FACE' or len(mesh.polygons) == 0:
+    if attr is None or attr.domain != "FACE" or len(mesh.polygons) == 0:
         return None
 
     ids = np.empty(len(mesh.polygons), dtype=np.int32)
@@ -251,6 +254,7 @@ def recompute_anchor_matrix(eval_ob, face_id, last_co, ref_local=None):
 # Depsgraph handler body
 # ---------------------------------------------------------------------------
 
+
 def _matrix_differs(a, b, eps=1e-6):
     return any(abs(a[i][j] - b[i][j]) > eps for i in range(4) for j in range(4))
 
@@ -283,13 +287,13 @@ def update_face_workplanes(context, depsgraph):
     resolved = False
     for empty in iter_face_workplanes(scene):
         source = empty.get(KEY_SOURCE)
-        if source is None or source.type != 'MESH':
+        if source is None or source.type != "MESH":
             continue
         if source not in changed and source.data not in changed:
             continue
         # Edit-mode reads don't expose the id; reconcile on exit instead of
         # falsely detaching.
-        if source.mode == 'EDIT':
+        if source.mode == "EDIT":
             continue
 
         eval_ob = source.evaluated_get(depsgraph)
