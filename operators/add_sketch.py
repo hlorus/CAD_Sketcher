@@ -119,7 +119,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         (see utilities/face_anchor).
         """
         from ..stateful_operator.utilities.geometry import get_evaluated_obj
-        from ..utilities.face_anchor import stamp_face_anchor
+        from ..utilities.face_anchor import can_anchor_face, stamp_face_anchor
 
         empty = bpy.data.objects.new("Workplane", None)
         empty.empty_display_type = "PLAIN_AXES"
@@ -130,18 +130,10 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
 
         empty.matrix_world = face_workplane_matrix(context, ob, face_index)
 
-        # face_index is an evaluated-mesh index; it only maps to an original face
-        # (which the anchor stamps a persistent id on) when no modifier changed
-        # the topology. When it doesn't line up (Solidify/Bevel/etc.), leave the
-        # empty as a plain fixed workplane rather than anchor the wrong face or
-        # index out of range (issue #342-adjacent crash on box.blend meshes).
-        orig = ob.data
-        eval_mesh = get_evaluated_obj(context, ob).data
-        if (
-            hasattr(orig, "polygons")
-            and hasattr(eval_mesh, "polygons")
-            and len(eval_mesh.polygons) == len(orig.polygons)
-        ):
+        # When a modifier changed the topology the picked face can't be anchored;
+        # leave the empty as a plain fixed workplane (issue #342-adjacent crash
+        # on box.blend meshes).
+        if can_anchor_face(ob, get_evaluated_obj(context, ob)):
             stamp_face_anchor(empty, ob, face_index)
         return empty
 

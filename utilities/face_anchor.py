@@ -57,6 +57,29 @@ def _allocate_face_id(mesh):
     return int(ids.max()) + 1
 
 
+def can_anchor_face(source_ob, eval_ob) -> bool:
+    """Whether evaluated face indices of ``source_ob`` map to original faces.
+
+    Picks ray cast against the *evaluated* mesh, but the persistent id lives on
+    the *original* mesh. The indices only line up when no modifier changed the
+    topology (Solidify/Bevel/etc. don't), otherwise the wrong face would be
+    anchored or the index would be out of range.
+    """
+    orig = source_ob.data
+    evaluated = eval_ob.data
+    return (
+        hasattr(orig, "polygons")
+        and hasattr(evaluated, "polygons")
+        and len(evaluated.polygons) == len(orig.polygons)
+    )
+
+
+def is_origin_workplane(scene: bpy.types.Scene, empty) -> bool:
+    """Whether ``empty`` is one of the fixed XY/XZ/YZ origin workplanes."""
+    sketcher = scene.sketcher
+    return empty in {sketcher.wp_xy, sketcher.wp_xz, sketcher.wp_yz}
+
+
 def stamp_face_anchor(empty, source_ob, face_index):
     """Stamp a unique id on ``source_ob``'s face and anchor ``empty`` to it.
 

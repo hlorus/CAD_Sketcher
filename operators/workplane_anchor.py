@@ -1,4 +1,4 @@
-"""Recovery operators for detached face-anchored workplanes."""
+"""Operators to anchor a workplane to a mesh face, change that face, or free it."""
 
 import logging
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class View3D_OT_slvs_make_workplane_free(Operator):
-    """Detach this workplane from its mesh face and keep it where it is"""
+    """Detach this workplane from its mesh face and keep it where it is. Affects every sketch on the workplane"""
 
     bl_idname = Operators.MakeWorkplaneFree
     bl_label = "Make Workplane Free"
@@ -38,10 +38,10 @@ class View3D_OT_slvs_make_workplane_free(Operator):
 
 
 class View3D_OT_slvs_reattach_workplane(Operator):
-    """Click a mesh face to re-anchor this workplane to it"""
+    """Click a mesh face to anchor this workplane to it, replacing any current anchor. Moves every sketch on the workplane"""
 
     bl_idname = Operators.ReattachWorkplane
-    bl_label = "Re-attach Workplane to Face"
+    bl_label = "Anchor Workplane to Face"
     bl_options = {"UNDO"}
 
     empty_name: StringProperty()
@@ -55,9 +55,16 @@ class View3D_OT_slvs_reattach_workplane(Operator):
         if self._empty is None:
             self.report({"WARNING"}, "Workplane not found")
             return {"CANCELLED"}
+        from ..utilities.face_anchor import is_origin_workplane
+
+        # The origin planes are shared by every scene-level sketch and forced
+        # back to their fixed transform, so they can never follow a face.
+        if is_origin_workplane(context.scene, self._empty):
+            self.report({"WARNING"}, "Origin workplanes can't be anchored")
+            return {"CANCELLED"}
         context.window.cursor_modal_set("EYEDROPPER")
         context.workspace.status_text_set(
-            "Click a mesh face to re-anchor the workplane   |   Esc/RMB: cancel"
+            "Click a mesh face to anchor the workplane   |   Esc/RMB: cancel"
         )
         context.window_manager.modal_handler_add(self)
         return {"RUNNING_MODAL"}
@@ -72,16 +79,30 @@ class View3D_OT_slvs_reattach_workplane(Operator):
             return {"CANCELLED"}
 
         if event.type == "LEFTMOUSE" and event.value == "PRESS":
+            from ..stateful_operator.utilities.geometry import get_evaluated_obj
+            from ..utilities.face_anchor import (
+                can_anchor_face,
+                clear_anchor,
+                stamp_face_anchor,
+            )
             from ..utilities.geometry import face_workplane_matrix
-            from ..utilities.face_anchor import stamp_face_anchor
 
             coords = Vector((event.mouse_region_x, event.mouse_region_y))
             ob, elem_type, index = get_mesh_element(context, coords, face=True)
             if ob and elem_type == "FACE":
+                if not can_anchor_face(ob, get_evaluated_obj(context, ob)):
+                    self.report(
+                        {"WARNING"},
+                        "Can't anchor to a mesh whose modifiers change its faces",
+                    )
+                    return {"RUNNING_MODAL"}
+                # Drop the previous anchor first so its face id doesn't linger on
+                # the old mesh.
+                clear_anchor(self._empty)
                 self._empty.matrix_world = face_workplane_matrix(context, ob, index)
                 stamp_face_anchor(self._empty, ob, index)
                 self._end(context)
-                self.report({"INFO"}, "Workplane re-attached")
+                self.report({"INFO"}, "Workplane anchored to " + ob.name)
                 if context.area:
                     context.area.tag_redraw()
                 return {"FINISHED"}

@@ -275,3 +275,80 @@ class TestFaceAnchor(BgsTestCase):
     def test_single_anchor_untouched(self):
         self.assertEqual(fa.free_duplicate_anchors(self.scene), [])
         self.assertIn(fa.KEY_FACE_ID, self.empty)
+
+    # -- changing the anchor ----------------------------------------------
+
+    def test_change_face_replaces_old_anchor(self):
+        # What the Anchor/Change Face operator does on a click.
+        old_id = self.face_id
+        fa.clear_anchor(self.empty)
+        fa.stamp_face_anchor(self.empty, self.ob, 1)
+
+        attr = self.ob.data.attributes.get(fa.FACE_ID_ATTR)
+        ids = [attr.data[i].value for i in range(len(self.ob.data.polygons))]
+        self.assertNotIn(old_id, ids[:1])
+        self.assertEqual(ids[1], self.empty[fa.KEY_FACE_ID])
+        self.assertEqual(sum(1 for v in ids if v), 1)
+
+    def test_can_anchor_face_rejects_topology_modifiers(self):
+        dg = self.context.evaluated_depsgraph_get()
+        self.assertTrue(fa.can_anchor_face(self.ob, self.ob.evaluated_get(dg)))
+        mod = self.ob.modifiers.new("solid", "SOLIDIFY")
+        dg = self.context.evaluated_depsgraph_get()
+        dg.update()
+        self.assertFalse(fa.can_anchor_face(self.ob, self.ob.evaluated_get(dg)))
+        self.ob.modifiers.remove(mod)
+
+    def test_origin_workplanes_detected(self):
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        ensure_origin_workplane_empties(self.context)
+        self.assertTrue(fa.is_origin_workplane(self.scene, self.scene.sketcher.wp_xy))
+        self.assertFalse(fa.is_origin_workplane(self.scene, self.empty))
+
+    def test_panel_shows_anchor_on_shared_workplane(self):
+        from ..model.sketch_ref import Sketch, stamp_sketch_props
+        from ..ui.panels.sketch_select import _draw_face_anchor
+
+        sketches = []
+        for i in range(2):
+            ob = bpy.data.objects.new(f"anchor_sk{i}", bpy.data.hair_curves.new("c"))
+            self.scene.collection.objects.link(ob)
+            stamp_sketch_props(ob)
+            ob.parent = self.empty
+            sketches.append(ob)
+
+        class _Layout:
+            def __init__(self):
+                self.labels, self.ops = [], []
+
+            def label(self, text="", icon=""):
+                self.labels.append(text)
+
+            def operator(self, idname, text="", icon=""):
+                self.ops.append(text)
+                return type("Props", (), {})()
+
+            def row(self, align=False):
+                return self
+
+            box = row
+
+        try:
+            layout = _Layout()
+            _draw_face_anchor(self.context, layout, Sketch(sketches[0]))
+            self.assertEqual(
+                layout.labels,
+                ["Workplane anchored to anchor_cube (shared by 2 sketches)"],
+            )
+            self.assertEqual(layout.ops, ["Change Face", "Make Free"])
+
+            fa.clear_anchor(self.empty)
+            layout = _Layout()
+            _draw_face_anchor(self.context, layout, Sketch(sketches[0]))
+            self.assertEqual(layout.ops, ["Anchor to Face"])
+        finally:
+            for ob in sketches:
+                data = ob.data
+                bpy.data.objects.remove(ob, do_unlink=True)
+                bpy.data.hair_curves.remove(data)

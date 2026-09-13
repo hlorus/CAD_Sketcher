@@ -24,38 +24,55 @@ class VIEW3D_MT_slvs_add_sketch(Menu):
         )
 
 
-def _draw_face_anchor(layout: UILayout, sketch):
-    """Show which mesh face the sketch's workplane follows, with a way out.
+def _draw_face_anchor(context: Context, layout: UILayout, sketch):
+    """Show which mesh face the sketch's workplane follows, with ways to change it.
 
     An anchored workplane is moved back onto its face whenever the mesh updates,
     so a manual move silently reverts. Surfacing the anchor (not only once it
-    breaks) lets the user see why and free the workplane.
+    breaks) lets the user see why, pick another face or free the workplane. The
+    anchor belongs to the workplane, so say so when other sketches share it.
     """
-    from ...utilities.face_anchor import KEY_DETACHED, KEY_FACE_ID, KEY_SOURCE
+    from ...utilities.face_anchor import (
+        KEY_DETACHED,
+        KEY_FACE_ID,
+        KEY_SOURCE,
+        is_origin_workplane,
+    )
 
     wp = sketch.workplane_object
-    if not wp or KEY_FACE_ID not in wp:
+    if sketch.is_3d or not wp or is_origin_workplane(context.scene, wp):
         return
 
+    shared = sum(1 for s in get_sketches(context) if s.workplane_object == wp)
+    suffix = f" (shared by {shared} sketches)" if shared > 1 else ""
     ops = declarations.Operators
-    if wp.get(KEY_DETACHED):
-        box = layout.box()
-        box.alert = True
-        box.label(text="Workplane detached from mesh face", icon="ERROR")
-        row = box.row(align=True)
-        row.operator(
-            ops.ReattachWorkplane, text="Re-attach", icon="EYEDROPPER"
-        ).empty_name = wp.name
-    else:
+    anchored = KEY_FACE_ID in wp
+
+    if anchored and wp.get(KEY_DETACHED):
+        container = layout.box()
+        container.alert = True
+        container.label(text="Workplane detached from mesh face" + suffix, icon="ERROR")
+    elif anchored:
+        container = layout
         source = wp.get(KEY_SOURCE)
-        row = layout.row(align=True)
-        row.label(
-            text=f"Anchored to {source.name if source else 'mesh face'}",
+        container.label(
+            text=f"Workplane anchored to {source.name if source else 'mesh face'}"
+            + suffix,
             icon="SNAP_FACE",
         )
+    else:
+        container = layout
+
+    row = container.row(align=True)
     row.operator(
-        ops.MakeWorkplaneFree, text="Make Free", icon="UNLINKED"
+        ops.ReattachWorkplane,
+        text="Change Face" if anchored else "Anchor to Face",
+        icon="EYEDROPPER",
     ).empty_name = wp.name
+    if anchored:
+        row.operator(
+            ops.MakeWorkplaneFree, text="Make Free", icon="UNLINKED"
+        ).empty_name = wp.name
 
 
 def _draw_migration_prompt(context: Context, layout: UILayout):
@@ -150,7 +167,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 dof_icon = "CHECKMARK" if dof_ok else "ERROR"
                 row.label(text=dof_msg, icon=dof_icon)
 
-            _draw_face_anchor(layout, sketch)
+            _draw_face_anchor(context, layout, sketch)
 
             layout.separator()
 
