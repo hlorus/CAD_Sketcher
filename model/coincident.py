@@ -1,17 +1,22 @@
 import logging
 
-from bpy.types import PropertyGroup
 from bpy.props import StringProperty
+from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver
 from ..global_data import WpReq
-from .base_constraint import GenericConstraint
-from .utilities import slvs_entity_pointer, make_coincident
-from .categories import POINT, LINE
-from .workplane import SlvsWorkplane
 from .arc import SlvsArc
+from .base_constraint import GenericConstraint
+from .categories import LINE, POINT
 from .circle import SlvsCircle
+from .utilities import (
+    line_endpoint_positions,
+    make_coincident,
+    point_on_line,
+    slvs_entity_pointer,
+)
+from .workplane import SlvsWorkplane
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +46,13 @@ class SlvsCoincident(GenericConstraint, PropertyGroup):
         h2 = handle_map.get(self.curve_id_2)
         if h1 is None or h2 is None:
             return None
+        if wp:
+            endpoints = line_endpoint_positions(self._get_sketch(), self.curve_id_2)
+            if endpoints:
+                return point_on_line(solvesys, group, h1, h2, wp, *endpoints)
         kwargs = {}
         if wp:
-            kwargs['workplane'] = wp
+            kwargs["workplane"] = wp
         return solvesys.coincident(group, h1, h2, **kwargs)
 
     def needs_wp(self):

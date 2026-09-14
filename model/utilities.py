@@ -21,6 +21,7 @@ def slvs_entity_pointer(cls, name, **kwargs):
     def func(self):
         index = getattr(self, index_prop)
         return None if index == -1 else bpy.context.scene.sketcher.entities.get(index)
+
     setattr(cls, name, func)
 
     @func.setter
@@ -103,7 +104,7 @@ def create_bezier_curve(
         attributes["handle_right"].data[b1.index].vector = coords[0]
         attributes["handle_left"].data[b2.index].vector = coords[1]
         b2.position = loc2.to_3d()
-        
+
         # For non-cyclic curves, set both handles for endpoints
         if not cyclic:
             # Set handle_left for the first point (only for the first segment)
@@ -111,32 +112,33 @@ def create_bezier_curve(
                 pos = loc1 - center
                 angle = math.atan2(pos[1], pos[0])
                 offset = base_offset.copy()
-                
+
                 # Use opposite direction compared to handle_right
                 if not invert:
                     offset[1] *= -1
-                
+
                 offset.rotate(Matrix.Rotation(angle, 2))
-                attributes["handle_left"].data[b1.index].vector = (center + offset).to_3d()
-            
+                attributes["handle_left"].data[b1.index].vector = (
+                    center + offset
+                ).to_3d()
+
             # Set handle_right for the last point (only for the last segment)
             if index == segment_count - 1:
                 pos = loc2 - center
                 angle = math.atan2(pos[1], pos[0])
                 offset = base_offset.copy()
-                
+
                 # Use opposite direction compared to handle_left
                 if invert:
                     offset[1] *= -1
-                
+
                 offset.rotate(Matrix.Rotation(angle, 2))
-                attributes["handle_right"].data[b2.index].vector = (center + offset).to_3d()
+                attributes["handle_right"].data[b2.index].vector = (
+                    center + offset
+                ).to_3d()
 
 
-def create_bezier_curve_attributes(
-        spline,
-        segment_count,
-        point_indices):
+def create_bezier_curve_attributes(spline, segment_count, point_indices):
     pass
 
 
@@ -149,6 +151,43 @@ def make_coincident(solvesys, point_handle, e2, wp, group, entity_type=None):
         kwargs["workplane"] = wp
 
     return solvesys.coincident(group, point_handle, e2.py_data, **kwargs)
+
+
+def line_endpoint_positions(sketch, curve_id: str):
+    """Local start/end positions of a LINE curve, or None if it is not a line."""
+    from ..model.constants import SketchCurveType
+    from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
+
+    if sketch is None or not curve_id:
+        return None
+    curve_data, idx, _ = get_curve_data(sketch, curve_id)
+    if curve_data is None:
+        return None
+    type_attr = curve_data.attributes.get("sketch_type")
+    if not type_attr or type_attr.data[idx].value != SketchCurveType.LINE:
+        return None
+    start = get_curve_position(sketch, get_uuid(curve_data, "start_point_id", idx))
+    end = get_curve_position(sketch, get_uuid(curve_data, "end_point_id", idx))
+    if start is None or end is None:
+        return None
+    return start, end
+
+
+def point_on_line(solvesys, group, point, line, wp, line_start, line_end):
+    """Constrain ``point`` to lie on the (infinite) ``line`` in the workplane.
+
+    Solvespace's PT_ON_LINE (what ``coincident`` makes for a point and a line)
+    carries a hidden line parameter the library always starts at 0, so every
+    fresh solve pulls the point towards the line's start and moves geometry
+    that already satisfies the constraint (solvespace/solvespace#1775). A
+    zero point-line distance removes the same degree of freedom without that
+    parameter. It divides by the line's length though, so a line that is
+    degenerate when the system is built keeps PT_ON_LINE.
+    """
+    start, end = Vector(line_start[:2]), Vector(line_end[:2])
+    if wp != solvesys.E_FREE_IN_3D and (end - start).length > 1e-6:
+        return solvesys.distance(group, point, line, 0.0, wp)
+    return solvesys.coincident(group, point, line, wp)
 
 
 def update_pointers(scene, index_old, index_new):

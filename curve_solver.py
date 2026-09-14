@@ -27,6 +27,19 @@ from .utilities.workplane import ensure_workplane_empty
 
 logger = logging.getLogger(__name__)
 
+# slvs holds a single module-global system. Counting how often it is cleared
+# lets a solver tell whether the system it built is still the one loaded, so a
+# drag can keep re-solving it instead of rebuilding (see CurveSolver.drag_to).
+_sketch_generation = 0
+
+
+def _clear_sketch(solvesys) -> int:
+    """Clear the global slvs system and return the new generation."""
+    global _sketch_generation
+    solvesys.clear_sketch()
+    _sketch_generation += 1
+    return _sketch_generation
+
 
 def _stored_differs(current, new) -> bool:
     """Whether writing ``new`` over ``current`` would change the stored floats.
@@ -53,8 +66,8 @@ class CurveSolver:
 
         import slvs
 
-        slvs.clear_sketch()
         self.solvesys = slvs
+        self._generation = _clear_sketch(slvs)
 
         self.ok = True
         self.result = None
@@ -62,6 +75,10 @@ class CurveSolver:
         # Tweak state
         self._tweak_curve_id = None
         self._tweak_pos = None
+        # The curve a drag targets, kept even while a solve drops the pin (#584).
+        self._drag_curve_id = None
+        # The temporary drag point of the loaded system, if it has one.
+        self._drag_handle = None
 
         # Mapping: curve_id → solvespace handle (for points)
         self._point_handles = {}
@@ -74,6 +91,7 @@ class CurveSolver:
         """Set the curve to be dragged to the given position."""
         self._tweak_curve_id = curve_id
         self._tweak_pos = pos
+        self._drag_curve_id = curve_id
 
     def _init_workplane(self):
         """Initialize the workplane from the workplane empty object.
@@ -258,21 +276,37 @@ class CurveSolver:
         ):
             tweak_handle = self._entity_handles.get(self._tweak_curve_id)
             if tweak_handle:
-                wp_obj = self.sketch.workplane_object
-                if not wp_obj and self.sketch.target_object:
-                    wp_obj = self.sketch.target_object.parent
-                if wp_obj:
-                    wp_mat = wp_obj.matrix_world
-                else:
-                    from mathutils import Matrix
+                from .model.utilities import line_endpoint_positions, point_on_line
 
-                    wp_mat = Matrix.Identity(4)
-                tw_u, tw_v, _ = wp_mat.inverted() @ self._tweak_pos
+                tw_u, tw_v = self._tweak_uv()
                 drag_pt = self.solvesys.add_point_2d(self.group_sketch, tw_u, tw_v, wp)
                 # For points: coincident point-to-point
                 # For lines/arcs/circles: coincident point-on-entity
-                self.solvesys.coincident(self.group_sketch, drag_pt, tweak_handle, wp)
+                endpoints = line_endpoint_positions(sketch, self._tweak_curve_id)
+                if endpoints:
+                    point_on_line(
+                        self.solvesys,
+                        self.group_sketch,
+                        drag_pt,
+                        tweak_handle,
+                        wp,
+                        *endpoints,
+                    )
+                else:
+                    self.solvesys.coincident(
+                        self.group_sketch, drag_pt, tweak_handle, wp
+                    )
                 self.solvesys.dragged(self.group_sketch, drag_pt, wp)
+                self._drag_handle = drag_pt
+
+    def _tweak_uv(self) -> tuple[float, float]:
+        """The tweak position in the sketch workplane's 2D coordinates."""
+        wp_obj = self.sketch.workplane_object
+        if not wp_obj and self.sketch.target_object:
+            wp_obj = self.sketch.target_object.parent
+        wp_mat = wp_obj.matrix_world if wp_obj else _Matrix.Identity(4)
+        tw_u, tw_v, _ = wp_mat.inverted() @ self._tweak_pos
+        return tw_u, tw_v
 
     def _resolution_sketch(self):
         """``self.sketch`` as a Sketch accessor, for ``sketch_resolution``."""
@@ -606,9 +640,33 @@ class CurveSolver:
             self._solve_once(write=write)
         return self.ok
 
+    def drag_to(self, pos) -> bool:
+        """Solve with the dragged curve pulled to ``pos``, reusing the loaded system.
+
+        A drag re-solves on every mouse move. Rebuilding from curve data each
+        time restarts solvespace from float32-rounded positions and re-seeded
+        tangent helper points, which makes linkages lurch. While the system
+        this solver built is still loaded, only the drag point moves and the
+        same system is re-solved. Anything else (first call, another solve
+        cleared slvs, a failed solve) falls back to a full rebuild.
+        """
+        self._tweak_pos = pos
+        if self._drag_handle is not None and self._generation == _sketch_generation:
+            tw_u, tw_v = self._tweak_uv()
+            params = self._drag_handle["param"]
+            self.solvesys.set_param_value(params[0], tw_u)
+            self.solvesys.set_param_value(params[1], tw_v)
+            result = self.solvesys.solve_sketch(self.group_sketch, True)
+            if self._apply_result(result, write=True):
+                return True
+        self._tweak_curve_id = self._drag_curve_id
+        self._tweak_pos = pos
+        return self.solve()
+
     def _solve_once(self, write=True):
         """Build and solve the system once from the current curve/tweak state."""
-        self.solvesys.clear_sketch()
+        self._generation = _clear_sketch(self.solvesys)
+        self._drag_handle = None
         self._point_handles.clear()
         self._entity_handles.clear()
         self._distance_params.clear()
@@ -622,7 +680,10 @@ class CurveSolver:
             self._init_constraints()
 
         result = self.solvesys.solve_sketch(self.group_sketch, True)
+        return self._apply_result(result, write=write)
 
+    def _apply_result(self, result, write=True) -> bool:
+        """Publish a solve_sketch result and, if it solved, write positions back."""
         # solve_sketch returns either the result dict or (result, failed_handles),
         # where failed_handles lists the constraints solvespace couldn't satisfy.
         failed_handles = []
