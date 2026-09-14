@@ -21,6 +21,7 @@ from ..operators.modifiers import (
 from ..utilities.boolean_nodes import (
     BOOLEAN_NODE_GROUP,
     BOOLEAN_VERSION,
+    SOLVER_SOCKET,
     SOLVERS,
     build_boolean_node_group,
 )
@@ -73,7 +74,7 @@ class TestBooleanNodeGroup(BgsTestCase):
             # Version-aware setters (menu socket differs on 5.0 vs 5.2).
             set_modifier_input(modifier, ids["Cutter"], cutter)
             set_boolean_operation(modifier, ids["Operation"], operation)
-            set_boolean_solver(modifier, ids["Solver"], solver)
+            set_boolean_solver(modifier, ids[SOLVER_SOCKET], solver)
             depsgraph = self.context.evaluated_depsgraph_get()
             mesh = target.evaluated_get(depsgraph).to_mesh()
             if mesh is None or len(mesh.vertices) == 0:
@@ -138,7 +139,7 @@ class TestBooleanNodeGroup(BgsTestCase):
         solver = next(
             s
             for s in group.interface.items_tree
-            if getattr(s, "in_out", "") == "INPUT" and s.name == "Solver"
+            if getattr(s, "in_out", "") == "INPUT" and s.name == SOLVER_SOCKET
         )
         self.assertEqual(SOLVERS[solver.default_value], "Exact")
 
@@ -176,7 +177,7 @@ class TestBooleanNodeGroup(BgsTestCase):
             set_modifier_input(mod, ids["Cutter"], cutter)
             set_boolean_operation(mod, ids["Operation"], "Intersect")
             set_modifier_input(mod, ids["Hole Tolerant"], True)
-            set_boolean_solver(mod, ids["Solver"], "Manifold")
+            set_boolean_solver(mod, ids[SOLVER_SOCKET], "Manifold")
 
             group["cad_boolean_version"] = BOOLEAN_VERSION - 1  # force a rebuild
             self.assertIs(build_boolean_node_group(), group)
@@ -185,8 +186,40 @@ class TestBooleanNodeGroup(BgsTestCase):
             self.assertIs(get_modifier_input(mod, ids["Cutter"]), cutter)
             self.assertEqual(get_boolean_operation(mod, ids["Operation"]), "Intersect")
             self.assertTrue(get_modifier_input(mod, ids["Hole Tolerant"]))
-            self.assertEqual(get_boolean_solver(mod, ids["Solver"]), "Manifold")
+            self.assertEqual(get_boolean_solver(mod, ids[SOLVER_SOCKET]), "Manifold")
         finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+
+    def test_solver_socket_is_named_boolean_solver(self):
+        """Not a bare "Solver", which reads as the constraint solver."""
+        self.assertEqual(SOLVER_SOCKET, "Boolean Solver")
+        self.assertIn("Boolean Solver", boolean_input_ids(build_boolean_node_group()))
+
+    def test_new_booleans_use_the_solver_preference(self):
+        from ..operators.modifiers import apply_boolean
+        from ..utilities.preferences import get_prefs
+
+        prefs = get_prefs()
+        previous = prefs.boolean_solver
+        cutter = self._solid_cutter()
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        try:
+            for preferred in ("Manifold", "Exact"):
+                with self.subTest(preferred=preferred):
+                    prefs.boolean_solver = preferred
+                    mod = apply_boolean(body, cutter)
+                    ids = boolean_input_ids(mod.node_group)
+                    self.assertEqual(
+                        get_boolean_solver(mod, ids[SOLVER_SOCKET]), preferred
+                    )
+            # An explicit solver still wins over the preference.
+            prefs.boolean_solver = "Manifold"
+            mod = apply_boolean(body, cutter, solver="Exact")
+            ids = boolean_input_ids(mod.node_group)
+            self.assertEqual(get_boolean_solver(mod, ids[SOLVER_SOCKET]), "Exact")
+        finally:
+            prefs.boolean_solver = previous
             bpy.data.objects.remove(body, do_unlink=True)
 
     # -- operator ---------------------------------------------------------
@@ -221,7 +254,7 @@ class TestBooleanNodeGroup(BgsTestCase):
             "Operation",
             "Self Intersection",
             "Hole Tolerant",
-            "Solver",
+            SOLVER_SOCKET,
         ):
             self.assertIn(name, ids)
 

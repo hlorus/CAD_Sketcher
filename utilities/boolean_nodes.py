@@ -40,8 +40,24 @@ _OP_TO_NODE = {
     "Intersect": "INTERSECT",
 }
 
-# Solver menu items, in index order; the first is the default.
+# Solver menu items, in index order; the first is the node-group default.
 SOLVERS = ("Exact", "Manifold")
+
+# EnumProperty items shared by the preference and the Boolean tool, so both read
+# the same names and descriptions.
+SOLVER_ITEMS = (
+    ("Exact", "Exact", "Robust with imperfect geometry, but slow"),
+    (
+        "Manifold",
+        "Manifold",
+        "Much faster, but only for clean closed meshes: non-manifold input is "
+        "dropped from the result",
+    ),
+)
+
+# Named "Boolean Solver", not just "Solver": CAD Sketcher also has a constraint
+# solver, and a bare "Solver" in the modifier panel reads as that.
+SOLVER_SOCKET = "Boolean Solver"
 _SOLVER_TO_NODE = {"Exact": "EXACT", "Manifold": "MANIFOLD"}
 
 
@@ -120,7 +136,7 @@ def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
     _ensure_socket(iface, "Hole Tolerant", "INPUT", "NodeSocketBool")
     _ensure_socket(iface, "Geometry", "OUTPUT", "NodeSocketGeometry")
     # Int index for the same reason as Operation.
-    solver = _ensure_socket(iface, "Solver", "INPUT", "NodeSocketInt")
+    solver = _ensure_socket(iface, SOLVER_SOCKET, "INPUT", "NodeSocketInt")
     solver.min_value = 0
     solver.max_value = len(SOLVERS) - 1
     solver.default_value = 0
@@ -188,7 +204,9 @@ def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
             for label in _OPERATIONS
         ]
         per_solver.append(index_switch(gi.outputs["Operation"], branches))
-    links.new(index_switch(gi.outputs["Solver"], per_solver), go.inputs["Geometry"])
+    links.new(
+        index_switch(gi.outputs[SOLVER_SOCKET], per_solver), go.inputs["Geometry"]
+    )
 
     ng["cad_boolean_version"] = BOOLEAN_VERSION
     return ng
