@@ -31,6 +31,11 @@ def _draw_curves_overlay(context: Context):
 
 
 def draw_cb():
+    from .drawing import frame_cache
+
+    # First callback of each 3D view redraw: reset the per-redraw memo that the
+    # constraint gizmos and icons drawn later in this redraw read from.
+    frame_cache.begin_frame()
     context = bpy.context
     _draw_curves_overlay(context)
 

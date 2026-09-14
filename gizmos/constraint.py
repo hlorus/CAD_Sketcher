@@ -254,13 +254,12 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         # point); otherwise fall back to the referenced curve's placement.
         world_pos = getattr(self, "placement_pos", None)
         if world_pos is None and hasattr(self, "curve_id") and self.curve_id:
-            from ..model.sketch_ref import get_active_sketch
+            from ..drawing import frame_cache
 
-            sketch = get_active_sketch(context)
+            sketch = frame_cache.active_sketch(context)
             if sketch:
-                from ..utilities.curve_data import get_curve_placement
-
-                world_pos = get_curve_placement(sketch, self.curve_id)
+                # Shared with the icon pass and every other marker on this curve.
+                world_pos = frame_cache.curve_placement(sketch, self.curve_id)
             else:
                 return
 
@@ -289,6 +288,14 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         return -1
 
     def draw(self, context):
+        # This gizmo draws nothing itself (see below); it only keeps colors and
+        # matrix_basis current for test_select, which is disabled while a stateful
+        # operator runs. Blender still calls draw() once per constraint per frame,
+        # so during a drawing operator that bookkeeping was the single largest
+        # per-frame cost, growing with every constraint. Skip it until the
+        # operator ends; the next redraw after that brings it current again.
+        if global_data.stateful_op_running:
+            return
         constraint = self._get_constraint(context)
         if not constraint or not constraint.visible:
             return

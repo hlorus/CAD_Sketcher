@@ -15,13 +15,12 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 from mathutils import Vector
 
-from . import selection
 from .. import icon_manager
+from ..model.sketch_ref import get_active_sketch
 from ..shaders import Shaders
 from ..utilities.preferences import get_prefs
 from ..utilities.view import get_2d_coords, get_scale_from_pos
-from ..utilities.curve_data import get_curve_placement
-from ..model.sketch_ref import get_active_sketch
+from . import frame_cache, selection
 
 # Matches gizmos.constraint.GIZMO_OFFSET (kept local to avoid importing the
 # gizmo module into the drawing layer).
@@ -31,8 +30,8 @@ _GIZMO_OFFSET = Vector((1.0, 1.0))
 def _iter_icons(context, sketch):
     """Yield (center_2d, size, constraint_type, color) for each geometric
     constraint icon, mirroring the gizmo group's placement + stacking."""
+    from ..gizmos.utilities import get_constraint_color_type
     from ..model.base_constraint import DimensionalConstraint
-    from ..gizmos.utilities import get_constraint_color_type, get_color
 
     rv3d = context.region_data
     ui_scale = context.preferences.system.ui_scale
@@ -55,7 +54,7 @@ def _iter_icons(context, sketch):
                 except Exception:
                     world = None
             if world is None:
-                world = get_curve_placement(sketch, cid)
+                world = frame_cache.curve_placement(sketch, cid)
             if world is None:
                 continue
 
@@ -68,7 +67,9 @@ def _iter_icons(context, sketch):
             center = pos + _GIZMO_OFFSET * size / scale_3d + offset
 
             is_highlight = c == selection.highlight_constraint
-            color = get_color(get_constraint_color_type(c), is_highlight)
+            color = frame_cache.constraint_color(
+                get_constraint_color_type(c), is_highlight
+            )
             yield center, size, c.type, color
 
 
@@ -96,8 +97,12 @@ def draw():
         h = size / 2.0
         cx, cy = center.x, center.y
         verts += [
-            (cx - h, cy - h), (cx + h, cy - h), (cx + h, cy + h),
-            (cx - h, cy - h), (cx + h, cy + h), (cx - h, cy + h),
+            (cx - h, cy - h),
+            (cx + h, cy - h),
+            (cx + h, cy + h),
+            (cx - h, cy - h),
+            (cx + h, cy + h),
+            (cx - h, cy + h),
         ]
         texco += [(u0, v0), (u1, v0), (u1, v1), (u0, v0), (u1, v1), (u0, v1)]
         colors += [tuple(color)] * 6
