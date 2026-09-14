@@ -14,7 +14,11 @@ change the small bridge section in that same group; no per-schema node-group
 variants are created or rebound.
 """
 
+import math
+
 import bpy
+
+from ..model.constants import SketchCurveType
 
 CONVERT_NODE_GROUP = "CAD Sketcher Convert"
 VERTEX_ID_ATTR = "id"
@@ -23,7 +27,13 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 21
+CONVERT_VERSION = 22
+
+# Input exposing how finely arcs and circles are tessellated.
+ANGULAR_RESOLUTION_INPUT = "Angular Resolution"
+# Matches the Bezier default of 12 edges per 90 degree segment, the output before
+# the input existed.
+DEFAULT_ANGULAR_RESOLUTION = math.radians(7.5)
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -329,6 +339,111 @@ def ensure_generated_id_nodes(node_group):
     return node_group
 
 
+def input_identifier(node_group, name: str):
+    """Identifier of the group input socket called ``name``, or None."""
+    for item in node_group.interface.items_tree:
+        if (
+            getattr(item, "item_type", "") == "SOCKET"
+            and getattr(item, "in_out", "") == "INPUT"
+            and item.name == name
+        ):
+            return item.identifier
+    return None
+
+
+def _set_curve_resolution(nodes, links, curve, angle):
+    """Tessellate arcs and circles by a maximum angle per edge.
+
+    Their splines are Bezier segments of at most 90 degrees each, so giving every
+    segment ``ceil(90 degrees / angle)`` edges keeps the edge angle even whatever
+    the sweep. Lines are left alone (they keep resolution 1 from creation).
+    """
+    sketch_type = _named_int(nodes, "sketch_type")
+    is_arc, arc_a = _int_compare(nodes, links, "EQUAL", SketchCurveType.ARC)
+    links.new(sketch_type, arc_a)
+    is_circle, circle_a = _int_compare(nodes, links, "EQUAL", SketchCurveType.CIRCLE)
+    links.new(sketch_type, circle_a)
+    curved = nodes.new("FunctionNodeBooleanMath")
+    curved.operation = "OR"
+    links.new(is_arc.outputs["Result"], curved.inputs[0])
+    links.new(is_circle.outputs["Result"], curved.inputs[1])
+
+    # Guard the divide against a zero angle.
+    clamped = nodes.new("ShaderNodeMath")
+    clamped.operation = "MAXIMUM"
+    clamped.inputs[1].default_value = 1e-4
+    links.new(angle, clamped.inputs[0])
+    steps = nodes.new("ShaderNodeMath")
+    steps.operation = "DIVIDE"
+    steps.inputs[0].default_value = math.pi / 2
+    links.new(clamped.outputs["Value"], steps.inputs[1])
+    # Float noise must not tip an exact ratio (90 / 7.5 = 12) up to the next count.
+    nudge = nodes.new("ShaderNodeMath")
+    nudge.operation = "SUBTRACT"
+    nudge.inputs[1].default_value = 1e-3
+    links.new(steps.outputs["Value"], nudge.inputs[0])
+    ceil = nodes.new("ShaderNodeMath")
+    ceil.operation = "CEIL"
+    links.new(nudge.outputs["Value"], ceil.inputs[0])
+
+    set_resolution = nodes.new("GeometryNodeSetSplineResolution")
+    links.new(curve, set_resolution.inputs["Geometry"])
+    links.new(curved.outputs["Boolean"], set_resolution.inputs["Selection"])
+    links.new(ceil.outputs["Value"], set_resolution.inputs["Resolution"])
+    return set_resolution.outputs["Geometry"]
+
+
+def _input_sockets(node_group):
+    return [
+        item
+        for item in node_group.interface.items_tree
+        if getattr(item, "item_type", "") == "SOCKET"
+        and getattr(item, "in_out", "") == "INPUT"
+        and item.socket_type != "NodeSocketGeometry"
+    ]
+
+
+def _snapshot_modifier_inputs(node_group):
+    """Input values of every modifier using ``node_group``, keyed by socket name.
+
+    Rebuilding recreates the interface, which re-mints socket identifiers, and
+    modifier inputs are keyed by identifier: without this a rebuild (a version
+    bump or an attribute definition change) would reset every sketch's Fill and
+    Angular Resolution to the defaults.
+    """
+    from ..operators.modifiers import get_modifier_input
+
+    sockets = _input_sockets(node_group)
+    saved = []
+    for obj in bpy.data.objects:
+        for mod in obj.modifiers:
+            if getattr(mod, "type", None) != "NODES" or mod.node_group != node_group:
+                continue
+            values = {}
+            for item in sockets:
+                try:
+                    values[item.name] = get_modifier_input(mod, item.identifier)
+                except Exception:
+                    pass
+            saved.append((mod, values))
+    return saved
+
+
+def _restore_modifier_inputs(node_group, saved) -> None:
+    """Re-apply values from :func:`_snapshot_modifier_inputs` by socket name."""
+    from ..operators.modifiers import set_modifier_input
+
+    identifiers = {item.name: item.identifier for item in _input_sockets(node_group)}
+    for mod, values in saved:
+        for name, value in values.items():
+            if name not in identifiers:
+                continue
+            try:
+                set_modifier_input(mod, identifiers[name], value)
+            except Exception:
+                pass
+
+
 def build_convert_node_group(
     name: str = CONVERT_NODE_GROUP, attribute_definitions=None
 ):
@@ -343,11 +458,13 @@ def build_convert_node_group(
     signature = attribute_signature(specs)
 
     ng = bpy.data.node_groups.get(name)
+    saved = []
     if ng is not None:
         if ng.get("cad_convert_version") == CONVERT_VERSION and (
             not requested or ng.get("cad_convert_attribute_signature", "") == signature
         ):
             return ng
+        saved = _snapshot_modifier_inputs(ng)
         ng.nodes.clear()
         ng.links.clear()
         ng.interface.clear()
@@ -359,6 +476,14 @@ def build_convert_node_group(
     iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
     fill = iface.new_socket("Fill", in_out="INPUT", socket_type="NodeSocketBool")
     fill.default_value = True
+    resolution = iface.new_socket(
+        ANGULAR_RESOLUTION_INPUT, in_out="INPUT", socket_type="NodeSocketFloat"
+    )
+    resolution.subtype = "ANGLE"
+    resolution.default_value = DEFAULT_ANGULAR_RESOLUTION
+    resolution.min_value = math.radians(0.1)
+    resolution.max_value = math.radians(90)
+    resolution.description = "Maximum angle per edge when arcs and circles are meshed"
 
     nodes, links = ng.nodes, ng.links
     gi = nodes.new("NodeGroupInput")
@@ -383,7 +508,10 @@ def build_convert_node_group(
     links.new(drop.outputs["Boolean"], delete.inputs["Selection"])
 
     to_mesh = nodes.new("GeometryNodeCurveToMesh")
-    links.new(delete.outputs["Geometry"], to_mesh.inputs["Curve"])
+    curve = _set_curve_resolution(
+        nodes, links, delete.outputs["Geometry"], gi.outputs[ANGULAR_RESOLUTION_INPUT]
+    )
+    links.new(curve, to_mesh.inputs["Curve"])
     wire_mesh = _store_segment_attributes_on_edges(
         nodes, links, to_mesh.outputs["Mesh"], specs
     )
@@ -465,4 +593,5 @@ def build_convert_node_group(
     ng["cad_convert_version"] = CONVERT_VERSION
     ng["cad_generated_id_version"] = GENERATED_ID_VERSION
     ng["cad_convert_attribute_signature"] = signature
+    _restore_modifier_inputs(ng, saved)
     return ng

@@ -95,60 +95,17 @@ def _shared_conversion_definitions():
     return [definitions_by_key[key] for key in sorted(definitions_by_key)]
 
 
-def _convert_fill_socket(group):
-    """The Fill input socket identifier of a convert group, or None."""
-    for item in group.interface.items_tree:
-        if (
-            getattr(item, "item_type", "") == "SOCKET"
-            and getattr(item, "in_out", "") == "INPUT"
-            and item.name == "Fill"
-        ):
-            return item.identifier
-    return None
-
-
 def _sync_shared_conversion_group():
     """Refresh only the small attribute bridge in the shared 5.2+ converter.
 
-    Rebuilding recreates the group's interface, which re-mints socket identifiers.
-    Modifier inputs are keyed by identifier, so snapshot every bound convert
-    modifier's Fill value first and re-apply it afterwards -- otherwise the
-    orphaned value reads as False and defining an attribute silently flips fill
-    off on existing sketches.
+    The rebuild keeps each convert modifier's input values (see
+    ``convert_nodes._snapshot_modifier_inputs``).
     """
     if bpy.app.version < (5, 2, 0):
         return
-    from ..operators.modifiers import get_modifier_input, set_modifier_input
-    from .convert_nodes import CONVERT_NODE_GROUP, build_convert_node_group
+    from .convert_nodes import build_convert_node_group
 
-    group = bpy.data.node_groups.get(CONVERT_NODE_GROUP)
-    saved = []
-    if group is not None:
-        fill_id = _convert_fill_socket(group)
-        if fill_id is not None:
-            for obj in bpy.data.objects:
-                for mod in obj.modifiers:
-                    if (
-                        getattr(mod, "type", None) != "NODES"
-                        or mod.node_group is not group
-                    ):
-                        continue
-                    try:
-                        saved.append((mod, bool(get_modifier_input(mod, fill_id))))
-                    except Exception:
-                        pass
-
-    group = build_convert_node_group(
-        attribute_definitions=_shared_conversion_definitions()
-    )
-
-    new_fill_id = _convert_fill_socket(group)
-    if new_fill_id is not None:
-        for mod, value in saved:
-            try:
-                set_modifier_input(mod, new_fill_id, value)
-            except Exception:
-                pass
+    build_convert_node_group(attribute_definitions=_shared_conversion_definitions())
 
 
 def definitions(sketch):

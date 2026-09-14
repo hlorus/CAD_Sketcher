@@ -1,4 +1,5 @@
 import logging
+import math
 
 import bpy
 from bl_ui.utils import PresetPanel
@@ -127,6 +128,17 @@ class Preferences(AddonPreferences):
         description="Automatically align view to workplane when activating a sketch.",
         default=True,
     )
+    curve_angular_resolution: FloatProperty(
+        name="Curve Resolution",
+        description=(
+            "Maximum angle per edge when arcs and circles are meshed, used for new "
+            "sketches. Change it per sketch on its CAD Sketcher Convert modifier"
+        ),
+        subtype="ANGLE",
+        default=math.radians(7.5),
+        min=math.radians(0.1),
+        max=math.radians(90),
+    )
     show_whats_new: BoolProperty(
         name="Show What's New on Update",
         description="Show a summary of the changes after CAD Sketcher is updated",
@@ -169,7 +181,7 @@ class Preferences(AddonPreferences):
         layout.use_property_split = True
 
         box = layout.box()
-        box.label(text="General")
+        box.label(text="Interface")
         col = box.column(align=True)
         col.prop(self, "auto_hide_objects")
         col.prop(self, "use_align_view")
@@ -179,6 +191,11 @@ class Preferences(AddonPreferences):
         col.prop(self, "gizmo_scale")
         col.prop(self, "text_size")
         col.prop(self, "arrow_scale")
+
+        box = layout.box()
+        box.label(text="Geometry")
+        col = box.column(align=True)
+        col.prop(self, "curve_angular_resolution")
 
         box = layout.box()
         box.label(text="Units")
