@@ -169,7 +169,13 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         if active_sketch is not None:
             mapping, signature = self._layout(context, active_sketch)
             if _layout_signatures.get(self.as_pointer()) == signature:
-                self._update_in_place(active_sketch)
+                # Colors and marker positions only feed the gizmo's hit-test,
+                # which is off while a stateful operator runs (see draw()). The
+                # operator's _end forces a refresh, so they're brought current as
+                # soon as it finishes. The layout check above still runs, so a
+                # gizmo added mid-operator (e.g. a dimension's value) appears.
+                if not global_data.stateful_op_running:
+                    self._update_in_place(active_sketch)
                 return
 
         self.gizmos.clear()

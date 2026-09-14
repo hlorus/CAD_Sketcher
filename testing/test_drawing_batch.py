@@ -354,3 +354,139 @@ class TestFrameCache(Sketch2dTestCase):
             tuple(got),
             tuple(curve_data.get_curve_placement(self.sketch, line.curve_id)),
         )
+
+
+class TestVectorizedSourceSeeds(Sketch2dTestCase):
+    """The numpy seed computation must reproduce the scalar FNV fold exactly."""
+
+    def test_matches_scalar_hash(self):
+        from ..utilities.curve_data import _stable_source_id, _stable_source_ids
+
+        rng = np.random.default_rng(7)
+        words = rng.integers(-(2**31), 2**31 - 1, size=(2000, 4), dtype=np.int64)
+        words[:50] = 0  # unset ids
+        words[50:60, :3] = 0  # partially set
+        words = words.astype(np.int32)
+        want = [_stable_source_id(tuple(int(x) for x in row)) for row in words]
+        np.testing.assert_array_equal(_stable_source_ids(words), want)
+
+    def _scalar_seeds(self):
+        """The previous per-curve implementation, as the reference."""
+        from ..model.constants import SketchCurveType
+        from ..utilities.curve_data import _stable_source_id, read_uuid_raw_list
+
+        cd = self.sketch.target_object.data
+        curve_ids = read_uuid_raw_list(cd, "curve_id")
+        start_ids = read_uuid_raw_list(cd, "start_point_id")
+        end_ids = read_uuid_raw_list(cd, "end_point_id")
+        curve_seeds = [_stable_source_id(v) for v in curve_ids]
+        endpoint = [0] * len(cd.points)
+        type_attr = cd.attributes["sketch_type"]
+        for i, curve in enumerate(cd.curves):
+            if (
+                type_attr.data[i].value
+                not in (SketchCurveType.LINE, SketchCurveType.ARC)
+                or curve.points_length < 2
+            ):
+                continue
+            if any(start_ids[i]):
+                endpoint[curve.points[0].index] = _stable_source_id(start_ids[i])
+            if any(end_ids[i]):
+                endpoint[curve.points[curve.points_length - 1].index] = (
+                    _stable_source_id(end_ids[i])
+                )
+        return curve_seeds, endpoint
+
+    def test_sketch_seeds_match_the_previous_implementation(self):
+        from ..utilities.curve_data import (
+            SOURCE_CURVE_ID_ATTR,
+            SOURCE_ENDPOINT_ID_ATTR,
+            compute_generated_id_seeds,
+        )
+
+        pts = [self.add_point((i, 0)) for i in range(4)]
+        self.add_line(pts[0], pts[1])
+        self.add_line(pts[1], pts[2])
+        centre = self.add_point((0, 4))
+        self.add_arc(centre, self.add_point((1, 4)), self.add_point((0, 5)))
+        self.add_circle(self.add_point((5, 5)), 1.0)
+        self.solve()
+
+        compute_generated_id_seeds(self.sketch)
+        cd = self.sketch.target_object.data
+        got_curve = np.empty(len(cd.curves), dtype=np.int32)
+        cd.attributes[SOURCE_CURVE_ID_ATTR].data.foreach_get("value", got_curve)
+        got_end = np.empty(len(cd.points), dtype=np.int32)
+        cd.attributes[SOURCE_ENDPOINT_ID_ATTR].data.foreach_get("value", got_end)
+
+        want_curve, want_end = self._scalar_seeds()
+        np.testing.assert_array_equal(got_curve, want_curve)
+        np.testing.assert_array_equal(got_end, want_end)
+
+
+class TestConstraintIconCacheKey(Sketch2dTestCase):
+    """The icon batch is reused only while nothing its icons depend on changed."""
+
+    def _key_with_fixed_atlas(self, atlas, uvs, view=None):
+        import types
+
+        from mathutils import Matrix
+
+        from ..drawing import constraint_icons
+
+        ctx = types.SimpleNamespace(
+            region_data=types.SimpleNamespace(perspective_matrix=view or Matrix()),
+            region=types.SimpleNamespace(width=800, height=600),
+            preferences=self.context.preferences,
+        )
+        return constraint_icons._icon_key(ctx, self.sketch, atlas, uvs)
+
+    def setUp(self):
+        super().setUp()
+        self.atlas, self.uvs = object(), {}
+        self.p0, self.p1 = self.add_point((0, 0)), self.add_point((2, 0))
+        self.line = self.add_line(self.p0, self.p1)
+        self.constraint = self.sketch.constraints.add_horizontal(
+            curve_id_1=self.line.curve_id
+        )
+
+    def key(self, **kw):
+        return self._key_with_fixed_atlas(self.atlas, self.uvs, **kw)
+
+    def test_stable_when_nothing_changed(self):
+        self.assertEqual(self.key(), self.key())
+
+    def test_unconstrained_preview_geometry_keeps_the_key(self):
+        """The whole point: a drawing preview must not invalidate the icons."""
+        before = self.key()
+        self.add_line(self.add_point((5, 5)), self.add_point((6, 6)))
+        self.assertEqual(before, self.key())
+
+    def test_moving_constrained_geometry_changes_the_key(self):
+        before = self.key()
+        self.p1.co = (3.0, 1.0)
+        self.assertNotEqual(before, self.key())
+
+    def test_constraint_state_changes_the_key(self):
+        before = self.key()
+        self.constraint.failed = True
+        failed = self.key()
+        self.assertNotEqual(before, failed)
+        self.constraint.visible = False
+        self.assertNotEqual(failed, self.key())
+
+    def test_new_constraint_and_view_change_the_key(self):
+        from mathutils import Matrix
+
+        before = self.key()
+        self.sketch.constraints.add_coincident(
+            curve_id_1=self.p0.curve_id, curve_id_2=self.p1.curve_id
+        )
+        with_new = self.key()
+        self.assertNotEqual(before, with_new)
+        self.assertNotEqual(with_new, self.key(view=Matrix.Translation((1, 0, 0))))
+
+    def test_a_rebuilt_atlas_changes_the_key(self):
+        before = self.key()
+        self.atlas = object()
+        self.assertNotEqual(before, self.key())

@@ -68,7 +68,7 @@ def on_load_post(*args):
     manual ``slvs_migrate_legacy`` operator, surfaced by the Sketcher panel when
     legacy data is detected, so all users don't pay for it on every file load.
     """
-    from .drawing import overlay, selection
+    from .drawing import constraint_icons, overlay, selection
     from .model.base_constraint import reset_data_owner_cache
     from .utilities.curve_data import reset_merge_cache
     from .utilities.validate import reset_cache
@@ -77,6 +77,7 @@ def on_load_post(*args):
     reset_merge_cache()
     reset_data_owner_cache()
     overlay.invalidate()
+    constraint_icons.invalidate()
     selection.clear()
 
 

@@ -1130,34 +1130,61 @@ def compute_generated_id_seeds(sketch):
     if not curve_attr or not endpoint_attr or not type_attr:
         return False
 
-    curve_ids = read_uuid_raw_list(cd, "curve_id")
-    start_ids = read_uuid_raw_list(cd, "start_point_id")
-    end_ids = read_uuid_raw_list(cd, "end_point_id")
-    curve_seeds = np.array(
-        [_stable_source_id(value) for value in curve_ids], dtype=np.int32
-    )
-    endpoint_seeds = np.zeros(len(cd.points), dtype=np.int32)
+    # Vectorized: this runs for the whole sketch whenever connectivity changes,
+    # which while drawing is once per mouse move, and the per-curve Python hash
+    # grew with every shape in the sketch. Same FNV fold as _stable_source_id.
+    curve_seeds = _stable_source_ids(_raw_id_words(cd, "curve_id", n_curves))
 
-    for index, curve in enumerate(cd.curves):
-        if (
-            type_attr.data[index].value
-            not in (
-                SketchCurveType.LINE,
-                SketchCurveType.ARC,
-            )
-            or curve.points_length < 2
-        ):
-            continue
-        if any(start_ids[index]):
-            endpoint_seeds[curve.points[0].index] = _stable_source_id(start_ids[index])
-        if any(end_ids[index]):
-            endpoint_seeds[curve.points[curve.points_length - 1].index] = (
-                _stable_source_id(end_ids[index])
-            )
+    types = np.empty(n_curves, dtype=np.int32)
+    type_attr.data.foreach_get("value", types)
+    offsets = np.empty(n_curves + 1, dtype=np.int32)
+    cd.curve_offset_data.foreach_get("value", offsets)
+    counts = np.diff(offsets)
+    segment = np.isin(types, (SketchCurveType.LINE, SketchCurveType.ARC)) & (
+        counts >= 2
+    )
+
+    endpoint_seeds = np.zeros(len(cd.points), dtype=np.int32)
+    for field, point_index in (
+        ("start_point_id", offsets[:-1]),
+        ("end_point_id", offsets[1:] - 1),
+    ):
+        words = _raw_id_words(cd, field, n_curves)
+        write = segment & words.any(axis=1)
+        endpoint_seeds[point_index[write]] = _stable_source_ids(words[write])
 
     curve_attr.data.foreach_set("value", curve_seeds)
     endpoint_attr.data.foreach_set("value", endpoint_seeds)
     return True
+
+
+def _raw_id_words(curve_data, field, n_curves):
+    """An id field as an (n, 4) int32 array of (lo0, lo1, hi0, hi1) words."""
+    words = np.zeros((n_curves, 4), dtype=np.int32)
+    lo = curve_data.attributes.get(f".{field}_lo")
+    hi = curve_data.attributes.get(f".{field}_hi")
+    if lo and hi:
+        pair = np.empty(n_curves * 2, dtype=np.int32)
+        lo.data.foreach_get("value", pair)
+        words[:, :2] = pair.reshape(-1, 2)
+        hi.data.foreach_get("value", pair)
+        words[:, 2:] = pair.reshape(-1, 2)
+    return words
+
+
+def _stable_source_ids(words):
+    """Vectorized ``_stable_source_id`` over an (n, 4) int32 word array."""
+    fnv_prime = np.uint64(0x01000193)
+    mask = np.uint64(0xFFFFFFFF)
+    value = np.full(len(words), 0x811C9DC5, dtype=np.uint64)
+    unsigned = words.astype(np.int64) & 0xFFFFFFFF
+    for k in range(4):
+        value = ((value ^ unsigned[:, k].astype(np.uint64)) * fnv_prime) & mask
+    value[value == 0] = 1
+    signed = value.astype(np.int64)
+    signed[signed >= 0x80000000] -= 0x100000000
+    signed[~words.any(axis=1)] = 0
+    return signed.astype(np.int32)
 
 
 def rebuild_segments(sketch, point_ids=None):

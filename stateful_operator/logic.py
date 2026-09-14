@@ -866,6 +866,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
         if not keep_stateful_running:
             global_data.stateful_op_running = False
+            # Gizmo bookkeeping is deferred while an operator runs; refresh now so
+            # hit-testing and colors are current immediately after it ends.
+            from ..utilities.view import refresh
+
+            refresh(context)
 
         # Stop publishing pick types so hover falls back to the idle default.
         global_data.hover_types = None
