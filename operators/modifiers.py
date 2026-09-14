@@ -63,6 +63,23 @@ def get_modifier_input(modifier, identifier):
 BOOLEAN_OPERATIONS = ("Difference", "Union", "Intersect")
 
 
+def set_boolean_solver(modifier, identifier, name):
+    """Set the boolean Solver input (an integer index into SOLVERS)."""
+    from ..utilities.boolean_nodes import SOLVERS
+
+    set_modifier_input(modifier, identifier, SOLVERS.index(name))
+
+
+def get_boolean_solver(modifier, identifier):
+    """Read the boolean Solver input back as its name."""
+    from ..utilities.boolean_nodes import SOLVERS
+
+    index = int(get_modifier_input(modifier, identifier))
+    if 0 <= index < len(SOLVERS):
+        return SOLVERS[index]
+    return SOLVERS[0]
+
+
 def set_boolean_operation(modifier, identifier, name):
     """Set the boolean Operation input (an integer index into BOOLEAN_OPERATIONS)."""
     set_modifier_input(modifier, identifier, BOOLEAN_OPERATIONS.index(name))
@@ -130,7 +147,12 @@ def creates_boolean_cycle(body, cutter):
 
 
 def apply_boolean(
-    body, cutter, operation="Difference", self_intersection=True, hole_tolerant=False
+    body,
+    cutter,
+    operation="Difference",
+    self_intersection=True,
+    hole_tolerant=False,
+    solver="Exact",
 ):
     """Add or update a nondestructive boolean of ``cutter`` on ``body``.
 
@@ -157,6 +179,7 @@ def apply_boolean(
     set_boolean_operation(mod, ids["Operation"], operation)
     set_modifier_input(mod, ids["Self Intersection"], self_intersection)
     set_modifier_input(mod, ids["Hole Tolerant"], hole_tolerant)
+    set_boolean_solver(mod, ids["Solver"], solver)
     return mod
 
 
@@ -1011,6 +1034,19 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
     )
     self_intersection: BoolProperty(name="Self Intersection", default=True)
     hole_tolerant: BoolProperty(name="Hole Tolerant", default=False)
+    solver: bpy.props.EnumProperty(
+        name="Solver",
+        items=(
+            ("Exact", "Exact", "Robust with imperfect geometry, but slow"),
+            (
+                "Manifold",
+                "Manifold",
+                "Much faster, but only for clean closed meshes: non-manifold "
+                "input is dropped from the result",
+            ),
+        ),
+        default="Exact",
+    )
 
     # A solid cutter would hide the boolean result, so switch its viewport
     # display (wireframe by default, like Bool Tool). display_type is a draw-only
@@ -1105,6 +1141,8 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         self.operation = get_boolean_operation(modifier, ids["Operation"])
         self.self_intersection = get_modifier_input(modifier, ids["Self Intersection"])
         self.hole_tolerant = get_modifier_input(modifier, ids["Hole Tolerant"])
+        if "Solver" in ids:  # absent on a group not yet rebuilt to version 4
+            self.solver = get_boolean_solver(modifier, ids["Solver"])
 
     def main(self, context: Context):
         from ..utilities.boolean_nodes import build_boolean_node_group
@@ -1154,6 +1192,7 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         set_boolean_operation(m, ids["Operation"], self.operation)
         set_modifier_input(m, ids["Self Intersection"], self.self_intersection)
         set_modifier_input(m, ids["Hole Tolerant"], self.hole_tolerant)
+        set_boolean_solver(m, ids["Solver"], self.solver)
         return True
 
     def draw_settings(self, context):
@@ -1161,9 +1200,13 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         # per-state row; only the non-pointer options belong here.
         layout = self.layout
         layout.prop(self, "operation")
+        layout.prop(self, "solver")
         layout.prop(self, "cutter_display")
-        layout.prop(self, "self_intersection")
-        layout.prop(self, "hole_tolerant")
+        # Self Intersection / Hole Tolerant only exist on the Exact solver.
+        col = layout.column()
+        col.active = self.solver == "Exact"
+        col.prop(self, "self_intersection")
+        col.prop(self, "hole_tolerant")
 
 
 # Give the boolean-capable tools their shared boolean properties. Injected here

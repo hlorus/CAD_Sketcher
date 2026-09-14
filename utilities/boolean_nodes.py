@@ -17,6 +17,11 @@ rather than shipped as a binary asset, and rebuilt in place when
 The cutter must already be a solid: a flat 2D sketch fill has no volume, so
 extrude or revolve it into a solid first (matching the composable extrude /
 revolve / array node tools).
+
+The boolean solver is selectable. Exact is the default because it tolerates
+imperfect input. Manifold is typically orders of magnitude faster, but it only
+accepts clean closed (manifold) meshes and silently drops operands that are not,
+so it is an opt-in per modifier rather than a global switch.
 """
 
 import bpy
@@ -25,7 +30,7 @@ BOOLEAN_NODE_GROUP = "CAD Sketcher Boolean"
 
 # Bump whenever the built tree changes so groups baked into existing files are
 # rebuilt in place on load, keeping modifiers bound to the same name.
-BOOLEAN_VERSION = 3
+BOOLEAN_VERSION = 4
 
 # Menu items, in node/enum order. The interface menu default is the first.
 _OPERATIONS = ("Difference", "Union", "Intersect")
@@ -34,6 +39,10 @@ _OP_TO_NODE = {
     "Union": "UNION",
     "Intersect": "INTERSECT",
 }
+
+# Solver menu items, in index order; the first is the default.
+SOLVERS = ("Exact", "Manifold")
+_SOLVER_TO_NODE = {"Exact": "EXACT", "Manifold": "MANIFOLD"}
 
 
 def _geometry_sockets(node):
@@ -46,6 +55,22 @@ def _geometry_sockets(node):
     single = [s for s in node.inputs if s.type == "GEOMETRY" and not s.is_multi_input]
     multi = [s for s in node.inputs if s.type == "GEOMETRY" and s.is_multi_input]
     return single, multi
+
+
+def _ensure_socket(interface, name, in_out, socket_type):
+    """Return the interface socket ``name``/``in_out``, creating it if missing.
+
+    An existing socket is kept (so its identifier, and every modifier value keyed
+    by it, survives a rebuild). One with the wrong type is replaced, since its
+    stored values could not be reused anyway.
+    """
+    for item in interface.items_tree:
+        if item.item_type == "SOCKET" and item.name == name and item.in_out == in_out:
+            if item.socket_type == socket_type:
+                return item
+            interface.remove(item)
+            break
+    return interface.new_socket(name, in_out=in_out, socket_type=socket_type)
 
 
 def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
@@ -67,30 +92,42 @@ def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
 
     if ng.get("cad_boolean_version") == BOOLEAN_VERSION:
         return ng
+    # Rebuild nodes and links only. The interface is updated in place, never
+    # cleared: modifier input values are keyed by socket identifier, and a
+    # cleared-then-recreated socket gets a fresh identifier (Socket_1 comes back as
+    # Socket_8), which would silently wipe the Cutter and Operation of every
+    # boolean already in the file on the next rebuild.
     ng.nodes.clear()
     ng.links.clear()
-    ng.interface.clear()
 
     iface = ng.interface
-    iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
-    iface.new_socket("Cutter", in_out="INPUT", socket_type="NodeSocketObject")
+    _ensure_socket(iface, "Geometry", "INPUT", "NodeSocketGeometry")
+    _ensure_socket(iface, "Cutter", "INPUT", "NodeSocketObject")
     # An integer + Index Switch, not a menu socket: menu sockets do not evaluate
     # reliably as modifier inputs on Blender 5.0/5.1 (the switch produces no
     # geometry there), whereas an int index behaves identically across versions.
-    operation = iface.new_socket(
-        "Operation", in_out="INPUT", socket_type="NodeSocketInt"
-    )
+    operation = _ensure_socket(iface, "Operation", "INPUT", "NodeSocketInt")
     operation.min_value = 0
     operation.max_value = len(_OPERATIONS) - 1
+    operation.default_value = 0
     operation.description = "0 = Difference, 1 = Union, 2 = Intersect"
-    self_intersection = iface.new_socket(
-        "Self Intersection", in_out="INPUT", socket_type="NodeSocketBool"
+    self_intersection = _ensure_socket(
+        iface, "Self Intersection", "INPUT", "NodeSocketBool"
     )
-    iface.new_socket("Hole Tolerant", in_out="INPUT", socket_type="NodeSocketBool")
     # Robust default: sketch fills welded by identity can leave shared boundary
     # points, so keep self-intersection handling on.
     self_intersection.default_value = True
-    iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    _ensure_socket(iface, "Hole Tolerant", "INPUT", "NodeSocketBool")
+    _ensure_socket(iface, "Geometry", "OUTPUT", "NodeSocketGeometry")
+    # Int index for the same reason as Operation.
+    solver = _ensure_socket(iface, "Solver", "INPUT", "NodeSocketInt")
+    solver.min_value = 0
+    solver.max_value = len(SOLVERS) - 1
+    solver.default_value = 0
+    solver.description = (
+        "0 = Exact (robust, slower), 1 = Manifold (much faster, needs clean closed "
+        "meshes; non-manifold input is dropped)"
+    )
 
     nodes, links = ng.nodes, ng.links
     gi = nodes.new("NodeGroupInput")
@@ -105,9 +142,11 @@ def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
     cutter_geo = cutter.outputs["Geometry"]
     body_geo = gi.outputs["Geometry"]
 
-    def make_boolean(op_node):
+    def make_boolean(op_node, solver_node):
         node = nodes.new("GeometryNodeMeshBoolean")
-        node.solver = "EXACT"
+        # The solver is a node property, not a socket, so it cannot be driven by
+        # an input directly: one node per solver, picked by the Index Switch.
+        node.solver = solver_node
         node.operation = op_node
         single, multi = _geometry_sockets(node)
         if op_node == "DIFFERENCE":
@@ -120,6 +159,7 @@ def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
             # here silently drops it and outputs just the cutter.)
             links.new(body_geo, multi[0])
             links.new(cutter_geo, multi[0])
+        # Only the Exact solver has these sockets; the Manifold node skips them.
         for socket in node.inputs:
             if socket.name == "Self Intersection":
                 links.new(gi.outputs["Self Intersection"], socket)
@@ -127,20 +167,28 @@ def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
                 links.new(gi.outputs["Hole Tolerant"], socket)
         return node
 
-    # Only the branch the Index Switch selects is evaluated, so the other two
-    # boolean nodes cost nothing at runtime.
-    branches = [make_boolean(_OP_TO_NODE[label]) for label in _OPERATIONS]
+    def index_switch(index_output, items):
+        switch = nodes.new("GeometryNodeIndexSwitch")
+        switch.data_type = "GEOMETRY"
+        while len(switch.index_switch_items) < len(items):
+            switch.index_switch_items.new()
+        links.new(index_output, switch.inputs["Index"])
+        for i, item in enumerate(items):
+            links.new(item, switch.inputs[str(i)])
+        return switch.outputs["Output"]
 
-    switch = nodes.new("GeometryNodeIndexSwitch")
-    switch.data_type = "GEOMETRY"
-    while len(switch.index_switch_items) < len(_OPERATIONS):
-        switch.index_switch_items.new()
-    links.new(gi.outputs["Operation"], switch.inputs["Index"])
-    for i, node in enumerate(branches):
-        links.new(node.outputs["Mesh"], switch.inputs[str(i)])
-    links.new(switch.outputs["Output"], go.inputs["Geometry"])
-
-    operation.default_value = 0
+    # Solver switch over operation switches. Only the branch the switches select
+    # is evaluated, so the five unused boolean nodes cost nothing at runtime.
+    per_solver = []
+    for solver_label in SOLVERS:
+        branches = [
+            make_boolean(_OP_TO_NODE[label], _SOLVER_TO_NODE[solver_label]).outputs[
+                "Mesh"
+            ]
+            for label in _OPERATIONS
+        ]
+        per_solver.append(index_switch(gi.outputs["Operation"], branches))
+    links.new(index_switch(gi.outputs["Solver"], per_solver), go.inputs["Geometry"])
 
     ng["cad_boolean_version"] = BOOLEAN_VERSION
     return ng

@@ -11,12 +11,17 @@ import bpy
 from ..operators.modifiers import (
     View3D_OT_node_boolean,
     boolean_input_ids,
+    get_boolean_operation,
+    get_boolean_solver,
+    get_modifier_input,
     set_boolean_operation,
+    set_boolean_solver,
     set_modifier_input,
 )
 from ..utilities.boolean_nodes import (
     BOOLEAN_NODE_GROUP,
     BOOLEAN_VERSION,
+    SOLVERS,
     build_boolean_node_group,
 )
 from .utils import BgsTestCase, make_operator_double
@@ -52,7 +57,7 @@ class TestBooleanNodeGroup(BgsTestCase):
             if getattr(s, "in_out", "") == "INPUT"
         }
 
-    def _result(self, group, cutter, operation):
+    def _result(self, group, cutter, operation, solver="Exact"):
         """Return (poly_count, bbox_min, bbox_max) of the boolean output.
 
         The bounding box is what makes union/intersect verifiable: passing
@@ -68,6 +73,7 @@ class TestBooleanNodeGroup(BgsTestCase):
             # Version-aware setters (menu socket differs on 5.0 vs 5.2).
             set_modifier_input(modifier, ids["Cutter"], cutter)
             set_boolean_operation(modifier, ids["Operation"], operation)
+            set_boolean_solver(modifier, ids["Solver"], solver)
             depsgraph = self.context.evaluated_depsgraph_get()
             mesh = target.evaluated_get(depsgraph).to_mesh()
             if mesh is None or len(mesh.vertices) == 0:
@@ -125,6 +131,64 @@ class TestBooleanNodeGroup(BgsTestCase):
         self._assert_vec(lo, (-1.0, -1.0, -1.0))
         self._assert_vec(hi, (1.0, 1.0, 1.0))
 
+    # -- solver -----------------------------------------------------------
+
+    def test_solver_input_defaults_to_exact(self):
+        group = build_boolean_node_group()
+        solver = next(
+            s
+            for s in group.interface.items_tree
+            if getattr(s, "in_out", "") == "INPUT" and s.name == "Solver"
+        )
+        self.assertEqual(SOLVERS[solver.default_value], "Exact")
+
+    def test_manifold_matches_exact_on_clean_solids(self):
+        """Two closed cubes are valid Manifold input, so both solvers must agree.
+
+        Manifold silently drops non-manifold operands; on clean input it must give
+        the same shape as Exact for every operation, or the switch is unusable.
+        """
+        group = build_boolean_node_group()
+        cutter = self._solid_cutter()
+        for operation in ("Difference", "Union", "Intersect"):
+            with self.subTest(operation=operation):
+                exact = self._result(group, cutter, operation, "Exact")
+                manifold = self._result(group, cutter, operation, "Manifold")
+                self.assertGreater(manifold[0], 0, "Manifold produced no geometry")
+                self._assert_vec(manifold[1], exact[1])
+                self._assert_vec(manifold[2], exact[2])
+
+    def test_rebuild_keeps_existing_modifier_values(self):
+        """A version bump rebuilds the group in place; modifiers must keep values.
+
+        Inputs are addressed by identifier, so recreating the interface must not
+        reassign the identifiers of inputs that existed before (Solver is created
+        last for exactly this reason).
+        """
+        group = build_boolean_node_group()
+        cutter = self._solid_cutter()
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        try:
+            mod = body.modifiers.new("CAD_Sketcher Boolean", "NODES")
+            mod.node_group = group
+            ids = boolean_input_ids(group)
+            set_modifier_input(mod, ids["Cutter"], cutter)
+            set_boolean_operation(mod, ids["Operation"], "Intersect")
+            set_modifier_input(mod, ids["Hole Tolerant"], True)
+            set_boolean_solver(mod, ids["Solver"], "Manifold")
+
+            group["cad_boolean_version"] = BOOLEAN_VERSION - 1  # force a rebuild
+            self.assertIs(build_boolean_node_group(), group)
+
+            ids = boolean_input_ids(group)
+            self.assertIs(get_modifier_input(mod, ids["Cutter"]), cutter)
+            self.assertEqual(get_boolean_operation(mod, ids["Operation"]), "Intersect")
+            self.assertTrue(get_modifier_input(mod, ids["Hole Tolerant"]))
+            self.assertEqual(get_boolean_solver(mod, ids["Solver"]), "Manifold")
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+
     # -- operator ---------------------------------------------------------
 
     def test_operator_registered(self):
@@ -152,7 +216,13 @@ class TestBooleanNodeGroup(BgsTestCase):
         # operator and the group drifting apart.
         group = build_boolean_node_group()
         ids = boolean_input_ids(group)
-        for name in ("Cutter", "Operation", "Self Intersection", "Hole Tolerant"):
+        for name in (
+            "Cutter",
+            "Operation",
+            "Self Intersection",
+            "Hole Tolerant",
+            "Solver",
+        ):
             self.assertIn(name, ids)
 
         cutter = self._solid_cutter()
