@@ -2,6 +2,7 @@ import logging
 
 from bpy.props import FloatProperty
 from bpy.types import Operator
+from mathutils import Vector
 
 from ..curve_solver import solve_system
 from ..declarations import Operators
@@ -142,6 +143,11 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             description="Point to bevel",
             pointer="p1",
             types=(*POINT2D, *SEGMENT),
+            # Bevel only acts on existing corners: a click on empty space must
+            # never place a new point there.
+            use_create=False,
+            # Selected corners are enough to bevel; main() gathers them.
+            optional=True,
         ),
         state_from_args(
             "Radius",
@@ -150,6 +156,26 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             interactive=True,
         ),
     )
+
+    def _has_selected_corners(self) -> bool:
+        """Whether the selection alone gives points to bevel (cached per run)."""
+        cached = getattr(self, "_selected_corners", None)
+        if cached is None:
+            sketch = self.sketch
+            cached = bool(sketch and _get_bevel_points(sketch, sketch.topology))
+            self._selected_corners = cached
+        return cached
+
+    def evaluate_state(self, context, event, triggered):
+        # With corners already selected, a click that hits nothing starts the
+        # radius drag. The base would cancel it for lack of a picked target (an
+        # optional state can't help: it only skips once the radius is set too).
+        if triggered and self.state_index == 0 and self._has_selected_corners():
+            coords = Vector((event.mouse_region_x, event.mouse_region_y))
+            if self.pick_element(context, coords) is None:
+                self.next_state(context)
+                return {"RUNNING_MODAL"}
+        return super().evaluate_state(context, event, triggered)
 
     def main(self, context):
         sketch = self.sketch
