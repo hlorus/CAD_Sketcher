@@ -58,6 +58,140 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
     return sketch
 
 
+def new_workplane_empty(context: Context, matrix):
+    """Create an unattached workplane Empty at ``matrix``, linked at scene level."""
+    from ..utilities.collections import link_loose_workplane
+
+    empty = bpy.data.objects.new("Workplane", None)
+    empty.empty_display_type = "PLAIN_AXES"
+    empty.empty_display_size = 0.5
+    link_loose_workplane(empty, context.scene)
+    empty.matrix_world = matrix
+    return empty
+
+
+def create_face_workplane(context: Context, ob, face_index: int):
+    """Create a workplane Empty anchored to a mesh face.
+
+    The empty is not parented to the mesh; instead it is anchored to the face
+    via a persistent id and the depsgraph handler re-derives its transform from
+    the evaluated mesh, so it follows edits and deformation (see
+    utilities/face_anchor).
+    """
+    from ..stateful_operator.utilities.geometry import get_evaluated_obj
+    from ..utilities.face_anchor import can_anchor_face, stamp_face_anchor
+
+    empty = new_workplane_empty(context, face_workplane_matrix(context, ob, face_index))
+
+    # When a modifier changed the topology the picked face can't be anchored;
+    # leave the empty as a plain fixed workplane (issue #342-adjacent crash on
+    # box.blend meshes).
+    if can_anchor_face(ob, get_evaluated_obj(context, ob)):
+        stamp_face_anchor(empty, ob, face_index)
+    return empty
+
+
+def _owns_workplane(context: Context, sketch_obj, wp) -> bool:
+    """Whether ``wp`` is a workplane only ``sketch_obj`` uses (safe to change).
+
+    Origin planes are shared by definition; any other child (another sketch or
+    an object the user parented) counts as a use.
+    """
+    from ..utilities.face_anchor import is_origin_workplane
+
+    return (
+        wp is not None
+        and not is_origin_workplane(context.scene, wp)
+        and all(c == sketch_obj for c in wp.children)
+    )
+
+
+def set_sketch_workplane(context: Context, sketch_obj, wp_empty) -> bool:
+    """Move a 2D sketch onto another workplane, keeping its 2D geometry.
+
+    The sketch's curves live in its workplane's local frame, so reparenting
+    carries the whole sketch (and its constraints) rigidly onto the new plane.
+    A workplane left unused is deleted when CAD Sketcher manages it (anchored,
+    or grouped in the sketch's collection) so moving sketches around doesn't
+    litter the scene; any other one moves to the scene level.
+    Returns False when ``wp_empty`` already is the sketch's workplane.
+    """
+    from .. import global_data
+    from ..utilities.collections import (
+        in_sketch_collection,
+        link_loose_workplane,
+        nest_workplane,
+    )
+    from ..utilities.face_anchor import KEY_FACE_ID, clear_anchor
+
+    wp_empty = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
+    old = sketch_obj.parent
+    if old == wp_empty:
+        return False
+
+    owned = _owns_workplane(context, sketch_obj, old)
+    managed = old is not None and (
+        KEY_FACE_ID in old or in_sketch_collection(old, sketch_obj)
+    )
+    sketch_obj.parent = wp_empty
+    sketch_obj.matrix_parent_inverse.identity()
+    nest_workplane(wp_empty, sketch_obj)
+
+    if owned and managed:
+        clear_anchor(old)
+        bpy.data.objects.remove(old, do_unlink=True)
+    elif owned:
+        link_loose_workplane(old, context.scene)
+
+    global_data.needs_solve = True
+    return True
+
+
+def move_sketch_to_face(context: Context, sketch_obj, ob, face_index: int):
+    """Put a sketch on a mesh face, reusing its workplane when only it uses it.
+
+    Creating a fresh empty every time would leave the old one behind unused, so
+    a workplane the sketch owns is simply re-anchored to the new face. A shared
+    one is left to the other sketches and the sketch gets a new workplane.
+    Returns the sketch's workplane.
+    """
+    from .. import global_data
+    from ..stateful_operator.utilities.geometry import get_evaluated_obj
+    from ..utilities.face_anchor import can_anchor_face, clear_anchor, stamp_face_anchor
+
+    wp = sketch_obj.parent
+    if not _owns_workplane(context, sketch_obj, wp):
+        empty = create_face_workplane(context, ob, face_index)
+        set_sketch_workplane(context, sketch_obj, empty)
+        return empty
+
+    clear_anchor(wp)
+    wp.matrix_world = face_workplane_matrix(context, ob, face_index)
+    if can_anchor_face(ob, get_evaluated_obj(context, ob)):
+        stamp_face_anchor(wp, ob, face_index)
+    global_data.needs_solve = True
+    return wp
+
+
+def free_sketch_workplane(context: Context, sketch_obj):
+    """Stop a sketch's workplane following its mesh face, for this sketch only.
+
+    The anchor lives on the workplane, which other sketches may share; freeing
+    it in place would silently change them too. So a shared workplane is left
+    as is and the sketch moves to a new free one at the same spot. Returns the
+    sketch's (now free) workplane.
+    """
+    from ..utilities.face_anchor import clear_anchor
+
+    wp = sketch_obj.parent
+    if _owns_workplane(context, sketch_obj, wp):
+        clear_anchor(wp)
+        return wp
+    empty = new_workplane_empty(context, wp.matrix_world.copy())
+    set_sketch_workplane(context, sketch_obj, empty)
+    return empty
+
+
 # TODO:
 # - Draw sketches
 class View3D_OT_slvs_add_sketch(Operator, Operator3d):
@@ -104,46 +238,11 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
             return self._use_workplane(b)
 
         if kind == "mesh":
-            empty = self._create_wp_empty_from_face(context, a, b)
+            empty = create_face_workplane(context, a, b)
             if empty:
                 return self._use_workplane(empty)
 
         return None
-
-    def _create_wp_empty_from_face(self, context, ob, face_index):
-        """Create a workplane Empty anchored to a mesh face.
-
-        The empty is not parented to the mesh; instead it is anchored to the
-        face via a persistent id and the depsgraph handler re-derives its
-        transform from the evaluated mesh, so it follows edits and deformation
-        (see utilities/face_anchor).
-        """
-        from ..stateful_operator.utilities.geometry import get_evaluated_obj
-        from ..utilities.face_anchor import stamp_face_anchor
-
-        empty = bpy.data.objects.new("Workplane", None)
-        empty.empty_display_type = "PLAIN_AXES"
-        empty.empty_display_size = 0.5
-        from ..utilities.collections import link_loose_workplane
-
-        link_loose_workplane(empty, context.scene)
-
-        empty.matrix_world = face_workplane_matrix(context, ob, face_index)
-
-        # face_index is an evaluated-mesh index; it only maps to an original face
-        # (which the anchor stamps a persistent id on) when no modifier changed
-        # the topology. When it doesn't line up (Solidify/Bevel/etc.), leave the
-        # empty as a plain fixed workplane rather than anchor the wrong face or
-        # index out of range (issue #342-adjacent crash on box.blend meshes).
-        orig = ob.data
-        eval_mesh = get_evaluated_obj(context, ob).data
-        if (
-            hasattr(orig, "polygons")
-            and hasattr(eval_mesh, "polygons")
-            and len(eval_mesh.polygons) == len(orig.polygons)
-        ):
-            stamp_face_anchor(empty, ob, face_index)
-        return empty
 
     def prepare_origin_elements(self, context):
         ensure_origin_workplane_empties(context)

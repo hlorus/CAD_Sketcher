@@ -419,8 +419,11 @@ class TestNodeTools(BgsTestCase):
         # is_valid_target ignores self, so unbound calls are fine.
         self.assertFalse(View3D_OT_node_extrude.is_valid_target(None, mesh_ob))
         self.assertTrue(View3D_OT_node_extrude.is_valid_target(None, curve_ob))
-        # Array keeps the permissive default (any object).
+        # Array takes any geometry object, but never an empty (a workplane).
         self.assertTrue(View3D_OT_node_array_linear.is_valid_target(None, mesh_ob))
+        self.assertTrue(View3D_OT_node_array_linear.is_valid_target(None, curves_ob))
+        empty_ob = self._link("empty", None)
+        self.assertFalse(View3D_OT_node_array_linear.is_valid_target(None, empty_ob))
 
     def test_extrude_adds_thickness(self):
         group = build_extrude_node_group()

@@ -11,8 +11,8 @@ import bmesh
 import bpy
 from mathutils import Matrix
 
-from .utils import BgsTestCase
 from ..utilities import face_anchor as fa
+from .utils import BgsTestCase
 
 
 class TestFaceAnchor(BgsTestCase):
@@ -33,12 +33,14 @@ class TestFaceAnchor(BgsTestCase):
         # records the frame's X as the in-plane reference, so an identity frame
         # would store an axis parallel to the normal — degenerate, and the
         # recomputed frame could never stay rigid with the mesh.
-        self.empty.matrix_world = Matrix((
-            (0.0, 0.0, -1.0, -1.0),
-            (0.0, 1.0, 0.0, 0.0),
-            (1.0, 0.0, 0.0, 0.0),
-            (0.0, 0.0, 0.0, 1.0),
-        ))
+        self.empty.matrix_world = Matrix(
+            (
+                (0.0, 0.0, -1.0, -1.0),
+                (0.0, 1.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0, 0.0),
+                (0.0, 0.0, 0.0, 1.0),
+            )
+        )
         fa.stamp_face_anchor(self.empty, self.ob, 0)
         self.face_id = self.empty[fa.KEY_FACE_ID]
 
@@ -56,7 +58,9 @@ class TestFaceAnchor(BgsTestCase):
         dg.update()
         eval_ob = self.ob.evaluated_get(dg)
         res = fa.recompute_anchor_matrix(
-            eval_ob, self.face_id, self.empty.get(fa.KEY_LAST_CO),
+            eval_ob,
+            self.face_id,
+            self.empty.get(fa.KEY_LAST_CO),
             self.empty.get(fa.KEY_REF),
         )
         if res is None:
@@ -71,8 +75,9 @@ class TestFaceAnchor(BgsTestCase):
         attr = self.ob.data.attributes.get(fa.FACE_ID_ATTR)
         if attr is None:
             return 0
-        return sum(1 for p in self.ob.data.polygons
-                   if attr.data[p.index].value == self.face_id)
+        return sum(
+            1 for p in self.ob.data.polygons if attr.data[p.index].value == self.face_id
+        )
 
     def _select_id_faces(self, bm):
         layer = bm.faces.layers.int.get(fa.FACE_ID_ATTR)
@@ -126,6 +131,7 @@ class TestFaceAnchor(BgsTestCase):
         # object rotation. (The world-up heuristic fails this — it re-solves the
         # in-plane direction from world Z, so a drawn line swings.)
         import math
+
         from mathutils import Euler
 
         m0 = self._recompute()
@@ -220,3 +226,278 @@ class TestFaceAnchor(BgsTestCase):
         self.ob.data.update()
 
         self.assertIsNone(self._recompute())
+
+    # -- duplicated anchors -----------------------------------------------
+
+    def _duplicate_empty(self):
+        # Object.copy() carries custom properties, exactly like Shift+D.
+        dup = self.empty.copy()
+        self.scene.collection.objects.link(dup)
+        return dup
+
+    def _place_on_face(self, empty):
+        empty[fa.KEY_LAST_CO] = [-1.0, 0.0, 0.0]
+        empty.matrix_world.translation = (-1.0, 0.0, 0.0)
+
+    def test_duplicate_right_after_copy_frees_the_copy(self):
+        self._place_on_face(self.empty)
+        dup = self._duplicate_empty()
+        self.context.view_layer.update()
+
+        # The depsgraph handler may already have run on the update; either way
+        # the end state must be the same.
+        fa.free_duplicate_anchors(self.scene)
+
+        self.assertIn(fa.KEY_FACE_ID, self.empty)
+        self.assertNotIn(fa.KEY_FACE_ID, dup)
+        self.assertNotIn(fa.KEY_SOURCE, dup)
+        # The kept empty still uses the face, so the mesh id must survive.
+        fa.reconcile_orphan_anchors(self.scene)
+        self.assertEqual(self._count_id_faces(), 1)
+        bpy.data.objects.remove(dup, do_unlink=True)
+
+    def test_duplicate_keeps_the_empty_on_the_face(self):
+        self._place_on_face(self.empty)
+        dup = self._duplicate_empty()
+        # The original was moved away; the copy still sits on the face.
+        self.empty.matrix_world.translation = (5.0, 5.0, 5.0)
+        dup.matrix_world.translation = (-1.0, 0.0, 0.0)
+        self.context.view_layer.update()
+
+        fa.free_duplicate_anchors(self.scene)
+
+        self.assertNotIn(fa.KEY_FACE_ID, self.empty)
+        self.assertIn(fa.KEY_FACE_ID, dup)
+        # Freed empties stay where the user put them.
+        self.assertAlmostEqual(self.empty.matrix_world.translation.x, 5.0)
+        bpy.data.objects.remove(dup, do_unlink=True)
+
+    def test_single_anchor_untouched(self):
+        self.assertEqual(fa.free_duplicate_anchors(self.scene), [])
+        self.assertIn(fa.KEY_FACE_ID, self.empty)
+
+    # -- changing the anchor ----------------------------------------------
+
+    def test_change_face_replaces_old_anchor(self):
+        # What the Anchor/Change Face operator does on a click.
+        old_id = self.face_id
+        fa.clear_anchor(self.empty)
+        fa.stamp_face_anchor(self.empty, self.ob, 1)
+
+        attr = self.ob.data.attributes.get(fa.FACE_ID_ATTR)
+        ids = [attr.data[i].value for i in range(len(self.ob.data.polygons))]
+        self.assertNotIn(old_id, ids[:1])
+        self.assertEqual(ids[1], self.empty[fa.KEY_FACE_ID])
+        self.assertEqual(sum(1 for v in ids if v), 1)
+
+    def test_can_anchor_face_rejects_topology_modifiers(self):
+        dg = self.context.evaluated_depsgraph_get()
+        self.assertTrue(fa.can_anchor_face(self.ob, self.ob.evaluated_get(dg)))
+        mod = self.ob.modifiers.new("solid", "SOLIDIFY")
+        dg = self.context.evaluated_depsgraph_get()
+        dg.update()
+        self.assertFalse(fa.can_anchor_face(self.ob, self.ob.evaluated_get(dg)))
+        self.ob.modifiers.remove(mod)
+
+    def test_origin_workplanes_detected(self):
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        ensure_origin_workplane_empties(self.context)
+        self.assertTrue(fa.is_origin_workplane(self.scene, self.scene.sketcher.wp_xy))
+        self.assertFalse(fa.is_origin_workplane(self.scene, self.empty))
+
+    def test_panel_shows_anchor(self):
+        from .. import declarations
+        from ..model.sketch_ref import Sketch, stamp_sketch_props
+        from ..ui.panels.sketch_select import _draw_workplane
+
+        menu = declarations.Menus.SketchWorkplane.value
+        sketches = []
+        for i in range(2):
+            ob = bpy.data.objects.new(f"anchor_sk{i}", bpy.data.hair_curves.new("c"))
+            self.scene.collection.objects.link(ob)
+            stamp_sketch_props(ob)
+            ob.parent = self.empty
+            sketches.append(ob)
+
+        class _Layout:
+            def __init__(self):
+                self.labels, self.ops = [], []
+
+            def label(self, text="", icon=""):
+                self.labels.append(text)
+
+            def menu(self, idname, text="", icon=""):
+                self.ops.append(idname)
+
+            def row(self, align=False):
+                return self
+
+            def column(self, align=False):
+                return self
+
+            def split(self, factor=0.5, align=False):
+                return self
+
+        try:
+            layout = _Layout()
+            _draw_workplane(self.context, layout, Sketch(sketches[0]))
+            self.assertEqual(layout.labels, ["Workplane", "anchor_cube, face 0"])
+            self.assertEqual(layout.ops, [menu])
+
+            fa.clear_anchor(self.empty)
+            layout = _Layout()
+            _draw_workplane(self.context, layout, Sketch(sketches[0]))
+            self.assertEqual(layout.labels, ["Workplane", "WP"])
+            self.assertEqual(layout.ops, [menu])
+        finally:
+            for ob in sketches:
+                data = ob.data
+                bpy.data.objects.remove(ob, do_unlink=True)
+                bpy.data.hair_curves.remove(data)
+
+    # -- changing a sketch's workplane --------------------------------------
+
+    def _sketch_on(self, parent, name="wp_sketch"):
+        from ..model.sketch_ref import stamp_sketch_props
+
+        ob = bpy.data.objects.new(name, bpy.data.hair_curves.new(name))
+        self.scene.collection.objects.link(ob)
+        stamp_sketch_props(ob)
+        ob.parent = parent
+        return ob
+
+    def _remove(self, ob):
+        data = ob.data
+        bpy.data.objects.remove(ob, do_unlink=True)
+        bpy.data.hair_curves.remove(data)
+
+    def test_set_sketch_workplane_moves_sketch_onto_plane(self):
+        from ..operators.add_sketch import set_sketch_workplane
+
+        target = bpy.data.objects.new("target_wp", None)
+        self.scene.collection.objects.link(target)
+        target.matrix_world = Matrix.Translation((3.0, 4.0, 5.0))
+        sk = self._sketch_on(self.empty)
+        other = self._sketch_on(self.empty, "other_sketch")
+        try:
+            self.assertTrue(set_sketch_workplane(self.context, sk, target))
+            self.context.view_layer.update()
+            self.assertIs(sk.parent, target)
+            self.assertAlmostEqual(
+                (sk.matrix_world.translation - target.matrix_world.translation).length,
+                0.0,
+            )
+            # The old workplane is still used by another sketch: keep its anchor.
+            self.assertIn(self.empty.name, bpy.data.objects)
+            self.assertIn(fa.KEY_FACE_ID, self.empty)
+            # Picking the current workplane again is a no-op.
+            self.assertFalse(set_sketch_workplane(self.context, sk, target))
+        finally:
+            self._remove(sk)
+            self._remove(other)
+            bpy.data.objects.remove(target, do_unlink=True)
+
+    def test_set_sketch_workplane_removes_unused_face_workplane(self):
+        from ..operators.add_sketch import set_sketch_workplane
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        ensure_origin_workplane_empties(self.context)
+        wp_xy = self.scene.sketcher.wp_xy
+        old = self.empty
+        sk = self._sketch_on(old)
+        try:
+            self.assertTrue(set_sketch_workplane(self.context, sk, wp_xy))
+            # The face workplane was only used by this sketch: gone, with its id.
+            self.assertNotIn("WP", bpy.data.objects)
+            self.assertIsNone(self.ob.data.attributes.get(fa.FACE_ID_ATTR))
+            # Moving off an origin plane must never delete it.
+            back = bpy.data.objects.new("WP", None)
+            self.scene.collection.objects.link(back)
+            self.empty = back  # tearDown removes it
+            self.assertTrue(set_sketch_workplane(self.context, sk, back))
+            self.assertIs(self.scene.sketcher.wp_xy, wp_xy)
+            self.assertIn(wp_xy.name, bpy.data.objects)
+        finally:
+            self._remove(sk)
+
+    def test_free_shared_workplane_splits_off_the_sketch(self):
+        from ..operators.add_sketch import free_sketch_workplane
+
+        sk = self._sketch_on(self.empty)
+        other = self._sketch_on(self.empty, "other_sketch")
+        pos = self.empty.matrix_world.translation.copy()
+        try:
+            new = free_sketch_workplane(self.context, sk)
+            self.assertIsNot(new, self.empty)
+            self.assertIs(sk.parent, new)
+            self.assertNotIn(fa.KEY_FACE_ID, new)
+            self.assertAlmostEqual((new.matrix_world.translation - pos).length, 0.0)
+            # The other sketch keeps the anchored workplane untouched.
+            self.assertIs(other.parent, self.empty)
+            self.assertIn(fa.KEY_FACE_ID, self.empty)
+            self.assertEqual(self._count_id_faces(), 1)
+        finally:
+            self._remove(sk)
+            self._remove(other)
+            bpy.data.objects.remove(new, do_unlink=True)
+
+    def test_free_unshared_workplane_in_place(self):
+        from ..operators.add_sketch import free_sketch_workplane
+
+        sk = self._sketch_on(self.empty)
+        try:
+            self.assertIs(free_sketch_workplane(self.context, sk), self.empty)
+            self.assertIs(sk.parent, self.empty)
+            self.assertNotIn(fa.KEY_FACE_ID, self.empty)
+        finally:
+            self._remove(sk)
+
+    def test_anchor_face_indices(self):
+        self.assertEqual(fa.anchor_face_indices(self.ob.data, self.face_id), [0])
+        self.assertEqual(fa.anchor_face_indices(self.ob.data, self.face_id + 1), [])
+
+    def test_move_to_face_reuses_owned_workplane(self):
+        from ..operators.add_sketch import move_sketch_to_face
+
+        sk = self._sketch_on(self.empty)
+        n_objects = len(bpy.data.objects)
+        try:
+            wp = move_sketch_to_face(self.context, sk, self.ob, 1)
+            self.assertIs(wp, self.empty)
+            self.assertIs(sk.parent, self.empty)
+            self.assertEqual(len(bpy.data.objects), n_objects)
+            # Re-anchored: only the new face carries the id.
+            self.assertEqual(
+                fa.anchor_face_indices(self.ob.data, self.empty[fa.KEY_FACE_ID]), [1]
+            )
+            self.assertEqual(
+                sum(
+                    1
+                    for p in self.ob.data.polygons
+                    if self.ob.data.attributes[fa.FACE_ID_ATTR].data[p.index].value
+                ),
+                1,
+            )
+        finally:
+            self._remove(sk)
+
+    def test_move_to_face_leaves_shared_workplane(self):
+        from ..operators.add_sketch import move_sketch_to_face
+
+        sk = self._sketch_on(self.empty)
+        other = self._sketch_on(self.empty, "other_sketch")
+        new = None
+        try:
+            new = move_sketch_to_face(self.context, sk, self.ob, 1)
+            self.assertIsNot(new, self.empty)
+            self.assertIs(sk.parent, new)
+            self.assertIs(other.parent, self.empty)
+            self.assertEqual(
+                fa.anchor_face_indices(self.ob.data, self.empty[fa.KEY_FACE_ID]), [0]
+            )
+        finally:
+            self._remove(sk)
+            self._remove(other)
+            if new is not None:
+                bpy.data.objects.remove(new, do_unlink=True)

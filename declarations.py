@@ -54,6 +54,7 @@ class Operators(str, Enum):
     AddSketchOnPlane = "view3d.slvs_add_sketch_on_plane"
     AddTangent = "view3d.slvs_add_tangent"
     AddVertical = "view3d.slvs_add_vertical"
+    ChangeSketchWorkplane = "view3d.slvs_change_sketch_workplane"
     MakeWorkplaneFree = "view3d.slvs_make_workplane_free"
     MigrateLegacy = "view3d.slvs_migrate_legacy"
     ReattachWorkplane = "view3d.slvs_reattach_workplane"
@@ -104,6 +105,7 @@ class Macros(str, Enum):
 class Menus(str, Enum):
     SelectedMenu = "VIEW3D_MT_selected_menu"
     AddSketch = "VIEW3D_MT_slvs_add_sketch"
+    SketchWorkplane = "VIEW3D_MT_slvs_sketch_workplane"
 
 
 class Panels(str, Enum):

@@ -21,26 +21,31 @@ anchor (subdivide/extrude/inset all keep the id). We therefore look the face up
   - Deleting the anchor face removes the id -> flagged detached.
 """
 
+import logging
+
 import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
 from .geometry import orientation_from_normal_ref
 
+logger = logging.getLogger(__name__)
+
 # FACE-domain INT attribute stamped on the source mesh.
 FACE_ID_ATTR = "slvs_face_id"
 
 # ID custom-property keys on the workplane empty.
-KEY_SOURCE = "slvs_wp_source"      # source Object (ID reference)
-KEY_FACE_ID = "slvs_wp_face_id"    # int id anchored to
+KEY_SOURCE = "slvs_wp_source"  # source Object (ID reference)
+KEY_FACE_ID = "slvs_wp_face_id"  # int id anchored to
 KEY_DETACHED = "slvs_wp_detached"  # bool, set when the id can't be found
-KEY_LAST_CO = "slvs_wp_last_co"    # last cluster centroid in source-local space
-KEY_REF = "slvs_wp_ref"            # in-plane X axis in source-local space
+KEY_LAST_CO = "slvs_wp_last_co"  # last cluster centroid in source-local space
+KEY_REF = "slvs_wp_ref"  # in-plane X axis in source-local space
 
 
 # ---------------------------------------------------------------------------
 # Creation
 # ---------------------------------------------------------------------------
+
 
 def _allocate_face_id(mesh):
     """A face id unique within ``mesh`` (max existing + 1)."""
@@ -50,6 +55,29 @@ def _allocate_face_id(mesh):
     ids = np.empty(len(attr.data), dtype=np.int32)
     attr.data.foreach_get("value", ids)
     return int(ids.max()) + 1
+
+
+def can_anchor_face(source_ob, eval_ob) -> bool:
+    """Whether evaluated face indices of ``source_ob`` map to original faces.
+
+    Picks ray cast against the *evaluated* mesh, but the persistent id lives on
+    the *original* mesh. The indices only line up when no modifier changed the
+    topology (Solidify/Bevel/etc. don't), otherwise the wrong face would be
+    anchored or the index would be out of range.
+    """
+    orig = source_ob.data
+    evaluated = eval_ob.data
+    return (
+        hasattr(orig, "polygons")
+        and hasattr(evaluated, "polygons")
+        and len(evaluated.polygons) == len(orig.polygons)
+    )
+
+
+def is_origin_workplane(scene: bpy.types.Scene, empty) -> bool:
+    """Whether ``empty`` is one of the fixed XY/XZ/YZ origin workplanes."""
+    sketcher = scene.sketcher
+    return empty in {sketcher.wp_xy, sketcher.wp_xz, sketcher.wp_yz}
 
 
 def stamp_face_anchor(empty, source_ob, face_index):
@@ -91,10 +119,11 @@ def stamp_face_anchor(empty, source_ob, face_index):
 # Iteration
 # ---------------------------------------------------------------------------
 
+
 def iter_face_workplanes(scene):
     """Yield empties that are anchored to a mesh face."""
     for obj in scene.objects:
-        if obj.type == 'EMPTY' and KEY_FACE_ID in obj:
+        if obj.type == "EMPTY" and KEY_FACE_ID in obj:
             yield obj
 
 
@@ -129,12 +158,60 @@ def clear_anchor(empty):
     """
     source = empty.get(KEY_SOURCE)
     face_id = empty.get(KEY_FACE_ID)
-    if source is not None and source.type == 'MESH' and face_id is not None:
+    if source is not None and source.type == "MESH" and face_id is not None:
         clear_face_id(source.data, face_id)
         _live_anchors.discard((source.data.name, face_id))
+    _strip_anchor_props(empty)
+
+
+def _strip_anchor_props(empty):
     for key in (KEY_SOURCE, KEY_FACE_ID, KEY_DETACHED, KEY_LAST_CO, KEY_REF):
         if key in empty:
             del empty[key]
+
+
+def free_duplicate_anchors(scene: bpy.types.Scene) -> list:
+    """Free all but one of several empties anchored to the same face.
+
+    Duplicating an anchored workplane (Shift+D) copies its custom properties, so
+    the copy silently claims the same face and every source update snaps all of
+    them onto it. Only one empty can own a face: keep the one sitting closest to
+    the face (ties, as right after a duplicate, go to the older object) and
+    turn the rest into free workplanes where they are. The face id stays on the
+    mesh since the kept empty still uses it.
+
+    Returns the freed empties.
+    """
+    groups = {}
+    for empty in iter_face_workplanes(scene):
+        source = empty.get(KEY_SOURCE)
+        if source is None:
+            continue
+        groups.setdefault((source.name, empty[KEY_FACE_ID]), []).append(empty)
+
+    freed = []
+    for empties in groups.values():
+        if len(empties) < 2:
+            continue
+        source = empties[0][KEY_SOURCE]
+        last_co = empties[0].get(KEY_LAST_CO)
+        anchor = source.matrix_world @ Vector(last_co) if last_co else None
+
+        def rank(e):
+            dist = (
+                (e.matrix_world.translation - anchor).length
+                if anchor is not None
+                else 0.0
+            )
+            # Round so float noise can't beat the age tie-break.
+            return (round(dist, 6), e.session_uid)
+
+        keep = min(empties, key=rank)
+        for e in empties:
+            if e is not keep:
+                _strip_anchor_props(e)
+                freed.append(e)
+    return freed
 
 
 def reconcile_orphan_anchors(scene):
@@ -142,7 +219,7 @@ def reconcile_orphan_anchors(scene):
     live = set()
     for empty in iter_face_workplanes(scene):
         source = empty.get(KEY_SOURCE)
-        if source is not None and source.type == 'MESH':
+        if source is not None and source.type == "MESH":
             live.add((source.data.name, empty[KEY_FACE_ID]))
 
     for mesh_name, face_id in _live_anchors - live:
@@ -157,6 +234,7 @@ def reconcile_orphan_anchors(scene):
 # ---------------------------------------------------------------------------
 # Recompute
 # ---------------------------------------------------------------------------
+
 
 def _clusters(mesh, idxs):
     """Group face indices that are connected through shared vertices."""
@@ -201,6 +279,16 @@ def _plane_from_faces(mesh, faces):
     return centroid, normal
 
 
+def anchor_face_indices(mesh, face_id: int) -> list:
+    """Indices of the faces of ``mesh`` carrying the anchor ``face_id``."""
+    attr = mesh.attributes.get(FACE_ID_ATTR)
+    if attr is None or attr.domain != "FACE" or len(mesh.polygons) == 0:
+        return []
+    ids = np.empty(len(mesh.polygons), dtype=np.int32)
+    attr.data.foreach_get("value", ids)
+    return [int(i) for i in np.nonzero(ids == face_id)[0]]
+
+
 def recompute_anchor_matrix(eval_ob, face_id, last_co, ref_local=None):
     """World matrix for a face-anchored workplane, or None if detached.
 
@@ -210,13 +298,7 @@ def recompute_anchor_matrix(eval_ob, face_id, last_co, ref_local=None):
     rotation carries it so the frame stays rigid with the mesh.
     """
     mesh = eval_ob.data
-    attr = mesh.attributes.get(FACE_ID_ATTR)
-    if attr is None or attr.domain != 'FACE' or len(mesh.polygons) == 0:
-        return None
-
-    ids = np.empty(len(mesh.polygons), dtype=np.int32)
-    attr.data.foreach_get("value", ids)
-    idxs = [int(i) for i in np.nonzero(ids == face_id)[0]]
+    idxs = anchor_face_indices(mesh, face_id)
     if not idxs:
         return None
 
@@ -251,6 +333,7 @@ def recompute_anchor_matrix(eval_ob, face_id, last_co, ref_local=None):
 # Depsgraph handler body
 # ---------------------------------------------------------------------------
 
+
 def _matrix_differs(a, b, eps=1e-6):
     return any(abs(a[i][j] - b[i][j]) > eps for i in range(4) for j in range(4))
 
@@ -264,10 +347,13 @@ def update_face_workplanes(context, depsgraph):
 
     scene = context.scene
 
-    # Clear ids left behind by deleted workplane empties (writes to mesh data,
-    # so guard against the resulting depsgraph re-entry).
+    # Free copies of duplicated anchored empties, then clear ids left behind by
+    # deleted workplane empties (both write ID data, so guard against the
+    # resulting depsgraph re-entry).
     global_data.updating_face_wp = True
     try:
+        for empty in free_duplicate_anchors(scene):
+            logger.info("Freed duplicated face anchor on workplane %s", empty.name)
         reconcile_orphan_anchors(scene)
     finally:
         global_data.updating_face_wp = False
@@ -283,13 +369,13 @@ def update_face_workplanes(context, depsgraph):
     resolved = False
     for empty in iter_face_workplanes(scene):
         source = empty.get(KEY_SOURCE)
-        if source is None or source.type != 'MESH':
+        if source is None or source.type != "MESH":
             continue
         if source not in changed and source.data not in changed:
             continue
         # Edit-mode reads don't expose the id; reconcile on exit instead of
         # falsely detaching.
-        if source.mode == 'EDIT':
+        if source.mode == "EDIT":
             continue
 
         eval_ob = source.evaluated_get(depsgraph)
