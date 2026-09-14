@@ -13,6 +13,7 @@ from bpy.props import (
 from bpy.types import AddonPreferences, Menu, Panel
 
 from .. import units
+from ..utilities.boolean_nodes import SOLVER_ITEMS
 from ..utilities.register import get_name, get_path
 from ..utilities.view import update_cb
 from . import theme
@@ -139,6 +140,16 @@ class Preferences(AddonPreferences):
         min=math.radians(0.1),
         max=math.radians(90),
     )
+    boolean_solver: EnumProperty(
+        name="Boolean Solver",
+        description=(
+            "Solver used for new booleans (the Boolean tool, and Extrude/Revolve "
+            "when they boolean their result). Change it per boolean on its "
+            "CAD Sketcher Boolean modifier"
+        ),
+        items=SOLVER_ITEMS,
+        default="Exact",
+    )
     show_whats_new: BoolProperty(
         name="Show What's New on Update",
         description="Show a summary of the changes after CAD Sketcher is updated",
@@ -196,6 +207,7 @@ class Preferences(AddonPreferences):
         box.label(text="Geometry")
         col = box.column(align=True)
         col.prop(self, "curve_angular_resolution")
+        col.prop(self, "boolean_solver")
 
         box = layout.box()
         box.label(text="Units")
