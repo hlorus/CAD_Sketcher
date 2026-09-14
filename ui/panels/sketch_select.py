@@ -29,8 +29,7 @@ def _draw_workplane(context: Context, layout: UILayout, sketch):
 
     An anchored workplane is moved back onto its face whenever the mesh updates,
     so a manual move silently reverts. Surfacing the anchor (not only once it
-    breaks) lets the user see why and free the workplane. The anchor belongs to
-    the workplane, so say so when other sketches share it.
+    breaks) lets the user see why and free the workplane.
     """
     from ...utilities.face_anchor import KEY_DETACHED, KEY_FACE_ID, KEY_SOURCE
 
@@ -42,8 +41,6 @@ def _draw_workplane(context: Context, layout: UILayout, sketch):
 
     container = layout
     if anchored:
-        shared = sum(1 for s in get_sketches(context) if s.workplane_object == wp)
-        suffix = f" (shared by {shared} sketches)" if shared > 1 else ""
         if wp.get(KEY_DETACHED):
             container = layout.box()
             container.alert = True
@@ -52,14 +49,14 @@ def _draw_workplane(context: Context, layout: UILayout, sketch):
             source = wp.get(KEY_SOURCE)
             name = source.name if source else "mesh face"
             text, icon = f"Workplane anchored to {name}", "SNAP_FACE"
-        container.label(text=text + suffix, icon=icon)
+        container.label(text=text, icon=icon)
 
     row = container.row(align=True)
     row.operator(ops.ChangeSketchWorkplane, text="Change Workplane", icon="EYEDROPPER")
     if anchored:
         row.operator(
             ops.MakeWorkplaneFree, text="Make Free", icon="UNLINKED"
-        ).empty_name = wp.name
+        ).sketch_name = sketch.target_object.name
 
 
 def _draw_migration_prompt(context: Context, layout: UILayout):

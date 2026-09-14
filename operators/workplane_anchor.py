@@ -15,22 +15,32 @@ logger = logging.getLogger(__name__)
 
 
 class View3D_OT_slvs_make_workplane_free(Operator):
-    """Detach this workplane from its mesh face and keep it where it is. Affects every sketch on the workplane"""
+    """Stop the workplane following its mesh face and keep it where it is. Other sketches on the same workplane stay anchored"""
 
     bl_idname = Operators.MakeWorkplaneFree
     bl_label = "Make Workplane Free"
     bl_options = {"UNDO"}
 
     empty_name: StringProperty()
+    sketch_name: StringProperty(
+        description="Free the workplane for this sketch only (takes precedence)"
+    )
 
     def execute(self, context: Context):
         from ..utilities.face_anchor import clear_anchor
+        from .add_sketch import free_sketch_workplane
 
-        empty = bpy.data.objects.get(self.empty_name)
-        if empty is None:
-            self.report({"WARNING"}, "Workplane not found")
-            return {"CANCELLED"}
-        clear_anchor(empty)
+        sketch_obj = (
+            bpy.data.objects.get(self.sketch_name) if self.sketch_name else None
+        )
+        if sketch_obj is not None and sketch_obj.parent is not None:
+            free_sketch_workplane(context, sketch_obj)
+        else:
+            empty = bpy.data.objects.get(self.empty_name)
+            if empty is None:
+                self.report({"WARNING"}, "Workplane not found")
+                return {"CANCELLED"}
+            clear_anchor(empty)
         self.report({"INFO"}, "Workplane is now free")
         if context.area:
             context.area.tag_redraw()

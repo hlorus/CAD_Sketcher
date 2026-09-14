@@ -306,7 +306,7 @@ class TestFaceAnchor(BgsTestCase):
         self.assertTrue(fa.is_origin_workplane(self.scene, self.scene.sketcher.wp_xy))
         self.assertFalse(fa.is_origin_workplane(self.scene, self.empty))
 
-    def test_panel_shows_anchor_on_shared_workplane(self):
+    def test_panel_shows_anchor(self):
         from ..model.sketch_ref import Sketch, stamp_sketch_props
         from ..ui.panels.sketch_select import _draw_workplane
 
@@ -337,10 +337,7 @@ class TestFaceAnchor(BgsTestCase):
         try:
             layout = _Layout()
             _draw_workplane(self.context, layout, Sketch(sketches[0]))
-            self.assertEqual(
-                layout.labels,
-                ["Workplane anchored to anchor_cube (shared by 2 sketches)"],
-            )
+            self.assertEqual(layout.labels, ["Workplane anchored to anchor_cube"])
             self.assertEqual(layout.ops, ["Change Workplane", "Make Free"])
 
             fa.clear_anchor(self.empty)
@@ -416,5 +413,37 @@ class TestFaceAnchor(BgsTestCase):
             self.assertTrue(set_sketch_workplane(self.context, sk, back))
             self.assertIs(self.scene.sketcher.wp_xy, wp_xy)
             self.assertIn(wp_xy.name, bpy.data.objects)
+        finally:
+            self._remove(sk)
+
+    def test_free_shared_workplane_splits_off_the_sketch(self):
+        from ..operators.add_sketch import free_sketch_workplane
+
+        sk = self._sketch_on(self.empty)
+        other = self._sketch_on(self.empty, "other_sketch")
+        pos = self.empty.matrix_world.translation.copy()
+        try:
+            new = free_sketch_workplane(self.context, sk)
+            self.assertIsNot(new, self.empty)
+            self.assertIs(sk.parent, new)
+            self.assertNotIn(fa.KEY_FACE_ID, new)
+            self.assertAlmostEqual((new.matrix_world.translation - pos).length, 0.0)
+            # The other sketch keeps the anchored workplane untouched.
+            self.assertIs(other.parent, self.empty)
+            self.assertIn(fa.KEY_FACE_ID, self.empty)
+            self.assertEqual(self._count_id_faces(), 1)
+        finally:
+            self._remove(sk)
+            self._remove(other)
+            bpy.data.objects.remove(new, do_unlink=True)
+
+    def test_free_unshared_workplane_in_place(self):
+        from ..operators.add_sketch import free_sketch_workplane
+
+        sk = self._sketch_on(self.empty)
+        try:
+            self.assertIs(free_sketch_workplane(self.context, sk), self.empty)
+            self.assertIs(sk.parent, self.empty)
+            self.assertNotIn(fa.KEY_FACE_ID, self.empty)
         finally:
             self._remove(sk)

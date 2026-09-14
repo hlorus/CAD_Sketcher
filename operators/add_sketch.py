@@ -58,6 +58,18 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
     return sketch
 
 
+def new_workplane_empty(context: Context, matrix):
+    """Create an unattached workplane Empty at ``matrix``, linked at scene level."""
+    from ..utilities.collections import link_loose_workplane
+
+    empty = bpy.data.objects.new("Workplane", None)
+    empty.empty_display_type = "PLAIN_AXES"
+    empty.empty_display_size = 0.5
+    link_loose_workplane(empty, context.scene)
+    empty.matrix_world = matrix
+    return empty
+
+
 def create_face_workplane(context: Context, ob, face_index: int):
     """Create a workplane Empty anchored to a mesh face.
 
@@ -67,15 +79,9 @@ def create_face_workplane(context: Context, ob, face_index: int):
     utilities/face_anchor).
     """
     from ..stateful_operator.utilities.geometry import get_evaluated_obj
-    from ..utilities.collections import link_loose_workplane
     from ..utilities.face_anchor import can_anchor_face, stamp_face_anchor
 
-    empty = bpy.data.objects.new("Workplane", None)
-    empty.empty_display_type = "PLAIN_AXES"
-    empty.empty_display_size = 0.5
-    link_loose_workplane(empty, context.scene)
-
-    empty.matrix_world = face_workplane_matrix(context, ob, face_index)
+    empty = new_workplane_empty(context, face_workplane_matrix(context, ob, face_index))
 
     # When a modifier changed the topology the picked face can't be anchored;
     # leave the empty as a plain fixed workplane (issue #342-adjacent crash on
@@ -120,6 +126,27 @@ def set_sketch_workplane(context: Context, sketch_obj, wp_empty) -> bool:
 
     global_data.needs_solve = True
     return True
+
+
+def free_sketch_workplane(context: Context, sketch_obj):
+    """Stop a sketch's workplane following its mesh face, for this sketch only.
+
+    The anchor lives on the workplane, which other sketches may share; freeing
+    it in place would silently change them too. So a shared workplane is left
+    as is and the sketch moves to a new free one at the same spot. Returns the
+    sketch's (now free) workplane.
+    """
+    from ..model.sketch_ref import is_sketch_object
+    from ..utilities.face_anchor import clear_anchor
+
+    wp = sketch_obj.parent
+    shared = any(c != sketch_obj and is_sketch_object(c) for c in wp.children)
+    if not shared:
+        clear_anchor(wp)
+        return wp
+    empty = new_workplane_empty(context, wp.matrix_world.copy())
+    set_sketch_workplane(context, sketch_obj, empty)
+    return empty
 
 
 # TODO:
