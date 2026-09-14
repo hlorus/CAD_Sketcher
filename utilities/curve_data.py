@@ -461,7 +461,8 @@ def _ensure_convert_modifier(ob):
     assert ob is not None, "_ensure_convert_modifier: object is None"
 
     modifier = ob.modifiers.get(CONVERT_MODIFIER_NAME)
-    if not modifier:
+    created = not modifier
+    if created:
         modifier = ob.modifiers.new(CONVERT_MODIFIER_NAME, "NODES")
         assert modifier is not None, "Failed to create GN modifier"
 
@@ -472,7 +473,22 @@ def _ensure_convert_modifier(ob):
         else:
             logger.warning("Could not obtain 'CAD Sketcher Convert' node group")
 
+    if created and modifier.node_group:
+        _apply_default_angular_resolution(modifier)
+
     return modifier
+
+
+def _apply_default_angular_resolution(modifier) -> None:
+    """Start a new sketch at the angular resolution set in the preferences."""
+    from ..operators.modifiers import set_modifier_input
+    from .convert_nodes import ANGULAR_RESOLUTION_INPUT, input_identifier
+    from .preferences import get_prefs
+
+    identifier = input_identifier(modifier.node_group, ANGULAR_RESOLUTION_INPUT)
+    if identifier is None:
+        return
+    set_modifier_input(modifier, identifier, get_prefs().curve_angular_resolution)
 
 
 def _get_convert_node_group():
