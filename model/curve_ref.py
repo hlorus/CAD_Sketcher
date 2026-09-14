@@ -295,14 +295,16 @@ def _ensure_attrs(curve_data, curve_idx=None):
 def _invalidate(sketch):
     from ..utilities.curve_data import (
         compute_merge_ids,
-        invalidate_curve_id_cache,
         is_batching,
+        note_curve_appended,
     )
 
-    invalidate_curve_id_cache(sketch)
+    # Creation only appends a curve, so the id caches for existing curves stay
+    # valid; dropping them all made every later lookup re-derive every hex id.
+    note_curve_appended(sketch)
     # A newly created segment changes connectivity, so refresh the derived weld
     # ids (before update_tag, so the live GN fill closes the same frame). Under a
-    # batch this is deferred to rebuild_segments on the batch's exit.
+    # batch this is deferred to the batch's exit.
     if not is_batching(sketch):
         compute_merge_ids(sketch)
 
@@ -449,9 +451,17 @@ class PointRef(CurveRef):
             float(value[1]),
             0.0,
         )
-        from ..utilities.curve_data import is_batching, rebuild_segments
+        from ..utilities.curve_data import (
+            is_batching,
+            note_point_write,
+            rebuild_segments,
+        )
 
-        if not is_batching(self._sketch):
+        if is_batching(self._sketch):
+            # Tell the batch which point moved, so it can rebuild only the
+            # segments that reference it.
+            note_point_write(self._sketch, self._curve_id)
+        else:
             rebuild_segments(self._sketch)
 
     @property

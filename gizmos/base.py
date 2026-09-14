@@ -2,22 +2,24 @@ from .. import global_data
 from ..declarations import Operators
 from ..drawing import selection
 from ..model.types import GenericConstraint
-from .utilities import get_color, get_constraint_color_type, set_gizmo_colors
+from .utilities import get_constraint_color_type, set_gizmo_colors
 
 
 class ConstraintGizmo:
     def _get_constraint(self, context):
-        from ..model.sketch_ref import get_active_sketch
+        from ..drawing import frame_cache
 
-        sketch = get_active_sketch(context)
+        sketch = frame_cache.active_sketch(context)
         if not sketch:
             return None
         return sketch.constraints.get_from_type_index(self.type, self.index)
 
     def get_constraint_color(self, constraint: GenericConstraint):
+        from ..drawing import frame_cache
+
         is_highlight = constraint == selection.highlight_constraint or self.is_highlight
         col = get_constraint_color_type(constraint)
-        return get_color(col, is_highlight)
+        return frame_cache.constraint_color(col, is_highlight)
 
     def _set_colors(self, context, constraint: GenericConstraint):
         """Overwrite default color when gizmo is highlighted"""

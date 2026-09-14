@@ -15,13 +15,12 @@ import gpu
 from gpu_extras.batch import batch_for_shader
 from mathutils import Vector
 
-from . import selection
 from .. import icon_manager
+from ..model.sketch_ref import get_active_sketch
 from ..shaders import Shaders
 from ..utilities.preferences import get_prefs
 from ..utilities.view import get_2d_coords, get_scale_from_pos
-from ..utilities.curve_data import get_curve_placement
-from ..model.sketch_ref import get_active_sketch
+from . import frame_cache, selection
 
 # Matches gizmos.constraint.GIZMO_OFFSET (kept local to avoid importing the
 # gizmo module into the drawing layer).
@@ -31,8 +30,8 @@ _GIZMO_OFFSET = Vector((1.0, 1.0))
 def _iter_icons(context, sketch):
     """Yield (center_2d, size, constraint_type, color) for each geometric
     constraint icon, mirroring the gizmo group's placement + stacking."""
+    from ..gizmos.utilities import get_constraint_color_type
     from ..model.base_constraint import DimensionalConstraint
-    from ..gizmos.utilities import get_constraint_color_type, get_color
 
     rv3d = context.region_data
     ui_scale = context.preferences.system.ui_scale
@@ -55,7 +54,7 @@ def _iter_icons(context, sketch):
                 except Exception:
                     world = None
             if world is None:
-                world = get_curve_placement(sketch, cid)
+                world = frame_cache.curve_placement(sketch, cid)
             if world is None:
                 continue
 
@@ -68,8 +67,95 @@ def _iter_icons(context, sketch):
             center = pos + _GIZMO_OFFSET * size / scale_3d + offset
 
             is_highlight = c == selection.highlight_constraint
-            color = get_color(get_constraint_color_type(c), is_highlight)
+            color = frame_cache.constraint_color(
+                get_constraint_color_type(c), is_highlight
+            )
             yield center, size, c.type, color
+
+
+# The last icon batch and the key it was built for. Every icon's position and
+# color is a function of the key, so an unchanged key reuses the batch.
+_icon_cache = {"key": None, "batch": None}
+
+
+def _icon_key(context, sketch, atlas, uvs):
+    """Everything the icon batch depends on, cheap enough to check every frame.
+
+    Rebuilding the batch walked every constraint in Python (placement, projection,
+    stacking, color) on every redraw, a cost that grew with each constraint. While
+    drawing, a preview doesn't move the geometry existing constraints sit on, so
+    positions are fingerprinted only for the curves that carry a constraint.
+    """
+    import numpy as np
+
+    from ..model.base_constraint import DimensionalConstraint
+    from ..utilities.curve_data import get_curve_index
+
+    cd = sketch.target_object.data
+    constraints = sketch.constraints
+    per_constraint = []
+    referenced = set()
+    for c in constraints.all:
+        if isinstance(c, DimensionalConstraint):
+            continue
+        ids = tuple(c.curve_id_placements())
+        per_constraint.append((c.type, ids, c.visible, c.failed))
+        referenced.update(ids)
+
+    positions = b""
+    if referenced and len(cd.points):
+        offsets = np.empty(len(cd.curves) + 1, dtype=np.int32)
+        cd.curve_offset_data.foreach_get("value", offsets)
+        co = np.empty(len(cd.points) * 3, dtype=np.float32)
+        cd.points.foreach_get("position", co)
+        co = co.reshape(-1, 3)
+        chunks = []
+        for cid in sorted(referenced):
+            idx = get_curve_index(sketch, cid)
+            if idx is None or idx >= len(offsets) - 1:
+                chunks.append(np.full((1, 3), np.nan, dtype=np.float32))
+            else:
+                chunks.append(co[offsets[idx] : offsets[idx + 1]])
+        positions = np.concatenate(chunks).tobytes() if chunks else b""
+
+    highlight = selection.highlight_constraint
+    highlight_key = (
+        (highlight.type, constraints.get_index(highlight)) if highlight else None
+    )
+    rv3d = context.region_data
+    region = context.region
+    theme = get_prefs().theme_settings.constraint
+    return (
+        sketch.target_object.as_pointer(),
+        tuple(per_constraint),
+        hash(positions),
+        tuple(tuple(row) for row in sketch.target_object.matrix_world),
+        tuple(tuple(row) for row in rv3d.perspective_matrix),
+        (region.width, region.height),
+        context.preferences.system.ui_scale,
+        get_prefs().gizmo_scale,
+        highlight_key,
+        tuple(
+            tuple(getattr(theme, name))
+            for name in (
+                "default",
+                "highlight",
+                "failed",
+                "failed_highlight",
+                "reference",
+                "reference_highlight",
+            )
+        ),
+        # The batch bakes the atlas UVs in, so a rebuilt atlas must rebuild it.
+        id(atlas),
+        id(uvs),
+    )
+
+
+def invalidate():
+    """Drop the cached icon batch (e.g. on file load)."""
+    _icon_cache["key"] = None
+    _icon_cache["batch"] = None
 
 
 def draw():
@@ -87,6 +173,25 @@ def draw():
     if atlas is None or not uvs:
         return
 
+    shader = Shaders.atlas_icon_2d()
+    key = _icon_key(context, sketch, atlas, uvs)
+    if _icon_cache["key"] == key:
+        batch = _icon_cache["batch"]
+    else:
+        batch = _build_batch(context, sketch, shader, uvs)
+        _icon_cache["key"] = key
+        _icon_cache["batch"] = batch
+
+    if batch is None:
+        return
+    gpu.state.blend_set("ALPHA")
+    shader.bind()
+    shader.uniform_sampler("image", atlas)
+    batch.draw(shader)
+    gpu.state.blend_set("NONE")
+
+
+def _build_batch(context, sketch, shader, uvs):
     verts, texco, colors = [], [], []
     for center, size, ctype, color in _iter_icons(context, sketch):
         uv = uvs.get(ctype)
@@ -96,21 +201,18 @@ def draw():
         h = size / 2.0
         cx, cy = center.x, center.y
         verts += [
-            (cx - h, cy - h), (cx + h, cy - h), (cx + h, cy + h),
-            (cx - h, cy - h), (cx + h, cy + h), (cx - h, cy + h),
+            (cx - h, cy - h),
+            (cx + h, cy - h),
+            (cx + h, cy + h),
+            (cx - h, cy - h),
+            (cx + h, cy + h),
+            (cx - h, cy + h),
         ]
         texco += [(u0, v0), (u1, v0), (u1, v1), (u0, v0), (u1, v1), (u0, v1)]
         colors += [tuple(color)] * 6
 
     if not verts:
-        return
-
-    shader = Shaders.atlas_icon_2d()
-    gpu.state.blend_set("ALPHA")
-    shader.bind()
-    shader.uniform_sampler("image", atlas)
-    batch = batch_for_shader(
+        return None
+    return batch_for_shader(
         shader, "TRIS", {"pos": verts, "texCoord": texco, "color": colors}
     )
-    batch.draw(shader)
-    gpu.state.blend_set("NONE")

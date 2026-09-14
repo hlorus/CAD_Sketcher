@@ -116,6 +116,10 @@ _uuid_list_cache = {}
 # invalidated in lockstep with _uuid_list_cache.
 _uuid_raw_cache = {}
 
+# A cached list shorter than the curve count by at most this many is extended by
+# reading only the appended curves; a bigger gap is cheaper as one bulk read.
+_TAIL_READ_LIMIT = 64
+
 
 def set_uuid(curve_data, field, index, value):
     """Write a hex-string identity field into its 2 INT32_2D sub-attributes."""
@@ -126,8 +130,44 @@ def set_uuid(curve_data, field, index, value):
         lo.data[index].value = lo_pair
     if hi:
         hi.data[index].value = hi_pair
-    _uuid_list_cache.pop((id(curve_data), field), None)
-    _uuid_raw_cache.pop((id(curve_data), field), None)
+    _update_cached_uuid(curve_data, field, index, lo_pair, hi_pair)
+
+
+def _update_cached_uuid(curve_data, field, index, lo_pair, hi_pair):
+    """Keep the id caches in step with one written id, instead of dropping them.
+
+    Dropping them made the next lookup re-derive every curve's hex id; a draw
+    operator writes ids on every mouse move, so that re-derivation dominated.
+    An index past the cached tail needs nothing: the tail is read on demand.
+    """
+    key = (id(curve_data), field)
+    hex_id = _pairs_to_hex(lo_pair, hi_pair)
+    old = None
+    cached = _uuid_list_cache.get(key)
+    if cached is not None and index < len(cached):
+        old = cached[index]
+        cached[index] = hex_id
+    raw = _uuid_raw_cache.get(key)
+    if raw is not None and index < len(raw):
+        raw[index] = (lo_pair[0], lo_pair[1], hi_pair[0], hi_pair[1])
+    if field != "curve_id":
+        return
+    index_map = _curve_id_cache.get(id(curve_data))
+    if index_map is None or index >= _curve_id_built_len.get(id(curve_data), 0):
+        return
+    if old is not None and index_map.get(old) == index:
+        del index_map[old]
+    index_map[hex_id] = index
+
+
+def _drop_field_caches(curve_data, field):
+    """Forget one id field's caches (a bulk write we can't follow in place)."""
+    key = (id(curve_data), field)
+    _uuid_list_cache.pop(key, None)
+    _uuid_raw_cache.pop(key, None)
+    if field == "curve_id":
+        _curve_id_cache.pop(id(curve_data), None)
+        _curve_id_built_len.pop(id(curve_data), None)
 
 
 def new_uuid():
@@ -155,6 +195,14 @@ def read_uuid_list(curve_data, field):
     hi = curve_data.attributes.get(f".{field}_hi")
     if n == 0 or not lo or not hi:
         return [""] * n
+    if cached is not None and 0 < n - len(cached) <= _TAIL_READ_LIMIT:
+        # Curves were appended since the list was built (creation only ever
+        # appends): read just the new ones rather than re-deriving every id.
+        for i in range(len(cached), n):
+            cached.append(
+                _pairs_to_hex(tuple(lo.data[i].value), tuple(hi.data[i].value))
+            )
+        return cached
     lob = np.zeros(n * 2, dtype=np.int32)
     hib = np.zeros(n * 2, dtype=np.int32)
     lo.data.foreach_get("value", lob)
@@ -189,6 +237,10 @@ def read_uuid_raw_list(curve_data, field):
     hi = curve_data.attributes.get(f".{field}_hi")
     if n == 0 or not lo or not hi:
         return [(0, 0, 0, 0)] * n
+    if cached is not None and 0 < n - len(cached) <= _TAIL_READ_LIMIT:
+        for i in range(len(cached), n):
+            cached.append((*lo.data[i].value, *hi.data[i].value))
+        return cached
     lob = np.zeros(n * 2, dtype=np.int32)
     hib = np.zeros(n * 2, dtype=np.int32)
     lo.data.foreach_get("value", lob)
@@ -235,6 +287,11 @@ def set_attribute(attributes, name: str, value, index: int = None):
                     a.data[i].value = pair
             else:
                 a.data[index].value = pair
+        curve_data = attributes.id_data
+        if index is None:
+            _drop_field_caches(curve_data, name)
+        else:
+            _update_cached_uuid(curve_data, name, index, lo_pair, hi_pair)
         return
     attribute = attributes.get(name)
     if name in _STRING_ATTRS:
@@ -311,6 +368,8 @@ def init_string_attrs(curve_data, curve_idx):
 # ---------------------------------------------------------------------------
 
 _curve_id_cache = {}
+# id(curve_data) -> how many curves the index map covers (it grows by appending).
+_curve_id_built_len = {}
 
 
 def read_curve_id_list(curve_data):
@@ -329,10 +388,22 @@ def get_curve_index(sketch, curve_id):
     if not cd:
         return None
     sk_key = id(cd)
-    if sk_key in _curve_id_cache:
-        cache = _curve_id_cache[sk_key]
-        if curve_id in cache:
-            return cache[curve_id]
+    cache = _curve_id_cache.get(sk_key)
+    if cache is not None:
+        idx = cache.get(curve_id)
+        if idx is not None:
+            return idx
+        # A miss is usually a curve appended since the map was built: index just
+        # the new tail rather than rebuilding the whole map.
+        built = _curve_id_built_len.get(sk_key, 0)
+        ids = read_uuid_list(cd, "curve_id")
+        if built < len(ids):
+            for i in range(built, len(ids)):
+                cache[ids[i]] = i
+            _curve_id_built_len[sk_key] = len(ids)
+            idx = cache.get(curve_id)
+            if idx is not None:
+                return idx
     return _rebuild_curve_id_cache(sketch, curve_id)
 
 
@@ -342,23 +413,95 @@ def _rebuild_curve_id_cache(sketch, lookup_id=None):
     if not curve_data:
         return None
     sk_key = id(curve_data)
-    cache = {cid: i for i, cid in enumerate(read_uuid_list(curve_data, "curve_id"))}
+    ids = read_uuid_list(curve_data, "curve_id")
+    cache = {cid: i for i, cid in enumerate(ids)}
     _curve_id_cache[sk_key] = cache
+    _curve_id_built_len[sk_key] = len(ids)
     return cache.get(lookup_id) if lookup_id is not None else None
 
 
 def invalidate_curve_id_cache(sketch=None):
     """Invalidate the curve_id caches. Call after add/remove curves."""
     if sketch and sketch.target_object:
-        sk_key = id(sketch.target_object.data)
-        _curve_id_cache.pop(sk_key, None)
-        for field in UUID_FIELDS:
-            _uuid_list_cache.pop((sk_key, field), None)
-            _uuid_raw_cache.pop((sk_key, field), None)
+        invalidate_curve_data_caches(sketch.target_object.data)
     else:
         _curve_id_cache.clear()
+        _curve_id_built_len.clear()
         _uuid_list_cache.clear()
         _uuid_raw_cache.clear()
+
+
+def invalidate_curve_data_caches(curve_data):
+    """Drop every id cache of one Curves datablock."""
+    sk_key = id(curve_data)
+    _curve_id_cache.pop(sk_key, None)
+    _curve_id_built_len.pop(sk_key, None)
+    for field in UUID_FIELDS:
+        _uuid_list_cache.pop((sk_key, field), None)
+        _uuid_raw_cache.pop((sk_key, field), None)
+
+
+def note_curve_appended(sketch):
+    """Tell the id caches that one curve was just appended and fully written.
+
+    Every cached entry for the curves that already existed stays valid, since
+    creation only appends. Only a tail entry that may have been read before all
+    of the new curve's ids were written is dropped; it is re-read on demand.
+    """
+    obj = sketch.target_object
+    if obj is None or obj.data is None:
+        return
+    curve_data = obj.data
+    sk_key = id(curve_data)
+    keep = len(curve_data.curves) - 1
+    for field in UUID_FIELDS:
+        for cache in (_uuid_list_cache, _uuid_raw_cache):
+            cached = cache.get((sk_key, field))
+            if cached is not None and len(cached) > keep:
+                del cached[keep:]
+    index_map = _curve_id_cache.get(sk_key)
+    if index_map is not None and _curve_id_built_len.get(sk_key, 0) > keep:
+        for cid in [cid for cid, i in index_map.items() if i >= keep]:
+            del index_map[cid]
+        _curve_id_built_len[sk_key] = keep
+
+
+def capture_id_caches(curve_data):
+    """Snapshot a datablock's id caches, to reinstate after restoring its data."""
+    return {
+        "curve_id_map": dict(
+            (cid, i) for i, cid in enumerate(read_uuid_list(curve_data, "curve_id"))
+        ),
+        "fields": {
+            field: (
+                list(read_uuid_list(curve_data, field)),
+                list(read_uuid_raw_list(curve_data, field)),
+            )
+            for field in UUID_FIELDS
+        },
+        "n_curves": len(curve_data.curves),
+    }
+
+
+def install_id_caches(curve_data, captured):
+    """Reinstate caches captured when ``curve_data`` was in its current state.
+
+    Only valid right after restoring the exact data they were captured from
+    (the per-mouse-move snapshot restore of a drawing operator), which is what
+    lets that restore skip re-deriving every curve's hex id. Copies are
+    installed because later writes update cached lists in place.
+    """
+    invalidate_curve_data_caches(curve_data)
+    if not captured or len(curve_data.curves) != captured["n_curves"]:
+        return
+    sk_key = id(curve_data)
+    for field, (hex_ids, raw_ids) in captured["fields"].items():
+        if len(hex_ids) == captured["n_curves"]:
+            _uuid_list_cache[(sk_key, field)] = list(hex_ids)
+        if len(raw_ids) == captured["n_curves"]:
+            _uuid_raw_cache[(sk_key, field)] = list(raw_ids)
+    _curve_id_cache[sk_key] = dict(captured["curve_id_map"])
+    _curve_id_built_len[sk_key] = captured["n_curves"]
 
 
 # ---------------------------------------------------------------------------
@@ -585,7 +728,8 @@ def remove_native_curve_by_id(sketch, curve_id):
         curve_data.update_tag()
 
 
-_batch_sketches = set()
+# batch key -> the open batch_update, so writes can report into it.
+_batch_sketches = {}
 
 
 def _batch_key(sketch):
@@ -612,17 +756,36 @@ class batch_update:
     Pass ``point_ids`` to rebuild only the segments referencing those points.
     """
 
-    def __init__(self, sketch, point_ids=None):
+    def __init__(self, sketch, point_ids=None, track_writes=False):
         self.sketch = sketch
         self.point_ids = point_ids
+        # With track_writes, only the segments of points written through
+        # note_point_write are rebuilt on exit (plus one weld-id pass), instead of
+        # every segment. Only for callers whose other writes keep segments
+        # consistent themselves (curve creation does; a snapshot restore does).
+        self.track_writes = track_writes
+        self.written_point_ids = set()
 
     def __enter__(self):
-        _batch_sketches.add(_batch_key(self.sketch))
+        _batch_sketches[_batch_key(self.sketch)] = self
         return self
 
     def __exit__(self, *args):
-        _batch_sketches.discard(_batch_key(self.sketch))
-        rebuild_segments(self.sketch, point_ids=self.point_ids)
+        _batch_sketches.pop(_batch_key(self.sketch), None)
+        if not self.track_writes:
+            rebuild_segments(self.sketch, point_ids=self.point_ids)
+            return
+        if self.written_point_ids:
+            rebuild_segments(self.sketch, point_ids=self.written_point_ids)
+        # Curves created inside the batch deferred their weld ids to here.
+        compute_merge_ids(self.sketch)
+
+
+def note_point_write(sketch, curve_id):
+    """Record a point position deferred by the open batch on ``sketch``."""
+    batch = _batch_sketches.get(_batch_key(sketch))
+    if batch is not None:
+        batch.written_point_ids.add(curve_id)
 
 
 def is_batching(sketch):
@@ -967,34 +1130,61 @@ def compute_generated_id_seeds(sketch):
     if not curve_attr or not endpoint_attr or not type_attr:
         return False
 
-    curve_ids = read_uuid_raw_list(cd, "curve_id")
-    start_ids = read_uuid_raw_list(cd, "start_point_id")
-    end_ids = read_uuid_raw_list(cd, "end_point_id")
-    curve_seeds = np.array(
-        [_stable_source_id(value) for value in curve_ids], dtype=np.int32
-    )
-    endpoint_seeds = np.zeros(len(cd.points), dtype=np.int32)
+    # Vectorized: this runs for the whole sketch whenever connectivity changes,
+    # which while drawing is once per mouse move, and the per-curve Python hash
+    # grew with every shape in the sketch. Same FNV fold as _stable_source_id.
+    curve_seeds = _stable_source_ids(_raw_id_words(cd, "curve_id", n_curves))
 
-    for index, curve in enumerate(cd.curves):
-        if (
-            type_attr.data[index].value
-            not in (
-                SketchCurveType.LINE,
-                SketchCurveType.ARC,
-            )
-            or curve.points_length < 2
-        ):
-            continue
-        if any(start_ids[index]):
-            endpoint_seeds[curve.points[0].index] = _stable_source_id(start_ids[index])
-        if any(end_ids[index]):
-            endpoint_seeds[curve.points[curve.points_length - 1].index] = (
-                _stable_source_id(end_ids[index])
-            )
+    types = np.empty(n_curves, dtype=np.int32)
+    type_attr.data.foreach_get("value", types)
+    offsets = np.empty(n_curves + 1, dtype=np.int32)
+    cd.curve_offset_data.foreach_get("value", offsets)
+    counts = np.diff(offsets)
+    segment = np.isin(types, (SketchCurveType.LINE, SketchCurveType.ARC)) & (
+        counts >= 2
+    )
+
+    endpoint_seeds = np.zeros(len(cd.points), dtype=np.int32)
+    for field, point_index in (
+        ("start_point_id", offsets[:-1]),
+        ("end_point_id", offsets[1:] - 1),
+    ):
+        words = _raw_id_words(cd, field, n_curves)
+        write = segment & words.any(axis=1)
+        endpoint_seeds[point_index[write]] = _stable_source_ids(words[write])
 
     curve_attr.data.foreach_set("value", curve_seeds)
     endpoint_attr.data.foreach_set("value", endpoint_seeds)
     return True
+
+
+def _raw_id_words(curve_data, field, n_curves):
+    """An id field as an (n, 4) int32 array of (lo0, lo1, hi0, hi1) words."""
+    words = np.zeros((n_curves, 4), dtype=np.int32)
+    lo = curve_data.attributes.get(f".{field}_lo")
+    hi = curve_data.attributes.get(f".{field}_hi")
+    if lo and hi:
+        pair = np.empty(n_curves * 2, dtype=np.int32)
+        lo.data.foreach_get("value", pair)
+        words[:, :2] = pair.reshape(-1, 2)
+        hi.data.foreach_get("value", pair)
+        words[:, 2:] = pair.reshape(-1, 2)
+    return words
+
+
+def _stable_source_ids(words):
+    """Vectorized ``_stable_source_id`` over an (n, 4) int32 word array."""
+    fnv_prime = np.uint64(0x01000193)
+    mask = np.uint64(0xFFFFFFFF)
+    value = np.full(len(words), 0x811C9DC5, dtype=np.uint64)
+    unsigned = words.astype(np.int64) & 0xFFFFFFFF
+    for k in range(4):
+        value = ((value ^ unsigned[:, k].astype(np.uint64)) * fnv_prime) & mask
+    value[value == 0] = 1
+    signed = value.astype(np.int64)
+    signed[signed >= 0x80000000] -= 0x100000000
+    signed[~words.any(axis=1)] = 0
+    return signed.astype(np.int32)
 
 
 def rebuild_segments(sketch, point_ids=None):

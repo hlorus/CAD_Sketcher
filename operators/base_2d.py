@@ -39,22 +39,30 @@ class Operator2d(GenericEntityOp):
             },
         }
         if obj and obj.data:
+            from ..utilities.curve_data import capture_id_caches
+
             snap["curve_data"] = self._snapshot_curve_data(obj.data)
             snap["constraints"] = self._snapshot_constraints(obj.data)
+            # Restoring puts the ids back exactly as they are now, so capture the
+            # id caches once here and reinstate them on every restore.
+            snap["id_caches"] = capture_id_caches(obj.data)
         return snap
 
     def restore_snapshot(self, context: Context, snapshot):
         if not snapshot:
             return
-        from ..utilities.curve_data import invalidate_curve_id_cache
+        from ..utilities.curve_data import install_id_caches
 
         scene = context.scene
-        invalidate_curve_id_cache()
 
         name = snapshot.get("active_name")
         obj = bpy.data.objects.get(name) if name else None
         if obj and obj.data and "curve_data" in snapshot:
             self._restore_curve_data(obj.data, snapshot["curve_data"])
+            # Only this sketch's data changed. Its ids are now exactly the
+            # snapshot's, so reinstate the captured caches rather than clearing
+            # every sketch's and re-deriving each hex id on the next lookup.
+            install_id_caches(obj.data, snapshot.get("id_caches"))
             # Clear then restore: an empty constraints snapshot means "the sketch
             # had none", and _restore_constraints early-returns on empty -- so a
             # constraint added during the preview must be removed here, or it
@@ -91,6 +99,26 @@ class Operator2d(GenericEntityOp):
 
         self._active_sketch = get_active_sketch(context)
         return True
+
+    def batched_changes(self, context: Context):
+        """Batch the sketch's curve changes for one live update.
+
+        Every curve created outside a batch recomputes the weld ids of the whole
+        sketch, and every point write rebuilds all segments. A rectangle preview
+        creates 8 curves per mouse move, so that bookkeeping ran 8 times per move
+        and grew with every shape already in the sketch. Inside a batch it is done
+        once, when the batch closes, with the same end result.
+        """
+        from contextlib import nullcontext
+
+        from ..utilities.curve_data import batch_update, is_batching
+
+        sketch = self.sketch
+        # Nested batches are not supported: an inner exit would end the outer one
+        # early. A caller that already batches owns the rebuild.
+        if sketch is None or sketch.target_object is None or is_batching(sketch):
+            return nullcontext()
+        return batch_update(sketch, track_writes=True)
 
     @property
     def sketch(self):
