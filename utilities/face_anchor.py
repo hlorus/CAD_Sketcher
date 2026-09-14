@@ -13,6 +13,8 @@ anchor (subdivide/extrude/inset all keep the id). We therefore look the face up
 
   - subdivide/extrude/inset/bevel/poke  -> id survives, plane tracks
   - Subsurf/Triangulate/Boolean/Mirror  -> id survives on the evaluated mesh
+  - A boolean cut by a sketch on the anchored workplane itself -> read the
+    unmodified mesh instead, else the plane chases its own cut
   - Mirror (and duplicated geometry) yields a second, disjoint face-set with the
     same id -> we cluster the id-faces and pick the cluster nearest the last
     known position, so the plane stays on the picked face.
@@ -289,8 +291,38 @@ def anchor_face_indices(mesh, face_id: int) -> list:
     return [int(i) for i in np.nonzero(ids == face_id)[0]]
 
 
+def source_depends_on_workplane(source, empty) -> bool:
+    """Whether ``source``'s evaluated mesh depends on geometry placed by ``empty``.
+
+    True when one of its CAD Sketcher booleans reads (directly or through other
+    booleans) a cutter parented under the workplane. Anchoring to that evaluated
+    mesh would be a feedback loop: the cut splits the anchor face, which moves the
+    plane and with it the cutter, which moves the cut again. How the face splits
+    depends on the boolean solver, so switching solvers made the cutter jump.
+    """
+    from ..operators.modifiers import boolean_cutters
+
+    stack = list(boolean_cutters(source))
+    seen = set()
+    while stack:
+        obj = stack.pop()
+        if obj in seen:
+            continue
+        seen.add(obj)
+        parent = obj
+        while parent is not None:
+            if parent == empty:
+                return True
+            parent = parent.parent
+        stack.extend(boolean_cutters(obj))
+    return False
+
+
 def recompute_anchor_matrix(eval_ob, face_id, last_co, ref_local=None):
     """World matrix for a face-anchored workplane, or None if detached.
+
+    ``eval_ob`` is normally the evaluated source; the original object reads the
+    anchor from the mesh before modifiers.
 
     Returns ``(matrix_world, new_last_co_local)``. ``last_co`` disambiguates
     between disjoint face clusters sharing the id (e.g. mirrored geometry).
@@ -378,9 +410,15 @@ def update_face_workplanes(context, depsgraph):
         if source.mode == "EDIT":
             continue
 
-        eval_ob = source.evaluated_get(depsgraph)
+        # A mesh cut by a sketch on this very workplane would move the plane with
+        # its own cut (feedback loop), so read the anchor from the unmodified mesh.
+        anchor_ob = (
+            source
+            if source_depends_on_workplane(source, empty)
+            else source.evaluated_get(depsgraph)
+        )
         result = recompute_anchor_matrix(
-            eval_ob, empty[KEY_FACE_ID], empty.get(KEY_LAST_CO), empty.get(KEY_REF)
+            anchor_ob, empty[KEY_FACE_ID], empty.get(KEY_LAST_CO), empty.get(KEY_REF)
         )
         if result is None:
             if not empty.get(KEY_DETACHED, False):
