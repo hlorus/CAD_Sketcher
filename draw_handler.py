@@ -207,53 +207,6 @@ def draw_hover_element():
         _draw_curve_element_hover(ob, index, col, scale)
 
 
-def draw_anchor_face():
-    """POST_VIEW: outline the mesh face the active sketch's workplane follows.
-
-    The panel names the anchor, but a face index means little on its own; seeing
-    the face in the viewport tells the user what the workplane will snap to.
-    """
-    from .model.sketch_ref import get_active_sketch
-    from .utilities.face_anchor import (
-        KEY_DETACHED,
-        KEY_FACE_ID,
-        KEY_SOURCE,
-        anchor_face_indices,
-    )
-
-    context = bpy.context
-    if context.region is None:
-        return
-    sketch = get_active_sketch(context)
-    if sketch is None or sketch.is_3d:
-        return
-    wp = sketch.workplane_object
-    if wp is None or KEY_FACE_ID not in wp or wp.get(KEY_DETACHED):
-        return
-    source = wp.get(KEY_SOURCE)
-    # Edit-mode meshes don't expose the id, and hidden ones aren't evaluated.
-    if (
-        source is None
-        or source.type != "MESH"
-        or source.mode == "EDIT"
-        or not source.visible_get()
-    ):
-        return
-
-    eval_ob = source.evaluated_get(context.evaluated_depsgraph_get())
-    me = eval_ob.data
-    mw = eval_ob.matrix_world
-    lines = []
-    for index in anchor_face_indices(me, wp[KEY_FACE_ID]):
-        verts = me.polygons[index].vertices
-        for i in range(len(verts)):
-            lines.append((mw @ me.vertices[verts[i]].co)[:])
-            lines.append((mw @ me.vertices[verts[(i + 1) % len(verts)]].co)[:])
-
-    col = (*get_prefs().theme_settings.entity.highlight[:3], 0.8)
-    _draw_lines_hover(lines, col, preferences.get_scale(), width=2)
-
-
 def draw_origin_labels():
     """POST_VIEW: name each origin workplane (XY/XZ/YZ), lying in its plane.
 
@@ -360,7 +313,6 @@ _DRAW_HANDLERS = (
     ("draw_handle", draw_cb, "POST_VIEW"),
     ("hover_draw_handle", draw_hover_element, "POST_VIEW"),
     ("origin_label_draw_handle", draw_origin_labels, "POST_VIEW"),
-    ("anchor_face_draw_handle", draw_anchor_face, "POST_VIEW"),
     ("icon_draw_handle", None, "POST_PIXEL"),  # callback resolved in register()
 )
 
