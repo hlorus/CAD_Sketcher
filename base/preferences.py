@@ -181,17 +181,21 @@ class Preferences(AddonPreferences):
         layout.use_property_split = True
 
         box = layout.box()
-        box.label(text="General")
+        box.label(text="Interface")
         col = box.column(align=True)
         col.prop(self, "auto_hide_objects")
         col.prop(self, "use_align_view")
-        col.prop(self, "curve_angular_resolution")
 
         col.prop(self, "entity_scale")
         col.prop(self, "workplane_size")
         col.prop(self, "gizmo_scale")
         col.prop(self, "text_size")
         col.prop(self, "arrow_scale")
+
+        box = layout.box()
+        box.label(text="Geometry")
+        col = box.column(align=True)
+        col.prop(self, "curve_angular_resolution")
 
         box = layout.box()
         box.label(text="Units")
