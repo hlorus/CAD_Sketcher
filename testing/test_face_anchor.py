@@ -307,9 +307,11 @@ class TestFaceAnchor(BgsTestCase):
         self.assertFalse(fa.is_origin_workplane(self.scene, self.empty))
 
     def test_panel_shows_anchor(self):
+        from .. import declarations
         from ..model.sketch_ref import Sketch, stamp_sketch_props
         from ..ui.panels.sketch_select import _draw_workplane
 
+        menu = declarations.Menus.SketchWorkplane.value
         sketches = []
         for i in range(2):
             ob = bpy.data.objects.new(f"anchor_sk{i}", bpy.data.hair_curves.new("c"))
@@ -325,26 +327,29 @@ class TestFaceAnchor(BgsTestCase):
             def label(self, text="", icon=""):
                 self.labels.append(text)
 
-            def operator(self, idname, text="", icon=""):
-                self.ops.append(text)
-                return type("Props", (), {})()
+            def menu(self, idname, text="", icon=""):
+                self.ops.append(idname)
 
             def row(self, align=False):
                 return self
 
-            box = row
+            def column(self, align=False):
+                return self
+
+            def split(self, factor=0.5, align=False):
+                return self
 
         try:
             layout = _Layout()
             _draw_workplane(self.context, layout, Sketch(sketches[0]))
-            self.assertEqual(layout.labels, ["Workplane anchored to anchor_cube"])
-            self.assertEqual(layout.ops, ["Change Workplane", "Make Free"])
+            self.assertEqual(layout.labels, ["Workplane", "anchor_cube, face 0"])
+            self.assertEqual(layout.ops, [menu])
 
             fa.clear_anchor(self.empty)
             layout = _Layout()
             _draw_workplane(self.context, layout, Sketch(sketches[0]))
-            self.assertEqual(layout.labels, [])
-            self.assertEqual(layout.ops, ["Change Workplane"])
+            self.assertEqual(layout.labels, ["Workplane", "WP"])
+            self.assertEqual(layout.ops, [menu])
         finally:
             for ob in sketches:
                 data = ob.data
@@ -447,3 +452,52 @@ class TestFaceAnchor(BgsTestCase):
             self.assertNotIn(fa.KEY_FACE_ID, self.empty)
         finally:
             self._remove(sk)
+
+    def test_anchor_face_indices(self):
+        self.assertEqual(fa.anchor_face_indices(self.ob.data, self.face_id), [0])
+        self.assertEqual(fa.anchor_face_indices(self.ob.data, self.face_id + 1), [])
+
+    def test_move_to_face_reuses_owned_workplane(self):
+        from ..operators.add_sketch import move_sketch_to_face
+
+        sk = self._sketch_on(self.empty)
+        n_objects = len(bpy.data.objects)
+        try:
+            wp = move_sketch_to_face(self.context, sk, self.ob, 1)
+            self.assertIs(wp, self.empty)
+            self.assertIs(sk.parent, self.empty)
+            self.assertEqual(len(bpy.data.objects), n_objects)
+            # Re-anchored: only the new face carries the id.
+            self.assertEqual(
+                fa.anchor_face_indices(self.ob.data, self.empty[fa.KEY_FACE_ID]), [1]
+            )
+            self.assertEqual(
+                sum(
+                    1
+                    for p in self.ob.data.polygons
+                    if self.ob.data.attributes[fa.FACE_ID_ATTR].data[p.index].value
+                ),
+                1,
+            )
+        finally:
+            self._remove(sk)
+
+    def test_move_to_face_leaves_shared_workplane(self):
+        from ..operators.add_sketch import move_sketch_to_face
+
+        sk = self._sketch_on(self.empty)
+        other = self._sketch_on(self.empty, "other_sketch")
+        new = None
+        try:
+            new = move_sketch_to_face(self.context, sk, self.ob, 1)
+            self.assertIsNot(new, self.empty)
+            self.assertIs(sk.parent, new)
+            self.assertIs(other.parent, self.empty)
+            self.assertEqual(
+                fa.anchor_face_indices(self.ob.data, self.empty[fa.KEY_FACE_ID]), [0]
+            )
+        finally:
+            self._remove(sk)
+            self._remove(other)
+            if new is not None:
+                bpy.data.objects.remove(new, do_unlink=True)

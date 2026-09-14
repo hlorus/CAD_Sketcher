@@ -85,6 +85,14 @@ def nest_workplane(workplane, sketch_obj):
     return sub
 
 
+def in_sketch_collection(obj, sketch_obj) -> bool:
+    """Whether ``obj`` is grouped in ``sketch_obj``'s own sketch collection."""
+    return any(
+        coll.get(_SKETCH_MARKER) and sketch_obj.name in coll.objects
+        for coll in obj.users_collection
+    )
+
+
 def link_sketch_object(obj, scene):
     """Put a sketch's curve object in its own scene-level collection.
 

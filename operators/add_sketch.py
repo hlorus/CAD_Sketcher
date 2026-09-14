@@ -91,41 +91,86 @@ def create_face_workplane(context: Context, ob, face_index: int):
     return empty
 
 
+def _owns_workplane(context: Context, sketch_obj, wp) -> bool:
+    """Whether ``wp`` is a workplane only ``sketch_obj`` uses (safe to change).
+
+    Origin planes are shared by definition; any other child (another sketch or
+    an object the user parented) counts as a use.
+    """
+    from ..utilities.face_anchor import is_origin_workplane
+
+    return (
+        wp is not None
+        and not is_origin_workplane(context.scene, wp)
+        and all(c == sketch_obj for c in wp.children)
+    )
+
+
 def set_sketch_workplane(context: Context, sketch_obj, wp_empty) -> bool:
     """Move a 2D sketch onto another workplane, keeping its 2D geometry.
 
     The sketch's curves live in its workplane's local frame, so reparenting
     carries the whole sketch (and its constraints) rigidly onto the new plane.
-    The old workplane is deleted when nothing uses it any more and CAD Sketcher
-    made it from a face; any other unused workplane moves to the scene level.
+    A workplane left unused is deleted when CAD Sketcher manages it (anchored,
+    or grouped in the sketch's collection) so moving sketches around doesn't
+    litter the scene; any other one moves to the scene level.
     Returns False when ``wp_empty`` already is the sketch's workplane.
     """
     from .. import global_data
-    from ..utilities.collections import link_loose_workplane, nest_workplane
-    from ..utilities.face_anchor import KEY_FACE_ID, clear_anchor, is_origin_workplane
+    from ..utilities.collections import (
+        in_sketch_collection,
+        link_loose_workplane,
+        nest_workplane,
+    )
+    from ..utilities.face_anchor import KEY_FACE_ID, clear_anchor
 
     wp_empty = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
     old = sketch_obj.parent
     if old == wp_empty:
         return False
 
+    owned = _owns_workplane(context, sketch_obj, old)
+    managed = old is not None and (
+        KEY_FACE_ID in old or in_sketch_collection(old, sketch_obj)
+    )
     sketch_obj.parent = wp_empty
     sketch_obj.matrix_parent_inverse.identity()
     nest_workplane(wp_empty, sketch_obj)
 
-    if (
-        old is not None
-        and not old.children
-        and not is_origin_workplane(context.scene, old)
-    ):
-        if KEY_FACE_ID in old:
-            clear_anchor(old)
-            bpy.data.objects.remove(old, do_unlink=True)
-        else:
-            link_loose_workplane(old, context.scene)
+    if owned and managed:
+        clear_anchor(old)
+        bpy.data.objects.remove(old, do_unlink=True)
+    elif owned:
+        link_loose_workplane(old, context.scene)
 
     global_data.needs_solve = True
     return True
+
+
+def move_sketch_to_face(context: Context, sketch_obj, ob, face_index: int):
+    """Put a sketch on a mesh face, reusing its workplane when only it uses it.
+
+    Creating a fresh empty every time would leave the old one behind unused, so
+    a workplane the sketch owns is simply re-anchored to the new face. A shared
+    one is left to the other sketches and the sketch gets a new workplane.
+    Returns the sketch's workplane.
+    """
+    from .. import global_data
+    from ..stateful_operator.utilities.geometry import get_evaluated_obj
+    from ..utilities.face_anchor import can_anchor_face, clear_anchor, stamp_face_anchor
+
+    wp = sketch_obj.parent
+    if not _owns_workplane(context, sketch_obj, wp):
+        empty = create_face_workplane(context, ob, face_index)
+        set_sketch_workplane(context, sketch_obj, empty)
+        return empty
+
+    clear_anchor(wp)
+    wp.matrix_world = face_workplane_matrix(context, ob, face_index)
+    if can_anchor_face(ob, get_evaluated_obj(context, ob)):
+        stamp_face_anchor(wp, ob, face_index)
+    global_data.needs_solve = True
+    return wp
 
 
 def free_sketch_workplane(context: Context, sketch_obj):
@@ -136,12 +181,10 @@ def free_sketch_workplane(context: Context, sketch_obj):
     as is and the sketch moves to a new free one at the same spot. Returns the
     sketch's (now free) workplane.
     """
-    from ..model.sketch_ref import is_sketch_object
     from ..utilities.face_anchor import clear_anchor
 
     wp = sketch_obj.parent
-    shared = any(c != sketch_obj and is_sketch_object(c) for c in wp.children)
-    if not shared:
+    if _owns_workplane(context, sketch_obj, wp):
         clear_anchor(wp)
         return wp
     empty = new_workplane_empty(context, wp.matrix_world.copy())

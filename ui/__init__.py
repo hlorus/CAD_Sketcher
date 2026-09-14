@@ -9,7 +9,11 @@ from .panels.constraints_list import VIEW3D_PT_sketcher_constraints
 from .panels.custom_attributes import VIEW3D_PT_sketcher_custom_attributes
 from .panels.debug import VIEW3D_PT_sketcher_debug
 from .panels.entities_list import VIEW3D_PT_sketcher_entities
-from .panels.sketch_select import VIEW3D_MT_slvs_add_sketch, VIEW3D_PT_sketcher
+from .panels.sketch_select import (
+    VIEW3D_MT_slvs_add_sketch,
+    VIEW3D_MT_slvs_sketch_workplane,
+    VIEW3D_PT_sketcher,
+)
 from .panels.tools import VIEW3D_PT_sketcher_tools
 from .selected_menu import VIEW3D_MT_selected_menu
 from .sketches_list import VIEW3D_UL_sketches
@@ -69,6 +73,7 @@ classes = [
     VIEW3D_PT_sketcher_debug,
     VIEW3D_MT_selected_menu,
     VIEW3D_MT_slvs_add_sketch,
+    VIEW3D_MT_slvs_sketch_workplane,
 ]
 
 

@@ -172,33 +172,30 @@ class View3D_OT_slvs_change_sketch_workplane(Operator):
         context.area.tag_redraw()
 
     def _pick(self, context: Context, event: Event):
-        """The workplane empty a click resolves to, creating a face one if needed."""
+        """Move the sketch to what a click resolves to; None if it hit nothing."""
+        from ..model.sketch_ref import get_active_sketch
         from ..utilities.workplane import resolve_sketch_base
-        from .add_sketch import create_face_workplane
+        from .add_sketch import move_sketch_to_face, set_sketch_workplane
 
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
         kind, a, b = resolve_sketch_base(context, coords)
+        sketch_obj = get_active_sketch(context).target_object
         if kind in ("border", "interior"):
-            return b
+            return self._finish(context, set_sketch_workplane(context, sketch_obj, b))
         if kind == "mesh":
-            return create_face_workplane(context, a, b)
+            move_sketch_to_face(context, sketch_obj, a, b)
+            return self._finish(context, True)
         return None
 
-    def _apply(self, context: Context, empty):
-        from ..model.sketch_ref import get_active_sketch
+    def _finish(self, context: Context, moved: bool):
         from ..utilities.preferences import get_prefs
-        from .add_sketch import set_sketch_workplane
 
-        sketch = get_active_sketch(context)
         self._end(context)
-        if sketch is None:
-            return {"CANCELLED"}
-        if not set_sketch_workplane(context, sketch.target_object, empty):
+        if not moved:
             self.report({"INFO"}, "Sketch is already on this workplane")
             return {"CANCELLED"}
         if get_prefs().use_align_view:
             bpy.ops.view3d.slvs_align_view(use_active=True)
-        self.report({"INFO"}, f"Moved {sketch.name} to {empty.name}")
         return {"FINISHED"}
 
     def modal(self, context: Context, event: Event):
@@ -218,16 +215,21 @@ class View3D_OT_slvs_change_sketch_workplane(Operator):
             return {"PASS_THROUGH"}
 
         if event.value == "PRESS" and event.type in _ORIGIN_PLANE_KEYS:
+            from ..model.sketch_ref import get_active_sketch
+            from .add_sketch import set_sketch_workplane
+
             empty = getattr(context.scene.sketcher, _ORIGIN_PLANE_KEYS[event.type])
-            if empty is not None:
-                return self._apply(context, empty)
-            return {"RUNNING_MODAL"}
+            if empty is None:
+                return {"RUNNING_MODAL"}
+            sketch_obj = get_active_sketch(context).target_object
+            return self._finish(
+                context, set_sketch_workplane(context, sketch_obj, empty)
+            )
 
         if event.type == "LEFTMOUSE" and event.value == "PRESS":
-            empty = self._pick(context, event)
-            if empty is None:
-                return {"RUNNING_MODAL"}  # missed, keep waiting
-            return self._apply(context, empty)
+            result = self._pick(context, event)
+            # None: the click hit nothing, keep waiting.
+            return {"RUNNING_MODAL"} if result is None else result
 
         return {"PASS_THROUGH"}
 

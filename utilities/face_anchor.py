@@ -279,6 +279,16 @@ def _plane_from_faces(mesh, faces):
     return centroid, normal
 
 
+def anchor_face_indices(mesh, face_id: int) -> list:
+    """Indices of the faces of ``mesh`` carrying the anchor ``face_id``."""
+    attr = mesh.attributes.get(FACE_ID_ATTR)
+    if attr is None or attr.domain != "FACE" or len(mesh.polygons) == 0:
+        return []
+    ids = np.empty(len(mesh.polygons), dtype=np.int32)
+    attr.data.foreach_get("value", ids)
+    return [int(i) for i in np.nonzero(ids == face_id)[0]]
+
+
 def recompute_anchor_matrix(eval_ob, face_id, last_co, ref_local=None):
     """World matrix for a face-anchored workplane, or None if detached.
 
@@ -288,13 +298,7 @@ def recompute_anchor_matrix(eval_ob, face_id, last_co, ref_local=None):
     rotation carries it so the frame stays rigid with the mesh.
     """
     mesh = eval_ob.data
-    attr = mesh.attributes.get(FACE_ID_ATTR)
-    if attr is None or attr.domain != "FACE" or len(mesh.polygons) == 0:
-        return None
-
-    ids = np.empty(len(mesh.polygons), dtype=np.int32)
-    attr.data.foreach_get("value", ids)
-    idxs = [int(i) for i in np.nonzero(ids == face_id)[0]]
+    idxs = anchor_face_indices(mesh, face_id)
     if not idxs:
         return None
 

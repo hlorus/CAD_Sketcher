@@ -24,39 +24,73 @@ class VIEW3D_MT_slvs_add_sketch(Menu):
         )
 
 
+def _anchor_name(wp) -> str:
+    """Name the anchor as "<mesh>, face <index>" (or "<n> faces" once split)."""
+    from ...utilities.face_anchor import KEY_FACE_ID, KEY_SOURCE, anchor_face_indices
+
+    source = wp.get(KEY_SOURCE)
+    if source is None:
+        return "mesh face"
+    faces = []
+    # Edit-mode mesh data is stale until the mode is left; just name the object.
+    if source.type == "MESH" and source.mode != "EDIT":
+        faces = anchor_face_indices(source.data, wp[KEY_FACE_ID])
+    if len(faces) == 1:
+        return f"{source.name}, face {faces[0]}"
+    if faces:
+        return f"{source.name}, {len(faces)} faces"
+    return source.name
+
+
+class VIEW3D_MT_slvs_sketch_workplane(Menu):
+    """Occasional actions on the active sketch's workplane."""
+
+    bl_idname = declarations.Menus.SketchWorkplane.value
+    bl_label = "Workplane"
+
+    def draw(self, context: Context):
+        from ...utilities.face_anchor import KEY_FACE_ID
+
+        layout = self.layout
+        ops = declarations.Operators
+        layout.operator(ops.ChangeSketchWorkplane, icon="EYEDROPPER")
+        sketch = get_active_sketch(context)
+        wp = sketch.workplane_object if sketch else None
+        if wp is not None and KEY_FACE_ID in wp:
+            layout.operator(
+                ops.MakeWorkplaneFree, icon="UNLINKED"
+            ).sketch_name = sketch.target_object.name
+
+
 def _draw_workplane(context: Context, layout: UILayout, sketch):
-    """Let the user move the sketch to another workplane, and show its anchor.
+    """Show the sketch's workplane and its face anchor, actions in a dropdown.
 
     An anchored workplane is moved back onto its face whenever the mesh updates,
     so a manual move silently reverts. Surfacing the anchor (not only once it
     breaks) lets the user see why and free the workplane.
     """
-    from ...utilities.face_anchor import KEY_DETACHED, KEY_FACE_ID, KEY_SOURCE
+    from ...utilities.face_anchor import KEY_DETACHED, KEY_FACE_ID
 
     if sketch.is_3d:
         return
     wp = sketch.workplane_object
-    ops = declarations.Operators
     anchored = wp is not None and KEY_FACE_ID in wp
 
-    container = layout
-    if anchored:
-        if wp.get(KEY_DETACHED):
-            container = layout.box()
-            container.alert = True
-            text, icon = "Workplane detached from mesh face", "ERROR"
-        else:
-            source = wp.get(KEY_SOURCE)
-            name = source.name if source else "mesh face"
-            text, icon = f"Workplane anchored to {name}", "LINKED"
-        container.label(text=text, icon=icon)
+    # Same label/value split as the Name row above.
+    split = layout.split(factor=0.4)
+    left = split.row()
+    left.alignment = "RIGHT"
+    left.label(text="Workplane")
+    row = split.row(align=True)
 
-    row = container.row(align=True)
-    row.operator(ops.ChangeSketchWorkplane, text="Change Workplane", icon="EYEDROPPER")
-    if anchored:
-        row.operator(
-            ops.MakeWorkplaneFree, text="Make Free", icon="UNLINKED"
-        ).sketch_name = sketch.target_object.name
+    if anchored and wp.get(KEY_DETACHED):
+        row.alert = True
+        row.label(text="Detached from face", icon="ERROR")
+    elif anchored:
+        row.label(text=_anchor_name(wp), icon="LINKED")
+    else:
+        row.label(text=wp.name if wp else "None")
+    row.menu(declarations.Menus.SketchWorkplane.value, text="", icon="DOWNARROW_HLT")
 
 
 def _draw_migration_prompt(context: Context, layout: UILayout):
@@ -151,12 +185,11 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 dof_icon = "CHECKMARK" if dof_ok else "ERROR"
                 row.label(text=dof_msg, icon=dof_icon)
 
-            _draw_workplane(context, layout, sketch)
-
             layout.separator()
 
             row = layout.row()
             row.prop(sketch.target_object, "name", text="Name")
+            _draw_workplane(context, layout, sketch)
 
         else:
             # Sketch list — a scrollable UIList over scene.objects, filtered to

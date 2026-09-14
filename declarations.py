@@ -105,6 +105,7 @@ class Macros(str, Enum):
 class Menus(str, Enum):
     SelectedMenu = "VIEW3D_MT_selected_menu"
     AddSketch = "VIEW3D_MT_slvs_add_sketch"
+    SketchWorkplane = "VIEW3D_MT_slvs_sketch_workplane"
 
 
 class Panels(str, Enum):
