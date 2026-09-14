@@ -48,7 +48,7 @@ def _draw_workplane(context: Context, layout: UILayout, sketch):
         else:
             source = wp.get(KEY_SOURCE)
             name = source.name if source else "mesh face"
-            text, icon = f"Workplane anchored to {name}", "SNAP_FACE"
+            text, icon = f"Workplane anchored to {name}", "LINKED"
         container.label(text=text, icon=icon)
 
     row = container.row(align=True)
