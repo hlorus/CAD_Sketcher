@@ -26,6 +26,7 @@ modules = [
     "bevel",
     "offset",
     "project_geometry",
+    "mesh_output",
     "set_sketch",
     "delete_entity",
     "delete_sketch",

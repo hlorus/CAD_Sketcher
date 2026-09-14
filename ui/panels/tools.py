@@ -38,6 +38,9 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
 
         layout.operator(declarations.Operators.MergePoints)
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
+        layout.operator(
+            declarations.Operators.CreateMeshOutput, icon="OUTLINER_OB_MESH"
+        )
 
         layout.separator()
         prefs = preferences.get_prefs()
