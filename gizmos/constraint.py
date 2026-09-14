@@ -9,7 +9,12 @@ from ..declarations import GizmoGroups, Gizmos, Operators
 from ..utilities.preferences import get_prefs
 from ..utilities.view import get_2d_coords, get_scale_from_pos
 from .base import ConstraintGizmo
-from .utilities import Color, get_color, set_gizmo_colors
+from .utilities import (
+    Color,
+    get_color,
+    get_constraint_color_type,
+    set_gizmo_colors,
+)
 
 GIZMO_OFFSET = Vector((1.0, 1.0))
 FONT_ID = 0
@@ -46,14 +51,26 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         from ..model.sketch_ref import get_active_sketch
 
         active_sketch = get_active_sketch(context)
-
-        # Build mapping: placement_key → [constraints]
-        # Uses curve_ids when available, falls back to entity objects
-        mapping = {}
+        _layout_signatures.pop(self.as_pointer(), None)
+        _gizmo_color_keys.clear()
         if not active_sketch:
             return
+        mapping, signature = self._layout(context, active_sketch)
+        self._create_gizmos(context, active_sketch, mapping)
+        _layout_signatures[self.as_pointer()] = signature
+
+    def _layout(self, context, active_sketch):
+        """Placement mapping for the gizmos, plus a signature of their layout.
+
+        The signature covers everything ``_create_gizmos`` bakes into a gizmo that
+        is not refreshed while drawing: which constraints exist and where each
+        marker is anchored, the stacking order, and the scale preferences.
+        """
         from ..model.base_constraint import DimensionalConstraint
 
+        # Build mapping: placement_key -> [constraints]
+        # Uses curve_ids when available, falls back to entity objects
+        mapping = {}
         for c in active_sketch.constraints.all:
             if isinstance(c, DimensionalConstraint):
                 continue
@@ -71,6 +88,20 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                         key = ("entity", e.slvs_index)
                         mapping.setdefault(key, []).append(c)
 
+        constraints = active_sketch.constraints
+        signature = (
+            active_sketch.target_object.as_pointer(),
+            context.preferences.system.ui_scale,
+            get_prefs().gizmo_scale,
+            tuple(
+                (key, tuple((c.type, constraints.get_index(c)) for c in constrs))
+                for key, constrs in mapping.items()
+            ),
+            tuple((c.type, constraints.get_index(c)) for c in constraints.dimensional),
+        )
+        return mapping, signature
+
+    def _create_gizmos(self, context, active_sketch, mapping):
         for key, constrs in mapping.items():
             kind, ident = key
 
@@ -86,14 +117,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
                     gz.entity_index = ident
                     gz.curve_id = getattr(c, "curve_id_1", "")
 
-                # A constraint may pin the marker to a computed point (e.g. a
-                # tangent point) instead of the curve's default placement.
-                gz.placement_pos = None
-                if hasattr(c, "marker_position"):
-                    try:
-                        gz.placement_pos = c.marker_position(active_sketch)
-                    except Exception:
-                        gz.placement_pos = None
+                gz.placement_pos = _marker_position(c, active_sketch)
 
                 ui_scale = context.preferences.system.ui_scale
                 scale = get_prefs().gizmo_scale * ui_scale
@@ -131,9 +155,84 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
             props.index = index
 
     def refresh(self, context):
-        # recreate gizmos here!
+        """Rebuild the gizmos only when their layout changed.
+
+        Blender refreshes the group on nearly every update, including each mouse
+        move of a drawing operator. Recreating every gizmo (and its operator
+        binding) each time made drawing slower with every constraint in the
+        sketch. When the layout is unchanged, only the state that can change
+        without it (colors, computed marker positions) is updated in place.
+        """
+        from ..model.sketch_ref import get_active_sketch
+
+        active_sketch = get_active_sketch(context)
+        if active_sketch is not None:
+            mapping, signature = self._layout(context, active_sketch)
+            if _layout_signatures.get(self.as_pointer()) == signature:
+                self._update_in_place(active_sketch)
+                return
+
         self.gizmos.clear()
-        self.setup(context)
+        _layout_signatures.pop(self.as_pointer(), None)
+        # Freed gizmo pointers can be reused by new gizmos; drop their color keys
+        # so a new gizmo never inherits a stale "colors already set" entry.
+        _gizmo_color_keys.clear()
+        if active_sketch is None:
+            return
+        self._create_gizmos(context, active_sketch, mapping)
+        _layout_signatures[self.as_pointer()] = signature
+
+    def _update_in_place(self, active_sketch):
+        constraints = active_sketch.constraints
+        theme = _theme_signature()
+        for gz in self.gizmos:
+            if gz.bl_idname != VIEW3D_GT_slvs_constraint.bl_idname:
+                continue
+            c = constraints.get_from_type_index(gz.type, gz.index)
+            if c is None:
+                continue
+            # Resolving theme colors is the expensive part of a refresh, and they
+            # only change with the constraint's color type (failed, reference) or
+            # the theme, so reapply them only then.
+            key = (get_constraint_color_type(c), theme)
+            if _gizmo_color_keys.get(gz.as_pointer()) != key:
+                set_gizmo_colors(gz, c)
+                _gizmo_color_keys[gz.as_pointer()] = key
+            gz.placement_pos = _marker_position(c, active_sketch)
+
+
+# gizmo group pointer -> layout signature of the gizmos it currently holds. Keyed
+# by pointer because Blender may hand refresh() a fresh Python wrapper.
+_layout_signatures = {}
+
+# gizmo pointer -> (color type, theme) its colors were last set for.
+_gizmo_color_keys = {}
+
+
+def _theme_signature():
+    """The constraint theme colors, as a hashable value."""
+    c_theme = get_prefs().theme_settings.constraint
+    return tuple(
+        tuple(getattr(c_theme, name))
+        for name in (
+            "default",
+            "highlight",
+            "failed",
+            "failed_highlight",
+            "reference",
+            "reference_highlight",
+        )
+    )
+
+
+def _marker_position(constraint, sketch):
+    """A constraint's computed marker position (e.g. a tangent point), or None."""
+    if not hasattr(constraint, "marker_position"):
+        return None
+    try:
+        return constraint.marker_position(sketch)
+    except Exception:
+        return None
 
 
 class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):

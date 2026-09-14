@@ -1,4 +1,5 @@
 import math
+from contextlib import nullcontext
 from typing import Any
 
 import bpy
@@ -326,7 +327,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 if retval == {"FINISHED"}:
                     go_modal = False
                 if not self.executed and self.check_props():
-                    self.run_op(context)
+                    with self.batched_changes(context):
+                        self.run_op(context)
                     self.executed = True
                 context.area.tag_redraw()
 
@@ -647,13 +649,16 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 data["is_existing_entity"] = False
                 ok = True
 
-        if self._undo:
-            self._apply_undo(context)
+        # One live update: roll back the previous preview, then rebuild it. Both
+        # halves recreate curves, so they share one batch (see batched_changes).
+        with self.batched_changes(context):
+            if self._undo:
+                self._apply_undo(context)
 
-        succeede = False
-        if self.check_props():
-            succeede = self.run_op(context)
-            self._undo = True
+            succeede = False
+            if self.check_props():
+                succeede = self.run_op(context)
+                self._undo = True
 
         # State transition
         if triggered and ok:
@@ -687,6 +692,16 @@ class StatefulOperatorLogic(_StateMachineMixin):
     # -------------------------------------------------------------------------
     # Operator execution helpers
     # -------------------------------------------------------------------------
+
+    def batched_changes(self, context: Context):
+        """Context manager around one live update (undo restore plus ``main``).
+
+        A live update runs on every mouse move and may create or edit many
+        elements. The default does nothing; operators whose elements carry
+        whole-sketch bookkeeping override it to do that bookkeeping once per
+        update instead of once per element.
+        """
+        return nullcontext()
 
     def run_op(self, context: Context):
         if not hasattr(self, "main"):

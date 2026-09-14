@@ -92,6 +92,26 @@ class Operator2d(GenericEntityOp):
         self._active_sketch = get_active_sketch(context)
         return True
 
+    def batched_changes(self, context: Context):
+        """Batch the sketch's curve changes for one live update.
+
+        Every curve created outside a batch recomputes the weld ids of the whole
+        sketch, and every point write rebuilds all segments. A rectangle preview
+        creates 8 curves per mouse move, so that bookkeeping ran 8 times per move
+        and grew with every shape already in the sketch. Inside a batch it is done
+        once, when the batch closes, with the same end result.
+        """
+        from contextlib import nullcontext
+
+        from ..utilities.curve_data import batch_update, is_batching
+
+        sketch = self.sketch
+        # Nested batches are not supported: an inner exit would end the outer one
+        # early. A caller that already batches owns the rebuild.
+        if sketch is None or sketch.target_object is None or is_batching(sketch):
+            return nullcontext()
+        return batch_update(sketch)
+
     @property
     def sketch(self):
         if not self._active_sketch:
