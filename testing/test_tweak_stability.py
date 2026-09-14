@@ -48,10 +48,13 @@ class TweakStabilityMixin:
         prev_tracked = prev_target = None
         kick_max = 0.0
         flips = fails = 0
+        # One solver for the whole drag, like the tweak operator.
+        solver = CurveSolver(self.context, self.sketch)
         for target in path:
-            solver = CurveSolver(self.context, self.sketch)
-            solver.tweak(dragged.curve_id, Vector((target[0], target[1], 0.0)))
-            if not solver.solve():
+            pos = Vector((target[0], target[1], 0.0))
+            if solver._drag_curve_id is None:
+                solver.tweak(dragged.curve_id, pos)
+            if not solver.drag_to(pos):
                 fails += 1
                 continue
             tr = [Vector(p.co) for p in tracked]
@@ -203,3 +206,84 @@ class TestTweakStability(Sketch2dTestCase, TweakStabilityMixin):
             2,
             "dragging pins nothing permanently; reported dof must not drop",
         )
+
+    def test_point_on_line_drag_reversible(self):
+        """Dragging a line end around a loop brings a point on it back.
+
+        Solvespace's point-on-line re-seeded a hidden parameter on every solve,
+        so the point crept along the line (~2.2 off after one loop). What is
+        left (~0.014) is the ordinary path dependence of an under-constrained
+        drag.
+        """
+        a = self.add_point((0, 0), fixed=True)
+        b = self.add_point((5, 1))
+        p = self.add_point((2.5, 0.5))
+        line = self.add_line(a, b)
+        self.sketch.constraints.add_coincident(
+            curve_id_1=p.curve_id, curve_id_2=line.curve_id
+        )
+        self.solve()
+
+        m = self._drag(b, [p], _circle_path(5.0, 1.0, 1.0, 72))
+        print(f"[tweak-stability] point_on_line: {m}")
+        self.assertEqual(m["fails"], 0)
+        self.assertLess(m["kick_max"], 2.0, m)
+        self.assertLess(m["hysteresis"], 0.1, m)
+
+    def test_tangent_line_drag_reversible(self):
+        """Dragging the end of a line tangent to a circle around a loop returns
+        the other end close to where it started (was ~3 off after one loop,
+        ~0.16 now)."""
+        ct = self.add_point((0, 0), fixed=True)
+        circle = self.add_circle(ct, 2.0)
+        a = self.add_point((-3, 2.0))
+        b = self.add_point((3, 2.0))
+        line = self.add_line(a, b)
+        self.sketch.constraints.add_tangent(
+            curve_id_1=circle.curve_id, curve_id_2=line.curve_id
+        )
+        self.solve()
+
+        m = self._drag(b, [a], _circle_path(3.0, 2.0, 1.0, 72))
+        print(f"[tweak-stability] tangent_line: {m}")
+        self.assertEqual(m["fails"], 0)
+        self.assertLess(m["kick_max"], 2.0, m)
+        self.assertLess(m["hysteresis"], 0.5, m)
+
+    def test_equal_chain_follows_smoothly(self):
+        """Re-solving the loaded system keeps an equal-length chain following the
+        cursor. Rebuilding every step from float32 curve data made the joints
+        lurch up to ~2.8x the cursor step."""
+        a0 = self.add_point((0, 0), fixed=True)
+        p1 = self.add_point((2, 0))
+        p2 = self.add_point((4, 0))
+        p3 = self.add_point((6, 0))
+        l0 = self.add_line(a0, p1)
+        l1 = self.add_line(p1, p2)
+        l2 = self.add_line(p2, p3)
+        sc = self.sketch.constraints
+        sc.add_equal(curve_id_1=l0.curve_id, curve_id_2=l1.curve_id)
+        sc.add_equal(curve_id_1=l1.curve_id, curve_id_2=l2.curve_id)
+        self.solve()
+
+        path = [(6.0 - 3.0 * i / 40.0, 2.0 * i / 40.0) for i in range(41)]
+        m = self._drag(p3, [p1, p2], path)
+        self.assertEqual(m["fails"], 0)
+        self.assertLess(m["kick_max"], 1.5, m)
+
+    def test_drag_survives_foreign_solve(self):
+        """Another solve clearing slvs mid-drag must not break the drag: the
+        next step notices the system is gone and rebuilds."""
+        from ..curve_solver import solve_system
+
+        p0 = self.add_point((0.0, 0.0), fixed=True)
+        p1 = self.add_point((3.0, 0.0))
+        self.add_line(p0, p1)
+        self.solve()
+
+        solver = CurveSolver(self.context, self.sketch)
+        solver.tweak(p1.curve_id, Vector((3.0, 1.0, 0.0)))
+        self.assertTrue(solver.drag_to(Vector((3.0, 1.0, 0.0))))
+        self.assertTrue(solve_system(self.context, sketch=self.sketch))
+        self.assertTrue(solver.drag_to(Vector((2.0, 2.0, 0.0))))
+        self.assertLess((Vector(p1.co) - Vector((2.0, 2.0))).length, 1e-5)

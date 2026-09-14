@@ -24,6 +24,7 @@ from mathutils.geometry import intersect_line_line, intersect_line_plane
 from ..declarations import BLENDER_SELECT_TOOL, Operators
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.boolean_nodes import SOLVER_ITEMS, SOLVER_SOCKET
 from ..utilities.view import get_picking_origin_dir, get_placement_pos
 from .base_3d import Operator3d
 
@@ -61,6 +62,33 @@ def get_modifier_input(modifier, identifier):
 # Boolean operations, in the node group's Index Switch order: the operator's
 # enum name maps to this integer index (see set/get_boolean_operation).
 BOOLEAN_OPERATIONS = ("Difference", "Union", "Intersect")
+
+
+def set_boolean_solver(modifier, identifier, name):
+    """Set the Boolean Solver input (an integer index into SOLVERS)."""
+    from ..utilities.boolean_nodes import SOLVERS
+
+    set_modifier_input(modifier, identifier, SOLVERS.index(name))
+
+
+def get_boolean_solver(modifier, identifier):
+    """Read the Boolean Solver input back as its name."""
+    from ..utilities.boolean_nodes import SOLVERS
+
+    index = int(get_modifier_input(modifier, identifier))
+    if 0 <= index < len(SOLVERS):
+        return SOLVERS[index]
+    return SOLVERS[0]
+
+
+def default_boolean_solver():
+    """The preferred solver for new booleans, falling back to Exact."""
+    try:
+        from ..utilities.preferences import get_prefs
+
+        return get_prefs().boolean_solver
+    except (AttributeError, KeyError):  # preferences unavailable
+        return "Exact"
 
 
 def set_boolean_operation(modifier, identifier, name):
@@ -130,7 +158,12 @@ def creates_boolean_cycle(body, cutter):
 
 
 def apply_boolean(
-    body, cutter, operation="Difference", self_intersection=True, hole_tolerant=False
+    body,
+    cutter,
+    operation="Difference",
+    self_intersection=True,
+    hole_tolerant=False,
+    solver=None,
 ):
     """Add or update a nondestructive boolean of ``cutter`` on ``body``.
 
@@ -138,7 +171,8 @@ def apply_boolean(
     otherwise creates one. Returns the modifier, or None if the link would create
     a dependency cycle. ``body`` and ``cutter`` must be original (not evaluated)
     objects. The shared entry point for the Boolean tool and for the extrude /
-    revolve tools that boolean their result directly.
+    revolve tools that boolean their result directly. ``solver`` defaults to the
+    Boolean Solver preference.
     """
     from ..utilities.boolean_nodes import build_boolean_node_group
 
@@ -157,6 +191,7 @@ def apply_boolean(
     set_boolean_operation(mod, ids["Operation"], operation)
     set_modifier_input(mod, ids["Self Intersection"], self_intersection)
     set_modifier_input(mod, ids["Hole Tolerant"], hole_tolerant)
+    set_boolean_solver(mod, ids[SOLVER_SOCKET], solver or default_boolean_solver())
     return mod
 
 
@@ -1011,6 +1046,11 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
     )
     self_intersection: BoolProperty(name="Self Intersection", default=True)
     hole_tolerant: BoolProperty(name="Hole Tolerant", default=False)
+    boolean_solver: bpy.props.EnumProperty(
+        name="Boolean Solver",
+        items=SOLVER_ITEMS,
+        default="Exact",
+    )
 
     # A solid cutter would hide the boolean result, so switch its viewport
     # display (wireframe by default, like Bool Tool). display_type is a draw-only
@@ -1044,6 +1084,9 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         # redo panel -- doing it in main()/execute() would clobber a redo-panel
         # edit on the next re-run. The cutter is only known at invoke when it is
         # preselected, so interactive cutter-picking is always treated as create.
+        # A new boolean starts from the preference rather than the operator's
+        # remembered last value; an existing boolean read below overrides it.
+        self.boolean_solver = default_boolean_solver()
         selection = self.gather_selection(context)
         if selection:
             body = selection[0]
@@ -1105,6 +1148,8 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         self.operation = get_boolean_operation(modifier, ids["Operation"])
         self.self_intersection = get_modifier_input(modifier, ids["Self Intersection"])
         self.hole_tolerant = get_modifier_input(modifier, ids["Hole Tolerant"])
+        if SOLVER_SOCKET in ids:  # absent on a group not yet rebuilt to version 4
+            self.boolean_solver = get_boolean_solver(modifier, ids[SOLVER_SOCKET])
 
     def main(self, context: Context):
         from ..utilities.boolean_nodes import build_boolean_node_group
@@ -1154,6 +1199,7 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         set_boolean_operation(m, ids["Operation"], self.operation)
         set_modifier_input(m, ids["Self Intersection"], self.self_intersection)
         set_modifier_input(m, ids["Hole Tolerant"], self.hole_tolerant)
+        set_boolean_solver(m, ids[SOLVER_SOCKET], self.boolean_solver)
         return True
 
     def draw_settings(self, context):
@@ -1161,9 +1207,13 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         # per-state row; only the non-pointer options belong here.
         layout = self.layout
         layout.prop(self, "operation")
+        layout.prop(self, "boolean_solver")
         layout.prop(self, "cutter_display")
-        layout.prop(self, "self_intersection")
-        layout.prop(self, "hole_tolerant")
+        # Self Intersection / Hole Tolerant only exist on the Exact solver.
+        col = layout.column()
+        col.active = self.boolean_solver == "Exact"
+        col.prop(self, "self_intersection")
+        col.prop(self, "hole_tolerant")
 
 
 # Give the boolean-capable tools their shared boolean properties. Injected here
