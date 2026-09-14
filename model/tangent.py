@@ -11,7 +11,7 @@ from .base_constraint import GenericConstraint
 from .categories import CURVE
 from .circle import SlvsCircle
 from .line_2d import SlvsLine2D
-from .utilities import make_coincident, slvs_entity_pointer
+from .utilities import make_coincident, point_on_line, slvs_entity_pointer
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,56 @@ def _curve_curve_tangent_seed(center1, center2, radius1, radius2):
         key=lambda pair: (pair[0] - pair[1]).length_squared,
     )
     return (p1 + p2) / 2
+
+
+def _known_tangent_point(sketch, on_first, on_second):
+    """A point curve already constrained onto both curves, or None.
+
+    ``on_first``/``on_second`` are ``(curve_id, point_ids)`` pairs, the point ids
+    being those that lie on the curve structurally (its own endpoints). Points put on a curve by a
+    coincident constraint count too, and coincident points are interchangeable.
+    Solving tangency through a separate helper point would duplicate those
+    constraints at the tangent point, which solvespace reports as redundant.
+    """
+    from ..utilities.curve_data import get_curve_type
+    from .constants import SketchCurveType
+
+    first_id, first_points = on_first
+    second_id, second_points = on_second
+    first_points = {point_id for point_id in first_points if point_id}
+    second_points = {point_id for point_id in second_points if point_id}
+
+    sketch_obj = getattr(sketch, "target_object", None)
+    data = getattr(sketch_obj, "data", None)
+    constraints = getattr(data, "sketch_constraints", None)
+    # Coincident points share one solver position; group them so a point on one
+    # curve matches its partner on the other.
+    partner = {}
+
+    def root(point_id):
+        while partner.get(point_id, point_id) != point_id:
+            point_id = partner[point_id]
+        return point_id
+
+    if constraints is not None:
+        for c in constraints.all:
+            if getattr(c, "type", "") != "COINCIDENT":
+                continue
+            a, b = c.curve_id_1, c.curve_id_2
+            if not a or not b:
+                continue
+            if b == first_id:
+                first_points.add(a)
+            elif b == second_id:
+                second_points.add(a)
+            elif get_curve_type(sketch, b) == SketchCurveType.POINT:
+                partner[root(a)] = root(b)
+
+    second_roots = {root(point_id) for point_id in second_points}
+    for point_id in sorted(first_points):
+        if root(point_id) in second_roots:
+            return point_id
+    return None
 
 
 class SlvsTangent(GenericConstraint, PropertyGroup):
@@ -78,18 +128,38 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
         is_curve2 = t2 in (SketchCurveType.ARC, SketchCurveType.CIRCLE)
         is_line2 = t2 == SketchCurveType.LINE
 
+        def endpoints(curve_data, idx):
+            return (
+                get_uuid(curve_data, "start_point_id", idx),
+                get_uuid(curve_data, "end_point_id", idx),
+            )
+
+        # An arc's own endpoints lie on it; a circle has none.
+        on_curve1 = endpoints(cd1, idx1) if t1 == SketchCurveType.ARC else ()
+
         if is_curve1 and is_line2:
             # Curve-line tangent
             ct_id = get_uuid(cd1, "center_point_id", idx1)
             ct_handle = handle_map.get(ct_id)
-            sp_id = get_uuid(cd2, "start_point_id", idx2)
-            ep_id = get_uuid(cd2, "end_point_id", idx2)
+            sp_id, ep_id = endpoints(cd2, idx2)
 
             ct_pos = get_curve_position(sketch, ct_id)
             sp_pos = get_curve_position(sketch, sp_id)
             ep_pos = get_curve_position(sketch, ep_id)
             if not all((ct_handle, ct_pos, sp_pos, ep_pos)):
                 return None
+
+            # A point already on both (e.g. a fillet's shared endpoint) is the
+            # tangent point: the radius to it must be perpendicular to the line.
+            tangent_id = _known_tangent_point(
+                sketch,
+                (self.curve_id_1, on_curve1),
+                (self.curve_id_2, (sp_id, ep_id)),
+            )
+            tangent_handle = handle_map.get(tangent_id) if tangent_id else None
+            if tangent_handle:
+                radius = solvesys.add_line_2d(group, ct_handle, tangent_handle, wp)
+                return solvesys.perpendicular(group, h2, radius, workplane=wp)
 
             from mathutils import Vector
 
@@ -101,7 +171,7 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
             line = solvesys.add_line_2d(group, ct_handle, p, wp)
             return (
                 solvesys.coincident(group, p, h1, wp),
-                solvesys.coincident(group, p, h2, wp),
+                point_on_line(solvesys, group, p, h2, wp, sp_pos, ep_pos),
                 solvesys.perpendicular(group, h2, line, workplane=wp),
             )
 
@@ -116,6 +186,20 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
             if not all((ct1_handle, ct2_handle, ct1_pos, ct2_pos)):
                 return None
 
+            line = solvesys.add_line_2d(group, ct1_handle, ct2_handle, wp)
+
+            # A point already on both curves is the tangent point, which then
+            # only has to lie on the line through the centres.
+            on_curve2 = endpoints(cd2, idx2) if t2 == SketchCurveType.ARC else ()
+            tangent_id = _known_tangent_point(
+                sketch, (self.curve_id_1, on_curve1), (self.curve_id_2, on_curve2)
+            )
+            tangent_handle = handle_map.get(tangent_id) if tangent_id else None
+            if tangent_handle:
+                return point_on_line(
+                    solvesys, group, tangent_handle, line, wp, ct1_pos, ct2_pos
+                )
+
             from mathutils import Vector
 
             curve1 = cd1.curves[idx1]
@@ -126,11 +210,10 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
             radius2 = (edge2 - Vector(ct2_pos[:2])).length
             coords = _curve_curve_tangent_seed(ct1_pos, ct2_pos, radius1, radius2)
             p = solvesys.add_point_2d(group, coords.x, coords.y, wp)
-            line = solvesys.add_line_2d(group, ct1_handle, ct2_handle, wp)
             return (
                 solvesys.coincident(group, p, h1, wp),
                 solvesys.coincident(group, p, h2, wp),
-                solvesys.coincident(group, p, line, wp),
+                point_on_line(solvesys, group, p, line, wp, ct1_pos, ct2_pos),
             )
 
         # Simple tangent

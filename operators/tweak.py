@@ -43,6 +43,9 @@ class View3D_OT_slvs_tweak(Operator):
     _plane_lock = None
     _tweak_anchor = None
     _view_normal = None
+    # One solver per drag, so each mouse move re-solves the loaded system
+    # instead of rebuilding it (see CurveSolver.drag_to).
+    _solver = None
 
     def _register_snap_marker(self, context: Context):
         """Show the same snap marker the draw tools use, for the drag's lifetime."""
@@ -132,6 +135,7 @@ class View3D_OT_slvs_tweak(Operator):
         self.sketch = sketch
         self._axis_lock = None
         self._plane_lock = None
+        self._solver = None
 
         # Verify curve exists.
         curve_data, idx, _ = get_curve_data(sketch, curve_id)
@@ -173,6 +177,7 @@ class View3D_OT_slvs_tweak(Operator):
             # Clean re-solve without the drag pin so published DOF/state reflect
             # the real sketch. This also covers the free-3D path, whose direct
             # point edit has no temporary 2D drag constraint.
+            self._solver = None
             solve_system(context, sketch=self.sketch)
 
             refresh_curve_geometry(self.sketch)
@@ -215,9 +220,10 @@ class View3D_OT_slvs_tweak(Operator):
                 if pos is None:
                     return {"RUNNING_MODAL"}
 
-                solver = CurveSolver(context, self.sketch)
-                solver.tweak(self.curve_id, pos)
-                solver.solve()
+                if self._solver is None:
+                    self._solver = CurveSolver(context, self.sketch)
+                    self._solver.tweak(self.curve_id, pos)
+                self._solver.drag_to(pos)
 
             # Topology rebuild to trigger GN modifier refresh.
             refresh_curve_geometry(self.sketch)
