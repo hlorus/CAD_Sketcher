@@ -126,6 +126,22 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
         solve_system(context, sketch=self.sketch)
         return True
 
+    preview_in_place = True
+
+    def preview_structure(self, context: Context):
+        """Also rebuild when the sweep direction flips (start and end swap)."""
+        structure = super().preview_structure(context)
+        if structure is None:
+            return None
+        return structure, getattr(self, "_arc_invert", False)
+
+    def update_preview(self, context: Context) -> bool:
+        """Drag the arc's endpoint instead of recreating the arc."""
+        target = getattr(self, "target", None)
+        if target is None or not target.valid:
+            return False
+        return self.update_preview_point(context)
+
     def main(self, context):
         ct, p1, p2 = (
             self.get_point(context, 0),

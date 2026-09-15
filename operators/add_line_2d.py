@@ -53,6 +53,15 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
 
         return poll_active_2d_sketch(context)
 
+    preview_in_place = True
+
+    def update_preview(self, context: Context) -> bool:
+        """Drag the line's endpoint instead of recreating the line."""
+        target = getattr(self, "target", None)
+        if target is None or not target.valid:
+            return False
+        return self.update_preview_point(context)
+
     def main(self, context: Context):
         p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
         sketch = self.sketch

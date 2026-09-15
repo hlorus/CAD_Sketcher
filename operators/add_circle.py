@@ -85,6 +85,16 @@ class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
         radius = delta.length
         return radius
 
+    preview_in_place = True
+
+    def update_preview(self, context: Context) -> bool:
+        """Resize the circle instead of recreating it."""
+        target = getattr(self, "target", None)
+        if target is None or not target.valid:
+            return False
+        target.radius = self.radius
+        return True
+
     def main(self, context: Context):
         ct = self.get_point(context, 0)
         sketch = self.sketch

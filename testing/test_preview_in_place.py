@@ -95,3 +95,60 @@ class TestPreviewInPlace(Sketch2dTestCase):
             ],
             in_place_moves=2,
         )
+
+    def test_line(self):
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+
+        guide, anchor = self.guide.curve_id, self.anchor.curve_id
+        self.assert_matches_rebuild(
+            View3D_OT_slvs_add_line2d,
+            [
+                ("click", (0.0, 0.0), ""),
+                ("move", (2.0, 0.05), ""),
+                ("move", (3.0, 1.0), ""),
+                ("move", (0.05, 4.0), ""),
+                ("move", (3.0, -3.0), guide),
+                ("move", (4.0, -3.0), guide),
+                ("move", (5.0, 5.0), anchor),
+                ("move", (6.0, 2.0), ""),
+                ("move", (7.0, 2.5), ""),
+            ],
+            in_place_moves=4,
+        )
+
+    def test_circle(self):
+        from ..operators.add_circle import View3D_OT_slvs_add_circle2d
+
+        self.assert_matches_rebuild(
+            View3D_OT_slvs_add_circle2d,
+            [
+                ("click", (1.0, 1.0), ""),
+                ("move", (2.0, 1.0), ""),
+                ("move", (3.0, 2.0), ""),
+                ("move", (1.0, 4.0), ""),
+                ("move", (0.5, 0.5), ""),
+            ],
+            in_place_moves=3,
+        )
+
+    def test_arc(self):
+        from ..operators.add_arc import View3D_OT_slvs_add_arc2d
+
+        guide = self.guide.curve_id
+        self.assert_matches_rebuild(
+            View3D_OT_slvs_add_arc2d,
+            [
+                ("click", (0.0, 0.0), ""),
+                ("click", (2.0, 0.0), ""),
+                ("move", (2.0, 0.5), ""),
+                ("move", (1.0, 2.0), ""),
+                # Back through the start: the sweep flips to clockwise.
+                ("move", (2.0, -0.5), ""),
+                ("move", (1.0, -2.0), ""),
+                ("move", (-1.0, -2.0), ""),
+                ("move", (-2.0, 1.0), ""),
+                ("move", (0.0, -3.0), guide),
+                ("move", (0.5, -3.0), guide),
+            ],
+            in_place_moves=5,
+        )
