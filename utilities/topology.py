@@ -9,6 +9,7 @@ import math
 from dataclasses import dataclass, field
 from typing import List
 
+import numpy as np
 from mathutils import Vector
 from mathutils.geometry import intersect_line_sphere_2d, intersect_sphere_sphere_2d
 
@@ -22,12 +23,13 @@ from ..model.curve_ref import (
     curve_ref,
 )
 from ..utilities.math import range_2pi
-from .curve_data import get_uuid, has_uuid_field
+from .curve_data import get_uuid, has_uuid_field, read_uuid_list
 
 
 @dataclass
 class PathResult:
     """Result of a path walk."""
+
     segments: List[CurveRef] = field(default_factory=list)
     directions: List[bool] = field(default_factory=list)  # True = inverted
 
@@ -52,8 +54,10 @@ def _get_point_ids(ref):
     ids = set()
     sp = ref._get_attr_value("start_point_id", "")
     ep = ref._get_attr_value("end_point_id", "")
-    if sp: ids.add(sp)
-    if ep: ids.add(ep)
+    if sp:
+        ids.add(sp)
+    if ep:
+        ids.add(ep)
     return ids
 
 
@@ -76,22 +80,24 @@ class SketchTopology:
         n = len(cd.curves)
         type_attr = cd.attributes.get("sketch_type")
 
-        if not has_uuid_field(cd, "curve_id") or not type_attr:
+        if not n or not has_uuid_field(cd, "curve_id") or not type_attr:
             return
 
-        for i in range(n):
-            ctype = type_attr.data[i].value
-            if ctype == SketchCurveType.POINT:
-                continue
+        # Tools rebuild the topology on every mouse move, so read the ids in bulk
+        # rather than resolving three ids per curve.
+        types = np.empty(n, dtype=np.int32)
+        type_attr.data.foreach_get("value", types)
+        cids = read_uuid_list(cd, "curve_id")
+        sps = read_uuid_list(cd, "start_point_id")
+        eps = read_uuid_list(cd, "end_point_id")
 
-            cid = get_uuid(cd, "curve_id", i)
-            sp = get_uuid(cd, "start_point_id", i)
-            ep = get_uuid(cd, "end_point_id", i)
-
-            if sp:
-                self._connections.setdefault(sp, []).append((cid, "start"))
-            if ep:
-                self._connections.setdefault(ep, []).append((cid, "end"))
+        connections = self._connections
+        for i in np.flatnonzero(types != SketchCurveType.POINT).tolist():
+            cid = cids[i]
+            if sps[i]:
+                connections.setdefault(sps[i], []).append((cid, "start"))
+            if eps[i]:
+                connections.setdefault(eps[i], []).append((cid, "end"))
 
     def _ref(self, cid):
         """Get or create a CurveRef for a curve_id."""
@@ -210,12 +216,15 @@ class SketchTopology:
             return self._intersect_line_curve(ref_a, ref_b)
         elif isinstance(ref_a, (ArcRef, CircleRef)) and isinstance(ref_b, LineRef):
             return self._intersect_line_curve(ref_b, ref_a)
-        elif isinstance(ref_a, (ArcRef, CircleRef)) and isinstance(ref_b, (ArcRef, CircleRef)):
+        elif isinstance(ref_a, (ArcRef, CircleRef)) and isinstance(
+            ref_b, (ArcRef, CircleRef)
+        ):
             return self._intersect_curve_curve(ref_a, ref_b)
         return []
 
     def _intersect_line_line(self, a, b):
         from .geometry import intersect_line_line_2d
+
         p1a, p2a = a.p1.co, a.p2.co
         p1b, p2b = b.p1.co, b.p2.co
         result = intersect_line_line_2d(p1a, p2a, p1b, p2b)
@@ -367,7 +376,7 @@ class SketchTopology:
 
                 # Determine direction: inverted if we enter from the end point
                 sp_id = next_seg._get_attr_value("start_point_id", "")
-                inverted = (exit_pid != sp_id)
+                inverted = exit_pid != sp_id
                 segs.append(next_seg)
                 dirs.append(inverted)
 
@@ -469,6 +478,7 @@ class SketchTopology:
                 ref._set_attr_value(attr_name, new_point_id)
 
         from .curve_data import rebuild_segments
+
         rebuild_segments(self._sketch)
         self.invalidate()
 
@@ -480,10 +490,14 @@ class SketchTopology:
         if isinstance(ref, LineRef):
             return LineRef.create(self._sketch, p1, p2, construction=construction)
         elif isinstance(ref, ArcRef):
-            return ArcRef.create(self._sketch, ref.ct, p1, p2, construction=construction)
+            return ArcRef.create(
+                self._sketch, ref.ct, p1, p2, construction=construction
+            )
         elif isinstance(ref, CircleRef):
             # Circle trimmed to arc
-            return ArcRef.create(self._sketch, ref.ct, p1, p2, construction=construction)
+            return ArcRef.create(
+                self._sketch, ref.ct, p1, p2, construction=construction
+            )
         return None
 
     def split_segment(self, ref, split_points):
