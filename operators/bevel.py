@@ -393,8 +393,12 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         if not succeede:
             return
 
+        from ..utilities.curve_data import remove_native_curve_by_id
+        from .delete_entity import _get_constraint_indices_for_curve_id
+
         sketch = self.sketch
         sc = sketch.constraints
+        unused_corners = []
 
         for result in self._results:
             topo = sketch.topology  # Rebuild after each modification
@@ -413,11 +417,23 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             sc.add_tangent(curve_id_1=arc.curve_id, curve_id_2=l1.curve_id)
             sc.add_tangent(curve_id_1=arc.curve_id, curve_id_2=l2.curve_id)
 
+            if not _get_constraint_indices_for_curve_id(point.curve_id, context):
+                # Nothing refers to the corner any more: drop it.
+                unused_corners.append(point.curve_id)
+                continue
+
             # Keep the corner as a construction "virtual sharp" held on both
             # segments, so constraints and dimensions that used it stay valid.
             point.construction = True
             sc.add_coincident(curve_id_1=point.curve_id, curve_id_2=l1.curve_id)
             sc.add_coincident(curve_id_1=point.curve_id, curve_id_2=l2.curve_id)
+
+        # Removed only after every corner is rewired, since removing a curve
+        # reindexes the ones the remaining results refer to.
+        for cid in unused_corners:
+            remove_native_curve_by_id(sketch, cid)
+            if cid in selection.selected:
+                selection.selected.remove(cid)
 
         # Add equal constraints between all arcs
         arcs = [r["arc"] for r in self._results if r["arc"]]
