@@ -1,6 +1,8 @@
 import bpy
 
-prefs = next(a for a in bpy.context.preferences.addons if a.module.endswith("CAD_Sketcher")).preferences
+prefs = next(
+    a for a in bpy.context.preferences.addons if a.module.endswith("CAD_Sketcher")
+).preferences
 theme = prefs.theme_settings
 entity = theme.entity
 constraint = theme.constraint
@@ -27,14 +29,12 @@ entity.inactive_selected = (
     0.20000000298023224,
 )
 entity.fixed = (0.0, 0.55, 0.0, 0.7)
-constraint.default = (
-    0.8999999761581421,
-    0.5400000214576721,
-    0.5400000214576721,
-    0.699999988079071,
-)
-constraint.highlight = (1.0, 0.6000000238418579, 0.6000000238418579, 0.949999988079071)
-constraint.failed = (0.949999988079071, 0.0, 0.0, 0.800000011920929)
-constraint.failed_highlight = (1.0, 0.0, 0.0, 0.949999988079071)
+# Opaque, saturated constraint colors so constraints stand out on the viewport.
+constraint.default = (1.0, 0.3, 0.7, 1.0)
+constraint.highlight = (1.0, 0.6, 0.85, 1.0)
+constraint.failed = (1.0, 0.25, 0.05, 1.0)
+constraint.failed_highlight = (1.0, 0.5, 0.3, 1.0)
+constraint.reference = (0.35, 0.6, 1.0, 1.0)
+constraint.reference_highlight = (0.6, 0.8, 1.0, 1.0)
 constraint.text = (0.8999999761581421, 0.8999999761581421, 0.8999999761581421, 1.0)
 constraint.text_highlight = (1.0, 1.0, 1.0, 1.0)

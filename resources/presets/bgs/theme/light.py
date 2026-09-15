@@ -29,13 +29,13 @@ entity.inactive_selected = (
     0.20000000298023224,
 )
 entity.fixed = (0.0, 0.55, 0.0, 0.7)
-# Saturated constraint colors that read on a light viewport: a magenta default that
-# stays distinct from the orange-red of failed constraints.
-constraint.default = (0.8, 0.1, 0.6, 1.0)
-constraint.highlight = (1.0, 0.0, 0.75, 1.0)
+# Opaque, saturated constraint colors that stand out on a light viewport; failed
+# is orange-red so it stays distinct from the magenta default.
+constraint.default = (0.85, 0.0, 0.55, 1.0)
+constraint.highlight = (1.0, 0.2, 0.7, 1.0)
 constraint.failed = (1.0, 0.25, 0.0, 1.0)
-constraint.failed_highlight = (0.85, 0.1, 0.0, 1.0)
-constraint.reference = (0.1, 0.35, 1.0, 1.0)
-constraint.reference_highlight = (0.0, 0.2, 0.85, 1.0)
+constraint.failed_highlight = (0.8, 0.1, 0.0, 1.0)
+constraint.reference = (0.0, 0.35, 1.0, 1.0)
+constraint.reference_highlight = (0.0, 0.2, 0.8, 1.0)
 constraint.text = (0.1, 0.1, 0.1, 1.0)
 constraint.text_highlight = (0.4, 0.4, 0.4, 1.0)
