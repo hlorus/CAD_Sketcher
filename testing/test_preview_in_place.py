@@ -116,7 +116,10 @@ class TestPreviewInPlace(Sketch2dTestCase):
             View3D_OT_slvs_add_line2d,
             [
                 ("click", (0.0, 0.0), ""),
+                # Horizontal, still horizontal, neither, vertical: the inferred
+                # alignment is part of the structure, so only a change rebuilds.
                 ("move", (2.0, 0.05), ""),
+                ("move", (3.0, 0.1), ""),
                 ("move", (3.0, 1.0), ""),
                 ("move", (0.05, 4.0), ""),
                 ("move", (3.0, -3.0), guide),
@@ -125,7 +128,7 @@ class TestPreviewInPlace(Sketch2dTestCase):
                 ("move", (6.0, 2.0), ""),
                 ("move", (7.0, 2.5), ""),
             ],
-            in_place_moves=4,
+            in_place_moves=3,
         )
 
     def test_circle(self):
