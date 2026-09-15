@@ -577,12 +577,12 @@ class TestConstraintIconGroups(TestCase):
 
         self.addCleanup(restore)
         red, grey = (1, 0, 0, 1), (0.5, 0.5, 0.5, 1)
-        # world, stack, type, color, index, anchor, curves, priority
+        # world, stack, type, color, index, anchor, priority
         self.entries = [
-            ((0, 0, 0), 0, "HORIZONTAL", grey, 0, "A", ("A",), 0),
-            ((0, 0, 0), 1, "EQUAL", red, 0, "A", ("A", "D"), 2),
-            ((0, 0, 0), 0, "VERTICAL", grey, 0, "B", ("B",), 0),
-            ((0, 0, 0), 0, "PARALLEL", grey, 0, "C", ("C", "A"), 0),
+            ((0, 0, 0), 0, "HORIZONTAL", grey, 0, "A", 0),
+            ((0, 0, 0), 1, "EQUAL", red, 0, "A", 2),
+            ((0, 0, 0), 0, "VERTICAL", grey, 0, "B", 0),
+            ((0, 0, 0), 0, "PARALLEL", grey, 0, "C", 0),
         ]
         # Screen centers as _screen_centers would stack them: A's second icon one
         # step right of its first, C in the same icon cell as A, B far away.
@@ -657,27 +657,35 @@ class TestConstraintIconGroups(TestCase):
 
     def test_two_digit_count(self):
         self.entries = [
-            ((0, 0, 0), i, "EQUAL", (1, 1, 1, 1), i, "A", ("A",), 0) for i in range(12)
+            ((0, 0, 0), i, "EQUAL", (1, 1, 1, 1), i, "A", 0) for i in range(12)
         ]
         self.centers = np.array([(100.0 + 10 * i, 100.0) for i in range(12)])
         quads, _hits = self.arrange("ELEMENT")
         self.assertEqual(self.cells(quads), ["EQUAL", "BADGE", "DIGIT_1", "DIGIT_2"])
 
-    def test_hovered_or_selected_geometry_expands_its_group(self):
+    def test_hovered_or_selected_element_opens_only_its_own_icons(self):
         from ..drawing import selection
 
-        quads, _hits = self.arrange("NEARBY", expanded={"C"})
-        self.assertNotIn("BADGE", self.cells(quads))
+        # A and C are grouped nearby; opening A leaves C's icon alone, and B too.
+        quads, hits = self.arrange("NEARBY", expanded={"A"})
+        cells = self.cells(quads)
+        self.assertNotIn("BADGE", cells)
+        self.assertEqual(sorted(cells), ["EQUAL", "HORIZONTAL", "PARALLEL", "VERTICAL"])
+        self.assertEqual(hits["group_keys"], [])
 
-        self.icons._icon_cache["touching"] = {"D": {"A"}, "A": {"A", "C"}}
+        # Opening C, a single icon, leaves A grouped.
+        quads, hits = self.arrange("NEARBY", expanded={"C"})
+        self.assertEqual(hits["group_keys"], ["A"])
+        self.assertIn("DIGIT_2", self.cells(quads))
+
+        self.icons._icon_cache["anchors"] = frozenset({"A", "B", "C"})
         saved = (selection.hover, list(selection.selected))
         try:
-            # Hovering opens every group with a constraint on the hovered curve.
             selection.hover, selection.selected[:] = "A", []
-            self.assertEqual(self.icons._expanded_elements(), frozenset({"A", "C"}))
-            # A selection only opens the groups sitting on the selected elements.
-            selection.hover, selection.selected[:] = "", ["A", "D"]
             self.assertEqual(self.icons._expanded_elements(), frozenset({"A"}))
+            # Curves without icons of their own open nothing.
+            selection.hover, selection.selected[:] = "D", ["B", "D"]
+            self.assertEqual(self.icons._expanded_elements(), frozenset({"B"}))
         finally:
             selection.hover, selection.selected[:] = saved[0], saved[1]
 

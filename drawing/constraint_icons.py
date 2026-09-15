@@ -27,15 +27,15 @@ from ..utilities.preferences import get_prefs
 from . import frame_cache, selection
 
 # Fields of a laid out icon (see _world_entries).
-WORLD, STACK, TYPE, COLOR, INDEX, ANCHOR, CURVES, PRIORITY = range(8)
+WORLD, STACK, TYPE, COLOR, INDEX, ANCHOR, PRIORITY = range(7)
 
 
 def _world_entries(context, sketch):
     """One tuple per icon, indexed by the field constants above.
 
     The world position, stack index on its element, constraint type, color,
-    constraint index, the element the icon sits on (``ANCHOR``), every curve the
-    constraint refers to, and how much its color should stand out in a group.
+    constraint index, the element the icon sits on (``ANCHOR``), and how much its
+    color should stand out in a group.
     Everything about an icon except where the view puts it.
     """
     from ..gizmos.utilities import Color, get_constraint_color_type
@@ -74,15 +74,6 @@ def _world_entries(context, sketch):
             color_type = get_constraint_color_type(c)
             color = frame_cache.constraint_color(color_type, is_highlight)
             priority = 3 if is_highlight else priorities.get(color_type, 0)
-            curves = tuple(
-                cid
-                for cid in (
-                    getattr(c, "curve_id_1", ""),
-                    getattr(c, "curve_id_2", ""),
-                    getattr(c, "curve_id_3", ""),
-                )
-                if cid
-            )
             entries.append(
                 (
                     tuple(world[:3]),
@@ -91,7 +82,6 @@ def _world_entries(context, sketch):
                     tuple(color),
                     index_of[c.as_pointer()],
                     cid,
-                    curves,
                     priority,
                 )
             )
@@ -137,8 +127,8 @@ _icon_cache = {
     "batch": None,
     "layout_key": None,
     "entries": None,
-    # curve id -> elements whose icons a constraint on that curve sits on.
-    "touching": None,
+    # Elements that have icons on them.
+    "anchors": None,
     # Per-icon arrays of the layout (see _prepare), and the atlas UVs they're for.
     "prepared": None,
     "prepared_uvs": None,
@@ -243,7 +233,7 @@ def invalidate():
         batch=None,
         layout_key=None,
         entries=None,
-        touching=None,
+        anchors=None,
         prepared=None,
         prepared_uvs=None,
         hits=None,
@@ -298,21 +288,16 @@ def _set_hover(group):
 
 
 def _expanded_elements():
-    """Elements whose groups open because their geometry is hovered or selected.
+    """Elements whose icons open because the element is hovered or selected.
 
-    Hovering a curve opens every group holding a constraint on it, wherever the
-    icon sits. A selection is kept around (e.g. the lines a bevel acted on), so it
-    only opens the groups sitting on the selected elements themselves; otherwise
-    every arc a bevel tangents to the selected lines would stay open.
+    Only the icons sitting on the element itself open, not those of the other
+    elements its constraints refer to.
     """
-    touching = _icon_cache["touching"] or {}
-    elements = set(touching.get(selection.hover, ())) if selection.hover else set()
+    anchors = _icon_cache["anchors"] or frozenset()
+    curves = [selection.hover] if selection.hover else []
     if len(selection.selected) <= _MAX_SELECTED_EXPAND:
-        # An element with icons on it is among the elements its curve touches.
-        elements.update(
-            cid for cid in selection.selected if cid in touching.get(cid, ())
-        )
-    return frozenset(elements)
+        curves += selection.selected
+    return frozenset(cid for cid in curves if cid in anchors)
 
 
 def draw():
@@ -336,12 +321,11 @@ def draw():
         # Walking the constraints is only needed when they or their geometry
         # changed; a view change just moves the icons already laid out.
         entries = _world_entries(context, sketch)
-        touching = {}
-        for entry in entries:
-            for cid in entry[CURVES]:
-                touching.setdefault(cid, set()).add(entry[ANCHOR])
         _icon_cache.update(
-            entries=entries, touching=touching, layout_key=layout_key, prepared=None
+            entries=entries,
+            anchors=frozenset(entry[ANCHOR] for entry in entries),
+            layout_key=layout_key,
+            prepared=None,
         )
     if _icon_cache["prepared"] is None or _icon_cache["prepared_uvs"] is not uvs:
         _icon_cache["prepared"] = _prepare(_icon_cache["entries"], uvs)
@@ -420,7 +404,8 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
     icons. Icons group by the element they sit on; with ``mode`` ``NEARBY``
     elements whose first icons are about an icon apart on screen merge too. A group
     draws as one icon with a count badge unless it has a single icon, grouping is
-    ``OFF``, one of its elements is in ``expanded``, or it is the hovered group.
+    ``OFF``, or it is the hovered group. An element in ``expanded`` shows its own
+    icons and is left out of any group.
 
     Returns ``(quads, hits)``: ``quads`` as arrays of centers, half sizes, atlas
     cell codes (into ``prepared["names"]``) and colors, and ``hits`` as consumed
@@ -437,6 +422,15 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
 
     counts = np.bincount(element[visible], minlength=n_elements)
     shown = np.flatnonzero(counts)
+    index = prepared["element_index"]
+    is_expanded = np.zeros(n_elements, dtype=bool)
+    for name in expanded:
+        e = index.get(name)
+        if e is not None:
+            is_expanded[e] = True
+    # An expanded element opens on its own, leaving any nearby group it was in.
+    alone = shown[is_expanded[shown]]
+    shown = shown[~is_expanded[shown]]
     cluster_of = np.full(n_elements, -1, dtype=np.int64)
     if mode == "NEARBY" and shown.size:
         labels = _nearby_labels(anchors[shown], size)
@@ -452,19 +446,18 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
     else:
         cluster_of[shown] = np.arange(shown.size)
         representative = shown
+    cluster_of[alone] = len(representative) + np.arange(alone.size)
+    representative = np.concatenate((representative, alone))
+    shown = np.concatenate((shown, alone))
     n_clusters = len(representative)
     cluster_counts = np.bincount(
         cluster_of[shown], weights=counts[shown], minlength=n_clusters
     )
 
     open_clusters = cluster_counts <= 1
+    open_clusters[n_clusters - alone.size :] = True
     if mode == "OFF":
         open_clusters[:] = True
-    index = prepared["element_index"]
-    for name in expanded:
-        e = index.get(name)
-        if e is not None and cluster_of[e] >= 0:
-            open_clusters[cluster_of[e]] = True
     hovered = -1
     if _hover["group"] is not None:
         e = index.get(_hover["group"])
