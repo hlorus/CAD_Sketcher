@@ -690,6 +690,21 @@ class View3D_OT_node_extrude(Operator, BooleanFromToolMixin, NodeOperator):
         self.draw_boolean_settings(layout)
 
 
+def second_array_axis(offset: Vector, offset_2: Vector) -> tuple:
+    """Direction and spacing of an array's second axis.
+
+    An explicit ``offset_2`` is used as is. When it's zero, the grid continues at
+    a right angle to ``offset`` in the object's XY plane (where sketches lie)
+    with the same spacing, so turning on a second row gives a square grid.
+    """
+    if offset_2.length > 1e-6:
+        return offset_2.normalized(), offset_2.length
+    perpendicular = Vector((-offset.y, offset.x, 0.0))
+    if perpendicular.length < 1e-6:
+        perpendicular = Vector((0.0, 1.0, 0.0))
+    return perpendicular.normalized(), offset.length
+
+
 class View3D_OT_node_array_linear(Operator, NodeOperator):
     """Add a linear array of the selected element"""
 
@@ -724,6 +739,21 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
     merge: BoolProperty(name="Merge by Distance")
     merge_distance: FloatProperty(
         name="Merge Distance", default=0.001, min=0.0, subtype="DISTANCE"
+    )
+    count_2: IntProperty(
+        name="Count 2",
+        description="Copies along the second direction (1 keeps a single row)",
+        default=1,
+        min=1,
+    )
+    offset_2: FloatVectorProperty(
+        name="Offset 2",
+        description=(
+            "Second direction and spacing; zero uses the first spacing at a right "
+            "angle in the object's XY plane"
+        ),
+        subtype="TRANSLATION",
+        size=3,
     )
 
     states = (
@@ -801,6 +831,10 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         set_modifier_input(m, ids["Merge by Distance"], self.merge)
         set_modifier_input(m, ids["Merge Distance"], self.merge_distance)
         set_modifier_input(m, ids["Flip Direciton"], self.flip)
+        direction_2, distance_2 = second_array_axis(offset, Vector(self.offset_2))
+        set_modifier_input(m, ids["Count 2"], self.count_2)
+        set_modifier_input(m, ids["Direction 2"], tuple(direction_2))
+        set_modifier_input(m, ids["Spacing 2"], distance_2)
         return True
 
     def draw_settings(self, context):
@@ -814,6 +848,11 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         sub = layout.column()
         sub.enabled = self.merge
         sub.prop(self, "merge_distance")
+        layout.separator()
+        layout.prop(self, "count_2")
+        sub = layout.column()
+        sub.enabled = self.count_2 > 1
+        sub.prop(self, "offset_2")
 
 
 class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
