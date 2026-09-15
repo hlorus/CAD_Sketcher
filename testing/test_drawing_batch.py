@@ -692,9 +692,10 @@ class TestConstraintIconGroups(TestCase):
         try:
             selection.hover, selection.selected[:] = "A", []
             self.assertEqual(self.icons._expanded_elements(), frozenset({"A"}))
-            # Curves without icons of their own open nothing.
+            # Selecting geometry opens nothing, nor does hovering a curve without
+            # icons of its own.
             selection.hover, selection.selected[:] = "D", ["B", "D"]
-            self.assertEqual(self.icons._expanded_elements(), frozenset({"B"}))
+            self.assertEqual(self.icons._expanded_elements(), frozenset())
         finally:
             selection.hover, selection.selected[:] = saved[0], saved[1]
 

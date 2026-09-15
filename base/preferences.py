@@ -126,7 +126,7 @@ class Preferences(AddonPreferences):
         name="Group Constraint Icons",
         description=(
             "Show several constraint icons as one icon with a count, which expands "
-            "while hovered or while its geometry is hovered or selected"
+            "while hovered or while its geometry is hovered"
         ),
         items=(
             ("OFF", "Off", "Show every constraint icon"),

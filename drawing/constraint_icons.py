@@ -13,7 +13,7 @@ constraint.
 With many constraints the icons are grouped (see ``_arrange``): the constraints
 on one element, and optionally on elements close together on screen, share one
 icon with a count badge. A group fans out into its individual icons while the
-cursor is over it, or while its geometry is hovered or selected.
+cursor is over it, or while its geometry is hovered.
 """
 
 import gpu
@@ -138,9 +138,6 @@ _icon_cache = {
 
 # The group the cursor is over, kept expanded while the cursor stays on it.
 _hover = {"group": None}
-
-# Auto-expanding for a selection larger than this would just show every icon.
-_MAX_SELECTED_EXPAND = 64
 
 
 def _layout_key(context, sketch):
@@ -288,16 +285,14 @@ def _set_hover(group):
 
 
 def _expanded_elements():
-    """Elements whose icons open because the element is hovered or selected.
+    """Elements whose icons open because the element is hovered.
 
     Only the icons sitting on the element itself open, not those of the other
     elements its constraints refer to.
     """
     anchors = _icon_cache["anchors"] or frozenset()
-    curves = [selection.hover] if selection.hover else []
-    if len(selection.selected) <= _MAX_SELECTED_EXPAND:
-        curves += selection.selected
-    return frozenset(cid for cid in curves if cid in anchors)
+    hover = selection.hover
+    return frozenset((hover,)) if hover and hover in anchors else frozenset()
 
 
 def draw():
