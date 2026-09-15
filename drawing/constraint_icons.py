@@ -354,15 +354,18 @@ def draw():
     shader.bind()
     shader.uniform_sampler("image", atlas)
     batch.draw(shader)
+    _draw_counts(_icon_cache["hits"])
     gpu.state.blend_set("NONE")
 
 
 # Count badge, relative to the icon size: its radius, and where it sits.
-_BADGE_RADIUS = 0.32
-_BADGE_OFFSET = 0.45
+_BADGE_RADIUS = 0.42
+_BADGE_OFFSET = 0.5
 _BADGE_COLOR = (0.08, 0.08, 0.08, 0.9)
-_DIGIT_COLOR = (1.0, 1.0, 1.0, 1.0)
-_BADGE_CELLS = ("BADGE", *(f"DIGIT_{d}" for d in range(10)))
+_BADGE_CELLS = ("BADGE",)
+# The count's font size relative to the badge radius, and the smallest used.
+_COUNT_SIZE = 1.5
+_COUNT_MIN_SIZE = 8.0
 
 
 def _prepare(entries, uvs):
@@ -409,7 +412,7 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
 
     Returns ``(quads, hits)``: ``quads`` as arrays of centers, half sizes, atlas
     cell codes (into ``prepared["names"]``) and colors, and ``hits`` as consumed
-    by ``pick``.
+    by ``pick`` (with each group's count, drawn as text).
     """
     half = size / 2.0
     element = prepared["element"]
@@ -515,6 +518,7 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
         "icon_entries": prepared["entries"][icons],
         "group_centers": group_centers,
         "group_keys": [prepared["element_names"][e] for e in representative[collapsed]],
+        "group_counts": cluster_counts[collapsed].astype(np.int64),
         "hover_rect": hover_rect,
     }
     return quads, hits
@@ -548,47 +552,51 @@ def _nearby_labels(points, size):
 
 
 def _badge_quads(group_centers, size, counts, prepared):
-    """A dark disc at each group icon's top right with its count (at most 99)."""
-    code_of = prepared["code_of"]
-    radius = size * _BADGE_RADIUS
-    discs = group_centers + size * _BADGE_OFFSET
-    counts = np.minimum(counts, 99)
-    two = counts >= 10
-    # A glyph fills 3/5 of its quad's width; two of them shrink to fit the disc.
-    one_half = radius * 0.75
-    two_half = radius * 0.55
-    step = two_half * 1.6
-
-    tens_centers = discs[two] - (step / 2.0, 0.0)
-    ones_centers = discs.copy()
-    ones_centers[two, 0] += step / 2.0
-    digit_codes = np.array([code_of[f"DIGIT_{d}"] for d in range(10)])
-
-    centers = np.concatenate((discs, tens_centers, ones_centers))
-    n_discs, n_digits = len(discs), len(tens_centers) + len(ones_centers)
+    """A dark disc at each group icon's top right, for its count."""
+    discs = _badge_centers(group_centers, size)
     return {
-        "centers": centers.reshape(-1, 2),
-        "halves": np.concatenate(
-            (
-                np.full(n_discs, radius),
-                np.full(len(tens_centers), two_half),
-                np.where(two, two_half, one_half),
-            )
-        ),
-        "codes": np.concatenate(
-            (
-                np.full(n_discs, code_of["BADGE"], dtype=np.int64),
-                digit_codes[counts[two] // 10],
-                digit_codes[counts % 10],
-            )
-        ),
-        "colors": np.concatenate(
-            (
-                np.tile(np.array(_BADGE_COLOR, dtype=np.float32), (n_discs, 1)),
-                np.tile(np.array(_DIGIT_COLOR, dtype=np.float32), (n_digits, 1)),
-            )
-        ),
+        "centers": discs,
+        "halves": np.full(len(discs), size * _BADGE_RADIUS),
+        "codes": np.full(len(discs), prepared["code_of"]["BADGE"], dtype=np.int64),
+        "colors": np.tile(np.array(_BADGE_COLOR, dtype=np.float32), (len(discs), 1)),
     }
+
+
+def _badge_centers(group_centers, size):
+    return np.asarray(group_centers, dtype=np.float64).reshape(-1, 2) + (
+        size * _BADGE_OFFSET
+    )
+
+
+# (font size, count) -> text and its offset from the badge center.
+_count_texts = {}
+
+
+def _draw_counts(hits):
+    """Each group's count on its badge, in the interface font."""
+    import blf
+
+    counts = hits["group_counts"]
+    if not len(counts):
+        return
+    size = hits["radius"]
+    font_id = 0
+    font_size = max(_COUNT_MIN_SIZE, size * _BADGE_RADIUS * _COUNT_SIZE)
+    blf.size(font_id, font_size)
+    blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
+    position, draw = blf.position, blf.draw
+    centers = _badge_centers(hits["group_centers"], size).tolist()
+    for (x, y), count in zip(centers, counts.tolist()):
+        key = (font_size, count)
+        text = _count_texts.get(key)
+        if text is None:
+            label = str(min(count, 99))
+            width, _height = blf.dimensions(font_id, label)
+            _width, height = blf.dimensions(font_id, "0")
+            text = _count_texts[key] = (label, width / 2.0, height / 2.0)
+        label, dx, dy = text
+        position(font_id, x - dx, y - dy, 0)
+        draw(font_id, label)
 
 
 def _build_batch(context, prepared, shader, uvs, mode="OFF", expanded=frozenset()):

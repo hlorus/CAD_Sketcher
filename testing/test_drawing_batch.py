@@ -619,7 +619,8 @@ class TestConstraintIconGroups(TestCase):
         cells = self.cells(quads)
         self.assertEqual(cells[:2], ["VERTICAL", "PARALLEL"])
         self.assertIn(cells[2], ("HORIZONTAL", "EQUAL"))
-        self.assertEqual(cells[3:], ["BADGE", "DIGIT_2"])
+        self.assertEqual(cells[3:], ["BADGE"])
+        self.assertEqual(hits["group_counts"].tolist(), [2])
         # The group shows the failed (red) color of its standout member.
         np.testing.assert_allclose(quads["colors"][2], (1, 0, 0, 1))
         np.testing.assert_allclose(quads["centers"][2], (100.0, 100.0))
@@ -630,7 +631,8 @@ class TestConstraintIconGroups(TestCase):
         quads, hits = self.arrange("NEARBY")
         cells = self.cells(quads)
         self.assertEqual(cells[0], "VERTICAL")
-        self.assertEqual(cells[-2:], ["BADGE", "DIGIT_3"])
+        self.assertEqual(cells[-1], "BADGE")
+        self.assertEqual(hits["group_counts"].tolist(), [3])
         self.assertEqual(hits["group_keys"], ["A"])
 
     def test_nearby_merges_across_grid_cells_and_chains(self):
@@ -660,8 +662,9 @@ class TestConstraintIconGroups(TestCase):
             ((0, 0, 0), i, "EQUAL", (1, 1, 1, 1), i, "A", 0) for i in range(12)
         ]
         self.centers = np.array([(100.0 + 10 * i, 100.0) for i in range(12)])
-        quads, _hits = self.arrange("ELEMENT")
-        self.assertEqual(self.cells(quads), ["EQUAL", "BADGE", "DIGIT_1", "DIGIT_2"])
+        quads, hits = self.arrange("ELEMENT")
+        self.assertEqual(self.cells(quads), ["EQUAL", "BADGE"])
+        self.assertEqual(hits["group_counts"].tolist(), [12])
 
     def test_hovered_or_selected_element_opens_only_its_own_icons(self):
         from ..drawing import selection
@@ -676,7 +679,8 @@ class TestConstraintIconGroups(TestCase):
         # Opening C, a single icon, leaves A grouped.
         quads, hits = self.arrange("NEARBY", expanded={"C"})
         self.assertEqual(hits["group_keys"], ["A"])
-        self.assertIn("DIGIT_2", self.cells(quads))
+        self.assertIn("BADGE", self.cells(quads))
+        self.assertEqual(hits["group_counts"].tolist(), [2])
 
         self.icons._icon_cache["anchors"] = frozenset({"A", "B", "C"})
         saved = (selection.hover, list(selection.selected))
@@ -711,9 +715,7 @@ class TestConstraintIconGroups(TestCase):
         from ..icon_manager import badge_cells
 
         cells = dict(badge_cells(64))
-        self.assertEqual(sorted(cells), ["BADGE"] + [f"DIGIT_{d}" for d in range(10)])
+        self.assertEqual(sorted(cells), ["BADGE"])
         disc = cells["BADGE"]
         self.assertEqual(disc[32, 32, 3], 1.0)
         self.assertEqual(disc[0, 0, 3], 0.0)
-        for d in range(10):
-            self.assertGreater(cells[f"DIGIT_{d}"][:, :, 3].sum(), 0)

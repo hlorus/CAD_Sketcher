@@ -70,48 +70,19 @@ def _resize_nearest(pixels, w, h, cell):
     return img[ys][:, xs]
 
 
-# 3x5 pixel digits (top row first) for the count badge on grouped constraint icons.
-_DIGITS = (
-    ("111", "101", "101", "101", "111"),
-    ("010", "110", "010", "010", "111"),
-    ("111", "001", "111", "100", "111"),
-    ("111", "001", "111", "001", "111"),
-    ("101", "101", "111", "001", "001"),
-    ("111", "100", "111", "001", "111"),
-    ("111", "100", "111", "101", "111"),
-    ("111", "001", "001", "010", "010"),
-    ("111", "101", "111", "101", "111"),
-    ("111", "101", "111", "001", "111"),
-)
-
-
 def badge_cells(cell: int = _ATLAS_CELL):
     """(name, (cell, cell, 4) RGBA) atlas cells for the count badge.
 
-    A disc (``BADGE``) and the digits ``DIGIT_0`` to ``DIGIT_9``, white on
-    transparent like the icons so the draw tints them. Rows are bottom-up, as
-    Blender stores image pixels.
+    The disc behind the count on grouped constraint icons (``BADGE``), white on
+    transparent like the icons so the draw tints it. The count itself is drawn as
+    text (see drawing.constraint_icons).
     """
     ys, xs = np.mgrid[0:cell, 0:cell]
     radius = cell / 2.0
     inside = (xs + 0.5 - radius) ** 2 + (ys + 0.5 - radius) ** 2 <= radius**2
     disc = np.zeros((cell, cell, 4), dtype=np.float32)
     disc[inside] = 1.0
-    cells = [("BADGE", disc)]
-
-    # Each glyph sits centered in a 5x5 grid, so a square quad keeps its shape.
-    for digit, rows in enumerate(_DIGITS):
-        grid = np.zeros((5, 5), dtype=np.float32)
-        for r, row in enumerate(rows):
-            for c, bit in enumerate(row):
-                grid[r, c + 1] = float(bit == "1")
-        grid = np.flipud(grid)
-        scale = cell // 5
-        mask = np.kron(grid, np.ones((scale, scale), dtype=np.float32))
-        glyph = np.zeros((cell, cell, 4), dtype=np.float32)
-        glyph[: mask.shape[0], : mask.shape[1]] = mask[:, :, None]
-        cells.append((f"DIGIT_{digit}", glyph))
-    return cells
+    return [("BADGE", disc)]
 
 
 def _build_atlas():
