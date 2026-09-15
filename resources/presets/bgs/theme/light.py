@@ -31,7 +31,7 @@ entity.inactive_selected = (
 entity.fixed = (0.0, 0.55, 0.0, 0.7)
 # Opaque coral constraint colors, deep enough to stand out on a light viewport; failed
 # is a darker red so it stays distinct from the coral default.
-constraint.default = (0.92, 0.33, 0.28, 1.0)
+constraint.default = (0.92, 0.496, 0.46, 1.0)
 constraint.highlight = (1.0, 0.45, 0.38, 1.0)
 constraint.failed = (0.8, 0.0, 0.0, 1.0)
 constraint.failed_highlight = (1.0, 0.1, 0.1, 1.0)

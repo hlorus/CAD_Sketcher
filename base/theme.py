@@ -82,7 +82,7 @@ class ThemeSettingsConstraint(PropertyGroup):
     default: FloatVectorProperty(
         name="Default",
         subtype="COLOR",
-        default=(1.0, 0.45, 0.4, 1.0),
+        default=(1.0, 0.542, 0.5, 1.0),
         size=4,
         min=0.0,
         max=1.0,
