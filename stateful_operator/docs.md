@@ -30,6 +30,20 @@ check_pointer(self, prop_name) -> is_set(bool)
 gather_selection(self, context) -> selected(list(ANY))
   gather the currently selected elements that are later used to fill state pointers with
 
+preview_in_place (class attribute, default False)
+  opt in to updating the live preview in place: while the preview's structure
+  is unchanged between mouse moves, update_preview is called instead of undoing
+  and rebuilding the preview. A confirming click always rebuilds.
+
+preview_structure(self, context) -> key(ANY) or None
+  what, besides the state index and picked pointers, decides which elements the
+  preview creates and links (e.g. the hovered element or snap target); return
+  None to force a rebuild
+
+update_preview(self, context) -> succeede(bool)
+  move the existing preview elements to the latest input; return False to fall
+  back to the full undo and rebuild
+
 
 ## State Definition
 

@@ -14,6 +14,7 @@ from ..utilities.math import pol2cart
 from ..utilities.view import get_blender_snap_info, get_pos_2d, get_wp_matrix
 from .base_2d import Operator2d
 from .constants import types_point_2d
+from .placement import placement_of
 from .utilities import ignore_hover
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
         snap_data = get_blender_snap_info(context, coords)
         self._snap = snap_data
         # Anchor the endpoint if it landed on external geometry (see base_2d).
-        self.state_data["snapped"] = snap_data is not None
+        placement_of(self.state_data).snapped = snap_data is not None
         mouse_pos = get_pos_2d(context, wp, coords, respect_snapping=True)
         if mouse_pos is None:
             return None
@@ -124,6 +125,22 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
     def solve_state(self, context: Context, _event: Event):
         solve_system(context, sketch=self.sketch)
         return True
+
+    preview_in_place = True
+
+    def preview_structure(self, context: Context):
+        """Also rebuild when the sweep direction flips (start and end swap)."""
+        structure = super().preview_structure(context)
+        if structure is None:
+            return None
+        return structure, getattr(self, "_arc_invert", False)
+
+    def update_preview(self, context: Context) -> bool:
+        """Drag the arc's endpoint instead of recreating the arc."""
+        target = getattr(self, "target", None)
+        if target is None or not target.valid:
+            return False
+        return self.update_preview_point(context)
 
     def main(self, context):
         ct, p1, p2 = (

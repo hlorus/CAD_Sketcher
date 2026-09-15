@@ -51,6 +51,10 @@ class StatefulOperatorLogic(_StateMachineMixin):
     _last_coords = Vector((0, 0))
     _undo = False
     _state_snapshot = None
+    # Opt in to updating an unchanged preview in place (see update_preview).
+    preview_in_place = False
+    # Structure of the preview currently shown, or None when it must be rebuilt.
+    _preview_key = None
     # Global axis constraint (0=X, 1=Y, 2=Z, or None) for the current vector
     # state, toggled with the X/Y/Z keys and applied by the state's state_func.
     _axis_lock = None
@@ -100,6 +104,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
     def next_state(self, context: Context):
         self._undo = False
+        self._preview_key = None
         self.state_init_coords = None
         i = self.state_index
         if (i + 1) >= len(self.get_states()):
@@ -649,16 +654,30 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 data["is_existing_entity"] = False
                 ok = True
 
+        # A confirming event always rebuilds, so what gets committed never
+        # depends on whether the preview was updated in place.
+        preview_key = None if triggered else self.get_preview_key(context)
+
         # One live update: roll back the previous preview, then rebuild it. Both
         # halves recreate curves, so they share one batch (see batched_changes).
         with self.batched_changes(context):
-            if self._undo:
-                self._apply_undo(context)
-
             succeede = False
-            if self.check_props():
-                succeede = self.run_op(context)
-                self._undo = True
+            if (
+                preview_key is not None
+                and preview_key == self._preview_key
+                and self.update_preview(context)
+                # After the update: the hover pick clears a created pointer until
+                # its element is recreated or updated.
+                and self.check_props()
+            ):
+                succeede = True
+            else:
+                if self._undo:
+                    self._apply_undo(context)
+                if self.check_props():
+                    succeede = self.run_op(context)
+                    self._undo = True
+            self._preview_key = preview_key if succeede else None
 
         # State transition
         if triggered and ok:
@@ -702,6 +721,56 @@ class StatefulOperatorLogic(_StateMachineMixin):
         update instead of once per element.
         """
         return nullcontext()
+
+    def preview_structure(self, context: Context) -> Any:
+        """Hook: what, besides the pointers, decides the preview's structure.
+
+        Return None when the current preview can't be updated in place. The
+        default does, since only opted in operators (``preview_in_place``) ask.
+        """
+        return None
+
+    def update_preview(self, context: Context) -> bool:
+        """Hook: move the current preview to the latest input without rebuilding.
+
+        Only called when the preview's structure is unchanged since the last
+        update (same state, same picks, same ``preview_structure``), so the
+        elements it created still exist and only their positions are stale.
+        Return False to fall back to the full undo and rebuild, which also
+        repairs anything a partial update left behind.
+        """
+        return False
+
+    def get_preview_key(self, context: Context) -> Any:
+        """The structure of the preview an update would produce, or None.
+
+        Rebuilding the preview on every move removes and recreates every element
+        of every state. When nothing but the current value changed, the same
+        elements would be recreated in new positions, which an operator can do
+        by moving them instead (see ``update_preview``).
+        """
+        if not self.preview_in_place or self._numeric.is_active:
+            return None
+        structure = self.preview_structure(context)
+        if structure is None:
+            return None
+        pointers = []
+        for i, state in enumerate(self.get_states()):
+            if i > self.state_index:
+                break
+            if not state.pointer:
+                continue
+            data = self._state_data.get(i, {})
+            existing = bool(data.get("is_existing_entity", False))
+            # A created element is recreated from values; a picked one is part of
+            # the structure.
+            picked = (
+                to_list(self.get_state_pointer(index=i, implicit=True))
+                if existing
+                else None
+            )
+            pointers.append((existing, picked))
+        return (self.state_index, tuple(map(str, pointers)), structure)
 
     def run_op(self, context: Context):
         if not hasattr(self, "main"):
@@ -909,6 +978,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         self._state_data.clear()
         self._numeric = NumericInput()
         self._state_snapshot = None
+        self._preview_key = None
 
     def _take_last_state_pointer(self):
         """Return (last_index, implicit_values, type_metadata) for the last pointer state."""

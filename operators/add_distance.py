@@ -8,6 +8,7 @@ from ..model.curve_ref import LineRef, PointRef
 from ..model.distance import SlvsDistance, align_items
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_constraint import GenericConstraintOp
+from .placement import placement_of
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
             if p1 and p2:
                 for i, pt in enumerate((p1, p2)):
                     state_data = self.get_state_data(i)
-                    state_data["hovered"] = 0
+                    placement_of(state_data).hovered = ""
                     state_data["type"] = PointRef
                     state_data["is_existing_entity"] = True
                     state_data["curve_id"] = pt.curve_id

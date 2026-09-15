@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest import TestCase
 
 from ..drawing import selection
+from ..operators.placement import placement_of
 from .utils import OpHarness, Sketch2dTestCase
 
 
@@ -41,9 +42,9 @@ class TestSelectionPrefill(Sketch2dTestCase):
         from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
 
         point_ops = (
-            View3D_OT_slvs_add_line2d,     # p1  (start)
-            View3D_OT_slvs_add_circle2d,   # ct  (center)
-            View3D_OT_slvs_add_arc2d,      # ct  (center)
+            View3D_OT_slvs_add_line2d,  # p1  (start)
+            View3D_OT_slvs_add_circle2d,  # ct  (center)
+            View3D_OT_slvs_add_arc2d,  # ct  (center)
             View3D_OT_slvs_add_rectangle,  # p1  (corner)
         )
         for real_cls in point_ops:
@@ -70,8 +71,8 @@ class TestSelectionPrefill(Sketch2dTestCase):
 
         segment_ops = (
             View3D_OT_slvs_add_offset,  # entity
-            View3D_OT_slvs_trim,        # segment
-            View3D_OT_slvs_bevel,       # p1 accepts POINT2D | SEGMENT
+            View3D_OT_slvs_trim,  # segment
+            View3D_OT_slvs_bevel,  # p1 accepts POINT2D | SEGMENT
         )
         for real_cls in segment_ops:
             with self.subTest(op=real_cls.__name__):
@@ -95,9 +96,9 @@ class TestSelectionPrefill(Sketch2dTestCase):
         self._select_only(pt)
 
         h = self._harness(View3D_OT_slvs_add_line2d)
-        h.prefill()                 # start point <- selection
+        h.prefill()  # start point <- selection
         h.place_point((10.0, 4.0))  # endpoint placed by a click
-        h.finish()                  # commit: main() builds the line
+        h.finish()  # commit: main() builds the line
 
         line = h.op.target
         self.assertEqual(line.p1.curve_id, pt.curve_id)
@@ -112,14 +113,14 @@ class TestSelectionPrefill(Sketch2dTestCase):
         from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
 
         h = self._harness(View3D_OT_slvs_add_line2d)
-        h.place_point((0.0, 0.0))                 # start point (a click)
-        h.op.get_state_data(0)["snapped"] = True  # simulate an external snap
-        h.place_point((3.0, 1.0))                 # endpoint, not snapped
+        h.place_point((0.0, 0.0))  # start point (a click)
+        placement_of(h.op.get_state_data(0)).snapped = True  # simulate an external snap
+        h.place_point((3.0, 1.0))  # endpoint, not snapped
         h.finish()
 
         line = h.op.target
-        self.assertTrue(line.p1.fixed)            # snapped start -> anchored
-        self.assertFalse(line.p2.fixed)           # free endpoint stays free
+        self.assertTrue(line.p1.fixed)  # snapped start -> anchored
+        self.assertFalse(line.p2.fixed)  # free endpoint stays free
 
     def test_both_ends_snapped_skips_inferred_alignment(self):
         """When both endpoints are snapped (fixed), the inferred vertical/
@@ -129,12 +130,12 @@ class TestSelectionPrefill(Sketch2dTestCase):
 
         h = self._harness(View3D_OT_slvs_add_line2d)
         h.place_point((0.0, 0.0))
-        h.op.get_state_data(0)["snapped"] = True
-        h.place_point((0.05, 3.0))                # almost vertical, both snapped
-        h.op.get_state_data(1)["snapped"] = True
+        placement_of(h.op.get_state_data(0)).snapped = True
+        h.place_point((0.05, 3.0))  # almost vertical, both snapped
+        placement_of(h.op.get_state_data(1)).snapped = True
         h.finish()
 
-        self.assertFalse(h.op.has_alignment)      # no inferred constraint added
+        self.assertFalse(h.op.has_alignment)  # no inferred constraint added
         self.assertNotEqual(self.sketch.solver_state, "INCONSISTENT")
 
     # -- immediate execution: a full selection fills every state at once ------
@@ -165,7 +166,7 @@ class TestSelectionPrefill(Sketch2dTestCase):
     def test_selected_line_does_not_prefill_point_state(self):
         from ..operators.add_circle import View3D_OT_slvs_add_circle2d
 
-        line = self._a_line()          # a segment, not a point
+        line = self._a_line()  # a segment, not a point
         self._select_only(line)
 
         h = self._harness(View3D_OT_slvs_add_circle2d)  # center wants a point
@@ -200,7 +201,9 @@ class TestNoHardcodedExtensionNamespace(TestCase):
             for lineno, line in enumerate(path.read_text().splitlines(), 1):
                 code = line.split("#", 1)[0]
                 if pattern.search(code):
-                    offenders.append(f"{path.relative_to(root)}:{lineno}: {line.strip()}")
+                    offenders.append(
+                        f"{path.relative_to(root)}:{lineno}: {line.strip()}"
+                    )
         self.assertFalse(
             offenders,
             "Hardcoded extension namespace in import(s) — use relative imports:\n"

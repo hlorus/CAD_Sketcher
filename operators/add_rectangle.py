@@ -1,4 +1,5 @@
 import logging
+from typing import Sequence, Tuple
 
 from bpy.types import Context, Operator
 
@@ -12,6 +13,18 @@ from .constants import types_point_2d
 from .utilities import ignore_hover
 
 logger = logging.getLogger(__name__)
+
+
+def rectangle_corners(
+    start: Sequence[float], end: Sequence[float]
+) -> Tuple[tuple, tuple]:
+    """The derived corners of an axis-aligned rectangle spanned by two points.
+
+    Returns ``(right_bottom, left_top)`` for a rectangle from ``start`` (left
+    bottom) to ``end`` (right top), in the same order the tool links its lines:
+    start, right_bottom, end, left_top.
+    """
+    return (end[0], start[1]), (start[0], end[1])
 
 
 class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
@@ -48,6 +61,20 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         ),
     )
 
+    preview_in_place = True
+
+    def update_preview(self, context: Context) -> bool:
+        """Drag the rectangle's corners instead of recreating it."""
+        corners = getattr(self, "_derived_corners", None)
+        if not corners or not all(ref.valid for ref in corners):
+            return False
+        if not self.update_preview_point(context):
+            return False
+        p_lb, p_rt = self.get_point(context, 0), self.get_point(context, 1)
+        for ref, co in zip(corners, rectangle_corners(p_lb.co, p_rt.co)):
+            ref.co = co
+        return True
+
     def main(self, context: Context):
         sketch = self.sketch
         construction = context.scene.sketcher.use_construction
@@ -55,12 +82,9 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         p_lb, p_rt = self.get_point(context, 0), self.get_point(context, 1)
 
         # Create the two extra corner points
-        p_rb = PointRef.create(
-            sketch, (p_rt.co.x, p_lb.co.y), construction=construction
-        )
-        p_lt = PointRef.create(
-            sketch, (p_lb.co.x, p_rt.co.y), construction=construction
-        )
+        co_rb, co_lt = rectangle_corners(p_lb.co, p_rt.co)
+        p_rb = PointRef.create(sketch, co_rb, construction=construction)
+        p_lt = PointRef.create(sketch, co_lt, construction=construction)
 
         if construction:
             p_lb.construction = True
@@ -75,6 +99,7 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
             lines.append(line)
 
         self.lines = lines
+        self._derived_corners = (p_rb, p_lt)
 
         for ref in (*points, *lines):
             ignore_hover(ref.curve_id)

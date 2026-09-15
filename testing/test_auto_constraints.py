@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 from ..operators.base_2d import Operator2d
+from ..operators.placement import placement_of
 from .utils import Sketch2dTestCase, make_operator_double
 
 
@@ -121,16 +122,14 @@ class TestAutoConstraints(Sketch2dTestCase):
         p0, p1 = self._overconstrained_line()
 
         self.context.scene.sketcher.auto_axis_constraints = False
-        state_data = {
-            "hovered": p0.curve_id,
-            "curve_id": p1.curve_id,
-            "snap_projected": True,
-            "snap_link_kind": "COINCIDENT",
-        }
+        state_data = {"curve_id": p1.curve_id}
+        placement = placement_of(state_data)
+        placement.hovered = p0.curve_id
+        placement.projected = True
         op = self._op(state_data)
         op.add_coincident(self.context, None, None, state_data)
 
-        self.assertIsNotNone(state_data.get("coincident"))
+        self.assertIsNotNone(placement.coincident)
         self.assertEqual(len(list(sc.coincident)), 1)
 
     def test_inferred_coincidence_is_rolled_back_when_unsolvable(self):
@@ -140,16 +139,14 @@ class TestAutoConstraints(Sketch2dTestCase):
         p0, p1 = self._overconstrained_line()
 
         self.context.scene.sketcher.auto_axis_constraints = True
-        state_data = {
-            "hovered": p0.curve_id,
-            "curve_id": p1.curve_id,
-            "snap_projected": False,
-            "snap_link_kind": "COINCIDENT",
-        }
+        state_data = {"curve_id": p1.curve_id}
+        placement = placement_of(state_data)
+        placement.hovered = p0.curve_id
+        placement.projected = False
         op = self._op(state_data)
         op.add_coincident(self.context, None, None, state_data)
 
-        self.assertIsNone(state_data.get("coincident"))
+        self.assertIsNone(placement.coincident)
         self.assertEqual(len(list(sc.coincident)), 0)
 
     def test_valid_auto_constraint_is_kept_without_moving_geometry(self):

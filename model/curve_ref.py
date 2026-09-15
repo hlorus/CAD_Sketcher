@@ -839,6 +839,32 @@ class CircleRef(CurveRef):
         edge = self._first_point_2d()
         return (edge - center).length
 
+    @radius.setter
+    def radius(self, value):
+        """Set the radius, keeping the edge point on the center's +X side."""
+        ct = self.ct
+        if ct is None or not ct.valid or not self._resolve():
+            return
+        center = ct.co
+        first = self._curve_slice.points[0].index
+        self._curve_data.points[first].position = (
+            center.x + float(value),
+            center.y,
+            0.0,
+        )
+        from ..utilities.curve_data import (
+            is_batching,
+            note_point_write,
+            rebuild_segments,
+        )
+
+        # Segments are rebuilt through the points they reference, and a circle
+        # references its center.
+        if is_batching(self._sketch):
+            note_point_write(self._sketch, ct.curve_id)
+        else:
+            rebuild_segments(self._sketch, point_ids={ct.curve_id})
+
     def point_on_curve(self, angle):
         """Position on the circle at the given angle."""
         ct = self.ct
