@@ -116,7 +116,9 @@ def _bevel_point(sketch, topo, point_cid, radius):
     invert = angle is not None and angle < 0
     start, end = (bp2, bp1) if invert else (bp1, bp2)
 
-    arc = ArcRef.create(sketch, ct, start, end)
+    # Construction while the radius is dragged: the corner lines are only trimmed
+    # in fini(), so a solid arc would overlap them and break the fill preview.
+    arc = ArcRef.create(sketch, ct, start, end, construction=True)
     if not arc:
         return None
 
@@ -235,6 +237,8 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             l1, l2 = result["connected"]
             bp1, bp2 = result["bevel_points"]
             point = result["point"]
+
+            arc.construction = False
 
             # Replace endpoints
             topo.replace_point(l1, point.curve_id, bp1.curve_id)

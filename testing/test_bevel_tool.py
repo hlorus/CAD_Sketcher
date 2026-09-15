@@ -57,7 +57,13 @@ class TestBevelTool(Sketch2dTestCase):
         h = OpHarness(View3D_OT_slvs_bevel, self.sketch, self.context)
         h.op.next_state(self.context)  # what the tool click on empty space does
         h.op.radius = 1.0
-        self.assertTrue(h.finish())
+        h.op.redo_states(self.context)
+        self.assertTrue(h.op.main(self.context))
+        arc = h.op._results[0]["arc"]
+        # Previewed as construction until the lines are trimmed.
+        self.assertTrue(arc.construction)
+        h.op.fini(self.context, True)
+        self.assertFalse(arc.construction)
 
         # Corner removed, arc center and two tangent points added: nothing else.
         self.assertEqual(self._point_count(), before + 2)
