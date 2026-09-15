@@ -6,12 +6,12 @@ from mathutils import Matrix, Vector
 
 from .. import global_data, units
 from ..declarations import GizmoGroups, Gizmos, Operators
+from ..drawing import frame_cache
 from ..utilities.preferences import get_prefs
 from ..utilities.view import get_2d_coords, get_scale_from_pos
-from .base import ConstraintGizmo
+from .base import ConstraintGizmo, forget_gizmos
 from .utilities import (
     Color,
-    get_color,
     get_constraint_color_type,
     set_gizmo_colors,
 )
@@ -20,8 +20,14 @@ GIZMO_OFFSET = Vector((1.0, 1.0))
 FONT_ID = 0
 
 
+# constraint type -> unit of its value property (fixed per type).
+_value_units = {}
+
+
 def _get_formatted_value(context, constr):
-    unit = constr.rna_type.properties["value"].unit
+    unit = _value_units.get(constr.type)
+    if unit is None:
+        unit = _value_units[constr.type] = constr.rna_type.properties["value"].unit
     value = constr.value
 
     if unit == "LENGTH":
@@ -53,6 +59,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         active_sketch = get_active_sketch(context)
         _layout_signatures.pop(self.as_pointer(), None)
         _gizmo_color_keys.clear()
+        forget_gizmos()
         if not active_sketch:
             return
         mapping, signature = self._layout(context, active_sketch)
@@ -173,11 +180,20 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         from ..model.sketch_ref import get_active_sketch
 
         active_sketch = get_active_sketch(context)
+        if active_sketch is not None and global_data.stateful_op_running:
+            # A drawing operator refreshes the group on every mouse move, and its
+            # preview never changes which constraints exist without changing how
+            # many there are. Only a changed count needs the full layout check;
+            # the refresh after the operator ends does it regardless.
+            counts = _constraint_counts(active_sketch)
+            if _layout_counts.get(self.as_pointer()) == counts:
+                return
         if active_sketch is not None:
             mapping, signature = self._layout(context, active_sketch)
+            _layout_counts[self.as_pointer()] = _constraint_counts(active_sketch)
             if _layout_signatures.get(self.as_pointer()) == signature:
                 # Colors and marker positions only feed the gizmo's hit-test,
-                # which is off while a stateful operator runs (see draw()). The
+                # which is off while a stateful operator runs (see test_select). The
                 # operator's _end forces a refresh, so they're brought current as
                 # soon as it finishes. The layout check above still runs, so a
                 # gizmo added mid-operator (e.g. a dimension's value) appears.
@@ -190,6 +206,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         # Freed gizmo pointers can be reused by new gizmos; drop their color keys
         # so a new gizmo never inherits a stale "colors already set" entry.
         _gizmo_color_keys.clear()
+        forget_gizmos()
         if active_sketch is None:
             return
         self._create_gizmos(context, active_sketch, mapping)
@@ -217,6 +234,18 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
 # gizmo group pointer -> layout signature of the gizmos it currently holds. Keyed
 # by pointer because Blender may hand refresh() a fresh Python wrapper.
 _layout_signatures = {}
+
+# gizmo group pointer -> constraint counts its layout was last checked for.
+_layout_counts = {}
+
+
+def _constraint_counts(sketch):
+    """How many constraints of each type the sketch has."""
+    return (
+        sketch.target_object.as_pointer(),
+        tuple(len(coll) for coll in sketch.constraints.get_lists()),
+    )
+
 
 # gizmo pointer -> (color type, theme) its colors were last set for.
 _gizmo_color_keys = {}
@@ -258,6 +287,7 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         "entity_index",
         "offset",
         "placement_pos",
+        "_placed_frame",
     )
 
     def _update_matrix_basis(self, context, constr):
@@ -267,8 +297,6 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         # point); otherwise fall back to the referenced curve's placement.
         world_pos = getattr(self, "placement_pos", None)
         if world_pos is None and hasattr(self, "curve_id") and self.curve_id:
-            from ..drawing import frame_cache
-
             sketch = frame_cache.active_sketch(context)
             if sketch:
                 # Shared with the icon pass and every other marker on this curve.
@@ -292,6 +320,14 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         # Don't intercept hover/picking while a stateful operator is running.
         if global_data.stateful_op_running:
             return -1
+        # Place the hit area under the icon, at most once per redraw and only while
+        # the mouse moves, instead of for every constraint on every redraw.
+        if getattr(self, "_placed_frame", None) != frame_cache.frame_id():
+            self._placed_frame = frame_cache.frame_id()
+            constraint = self._get_constraint(context)
+            if constraint is None or not constraint.visible:
+                return -1
+            self._update_matrix_basis(context, constraint)
         location = Vector(location).to_3d()
         location -= self.matrix_basis.translation
         location *= 1.0 / self.scale_basis
@@ -301,22 +337,10 @@ class VIEW3D_GT_slvs_constraint(ConstraintGizmo, Gizmo):
         return -1
 
     def draw(self, context):
-        # This gizmo draws nothing itself (see below); it only keeps colors and
-        # matrix_basis current for test_select, which is disabled while a stateful
-        # operator runs. Blender still calls draw() once per constraint per frame,
-        # so during a drawing operator that bookkeeping was the single largest
-        # per-frame cost, growing with every constraint. Skip it until the
-        # operator ends; the next redraw after that brings it current again.
-        if global_data.stateful_op_running:
-            return
-        constraint = self._get_constraint(context)
-        if not constraint or not constraint.visible:
-            return
-        # Keep colors + matrix_basis current so test_select stays accurate; the
-        # icon itself is rendered in one batched pass (drawing.constraint_icons)
-        # to avoid a textured draw per constraint (Vulkan descriptor pressure).
-        self._set_colors(context, constraint)
-        self._update_matrix_basis(context, constraint)
+        # Blender requires a draw callback, but the icon is drawn for all
+        # constraints at once by drawing.constraint_icons and the hit area is
+        # placed on demand by test_select.
+        pass
 
     def setup(self):
         pass
@@ -349,9 +373,9 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
         if not constr or not constr.visible or not hasattr(constr, "value_placement"):
             return
 
-        color = get_color(Color.Text, self.is_highlight)
+        color = frame_cache.constraint_color(Color.Text, self.is_highlight)
         text = _get_formatted_value(context, constr)
-        text_size = get_prefs().text_size
+        text_size = frame_cache.text_size()
 
         blf.color(FONT_ID, *color)
         blf.size(FONT_ID, text_size)
@@ -359,12 +383,14 @@ class VIEW3D_GT_slvs_constraint_value(ConstraintGizmo, Gizmo):
 
         margin = text_size / 4
 
-        pos = constr.value_placement(context)
+        sketch = frame_cache.active_sketch(context)
+        basis = frame_cache.dimension_basis(sketch, constr) if sketch else None
+        pos = constr.value_placement(context, basis)
         if not pos:
             return
-        self.matrix_basis = Matrix.Translation(
-            pos.to_3d()
-        )  # Update Matrix for selection
+        # Update Matrix for selection
+        if tuple(self.matrix_basis.translation.to_2d()) != tuple(pos):
+            self.matrix_basis = Matrix.Translation(pos.to_3d())
 
         blf.position(FONT_ID, pos[0] - self.width / 2, pos[1] + margin, 0)
         blf.draw(FONT_ID, text)
