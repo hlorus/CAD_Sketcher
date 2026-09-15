@@ -22,7 +22,12 @@ from mathutils import Vector
 from .utils import make_operator_double
 
 # Modules that import the view helpers by name, so each needs its own stub.
-_VIEW_IMPORTERS = ("operators.base_2d", "operators.add_circle", "operators.add_arc")
+_VIEW_IMPORTERS = (
+    "operators.base_2d",
+    "operators.add_circle",
+    "operators.add_arc",
+    "operators.bevel",
+)
 
 
 class _Properties:

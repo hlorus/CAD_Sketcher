@@ -236,3 +236,58 @@ class TestPreviewInPlace(Sketch2dTestCase):
             ],
             in_place_moves=2,
         )
+
+    def _rectangle(self, x0=10.0, y0=10.0, w=4.0, h=3.0):
+        """A closed rectangle, returning its corner points."""
+        pts = [
+            self.add_point(co)
+            for co in ((x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h))
+        ]
+        for i in range(4):
+            self.add_line(pts[i], pts[(i + 1) % 4])
+        return pts
+
+    def test_bevel_selected_corners(self):
+        from ..drawing import selection
+        from ..operators.bevel import View3D_OT_slvs_bevel
+
+        corners = self._rectangle()
+        selection.selected[:] = [p.curve_id for p in corners]
+        try:
+            captures = self.assert_matches_rebuild(
+                View3D_OT_slvs_bevel,
+                [
+                    # Nothing under the click: the selection starts the radius drag.
+                    ("click", (12.0, 11.5), ""),
+                    ("move", (10.2, 10.2), ""),
+                    ("move", (10.4, 10.3), ""),
+                    ("move", (10.6, 10.6), ""),
+                    # Past the largest radius that fits: clamped.
+                    ("move", (12.0, 11.5), ""),
+                    ("move", (12.0, 11.6), ""),
+                    ("move", (10.3, 10.1), ""),
+                ],
+                in_place_moves=5,
+            )
+            arcs = [c for c in captures[2]["curves"] if c["type"] == "ARC"]
+            self.assertEqual(len(arcs), 4, "every selected corner is beveled")
+        finally:
+            selection.selected[:] = []
+
+    def test_bevel_picked_corner(self):
+        from ..operators.bevel import View3D_OT_slvs_bevel
+
+        corner = self._rectangle()[2].curve_id
+        captures = self.assert_matches_rebuild(
+            View3D_OT_slvs_bevel,
+            [
+                ("move", (14.0, 13.0), corner),
+                ("click", (14.0, 13.0), corner),
+                ("move", (13.8, 12.8), ""),
+                ("move", (13.5, 12.6), ""),
+                ("move", (13.0, 12.0), ""),
+            ],
+            in_place_moves=2,
+        )
+        arcs = [c for c in captures[3]["curves"] if c["type"] == "ARC"]
+        self.assertEqual(len(arcs), 1, "the picked corner is beveled")
