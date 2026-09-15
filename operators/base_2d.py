@@ -386,6 +386,52 @@ class Operator2d(GenericEntityOp):
         state_data["curve_id"] = cid
         return cid
 
+    def preview_structure(self, context: Context):
+        """The current placement inputs that decide what gets created and linked.
+
+        Moving along the same target (free space, one line, one snapped edge)
+        keeps the structure; a different hover, snap target or Shift state
+        rebuilds.
+        """
+        data = self.state_data
+        if data.get("is_numeric_edit", False):
+            return None
+        placement = placement_of(data)
+        snap = placement.snap
+        snap_target = None
+        if snap:
+            snap_target = (
+                snap.get("type"),
+                snap.get("object"),
+                snap.get("vertex_index"),
+                tuple(snap.get("edge_vertices") or ()),
+            )
+        return (
+            context.scene.sketcher.use_construction,
+            placement.hovered,
+            placement.snapped,
+            snap_target,
+            placement.skip_auto_constraints,
+        )
+
+    def update_preview_point(self, context: Context) -> bool:
+        """Move the current state's created point to its latest position."""
+        data = self.state_data
+        if data.get("is_existing_entity", False):
+            # A picked element doesn't move, and the pick is part of the structure.
+            return True
+        cid = data.get("curve_id", "")
+        props = self.get_property()
+        if not cid or not props:
+            return False
+        ref = PointRef(self.sketch, cid)
+        if not ref.valid:
+            return False
+        ref.co = getattr(self, props[0])
+        # The hover pick clears the type each move; creating the point sets it.
+        data["type"] = PointRef
+        return True
+
     def _check_constrain(self, context: Context, curve_id: int):
         """Check if a hovered curve_id is a constrainable type (line/arc/circle)."""
         from ..model.curve_ref import ArcRef, CircleRef, LineRef

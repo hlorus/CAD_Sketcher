@@ -61,6 +61,20 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
         ),
     )
 
+    preview_in_place = True
+
+    def update_preview(self, context: Context) -> bool:
+        """Drag the rectangle's corners instead of recreating it."""
+        corners = getattr(self, "_derived_corners", None)
+        if not corners or not all(ref.valid for ref in corners):
+            return False
+        if not self.update_preview_point(context):
+            return False
+        p_lb, p_rt = self.get_point(context, 0), self.get_point(context, 1)
+        for ref, co in zip(corners, rectangle_corners(p_lb.co, p_rt.co)):
+            ref.co = co
+        return True
+
     def main(self, context: Context):
         sketch = self.sketch
         construction = context.scene.sketcher.use_construction
@@ -85,6 +99,7 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
             lines.append(line)
 
         self.lines = lines
+        self._derived_corners = (p_rb, p_lt)
 
         for ref in (*points, *lines):
             ignore_hover(ref.curve_id)

@@ -1,0 +1,97 @@
+"""Updating a drawing preview in place matches rebuilding it.
+
+Tools that opt in (``preview_in_place``) move their preview elements while the
+structure of the preview stays the same, instead of undoing and recreating it
+on every mouse move. After each move the sketch must look exactly as a full
+rebuild would leave it.
+"""
+
+import json
+from unittest import mock
+
+from .live_harness import LiveOpHarness, capture_sketch
+from .utils import Sketch2dTestCase
+
+
+class TestPreviewInPlace(Sketch2dTestCase):
+    def setUp(self):
+        super().setUp()
+        sc = self.context.scene.sketcher
+        self._saved_settings = (sc.auto_axis_constraints, sc.use_construction)
+        sc.auto_axis_constraints = True
+        sc.use_construction = False
+        self.anchor = self.add_point((5.0, 5.0))
+        a, b = self.add_point((0.0, -3.0)), self.add_point((6.0, -3.0))
+        self.guide = self.add_line(a, b)
+
+    def tearDown(self):
+        sc = self.context.scene.sketcher
+        sc.auto_axis_constraints, sc.use_construction = self._saved_settings
+        super().tearDown()
+
+    def _captures(self, real_cls, events, in_place):
+        """The sketch after each event, and how many moves were done in place."""
+        updated = []
+        original = real_cls.update_preview
+
+        def counting(op, context):
+            ok = original(op, context)
+            updated.append(ok)
+            return ok
+
+        with (
+            mock.patch.object(real_cls, "preview_in_place", in_place),
+            mock.patch.object(real_cls, "update_preview", counting),
+        ):
+            h = LiveOpHarness(real_cls, self.sketch, self.context)
+            captures = []
+            for kind, co, hover in events:
+                getattr(h, kind)(co, hover=hover)
+                captures.append(json.loads(json.dumps(capture_sketch(self.sketch))))
+            h.cancel()
+        return captures, sum(updated)
+
+    def assert_matches_rebuild(self, real_cls, events, in_place_moves):
+        rebuilt, _ = self._captures(real_cls, events, in_place=False)
+        updated, count = self._captures(real_cls, events, in_place=True)
+        self.assertEqual(count, in_place_moves, "moves updated in place")
+        for i, (got, expected) in enumerate(zip(updated, rebuilt)):
+            self.assertEqual(got, expected, f"preview differs after event {i}")
+
+    def test_rectangle(self):
+        from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
+
+        guide, anchor = self.guide.curve_id, self.anchor.curve_id
+        self.assert_matches_rebuild(
+            View3D_OT_slvs_add_rectangle,
+            [
+                ("click", (0.0, 0.0), ""),
+                ("move", (2.0, 1.0), ""),
+                ("move", (3.0, 2.0), ""),
+                ("move", (4.0, 2.5), ""),
+                ("move", (3.0, -3.0), guide),
+                ("move", (4.0, -3.0), guide),
+                ("move", (5.0, 4.0), ""),
+                ("move", (5.0, 5.0), anchor),
+                ("move", (5.0, 5.0), anchor),
+                ("move", (7.0, 6.0), ""),
+                ("move", (8.0, 6.5), ""),
+            ],
+            # Every move that keeps the previous move's hover.
+            in_place_moves=5,
+        )
+
+    def test_rectangle_from_existing_point(self):
+        from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
+
+        anchor = self.anchor.curve_id
+        self.assert_matches_rebuild(
+            View3D_OT_slvs_add_rectangle,
+            [
+                ("click", (5.0, 5.0), anchor),
+                ("move", (7.0, 7.0), ""),
+                ("move", (8.0, 9.0), ""),
+                ("move", (2.0, 1.0), ""),
+            ],
+            in_place_moves=2,
+        )
