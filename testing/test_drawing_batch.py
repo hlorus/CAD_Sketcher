@@ -100,12 +100,15 @@ class TestLiveUpdateBatching(Sketch2dTestCase):
 
 
 class TestConstraintGizmoLayout(Sketch2dTestCase):
-    """The gizmo group rebuilds exactly when its layout signature changes."""
+    """The gizmo group rebuilds exactly when its layout signature changes.
+
+    Geometric constraints share one icon gizmo, so only dimensions shape it.
+    """
 
     def _signature(self):
         from ..gizmos.constraint import VIEW3D_GGT_slvs_constraint
 
-        _mapping, signature = VIEW3D_GGT_slvs_constraint._layout(
+        _dimensional, signature = VIEW3D_GGT_slvs_constraint._layout(
             None, self.context, self.sketch
         )
         return signature
@@ -115,41 +118,27 @@ class TestConstraintGizmoLayout(Sketch2dTestCase):
         p1 = self.add_point((2, 0))
         return p0, p1, self.add_line(p0, p1)
 
-    def test_moving_geometry_keeps_the_layout(self):
-        _p0, p1, line = self._line()
-        self.sketch.constraints.add_horizontal(curve_id_1=line.curve_id)
-        before = self._signature()
-        p1.co = (3.0, 1.0)
-        self.assertEqual(before, self._signature())
-
-    def test_adding_or_removing_a_constraint_changes_the_layout(self):
+    def test_geometric_constraints_keep_the_layout(self):
         p0, p1, line = self._line()
-        empty = self._signature()
-        c = self.sketch.constraints.add_horizontal(curve_id_1=line.curve_id)
-        with_one = self._signature()
-        self.assertNotEqual(empty, with_one)
-
+        before = self._signature()
+        self.sketch.constraints.add_horizontal(curve_id_1=line.curve_id)
         self.sketch.constraints.add_coincident(
             curve_id_1=p0.curve_id, curve_id_2=p1.curve_id
         )
-        self.assertNotEqual(with_one, self._signature())
+        p1.co = (3.0, 1.0)
+        self.assertEqual(before, self._signature())
+
+    def test_adding_or_removing_a_dimension_changes_the_layout(self):
+        p0, p1, _line = self._line()
+        empty = self._signature()
+        c = self.sketch.constraints.add_distance(
+            init=True, curve_id_1=p0.curve_id, curve_id_2=p1.curve_id
+        )
+        with_one = self._signature()
+        self.assertNotEqual(empty, with_one)
 
         self.sketch.constraints.remove(c)
-        self.assertNotEqual(with_one, self._signature())
-
-    def test_gizmo_scale_changes_the_layout(self):
-        from ..utilities.preferences import get_prefs
-
-        _p0, _p1, line = self._line()
-        self.sketch.constraints.add_horizontal(curve_id_1=line.curve_id)
-        prefs = get_prefs()
-        previous = prefs.gizmo_scale
-        before = self._signature()
-        try:
-            prefs.gizmo_scale = previous * 2.0
-            self.assertNotEqual(before, self._signature())
-        finally:
-            prefs.gizmo_scale = previous
+        self.assertEqual(empty, self._signature())
 
 
 class TestIdCachesStayFresh(Sketch2dTestCase):
@@ -490,3 +479,119 @@ class TestConstraintIconCacheKey(Sketch2dTestCase):
         before = self.key()
         self.atlas = object()
         self.assertNotEqual(before, self.key())
+
+
+class TestConstraintIconProjection(Sketch2dTestCase):
+    """Icons placed for all constraints at once land where the per-icon math put them."""
+
+    def _context(self, perspective, view_perspective, view_distance=10.0):
+        import types
+
+        return types.SimpleNamespace(
+            region_data=types.SimpleNamespace(
+                perspective_matrix=perspective,
+                view_perspective=view_perspective,
+                view_distance=view_distance,
+            ),
+            region=types.SimpleNamespace(width=800, height=600),
+            # The interface scale is 0 in a background session.
+            preferences=types.SimpleNamespace(
+                system=types.SimpleNamespace(ui_scale=1.25)
+            ),
+        )
+
+    def _expected(self, ctx, world, stack):
+        from bpy_extras.view3d_utils import location_3d_to_region_2d
+        from mathutils import Vector
+
+        from ..utilities.preferences import get_prefs
+        from ..utilities.view import get_scale_from_pos
+
+        ui_scale = ctx.preferences.system.ui_scale
+        size = get_prefs().gizmo_scale * ui_scale
+        pos = location_3d_to_region_2d(ctx.region, ctx.region_data, world)
+        if pos is None:
+            return None
+        scale_3d = max(1, get_scale_from_pos(pos, ctx.region_data) / 500)
+        return (
+            pos
+            + Vector((1.0, 1.0)) * size / scale_3d
+            + Vector((size, 0.0)) * stack * ui_scale
+        )
+
+    def test_hit_test_finds_the_icon_under_the_cursor(self):
+        from mathutils import Matrix
+
+        from ..drawing import constraint_icons
+        from ..utilities.preferences import get_prefs
+
+        prefs = get_prefs()
+        previous_scale = prefs.gizmo_scale
+        prefs.gizmo_scale = 15.0
+        self.addCleanup(setattr, prefs, "gizmo_scale", previous_scale)
+        ctx = self._context(Matrix.Scale(0.1, 4), "ORTHO")
+        entries = [
+            ((0.0, 0.0, 0.0), 0, "HORIZONTAL", (1, 1, 1, 1), 3),
+            ((0.0, 0.0, 0.0), 1, "VERTICAL", (1, 1, 1, 1), 5),
+            ((4.0, 2.0, 0.0), 0, "NO_ICON", (1, 1, 1, 1), 0),
+            ((-6.0, 1.0, 0.0), 0, "EQUAL", (1, 1, 1, 1), 1),
+        ]
+        uvs = {
+            "HORIZONTAL": (0, 0, 1, 1),
+            "VERTICAL": (0, 0, 1, 1),
+            "EQUAL": (0, 0, 1, 1),
+        }
+        with mock.patch.object(
+            constraint_icons, "batch_for_shader", lambda *a, **k: object()
+        ):
+            _batch, hits = constraint_icons._build_batch(ctx, entries, None, uvs)
+        saved = dict(constraint_icons._icon_cache)
+        try:
+            constraint_icons._icon_cache.update(entries=entries, hits=hits)
+            targets = constraint_icons.targets()
+            centers, _indices, radius = hits
+            for i, entry_index in enumerate((0, 1, 3)):
+                part = constraint_icons.hit_test(tuple(centers[i] + radius * 0.5))
+                self.assertEqual(part, entry_index)
+                self.assertEqual(
+                    targets[part], (entries[entry_index][2], entries[entry_index][4])
+                )
+            self.assertIsNone(constraint_icons.hit_test((-10000.0, -10000.0)))
+        finally:
+            constraint_icons._icon_cache.clear()
+            constraint_icons._icon_cache.update(saved)
+
+    def test_matches_per_icon_projection(self):
+        from mathutils import Matrix
+
+        from ..drawing.constraint_icons import _screen_centers
+
+        world = [(0.0, 0.0, 0.0), (1.5, -2.0, 0.3), (10.0, 4.0, -1.0), (0.0, 0.0, 50.0)]
+        stack = np.array([0, 1, 2, 0], dtype=np.float64)
+        import math
+
+        f, near, far = 1 / math.tan(0.6), 0.1, 100.0
+        perspective = Matrix(
+            (
+                (f / (4 / 3), 0, 0, 0),
+                (0, f, 0, 0),
+                (0, 0, (far + near) / (near - far), 2 * far * near / (near - far)),
+                (0, 0, -1, 0),
+            )
+        )
+        view = Matrix.Translation((0.0, 0.0, -20.0)) @ Matrix.Rotation(0.4, 4, "X")
+        for mode, persp in (
+            ("ORTHO", Matrix.Scale(0.1, 4)),
+            ("PERSP", perspective @ view),
+        ):
+            ctx = self._context(persp, mode)
+            centers, visible, _size = _screen_centers(
+                ctx, np.array(world, dtype=np.float64), stack
+            )
+            for i, co in enumerate(world):
+                expected = self._expected(ctx, co, stack[i])
+                self.assertEqual(bool(visible[i]), expected is not None, (mode, i))
+                if expected is not None:
+                    np.testing.assert_allclose(
+                        centers[i], tuple(expected), rtol=1e-6, atol=1e-6
+                    )

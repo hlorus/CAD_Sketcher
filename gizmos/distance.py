@@ -5,6 +5,7 @@ from mathutils import Vector
 from mathutils.geometry import intersect_point_line
 
 from ..declarations import GizmoGroups, Gizmos
+from ..drawing import frame_cache
 from ..model.types import SlvsDistance
 from ..utilities.view import get_scale_from_pos
 from .base import ConstraintGenericGGT, ConstraintGizmoGeneric
@@ -49,7 +50,9 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
 
         # Get constraints points in local space and adjust helplines
         # based on their position
-        mat_inv = constr.matrix_basis().inverted()
+        sketch = frame_cache.active_sketch(context)
+        basis = frame_cache.dimension_basis(sketch, constr) if sketch else None
+        mat_inv = (basis if basis is not None else constr.matrix_basis()).inverted()
 
         def get_local(point):
             return (mat_inv @ point.to_3d()) / ui_scale
