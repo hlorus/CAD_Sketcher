@@ -67,3 +67,47 @@ class TestBevelTool(Sketch2dTestCase):
 
         # Corner removed, arc center and two tangent points added: nothing else.
         self.assertEqual(self._point_count(), before + 2)
+
+    def test_rectangle_edge_lines_end_at_the_arcs(self):
+        # Beveling a rectangle edge must move each trimmed line's own geometry to
+        # its new tangent point, not only its stored endpoint reference.
+        from ..model.curve_ref import LineRef, curve_ref
+        from ..model.sketch_ref import set_active_sketch
+        from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
+        from ..operators.bevel import View3D_OT_slvs_bevel
+        from ..utilities.curve_data import read_uuid_list
+
+        for edge in range(4):
+            with self.subTest(edge=edge):
+                sketch = self.new_sketch()
+                set_active_sketch(self.context, sketch.target_object)
+                rect = OpHarness(View3D_OT_slvs_add_rectangle, sketch, self.context)
+                rect.place_point((0.0, 0.0))
+                rect.place_point((6.0, 3.0))
+                rect.finish()
+
+                cd = sketch.target_object.data
+                lines = [
+                    r
+                    for r in (
+                        curve_ref(sketch, c) for c in read_uuid_list(cd, "curve_id")
+                    )
+                    if isinstance(r, LineRef)
+                ]
+                selection.selected.clear()
+                selection.selected.append(lines[edge].curve_id)
+
+                bevel = OpHarness(View3D_OT_slvs_bevel, sketch, self.context)
+                bevel.op.next_state(self.context)
+                bevel.op.radius = 1.0
+                self.assertTrue(bevel.finish())
+
+                for i, cid in enumerate(read_uuid_list(cd, "curve_id")):
+                    line = curve_ref(sketch, cid)
+                    if not isinstance(line, LineRef):
+                        continue
+                    points = cd.curves[i].points
+                    for k, end in ((0, line.p1), (1, line.p2)):
+                        drawn = points[k].position
+                        self.assertAlmostEqual(drawn[0], end.co.x, places=4)
+                        self.assertAlmostEqual(drawn[1], end.co.y, places=4)
