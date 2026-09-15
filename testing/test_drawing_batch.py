@@ -490,3 +490,74 @@ class TestConstraintIconCacheKey(Sketch2dTestCase):
         before = self.key()
         self.atlas = object()
         self.assertNotEqual(before, self.key())
+
+
+class TestConstraintIconProjection(Sketch2dTestCase):
+    """Icons placed for all constraints at once land where the per-icon math put them."""
+
+    def _context(self, perspective, view_perspective, view_distance=10.0):
+        import types
+
+        return types.SimpleNamespace(
+            region_data=types.SimpleNamespace(
+                perspective_matrix=perspective,
+                view_perspective=view_perspective,
+                view_distance=view_distance,
+            ),
+            region=types.SimpleNamespace(width=800, height=600),
+            preferences=self.context.preferences,
+        )
+
+    def _expected(self, ctx, world, stack):
+        from bpy_extras.view3d_utils import location_3d_to_region_2d
+        from mathutils import Vector
+
+        from ..utilities.preferences import get_prefs
+        from ..utilities.view import get_scale_from_pos
+
+        ui_scale = ctx.preferences.system.ui_scale
+        size = get_prefs().gizmo_scale * ui_scale
+        pos = location_3d_to_region_2d(ctx.region, ctx.region_data, world)
+        if pos is None:
+            return None
+        scale_3d = max(1, get_scale_from_pos(pos, ctx.region_data) / 500)
+        return (
+            pos
+            + Vector((1.0, 1.0)) * size / scale_3d
+            + Vector((size, 0.0)) * stack * ui_scale
+        )
+
+    def test_matches_per_icon_projection(self):
+        from mathutils import Matrix
+
+        from ..drawing.constraint_icons import _screen_centers
+
+        world = [(0.0, 0.0, 0.0), (1.5, -2.0, 0.3), (10.0, 4.0, -1.0), (0.0, 0.0, 50.0)]
+        stack = np.array([0, 1, 2, 0], dtype=np.float64)
+        import math
+
+        f, near, far = 1 / math.tan(0.6), 0.1, 100.0
+        perspective = Matrix(
+            (
+                (f / (4 / 3), 0, 0, 0),
+                (0, f, 0, 0),
+                (0, 0, (far + near) / (near - far), 2 * far * near / (near - far)),
+                (0, 0, -1, 0),
+            )
+        )
+        view = Matrix.Translation((0.0, 0.0, -20.0)) @ Matrix.Rotation(0.4, 4, "X")
+        for mode, persp in (
+            ("ORTHO", Matrix.Scale(0.1, 4)),
+            ("PERSP", perspective @ view),
+        ):
+            ctx = self._context(persp, mode)
+            centers, visible, _size = _screen_centers(
+                ctx, np.array(world, dtype=np.float64), stack
+            )
+            for i, co in enumerate(world):
+                expected = self._expected(ctx, co, stack[i])
+                self.assertEqual(bool(visible[i]), expected is not None, (mode, i))
+                if expected is not None:
+                    np.testing.assert_allclose(
+                        centers[i], tuple(expected), rtol=1e-6, atol=1e-6
+                    )
