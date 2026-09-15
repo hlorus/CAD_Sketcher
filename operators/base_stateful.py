@@ -57,10 +57,11 @@ class GenericEntityOp(StatefulOperator):
         #  - Auto-constraints are applied at the confirm click, so capture Shift
         #    there (not sticky) — releasing Shift restores normal behaviour.
         global_data.snap_bypass = bool(event.shift)
+        # A dragged release can confirm too (see StatefulOperatorLogic.check_event).
         if (
             event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER")
             and event.value == "PRESS"
-        ):
+        ) or (event.type == "LEFTMOUSE" and event.value == "RELEASE"):
             placement_of(self.state_data).skip_auto_constraints = bool(event.shift)
         return super().check_event(event)
 

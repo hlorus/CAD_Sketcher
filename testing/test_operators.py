@@ -121,6 +121,7 @@ class TestCreateOperators(Sketch2dTestCase):
                 self.type = "LEFTMOUSE"
                 self.value = "PRESS"
                 self.shift = shift
+                self.mouse_region_x = self.mouse_region_y = 0
 
         op = self._harness(View3D_OT_slvs_add_line2d).op
         op.check_event(_Event(shift=True))

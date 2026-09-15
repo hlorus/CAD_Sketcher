@@ -60,6 +60,13 @@ class StatefulOperatorLogic(_StateMachineMixin):
     _axis_lock = None
     # Formatted live value of the current state, shown in the status bar.
     _status_value = None
+    # Where the left mouse button went down, to tell a drag from a click.
+    _press_coords = None
+    # Set once a dragged release confirmed a state: from then on the release
+    # confirms and a press only starts the next drag (see check_event).
+    _drag_mode = False
+    # The invoking click already confirmed the first state (see invoke).
+    _invoked_by_click = False
 
     # -------------------------------------------------------------------------
     # Snapshot / undo hooks (override in subclasses)
@@ -291,11 +298,34 @@ class StatefulOperatorLogic(_StateMachineMixin):
     # Operator lifecycle — invoke / modal / execute / _end
     # -------------------------------------------------------------------------
 
+    def _is_drag(self, event) -> bool:
+        """Whether the cursor left Blender's drag threshold since the last press."""
+        if self._press_coords is None:
+            return False
+        coords = Vector((event.mouse_region_x, event.mouse_region_y))
+        threshold = bpy.context.preferences.inputs.drag_threshold_mouse
+        return (coords - self._press_coords).length > threshold
+
     def check_event(self, event):
-        is_confirm = event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER")
-        if is_confirm and event.value == "PRESS":
+        # Both click-move-click and press-drag-release confirm states. A press
+        # confirms, and so does a release after dragging, which switches the run
+        # to drag mode: a press then only starts the next drag, so dragging again
+        # doesn't also confirm a point where the button went down.
+        if event.type == "LEFTMOUSE" and event.value == "PRESS":
+            self._press_coords = Vector((event.mouse_region_x, event.mouse_region_y))
+            return not self._drag_mode
+        if event.type == "LEFTMOUSE" and event.value == "RELEASE":
+            if self._press_coords is None:
+                return False
+            confirm = self._drag_mode or self._is_drag(event)
+            self._drag_mode = confirm
+            self._press_coords = None
+            return confirm
+        if event.type in ("RET", "NUMPAD_ENTER") and event.value == "PRESS":
             return True
         if self.state_index == 0 and not self.wait_for_input:
+            if self._invoked_by_click:
+                return False
             return not self._numeric.is_active
         if self.state.no_event:
             return True
@@ -305,6 +335,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         global_data.stateful_op_running = True
         self._state_data.clear()
         self._numeric = NumericInput()
+        self._press_coords = None
+        self._drag_mode = False
+        self._invoked_by_click = False
 
         if self.edit_state >= 0:
             return self._invoke_edit(context, event)
@@ -325,6 +358,22 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 if self.init_numeric(True):
                     self._numeric.evaluate_event(event)
                     self.evaluate_state(context, event, False)
+
+            # A tool click confirms the first state right where the button went
+            # down, so dragging from there and releasing sets the next one.
+            elif (
+                not self.wait_for_input
+                and event.type == "LEFTMOUSE"
+                and event.value == "PRESS"
+            ):
+                coords = Vector((event.mouse_region_x, event.mouse_region_y))
+                self._press_coords = coords
+                self._last_coords = coords
+                self._invoked_by_click = True
+                retval = self.evaluate_state(context, event, True)
+                if retval != {"RUNNING_MODAL"}:
+                    # The click already finished (or cancelled) the operator.
+                    return retval
 
             # wait_for_input=True: respect selection for prefill, but wait for LMB
             elif self.wait_for_input:
