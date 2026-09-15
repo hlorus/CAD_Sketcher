@@ -670,21 +670,22 @@ class TestConstraintIconGroups(TestCase):
         self.assertEqual(self.cells(quads), ["EQUAL", "BADGE"])
         self.assertEqual(hits["group_counts"].tolist(), [12])
 
-    def test_hovered_or_selected_element_opens_only_its_own_icons(self):
+    def test_opening_a_merged_group_lays_its_icons_in_a_row(self):
         from ..drawing import selection
 
-        # A and C are grouped nearby; opening A leaves C's icon alone, and B too.
+        # A and C overlap and merge; opening A opens the group as one row from A.
         quads, hits = self.arrange("NEARBY", expanded={"A"})
         cells = self.cells(quads)
         self.assertNotIn("BADGE", cells)
-        self.assertEqual(sorted(cells), ["EQUAL", "HORIZONTAL", "PARALLEL", "VERTICAL"])
         self.assertEqual(hits["group_keys"], [])
-
-        # Opening C, a single icon, leaves A grouped.
-        quads, hits = self.arrange("NEARBY", expanded={"C"})
-        self.assertEqual(hits["group_keys"], ["A"])
-        self.assertIn("BADGE", self.cells(quads))
-        self.assertEqual(hits["group_counts"].tolist(), [2])
+        row = {
+            tuple(c)
+            for c, code in zip(quads["centers"].tolist(), quads["codes"].tolist())
+            if self.prepared["names"][code] != "VERTICAL"
+        }
+        self.assertEqual(row, {(100.0, 100.0), (110.0, 100.0), (120.0, 100.0)})
+        # B stays where it is.
+        self.assertIn([400.0, 300.0], quads["centers"].tolist())
 
         self.icons._icon_cache["anchors"] = frozenset({"A", "B", "C"})
         saved = (selection.hover, list(selection.selected))

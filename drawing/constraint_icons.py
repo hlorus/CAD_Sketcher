@@ -407,8 +407,9 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
     icons. Icons group by the element they sit on; with ``mode`` ``NEARBY``
     elements whose first icons are about an icon apart on screen merge too. A group
     draws as one icon with a count badge unless it has a single icon, grouping is
-    ``OFF``, or it is the hovered group. An element in ``expanded`` shows its own
-    icons and is left out of any group.
+    ``OFF``, one of its elements is in ``expanded``, or it is the hovered group.
+    An open group of several elements lays its icons out in one row from the
+    group's position, since those elements' own icons would overlap.
 
     Returns ``(quads, hits)``: ``quads`` as arrays of centers, half sizes, atlas
     cell codes (into ``prepared["names"]``) and colors, and ``hits`` as consumed
@@ -426,14 +427,6 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
     counts = np.bincount(element[visible], minlength=n_elements)
     shown = np.flatnonzero(counts)
     index = prepared["element_index"]
-    is_expanded = np.zeros(n_elements, dtype=bool)
-    for name in expanded:
-        e = index.get(name)
-        if e is not None:
-            is_expanded[e] = True
-    # An expanded element opens on its own, leaving any nearby group it was in.
-    alone = shown[is_expanded[shown]]
-    shown = shown[~is_expanded[shown]]
     cluster_of = np.full(n_elements, -1, dtype=np.int64)
     if mode == "NEARBY" and shown.size:
         labels = _nearby_labels(anchors[shown], size)
@@ -449,18 +442,18 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
     else:
         cluster_of[shown] = np.arange(shown.size)
         representative = shown
-    cluster_of[alone] = len(representative) + np.arange(alone.size)
-    representative = np.concatenate((representative, alone))
-    shown = np.concatenate((shown, alone))
     n_clusters = len(representative)
     cluster_counts = np.bincount(
         cluster_of[shown], weights=counts[shown], minlength=n_clusters
     )
 
     open_clusters = cluster_counts <= 1
-    open_clusters[n_clusters - alone.size :] = True
     if mode == "OFF":
         open_clusters[:] = True
+    for name in expanded:
+        e = index.get(name)
+        if e is not None and cluster_of[e] >= 0:
+            open_clusters[cluster_of[e]] = True
     hovered = -1
     if _hover["group"] is not None:
         e = index.get(_hover["group"])
@@ -470,9 +463,24 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
 
     icon_cluster = np.where(visible, cluster_of[element], -1)
     icons = visible & open_clusters[icon_cluster]
+
+    # Open groups of several elements: one row from the group's position.
+    placed = centers.copy()
+    elements_in = np.bincount(cluster_of[shown], minlength=n_clusters)
+    k = np.flatnonzero(icons & (elements_in[icon_cluster] > 1))
+    if k.size:
+        order = k[np.lexsort((prepared["stack"][k], element[k], icon_cluster[k]))]
+        runs = icon_cluster[order]
+        run_start = np.flatnonzero(np.r_[True, runs[1:] != runs[:-1]])
+        row = np.arange(order.size) - np.repeat(
+            run_start, np.diff(np.r_[run_start, order.size])
+        )
+        placed[order] = anchors[representative[runs]]
+        placed[order, 0] += row * stack_step
+
     hover_rect = None
     if hovered >= 0:
-        points = centers[icon_cluster == hovered]
+        points = placed[icon_cluster == hovered]
         hover_rect = (points.min(axis=0) - half, points.max(axis=0) + half)
 
     collapsed = np.flatnonzero(~open_clusters)
@@ -498,7 +506,7 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
         group_centers, size, cluster_counts[collapsed].astype(np.int64), prepared
     )
     quads = {
-        "centers": np.concatenate((centers[icons], group_centers, badge["centers"])),
+        "centers": np.concatenate((placed[icons], group_centers, badge["centers"])),
         "halves": np.concatenate(
             (
                 np.full(int(icons.sum()) + collapsed.size, half),
@@ -514,7 +522,7 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
     }
     hits = {
         "radius": size,
-        "icon_centers": centers[icons],
+        "icon_centers": placed[icons],
         "icon_entries": prepared["entries"][icons],
         "group_centers": group_centers,
         "group_keys": [prepared["element_names"][e] for e in representative[collapsed]],
