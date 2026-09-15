@@ -120,7 +120,7 @@ class Preferences(AddonPreferences):
         name="Workplane Size", default=0.4, soft_min=0.1, soft_max=1.0
     )
     gizmo_scale: FloatProperty(
-        name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update
+        name="Icon Scale", default=18.0, min=1.0, soft_max=25.0, update=theme.update
     )
     group_constraint_icons: BoolProperty(
         name="Group Constraint Icons",

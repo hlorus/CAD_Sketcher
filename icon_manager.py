@@ -21,7 +21,7 @@ _DARK_TINT = 0.15
 # batched draw (one sampler bind) instead of one textured draw per constraint.
 _atlas = None  # GPUTexture
 _atlas_uvs = {}  # type -> (u0, v0, u1, v1)
-# Each icon is resized into a CELL x CELL cell. Icons draw at about 15 pixels and
+# Each icon is resized into a CELL x CELL cell. Icons draw at about 18 pixels and
 # the atlas has no mipmaps, so a cell near twice that size keeps thin strokes
 # intact when sampled; a much larger one drops most of each stroke and washes the
 # icon out.
