@@ -21,7 +21,11 @@ _DARK_TINT = 0.15
 # batched draw (one sampler bind) instead of one textured draw per constraint.
 _atlas = None  # GPUTexture
 _atlas_uvs = {}  # type -> (u0, v0, u1, v1)
-_ATLAS_CELL = 128  # each icon is resized into a CELL x CELL cell
+# Each icon is resized into a CELL x CELL cell. Icons draw at about 15 pixels and
+# the atlas has no mipmaps, so a cell near twice that size keeps thin strokes
+# intact when sampled; a much larger one drops most of each stroke and washes the
+# icon out.
+_ATLAS_CELL = 32
 _operator_types = {
     Operators.AddDistance: "DISTANCE",
     Operators.AddDiameter: "DIAMETER",
@@ -63,8 +67,22 @@ def get_icon(name: str):
 
 
 def _resize_nearest(pixels, w, h, cell):
-    """Nearest-neighbour resize an (h, w, 4) icon to (cell, cell, 4)."""
+    """Resize an (h, w, 4) icon to (cell, cell, 4).
+
+    Shrinking by a whole factor averages each block (weighting color by alpha, so
+    edges don't darken), which keeps a thin stroke's coverage; other sizes fall
+    back to the nearest pixel.
+    """
     img = np.asarray(pixels, dtype=np.float32).reshape(h, w, 4)
+    if w == h and w >= cell and w % cell == 0:
+        f = w // cell
+        blocks = img.reshape(cell, f, cell, f, 4)
+        alpha = blocks[..., 3].mean(axis=(1, 3))
+        weighted = (blocks[..., :3] * blocks[..., 3:]).mean(axis=(1, 3))
+        rgb = np.where(
+            alpha[..., None] > 0, weighted / np.maximum(alpha, 1e-6)[..., None], 0
+        )
+        return np.concatenate((rgb, alpha[..., None]), axis=2).astype(np.float32)
     ys = (np.arange(cell) * h // cell).clip(0, h - 1)
     xs = (np.arange(cell) * w // cell).clip(0, w - 1)
     return img[ys][:, xs]
