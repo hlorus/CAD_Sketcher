@@ -648,10 +648,14 @@ class TestConstraintIconGroups(TestCase):
                 (200.0, 0.0),
                 (0.0, 100.0),
                 (20.0, 100.0),
+                # Just under an icon size apart diagonally: overlapping icons.
+                (300.0, 300.0),
+                (307.0, 306.0),
             ]
         )
         labels = _nearby_labels(points, size)
         self.assertNotEqual(labels[5], labels[6])  # two icon sizes apart
+        self.assertEqual(labels[7], labels[8])
         self.assertEqual(labels[0], labels[1])  # either side of a cell boundary
         self.assertEqual(labels[1], labels[2])  # chained
         self.assertNotEqual(labels[0], labels[3])

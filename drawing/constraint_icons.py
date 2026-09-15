@@ -527,26 +527,51 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
 def _nearby_labels(points, size):
     """A cluster label per point, joining points whose icons would overlap.
 
-    Points closer than half a cell in both directions share a cell in at least
-    one of four grids offset by half a cell, so propagating the smallest label
-    within each cell of every grid until nothing changes joins them, and chains
-    of them, without comparing every pair. With a cell of 1.5 icon sizes, icons
-    that overlap mostly join and ones two icons apart stay separate.
+    Points closer than an icon size join, and so do chains of them. Candidate
+    pairs come from the point's own and neighbouring icon-sized grid cells, so
+    no pair outside them is compared, and all of it runs as array operations.
     """
-    cell = 1.5 * size
-    half = cell / 2.0
-    labels = np.arange(len(points))
-    grids = [
-        np.floor((points + offset) / cell).astype(np.int64)
-        for offset in ((0.0, 0.0), (half, 0.0), (0.0, half), (half, half))
-    ]
-    cell_ids = [np.unique(g, axis=0, return_inverse=True)[1].ravel() for g in grids]
+    n = len(points)
+    labels = np.arange(n)
+    if n < 2:
+        return labels
+    cells = np.floor(points / size).astype(np.int64)
+    # Keys that sort by cell and can be looked up; offsets keep them positive.
+    base = cells.min(axis=0) - 1
+    width = int(cells[:, 1].max() - base[1]) + 2
+
+    def cell_key(cx, cy):
+        return (cx - base[0]) * width + (cy - base[1])
+
+    keys = cell_key(cells[:, 0], cells[:, 1])
+    order = np.argsort(keys, kind="stable")
+    sorted_keys = keys[order]
+
+    first, second = [], []
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            wanted = cell_key(cells[:, 0] + dx, cells[:, 1] + dy)
+            lo = np.searchsorted(sorted_keys, wanted, side="left")
+            hi = np.searchsorted(sorted_keys, wanted, side="right")
+            counts = hi - lo
+            total = int(counts.sum())
+            if not total:
+                continue
+            i = np.repeat(np.arange(n), counts)
+            within = np.arange(total) - np.repeat(np.cumsum(counts) - counts, counts)
+            j = order[np.repeat(lo, counts) + within]
+            close = (i < j) & (((points[i] - points[j]) ** 2).sum(axis=1) < size * size)
+            first.append(i[close])
+            second.append(j[close])
+    if not first:
+        return labels
+    i, j = np.concatenate(first), np.concatenate(second)
+    if not i.size:
+        return labels
     while True:
-        previous = labels
-        for ids in cell_ids:
-            smallest = np.full(ids.max() + 1, len(points), dtype=np.int64)
-            np.minimum.at(smallest, ids, labels)
-            labels = smallest[ids]
+        previous = labels.copy()
+        np.minimum.at(labels, i, labels[j])
+        np.minimum.at(labels, j, labels[i])
         if np.array_equal(labels, previous):
             return labels
 
