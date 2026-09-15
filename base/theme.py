@@ -82,7 +82,7 @@ class ThemeSettingsConstraint(PropertyGroup):
     default: FloatVectorProperty(
         name="Default",
         subtype="COLOR",
-        default=(1.0, 0.0, 0.6, 1.0),
+        default=(1.0, 0.45, 0.4, 1.0),
         size=4,
         min=0.0,
         max=1.0,
@@ -92,7 +92,7 @@ class ThemeSettingsConstraint(PropertyGroup):
     highlight: FloatVectorProperty(
         name="Highlight",
         subtype="COLOR",
-        default=(1.0, 0.35, 0.8, 1.0),
+        default=(1.0, 0.68, 0.62, 1.0),
         size=4,
         min=0.0,
         max=1.0,
@@ -102,7 +102,7 @@ class ThemeSettingsConstraint(PropertyGroup):
     failed: FloatVectorProperty(
         name="Failed",
         subtype="COLOR",
-        default=(1.0, 0.2, 0.0, 1.0),
+        default=(1.0, 0.05, 0.05, 1.0),
         size=4,
         min=0.0,
         max=1.0,
@@ -112,7 +112,7 @@ class ThemeSettingsConstraint(PropertyGroup):
     failed_highlight: FloatVectorProperty(
         name="Failed Highlight",
         subtype="COLOR",
-        default=(1.0, 0.45, 0.15, 1.0),
+        default=(1.0, 0.3, 0.2, 1.0),
         size=4,
         min=0.0,
         max=1.0,
@@ -122,7 +122,7 @@ class ThemeSettingsConstraint(PropertyGroup):
     reference: FloatVectorProperty(
         name="Reference Measurement",
         subtype="COLOR",
-        default=(0.0, 0.45, 1.0, 1.0),
+        default=(0.45, 0.6, 1.0, 1.0),
         size=4,
         min=0.0,
         max=1.0,
@@ -132,7 +132,7 @@ class ThemeSettingsConstraint(PropertyGroup):
     reference_highlight: FloatVectorProperty(
         name="Reference Highlight",
         subtype="COLOR",
-        default=(0.4, 0.7, 1.0, 1.0),
+        default=(0.68, 0.78, 1.0, 1.0),
         size=4,
         min=0.0,
         max=1.0,

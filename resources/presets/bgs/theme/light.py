@@ -29,13 +29,13 @@ entity.inactive_selected = (
     0.20000000298023224,
 )
 entity.fixed = (0.0, 0.55, 0.0, 0.7)
-# Opaque, saturated constraint colors that stand out on a light viewport; failed
-# is orange-red so it stays distinct from the magenta default.
-constraint.default = (0.9, 0.0, 0.65, 1.0)
-constraint.highlight = (1.0, 0.0, 0.8, 1.0)
-constraint.failed = (1.0, 0.2, 0.0, 1.0)
-constraint.failed_highlight = (0.85, 0.05, 0.0, 1.0)
-constraint.reference = (0.0, 0.3, 1.0, 1.0)
-constraint.reference_highlight = (0.0, 0.15, 0.85, 1.0)
+# Opaque coral constraint colors, deep enough to stand out on a light viewport; failed
+# is a darker red so it stays distinct from the coral default.
+constraint.default = (0.92, 0.33, 0.28, 1.0)
+constraint.highlight = (1.0, 0.45, 0.38, 1.0)
+constraint.failed = (0.8, 0.0, 0.0, 1.0)
+constraint.failed_highlight = (1.0, 0.1, 0.1, 1.0)
+constraint.reference = (0.2, 0.35, 1.0, 1.0)
+constraint.reference_highlight = (0.3, 0.48, 1.0, 1.0)
 constraint.text = (0.1, 0.1, 0.1, 1.0)
 constraint.text_highlight = (0.4, 0.4, 0.4, 1.0)
