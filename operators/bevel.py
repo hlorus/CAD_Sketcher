@@ -1,6 +1,7 @@
 import logging
+import math
 
-from bpy.props import FloatProperty
+from bpy.props import BoolProperty, FloatProperty
 from bpy.types import Operator
 from mathutils import Vector
 
@@ -12,7 +13,7 @@ from ..model.curve_ref import ArcRef, CircleRef, CurveRef, LineRef, PointRef, cu
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.intersect import ElementTypes, get_intersections
-from ..utilities.view import refresh
+from ..utilities.view import get_pos_2d, refresh
 from .base_2d import Operator2d
 
 logger = logging.getLogger(__name__)
@@ -130,6 +131,42 @@ def _bevel_point(sketch, topo, point_cid, radius):
     }
 
 
+def _max_radius(sketch, topo, point_ids):
+    """Largest radius every line/line corner in ``point_ids`` can take, or None.
+
+    At a corner of interior angle ``a`` the tangent points sit ``r / tan(a / 2)``
+    from the corner, so ``r`` is capped by the shorter line. A line beveled at
+    both ends shares its length between the two (equal radii). Corners touching
+    an arc are not capped.
+    """
+    corners = set(point_ids)
+    best = None
+    for pt_cid in point_ids:
+        point = PointRef(sketch, pt_cid)
+        segs = [
+            ref
+            for ref, _ in topo.get_connected_segments(pt_cid)
+            if not ref.construction
+        ]
+        if len(segs) != 2 or not all(isinstance(ref, LineRef) for ref in segs):
+            continue
+        dirs, avail = [], []
+        for line in segs:
+            other = line.p2 if line.p1.curve_id == pt_cid else line.p1
+            vec = other.co - point.co
+            dirs.append(vec)
+            share = 2.0 if other.curve_id in corners else 1.0
+            avail.append(vec.length / share)
+        if min(v.length for v in dirs) == 0.0:
+            continue
+        angle = dirs[0].angle(dirs[1])
+        if angle <= 1e-6 or angle >= math.pi - 1e-6:
+            continue
+        limit = min(avail) * math.tan(angle / 2)
+        best = limit if best is None else min(best, limit)
+    return best
+
+
 class View3D_OT_slvs_bevel(Operator, Operator2d):
     """Add a tangential arc between the two segments of selected points"""
 
@@ -138,6 +175,10 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
     bl_options = {"REGISTER", "UNDO"}
 
     radius: FloatProperty(name="Radius", subtype="DISTANCE", unit="LENGTH")
+    dimension_radius: BoolProperty(
+        name="Dimension Radius",
+        description="Add a radius dimension to the bevel (on when the radius is typed)",
+    )
 
     states = (
         state_from_args(
@@ -177,14 +218,55 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             if self.pick_element(context, coords) is None:
                 self.next_state(context)
                 return {"RUNNING_MODAL"}
+        # A typed radius is a deliberate value, so keep it as a dimension; a free
+        # drag is not.
+        if self.state_index == 1 and self._numeric.is_active:
+            self.dimension_radius = True
         return super().evaluate_state(context, event, triggered)
+
+    def state_func(self, context, coords):
+        # The radius follows the cursor's distance to the nearest beveled corner,
+        # not the base's horizontal screen delta.
+        if self.state.property != "radius":
+            return super().state_func(context, coords)
+        sketch = self.sketch
+        corners = self._corner_ids(sketch, sketch.topology)
+        if not corners:
+            return super().state_func(context, coords)
+        pos = get_pos_2d(context, self._get_wp(), coords)
+        return min((pos - PointRef(sketch, cid).co).length for cid in corners)
 
     def main(self, context):
         sketch = self.sketch
-        radius = self.radius
         topo = sketch.topology
+        points = self._corner_ids(sketch, topo)
 
-        # Collect eligible points from selection + picked element
+        if not points:
+            self.report({"WARNING"}, "No eligible points to bevel")
+            return False
+
+        # A radius that doesn't fit would make the corner fail silently; use the
+        # biggest one that still leaves every trimmed line a length.
+        limit = _max_radius(sketch, topo, points)
+        if limit is not None and self.radius > limit:
+            self.radius = limit * (1.0 - 1e-4)
+        radius = self.radius
+
+        # Bevel each point
+        self._results = []
+        for pt_cid in points:
+            result = _bevel_point(sketch, topo, pt_cid, radius)
+            if result:
+                self._results.append(result)
+
+        if not self._results:
+            return False
+
+        refresh(context)
+        return True
+
+    def _corner_ids(self, sketch, topo) -> list:
+        """Corner point ids to bevel: the selection plus the picked element."""
         points = _get_bevel_points(sketch, topo)
 
         # Also include the directly picked element
@@ -206,23 +288,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
                         segs = [ref for ref, _ in connected if not ref.construction]
                         if len(segs) == 2:
                             points.append(pt_cid)
-
-        if not points:
-            self.report({"WARNING"}, "No eligible points to bevel")
-            return False
-
-        # Bevel each point
-        self._results = []
-        for pt_cid in points:
-            result = _bevel_point(sketch, topo, pt_cid, radius)
-            if result:
-                self._results.append(result)
-
-        if not self._results:
-            return False
-
-        refresh(context)
-        return True
+        return points
 
     def fini(self, context, succeede):
         if not succeede:
@@ -248,8 +314,11 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             sc.add_tangent(curve_id_1=arc.curve_id, curve_id_2=l1.curve_id)
             sc.add_tangent(curve_id_1=arc.curve_id, curve_id_2=l2.curve_id)
 
-            # Remove original point
-            point.remove()
+            # Keep the corner as a construction "virtual sharp" held on both
+            # segments, so constraints and dimensions that used it stay valid.
+            point.construction = True
+            sc.add_coincident(curve_id_1=point.curve_id, curve_id_2=l1.curve_id)
+            sc.add_coincident(curve_id_1=point.curve_id, curve_id_2=l2.curve_id)
 
         # Add equal constraints between all arcs
         arcs = [r["arc"] for r in self._results if r["arc"]]
@@ -257,6 +326,15 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             first = arcs[0]
             for arc in arcs[1:]:
                 sc.add_equal(curve_id_1=first.curve_id, curve_id_2=arc.curve_id)
+
+        # The equal constraints carry the radius to every other arc.
+        if arcs and self.dimension_radius:
+            sc.add_diameter(
+                init=True,
+                curve_id_1=arcs[0].curve_id,
+                setting=True,
+                value=self.radius,
+            )
 
         refresh(context)
         sketch.geometry_solved = False
