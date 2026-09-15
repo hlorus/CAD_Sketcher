@@ -13,6 +13,7 @@ silently (a corner stops welding, a marker sits in the wrong place).
 """
 
 import unittest.mock as mock
+from unittest import TestCase
 
 import numpy as np
 
@@ -519,48 +520,6 @@ class TestConstraintIconProjection(Sketch2dTestCase):
             + Vector((size, 0.0)) * stack * ui_scale
         )
 
-    def test_hit_test_finds_the_icon_under_the_cursor(self):
-        from mathutils import Matrix
-
-        from ..drawing import constraint_icons
-        from ..utilities.preferences import get_prefs
-
-        prefs = get_prefs()
-        previous_scale = prefs.gizmo_scale
-        prefs.gizmo_scale = 15.0
-        self.addCleanup(setattr, prefs, "gizmo_scale", previous_scale)
-        ctx = self._context(Matrix.Scale(0.1, 4), "ORTHO")
-        entries = [
-            ((0.0, 0.0, 0.0), 0, "HORIZONTAL", (1, 1, 1, 1), 3),
-            ((0.0, 0.0, 0.0), 1, "VERTICAL", (1, 1, 1, 1), 5),
-            ((4.0, 2.0, 0.0), 0, "NO_ICON", (1, 1, 1, 1), 0),
-            ((-6.0, 1.0, 0.0), 0, "EQUAL", (1, 1, 1, 1), 1),
-        ]
-        uvs = {
-            "HORIZONTAL": (0, 0, 1, 1),
-            "VERTICAL": (0, 0, 1, 1),
-            "EQUAL": (0, 0, 1, 1),
-        }
-        with mock.patch.object(
-            constraint_icons, "batch_for_shader", lambda *a, **k: object()
-        ):
-            _batch, hits = constraint_icons._build_batch(ctx, entries, None, uvs)
-        saved = dict(constraint_icons._icon_cache)
-        try:
-            constraint_icons._icon_cache.update(entries=entries, hits=hits)
-            targets = constraint_icons.targets()
-            centers, _indices, radius = hits
-            for i, entry_index in enumerate((0, 1, 3)):
-                part = constraint_icons.hit_test(tuple(centers[i] + radius * 0.5))
-                self.assertEqual(part, entry_index)
-                self.assertEqual(
-                    targets[part], (entries[entry_index][2], entries[entry_index][4])
-                )
-            self.assertIsNone(constraint_icons.hit_test((-10000.0, -10000.0)))
-        finally:
-            constraint_icons._icon_cache.clear()
-            constraint_icons._icon_cache.update(saved)
-
     def test_matches_per_icon_projection(self):
         from mathutils import Matrix
 
@@ -595,3 +554,174 @@ class TestConstraintIconProjection(Sketch2dTestCase):
                     np.testing.assert_allclose(
                         centers[i], tuple(expected), rtol=1e-6, atol=1e-6
                     )
+
+
+class TestConstraintIconGroups(TestCase):
+    """Icons on one element (or close together) share an icon until expanded."""
+
+    SIZE = 10.0
+
+    def setUp(self):
+        from ..drawing import constraint_icons
+
+        self.icons = constraint_icons
+        saved_cache = dict(constraint_icons._icon_cache)
+        saved_hover = dict(constraint_icons._hover)
+        constraint_icons._hover["group"] = None
+
+        def restore():
+            constraint_icons._icon_cache.clear()
+            constraint_icons._icon_cache.update(saved_cache)
+            constraint_icons._hover.clear()
+            constraint_icons._hover.update(saved_hover)
+
+        self.addCleanup(restore)
+        red, grey = (1, 0, 0, 1), (0.5, 0.5, 0.5, 1)
+        # world, stack, type, color, index, anchor, priority
+        self.entries = [
+            ((0, 0, 0), 0, "HORIZONTAL", grey, 0, "A", 0),
+            ((0, 0, 0), 1, "EQUAL", red, 0, "A", 2),
+            ((0, 0, 0), 0, "VERTICAL", grey, 0, "B", 0),
+            ((0, 0, 0), 0, "PARALLEL", grey, 0, "C", 0),
+        ]
+        # Screen centers as _screen_centers would stack them: A's second icon one
+        # step right of its first, C in the same icon cell as A, B far away.
+        self.centers = np.array(
+            [(100.0, 100.0), (110.0, 100.0), (400.0, 300.0), (106.0, 104.0)]
+        )
+
+    def arrange(self, mode, expanded=frozenset()):
+        uvs = {e[2]: (0, 0, 1, 1) for e in self.entries}
+        uvs.update({name: (0, 0, 1, 1) for name in self.icons._BADGE_CELLS})
+        self.prepared = self.icons._prepare(self.entries, uvs)
+        return self.icons._arrange(
+            self.prepared,
+            self.centers,
+            np.ones(len(self.entries), dtype=bool),
+            self.SIZE,
+            self.SIZE,
+            mode,
+            frozenset(expanded),
+        )
+
+    def cells(self, quads):
+        return [self.prepared["names"][c] for c in quads["codes"]]
+
+    def test_off_shows_every_icon(self):
+        quads, hits = self.arrange("OFF")
+        self.assertEqual(
+            self.cells(quads), ["HORIZONTAL", "EQUAL", "VERTICAL", "PARALLEL"]
+        )
+        self.assertEqual(len(hits["group_centers"]), 0)
+
+    def test_per_element_groups_an_element_with_a_badge(self):
+        quads, hits = self.arrange("ELEMENT")
+        cells = self.cells(quads)
+        self.assertEqual(cells[:2], ["VERTICAL", "PARALLEL"])
+        self.assertIn(cells[2], ("HORIZONTAL", "EQUAL"))
+        self.assertEqual(cells[3:], ["BADGE"])
+        self.assertEqual(hits["group_counts"].tolist(), [2])
+        # The group shows the failed (red) color of its standout member.
+        np.testing.assert_allclose(quads["colors"][2], (1, 0, 0, 1))
+        np.testing.assert_allclose(quads["centers"][2], (100.0, 100.0))
+        self.assertEqual(hits["group_keys"], ["A"])
+        np.testing.assert_allclose(hits["group_centers"][0], (100.0, 100.0))
+
+    def test_nearby_elements_merge(self):
+        quads, hits = self.arrange("NEARBY")
+        cells = self.cells(quads)
+        self.assertEqual(cells[0], "VERTICAL")
+        self.assertEqual(cells[-1], "BADGE")
+        self.assertEqual(hits["group_counts"].tolist(), [3])
+        self.assertEqual(hits["group_keys"], ["A"])
+
+    def test_nearby_merges_across_grid_cells_and_chains(self):
+        from ..drawing.constraint_icons import _nearby_labels
+
+        size = 10.0
+        points = np.array(
+            [
+                (19.0, 0.0),
+                (21.0, 0.0),
+                (29.0, 5.0),
+                (80.0, 80.0),
+                (200.0, 0.0),
+                (0.0, 100.0),
+                (20.0, 100.0),
+                # Just under an icon size apart diagonally: overlapping icons.
+                (300.0, 300.0),
+                (307.0, 306.0),
+            ]
+        )
+        labels = _nearby_labels(points, size)
+        self.assertNotEqual(labels[5], labels[6])  # two icon sizes apart
+        self.assertEqual(labels[7], labels[8])
+        self.assertEqual(labels[0], labels[1])  # either side of a cell boundary
+        self.assertEqual(labels[1], labels[2])  # chained
+        self.assertNotEqual(labels[0], labels[3])
+        self.assertNotEqual(labels[3], labels[4])
+
+    def test_two_digit_count(self):
+        self.entries = [
+            ((0, 0, 0), i, "EQUAL", (1, 1, 1, 1), i, "A", 0) for i in range(12)
+        ]
+        self.centers = np.array([(100.0 + 10 * i, 100.0) for i in range(12)])
+        quads, hits = self.arrange("ELEMENT")
+        self.assertEqual(self.cells(quads), ["EQUAL", "BADGE"])
+        self.assertEqual(hits["group_counts"].tolist(), [12])
+
+    def test_opening_a_merged_group_lays_its_icons_in_a_row(self):
+        from ..drawing import selection
+
+        # A and C overlap and merge; opening A opens the group as one row from A.
+        quads, hits = self.arrange("NEARBY", expanded={"A"})
+        cells = self.cells(quads)
+        self.assertNotIn("BADGE", cells)
+        self.assertEqual(hits["group_keys"], [])
+        row = {
+            tuple(c)
+            for c, code in zip(quads["centers"].tolist(), quads["codes"].tolist())
+            if self.prepared["names"][code] != "VERTICAL"
+        }
+        self.assertEqual(row, {(100.0, 100.0), (110.0, 100.0), (120.0, 100.0)})
+        # B stays where it is.
+        self.assertIn([400.0, 300.0], quads["centers"].tolist())
+
+        self.icons._icon_cache["anchors"] = frozenset({"A", "B", "C"})
+        saved = (selection.hover, list(selection.selected))
+        try:
+            selection.hover, selection.selected[:] = "A", []
+            self.assertEqual(self.icons._expanded_elements(), frozenset({"A"}))
+            # Selecting geometry opens nothing, nor does hovering a curve without
+            # icons of its own.
+            selection.hover, selection.selected[:] = "D", ["B", "D"]
+            self.assertEqual(self.icons._expanded_elements(), frozenset())
+        finally:
+            selection.hover, selection.selected[:] = saved[0], saved[1]
+
+    def test_hover_expands_and_collapses(self):
+        _quads, hits = self.arrange("ELEMENT")
+        self.icons._icon_cache["hits"] = hits
+
+        part, changed = self.icons.pick((96.0, 96.0))
+        self.assertEqual((part, changed), (None, True))
+        self.assertEqual(self.icons._hover["group"], "A")
+
+        quads, hits = self.arrange("ELEMENT")
+        self.icons._icon_cache["hits"] = hits
+        self.assertNotIn("BADGE", self.cells(quads))
+        # Its icons are pickable and moving onto them keeps it open.
+        self.assertEqual(self.icons.pick((110.0, 100.0)), (1, False))
+        self.assertEqual(self.icons._hover["group"], "A")
+        # Away from it: closes.
+        self.assertEqual(self.icons.pick((250.0, 250.0)), (None, True))
+        self.assertIsNone(self.icons._hover["group"])
+
+    def test_badge_cells(self):
+        from ..icon_manager import badge_cells
+
+        cells = dict(badge_cells(64))
+        self.assertEqual(sorted(cells), ["BADGE"])
+        disc = cells["BADGE"]
+        self.assertEqual(disc[32, 32, 3], 1.0)
+        self.assertEqual(disc[0, 0, 3], 0.0)

@@ -19,9 +19,13 @@ _DARK_TINT = 0.15
 
 # Single texture atlas holding every constraint icon, so all icons render in one
 # batched draw (one sampler bind) instead of one textured draw per constraint.
-_atlas = None            # GPUTexture
-_atlas_uvs = {}          # type -> (u0, v0, u1, v1)
-_ATLAS_CELL = 128        # each icon is resized into a CELL x CELL cell
+_atlas = None  # GPUTexture
+_atlas_uvs = {}  # type -> (u0, v0, u1, v1)
+# Each icon is resized into a CELL x CELL cell. Icons draw at about 18 pixels and
+# the atlas has no mipmaps, so a cell near twice that size keeps thin strokes
+# intact when sampled; a much larger one drops most of each stroke and washes the
+# icon out.
+_ATLAS_CELL = 32
 _operator_types = {
     Operators.AddDistance: "DISTANCE",
     Operators.AddDiameter: "DIAMETER",
@@ -63,11 +67,40 @@ def get_icon(name: str):
 
 
 def _resize_nearest(pixels, w, h, cell):
-    """Nearest-neighbour resize an (h, w, 4) icon to (cell, cell, 4)."""
+    """Resize an (h, w, 4) icon to (cell, cell, 4).
+
+    Shrinking by a whole factor averages each block (weighting color by alpha, so
+    edges don't darken), which keeps a thin stroke's coverage; other sizes fall
+    back to the nearest pixel.
+    """
     img = np.asarray(pixels, dtype=np.float32).reshape(h, w, 4)
+    if w == h and w >= cell and w % cell == 0:
+        f = w // cell
+        blocks = img.reshape(cell, f, cell, f, 4)
+        alpha = blocks[..., 3].mean(axis=(1, 3))
+        weighted = (blocks[..., :3] * blocks[..., 3:]).mean(axis=(1, 3))
+        rgb = np.where(
+            alpha[..., None] > 0, weighted / np.maximum(alpha, 1e-6)[..., None], 0
+        )
+        return np.concatenate((rgb, alpha[..., None]), axis=2).astype(np.float32)
     ys = (np.arange(cell) * h // cell).clip(0, h - 1)
     xs = (np.arange(cell) * w // cell).clip(0, w - 1)
     return img[ys][:, xs]
+
+
+def badge_cells(cell: int = _ATLAS_CELL):
+    """(name, (cell, cell, 4) RGBA) atlas cells for the count badge.
+
+    The disc behind the count on grouped constraint icons (``BADGE``), white on
+    transparent like the icons so the draw tints it. The count itself is drawn as
+    text (see drawing.constraint_icons).
+    """
+    ys, xs = np.mgrid[0:cell, 0:cell]
+    radius = cell / 2.0
+    inside = (xs + 0.5 - radius) ** 2 + (ys + 0.5 - radius) ** 2 <= radius**2
+    disc = np.zeros((cell, cell, 4), dtype=np.float32)
+    disc[inside] = 1.0
+    return [("BADGE", disc)]
 
 
 def _build_atlas():
@@ -88,6 +121,10 @@ def _build_atlas():
 
     if not cells:
         return
+
+    for name, badge_cell in badge_cells(_ATLAS_CELL):
+        cells.append(badge_cell)
+        valid_types.append(name)
 
     # Horizontal strip: (CELL, CELL * n, 4). Rows preserved so the atlas matches
     # the per-icon draw's pixel order.
@@ -142,7 +179,7 @@ def load_preview_icons():
         if not icon_path.exists():
             continue
 
-        preview_icons.load(operator, str(icon_path), 'IMAGE')
+        preview_icons.load(operator, str(icon_path), "IMAGE")
 
     for type in _entity_types.values():
         for construction in (False, True):
@@ -152,7 +189,7 @@ def load_preview_icons():
             if not icon_path.exists():
                 continue
 
-            preview_icons.load(name, str(icon_path), 'IMAGE')
+            preview_icons.load(name, str(icon_path), "IMAGE")
 
 
 def _build_dark_previews():
