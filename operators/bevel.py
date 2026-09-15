@@ -258,7 +258,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         points = self._corner_ids(sketch, topo)
 
         if not points:
-            self.report({"WARNING"}, "No eligible points to bevel")
+            self.report({"WARNING"}, "No valid points to bevel")
             return False
 
         # A radius that doesn't fit would make the corner fail silently; use the
