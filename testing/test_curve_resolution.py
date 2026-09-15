@@ -102,3 +102,29 @@ class TestCurveResolution(Sketch2dTestCase):
             math.radians(20.0),
             places=5,
         )
+
+    def test_upgrade_gives_new_input_its_default(self):
+        # A file from before the input existed: rebuilding must not leave the
+        # modifier at 0, which tessellated every circle until Blender hung.
+        from ..operators.modifiers import get_modifier_input, set_modifier_input
+        from ..utilities import convert_nodes as cn
+
+        mod = self._modifier()
+        group = mod.node_group
+        set_modifier_input(mod, self._input_id("Fill"), False)
+        old = next(
+            item
+            for item in group.interface.items_tree
+            if getattr(item, "name", "") == cn.ANGULAR_RESOLUTION_INPUT
+        )
+        group.interface.remove(old)
+        group["cad_convert_version"] = -1
+
+        cn.build_convert_node_group()
+
+        self.assertFalse(get_modifier_input(mod, self._input_id("Fill")))
+        self.assertAlmostEqual(
+            get_modifier_input(mod, self._input_id(cn.ANGULAR_RESOLUTION_INPUT)),
+            cn.DEFAULT_ANGULAR_RESOLUTION,
+            places=5,
+        )
