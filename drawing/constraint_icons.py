@@ -6,15 +6,14 @@ exhausted the descriptor pool (``VK_ERROR_OUT_OF_POOL_MEMORY``) once a sketch ha
 many constraints. Here every geometric constraint's icon is drawn in a *single*
 batched call from one texture atlas, so there is exactly one sampler bind.
 
-The gizmos keep ``test_select`` (clicking a constraint) and positioning; only the
-icon rendering moved here. Positions are computed with the same formula the
-gizmo uses so the icon stays under its clickable marker.
+Picking an icon (hover highlight, click for the context menu) is answered from
+the same layout by one gizmo for all icons (see ``hit_test``), instead of a gizmo
+per constraint.
 """
 
 import gpu
 import numpy as np
 from gpu_extras.batch import batch_for_shader
-from mathutils import Vector
 
 from .. import icon_manager
 from ..model.sketch_ref import get_active_sketch
@@ -22,13 +21,9 @@ from ..shaders import Shaders
 from ..utilities.preferences import get_prefs
 from . import frame_cache, selection
 
-# Matches gizmos.constraint.GIZMO_OFFSET (kept local to avoid importing the
-# gizmo module into the drawing layer).
-_GIZMO_OFFSET = Vector((1.0, 1.0))
-
 
 def _world_entries(context, sketch):
-    """(world position, stack index, constraint type, color) per constraint icon.
+    """(world position, stack index, constraint type, color, index) per icon.
 
     Everything about an icon except where the view puts it, mirroring the gizmo
     group's placement and stacking.
@@ -38,11 +33,14 @@ def _world_entries(context, sketch):
 
     # Group constraints by the curve their marker sits on (for stacking offset).
     mapping = {}
-    for c in sketch.constraints.all:
-        if isinstance(c, DimensionalConstraint) or not c.visible:
-            continue
-        for cid in c.curve_id_placements():
-            mapping.setdefault(cid, []).append(c)
+    index_of = {}
+    for coll in sketch.constraints.get_lists():
+        for index, c in enumerate(coll):
+            if isinstance(c, DimensionalConstraint) or not c.visible:
+                continue
+            index_of[c.as_pointer()] = index
+            for cid in c.curve_id_placements():
+                mapping.setdefault(cid, []).append(c)
 
     entries = []
     for cid, constrs in mapping.items():
@@ -62,7 +60,9 @@ def _world_entries(context, sketch):
             color = frame_cache.constraint_color(
                 get_constraint_color_type(c), is_highlight
             )
-            entries.append((tuple(world[:3]), i, c.type, tuple(color)))
+            entries.append(
+                (tuple(world[:3]), i, c.type, tuple(color), index_of[c.as_pointer()])
+            )
     return entries
 
 
@@ -100,7 +100,14 @@ def _screen_centers(context, positions, stack):
 
 # The last icon batch and the key it was built for. Every icon's position and
 # color is a function of the key, so an unchanged key reuses the batch.
-_icon_cache = {"key": None, "batch": None, "layout_key": None, "entries": None}
+_icon_cache = {
+    "key": None,
+    "batch": None,
+    "layout_key": None,
+    "entries": None,
+    # Screen centers of the drawn icons and the entries they belong to.
+    "hits": None,
+}
 
 
 def _layout_key(context, sketch):
@@ -188,7 +195,31 @@ def _icon_key(context, sketch, atlas, uvs):
 
 def invalidate():
     """Drop the cached icon batch (e.g. on file load)."""
-    _icon_cache.update(key=None, batch=None, layout_key=None, entries=None)
+    _icon_cache.update(key=None, batch=None, layout_key=None, entries=None, hits=None)
+
+
+def targets():
+    """(constraint type, index) of each laid out icon, in hit-test order."""
+    entries = _icon_cache["entries"] or ()
+    return tuple((e[2], e[4]) for e in entries)
+
+
+def hit_test(location):
+    """Index into ``targets()`` of the icon under a region location, or None.
+
+    Uses the icons as last drawn, so the hit area is always where the icon is.
+    """
+    hits = _icon_cache["hits"]
+    if not hits:
+        return None
+    centers, entry_indices, radius = hits
+    if not len(centers):
+        return None
+    d2 = ((centers - np.asarray(location[:2], dtype=np.float64)) ** 2).sum(axis=1)
+    nearest = int(np.argmin(d2))
+    if d2[nearest] >= radius * radius:
+        return None
+    return int(entry_indices[nearest])
 
 
 def draw():
@@ -216,7 +247,8 @@ def draw():
         if _icon_cache["layout_key"] != key[0]:
             _icon_cache["entries"] = _world_entries(context, sketch)
             _icon_cache["layout_key"] = key[0]
-        batch = _build_batch(context, _icon_cache["entries"], shader, uvs)
+        batch, hits = _build_batch(context, _icon_cache["entries"], shader, uvs)
+        _icon_cache["hits"] = hits
         _icon_cache["key"] = key
         _icon_cache["batch"] = batch
 
@@ -230,15 +262,16 @@ def draw():
 
 
 def _build_batch(context, entries, shader, uvs):
-    entries = [e for e in entries if e[2] in uvs]
-    if not entries:
-        return None
-    positions = np.array([e[0] for e in entries], dtype=np.float64)
-    stack = np.array([e[1] for e in entries], dtype=np.float64)
+    """The icon batch, and (centers, entry indices, radius) of the drawn icons."""
+    drawn = [i for i, e in enumerate(entries) if e[2] in uvs]
+    if not drawn:
+        return None, None
+    positions = np.array([entries[i][0] for i in drawn], dtype=np.float64)
+    stack = np.array([entries[i][1] for i in drawn], dtype=np.float64)
     centers, visible, size = _screen_centers(context, positions, stack)
     keep = np.flatnonzero(visible)
     if not keep.size:
-        return None
+        return None, None
 
     h = size / 2.0
     corners = np.array(
@@ -247,12 +280,16 @@ def _build_batch(context, entries, shader, uvs):
     verts = (centers[keep, None, :] + corners[None, :, :]).reshape(-1, 2)
     texco = []
     colors = []
-    for i in keep.tolist():
-        u0, v0, u1, v1 = uvs[entries[i][2]]
+    for k in keep.tolist():
+        entry = entries[drawn[k]]
+        u0, v0, u1, v1 = uvs[entry[2]]
         texco += [(u0, v0), (u1, v0), (u1, v1), (u0, v0), (u1, v1), (u0, v1)]
-        colors += [entries[i][3]] * 6
-    return batch_for_shader(
+        colors += [entry[3]] * 6
+    batch = batch_for_shader(
         shader,
         "TRIS",
         {"pos": verts.astype(np.float32), "texCoord": texco, "color": colors},
     )
+    # The gizmo's hit circle had the icon size as its radius.
+    hits = (centers[keep], np.array(drawn)[keep], size)
+    return batch, hits
