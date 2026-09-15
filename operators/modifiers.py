@@ -838,9 +838,8 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         return True
 
     def draw_settings(self, context):
+        # Offset and Count are drawn by the framework's per-state rows.
         layout = self.layout
-
-        layout.prop(self, "offset")
         layout.prop(self, "flip")
         layout.prop(self, "use_total_distance")
         layout.prop(self, "align_rotation")
@@ -848,11 +847,13 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         sub = layout.column()
         sub.enabled = self.merge
         sub.prop(self, "merge_distance")
+
         layout.separator()
-        layout.prop(self, "count_2")
+        layout.label(text="Second Direction")
+        layout.prop(self, "count_2", text="Count")
         sub = layout.column()
         sub.enabled = self.count_2 > 1
-        sub.prop(self, "offset_2")
+        sub.prop(self, "offset_2", text="")
 
 
 class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
