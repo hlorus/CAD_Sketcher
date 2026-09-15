@@ -19,9 +19,9 @@ _DARK_TINT = 0.15
 
 # Single texture atlas holding every constraint icon, so all icons render in one
 # batched draw (one sampler bind) instead of one textured draw per constraint.
-_atlas = None            # GPUTexture
-_atlas_uvs = {}          # type -> (u0, v0, u1, v1)
-_ATLAS_CELL = 128        # each icon is resized into a CELL x CELL cell
+_atlas = None  # GPUTexture
+_atlas_uvs = {}  # type -> (u0, v0, u1, v1)
+_ATLAS_CELL = 128  # each icon is resized into a CELL x CELL cell
 _operator_types = {
     Operators.AddDistance: "DISTANCE",
     Operators.AddDiameter: "DIAMETER",
@@ -70,6 +70,50 @@ def _resize_nearest(pixels, w, h, cell):
     return img[ys][:, xs]
 
 
+# 3x5 pixel digits (top row first) for the count badge on grouped constraint icons.
+_DIGITS = (
+    ("111", "101", "101", "101", "111"),
+    ("010", "110", "010", "010", "111"),
+    ("111", "001", "111", "100", "111"),
+    ("111", "001", "111", "001", "111"),
+    ("101", "101", "111", "001", "001"),
+    ("111", "100", "111", "001", "111"),
+    ("111", "100", "111", "101", "111"),
+    ("111", "001", "001", "010", "010"),
+    ("111", "101", "111", "101", "111"),
+    ("111", "101", "111", "001", "111"),
+)
+
+
+def badge_cells(cell: int = _ATLAS_CELL):
+    """(name, (cell, cell, 4) RGBA) atlas cells for the count badge.
+
+    A disc (``BADGE``) and the digits ``DIGIT_0`` to ``DIGIT_9``, white on
+    transparent like the icons so the draw tints them. Rows are bottom-up, as
+    Blender stores image pixels.
+    """
+    ys, xs = np.mgrid[0:cell, 0:cell]
+    radius = cell / 2.0
+    inside = (xs + 0.5 - radius) ** 2 + (ys + 0.5 - radius) ** 2 <= radius**2
+    disc = np.zeros((cell, cell, 4), dtype=np.float32)
+    disc[inside] = 1.0
+    cells = [("BADGE", disc)]
+
+    # Each glyph sits centered in a 5x5 grid, so a square quad keeps its shape.
+    for digit, rows in enumerate(_DIGITS):
+        grid = np.zeros((5, 5), dtype=np.float32)
+        for r, row in enumerate(rows):
+            for c, bit in enumerate(row):
+                grid[r, c + 1] = float(bit == "1")
+        grid = np.flipud(grid)
+        scale = cell // 5
+        mask = np.kron(grid, np.ones((scale, scale), dtype=np.float32))
+        glyph = np.zeros((cell, cell, 4), dtype=np.float32)
+        glyph[: mask.shape[0], : mask.shape[1]] = mask[:, :, None]
+        cells.append((f"DIGIT_{digit}", glyph))
+    return cells
+
+
 def _build_atlas():
     """Composite every icon into one horizontal-strip texture + record UVs."""
     global _atlas, _atlas_uvs
@@ -88,6 +132,10 @@ def _build_atlas():
 
     if not cells:
         return
+
+    for name, badge_cell in badge_cells(_ATLAS_CELL):
+        cells.append(badge_cell)
+        valid_types.append(name)
 
     # Horizontal strip: (CELL, CELL * n, 4). Rows preserved so the atlas matches
     # the per-icon draw's pixel order.
@@ -142,7 +190,7 @@ def load_preview_icons():
         if not icon_path.exists():
             continue
 
-        preview_icons.load(operator, str(icon_path), 'IMAGE')
+        preview_icons.load(operator, str(icon_path), "IMAGE")
 
     for type in _entity_types.values():
         for construction in (False, True):
@@ -152,7 +200,7 @@ def load_preview_icons():
             if not icon_path.exists():
                 continue
 
-            preview_icons.load(name, str(icon_path), 'IMAGE')
+            preview_icons.load(name, str(icon_path), "IMAGE")
 
 
 def _build_dark_previews():
