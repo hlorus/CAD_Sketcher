@@ -326,7 +326,7 @@ def draw():
         _icon_cache["prepared"] = _prepare(_icon_cache["entries"], uvs)
         _icon_cache["prepared_uvs"] = uvs
 
-    mode = get_prefs().constraint_icon_grouping
+    mode = "NEARBY" if get_prefs().group_constraint_icons else "OFF"
     expanded = _expanded_elements()
     key = (
         layout_key,
