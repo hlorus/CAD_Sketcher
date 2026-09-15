@@ -27,13 +27,16 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 22
+CONVERT_VERSION = 23
 
 # Input exposing how finely arcs and circles are tessellated.
 ANGULAR_RESOLUTION_INPUT = "Angular Resolution"
 # Matches the Bezier default of 12 edges per 90 degree segment, the output before
 # the input existed.
 DEFAULT_ANGULAR_RESOLUTION = math.radians(7.5)
+# Finest allowed angle; also the node-side guard, since a modifier value can bypass
+# the socket's soft limits (and a 0 here tessellated circles until Blender hung).
+MIN_ANGULAR_RESOLUTION = math.radians(0.1)
 
 _CHILD_ID_MULTIPLIER = 1_000_003
 _VERTEX_ROLE = 0x13579
@@ -368,10 +371,10 @@ def _set_curve_resolution(nodes, links, curve, angle):
     links.new(is_arc.outputs["Result"], curved.inputs[0])
     links.new(is_circle.outputs["Result"], curved.inputs[1])
 
-    # Guard the divide against a zero angle.
+    # Guard the divide against a zero (or absurdly small) angle.
     clamped = nodes.new("ShaderNodeMath")
     clamped.operation = "MAXIMUM"
-    clamped.inputs[1].default_value = 1e-4
+    clamped.inputs[1].default_value = MIN_ANGULAR_RESOLUTION
     links.new(angle, clamped.inputs[0])
     steps = nodes.new("ShaderNodeMath")
     steps.operation = "DIVIDE"
@@ -430,16 +433,23 @@ def _snapshot_modifier_inputs(node_group):
 
 
 def _restore_modifier_inputs(node_group, saved) -> None:
-    """Re-apply values from :func:`_snapshot_modifier_inputs` by socket name."""
+    """Re-apply values from :func:`_snapshot_modifier_inputs` by socket name.
+
+    A socket the old group didn't have gets its default. Left alone, the
+    modifier's value for it reads as 0: an upgraded file then meshed every circle
+    at a 0 angular resolution and hung Blender.
+    """
     from ..operators.modifiers import set_modifier_input
 
-    identifiers = {item.name: item.identifier for item in _input_sockets(node_group)}
+    sockets = _input_sockets(node_group)
     for mod, values in saved:
-        for name, value in values.items():
-            if name not in identifiers:
-                continue
+        for item in sockets:
+            value = values.get(item.name, item.default_value)
+            # Files saved after that broken upgrade carry the 0; repair them too.
+            if item.name == ANGULAR_RESOLUTION_INPUT and value < MIN_ANGULAR_RESOLUTION:
+                value = item.default_value
             try:
-                set_modifier_input(mod, identifiers[name], value)
+                set_modifier_input(mod, item.identifier, value)
             except Exception:
                 pass
 
@@ -481,7 +491,7 @@ def build_convert_node_group(
     )
     resolution.subtype = "ANGLE"
     resolution.default_value = DEFAULT_ANGULAR_RESOLUTION
-    resolution.min_value = math.radians(0.1)
+    resolution.min_value = MIN_ANGULAR_RESOLUTION
     resolution.max_value = math.radians(90)
     resolution.description = "Maximum angle per edge when arcs and circles are meshed"
 
