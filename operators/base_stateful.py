@@ -10,6 +10,7 @@ from ..drawing import selection
 from ..model.types import SlvsGenericEntity, SlvsNormal3D, SlvsPoint2D, SlvsPoint3D
 from ..serialize import scene_from_dict, scene_to_dict
 from ..stateful_operator.integration import StatefulOperator
+from .placement import MIDPOINT, placement_of
 from .utilities import get_hovered
 
 
@@ -60,7 +61,7 @@ class GenericEntityOp(StatefulOperator):
             event.type in ("LEFTMOUSE", "RET", "NUMPAD_ENTER")
             and event.value == "PRESS"
         ):
-            self.state_data["skip_auto_constraints"] = bool(event.shift)
+            placement_of(self.state_data).skip_auto_constraints = bool(event.shift)
         return super().check_event(event)
 
     def use_auto_constraints(self, context: Context, state_data=None) -> bool:
@@ -71,8 +72,9 @@ class GenericEntityOp(StatefulOperator):
         """
         if state_data is None:
             state_data = self.state_data
-        return context.scene.sketcher.auto_axis_constraints and not state_data.get(
-            "skip_auto_constraints", False
+        return (
+            context.scene.sketcher.auto_axis_constraints
+            and not placement_of(state_data).skip_auto_constraints
         )
 
     def add_auto_constraint(self, context: Context, add, state_data=None, **kwargs):
@@ -125,20 +127,21 @@ class GenericEntityOp(StatefulOperator):
             if hover and self._check_constrain(context, hover):
                 hovered_cid = hover
 
-        data["hovered"] = hovered_cid
+        placement_of(data).hovered = hovered_cid
         data["type"] = type(hovered) if hovered else None
         return hovered.curve_id if hovered else None
 
     def add_coincident(self, context: Context, point, state, state_data):
         # A live-projected snap creates its link independently of the "Auto
         # Constraints" toggle: it is the projection itself, not an inferred
-        # constraint. ``snap_projected`` is set by _maybe_link_projected_snap only
-        # when it actually projected. Every other target (a coincidence onto an
-        # existing sketch entity) still respects the toggle.
-        is_projection = bool(state_data.get("snap_projected"))
+        # constraint. ``projected`` is set by _link_placement only when it
+        # actually projected. Every other target (a coincidence onto an existing
+        # sketch entity) still respects the toggle.
+        placement = placement_of(state_data)
+        is_projection = placement.projected
         if not is_projection and not self.use_auto_constraints(context, state_data):
             return
-        hovered_cid = state_data.get("hovered", "")
+        hovered_cid = placement.hovered
         if hovered_cid and hasattr(self, "sketch") and self.sketch:
             from ..model.curve_ref import CurveRef
 
@@ -152,7 +155,7 @@ class GenericEntityOp(StatefulOperator):
             # to its midpoint; everything else is a plain coincidence (point-point
             # or point-on-line). Both constraints take (point, target) in order.
             constraints = self.sketch.constraints
-            if state_data.get("snap_link_kind") == "MIDPOINT":
+            if placement.link_kind == MIDPOINT:
                 add = constraints.add_midpoint
             else:
                 add = constraints.add_coincident
@@ -160,14 +163,14 @@ class GenericEntityOp(StatefulOperator):
             if is_projection:
                 # The projection link IS the snap, so add it unconditionally; it
                 # must not be rolled back by the solve check below.
-                state_data["coincident"] = add(
+                placement.coincident = add(
                     curve_id_1=point_cid,
                     curve_id_2=hovered_cid,
                 )
             else:
                 # An inferred coincidence: keep it only if the sketch still solves,
                 # otherwise it is rolled back (see add_auto_constraint).
-                state_data["coincident"] = self.add_auto_constraint(
+                placement.coincident = self.add_auto_constraint(
                     context,
                     add,
                     state_data,
@@ -176,10 +179,7 @@ class GenericEntityOp(StatefulOperator):
                 )
 
     def has_coincident(self):
-        for state_index, data in self._state_data.items():
-            if data.get("coincident", None):
-                return True
-        return False
+        return any(placement_of(data).coincident for data in self._state_data.values())
 
     @classmethod
     def register_properties(cls):

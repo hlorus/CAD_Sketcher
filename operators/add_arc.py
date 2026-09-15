@@ -14,6 +14,7 @@ from ..utilities.math import pol2cart
 from ..utilities.view import get_blender_snap_info, get_pos_2d, get_wp_matrix
 from .base_2d import Operator2d
 from .constants import types_point_2d
+from .placement import placement_of
 from .utilities import ignore_hover
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
         snap_data = get_blender_snap_info(context, coords)
         self._snap = snap_data
         # Anchor the endpoint if it landed on external geometry (see base_2d).
-        self.state_data["snapped"] = snap_data is not None
+        placement_of(self.state_data).snapped = snap_data is not None
         mouse_pos = get_pos_2d(context, wp, coords, respect_snapping=True)
         if mouse_pos is None:
             return None

@@ -11,6 +11,7 @@ from ..model.native_3d import create_line_3d
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_sketch_3d import OperatorSketch3d
+from .placement import placement_of
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ class View3D_OT_slvs_add_line3d(Operator, OperatorSketch3d):
         last_state = self._state_data[1]
         if last_state["is_existing_entity"]:
             return False
-        if last_state.get("coincident"):
+        if placement_of(last_state).coincident:
             return False
         return True
 

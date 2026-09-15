@@ -10,6 +10,7 @@ from ..model.curve_ref import PointRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from .base_2d import Operator2d
+from .placement import placement_of
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
 
         sketch = self.sketch
         construction = context.scene.sketcher.use_construction
-        state_data = self.state_data
+        placement = placement_of(self.state_data)
 
         # Entity picking wins over geometry snapping. Add Point is a coordinate
         # state with no pick_element, so re-derive the hovered sketch entity each
@@ -55,26 +56,27 @@ class View3D_OT_slvs_add_point2d(Operator, Operator2d):
         picked = selection.hover
         ref = curve_ref(sketch, picked) if picked else None
         if ref is not None and ref.valid:
-            state_data["hovered"] = picked
-            state_data["snap_link_kind"] = "COINCIDENT"
             # A projected reference forces its link (bypasses Auto Constraints); a
             # plain pick respects the toggle. Anchored only if the target is fixed.
-            state_data["snap_projected"] = self._is_projected_reference(picked)
-            state_data["snap_anchored"] = bool(getattr(ref, "fixed", False))
+            placement.link_existing(
+                picked,
+                fixed=bool(getattr(ref, "fixed", False)),
+                projected=self._is_projected_reference(picked),
+            )
         else:
-            state_data["hovered"] = ""
-            self._maybe_link_projected_snap(context, state_data)
+            placement.hovered = ""
+            self._link_placement(context, placement)
 
         # A point snapped to external geometry is fixed to hold it there; one
         # pinned by a coincident constraint (sketch entity or projected ref) is
         # not, so the constraint drives it.
-        fixed = state_data.get("snapped", False) and not state_data.get("hovered")
+        fixed = placement.snapped and not placement.hovered
 
         self.target = PointRef.create(
             sketch, self.coordinates, construction=construction, fixed=fixed
         )
 
-        self.add_coincident(context, self.target, self.state, state_data)
+        self.add_coincident(context, self.target, self.state, self.state_data)
         return True
 
     def fini(self, context: Context, succeede: bool):

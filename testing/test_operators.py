@@ -10,6 +10,7 @@ and the auto-constraints ``main``/``fini`` add.
 """
 
 from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef
+from ..operators.placement import placement_of
 from .utils import OpHarness, Sketch2dTestCase
 
 
@@ -94,7 +95,7 @@ class TestCreateOperators(Sketch2dTestCase):
         h = self._harness(View3D_OT_slvs_add_line2d)
         h.place_point((0.0, 0.0)).place_point((5.0, 0.0))  # horizontal
         # Mimic Shift held during the segment (what check_event records).
-        h.op.get_state_data(h.op.state_index)["skip_auto_constraints"] = True
+        placement_of(h.op.get_state_data(h.op.state_index)).skip_auto_constraints = True
         h.finish()
 
         self.assertFalse(
@@ -124,11 +125,12 @@ class TestCreateOperators(Sketch2dTestCase):
         op = self._harness(View3D_OT_slvs_add_line2d).op
         op.check_event(_Event(shift=True))
         self.assertTrue(
-            op.state_data.get("skip_auto_constraints"), "Shift confirm sets bypass"
+            placement_of(op.state_data).skip_auto_constraints,
+            "Shift confirm sets bypass",
         )
         op.check_event(_Event(shift=False))
         self.assertFalse(
-            op.state_data.get("skip_auto_constraints"),
+            placement_of(op.state_data).skip_auto_constraints,
             "confirm without Shift must clear the bypass (not sticky)",
         )
 
@@ -231,8 +233,8 @@ class TestCreateOperators(Sketch2dTestCase):
         h.set_value(Vector((1.0, 1.0)))
         # Emulate what state_func stashes when the cursor is on a mesh vertex.
         data = h.op.get_state_data(0)
-        data["snapped"] = True
-        data["snap"] = {
+        placement_of(data).snapped = True
+        placement_of(data).snap = {
             "type": "VERTEX",
             "object": "SnapSrc",
             "vertex_index": 0,
@@ -268,8 +270,8 @@ class TestCreateOperators(Sketch2dTestCase):
         h = self._harness(View3D_OT_slvs_add_point2d)
         h.set_value(Vector((3.0, 4.0)))
         data = h.op.get_state_data(0)
-        data["snapped"] = True
-        data["snap"] = {
+        placement_of(data).snapped = True
+        placement_of(data).snap = {
             "type": "VERTEX",
             "object": "Compete",
             "vertex_index": 0,
@@ -369,8 +371,8 @@ class TestCreateOperators(Sketch2dTestCase):
         h = self._harness(View3D_OT_slvs_add_point2d)
         h.set_value(Vector((1.0, 1.0)))
         data = h.op.get_state_data(0)
-        data["snapped"] = True
-        data["snap"] = snap_dict()
+        placement_of(data).snapped = True
+        placement_of(data).snap = snap_dict()
         h.finish()
 
         self.assertEqual(
@@ -403,9 +405,9 @@ class TestCreateOperators(Sketch2dTestCase):
         h = self._harness(View3D_OT_slvs_add_point2d)
         h.set_value(Vector((1.0, 1.0)))
         data = h.op.get_state_data(0)
-        data["snapped"] = True
-        data["skip_auto_constraints"] = True  # Shift held
-        data["snap"] = {
+        placement_of(data).snapped = True
+        placement_of(data).skip_auto_constraints = True  # Shift held
+        placement_of(data).snap = {
             "type": "VERTEX",
             "object": "ShiftSrc",
             "vertex_index": 0,
@@ -443,8 +445,8 @@ class TestCreateOperators(Sketch2dTestCase):
         h = self._harness(View3D_OT_slvs_add_point2d)
         h.set_value(Vector((1.0, 0.0)))
         data = h.op.get_state_data(0)
-        data["snapped"] = True
-        data["snap"] = {
+        placement_of(data).snapped = True
+        placement_of(data).snap = {
             "type": "EDGE_MIDPOINT",
             "object": "EdgeSrc",
             "edge_vertices": (0, 1),
@@ -484,8 +486,8 @@ class TestCreateOperators(Sketch2dTestCase):
         h = self._harness(View3D_OT_slvs_add_point2d)
         h.set_value(Vector((0.7, 0.0)))  # arbitrary point along the edge
         data = h.op.get_state_data(0)
-        data["snapped"] = True
-        data["snap"] = {
+        placement_of(data).snapped = True
+        placement_of(data).snap = {
             "type": "EDGE",
             "object": "EdgeSrc2",
             "edge_vertices": (0, 1),
@@ -536,8 +538,8 @@ class TestCreateOperators(Sketch2dTestCase):
                 setattr(op, p, Vector(co))
             d = op.get_state_data(index)
             d["is_existing_entity"] = False
-            d["snapped"] = True
-            d["snap"] = snap
+            placement_of(d).snapped = True
+            placement_of(d).snap = snap
 
         op = self._harness(View3D_OT_slvs_add_line2d).op
         snap0 = op.create_snapshot(self.context)  # invoke-time baseline (empty)
@@ -592,8 +594,8 @@ class TestCreateOperators(Sketch2dTestCase):
         h.place_point((0.0, 0.0)).place_point((5.0, 0.2))
         for i, (vi, co) in enumerate(((0, (0.0, 0.0, 0.0)), (1, (5.0, 0.2, 0.0)))):
             d = h.op.get_state_data(i)
-            d["snapped"] = True
-            d["snap"] = {
+            placement_of(d).snapped = True
+            placement_of(d).snap = {
                 "type": "VERTEX",
                 "object": "AlignSrc",
                 "vertex_index": vi,
@@ -631,8 +633,8 @@ class TestCreateOperators(Sketch2dTestCase):
         h = self._harness(View3D_OT_slvs_add_line2d)
         h.place_point((0.0, 0.05)).place_point((5.0, 0.0))  # near-horizontal
         d = h.op.get_state_data(1)
-        d["snapped"] = True
-        d["snap"] = {
+        placement_of(d).snapped = True
+        placement_of(d).snap = {
             "type": "VERTEX",
             "object": "AlignSrc2",
             "vertex_index": 0,

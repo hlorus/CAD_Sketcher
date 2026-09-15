@@ -12,6 +12,7 @@ from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.constants import HALF_TURN, QUARTER_TURN
 from .base_2d import Operator2d
 from .constants import types_point_2d
+from .placement import placement_of
 from .utilities import ignore_hover
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,7 @@ class View3D_OT_slvs_add_line2d(Operator, Operator2d):
             return False
 
         # also not when last state has coincident constraint
-        if last_state.get("coincident"):
+        if placement_of(last_state).coincident:
             return False
         return True
 
