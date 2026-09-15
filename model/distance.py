@@ -533,7 +533,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
         return sub
 
-    def value_placement(self, context):
+    def value_placement(self, context, basis=None):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
@@ -541,7 +541,9 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
         offset = ui_scale * self.draw_offset
         outset = ui_scale * self.draw_outset
-        coords = self.matrix_basis() @ Vector((outset, offset, 0))
+        if basis is None:
+            basis = self.matrix_basis()
+        coords = basis @ Vector((outset, offset, 0))
         return location_3d_to_region_2d(region, rv3d, coords)
 
 

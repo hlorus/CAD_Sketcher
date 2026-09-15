@@ -128,9 +128,7 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
             *line_abc_form(r1.p1.co, r1.p2.co),
             *line_abc_form(r2.p1.co, r2.p2.co),
         )
-        rotation = range_2pi(
-            (self.orientation(r2) + self.orientation(r1)) / 2
-        )
+        rotation = range_2pi((self.orientation(r2) + self.orientation(r1)) / 2)
         wp_mat = r1.wp_matrix
 
         if self.setting:
@@ -186,7 +184,7 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         self.draw_offset = math.copysign(pos.length / ui_scale, pos.x)
         self.draw_outset = math.atan(pos.y / pos.x)
 
-    def value_placement(self, context):
+    def value_placement(self, context, basis=None):
         """location to display the constraint value"""
         region = context.region
         rv3d = context.space_data.region_3d
@@ -195,7 +193,9 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         offset = ui_scale * self.draw_offset
         outset = self.draw_outset
         co = pol2cart(offset, outset)
-        coords = self.matrix_basis() @ Vector((co[0], co[1], 0))
+        if basis is None:
+            basis = self.matrix_basis()
+        coords = basis @ Vector((co[0], co[1], 0))
         return location_3d_to_region_2d(region, rv3d, coords)
 
 
