@@ -298,14 +298,20 @@ def _set_hover(group):
 
 
 def _expanded_elements():
-    """Elements whose groups open because their geometry is hovered or selected."""
+    """Elements whose groups open because their geometry is hovered or selected.
+
+    Hovering a curve opens every group holding a constraint on it, wherever the
+    icon sits. A selection is kept around (e.g. the lines a bevel acted on), so it
+    only opens the groups sitting on the selected elements themselves; otherwise
+    every arc a bevel tangents to the selected lines would stay open.
+    """
     touching = _icon_cache["touching"] or {}
-    curves = [selection.hover] if selection.hover else []
+    elements = set(touching.get(selection.hover, ())) if selection.hover else set()
     if len(selection.selected) <= _MAX_SELECTED_EXPAND:
-        curves += selection.selected
-    elements = set()
-    for cid in curves:
-        elements.update(touching.get(cid, ()))
+        # An element with icons on it is among the elements its curve touches.
+        elements.update(
+            cid for cid in selection.selected if cid in touching.get(cid, ())
+        )
     return frozenset(elements)
 
 

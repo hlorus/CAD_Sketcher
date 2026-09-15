@@ -672,7 +672,11 @@ class TestConstraintIconGroups(TestCase):
         self.icons._icon_cache["touching"] = {"D": {"A"}, "A": {"A", "C"}}
         saved = (selection.hover, list(selection.selected))
         try:
-            selection.hover, selection.selected[:] = "D", []
+            # Hovering opens every group with a constraint on the hovered curve.
+            selection.hover, selection.selected[:] = "A", []
+            self.assertEqual(self.icons._expanded_elements(), frozenset({"A", "C"}))
+            # A selection only opens the groups sitting on the selected elements.
+            selection.hover, selection.selected[:] = "", ["A", "D"]
             self.assertEqual(self.icons._expanded_elements(), frozenset({"A"}))
         finally:
             selection.hover, selection.selected[:] = saved[0], saved[1]
