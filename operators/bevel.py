@@ -30,12 +30,35 @@ def _get_offset_elements(topo, ref, offset):
     return None
 
 
+# Joints closer than this to a straight continuation have no corner to round off.
+_SMOOTH_JOINT_TOLERANCE = math.radians(1.0)
+
+
+def _corner_segments(topo, point_cid):
+    """The two segments meeting at a bevelable corner, or None.
+
+    A corner needs exactly two non-construction segments that actually turn:
+    at a tangent joint (e.g. a line running into an arc) or between collinear
+    lines the directions leaving the point are opposite, so there is nothing
+    to bevel.
+    """
+    segs = [
+        ref for ref, _ in topo.get_connected_segments(point_cid) if not ref.construction
+    ]
+    if len(segs) != 2:
+        return None
+    angle = topo.connection_angle(segs[0], segs[1], point_cid)
+    if angle is None or math.pi - abs(angle) < _SMOOTH_JOINT_TOLERANCE:
+        return None
+    return segs
+
+
 def _get_bevel_points(sketch, topo):
     """Collect all eligible bevel points from selection.
 
     Includes:
-    - Directly selected points with exactly 2 connected non-construction segments
-    - Endpoints of selected segments with exactly 2 connected non-construction segments
+    - Directly selected points that are a corner (see _corner_segments)
+    - Endpoints of selected segments that are a corner
     """
     candidates = set()
 
@@ -53,12 +76,10 @@ def _get_bevel_points(sketch, topo):
                 if pt_cid:
                     candidates.add(pt_cid)
 
-    # Filter: must have exactly 2 connected non-construction segments
+    # Filter: only real corners
     eligible = []
     for pt_cid in candidates:
-        connected = topo.get_connected_segments(pt_cid)
-        segs = [ref for ref, _ in connected if not ref.construction]
-        if len(segs) == 2:
+        if _corner_segments(topo, pt_cid):
             eligible.append(pt_cid)
 
     return eligible
@@ -70,12 +91,11 @@ def _bevel_point(sketch, topo, point_cid, radius):
     if not point.valid:
         return None
 
-    connected = topo.get_connected_segments(point_cid)
-    segs = [(ref, end) for ref, end in connected if not ref.construction]
-    if len(segs) != 2:
+    segs = _corner_segments(topo, point_cid)
+    if not segs:
         return None
 
-    l1, l2 = segs[0][0], segs[1][0]
+    l1, l2 = segs
 
     # Find center of bevel arc
     intersections = sorted(
@@ -143,12 +163,8 @@ def _max_radius(sketch, topo, point_ids):
     best = None
     for pt_cid in point_ids:
         point = PointRef(sketch, pt_cid)
-        segs = [
-            ref
-            for ref, _ in topo.get_connected_segments(pt_cid)
-            if not ref.construction
-        ]
-        if len(segs) != 2 or not all(isinstance(ref, LineRef) for ref in segs):
+        segs = _corner_segments(topo, pt_cid)
+        if not segs or not all(isinstance(ref, LineRef) for ref in segs):
             continue
         dirs, avail = [], []
         for line in segs:
@@ -275,18 +291,14 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             if isinstance(picked, PointRef):
                 # Picked a point directly
                 if picked.curve_id not in points:
-                    connected = topo.get_connected_segments(picked.curve_id)
-                    segs = [ref for ref, _ in connected if not ref.construction]
-                    if len(segs) == 2:
+                    if _corner_segments(topo, picked.curve_id):
                         points.append(picked.curve_id)
             else:
                 # Picked a segment — add its endpoints
                 for attr in ("start_point_id", "end_point_id"):
                     pt_cid = picked._get_attr_value(attr, 0)
                     if pt_cid and pt_cid not in points:
-                        connected = topo.get_connected_segments(pt_cid)
-                        segs = [ref for ref, _ in connected if not ref.construction]
-                        if len(segs) == 2:
+                        if _corner_segments(topo, pt_cid):
                             points.append(pt_cid)
         return points
 

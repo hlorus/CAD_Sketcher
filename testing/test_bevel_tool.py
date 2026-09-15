@@ -63,8 +63,16 @@ class TestBevelTool(Sketch2dTestCase):
         arc = h.op._results[0]["arc"]
         # Previewed as construction until the lines are trimmed.
         self.assertTrue(arc.construction)
+        tangent_points = h.op._results[0]["bevel_points"]
         h.op.fini(self.context, True)
         self.assertFalse(arc.construction)
+
+        # The new tangent points are smooth joints: beveling them makes no sense.
+        from ..operators.bevel import _corner_segments
+
+        topo = self.sketch.topology
+        for point in tangent_points:
+            self.assertIsNone(_corner_segments(topo, point.curve_id))
 
         # Arc center and two tangent points added; the corner stays as a
         # construction virtual sharp. Nothing else.
@@ -187,3 +195,30 @@ class TestBevelTool(Sketch2dTestCase):
         self.assertLessEqual(op.radius, 1.5)
         self.assertGreater(op.radius, 1.49)
         self.assertEqual(len(op._results), 2)
+
+    def test_smooth_joints_are_not_corners(self):
+        from ..operators.bevel import _corner_segments
+
+        # Line running tangentially into a quarter arc (center (4, 1)).
+        start = self.add_point((0.0, 0.0))
+        joint = self.add_point((4.0, 0.0))
+        self.add_line(start, joint)
+        self.add_arc(self.add_point((4.0, 1.0)), joint, self.add_point((5.0, 1.0)))
+        # Two collinear lines.
+        a = self.add_point((0.0, 5.0))
+        b = self.add_point((2.0, 5.0))
+        self.add_line(a, b)
+        self.add_line(b, self.add_point((4.0, 5.0)))
+        # A real corner for comparison.
+        corner = self._corner()
+
+        topo = self.sketch.topology
+        self.assertIsNone(_corner_segments(topo, joint.curve_id))
+        self.assertIsNone(_corner_segments(topo, b.curve_id))
+        self.assertIsNotNone(_corner_segments(topo, corner.curve_id))
+
+        selection.selected.extend([joint.curve_id, b.curve_id])
+        from ..operators.bevel import View3D_OT_slvs_bevel
+
+        h = OpHarness(View3D_OT_slvs_bevel, self.sketch, self.context)
+        self.assertFalse(h.op._has_selected_corners())
