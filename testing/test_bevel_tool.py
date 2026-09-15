@@ -74,9 +74,25 @@ class TestBevelTool(Sketch2dTestCase):
         for point in tangent_points:
             self.assertIsNone(_corner_segments(topo, point.curve_id))
 
-        # Arc center and two tangent points added; the corner stays as a
-        # construction virtual sharp. Nothing else.
+        # Arc center and two tangent points added; the unconstrained corner is
+        # removed. Nothing else.
+        self.assertEqual(self._point_count(), before + 2)
+        self.assertFalse(corner.valid)
+        self.assertNotIn(corner.curve_id, selection.selected)
+
+    def test_constrained_corner_is_kept(self):
+        # A corner a constraint refers to stays as a construction virtual sharp.
+        corner = self._corner()
+        anchor = self.add_point((8.0, 0.0))
+        self.sketch.constraints.add_distance(
+            init=True, curve_id_1=anchor.curve_id, curve_id_2=corner.curve_id
+        )
+        before = self._point_count()
+
+        self._bevel(self.sketch, [corner.curve_id], 1.0)
+
         self.assertEqual(self._point_count(), before + 3)
+        self.assertTrue(corner.valid)
         self.assertTrue(corner.construction)
 
     def test_rectangle_edge_lines_end_at_the_arcs(self):

@@ -71,33 +71,40 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
         # Build mapping: placement_key -> [constraints]
         # Uses curve_ids when available, falls back to entity objects
         mapping = {}
-        for c in active_sketch.constraints.all:
-            if isinstance(c, DimensionalConstraint):
-                continue
+        dimensional = []
+        # Indices come from enumerating each collection: looking each one up
+        # with get_index scans its collection, which made this quadratic in the
+        # number of constraints on every refresh.
+        index_of = {}
+        for coll in active_sketch.constraints.get_lists():
+            for index, c in enumerate(coll):
+                index_of[c.as_pointer()] = index
+                if isinstance(c, DimensionalConstraint):
+                    dimensional.append((c.type, index))
+                    continue
 
-            # Try curve_id placements first
-            cid_placements = c.curve_id_placements()
-            if cid_placements:
-                for cid in cid_placements:
-                    key = ("curve_id", cid)
-                    mapping.setdefault(key, []).append(c)
-            elif hasattr(c, "placements"):
-                # Fallback to entity placements
-                for e in c.placements():
-                    if e and hasattr(e, "placement") and e.is_visible(context):
-                        key = ("entity", e.slvs_index)
+                # Try curve_id placements first
+                cid_placements = c.curve_id_placements()
+                if cid_placements:
+                    for cid in cid_placements:
+                        key = ("curve_id", cid)
                         mapping.setdefault(key, []).append(c)
+                elif hasattr(c, "placements"):
+                    # Fallback to entity placements
+                    for e in c.placements():
+                        if e and hasattr(e, "placement") and e.is_visible(context):
+                            key = ("entity", e.slvs_index)
+                            mapping.setdefault(key, []).append(c)
 
-        constraints = active_sketch.constraints
         signature = (
             active_sketch.target_object.as_pointer(),
             context.preferences.system.ui_scale,
             get_prefs().gizmo_scale,
             tuple(
-                (key, tuple((c.type, constraints.get_index(c)) for c in constrs))
+                (key, tuple((c.type, index_of[c.as_pointer()]) for c in constrs))
                 for key, constrs in mapping.items()
             ),
-            tuple((c.type, constraints.get_index(c)) for c in constraints.dimensional),
+            tuple(dimensional),
         )
         return mapping, signature
 

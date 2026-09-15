@@ -85,18 +85,8 @@ def _get_bevel_points(sketch, topo):
     return eligible
 
 
-def _bevel_point(sketch, topo, point_cid, radius):
-    """Bevel a single point. Returns (arc, connected, bevel_points, point) or None."""
-    point = PointRef(sketch, point_cid)
-    if not point.valid:
-        return None
-
-    segs = _corner_segments(topo, point_cid)
-    if not segs:
-        return None
-
-    l1, l2 = segs
-
+def _bevel_geometry(topo, point, l1, l2, radius):
+    """Center and tangent points of the arc rounding a corner, or None."""
     # Find center of bevel arc
     intersections = sorted(
         get_intersections(
@@ -121,14 +111,31 @@ def _bevel_point(sketch, topo, point_cid, radius):
     if not coords:
         return None
 
-    ct = PointRef.create(sketch, coords)
-
     # Tangent points
     p1_co = topo.project_point(l1, coords)
     p2_co = topo.project_point(l2, coords)
     if p1_co is None or p2_co is None:
         return None
+    return coords, p1_co, p2_co
 
+
+def _bevel_point(sketch, topo, point_cid, radius):
+    """Bevel a single point. Returns (arc, connected, bevel_points, point) or None."""
+    point = PointRef(sketch, point_cid)
+    if not point.valid:
+        return None
+
+    segs = _corner_segments(topo, point_cid)
+    if not segs:
+        return None
+
+    l1, l2 = segs
+    geometry = _bevel_geometry(topo, point, l1, l2, radius)
+    if geometry is None:
+        return None
+    coords, p1_co, p2_co = geometry
+
+    ct = PointRef.create(sketch, coords)
     bp1 = PointRef.create(sketch, p1_co)
     bp2 = PointRef.create(sketch, p2_co)
 
@@ -145,6 +152,7 @@ def _bevel_point(sketch, topo, point_cid, radius):
 
     return {
         "arc": arc,
+        "center": ct,
         "connected": (l1, l2),
         "bevel_points": (bp1, bp2),
         "point": point,
@@ -252,6 +260,61 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         pos = get_pos_2d(context, self._get_wp(), coords)
         return min((pos - PointRef(sketch, cid).co).length for cid in corners)
 
+    preview_in_place = True
+
+    def preview_structure(self, context):
+        """Rebuild when the beveled corners change."""
+        structure = super().preview_structure(context)
+        if structure is None or self.state.property != "radius":
+            return None
+        sketch = self.sketch
+        return structure, tuple(self._corner_ids(sketch, sketch.topology))
+
+    def update_preview(self, context) -> bool:
+        """Move each arc's center and tangent points to the new radius.
+
+        Falls back to a rebuild if a corner that was beveled no longer fits, so
+        the preview never differs from recreating it.
+        """
+        results = getattr(self, "_results", None)
+        if not results:
+            return False
+        sketch = self.sketch
+        topo = sketch.topology
+        points = self._corner_ids(sketch, topo)
+        limit = self._radius_limit(sketch, topo, points)
+        radius = self.radius
+        if limit is not None and radius > limit:
+            radius = limit * (1.0 - 1e-4)
+
+        # Recompute every corner, so a corner whose bevel no longer fits (or now
+        # fits, having failed before) rebuilds instead of leaving a stale arc.
+        by_corner = {result["point"].curve_id: result for result in results}
+        moves = []
+        for pt_cid in points:
+            result = by_corner.get(pt_cid)
+            # The corner's segments are only rewired in fini, so a beveled corner
+            # still has the segments it was beveled with.
+            segs = result["connected"] if result else _corner_segments(topo, pt_cid)
+            geometry = None
+            if segs:
+                geometry = _bevel_geometry(
+                    topo, PointRef(sketch, pt_cid), segs[0], segs[1], radius
+                )
+            if (geometry is None) != (result is None):
+                return False
+            if result is None:
+                continue
+            refs = (result["center"], *result["bevel_points"])
+            if not all(ref.valid for ref in refs):
+                return False
+            moves.extend(zip(refs, geometry))
+
+        self.radius = radius
+        for ref, co in moves:
+            ref.co = co
+        return True
+
     def main(self, context):
         sketch = self.sketch
         topo = sketch.topology
@@ -263,7 +326,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
 
         # A radius that doesn't fit would make the corner fail silently; use the
         # biggest one that still leaves every trimmed line a length.
-        limit = _max_radius(sketch, topo, points)
+        limit = self._radius_limit(sketch, topo, points)
         if limit is not None and self.radius > limit:
             self.radius = limit * (1.0 - 1e-4)
         radius = self.radius
@@ -281,8 +344,32 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         refresh(context)
         return True
 
+    def _radius_limit(self, sketch, topo, points):
+        """``_max_radius`` for ``points``, kept while they stay the same."""
+        cached = getattr(self, "_limit_cache", None)
+        if cached is not None and cached[0] == tuple(points):
+            return cached[1]
+        limit = _max_radius(sketch, topo, points)
+        self._limit_cache = (tuple(points), limit)
+        return limit
+
     def _corner_ids(self, sketch, topo) -> list:
-        """Corner point ids to bevel: the selection plus the picked element."""
+        """Corner point ids to bevel: the selection plus the picked element.
+
+        The radius drag asks for them on every mouse move, while neither the
+        selection, the pick nor the corners' segments change, so they're kept
+        for as long as the pick is the same.
+        """
+        picked = self.p1
+        key = picked.curve_id if isinstance(picked, CurveRef) else None
+        cached = getattr(self, "_corner_cache", None)
+        if cached is not None and cached[0] == key:
+            return list(cached[1])
+        points = self._find_corner_ids(sketch, topo)
+        self._corner_cache = (key, tuple(points))
+        return points
+
+    def _find_corner_ids(self, sketch, topo) -> list:
         points = _get_bevel_points(sketch, topo)
 
         # Also include the directly picked element
@@ -306,8 +393,12 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
         if not succeede:
             return
 
+        from ..utilities.curve_data import remove_native_curve_by_id
+        from .delete_entity import _get_constraint_indices_for_curve_id
+
         sketch = self.sketch
         sc = sketch.constraints
+        unused_corners = []
 
         for result in self._results:
             topo = sketch.topology  # Rebuild after each modification
@@ -326,11 +417,23 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             sc.add_tangent(curve_id_1=arc.curve_id, curve_id_2=l1.curve_id)
             sc.add_tangent(curve_id_1=arc.curve_id, curve_id_2=l2.curve_id)
 
+            if not _get_constraint_indices_for_curve_id(point.curve_id, context):
+                # Nothing refers to the corner any more: drop it.
+                unused_corners.append(point.curve_id)
+                continue
+
             # Keep the corner as a construction "virtual sharp" held on both
             # segments, so constraints and dimensions that used it stay valid.
             point.construction = True
             sc.add_coincident(curve_id_1=point.curve_id, curve_id_2=l1.curve_id)
             sc.add_coincident(curve_id_1=point.curve_id, curve_id_2=l2.curve_id)
+
+        # Removed only after every corner is rewired, since removing a curve
+        # reindexes the ones the remaining results refer to.
+        for cid in unused_corners:
+            remove_native_curve_by_id(sketch, cid)
+            if cid in selection.selected:
+                selection.selected.remove(cid)
 
         # Add equal constraints between all arcs
         arcs = [r["arc"] for r in self._results if r["arc"]]
