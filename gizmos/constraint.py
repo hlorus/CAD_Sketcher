@@ -143,7 +143,8 @@ class VIEW3D_GT_slvs_constraint(Gizmo):
     mouse move, and recreating hundreds of them on changes. This one answers hit
     tests from the icons as drawn (drawing.constraint_icons) and has a part per
     icon, each bound to that constraint's context menu, so hover highlighting and
-    clicking behave as they did per constraint.
+    clicking behave as they did per constraint. Hovering a grouped icon expands
+    the group (see constraint_icons.pick).
     """
 
     bl_idname = Gizmos.Constraint
@@ -173,7 +174,10 @@ class VIEW3D_GT_slvs_constraint(Gizmo):
         # Don't intercept hover/picking while a stateful operator is running.
         if global_data.stateful_op_running:
             return -1
-        part = constraint_icons.hit_test(location)
+        part, changed = constraint_icons.pick(location)
+        if changed and context.area:
+            # A group opened or closed under the cursor.
+            context.area.tag_redraw()
         if part is None or getattr(self, "_bound", None) != constraint_icons.targets():
             return -1
         return part

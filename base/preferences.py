@@ -122,6 +122,24 @@ class Preferences(AddonPreferences):
     gizmo_scale: FloatProperty(
         name="Icon Scale", default=15.0, min=1.0, soft_max=25.0, update=theme.update
     )
+    constraint_icon_grouping: EnumProperty(
+        name="Group Constraint Icons",
+        description=(
+            "Show several constraint icons as one icon with a count, which expands "
+            "while hovered or while its geometry is hovered or selected"
+        ),
+        items=(
+            ("OFF", "Off", "Show every constraint icon"),
+            ("ELEMENT", "Per Element", "Group the icons on the same element"),
+            (
+                "NEARBY",
+                "Per Element and Nearby",
+                "Also group icons that are close together on screen",
+            ),
+        ),
+        default="NEARBY",
+        update=update_cb,
+    )
     text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
     arrow_scale: FloatProperty(name="Arrow Scale", default=1, min=0.2, soft_max=3)
     use_align_view: BoolProperty(
@@ -200,6 +218,7 @@ class Preferences(AddonPreferences):
         col.prop(self, "entity_scale")
         col.prop(self, "workplane_size")
         col.prop(self, "gizmo_scale")
+        col.prop(self, "constraint_icon_grouping")
         col.prop(self, "text_size")
         col.prop(self, "arrow_scale")
 
