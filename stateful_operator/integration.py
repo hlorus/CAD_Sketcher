@@ -7,7 +7,6 @@ Add integration with native blender types, following are supported:
 - bpy.types.MeshPolygon
 """
 
-
 from typing import Optional
 
 import bpy
@@ -157,7 +156,9 @@ class StatefulOperator(StatefulOperatorLogic):
             if not s.pointer:
                 continue
             annotations.setdefault("ptr%d_kind" % i, StringProperty(options={"HIDDEN"}))
-            annotations.setdefault("ptr%d_existing" % i, BoolProperty(options={"HIDDEN"}))
+            annotations.setdefault(
+                "ptr%d_existing" % i, BoolProperty(options={"HIDDEN"})
+            )
             annotations.setdefault("ptr%d_name" % i, StringProperty(options={"HIDDEN"}))
             annotations.setdefault(
                 "ptr%d_index" % i, IntProperty(default=-1, options={"HIDDEN"})
@@ -336,6 +337,7 @@ class StatefulOperator(StatefulOperatorLogic):
             LineRef,
             PointRef,
         )
+
         if not isinstance(element, CurveRef):
             return False
 
@@ -345,6 +347,7 @@ class StatefulOperator(StatefulOperatorLogic):
             SlvsLine2D,
             SlvsPoint2D,
         )
+
         _map = {
             PointRef: SlvsPoint2D,
             LineRef: SlvsLine2D,
