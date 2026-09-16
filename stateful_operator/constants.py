@@ -1,9 +1,10 @@
-import bpy
-
 from enum import Enum
+
+import bpy
 
 mesh_element_types = bpy.types.MeshVertex, bpy.types.MeshEdge, bpy.types.MeshPolygon
 
+# Letters of the unit names Blender parses (mm, ft, thou, meters, degrees, ...).
 unit_key_types = (
     "M",
     "K",
@@ -21,6 +22,8 @@ unit_key_types = (
     "R",
     "E",
     "G",
+    "O",
+    "S",
 )
 
 numeric_events = (
