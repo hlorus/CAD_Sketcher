@@ -1,23 +1,24 @@
-"""Code-built ``CAD Sketcher Linear Array`` node group (was a binary asset).
+"""Code-built ``CAD Sketcher Linear Array`` node group.
 
-``build_array_node_group`` rebuilds the linear-array group in code, replacing the
-copy that used to ship in ``resources/assets.blend`` -- mirroring the boolean,
-convert, extrude and revolve groups. The graph is a faithful transcription of the
-shipped asset (identical nodes, socket defaults and links, reroutes kept, cosmetic
-frames dropped), so the evaluated output is unchanged.
+Copies the input geometry along a direction (``Count`` copies, ``Spacing`` apart
+or spread over a total distance), optionally along a second direction too, which
+turns the line into a grid. ``Count 2`` defaults to 1, so a group without a
+second direction behaves exactly like the original one-directional array.
 
-Node properties, socket defaults and links are addressed by name (and, where a
-node repeats a socket name like Math's two "Value" inputs, by occurrence) and set
-defensively: a socket or property that only exists on newer Blender is skipped,
-so the same graph builds on every supported version (the asset used to rely on
-Blender's file-load version migration for this; a code build must do it itself).
+Nodes, properties and socket defaults are set defensively: anything that only
+exists on newer Blender is skipped (and reported), so the same graph builds on
+every supported version. Every node property and unlinked socket default is set
+explicitly, because fresh-node defaults drift between Blender versions.
 """
 
 import bpy
 
 ARRAY_NODE_GROUP = "CAD Sketcher Linear Array"
 # Bump when the built graph changes so groups baked into saved files rebuild.
-ARRAY_VERSION = 1
+ARRAY_VERSION = 3
+
+# Record of properties/sockets a build couldn't resolve on this Blender.
+_skips = []
 
 
 def _input_ids(node_group):
@@ -29,57 +30,80 @@ def _input_ids(node_group):
     }
 
 
+def _value_sockets(node_group):
+    return [
+        s
+        for s in node_group.interface.items_tree
+        if getattr(s, "item_type", "") == "SOCKET"
+        and getattr(s, "in_out", "") == "INPUT"
+        and s.socket_type != "NodeSocketGeometry"
+    ]
+
+
 def _snapshot_modifier_inputs(node_group):
     """Capture every modifier bound to ``node_group`` as (modifier, {name: value}).
 
     Rebuilding in place reassigns socket identifiers, and modifier inputs are keyed
-    by identifier, so values are re-applied by the stable socket *name* afterwards
-    -- otherwise upgrading from the old binary asset silently resets every array.
+    by identifier, so values are re-applied by the stable socket *name* afterwards.
     """
     from ..operators.modifiers import get_modifier_input
 
-    names = {
-        s.identifier: s.name
-        for s in node_group.interface.items_tree
-        if getattr(s, "in_out", "") == "INPUT"
-    }
+    sockets = _value_sockets(node_group)
     saved = []
     for obj in bpy.data.objects:
         for mod in obj.modifiers:
-            if (
-                getattr(mod, "type", None) != "NODES"
-                or mod.node_group is not node_group
-            ):
+            if getattr(mod, "type", None) != "NODES" or mod.node_group != node_group:
                 continue
             values = {}
-            for identifier, name in names.items():
+            for socket in sockets:
                 try:
-                    value = get_modifier_input(mod, identifier)
+                    value = get_modifier_input(mod, socket.identifier)
                 except Exception:
                     continue
-                values[name] = tuple(value) if hasattr(value, "__len__") else value
-            if values:
-                saved.append((mod, values))
+                values[socket.name] = (
+                    tuple(value) if hasattr(value, "__len__") else value
+                )
+            saved.append((mod, values))
     return saved
 
 
+# Dropped input: flipping is the same as pointing Direction the other way, so a
+# stored flip is baked into Direction instead (see _restore_modifier_inputs).
+_LEGACY_FLIP_INPUT = "Flip Direciton"
+
+
 def _restore_modifier_inputs(node_group, saved):
-    """Re-apply snapshot values (see ``_snapshot_modifier_inputs``) by name."""
+    """Re-apply snapshot values by name; new inputs get their default.
+
+    An input the old group didn't have is missing from the snapshot, and the
+    modifier would otherwise read it as 0 (a ``Count 2`` of 0 empties the array).
+    """
     from ..operators.modifiers import set_modifier_input
 
-    ids = _input_ids(node_group)
+    sockets = _value_sockets(node_group)
     for mod, values in saved:
-        for name, value in values.items():
-            identifier = ids.get(name)
-            if identifier is None:
-                continue
+        if values.pop(_LEGACY_FLIP_INPUT, False):
+            direction = values.get("Direction")
+            if direction is not None:
+                values["Direction"] = tuple(-c for c in direction)
+        for socket in sockets:
+            default = socket.default_value
+            if hasattr(default, "__len__"):
+                default = tuple(default)
             try:
-                set_modifier_input(mod, identifier, value)
+                set_modifier_input(
+                    mod, socket.identifier, values.get(socket.name, default)
+                )
             except Exception:
                 pass
 
 
-def _socket(sockets, name, occurrence):
+# ---------------------------------------------------------------------------
+# Defensive node helpers
+# ---------------------------------------------------------------------------
+
+
+def _socket(sockets, name, occurrence=0):
     """The ``occurrence``-th socket named ``name`` (or None if absent)."""
     k = 0
     for s in sockets:
@@ -90,797 +114,329 @@ def _socket(sockets, name, occurrence):
     return None
 
 
-# Records sockets a build couldn't resolve on this Blender (see build_array_node_group).
-_skips = []
-
-
-def _set(node, attr, value):
-    """Set a node property, ignoring it if this Blender lacks it."""
-    try:
-        setattr(node, attr, value)
-    except Exception as e:
-        # socket_idname on a reroute is retyped by its links, so a rejection there
-        # is harmless; anything else that can't be set is a real portability gap.
-        if attr != "socket_idname":
-            _skips.append(f"prop {node.name}.{attr}={value!r} ({type(e).__name__})")
-
-
-def _seti(node, name, occurrence, value):
-    """Set an input socket default by (name, occurrence), if it exists."""
-    socket = _socket(node.inputs, name, occurrence)
-    if socket is not None:
+def _node(nodes, idname, **props):
+    node = nodes.new(idname)
+    for attr, value in props.items():
         try:
-            socket.default_value = value
-        except Exception:
-            pass
-    else:
-        _skips.append(f"default {node.name}.in[{name!r}#{occurrence}]")
+            setattr(node, attr, value)
+        except Exception as e:
+            _skips.append(f"prop {idname}.{attr}={value!r} ({type(e).__name__})")
+    return node
 
 
-def _link(links, from_node, from_name, from_occ, to_node, to_name, to_occ):
-    """Link two sockets addressed by (name, occurrence); skip if either is absent."""
-    a = _socket(from_node.outputs, from_name, from_occ)
-    b = _socket(to_node.inputs, to_name, to_occ)
-    if a is not None and b is not None:
-        links.new(a, b)
+def _default(node, name, value, occurrence=0):
+    socket = _socket(node.inputs, name, occurrence)
+    if socket is None:
+        _skips.append(f"default {node.bl_idname}.in[{name!r}#{occurrence}]")
+        return
+    try:
+        socket.default_value = value
+    except Exception:
+        pass
+
+
+def _out(node, name, occurrence=0):
+    return _socket(node.outputs, name, occurrence)
+
+
+def _link(links, from_socket, node, name, occurrence=0):
+    to_socket = _socket(node.inputs, name, occurrence)
+    if from_socket is None or to_socket is None:
+        _skips.append(f"link -> {node.bl_idname}.in[{name!r}#{occurrence}]")
+        return
+    links.new(from_socket, to_socket)
+
+
+def _math(nodes, links, operation, a, b=None, b_value=None, clamp=False):
+    node = _node(nodes, "ShaderNodeMath", operation=operation, use_clamp=clamp)
+    _default(node, "Value", 0.5, 2)
+    if isinstance(a, (int, float)):
+        _default(node, "Value", a, 0)
     else:
-        miss = []
-        if a is None:
-            miss.append(f"{from_node.name}.out[{from_name!r}#{from_occ}]")
-        if b is None:
-            miss.append(f"{to_node.name}.in[{to_name!r}#{to_occ}]")
-        _skips.append("link " + " -> ".join(miss))
+        _link(links, a, node, "Value", 0)
+    if b is not None:
+        _link(links, b, node, "Value", 1)
+    elif b_value is not None:
+        _default(node, "Value", b_value, 1)
+    return _out(node, "Value")
+
+
+def _switch(nodes, links, input_type, condition, false, true):
+    node = _node(nodes, "GeometryNodeSwitch", input_type=input_type)
+    _link(links, condition, node, "Switch")
+    _link(links, false, node, "False")
+    _link(links, true, node, "True")
+    return _out(node, "Output")
+
+
+def _set_position(nodes, links, geometry, offset):
+    node = _node(nodes, "GeometryNodeSetPosition")
+    _default(node, "Selection", True)
+    _default(node, "Position", (0.0, 0.0, 0.0))
+    _link(links, geometry, node, "Geometry")
+    _link(links, offset, node, "Offset")
+    return _out(node, "Geometry")
+
+
+def _line_points(nodes, links, count, step, use_total):
+    """Points along ``step``: ``count`` of them ``step`` apart, or spread over it."""
+    lines = []
+    for mode in ("OFFSET", "END_POINTS"):
+        line = _node(nodes, "GeometryNodeMeshLine", mode=mode, count_mode="TOTAL")
+        _default(line, "Resolution", 1.0)
+        _default(line, "Start Location", (0.0, 0.0, 0.0))
+        _link(links, count, line, "Count")
+        # In end-point mode this same socket is the end location.
+        _link(links, step, line, "Offset")
+        lines.append(_out(line, "Mesh"))
+    return _switch(nodes, links, "GEOMETRY", use_total, lines[0], lines[1])
+
+
+def _step(nodes, links, direction, spacing):
+    """``normalize(direction) * spacing``."""
+    normalize = _node(nodes, "ShaderNodeVectorMath", operation="NORMALIZE")
+    _default(normalize, "Vector", (0.0, 0.0, 0.0), 1)
+    _default(normalize, "Vector", (0.0, 0.0, 0.0), 2)
+    _default(normalize, "Scale", 1.0)
+    _link(links, direction, normalize, "Vector")
+    scale = _node(nodes, "ShaderNodeVectorMath", operation="SCALE")
+    _default(scale, "Vector", (0.0, 0.0, 0.0), 1)
+    _default(scale, "Vector", (0.0, 0.0, 0.0), 2)
+    _link(links, _out(normalize, "Vector"), scale, "Vector")
+    _link(links, spacing, scale, "Scale")
+    return _out(scale, "Vector")
+
+
+def _bounds_center(nodes, links, geometry, component, clamp=False):
+    """Center of the geometry's bounds along one position component."""
+    stat = _node(
+        nodes, "GeometryNodeAttributeStatistic", data_type="FLOAT", domain="POINT"
+    )
+    _default(stat, "Selection", True)
+    _link(links, geometry, stat, "Geometry")
+    _link(links, component, stat, "Attribute")
+    extent = _math(nodes, links, "SUBTRACT", _out(stat, "Max"), b=_out(stat, "Min"))
+    half = _math(nodes, links, "DIVIDE", extent, b_value=2.0)
+    return _math(nodes, links, "ADD", half, b=_out(stat, "Min"), clamp=clamp)
+
+
+# ---------------------------------------------------------------------------
+# Graph
+# ---------------------------------------------------------------------------
+
+
+def _build_interface(ng):
+    iface = ng.interface
+
+    def socket(name, socket_type, default=None, **attrs):
+        s = iface.new_socket(name, in_out="INPUT", socket_type=socket_type)
+        if default is not None:
+            s.default_value = default
+        for attr, value in attrs.items():
+            setattr(s, attr, value)
+        return s
+
+    iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    big = 3.4028234663852886e38
+    # Names (including the "Axies" typo) and order are kept from the
+    # original asset: modifier values are restored by name.
+    socket(
+        "Direction", "NodeSocketVector", (0.0, 0.0, 1.0), min_value=0.0, max_value=1.0
+    )
+    socket("Count", "NodeSocketInt", 5, min_value=1, max_value=10000)
+    socket(
+        "Spacing / Total distance", "NodeSocketFloat", 3.0, min_value=0.0, max_value=big
+    )
+    socket("Use Total Distance", "NodeSocketBool", False)
+    socket("Align Rotation", "NodeSocketBool", False)
+    socket("Merge by Distance", "NodeSocketBool", False)
+    socket(
+        "Merge Distance",
+        "NodeSocketFloat",
+        0.001,
+        subtype="DISTANCE",
+        min_value=0.0,
+        max_value=big,
+    )
+    socket("Realize Instances", "NodeSocketBool", True)
+    socket("Show Axies", "NodeSocketBool", False)
+    socket(
+        "Direction 2", "NodeSocketVector", (0.0, 1.0, 0.0), min_value=0.0, max_value=1.0
+    )
+    socket("Count 2", "NodeSocketInt", 1, min_value=1, max_value=10000)
+    socket("Spacing 2", "NodeSocketFloat", 3.0, min_value=0.0, max_value=big)
 
 
 def _build_graph(ng):
-    """Populate the freshly cleared group with the array node graph (generated)."""
-    iface = ng.interface
-    s = iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
-    s = iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
-    s = iface.new_socket("Direction", in_out="INPUT", socket_type="NodeSocketVector")
-    s.default_value = (0.0, 0.0, 1.0)
-    s.subtype = "NONE"
-    s.min_value = 0.0
-    s.max_value = 1.0
-    s = iface.new_socket("Count", in_out="INPUT", socket_type="NodeSocketInt")
-    s.default_value = 5
-    s.subtype = "NONE"
-    s.min_value = 1
-    s.max_value = 10000
-    s = iface.new_socket(
-        "Spacing / Total distance", in_out="INPUT", socket_type="NodeSocketFloat"
-    )
-    s.default_value = 3.0
-    s.subtype = "NONE"
-    s.min_value = 0.0
-    s.max_value = 3.4028234663852886e38
-    s = iface.new_socket("Flip Direciton", in_out="INPUT", socket_type="NodeSocketBool")
-    s.default_value = False
-    s = iface.new_socket(
-        "Use Total Distance", in_out="INPUT", socket_type="NodeSocketBool"
-    )
-    s.default_value = False
-    s = iface.new_socket("Align Rotation", in_out="INPUT", socket_type="NodeSocketBool")
-    s.default_value = False
-    s = iface.new_socket(
-        "Merge by Distance", in_out="INPUT", socket_type="NodeSocketBool"
-    )
-    s.default_value = False
-    s = iface.new_socket(
-        "Merge Distance", in_out="INPUT", socket_type="NodeSocketFloat"
-    )
-    s.default_value = 0.001
-    s.subtype = "DISTANCE"
-    s.min_value = 0.0
-    s.max_value = 3.4028234663852886e38
-    s = iface.new_socket(
-        "Realize Instances", in_out="INPUT", socket_type="NodeSocketBool"
-    )
-    s.default_value = True
-    s = iface.new_socket("Show Axies", in_out="INPUT", socket_type="NodeSocketBool")
-    s.default_value = False
+    """Populate the freshly cleared group with the array node graph."""
+    _build_interface(ng)
+    nodes, links = ng.nodes, ng.links
+    gi = _node(nodes, "NodeGroupInput")
+    go = _node(nodes, "NodeGroupOutput")
 
-    nodes = ng.nodes
-    n = {}
-    x = nodes.new("NodeGroupInput")
-    x.name = "Group Input"
-    n["Group Input"] = x
-    x = nodes.new("NodeGroupOutput")
-    x.name = "Group Output"
-    n["Group Output"] = x
-    x = nodes.new("ShaderNodeVectorMath")
-    x.name = "Vector Math.002"
-    n["Vector Math.002"] = x
-    _set(x, "operation", "SCALE")
-    _seti(x, "Vector", 1, (0.0, 0.0, 0.0))
-    _seti(x, "Vector", 2, (0.0, 0.0, 0.0))
-    _seti(x, "Scale", 0, -1.0)
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.022"
-    n["Reroute.022"] = x
-    _set(x, "socket_idname", "NodeSocketVectorEuler")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.023"
-    n["Reroute.023"] = x
-    _set(x, "socket_idname", "NodeSocketVectorEuler")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.034"
-    n["Reroute.034"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.024"
-    n["Reroute.024"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.035"
-    n["Reroute.035"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute"
-    n["Reroute"] = x
-    _set(x, "socket_idname", "NodeSocketGeometry")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.001"
-    n["Reroute.001"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.015"
-    n["Reroute.015"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.004"
-    n["Reroute.004"] = x
-    _set(x, "socket_idname", "NodeSocketGeometry")
-    x = nodes.new("ShaderNodeSeparateXYZ")
-    x.name = "Separate XYZ.001"
-    n["Separate XYZ.001"] = x
-    x = nodes.new("GeometryNodeInputPosition")
-    x.name = "Position.001"
-    n["Position.001"] = x
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.011"
-    n["Reroute.011"] = x
-    _set(x, "socket_idname", "NodeSocketGeometry")
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math"
-    n["Math"] = x
-    _set(x, "operation", "SUBTRACT")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.004"
-    n["Math.004"] = x
-    _set(x, "operation", "DIVIDE")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 1, 2.0)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.005"
-    n["Math.005"] = x
-    _set(x, "operation", "ADD")
-    _set(x, "use_clamp", True)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.005"
-    n["Reroute.005"] = x
-    _set(x, "socket_idname", "NodeSocketFloat")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.006"
-    n["Reroute.006"] = x
-    _set(x, "socket_idname", "NodeSocketFloat")
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.008"
-    n["Math.008"] = x
-    _set(x, "operation", "MULTIPLY")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 1, -1.0)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.002"
-    n["Math.002"] = x
-    _set(x, "operation", "SUBTRACT")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("GeometryNodeAttributeStatistic")
-    x.name = "Attribute Statistic.002"
-    n["Attribute Statistic.002"] = x
-    _set(x, "data_type", "FLOAT")
-    _set(x, "domain", "POINT")
-    _seti(x, "Selection", 0, True)
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.009"
-    n["Math.009"] = x
-    _set(x, "operation", "DIVIDE")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 1, 2.0)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.010"
-    n["Math.010"] = x
-    _set(x, "operation", "ADD")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.007"
-    n["Reroute.007"] = x
-    _set(x, "socket_idname", "NodeSocketFloat")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.008"
-    n["Reroute.008"] = x
-    _set(x, "socket_idname", "NodeSocketFloat")
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.003"
-    n["Math.003"] = x
-    _set(x, "operation", "SUBTRACT")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("GeometryNodeAttributeStatistic")
-    x.name = "Attribute Statistic.003"
-    n["Attribute Statistic.003"] = x
-    _set(x, "data_type", "FLOAT")
-    _set(x, "domain", "POINT")
-    _seti(x, "Selection", 0, True)
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.017"
-    n["Math.017"] = x
-    _set(x, "operation", "DIVIDE")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 1, 2.0)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.018"
-    n["Math.018"] = x
-    _set(x, "operation", "ADD")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.009"
-    n["Reroute.009"] = x
-    _set(x, "socket_idname", "NodeSocketFloat")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.010"
-    n["Reroute.010"] = x
-    _set(x, "socket_idname", "NodeSocketFloat")
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.019"
-    n["Math.019"] = x
-    _set(x, "operation", "MULTIPLY")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 1, -1.0)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("GeometryNodeAttributeStatistic")
-    x.name = "Attribute Statistic.001"
-    n["Attribute Statistic.001"] = x
-    _set(x, "data_type", "FLOAT")
-    _set(x, "domain", "POINT")
-    _seti(x, "Selection", 0, True)
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.012"
-    n["Math.012"] = x
-    _set(x, "operation", "MULTIPLY")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 1, -1.0)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("GeometryNodeSwitch")
-    x.name = "Switch.004"
-    n["Switch.004"] = x
-    _set(x, "input_type", "FLOAT")
-    _seti(x, "False", 0, 0.0)
-    x = nodes.new("GeometryNodeSwitch")
-    x.name = "Switch.006"
-    n["Switch.006"] = x
-    _set(x, "input_type", "FLOAT")
-    _seti(x, "False", 0, 0.0)
-    x = nodes.new("GeometryNodeSwitch")
-    x.name = "Switch.007"
-    n["Switch.007"] = x
-    _set(x, "input_type", "FLOAT")
-    _seti(x, "False", 0, 0.0)
-    x = nodes.new("FunctionNodeInputBool")
-    x.name = "Boolean"
-    n["Boolean"] = x
-    _set(x, "boolean", True)
-    x = nodes.new("FunctionNodeInputBool")
-    x.name = "Boolean.001"
-    n["Boolean.001"] = x
-    _set(x, "boolean", False)
-    x = nodes.new("FunctionNodeInputBool")
-    x.name = "Boolean.002"
-    n["Boolean.002"] = x
-    _set(x, "boolean", True)
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.012"
-    n["Reroute.012"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.013"
-    n["Reroute.013"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("ShaderNodeCombineXYZ")
-    x.name = "Combine XYZ"
-    n["Combine XYZ"] = x
-    x = nodes.new("GeometryNodeTransform")
-    x.name = "Transform"
-    n["Transform"] = x
-    _seti(x, "Mode", 0, "Components")
-    _seti(x, "Rotation", 0, (0.0, 0.0, 0.0))
-    _seti(x, "Scale", 0, (1.0, 1.0, 1.0))
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.028"
-    n["Reroute.028"] = x
-    _set(x, "socket_idname", "NodeSocketInt")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.003"
-    n["Reroute.003"] = x
-    _set(x, "socket_idname", "NodeSocketGeometry")
-    x = nodes.new("ShaderNodeVectorMath")
-    x.name = "Vector Math.001"
-    n["Vector Math.001"] = x
-    _set(x, "operation", "SCALE")
-    _seti(x, "Vector", 1, (0.0, 0.0, 0.0))
-    _seti(x, "Vector", 2, (0.0, 0.0, 0.0))
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.031"
-    n["Reroute.031"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.029"
-    n["Reroute.029"] = x
-    _set(x, "socket_idname", "NodeSocketInt")
-    x = nodes.new("GeometryNodeMeshLine")
-    x.name = "Mesh Line.002"
-    n["Mesh Line.002"] = x
-    _set(x, "mode", "OFFSET")
-    _set(x, "count_mode", "TOTAL")
-    _seti(x, "Resolution", 0, 1.0)
-    _seti(x, "Start Location", 0, (0.0, 0.0, 0.0))
-    x = nodes.new("GeometryNodeMeshLine")
-    x.name = "Mesh Line.003"
-    n["Mesh Line.003"] = x
-    _set(x, "mode", "END_POINTS")
-    _set(x, "count_mode", "TOTAL")
-    _seti(x, "Resolution", 0, 1.0)
-    _seti(x, "Start Location", 0, (0.0, 0.0, 0.0))
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.033"
-    n["Reroute.033"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.032"
-    n["Reroute.032"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.030"
-    n["Reroute.030"] = x
-    _set(x, "socket_idname", "NodeSocketInt")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.020"
-    n["Reroute.020"] = x
-    _set(x, "socket_idname", "NodeSocketGeometry")
-    x = nodes.new("FunctionNodeAlignEulerToVector")
-    x.name = "Align Euler to Vector"
-    n["Align Euler to Vector"] = x
-    _set(x, "axis", "X")
-    _set(x, "pivot_axis", "AUTO")
-    _seti(x, "Rotation", 0, (0.0, 0.0, 0.0))
-    _seti(x, "Factor", 0, 1.0)
-    x = nodes.new("GeometryNodeInstanceOnPoints")
-    x.name = "Instance on Points.001"
-    n["Instance on Points.001"] = x
-    _seti(x, "Selection", 0, True)
-    _seti(x, "Pick Instance", 0, False)
-    _seti(x, "Instance Index", 0, 0)
-    _seti(x, "Rotation", 0, (0.0, 0.0, 0.0))
-    _seti(x, "Scale", 0, (1.0, 1.0, 1.0))
-    x = nodes.new("GeometryNodeSwitch")
-    x.name = "Switch.002"
-    n["Switch.002"] = x
-    _set(x, "input_type", "GEOMETRY")
-    x = nodes.new("GeometryNodeRotateInstances")
-    x.name = "Rotate Instances"
-    n["Rotate Instances"] = x
-    _seti(x, "Selection", 0, True)
-    _seti(x, "Pivot Point", 0, (0.0, 0.0, 0.0))
-    _seti(x, "Local Space", 0, True)
-    x = nodes.new("NodeGroupInput")
-    x.name = "Group Input.001"
-    n["Group Input.001"] = x
-    x = nodes.new("GeometryNodeSwitch")
-    x.name = "Switch"
-    n["Switch"] = x
-    _set(x, "input_type", "GEOMETRY")
-    x = nodes.new("GeometryNodeRealizeInstances")
-    x.name = "Realize Instances"
-    n["Realize Instances"] = x
-    _set(x, "realize_to_point_domain", True)
-    _seti(x, "Selection", 0, True)
-    _seti(x, "Realize All", 0, True)
-    _seti(x, "Depth", 0, 0)
-    x = nodes.new("NodeGroupInput")
-    x.name = "Group Input.002"
-    n["Group Input.002"] = x
-    x = nodes.new("GeometryNodeSwitch")
-    x.name = "Switch.001"
-    n["Switch.001"] = x
-    _set(x, "input_type", "GEOMETRY")
-    x = nodes.new("GeometryNodeMergeByDistance")
-    x.name = "Merge by Distance"
-    n["Merge by Distance"] = x
-    _seti(x, "Selection", 0, True)
-    _seti(x, "Mode", 0, "All")
-    x = nodes.new("NodeGroupInput")
-    x.name = "Group Input.003"
-    n["Group Input.003"] = x
-    x = nodes.new("GeometryNodeSetPosition")
-    x.name = "Set Position"
-    n["Set Position"] = x
-    _seti(x, "Selection", 0, True)
-    _seti(x, "Position", 0, (0.0, 0.0, 0.0))
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.014"
-    n["Reroute.014"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.027"
-    n["Reroute.027"] = x
-    _set(x, "socket_idname", "NodeSocketVector")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.019"
-    n["Reroute.019"] = x
-    _set(x, "socket_idname", "NodeSocketGeometry")
-    x = nodes.new("NodeGroupInput")
-    x.name = "Group Input.005"
-    n["Group Input.005"] = x
-    x = nodes.new("GeometryNodeJoinGeometry")
-    x.name = "Join Geometry"
-    n["Join Geometry"] = x
-    x = nodes.new("GeometryNodeSwitch")
-    x.name = "Switch.005"
-    n["Switch.005"] = x
-    _set(x, "input_type", "GEOMETRY")
-    x = nodes.new("GeometryNodeSetPosition")
-    x.name = "Set Position.001"
-    n["Set Position.001"] = x
-    _seti(x, "Selection", 0, True)
-    _seti(x, "Position", 0, (0.0, 0.0, 0.0))
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.002"
-    n["Reroute.002"] = x
-    _set(x, "socket_idname", "NodeSocketGeometry")
-    x = nodes.new("GeometryNodeSwitch")
-    x.name = "Switch.003"
-    n["Switch.003"] = x
-    _set(x, "input_type", "GEOMETRY")
-    x = nodes.new("NodeGroupInput")
-    x.name = "Group Input.007"
-    n["Group Input.007"] = x
-    x = nodes.new("NodeGroupInput")
-    x.name = "Group Input.008"
-    n["Group Input.008"] = x
-    x = nodes.new("ShaderNodeMath")
-    x.name = "Math.001"
-    n["Math.001"] = x
-    _set(x, "operation", "MULTIPLY")
-    _set(x, "use_clamp", False)
-    _seti(x, "Value", 0, -1.0)
-    _seti(x, "Value", 2, 0.5)
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.016"
-    n["Reroute.016"] = x
-    _set(x, "socket_idname", "NodeSocketFloat")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.017"
-    n["Reroute.017"] = x
-    _set(x, "socket_idname", "NodeSocketFloat")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.036"
-    n["Reroute.036"] = x
-    _set(x, "socket_idname", "NodeSocketFloat")
-    x = nodes.new("ShaderNodeVectorMath")
-    x.name = "Vector Math"
-    n["Vector Math"] = x
-    _set(x, "operation", "NORMALIZE")
-    _seti(x, "Vector", 1, (0.0, 0.0, 0.0))
-    _seti(x, "Vector", 2, (0.0, 0.0, 0.0))
-    _seti(x, "Scale", 0, 1.0)
-    x = nodes.new("GeometryNodeSwitch")
-    x.name = "Switch.008"
-    n["Switch.008"] = x
-    _set(x, "input_type", "FLOAT")
-    x = nodes.new("NodeReroute")
-    x.name = "Reroute.018"
-    n["Reroute.018"] = x
-    _set(x, "socket_idname", "NodeSocketFloat")
-    x = nodes.new("FunctionNodeEulerToRotation")
-    x.name = "Euler to Rotation"
-    n["Euler to Rotation"] = x
+    def arg(name):
+        return _out(gi, name)
 
-    _link(ng.links, n["Switch.002"], "Output", 0, n["Realize Instances"], "Geometry", 0)
-    _link(ng.links, n["Realize Instances"], "Geometry", 0, n["Switch"], "True", 0)
-    _link(ng.links, n["Switch.002"], "Output", 0, n["Switch"], "False", 0)
-    _link(ng.links, n["Switch"], "Output", 0, n["Merge by Distance"], "Geometry", 0)
-    _link(ng.links, n["Merge by Distance"], "Geometry", 0, n["Switch.001"], "True", 0)
-    _link(ng.links, n["Switch"], "Output", 0, n["Switch.001"], "False", 0)
+    geometry = arg("Geometry")
+
+    # Copies are placed around a pivot and moved back afterwards, which only
+    # matters for Align Rotation: each copy turns around that pivot. The pivot is
+    # the bounds center in X (clamped to 0..1) and Z, with Y at 0 -- quirks of the
+    # original asset, kept so existing arrays don't move.
+    separate = _node(nodes, "ShaderNodeSeparateXYZ")
     _link(
-        ng.links,
-        n["Instance on Points.001"],
-        "Instances",
-        0,
-        n["Rotate Instances"],
-        "Instances",
-        0,
+        links,
+        _out(_node(nodes, "GeometryNodeInputPosition"), "Position"),
+        separate,
+        "Vector",
     )
-    _link(ng.links, n["Reroute.023"], "Output", 0, n["Euler to Rotation"], "Euler", 0)
-    _link(ng.links, n["Rotate Instances"], "Instances", 0, n["Switch.002"], "True", 0)
+    pivot = _node(nodes, "ShaderNodeCombineXYZ")
     _link(
-        ng.links,
-        n["Instance on Points.001"],
-        "Instances",
-        0,
-        n["Switch.002"],
-        "False",
-        0,
-    )
-    _link(
-        ng.links, n["Reroute.015"], "Output", 0, n["Align Euler to Vector"], "Vector", 0
-    )
-    _link(ng.links, n["Vector Math"], "Vector", 0, n["Vector Math.001"], "Vector", 0)
-    _link(ng.links, n["Mesh Line.003"], "Mesh", 0, n["Switch.003"], "True", 0)
-    _link(ng.links, n["Mesh Line.002"], "Mesh", 0, n["Switch.003"], "False", 0)
-    _link(ng.links, n["Reroute.032"], "Output", 0, n["Mesh Line.002"], "Offset", 0)
-    _link(ng.links, n["Reroute.033"], "Output", 0, n["Mesh Line.003"], "Offset", 0)
-    _link(
-        ng.links,
-        n["Reroute.003"],
-        "Output",
-        0,
-        n["Instance on Points.001"],
-        "Points",
-        0,
-    )
-    _link(ng.links, n["Reroute.030"], "Output", 0, n["Mesh Line.002"], "Count", 0)
-    _link(ng.links, n["Reroute.029"], "Output", 0, n["Mesh Line.003"], "Count", 0)
-    _link(ng.links, n["Switch.001"], "Output", 0, n["Set Position"], "Geometry", 0)
-    _link(ng.links, n["Reroute.014"], "Output", 0, n["Set Position"], "Offset", 0)
-    _link(ng.links, n["Reroute.019"], "Output", 0, n["Switch.005"], "False", 0)
-    _link(ng.links, n["Reroute.019"], "Output", 0, n["Join Geometry"], "Geometry", 0)
-    _link(ng.links, n["Join Geometry"], "Geometry", 0, n["Switch.005"], "True", 0)
-    _link(ng.links, n["Set Position"], "Geometry", 0, n["Reroute.019"], "Input", 0)
-    _link(ng.links, n["Switch.003"], "Output", 0, n["Reroute.003"], "Input", 0)
-    _link(ng.links, n["Reroute.003"], "Output", 0, n["Reroute.020"], "Input", 0)
-    _link(
-        ng.links,
-        n["Align Euler to Vector"],
-        "Rotation",
-        0,
-        n["Reroute.022"],
-        "Input",
-        0,
-    )
-    _link(ng.links, n["Reroute.022"], "Output", 0, n["Reroute.023"], "Input", 0)
-    _link(ng.links, n["Vector Math.002"], "Vector", 0, n["Reroute.024"], "Input", 0)
-    _link(ng.links, n["Reroute.028"], "Output", 0, n["Reroute.029"], "Input", 0)
-    _link(ng.links, n["Reroute.029"], "Output", 0, n["Reroute.030"], "Input", 0)
-    _link(ng.links, n["Vector Math.001"], "Vector", 0, n["Reroute.031"], "Input", 0)
-    _link(ng.links, n["Reroute.031"], "Output", 0, n["Reroute.032"], "Input", 0)
-    _link(ng.links, n["Reroute.031"], "Output", 0, n["Reroute.033"], "Input", 0)
-    _link(ng.links, n["Reroute.027"], "Output", 0, n["Set Position.001"], "Offset", 0)
-    _link(ng.links, n["Reroute.034"], "Output", 0, n["Reroute.027"], "Input", 0)
-    _link(ng.links, n["Reroute.024"], "Output", 0, n["Reroute.034"], "Input", 0)
-    _link(
-        ng.links,
-        n["Set Position.001"],
-        "Geometry",
-        0,
-        n["Join Geometry"],
-        "Geometry",
-        0,
-    )
-    _link(ng.links, n["Reroute.020"], "Output", 0, n["Reroute.002"], "Input", 0)
-    _link(ng.links, n["Reroute"], "Output", 0, n["Set Position.001"], "Geometry", 0)
-    _link(ng.links, n["Group Input"], "Direction", 0, n["Reroute.035"], "Input", 0)
-    _link(ng.links, n["Group Input"], "Direction", 0, n["Vector Math"], "Vector", 0)
-    _link(ng.links, n["Group Input"], "Count", 0, n["Reroute.028"], "Input", 0)
-    _link(ng.links, n["Reroute.017"], "Output", 0, n["Reroute.036"], "Input", 0)
-    _link(
-        ng.links,
-        n["Group Input.007"],
-        "Use Total Distance",
-        0,
-        n["Switch.003"],
-        "Switch",
-        0,
-    )
-    _link(
-        ng.links,
-        n["Group Input.001"],
-        "Align Rotation",
-        0,
-        n["Switch.002"],
-        "Switch",
-        0,
-    )
-    _link(
-        ng.links, n["Group Input.002"], "Realize Instances", 0, n["Switch"], "Switch", 0
-    )
-    _link(
-        ng.links,
-        n["Group Input.003"],
-        "Merge by Distance",
-        0,
-        n["Switch.001"],
-        "Switch",
-        0,
-    )
-    _link(ng.links, n["Group Input.005"], "Show Axies", 0, n["Switch.005"], "Switch", 0)
-    _link(ng.links, n["Reroute.011"], "Output", 0, n["Transform"], "Geometry", 0)
-    _link(
-        ng.links,
-        n["Reroute.011"],
-        "Output",
-        0,
-        n["Attribute Statistic.001"],
-        "Geometry",
-        0,
-    )
-    _link(
-        ng.links, n["Position.001"], "Position", 0, n["Separate XYZ.001"], "Vector", 0
-    )
-    _link(
-        ng.links,
-        n["Separate XYZ.001"],
+        links,
+        _bounds_center(nodes, links, geometry, _out(separate, "X"), clamp=True),
+        pivot,
         "X",
-        0,
-        n["Attribute Statistic.001"],
-        "Attribute",
-        0,
     )
-    _link(ng.links, n["Combine XYZ"], "Vector", 0, n["Transform"], "Translation", 0)
-    _link(ng.links, n["Math"], "Value", 0, n["Math.004"], "Value", 0)
-    _link(ng.links, n["Math.004"], "Value", 0, n["Math.005"], "Value", 0)
-    _link(ng.links, n["Attribute Statistic.001"], "Min", 0, n["Math"], "Value", 1)
-    _link(ng.links, n["Attribute Statistic.001"], "Max", 0, n["Math"], "Value", 0)
-    _link(ng.links, n["Math.005"], "Value", 0, n["Math.008"], "Value", 0)
-    _link(ng.links, n["Reroute.005"], "Output", 0, n["Math.005"], "Value", 1)
-    _link(ng.links, n["Reroute.006"], "Output", 0, n["Reroute.005"], "Input", 0)
+    _default(pivot, "Y", 0.0)
     _link(
-        ng.links, n["Attribute Statistic.001"], "Min", 0, n["Reroute.006"], "Input", 0
+        links, _bounds_center(nodes, links, geometry, _out(separate, "Z")), pivot, "Z"
     )
-    _link(ng.links, n["Math.002"], "Value", 0, n["Math.009"], "Value", 0)
-    _link(ng.links, n["Math.009"], "Value", 0, n["Math.010"], "Value", 0)
-    _link(ng.links, n["Attribute Statistic.002"], "Min", 0, n["Math.002"], "Value", 1)
-    _link(ng.links, n["Attribute Statistic.002"], "Max", 0, n["Math.002"], "Value", 0)
-    _link(ng.links, n["Math.010"], "Value", 0, n["Math.012"], "Value", 0)
-    _link(ng.links, n["Reroute.007"], "Output", 0, n["Math.010"], "Value", 1)
-    _link(ng.links, n["Reroute.008"], "Output", 0, n["Reroute.007"], "Input", 0)
-    _link(
-        ng.links, n["Attribute Statistic.002"], "Min", 0, n["Reroute.008"], "Input", 0
+    pivot = _out(pivot, "Vector")
+
+    to_pivot = _node(nodes, "ShaderNodeVectorMath", operation="SCALE")
+    _default(to_pivot, "Vector", (0.0, 0.0, 0.0), 1)
+    _default(to_pivot, "Vector", (0.0, 0.0, 0.0), 2)
+    _default(to_pivot, "Scale", -1.0)
+    _link(links, pivot, to_pivot, "Vector")
+    centered = _node(nodes, "GeometryNodeTransform")
+    _default(centered, "Mode", "Components")
+    _default(centered, "Rotation", (0.0, 0.0, 0.0))
+    _default(centered, "Scale", (1.0, 1.0, 1.0))
+    _link(links, geometry, centered, "Geometry")
+    _link(links, _out(to_pivot, "Vector"), centered, "Translation")
+
+    # Copy positions: a line along Direction, optionally repeated along Direction 2.
+    use_total = arg("Use Total Distance")
+    line = _line_points(
+        nodes,
+        links,
+        arg("Count"),
+        _step(
+            nodes,
+            links,
+            arg("Direction"),
+            arg("Spacing / Total distance"),
+        ),
+        use_total,
     )
-    _link(ng.links, n["Math.003"], "Value", 0, n["Math.017"], "Value", 0)
-    _link(ng.links, n["Math.017"], "Value", 0, n["Math.018"], "Value", 0)
-    _link(ng.links, n["Attribute Statistic.003"], "Min", 0, n["Math.003"], "Value", 1)
-    _link(ng.links, n["Attribute Statistic.003"], "Max", 0, n["Math.003"], "Value", 0)
-    _link(ng.links, n["Math.018"], "Value", 0, n["Math.019"], "Value", 0)
-    _link(ng.links, n["Reroute.009"], "Output", 0, n["Math.018"], "Value", 1)
-    _link(ng.links, n["Reroute.010"], "Output", 0, n["Reroute.009"], "Input", 0)
-    _link(
-        ng.links, n["Attribute Statistic.003"], "Min", 0, n["Reroute.010"], "Input", 0
+    second = _line_points(
+        nodes,
+        links,
+        arg("Count 2"),
+        _step(nodes, links, arg("Direction 2"), arg("Spacing 2")),
+        use_total,
     )
-    _link(
-        ng.links,
-        n["Separate XYZ.001"],
-        "Y",
-        0,
-        n["Attribute Statistic.002"],
-        "Attribute",
-        0,
+    rows = _node(nodes, "GeometryNodeInstanceOnPoints")
+    _default(rows, "Selection", True)
+    _link(links, line, rows, "Points")
+    _link(links, second, rows, "Instance")
+    grid = _node(nodes, "GeometryNodeRealizeInstances", realize_to_point_domain=True)
+    _default(grid, "Selection", True)
+    _default(grid, "Realize All", True)
+    _default(grid, "Depth", 0)
+    _link(links, _out(rows, "Instances"), grid, "Geometry")
+    # A single-row array keeps its line untouched (identical to the 1D array,
+    # and robust to a Count 2 of 0).
+    is_grid = _node(
+        nodes, "FunctionNodeCompare", data_type="INT", operation="GREATER_THAN"
     )
-    _link(
-        ng.links,
-        n["Separate XYZ.001"],
-        "Z",
-        0,
-        n["Attribute Statistic.003"],
-        "Attribute",
-        0,
+    # A and B repeat once per data type; use the enabled integer pair.
+    int_a, int_b = (s for s in is_grid.inputs if s.enabled and s.type == "INT")
+    links.new(arg("Count 2"), int_a)
+    int_b.default_value = 1
+    points = _switch(
+        nodes, links, "GEOMETRY", _out(is_grid, "Result"), line, _out(grid, "Geometry")
     )
-    _link(
-        ng.links,
-        n["Reroute.011"],
-        "Output",
-        0,
-        n["Attribute Statistic.002"],
-        "Geometry",
-        0,
+
+    copies = _node(nodes, "GeometryNodeInstanceOnPoints")
+    _default(copies, "Selection", True)
+    _default(copies, "Pick Instance", False)
+    _default(copies, "Instance Index", 0)
+    _default(copies, "Rotation", (0.0, 0.0, 0.0))
+    _default(copies, "Scale", (1.0, 1.0, 1.0))
+    _link(links, points, copies, "Points")
+    _link(links, _out(centered, "Geometry"), copies, "Instance")
+    instances = _out(copies, "Instances")
+
+    align = _node(nodes, "FunctionNodeAlignEulerToVector", axis="X", pivot_axis="AUTO")
+    _default(align, "Rotation", (0.0, 0.0, 0.0))
+    _default(align, "Factor", 1.0)
+    _link(links, arg("Direction"), align, "Vector")
+    euler = _node(nodes, "FunctionNodeEulerToRotation")
+    _link(links, _out(align, "Rotation"), euler, "Euler")
+    rotate = _node(nodes, "GeometryNodeRotateInstances")
+    _default(rotate, "Selection", True)
+    _default(rotate, "Pivot Point", (0.0, 0.0, 0.0))
+    _default(rotate, "Local Space", True)
+    _link(links, instances, rotate, "Instances")
+    _link(links, _out(euler, "Rotation"), rotate, "Rotation")
+    result = _switch(
+        nodes,
+        links,
+        "GEOMETRY",
+        arg("Align Rotation"),
+        instances,
+        _out(rotate, "Instances"),
     )
-    _link(
-        ng.links,
-        n["Reroute.011"],
-        "Output",
-        0,
-        n["Attribute Statistic.003"],
-        "Geometry",
-        0,
+
+    realize = _node(nodes, "GeometryNodeRealizeInstances", realize_to_point_domain=True)
+    _default(realize, "Selection", True)
+    _default(realize, "Realize All", True)
+    _default(realize, "Depth", 0)
+    _link(links, result, realize, "Geometry")
+    result = _switch(
+        nodes,
+        links,
+        "GEOMETRY",
+        arg("Realize Instances"),
+        result,
+        _out(realize, "Geometry"),
     )
-    _link(ng.links, n["Combine XYZ"], "Vector", 0, n["Reroute.012"], "Input", 0)
-    _link(ng.links, n["Math.008"], "Value", 0, n["Switch.004"], "True", 0)
-    _link(ng.links, n["Math.012"], "Value", 0, n["Switch.006"], "True", 0)
-    _link(ng.links, n["Math.019"], "Value", 0, n["Switch.007"], "True", 0)
-    _link(ng.links, n["Switch.007"], "Output", 0, n["Combine XYZ"], "Z", 0)
-    _link(ng.links, n["Switch.006"], "Output", 0, n["Combine XYZ"], "Y", 0)
-    _link(ng.links, n["Switch.004"], "Output", 0, n["Combine XYZ"], "X", 0)
-    _link(ng.links, n["Reroute.012"], "Output", 0, n["Reroute.013"], "Input", 0)
-    _link(ng.links, n["Boolean"], "Boolean", 0, n["Switch.004"], "Switch", 0)
-    _link(ng.links, n["Boolean.002"], "Boolean", 0, n["Switch.007"], "Switch", 0)
-    _link(ng.links, n["Boolean.001"], "Boolean", 0, n["Switch.006"], "Switch", 0)
-    _link(
-        ng.links,
-        n["Transform"],
-        "Geometry",
-        0,
-        n["Instance on Points.001"],
-        "Instance",
-        0,
+
+    merge = _node(nodes, "GeometryNodeMergeByDistance")
+    _default(merge, "Selection", True)
+    _default(merge, "Mode", "All")
+    _link(links, result, merge, "Geometry")
+    _link(links, arg("Merge Distance"), merge, "Distance")
+    result = _switch(
+        nodes,
+        links,
+        "GEOMETRY",
+        arg("Merge by Distance"),
+        result,
+        _out(merge, "Geometry"),
     )
-    _link(ng.links, n["Reroute.013"], "Output", 0, n["Vector Math.002"], "Vector", 0)
-    _link(ng.links, n["Group Input"], "Geometry", 0, n["Reroute.004"], "Input", 0)
-    _link(ng.links, n["Reroute.002"], "Output", 0, n["Reroute"], "Input", 0)
-    _link(ng.links, n["Reroute.035"], "Output", 0, n["Reroute.001"], "Input", 0)
-    _link(ng.links, n["Reroute.001"], "Output", 0, n["Reroute.015"], "Input", 0)
-    _link(ng.links, n["Reroute.004"], "Output", 0, n["Reroute.011"], "Input", 0)
-    _link(
-        ng.links,
-        n["Group Input.003"],
-        "Merge Distance",
-        0,
-        n["Merge by Distance"],
-        "Distance",
-        0,
+
+    result = _set_position(nodes, links, result, pivot)
+
+    # Show Axies previews the copy positions next to the result.
+    join = _node(nodes, "GeometryNodeJoinGeometry")
+    _link(links, result, join, "Geometry")
+    _link(links, _set_position(nodes, links, points, pivot), join, "Geometry")
+    result = _switch(
+        nodes, links, "GEOMETRY", arg("Show Axies"), result, _out(join, "Geometry")
     )
-    _link(ng.links, n["Reroute.034"], "Output", 0, n["Reroute.014"], "Input", 0)
-    _link(ng.links, n["Switch.005"], "Output", 0, n["Group Output"], "Geometry", 0)
-    _link(
-        ng.links,
-        n["Group Input.008"],
-        "Flip Direciton",
-        0,
-        n["Switch.008"],
-        "Switch",
-        0,
-    )
-    _link(ng.links, n["Reroute.018"], "Output", 0, n["Switch.008"], "False", 0)
-    _link(ng.links, n["Reroute.036"], "Output", 0, n["Math.001"], "Value", 1)
-    _link(ng.links, n["Math.001"], "Value", 0, n["Switch.008"], "True", 0)
-    _link(ng.links, n["Switch.008"], "Output", 0, n["Vector Math.001"], "Scale", 0)
-    _link(
-        ng.links,
-        n["Group Input"],
-        "Spacing / Total distance",
-        0,
-        n["Reroute.016"],
-        "Input",
-        0,
-    )
-    _link(ng.links, n["Reroute.016"], "Output", 0, n["Reroute.017"], "Input", 0)
-    _link(ng.links, n["Reroute.036"], "Output", 0, n["Reroute.018"], "Input", 0)
-    _link(
-        ng.links,
-        n["Euler to Rotation"],
-        "Rotation",
-        0,
-        n["Rotate Instances"],
-        "Rotation",
-        0,
-    )
+
+    _link(links, result, go, "Geometry")
 
 
 def build_array_node_group(name: str = ARRAY_NODE_GROUP):
     """Build the linear-array group in code (idempotent).
 
     Reuses an existing group of the same name, rebuilding it in place when the
-    stored version is stale -- so modifiers already bound to that name (including
-    ones bound to the old binary asset) upgrade without rebinding. Returns the
-    node group.
+    stored version is stale, so modifiers already bound to that name upgrade
+    without rebinding. Returns the node group.
     """
     ng = bpy.data.node_groups.get(name)
     if ng is None:
