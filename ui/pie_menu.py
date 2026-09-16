@@ -4,6 +4,7 @@ from bpy.types import Menu
 from ..declarations import BLENDER_SELECT_TOOL, Operators, WorkSpaceTools
 from ..model.sketch_ref import get_active_sketch, get_sketches
 from ..stateful_operator.constants import Operators as StatefulOps
+from ..stateful_operator.utilities.switch import register_switch_operator
 
 PIE_MENU_ID = "VIEW3D_MT_slvs_pie"
 PIE_SHORTCUT = ("M", True, True)
@@ -269,6 +270,11 @@ def register():
     )
     kmi.properties.name = PIE_MENU_ID
     addon_keymaps.append((km, kmi))
+
+    # Opening the pie interrupts a running tool, like a tool shortcut does.
+    register_switch_operator(
+        "wm.call_menu_pie", lambda context, kmi: kmi.properties.name == PIE_MENU_ID
+    )
 
 
 def unregister():

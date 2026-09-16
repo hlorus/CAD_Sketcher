@@ -23,6 +23,8 @@ extension tools is active.
 
 ### Workspacetool Access Keymap
 Whenever one of the extension's tools is active the tool access keymap allows to quickly switch between the different tools.
+These keys also work while a tool is running: the unfinished element is discarded and the new tool starts.
+While typing a number, letters are read as units (e.g. `5cm`) instead.
 
 |Key|Modifier|Action|
 |:---:|---|---|
@@ -35,7 +37,8 @@ Whenever one of the extension's tools is active the tool access keymap allows to
 |Y|-   |Invoke Tool: Trim|
 |B|-   |Invoke Tool: Bevel|
 |O|-   |Invoke Tool: Offset|
-|S|-   |Invoke Tool: Add Sketch|
+|D|-   |Invoke Tool: Dimension|
+|J|-   |Invoke Tool: Project Geometry|
 
 **Dimensional Constraints:**
 
@@ -77,13 +80,15 @@ Available while any of the extension's tools is active.
 |C|Alt+Shift|Toggle construction mode|
 
 ### Global Shortcuts
-Available in Object Mode regardless of the active tool.
+Available in Object Mode regardless of the active tool, also while a tool is running.
 
 |Key|Modifier|Action|
 |:---:|---|---|
 |A|Ctrl+Shift|Add sketch / leave the active sketch|
-|E|Ctrl+Shift|Extrude the active sketch|
-|D|Ctrl+Shift|Linear array of the active sketch|
+|E|Ctrl+Shift|Extrude|
+|R|Ctrl+Shift|Revolve|
+|D|Ctrl+Shift|Linear array|
+|B|Ctrl+Shift|Boolean|
 |M|Ctrl+Shift|Open the CAD Sketcher pie menu (drawing tools and constraints)|
 |Esc|Shift|Switch to Blender's Select tool|
 

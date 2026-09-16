@@ -13,6 +13,7 @@ from .utilities.description import state_desc, stateful_op_desc
 from .utilities.generic import to_list
 from .utilities.keymap import get_key_map_desc, is_numeric_input, is_unit_input
 from .utilities.numeric import NumericInput, parse_numeric
+from .utilities.switch import is_switch_event
 
 # Re-export so any `from .logic import _NumericInput` keeps working.
 _NumericInput = NumericInput
@@ -564,6 +565,10 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """Hook: after a successful commit, record what the op created."""
         pass
 
+    def is_switch_event(self, context: Context, event: Event) -> bool:
+        """Return True if the event is a shortcut that starts another tool."""
+        return is_switch_event(context, event, exclude=self.bl_idname)
+
     def _handle_pass_through(self, context: Context, event: Event):
         if event.type in {"MIDDLEMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE", "MOUSEMOVE"}:
             return {"PASS_THROUGH"}
@@ -606,6 +611,12 @@ class StatefulOperatorLogic(_StateMachineMixin):
             self._axis_lock = None if self._axis_lock == axis else axis
             self.set_status_text(context)
             return self.evaluate_state(context, event, False)
+
+        # Another tool's shortcut ends this one, discarding the unfinished
+        # element like Esc does, and passes the key on so the keymap starts it.
+        if not is_numeric_event and self.is_switch_event(context, event):
+            self._end(context, False)
+            return {"CANCELLED", "PASS_THROUGH"}
 
         # HACK: calling ops.ed.undo() inside a modal triggers a spurious MOUSEMOVE.
         # Check actual pixel movement to filter it out.

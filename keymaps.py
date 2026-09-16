@@ -3,6 +3,10 @@ import bpy
 from .declarations import BLENDER_SELECT_TOOL, Macros, Operators, WorkSpaceTools
 from .stateful_operator.constants import Operators as StatefulOps
 from .stateful_operator.utilities.keymap import tool_invoke_kmi
+from .stateful_operator.utilities.switch import (
+    clear_switch_operators,
+    register_switch_operator,
+)
 
 constraint_access = (
     (
@@ -136,84 +140,50 @@ constraint_access = (
     ),
 )
 
-tool_access = (
-    tool_invoke_kmi(
-        "P",
-        WorkSpaceTools.AddPoint2D,
-        Operators.AddPoint2D,
-    ),
-    tool_invoke_kmi(
-        "L",
-        WorkSpaceTools.AddLine2D,
-        Operators.AddLine2D,
-    ),
-    tool_invoke_kmi(
-        "C",
-        WorkSpaceTools.AddCircle2D,
-        Operators.AddCircle2D,
-    ),
-    tool_invoke_kmi(
-        "A",
-        WorkSpaceTools.AddArc2D,
-        Operators.AddArc2D,
-    ),
-    tool_invoke_kmi(
-        "R",
-        WorkSpaceTools.AddRectangle,
-        Operators.AddRectangle,
-    ),
-    tool_invoke_kmi(
-        "Y",
-        WorkSpaceTools.Trim,
-        Operators.Trim,
-    ),
-    tool_invoke_kmi(
-        "B",
-        WorkSpaceTools.Bevel,
-        Operators.Bevel,
-    ),
-    tool_invoke_kmi("O", WorkSpaceTools.Offset, Operators.Offset),
-    tool_invoke_kmi(
-        "D",
-        WorkSpaceTools.AddDimension,
-        Operators.AddDimension,
-    ),
-    tool_invoke_kmi(
-        "S",
-        WorkSpaceTools.AddSketch,
-        Operators.AddSketch,
-    ),
+# Tool shortcuts: (tool, operator, key). The key starts the tool from any other
+# CAD Sketcher tool, also while one is running.
+SKETCH_TOOL_KEYS = (
+    (WorkSpaceTools.AddPoint2D, Operators.AddPoint2D, "P"),
+    (WorkSpaceTools.AddLine2D, Operators.AddLine2D, "L"),
+    (WorkSpaceTools.AddCircle2D, Operators.AddCircle2D, "C"),
+    (WorkSpaceTools.AddArc2D, Operators.AddArc2D, "A"),
+    (WorkSpaceTools.AddRectangle, Operators.AddRectangle, "R"),
+    (WorkSpaceTools.Trim, Operators.Trim, "Y"),
+    (WorkSpaceTools.Bevel, Operators.Bevel, "B"),
+    (WorkSpaceTools.Offset, Operators.Offset, "O"),
+    (WorkSpaceTools.AddDimension, Operators.AddDimension, "D"),
+    # Does nothing inside a sketch, but keeps S from scaling the sketch object.
+    (WorkSpaceTools.AddSketch, Operators.AddSketch, "S"),
     # "P" is already the Add Point tool, so Project Geometry uses "J".
-    tool_invoke_kmi(
-        "J",
-        WorkSpaceTools.ProjectGeometry,
-        Operators.ProjectGeometry,
-    ),
+    (WorkSpaceTools.ProjectGeometry, Operators.ProjectGeometry, "J"),
+)
+
+SKETCH_3D_TOOL_KEYS = (
+    (WorkSpaceTools.AddPoint3D, Operators.AddPoint3D, "P"),
+    (WorkSpaceTools.AddLine3D, Operators.AddLine3D, "L"),
+)
+
+# Object tools also get a global Ctrl+Shift key: (tool, operator, key, global key).
+NODE_TOOL_KEYS = (
+    (WorkSpaceTools.Extrude, Operators.NodeExtrude, "E", "E"),
+    (WorkSpaceTools.Revolve, Operators.NodeRevolve, "R", "R"),
+    (WorkSpaceTools.ArrayLinear, Operators.NodeArrayLinear, "D", "D"),
+    # Ctrl+Shift+S saves as, so Add Sketch uses Ctrl+Shift+A.
+    (WorkSpaceTools.AddSketch, Operators.AddSketch, "S", "A"),
+)
+
+
+def tool_keys(table) -> tuple:
+    """Tool keymap items starting each tool of ``table`` by its key."""
+    return tuple(tool_invoke_kmi(key, tool, op) for tool, op, key, *_ in table)
+
+
+tool_access = (
+    *tool_keys(SKETCH_TOOL_KEYS),
     *constraint_access,
 )
 
-node_access = (
-    tool_invoke_kmi(
-        "E",
-        WorkSpaceTools.Extrude,
-        Operators.NodeExtrude,
-    ),
-    tool_invoke_kmi(
-        "R",
-        WorkSpaceTools.Revolve,
-        Operators.NodeRevolve,
-    ),
-    tool_invoke_kmi(
-        "D",
-        WorkSpaceTools.ArrayLinear,
-        Operators.NodeArrayLinear,
-    ),
-    tool_invoke_kmi(
-        "S",
-        WorkSpaceTools.AddSketch,
-        Operators.AddSketch,
-    ),
-)
+node_access = tool_keys(NODE_TOOL_KEYS)
 
 use_construction = (
     "wm.context_toggle",
@@ -404,46 +374,6 @@ def register():
             kmi.properties.direction = direction
             addon_keymaps.append((km, kmi))
 
-        # Add Sketch: switch to the Add Sketch tool (workplane gizmo), then
-        # invoke the operator (a pre-selected workplane creates immediately).
-        kmi = km.keymap_items.new(
-            StatefulOps.InvokeTool.value, "A", "PRESS", ctrl=True, shift=True
-        )
-        kmi.properties.tool_name = WorkSpaceTools.AddSketch.value
-        kmi.properties.operator = Operators.AddSketch.value
-        addon_keymaps.append((km, kmi))
-
-        # Leave Sketch (same shortcut as add sketch)
-        kmi = km.keymap_items.new(
-            Operators.SetActiveSketch, "A", "PRESS", ctrl=True, shift=True
-        )
-        kmi.properties.sketch_name = ""
-        addon_keymaps.append((km, kmi))
-
-        # Extrude: switch to the Extrude tool, then invoke the operator.
-        kmi = km.keymap_items.new(
-            StatefulOps.InvokeTool.value, "E", "PRESS", ctrl=True, shift=True
-        )
-        kmi.properties.tool_name = WorkSpaceTools.Extrude.value
-        kmi.properties.operator = Operators.NodeExtrude.value
-        addon_keymaps.append((km, kmi))
-
-        # Revolve: switch to the Revolve tool, then invoke the operator.
-        kmi = km.keymap_items.new(
-            StatefulOps.InvokeTool.value, "R", "PRESS", ctrl=True, shift=True
-        )
-        kmi.properties.tool_name = WorkSpaceTools.Revolve.value
-        kmi.properties.operator = Operators.NodeRevolve.value
-        addon_keymaps.append((km, kmi))
-
-        # Linear Array: switch to the tool, then invoke the operator.
-        kmi = km.keymap_items.new(
-            StatefulOps.InvokeTool.value, "D", "PRESS", ctrl=True, shift=True
-        )
-        kmi.properties.tool_name = WorkSpaceTools.ArrayLinear.value
-        kmi.properties.operator = Operators.NodeArrayLinear.value
-        addon_keymaps.append((km, kmi))
-
         # Boolean: no workspacetool, so invoke the operator directly. It prefills
         # the body/cutter from the selection or lets them be picked, same as the
         # other node tools.
@@ -452,8 +382,40 @@ def register():
         )
         addon_keymaps.append((km, kmi))
 
+        # Switch to a tool, then invoke its operator. Inside a sketch the tool
+        # isn't available and the key passes on (Ctrl+Shift+A leaves the sketch).
+        for tool, operator, _key, key in NODE_TOOL_KEYS:
+            kmi = km.keymap_items.new(
+                StatefulOps.InvokeTool.value, key, "PRESS", ctrl=True, shift=True
+            )
+            kmi.properties.tool_name = tool.value
+            kmi.properties.operator = operator.value
+            kmi.properties.fallthrough = True
+            addon_keymaps.append((km, kmi))
+
+        # Leave Sketch (same shortcut as add sketch). Passes the key on when no
+        # sketch is active.
+        kmi = km.keymap_items.new(
+            Operators.SetActiveSketch, "A", "PRESS", ctrl=True, shift=True
+        )
+        kmi.properties.sketch_name = ""
+        addon_keymaps.append((km, kmi))
+
+    # Shortcuts that interrupt a running tool, besides tool switches.
+    for _op, _event, _props in constraint_access:
+        register_switch_operator(_op)
+    register_switch_operator(Operators.NodeBoolean)
+    register_switch_operator(Operators.SetActiveSketch, _leaves_sketch)
+
+
+def _leaves_sketch(context, kmi) -> bool:
+    from .model.sketch_ref import get_active_sketch
+
+    return not kmi.properties.sketch_name and bool(get_active_sketch(context))
+
 
 def unregister():
+    clear_switch_operators()
     wm = bpy.context.window_manager
     kc = wm.keyconfigs.addon
     if kc:
