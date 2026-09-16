@@ -851,9 +851,9 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         layout.separator()
         layout.label(text="Second Direction")
         layout.prop(self, "count_2", text="Count")
-        sub = layout.column()
-        sub.enabled = self.count_2 > 1
-        sub.prop(self, "offset_2", text="")
+        # The offset means nothing for a single row, so don't show it at all.
+        if self.count_2 > 1:
+            layout.prop(self, "offset_2", text="")
 
 
 class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
