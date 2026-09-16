@@ -3,7 +3,7 @@
 Replaces the binary asset that used to ship in ``resources/assets.blend``. The
 snapshot cases were captured from that asset before it was removed, so they pin
 the migration to identical output (vertex/edge/face counts and total surface area)
-across count/spacing, direction, flip, total-distance, align-rotation, realize,
+across count/spacing, direction, total-distance, align-rotation, realize,
 show-axes and merge.
 """
 
@@ -90,7 +90,6 @@ class TestArrayNodeGroup(BgsTestCase):
             "Align Rotation",
             "Merge by Distance",
             "Merge Distance",
-            "Flip Direciton",
             "Direction 2",
             "Count 2",
             "Spacing 2",
@@ -115,12 +114,6 @@ class TestArrayNodeGroup(BgsTestCase):
         )
         self.assertEqual(counts, (24, 36, 18))
         self.assertAlmostEqual(area, 18.0, places=4)
-
-    def test_flip_direction(self):
-        counts, _ = self._stats(
-            **{"Count": 4, "Spacing / Total distance": 3.0, "Flip Direciton": True}
-        )
-        self.assertEqual(counts, (32, 48, 24))
 
     def test_use_total_distance(self):
         counts, _ = self._stats(
@@ -187,6 +180,27 @@ class TestArrayNodeGroup(BgsTestCase):
                     **{"Count": 4, "Spacing / Total distance": 2.0, "Count 2": count_2}
                 )
                 self.assertEqual(row, plain)
+
+    def test_stored_flip_becomes_the_opposite_direction(self):
+        # "Flip Direciton" is gone; an array that had it keeps pointing the same way.
+        group = build_array_node_group()
+        obj = _cube()
+        try:
+            mod = obj.modifiers.new("A", "NODES")
+            mod.node_group = group
+            set_modifier_input(mod, _ids(group)["Direction"], (1.0, 0.0, 0.0))
+            flip = group.interface.new_socket(
+                "Flip Direciton", in_out="INPUT", socket_type="NodeSocketBool"
+            )
+            set_modifier_input(mod, flip.identifier, True)
+            group["cad_array_version"] = ARRAY_VERSION - 1
+
+            build_array_node_group()
+
+            direction = get_modifier_input(mod, _ids(group)["Direction"])
+            self.assertAlmostEqual((Vector(direction) + Vector((1, 0, 0))).length, 0.0)
+        finally:
+            bpy.data.objects.remove(obj, do_unlink=True)
 
     def test_upgrade_gives_new_inputs_their_defaults(self):
         group = build_array_node_group()

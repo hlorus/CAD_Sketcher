@@ -15,7 +15,7 @@ import bpy
 
 ARRAY_NODE_GROUP = "CAD Sketcher Linear Array"
 # Bump when the built graph changes so groups baked into saved files rebuild.
-ARRAY_VERSION = 2
+ARRAY_VERSION = 3
 
 # Record of properties/sockets a build couldn't resolve on this Blender.
 _skips = []
@@ -67,6 +67,11 @@ def _snapshot_modifier_inputs(node_group):
     return saved
 
 
+# Dropped input: flipping is the same as pointing Direction the other way, so a
+# stored flip is baked into Direction instead (see _restore_modifier_inputs).
+_LEGACY_FLIP_INPUT = "Flip Direciton"
+
+
 def _restore_modifier_inputs(node_group, saved):
     """Re-apply snapshot values by name; new inputs get their default.
 
@@ -77,6 +82,10 @@ def _restore_modifier_inputs(node_group, saved):
 
     sockets = _value_sockets(node_group)
     for mod, values in saved:
+        if values.pop(_LEGACY_FLIP_INPUT, False):
+            direction = values.get("Direction")
+            if direction is not None:
+                values["Direction"] = tuple(-c for c in direction)
         for socket in sockets:
             default = socket.default_value
             if hasattr(default, "__len__"):
@@ -183,16 +192,13 @@ def _line_points(nodes, links, count, step, use_total):
     return _switch(nodes, links, "GEOMETRY", use_total, lines[0], lines[1])
 
 
-def _step(nodes, links, direction, spacing, flip=None):
-    """``normalize(direction) * spacing``, negated when ``flip`` is on."""
+def _step(nodes, links, direction, spacing):
+    """``normalize(direction) * spacing``."""
     normalize = _node(nodes, "ShaderNodeVectorMath", operation="NORMALIZE")
     _default(normalize, "Vector", (0.0, 0.0, 0.0), 1)
     _default(normalize, "Vector", (0.0, 0.0, 0.0), 2)
     _default(normalize, "Scale", 1.0)
     _link(links, direction, normalize, "Vector")
-    if flip is not None:
-        negated = _math(nodes, links, "MULTIPLY", -1.0, b=spacing)
-        spacing = _switch(nodes, links, "FLOAT", flip, spacing, negated)
     scale = _node(nodes, "ShaderNodeVectorMath", operation="SCALE")
     _default(scale, "Vector", (0.0, 0.0, 0.0), 1)
     _default(scale, "Vector", (0.0, 0.0, 0.0), 2)
@@ -233,7 +239,7 @@ def _build_interface(ng):
     iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
     iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
     big = 3.4028234663852886e38
-    # Names (including the "Direciton"/"Axies" typos) and order are kept from the
+    # Names (including the "Axies" typo) and order are kept from the
     # original asset: modifier values are restored by name.
     socket(
         "Direction", "NodeSocketVector", (0.0, 0.0, 1.0), min_value=0.0, max_value=1.0
@@ -242,7 +248,6 @@ def _build_interface(ng):
     socket(
         "Spacing / Total distance", "NodeSocketFloat", 3.0, min_value=0.0, max_value=big
     )
-    socket("Flip Direciton", "NodeSocketBool", False)
     socket("Use Total Distance", "NodeSocketBool", False)
     socket("Align Rotation", "NodeSocketBool", False)
     socket("Merge by Distance", "NodeSocketBool", False)
@@ -322,7 +327,6 @@ def _build_graph(ng):
             links,
             arg("Direction"),
             arg("Spacing / Total distance"),
-            arg("Flip Direciton"),
         ),
         use_total,
     )

@@ -730,7 +730,6 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         name="Offset", subtype="TRANSLATION", size=3, options={"SKIP_SAVE"}
     )
     count: IntProperty(name="Count", default=2, min=2)
-    flip: BoolProperty(name="Flip Direction")
     use_total_distance: BoolProperty(
         name="Use Total Distance",
         description="Treat distance as the total span rather than per-item spacing",
@@ -830,7 +829,6 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         set_modifier_input(m, ids["Align Rotation"], self.align_rotation)
         set_modifier_input(m, ids["Merge by Distance"], self.merge)
         set_modifier_input(m, ids["Merge Distance"], self.merge_distance)
-        set_modifier_input(m, ids["Flip Direciton"], self.flip)
         direction_2, distance_2 = second_array_axis(offset, Vector(self.offset_2))
         set_modifier_input(m, ids["Count 2"], self.count_2)
         set_modifier_input(m, ids["Direction 2"], tuple(direction_2))
@@ -840,7 +838,6 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
     def draw_settings(self, context):
         # Offset and Count are drawn by the framework's per-state rows.
         layout = self.layout
-        layout.prop(self, "flip")
         layout.prop(self, "use_total_distance")
         layout.prop(self, "align_rotation")
         layout.prop(self, "merge")
