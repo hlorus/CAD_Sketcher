@@ -14,6 +14,14 @@ from .placement import MIDPOINT, placement_of
 from .utilities import get_hovered
 
 
+def _curve_ref_kinds(base) -> set:
+    """Type names of ``base`` and all its subclasses (the stored pointer kinds)."""
+    names = {base.__name__}
+    for sub in base.__subclasses__():
+        names |= _curve_ref_kinds(sub)
+    return names
+
+
 class GenericEntityOp(StatefulOperator):
     """Extend StatefulOperator with extension specific types"""
 
@@ -333,6 +341,27 @@ class GenericEntityOp(StatefulOperator):
                 i = value.slvs_index
             data["entity_index"] = i
             return True
+
+    def _pointer_display(self, i):
+        # A picked sketch element is stored by its curve id; show its name and
+        # type icon instead of the raw id.
+        from .. import icon_manager
+        from ..model.curve_ref import CurveRef, curve_ref
+        from ..model.sketch_ref import get_active_sketch
+        from ..utilities.curve_data import get_curve_type
+
+        kind = getattr(self, "ptr%d_kind" % i, "")
+        cid = getattr(self, "ptr%d_name" % i, "")
+        if cid and kind in _curve_ref_kinds(CurveRef):
+            sketch = getattr(self, "sketch", None) or get_active_sketch(bpy.context)
+            ref = curve_ref(sketch, cid) if sketch else None
+            if ref is not None and ref.valid:
+                icon = icon_manager.get_entity_icon(
+                    get_curve_type(sketch, cid), ref.construction
+                )
+                return ref.name, ({"icon_value": icon} if icon else {})
+            return "(missing)", {"icon": "ERROR"}
+        return super()._pointer_display(i)
 
     def gather_selection(self, context: Context):
         # Return list filled with all selected verts/edges/faces/objects
