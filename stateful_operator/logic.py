@@ -581,7 +581,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         is_numeric_event = event.value == "PRESS" and is_numeric_input(event)
 
         if is_numeric_edit:
-            if is_unit_input(event) and event.value == "PRESS":
+            if event.value == "PRESS" and is_unit_input(
+                event, self._numeric.current, self._numeric.prop
+            ):
                 is_numeric_event = True
             elif event.type == "TAB" and event.value == "PRESS":
                 self._numeric.iterate()

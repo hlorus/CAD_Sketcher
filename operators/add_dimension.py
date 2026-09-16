@@ -440,7 +440,8 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             # dimension value, independent of the label drag -- mirrors the tweak
             # modal and the dimensional constraint operators.
             if event.value == "PRESS" and (
-                is_numeric_input(event) or is_unit_input(event)
+                is_numeric_input(event)
+                or is_unit_input(event, self._value_input().current)
             ):
                 self._value_input().evaluate_event(event)
                 self._apply_value(context)

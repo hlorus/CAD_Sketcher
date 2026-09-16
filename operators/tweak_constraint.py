@@ -52,7 +52,7 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
             # Optional value entry lives in this placement step: typing a number
             # sets the dimension value (with units), independent of the label drag.
             if event.value == "PRESS" and (
-                is_numeric_input(event) or is_unit_input(event)
+                is_numeric_input(event) or is_unit_input(event, self._numeric.current)
             ):
                 self._numeric.is_active = True
                 self._numeric.evaluate_event(event)

@@ -1,8 +1,8 @@
-from ..constants import Operators, numeric_events, unit_key_types
-
-from bpy.types import KeyMapItem, Context, Event
-
 from typing import List
+
+from bpy.types import Context, Event, KeyMapItem
+
+from ..constants import Operators, numeric_events, unit_key_types
 
 
 def _get_key_hint(kmi: KeyMapItem) -> List[str]:
@@ -122,8 +122,20 @@ def is_numeric_input(event: Event):
     return event.type in (*numeric_events, "BACK_SPACE")
 
 
-def is_unit_input(event: Event):
-    return event.type in unit_key_types
+def is_unit_input(event: Event, current: str, prop=None) -> bool:
+    """Return True if the event types a unit suffix onto the number in ``current``.
+
+    Unit letters overlap the tool shortcuts, so only claim them where a unit
+    can apply: after a digit was typed, for a property that has a unit
+    (``prop=None`` skips that check), and with no modifier held.
+    """
+    if event.type not in unit_key_types:
+        return False
+    if event.ctrl or event.alt or event.shift or event.oskey:
+        return False
+    if prop is not None and prop.unit == "NONE":
+        return False
+    return any(c.isdigit() for c in current)
 
 
 def get_unit_value(event: Event):
@@ -132,17 +144,28 @@ def get_unit_value(event: Event):
 
 
 _EVENT_TO_DIGIT = {
-    "ZERO": "0", "NUMPAD_0": "0",
-    "ONE": "1", "NUMPAD_1": "1",
-    "TWO": "2", "NUMPAD_2": "2",
-    "THREE": "3", "NUMPAD_3": "3",
-    "FOUR": "4", "NUMPAD_4": "4",
-    "FIVE": "5", "NUMPAD_5": "5",
-    "SIX": "6", "NUMPAD_6": "6",
-    "SEVEN": "7", "NUMPAD_7": "7",
-    "EIGHT": "8", "NUMPAD_8": "8",
-    "NINE": "9", "NUMPAD_9": "9",
-    "PERIOD": ".", "NUMPAD_PERIOD": ".",
+    "ZERO": "0",
+    "NUMPAD_0": "0",
+    "ONE": "1",
+    "NUMPAD_1": "1",
+    "TWO": "2",
+    "NUMPAD_2": "2",
+    "THREE": "3",
+    "NUMPAD_3": "3",
+    "FOUR": "4",
+    "NUMPAD_4": "4",
+    "FIVE": "5",
+    "NUMPAD_5": "5",
+    "SIX": "6",
+    "NUMPAD_6": "6",
+    "SEVEN": "7",
+    "NUMPAD_7": "7",
+    "EIGHT": "8",
+    "NUMPAD_8": "8",
+    "NINE": "9",
+    "NUMPAD_9": "9",
+    "PERIOD": ".",
+    "NUMPAD_PERIOD": ".",
 }
 
 

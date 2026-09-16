@@ -86,7 +86,7 @@ class NumericInput:
             )
             return
 
-        if is_unit_input(event):
+        if is_unit_input(event, self.current, self.prop):
             self.current += get_unit_value(event)
             return
 
