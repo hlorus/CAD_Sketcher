@@ -21,7 +21,9 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
 
     bl_idname = Operators.Trim
     bl_label = "Trim Segment"
-    bl_options = {"REGISTER", "UNDO"}
+    # No redo panel: the only input is the segment the trim removes, so there is
+    # nothing left to show or adjust afterwards.
+    bl_options = {"UNDO"}
 
     trim_state1_doc = ("Segment", "Segment to trim.")
 
