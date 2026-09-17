@@ -42,6 +42,9 @@ While typing a number, letters are read as units (e.g. `5cm`) instead.
 
 **Dimensional Constraints:**
 
+These start the Dimension tool limited to one kind of dimension; plain D lets it
+infer the kind from what you pick.
+
 |Key|Modifier|Action|
 |---|---|---|
 |D|Alt   |Distance|

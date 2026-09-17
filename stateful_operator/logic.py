@@ -567,7 +567,17 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
     def key_action(self, context: Context, event: Event) -> int:
         """Return what a shortcut key does to this running tool (see switch)."""
-        return key_action(context, event, exclude=self.bl_idname)
+        return key_action(
+            context, event, exclude=self.bl_idname, is_same=self.is_same_invocation
+        )
+
+    def is_same_invocation(self, kmi) -> bool:
+        """Whether a keymap item calling this operator starts it as it runs now.
+
+        Such a key doesn't restart the running tool. Override when properties
+        make the same operator behave as different tools.
+        """
+        return True
 
     def _handle_pass_through(self, context: Context, event: Event):
         if event.type in {"MIDDLEMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE", "MOUSEMOVE"}:

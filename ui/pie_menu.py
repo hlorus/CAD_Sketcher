@@ -7,6 +7,16 @@ from ..stateful_operator.constants import Operators as StatefulOps
 from ..stateful_operator.utilities.switch import register_switch_operator
 
 PIE_MENU_ID = "VIEW3D_MT_slvs_pie"
+
+# (label, Dimension tool presets) for each dimension the menu offers.
+DIMENSION_PRESETS = (
+    ("Distance", {"kind": "DISTANCE"}),
+    ("Horizontal Distance", {"kind": "DISTANCE", "align": "HORIZONTAL"}),
+    ("Vertical Distance", {"kind": "DISTANCE", "align": "VERTICAL"}),
+    ("Angle", {"kind": "ANGLE"}),
+    ("Diameter", {"kind": "DIAMETER"}),
+    ("Radius", {"kind": "DIAMETER", "radius": True}),
+)
 PIE_SHORTCUT = ("M", True, True)
 
 
@@ -126,19 +136,10 @@ class VIEW3D_MT_slvs_dimension_menu(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator(Operators.AddDistance, text="Distance")
-
-        props = layout.operator(Operators.AddDistance, text="Horizontal Distance")
-        props.align = "HORIZONTAL"
-
-        props = layout.operator(Operators.AddDistance, text="Vertical Distance")
-        props.align = "VERTICAL"
-
-        layout.operator(Operators.AddAngle, text="Angle")
-        layout.operator(Operators.AddDiameter, text="Diameter")
-
-        props = layout.operator(Operators.AddDiameter, text="Radius")
-        props.setting = True
+        for text, flags in DIMENSION_PRESETS:
+            props = layout.operator(Operators.AddDimension, text=text)
+            for name, value in flags.items():
+                setattr(props, name, value)
 
 
 class VIEW3D_MT_slvs_more_constraints_menu(Menu):

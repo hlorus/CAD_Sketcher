@@ -95,48 +95,21 @@ constraint_access = (
             ]
         },
     ),
-    # Dimensional Constraints
-    (
-        Operators.AddDistance,
-        {"type": "D", "value": "PRESS", "alt": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
-    ),
-    (
-        Operators.AddDistance,
-        {"type": "V", "value": "PRESS", "alt": True},
-        {"properties": [("wait_for_input", True), ("align", "VERTICAL")]},
-    ),
-    (
-        Operators.AddDistance,
-        {"type": "H", "value": "PRESS", "alt": True},
-        {"properties": [("wait_for_input", True), ("align", "HORIZONTAL")]},
-    ),
-    (
-        Operators.AddAngle,
-        {"type": "A", "value": "PRESS", "alt": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
-    ),
-    (
-        Operators.AddDiameter,
-        {"type": "O", "value": "PRESS", "alt": True},
-        {
-            "properties": [
-                ("wait_for_input", True),
-            ]
-        },
-    ),
-    (
-        Operators.AddDiameter,
-        {"type": "R", "value": "PRESS", "alt": True},
-        {"properties": [("wait_for_input", True), ("setting", True)]},
+    # Dimensions: the Dimension tool, preset to one kind.
+    *(
+        (
+            Operators.AddDimension,
+            {"type": key, "value": "PRESS", "alt": True},
+            {"properties": [("wait_for_input", True), *flags]},
+        )
+        for key, flags in (
+            ("D", [("kind", "DISTANCE")]),
+            ("V", [("kind", "DISTANCE"), ("align", "VERTICAL")]),
+            ("H", [("kind", "DISTANCE"), ("align", "HORIZONTAL")]),
+            ("A", [("kind", "ANGLE")]),
+            ("O", [("kind", "DIAMETER")]),
+            ("R", [("kind", "DIAMETER"), ("radius", True)]),
+        )
     ),
 )
 

@@ -93,21 +93,30 @@ def matches(kmi: KeyMapItem, event: Event) -> bool:
     )
 
 
-def classify(context: Context, kmi: KeyMapItem, exclude: str = "") -> int:
+def classify(
+    context: Context,
+    kmi: KeyMapItem,
+    exclude: str = "",
+    is_same: Optional[Callable[[KeyMapItem], bool]] = None,
+) -> int:
     """Return what a keymap item matching a key press does to a running tool.
 
     ``exclude`` is the running operator: its own shortcut doesn't restart it.
+    ``is_same(kmi)`` tells whether an item calling that operator starts it the
+    same way (by default any does); one with other presets switches over.
     """
     idname = kmi.idname
     if idname == Operators.InvokeTool:
         props = kmi.properties
-        if props.operator == exclude:
+        if props.operator == exclude and (is_same is None or is_same(kmi)):
             return BLOCK
         if tool_available(context, props.tool_name):
             return SWITCH
         return SKIP if props.fallthrough else BLOCK
 
-    if idname not in _operators or idname == exclude:
+    if idname not in _operators:
+        return BLOCK
+    if idname == exclude and (is_same is None or is_same(kmi)):
         return BLOCK
     predicate, action = _operators[idname]
     if predicate is None:
@@ -159,7 +168,12 @@ def is_undo_event(context: Context, event: Event) -> bool:
     )
 
 
-def key_action(context: Context, event: Event, exclude: str = "") -> int:
+def key_action(
+    context: Context,
+    event: Event,
+    exclude: str = "",
+    is_same: Optional[Callable[[KeyMapItem], bool]] = None,
+) -> int:
     """Return SWITCH, FORWARD, CANCEL or BLOCK for a key press during a running tool.
 
     Only letter keys are considered: the shortcuts use them, and it keeps mouse
@@ -170,4 +184,6 @@ def key_action(context: Context, event: Event, exclude: str = "") -> int:
     if is_undo_event(context, event):
         return CANCEL
     items = (kmi for km in _active_keymaps(context) for kmi in km.keymap_items)
-    return first_action(items, event, lambda kmi: classify(context, kmi, exclude))
+    return first_action(
+        items, event, lambda kmi: classify(context, kmi, exclude, is_same)
+    )

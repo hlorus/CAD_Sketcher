@@ -1,6 +1,12 @@
 import logging
 
-from bpy.props import FloatProperty
+from bpy.props import (
+    BoolProperty,
+    EnumProperty,
+    FloatProperty,
+    FloatVectorProperty,
+    StringProperty,
+)
 from bpy.types import Context, Event, Operator
 from mathutils import Vector
 from mathutils.geometry import intersect_line_plane
@@ -12,11 +18,17 @@ from ..model.angle import SlvsAngle
 from ..model.arc import SlvsArc
 from ..model.circle import SlvsCircle
 from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef, curve_ref
+from ..model.distance import align_items
 from ..model.line_2d import SlvsLine2D
 from ..model.point_2d import SlvsPoint2D
 from ..model.sketch_ref import get_active_constraints
 from ..stateful_operator.state import state_from_args
-from ..stateful_operator.utilities.keymap import is_numeric_input, is_unit_input
+from ..stateful_operator.utilities.description import state_desc, stateful_op_desc
+from ..stateful_operator.utilities.keymap import (
+    get_key_map_desc,
+    is_numeric_input,
+    is_unit_input,
+)
 from ..stateful_operator.utilities.numeric import NumericInput, parse_numeric
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.curve_data import refresh_curve_geometry
@@ -26,6 +38,41 @@ from .base_constraint import GenericConstraintOp
 logger = logging.getLogger(__name__)
 
 _PLACEMENT_STATE = "Placement"
+
+# What the tool dimensions. AUTO infers it from the picks; the others restrict the
+# picks to that kind, as the separate Distance/Angle/Diameter tools did.
+KINDS = (
+    ("AUTO", "Auto", "Infer the dimension from the picked geometry"),
+    ("DISTANCE", "Distance", "Add a distance constraint"),
+    ("ANGLE", "Angle", "Add an angle constraint"),
+    ("DIAMETER", "Diameter", "Add a diameter or radius constraint"),
+)
+_KIND_DESCRIPTIONS = {k: desc for k, _name, desc in KINDS}
+
+_POINT_LINE = (SlvsPoint2D, SlvsLine2D)
+_CURVES = (SlvsCircle, SlvsArc)
+_ANY = (*_POINT_LINE, *_CURVES)
+
+# Presets a keymap item or button can start the tool with, and their defaults.
+_FLAG_DEFAULTS = {
+    "kind": "AUTO",
+    "align": "NONE",
+    "radius": False,
+    "supplementary": False,
+}
+
+
+def _same_flags(kmi, properties) -> bool:
+    """Whether a keymap item starts the tool with the presets of ``properties``."""
+    for name, default in _FLAG_DEFAULTS.items():
+        want = getattr(properties, name, default) if properties else default
+        if getattr(kmi.properties, name, default) != want:
+            return False
+    return True
+
+
+# Label placement attributes kept for a redo, per constraint type.
+_LABEL_ATTRS = ("draw_offset", "draw_outset", "leader_angle")
 
 
 class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
@@ -49,6 +96,10 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
     the first pick, where the label is dragged into place (display only, no
     re-solve) and confirmed with a click. A point needs a partner, so it takes a
     required second pick before placement.
+
+    ``kind`` restricts the tool to one dimension type (distance, angle or
+    diameter), and ``align``/``radius``/``supplementary`` preset how it measures,
+    so every former dimension tool is this operator with flags.
     """
 
     bl_idname = Operators.AddDimension
@@ -68,11 +119,104 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
     # display-only side effect; the property itself is only a confirm carrier.
     placement: FloatProperty(options={"SKIP_SAVE", "HIDDEN"})
 
+    kind: EnumProperty(name="Type", items=KINDS, options={"SKIP_SAVE"})
+    align: EnumProperty(name="Alignment", items=align_items, options={"SKIP_SAVE"})
+    flip: BoolProperty(name="Flip", options={"SKIP_SAVE"})
+    radius: BoolProperty(name="Use Radius", options={"SKIP_SAVE"})
+    supplementary: BoolProperty(
+        name="Measure Supplementary Angle", options={"SKIP_SAVE"}
+    )
+    # The value, in the unit of the dimension type (shown in the redo panel).
+    length: FloatProperty(
+        name="Distance",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        precision=5,
+        options={"SKIP_SAVE"},
+    )
+    angle: FloatProperty(
+        name="Angle",
+        subtype="ANGLE",
+        unit="ROTATION",
+        precision=5,
+        options={"SKIP_SAVE"},
+    )
+
+    # Redo state: what the interactive run made, so a redo rebuilds it exactly.
+    partner: StringProperty(options={"SKIP_SAVE", "HIDDEN"})
+    result: StringProperty(options={"SKIP_SAVE", "HIDDEN"})
+    can_align: BoolProperty(options={"SKIP_SAVE", "HIDDEN"})
+    can_flip: BoolProperty(options={"SKIP_SAVE", "HIDDEN"})
+    # Settings the stored value was measured with, to convert it when they change.
+    last_align: EnumProperty(items=align_items, options={"SKIP_SAVE", "HIDDEN"})
+    last_radius: BoolProperty(options={"SKIP_SAVE", "HIDDEN"})
+    last_supplementary: BoolProperty(options={"SKIP_SAVE", "HIDDEN"})
+    label: FloatVectorProperty(size=3, options={"SKIP_SAVE", "HIDDEN"})
+    has_label: BoolProperty(options={"SKIP_SAVE", "HIDDEN"})
+
+    _redoing = False
+    _preset_value = None
+
+    @classmethod
+    def description(cls, context, properties):
+        kind = getattr(properties, "kind", "AUTO") if properties else "AUTO"
+        descs = []
+        hint = get_key_map_desc(
+            context, cls.bl_idname, filter_func=lambda kmi: _same_flags(kmi, properties)
+        )
+        if hint:
+            descs.append(hint)
+        if kind == "AUTO":
+            descs.append(cls.__doc__.split("\n")[0])
+        else:
+            descs.append(_KIND_DESCRIPTIONS[kind])
+        states = [
+            state_desc(s.name, s.description, s.types)
+            for s in cls.get_states_definition()
+        ]
+        return stateful_op_desc(" ".join(descs), *states)
+
+    def is_same_invocation(self, kmi) -> bool:
+        # Alt+H while dimensioning with other presets switches to that dimension.
+        return _same_flags(kmi, self)
+
+    def _prop(self, name: str, default):
+        """An operator property, or ``default`` where it isn't registered (the
+        test double runs this code without bpy properties)."""
+        return getattr(self, name, default)
+
+    def _kind(self) -> str:
+        """The dimension type to make; the presets imply one when ``kind`` is AUTO."""
+        kind = self._prop("kind", "AUTO")
+        if kind != "AUTO":
+            return kind
+        if self._prop("align", "NONE") != "NONE":
+            return "DISTANCE"
+        if self._prop("radius", False):
+            return "DIAMETER"
+        return "AUTO"
+
+    def _is_3d(self) -> bool:
+        sketch = getattr(self, "sketch", None)
+        return bool(sketch and getattr(sketch, "is_3d", False))
+
     @classmethod
     def states(cls, operator=None):
-        """Pick the first entity (+ a required partner for a lone point), then a
-        terminal interactive placement state."""
-        first_types = (SlvsPoint2D, SlvsLine2D, SlvsCircle, SlvsArc)
+        """Pick the first entity (+ a required partner where the kind needs one),
+        then a terminal interactive placement state."""
+        kind = operator._kind() if operator else "AUTO"
+        first_types = {
+            "ANGLE": (SlvsLine2D,),
+            "DIAMETER": _CURVES,
+        }.get(kind, _ANY)
+        if (
+            kind == "DISTANCE"
+            and operator
+            and operator._prop("align", "NONE") != "NONE"
+        ):
+            # An aligned distance measures between two points (or a line's ends).
+            first_types = _POINT_LINE
+
         states = [
             state_from_args(
                 "Entity 1",
@@ -83,23 +227,14 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             )
         ]
 
-        # Add a partner-pick state when the first entity needs one (a lone point)
-        # or when it isn't known yet -- the latter lets a pre-selected pair (e.g.
-        # two points) prefill a second entity. A known line/circle/arc goes
-        # straight to placement; a line gains its optional partner by a click
-        # during placement instead.
+        # Add a partner-pick state when the first entity needs one or when it
+        # isn't known yet -- the latter lets a pre-selected pair (e.g. two points)
+        # prefill a second entity. Otherwise a known entity goes straight to
+        # placement; a line gains its optional partner by a click there instead.
         e1 = getattr(operator, "entity1", None) if operator else None
-        if e1 is None or isinstance(e1, PointRef):
-            states.append(
-                state_from_args(
-                    "Entity 2",
-                    description="Pick the entity to measure to.",
-                    pointer="entity2",
-                    types=(SlvsPoint2D, SlvsLine2D, SlvsCircle, SlvsArc),
-                    use_create=False,
-                    optional=e1 is None,
-                )
-            )
+        partner = cls._partner_state(kind, e1)
+        if partner is not None:
+            states.append(partner)
 
         # Placement: no property/pointer, so it neither re-solves nor snapshots
         # per move -- its ``state_func`` just drags the label offset, and a click
@@ -117,6 +252,31 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         )
         return states
 
+    @staticmethod
+    def _partner_state(kind, e1):
+        """The second pick state for ``kind`` after ``e1``, or None."""
+        if kind == "DIAMETER":
+            return None
+        if kind == "ANGLE":
+            types, optional = (SlvsLine2D,), False
+        elif e1 is None:
+            types, optional = _ANY, True
+        elif isinstance(e1, PointRef):
+            types, optional = _ANY, False
+        elif kind == "DISTANCE" and isinstance(e1, (CircleRef, ArcRef)):
+            # A lone curve is a diameter, so a distance needs something to measure to.
+            types, optional = _ANY, False
+        else:
+            return None
+        return state_from_args(
+            "Entity 2",
+            description="Pick the entity to measure to.",
+            pointer="entity2",
+            types=types,
+            use_create=False,
+            optional=optional,
+        )
+
     def init(self, context: Context, event: Event):
         if not super().init(context, event):
             return False
@@ -124,6 +284,10 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         # placement (line/circle/arc) has no E2 slot, so a pre-selected partner
         # is adopted from here in _create_constraint rather than via a state.
         self._prefill_selection = list(selection.selected)
+        # A value passed in (e.g. by a script) is used instead of the measured one.
+        for name in ("length", "angle"):
+            if self.properties.is_property_set(name):
+                self._preset_value = getattr(self, name)
         return True
 
     def _second_entity(self):
@@ -138,7 +302,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         the E2 slot once the type is known), so a pre-selected pair would only
         dimension the first entity. Pull a compatible second from the snapshot.
         """
-        if self._second_entity() is not None:
+        if self._second_entity() is not None or self._redoing:
             return
         e1 = getattr(self, "entity1", None)
         if not isinstance(e1, (LineRef, CircleRef, ArcRef)):
@@ -165,8 +329,8 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             if cid in excluded:
                 continue
             ref = curve_ref(self.sketch, cid)
-            if isinstance(ref, (LineRef, PointRef, CircleRef, ArcRef)):
-                self._second_ref = ref
+            if self._accepts_partner(ref):
+                self._set_partner(ref)
                 return
 
     def _available_entities(self):
@@ -228,9 +392,16 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         means one besides ``target`` itself exists.
         """
         want = set(target.curve_id_placements())
+        align = getattr(target, "align", None)
         count = 0
         for c in get_active_constraints(context).all:
-            if type(c) is type(target) and set(c.curve_id_placements()) == want:
+            if type(c) is not type(target):
+                continue
+            # A horizontal and a vertical distance between the same points differ.
+            if (
+                set(c.curve_id_placements()) == want
+                and getattr(c, "align", None) == align
+            ):
                 count += 1
                 if count > 1:
                     return True
@@ -257,40 +428,48 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         self._prefill_second()
         e1 = self.entity1
         e2 = self._second_entity()
+        kind = self._kind()
         constraints = self.sketch.constraints
-        # The dimension value is always the measured geometry (drag only moves the
-        # label), so always initialise it from the current geometry.
-        init = True
 
         # No dedup here -- see _is_duplicate (checked at fini). The tentative
         # constraint is always created so it previews and can still change type.
         if e2 is None:
             if isinstance(e1, (CircleRef, ArcRef)):
-                self.target = constraints.add_diameter(
-                    init=init, curve_id_1=e1.curve_id
+                if kind == "DISTANCE":
+                    return
+                self.target = self._add(
+                    constraints.add_diameter, "DIAMETER", curve_id_1=e1.curve_id
                 )
                 logger.debug("Dimension -> diameter on %s", e1.curve_id)
             elif isinstance(e1, LineRef):
+                if kind == "ANGLE":
+                    return
                 # The native solver needs two point ids, so measure the line as
                 # the distance between its own endpoints.
                 p1, p2 = e1.p1, e1.p2
                 if p1 and p2:
-                    self.target = constraints.add_distance(
-                        init=init, curve_id_1=p1.curve_id, curve_id_2=p2.curve_id
+                    self.target = self._add(
+                        constraints.add_distance,
+                        "DISTANCE",
+                        curve_id_1=p1.curve_id,
+                        curve_id_2=p2.curve_id,
                     )
                     logger.debug("Dimension -> line length on %s", e1.curve_id)
             else:
                 logger.debug("Dimension: point %s needs a second entity", e1.curve_id)
                 return
         elif isinstance(e1, LineRef) and isinstance(e2, LineRef):
-            if self._lines_parallel(e1, e2):
+            if kind != "ANGLE" and self._lines_parallel(e1, e2):
                 # Parallel lines have no angle vertex (their intersection is at
                 # infinity), so measure the perpendicular gap instead: a
                 # point-to-line distance from one line's endpoint to the other.
                 p = e1.p1
                 if p:
-                    self.target = constraints.add_distance(
-                        init=init, curve_id_1=p.curve_id, curve_id_2=e2.curve_id
+                    self.target = self._add(
+                        constraints.add_distance,
+                        "DISTANCE",
+                        curve_id_1=p.curve_id,
+                        curve_id_2=e2.curve_id,
                     )
                     logger.debug(
                         "Dimension -> distance (parallel lines) %s -> %s",
@@ -298,8 +477,11 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                         e2.curve_id,
                     )
             else:
-                self.target = constraints.add_angle(
-                    init=init, curve_id_1=e1.curve_id, curve_id_2=e2.curve_id
+                self.target = self._add(
+                    constraints.add_angle,
+                    "ANGLE",
+                    curve_id_1=e1.curve_id,
+                    curve_id_2=e2.curve_id,
                 )
                 logger.debug(
                     "Dimension -> angle between %s and %s", e1.curve_id, e2.curve_id
@@ -314,16 +496,119 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                 )
                 return
             a, b = pair
-            self.target = constraints.add_distance(
-                init=init, curve_id_1=a.curve_id, curve_id_2=b.curve_id
+            self.target = self._add(
+                constraints.add_distance,
+                "DISTANCE",
+                curve_id_1=a.curve_id,
+                curve_id_2=b.curve_id,
             )
             logger.debug("Dimension -> distance %s -> %s", a.curve_id, b.curve_id)
 
         # Give the freshly created label a sensible default offset so it is
         # visible before the first placement move (overwritten while dragging).
         target = getattr(self, "target", None)
-        if target and context.region_data:
+        if target is None:
+            return
+        if self._redoing and self._prop("has_label", False):
+            for name, value in zip(_LABEL_ATTRS, self.label):
+                if hasattr(target, name):
+                    setattr(target, name, value)
+        elif context.region_data:
             target.draw_offset = 0.05 * context.region_data.view_distance
+
+    def _add(self, add, type_name: str, **ids):
+        """Create a dimension of ``type_name`` with the operator's settings.
+
+        The interactive run measures the geometry; a redo re-applies the values
+        from the redo panel. Settings that convert the value (alignment, radius,
+        supplementary angle) are applied in the order that keeps it meaningful.
+        """
+        if not self._redoing:
+            settings = {}
+            if type_name == "DISTANCE" and self._prop("align", "NONE") != "NONE":
+                settings["align"] = self.align
+            elif type_name == "DIAMETER" and self._prop("radius", False):
+                settings["setting"] = True
+            target = add(init=True, **ids, **settings)
+            # The angle measures as is; the setting only changes what is shown.
+            if type_name == "ANGLE" and self._prop("supplementary", False):
+                target.setting = True
+            if self._preset_value is not None:
+                target.value = self._preset_value
+            return target
+
+        target = add(init=False, **ids)
+        if type_name == "DISTANCE":
+            # Changing the alignment re-measures, like on the constraint itself.
+            target.align = self.align
+            if self.align == self.last_align:
+                target.value = self.length
+            target.flip = self.flip
+        elif type_name == "DIAMETER":
+            # The value was measured with the previous setting; toggling converts it.
+            target.setting = self.last_radius
+            target.value = self.length
+            target.setting = self.radius
+        elif type_name == "ANGLE":
+            target.setting = self.last_supplementary
+            target.value = self.angle
+            target.setting = self.supplementary
+        return target
+
+    def _sync_settings(self):
+        """Mirror the created dimension into the operator, for the redo panel."""
+        target = getattr(self, "target", None)
+        if target is None or not hasattr(self, "result"):
+            return
+        self.result = target.type
+        second = getattr(self, "_second_ref", None)
+        self.partner = second.curve_id if second else ""
+        if target.type == "DISTANCE":
+            self.length = target.value
+            self.align = target.align
+            self.last_align = target.align
+            self.flip = target.flip
+            self.can_align = target.use_align()
+            self.can_flip = target.use_flipping()
+        elif target.type == "DIAMETER":
+            self.length = target.value
+            self.radius = self.last_radius = target.setting
+        elif target.type == "ANGLE":
+            self.angle = target.value
+            self.supplementary = self.last_supplementary = target.setting
+        self.label = [getattr(target, name, 0.0) for name in _LABEL_ATTRS]
+        self.has_label = True
+
+    def execute(self, context: Context):
+        # A redo runs on the state restored from the properties. The constraint
+        # the previous run made was undone, so never touch that reference.
+        self._redoing = True
+        self.target = None
+        self._active_sketch = None
+        partner = self._prop("partner", "")
+        self._second_ref = None
+        if partner:
+            ref = curve_ref(self.sketch, partner)
+            self._second_ref = ref if ref.valid else None
+        return super().execute(context)
+
+    def draw(self, context: Context):
+        layout = self.layout
+        layout.use_property_split = True
+        result = self.result
+        if result == "DISTANCE":
+            layout.prop(self, "length")
+            row = layout.row()
+            row.enabled = self.can_align
+            row.prop(self, "align")
+            if self.can_flip:
+                layout.prop(self, "flip")
+        elif result == "DIAMETER":
+            layout.prop(self, "length", text="Radius" if self.radius else "Diameter")
+            layout.prop(self, "radius")
+        elif result == "ANGLE":
+            layout.prop(self, "angle")
+            layout.prop(self, "supplementary")
 
     def _place_dimension(self, context: Context, coords):
         """Drag the dimension label onto the cursor, display only.
@@ -380,15 +665,38 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
         if cid in excluded:
             return None
 
-        # A line pairs with a line (angle/parallel) or anything for a distance; a
-        # curve pairs with a point/line (edge distance) or another curve
-        # (center-to-center). So any dimensionable entity is a valid partner.
         ref = curve_ref(self.sketch, cid)
-        return ref if isinstance(ref, (LineRef, PointRef, CircleRef, ArcRef)) else None
+        return ref if self._accepts_partner(ref) else None
+
+    def _accepts_partner(self, ref) -> bool:
+        """Whether ``ref`` may be adopted as the partner of a line/circle/arc.
+
+        A line pairs with a line (angle/parallel) or anything for a distance; a
+        curve pairs with a point/line (edge distance) or another curve (center to
+        center). The kind and presets narrow that down.
+        """
+        if not isinstance(ref, (LineRef, PointRef, CircleRef, ArcRef)):
+            return False
+        kind = self._kind()
+        # These kinds pick their partner in a state, or never take one; an aligned
+        # distance only exists between two points (a line's own ends).
+        if kind in ("ANGLE", "DIAMETER") or self._prop("align", "NONE") != "NONE":
+            return False
+        if isinstance(ref, LineRef) and isinstance(self.entity1, LineRef):
+            if self._is_3d():
+                return False  # no angles in free-3D sketches
+            if kind == "DISTANCE":
+                return self._lines_parallel(self.entity1, ref)
+        return True
+
+    def _set_partner(self, ref):
+        self._second_ref = ref
+        if hasattr(self, "partner"):
+            self.partner = ref.curve_id if ref else ""
 
     def _switch_second(self, context: Context, ref):
         """Adopt a second entity mid-placement and rebuild as the new type."""
-        self._second_ref = ref
+        self._set_partner(ref)
         self._clear_target(context)
         self._create_constraint(context)
         if self.sketch:
@@ -463,7 +771,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
 
         # While placing the label the geometry is fixed and only ``draw_offset``
         # changes, so skip the recreate/solve and keep the existing constraint.
-        if self.initialized and self._is_placement_state():
+        if self.initialized and self._is_placement_state() and not self._redoing:
             return bool(getattr(self, "target", None))
 
         # An entity pick changed the inference -- rebuild the constraint.
@@ -520,11 +828,45 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
                 if hasattr(self, "report"):
                     self.report({reason[0]}, reason[1])
 
+        if succeede:
+            self._sync_settings()
+
         # Make sure gizmos end up visible and the label reflects the final offset.
         refresh(context)
         target = getattr(self, "target", None)
         if target is not None:
             logger.debug("Dimension committed: %s (succeeded=%s)", target, succeede)
+
+
+class DimensionAlias:
+    """Base of the former Distance/Angle/Diameter tools, kept under their names
+    for keymaps and scripts: they run the Dimension tool with matching flags."""
+
+    bl_options = set()
+
+    wait_for_input: BoolProperty(options={"HIDDEN", "SKIP_SAVE"}, default=True)
+
+    def dimension_flags(self) -> dict:
+        """Dimension tool properties this tool stands for."""
+        raise NotImplementedError
+
+    def _run(self, mode: str) -> set:
+        import bpy
+
+        flags = self.dimension_flags()
+        result = bpy.ops.view3d.slvs_add_dimension(
+            mode, wait_for_input=self.wait_for_input, **flags
+        )
+        # The Dimension tool keeps running on its own and makes the undo step.
+        if "RUNNING_MODAL" in result:
+            return {"FINISHED"}
+        return result
+
+    def invoke(self, context: Context, event: Event):
+        return self._run("INVOKE_DEFAULT")
+
+    def execute(self, context: Context):
+        return self._run("EXEC_DEFAULT")
 
 
 register, unregister = register_stateops_factory((VIEW3D_OT_slvs_add_dimension,))

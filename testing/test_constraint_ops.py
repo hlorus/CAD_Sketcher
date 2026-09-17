@@ -68,24 +68,32 @@ class TestConstraintOperators(Sketch2dTestCase):
         self.assertIn(line.curve_id, target.curve_id_placements())
 
     def test_dimensional_constraints_have_no_creation_value_state(self):
-        """Value entry moved out of creation into the placement step (the tweak
-        operator handed off from fini), so the creation operators end at their
-        geometry states and no longer expose a separate 'Value' state."""
+        """Value entry happens in the placement step, so no dimension kind adds a
+        separate 'Value' state to creation."""
+        from ..operators.add_dimension import KINDS, VIEW3D_OT_slvs_add_dimension
+
+        cls = VIEW3D_OT_slvs_add_dimension
+        self.assertFalse(cls.has_value_state)
+        for kind, _name, _desc in KINDS:
+            with self.subTest(kind=kind):
+                op = OpHarness(cls, self.sketch, self.context).op
+                op.kind = kind
+                names = [s.name for s in cls.states(op)]
+                self.assertNotIn("Value", names)
+
+    def test_old_dimension_tools_run_the_dimension_tool(self):
         from ..operators.add_angle import VIEW3D_OT_slvs_add_angle
         from ..operators.add_diameter import VIEW3D_OT_slvs_add_diameter
+        from ..operators.add_dimension import DimensionAlias
         from ..operators.add_distance import VIEW3D_OT_slvs_add_distance
 
-        operators = (
+        for cls in (
             VIEW3D_OT_slvs_add_angle,
             VIEW3D_OT_slvs_add_diameter,
             VIEW3D_OT_slvs_add_distance,
-        )
-
-        for operator in operators:
-            with self.subTest(operator=operator.__name__):
-                self.assertFalse(operator.has_value_state)
-                names = [s.name for s in operator.get_states_definition()]
-                self.assertNotIn("Value", names)
+        ):
+            with self.subTest(operator=cls.__name__):
+                self.assertTrue(issubclass(cls, DimensionAlias))
 
     # -- wrong type is rejected: a point can't be a parallel operand ---------
     def test_point_rejected_for_parallel(self):

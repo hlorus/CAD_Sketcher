@@ -53,10 +53,11 @@ def _get_matching_kmi(
     return km_items
 
 
-def get_key_map_desc(context: Context, id_name: str) -> str:
+def get_key_map_desc(context: Context, id_name: str, filter_func=None) -> str:
     """
     Returns a list of shortcut hints to operator with given idname.
     Looks through keymaps in the user keyconfig, so remapped keys show.
+    ``filter_func(kmi)`` narrows the items calling the operator directly.
     """
 
     def _targets_operator(kmi):
@@ -67,7 +68,7 @@ def get_key_map_desc(context: Context, id_name: str) -> str:
         except (KeyError, TypeError):
             return False
 
-    km_items = _get_matching_kmi(context, id_name)
+    km_items = _get_matching_kmi(context, id_name, filter_func=filter_func)
     km_items.extend(
         _get_matching_kmi(
             context,

@@ -1,32 +1,16 @@
-import logging
-
 from bpy.props import BoolProperty, FloatProperty
-from bpy.types import Context, Operator
+from bpy.types import Operator
+from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
-from ..model.angle import SlvsAngle
-from ..stateful_operator.utilities.register import register_stateops_factory
-from ..utilities.constants import HALF_TURN
-from .base_constraint import GenericConstraintOp
-
-logger = logging.getLogger(__name__)
+from .add_dimension import DimensionAlias
 
 
-def invert_angle_getter(self):
-    return self.setting_store
-
-
-def invert_angle_setter(self, setting):
-    self.value = HALF_TURN - self.value
-    self.setting_store = setting
-
-
-class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
+class VIEW3D_OT_slvs_add_angle(DimensionAlias, Operator):
     """Add an angle constraint"""
 
     bl_idname = Operators.AddAngle
     bl_label = "Angle"
-    bl_options = {"UNDO", "REGISTER"}
 
     value: FloatProperty(
         name="Angle",
@@ -35,38 +19,13 @@ class VIEW3D_OT_slvs_add_angle(Operator, GenericConstraintOp):
         precision=5,
         options={"SKIP_SAVE"},
     )
-    setting_store: BoolProperty(
-        name="Measure supplementary angle storage",
-        default=False,
-    )
-    setting: BoolProperty(
-        name="Measure supplementary angle",
-        default=False,
-        get=invert_angle_getter,
-        set=invert_angle_setter,
-    )
-    type = "ANGLE"
-    property_keys = ("value", "setting")
-    has_value_state = False
+    setting: BoolProperty(name="Measure supplementary angle", default=False)
 
-    def main(self, context):
-        if not self.exists(context, SlvsAngle):
-            self.target = self.sketch.constraints.add_angle(
-                init=not self.initialized,
-                curve_id_1=self.entity1.curve_id,
-                curve_id_2=self.entity2.curve_id,
-                **self.get_settings(),
-            )
-
-        return super().main(context)
-
-    def fini(self, context: Context, succeede: bool):
-        # Set the default offset before super().fini() (which hands off to the
-        # placement modal), so the interactive placement writes over the default
-        # rather than the default clobbering the placement.
-        if hasattr(self, "target"):
-            self.target.draw_offset = 0.1 * context.region_data.view_distance
-        super().fini(context, succeede)
+    def dimension_flags(self) -> dict:
+        flags = {"kind": "ANGLE", "supplementary": self.setting}
+        if self.properties.is_property_set("value"):
+            flags["angle"] = self.value
+        return flags
 
 
-register, unregister = register_stateops_factory((VIEW3D_OT_slvs_add_angle,))
+register, unregister = register_classes_factory((VIEW3D_OT_slvs_add_angle,))

@@ -247,6 +247,11 @@ def _themed_icons():
     return preview_icons
 
 
+def get_dimension_icon(kind: str):
+    """Icon of a Dimension tool kind (the constraint type it creates)."""
+    return get_constraint_icon(_constraint_operators[kind])
+
+
 def get_constraint_icon(operator: str):
     icons = _themed_icons()
     if not icons:
