@@ -7,6 +7,33 @@ the manifest version) with a short summary for anything user-facing. It is
 optional: a release with no matching entry just uses GitHub's auto-generated
 notes and shows no "What's new" (e.g. a packaging-only patch).
 
+## 0.32.0
+This release makes large sketches much faster to draw in and edit, adds control over curve resolution and the boolean solver, and refines drawing, bevel and constraint display.
+
+New
+- Curve resolution: set how finely arcs and circles are meshed, per sketch and as a preference for new sketches
+- Boolean solver choice: switch a boolean between Exact and the much faster Manifold solver, with a preference for the default
+- Linear Array can take a second direction to build grids of copies
+- Change Sketch Workplane: move a sketch onto another workplane, a mesh face or an origin plane, and see in the sketch panel which face a workplane is anchored to
+- Option to stop new Extrude and Revolve solids from automatically booleaning into overlapping bodies
+- Duplicating a sketch with Alt+D creates a linked copy of its result instead of a second sketch
+- Drawing tools accept press, drag and release, e.g. drag out a line or a circle's radius
+
+Improved
+- Much faster hovering, dragging and drawing in large sketches, and faster redraws with many constraints
+- Geometry in under-constrained sketches no longer drifts slightly on every solve
+- Constraint icons on the same element or overlapping on screen are grouped into one icon with a count; hover it to expand
+- Brighter constraint colors, sharper icons and a light theme preset for light viewports
+- Bevel: the radius follows the cursor and is clamped to what fits, the corner is kept when a constraint uses it, and tangent joints are no longer beveled
+- Entities and constraints lists show type icons
+- A tool's redo panel shows picked elements by name instead of an internal id
+
+Fixed
+- Duplicated workplanes no longer snap back onto the face of the original; affected files are repaired on load
+- A cutter sketch anchored to the face it cuts no longer shifts its workplane
+- Clicking to bevel selected corners no longer adds an extra point
+- Linear Array could be added to a workplane empty
+
 ## 0.31.0
 This release adds a unified Dimension tool, native 3D sketches, nondestructive Boolean modeling and custom sketch attributes, organizes a project's objects into clean collections, and refines the Extrude, Revolve and Projection tools.
 
