@@ -1,17 +1,17 @@
 import logging
 
-from bpy.types import Operator, Context
+from bpy.types import Context, Operator
 
+from ..declarations import Operators
+from ..model.categories import SEGMENT
 from ..model.curve_ref import CurveRef, curve_ref
 from ..model.sketch_ref import get_active_sketch
-from ..model.categories import SEGMENT
-from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
 from ..stateful_operator.state import state_from_args
-from ..utilities.trimming import TrimSegment
+from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.curve_data import get_uuid, has_uuid_field
+from ..utilities.trimming import TrimSegment
+from ..utilities.view import get_pos_2d, refresh
 from .base_2d import Operator2d
-from ..utilities.view import refresh, get_pos_2d
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,9 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
 
     bl_idname = Operators.Trim
     bl_label = "Trim Segment"
-    bl_options = {"REGISTER", "UNDO"}
+    # No redo panel: the only input is the segment the trim removes, so there is
+    # nothing left to show or adjust afterwards.
+    bl_options = {"UNDO"}
 
     trim_state1_doc = ("Segment", "Segment to trim.")
 
@@ -44,9 +46,9 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
     @staticmethod
     def _delete_segment(context, sketch, segment):
         """Delete a segment and its orphan endpoints."""
+        from ..model.constants import SketchCurveType
         from ..operators.delete_entity import _get_constraint_indices_for_curve_id
         from ..utilities.curve_data import remove_native_curve_by_id
-        from ..model.constants import SketchCurveType
 
         # Collect endpoint curve_ids
         endpoint_cids = set()
@@ -56,7 +58,9 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
                 endpoint_cids.add(pt_cid)
 
         # Remove constraints referencing this segment
-        for data_coll, indices in _get_constraint_indices_for_curve_id(segment.curve_id, context):
+        for data_coll, indices in _get_constraint_indices_for_curve_id(
+            segment.curve_id, context
+        ):
             for i in reversed(indices):
                 data_coll.remove(i)
 
@@ -106,6 +110,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
 
         # Find intersections with all other segments
         from ..model.constants import SketchCurveType
+
         cd = sketch.data
         type_attr = cd.attributes.get("sketch_type")
 
@@ -140,6 +145,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
                 pt_cid = c1 if c2 == segment.curve_id else c2
                 if pt_cid:
                     from ..model.curve_ref import PointRef
+
                     pt = PointRef(sketch, pt_cid)
                     if pt.valid:
                         trim.add(pt.co, constraint_index=j, constraint_type=coll_name)

@@ -7,7 +7,6 @@ Add integration with native blender types, following are supported:
 - bpy.types.MeshPolygon
 """
 
-
 from typing import Optional
 
 import bpy
@@ -112,6 +111,19 @@ class MeshElementPointer(PointerKind):
 
 _NATIVE_POINTER_KINDS = (ObjectPointer(), MeshElementPointer())
 
+# Redo-panel presentation of the native pointer kinds (keyed by type __name__).
+_POINTER_KIND_ICONS = {
+    "Object": "OBJECT_DATA",
+    "MeshVertex": "VERTEXSEL",
+    "MeshEdge": "EDGESEL",
+    "MeshPolygon": "FACESEL",
+}
+_MESH_ELEMENT_LABELS = {
+    "MeshVertex": "Vertex",
+    "MeshEdge": "Edge",
+    "MeshPolygon": "Face",
+}
+
 
 class StatefulOperator(StatefulOperatorLogic):
     """Extends logic class with native blender integration"""
@@ -157,7 +169,9 @@ class StatefulOperator(StatefulOperatorLogic):
             if not s.pointer:
                 continue
             annotations.setdefault("ptr%d_kind" % i, StringProperty(options={"HIDDEN"}))
-            annotations.setdefault("ptr%d_existing" % i, BoolProperty(options={"HIDDEN"}))
+            annotations.setdefault(
+                "ptr%d_existing" % i, BoolProperty(options={"HIDDEN"})
+            )
             annotations.setdefault("ptr%d_name" % i, StringProperty(options={"HIDDEN"}))
             annotations.setdefault(
                 "ptr%d_index" % i, IntProperty(default=-1, options={"HIDDEN"})
@@ -336,6 +350,7 @@ class StatefulOperator(StatefulOperatorLogic):
             LineRef,
             PointRef,
         )
+
         if not isinstance(element, CurveRef):
             return False
 
@@ -345,6 +360,7 @@ class StatefulOperator(StatefulOperatorLogic):
             SlvsLine2D,
             SlvsPoint2D,
         )
+
         _map = {
             PointRef: SlvsPoint2D,
             LineRef: SlvsLine2D,
@@ -364,18 +380,22 @@ class StatefulOperator(StatefulOperatorLogic):
             names.update(klass.__dict__.get("__annotations__", {}))
         return names
 
-    def _pointer_repick_label(self, i):
-        """Label for a picked pointer, read from its persisted props."""
+    def _pointer_display(self, i) -> tuple:
+        """``(text, icon kwargs)`` for a picked pointer, read from its persisted
+        props. Extension layers override this to name their own element types."""
         kind = getattr(self, "ptr%d_kind" % i, "")
         name = getattr(self, "ptr%d_name" % i, "")
         index = getattr(self, "ptr%d_index" % i, -1)
+        icon = _POINTER_KIND_ICONS.get(kind)
+        icon_kwargs = {"icon": icon} if icon else {}
         if name and index >= 0:
-            return "%s [%d]" % (name, index)
+            element = _MESH_ELEMENT_LABELS.get(kind, "Element")
+            return "%s: %s %d" % (name, element, index), icon_kwargs
         if name:
-            return name
+            return name, icon_kwargs
         if index >= 0:
-            return "%s #%d" % (kind or "Element", index)
-        return kind or "-"
+            return "%s #%d" % (kind or "Element", index), icon_kwargs
+        return kind or "-", icon_kwargs
 
     def _state_is_editable(self, i, state):
         """Whether state ``i`` offers a redo-panel eyedropper to re-pick it.
@@ -391,7 +411,8 @@ class StatefulOperator(StatefulOperatorLogic):
         picked = state.pointer and getattr(self, "ptr%d_existing" % i, False)
         if picked and getattr(self, "ptr%d_kind" % i, ""):
             row = layout.row(align=True)
-            row.label(text=self._pointer_repick_label(i))
+            text, icon_kwargs = self._pointer_display(i)
+            row.label(text=text, **icon_kwargs)
             if self._state_is_editable(i, state):
                 # Re-enter THIS op to edit just state i. Use the class bl_idname
                 # (dotted, via the str-Enum .value); the instance form is the RNA
