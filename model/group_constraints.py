@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 class SlvsConstraints(PropertyGroup):
-
     _dimensional_constraints = (
         SlvsDistance,
         SlvsAngle,
@@ -90,6 +89,7 @@ class SlvsConstraints(PropertyGroup):
             constr.constraint_uid = uid
         if hasattr(constr, "value"):
             import bpy
+
             scene = bpy.context.scene
             if scene and hasattr(scene, "sketcher") and scene.sketcher:
                 try:
@@ -205,7 +205,9 @@ class SlvsConstraints(PropertyGroup):
         c.curve_id_2 = curve_id_2
         return self._init_constraint(c)
 
-    def add_distance(self, init=False, curve_id_1="", curve_id_2="", **settings) -> SlvsDistance:
+    def add_distance(
+        self, init=False, curve_id_1="", curve_id_2="", **settings
+    ) -> SlvsDistance:
         c = self.distance.add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
@@ -216,7 +218,9 @@ class SlvsConstraints(PropertyGroup):
             c.assign_settings(**settings)
         return c
 
-    def add_angle(self, init=False, curve_id_1="", curve_id_2="", **settings) -> SlvsAngle:
+    def add_angle(
+        self, init=False, curve_id_1="", curve_id_2="", **settings
+    ) -> SlvsAngle:
         c = self.angle.add()
         c.curve_id_1 = curve_id_1
         c.curve_id_2 = curve_id_2
@@ -261,7 +265,9 @@ class SlvsConstraints(PropertyGroup):
     def add_perpendicular(self, curve_id_1="", curve_id_2="") -> SlvsPerpendicular:
         return self._add_simple("perpendicular", curve_id_1, curve_id_2)
 
-    def add_ratio(self, init=False, curve_id_1="", curve_id_2="", **settings) -> SlvsRatio:
+    def add_ratio(
+        self, init=False, curve_id_1="", curve_id_2="", **settings
+    ) -> SlvsRatio:
         c = self._add_simple("ratio", curve_id_1, curve_id_2)
         if init:
             c.assign_init_props(**settings)
