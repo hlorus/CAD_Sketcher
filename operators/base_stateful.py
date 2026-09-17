@@ -14,12 +14,17 @@ from .placement import MIDPOINT, placement_of
 from .utilities import get_hovered
 
 
-def _curve_ref_kinds(base) -> set:
-    """Type names of ``base`` and all its subclasses (the stored pointer kinds)."""
-    names = {base.__name__}
+def _curve_ref_classes(base) -> list:
+    """``base`` and all its subclasses (the stored pointer kinds)."""
+    classes = [base]
     for sub in base.__subclasses__():
-        names |= _curve_ref_kinds(sub)
-    return names
+        classes += _curve_ref_classes(sub)
+    return classes
+
+
+def _curve_ref_kinds(base) -> set:
+    """Type names of ``base`` and all its subclasses."""
+    return {cls.__name__ for cls in _curve_ref_classes(base)}
 
 
 class GenericEntityOp(StatefulOperator):
@@ -341,6 +346,15 @@ class GenericEntityOp(StatefulOperator):
                 i = value.slvs_index
             data["entity_index"] = i
             return True
+
+    def _pointer_type_registry(self):
+        # Picked sketch elements are stored by their CurveRef type name; without
+        # them a fresh redo/re-pick instance can't rebuild those picks.
+        from ..model.curve_ref import CurveRef
+
+        registry = super()._pointer_type_registry()
+        registry.update({cls.__name__: cls for cls in _curve_ref_classes(CurveRef)})
+        return registry
 
     def _pointer_display(self, i):
         # A picked sketch element is stored by its curve id; show its name and

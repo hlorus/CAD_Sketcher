@@ -1,5 +1,6 @@
 import logging
 import secrets
+from contextlib import contextmanager
 
 from bpy.props import CollectionProperty
 from bpy.types import PropertyGroup
@@ -21,6 +22,21 @@ from .tangent import SlvsTangent
 from .vertical import SlvsVertical
 
 logger = logging.getLogger(__name__)
+
+
+# Uids handed back to constraints re-created by an operator re-run, so the
+# re-created constraint keeps its identity (and the value stored under it).
+_reuse_uids = []
+
+
+@contextmanager
+def reusing_constraint_uids(uids):
+    """Give constraints created inside the block these uids, in order."""
+    _reuse_uids[:] = [uid for uid in uids if uid]
+    try:
+        yield
+    finally:
+        _reuse_uids.clear()
 
 
 class SlvsConstraints(PropertyGroup):
@@ -84,6 +100,11 @@ class SlvsConstraints(PropertyGroup):
 
     def _init_constraint(self, constr: GenericConstraint) -> GenericConstraint:
         uid = getattr(constr, "constraint_uid", "")
+        if not uid and _reuse_uids:
+            candidate = _reuse_uids.pop(0)
+            if not self.get_by_uid(candidate):
+                uid = candidate
+                constr.constraint_uid = uid
         if not uid:
             uid = self._ensure_unique_uid(uid)
             constr.constraint_uid = uid

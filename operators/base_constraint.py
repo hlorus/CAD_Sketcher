@@ -1,6 +1,6 @@
 import logging
 
-from bpy.props import BoolProperty
+from bpy.props import BoolProperty, StringProperty
 from bpy.types import Context
 
 from ..curve_solver import solve_system
@@ -20,9 +20,15 @@ state_docstr = "Pick entity to constrain."
 
 class GenericConstraintOp(Operator2d):
     initialized: BoolProperty(default=False, options={"SKIP_SAVE", "HIDDEN"})
+    # Uid of the constraint this operator created. Re-running the operator (a
+    # redo-panel change or re-picking an entity) replaces that constraint and
+    # gives the new one the same uid, so its value and identity carry over.
+    output_uid: StringProperty(options={"HIDDEN"})
     _entity_prop_names = ("entity1", "entity2", "entity3", "entity4")
     property_keys = ()
     has_value_state = False
+    # Picked entities can be re-picked from the redo panel.
+    editable = True
 
     @classmethod
     def poll(cls, context):
@@ -121,7 +127,33 @@ class GenericConstraintOp(Operator2d):
         # time a operator property has been synced. Ideally it would be possible to change property
         # values without marking them as set.
 
+    def _reapply(self, context: Context):
+        from ..model.group_constraints import reusing_constraint_uids
+
+        constraints = self.sketch.constraints if self.sketch else None
+        own = constraints.get_by_uid(self.output_uid) if constraints else None
+        if own is not None:
+            constraints.remove(own)
+        with reusing_constraint_uids([self.output_uid]):
+            return super()._reapply(context)
+
+    def _update_pick_hover(self, context: Context, coords):
+        # Gizmos don't hover-test while the re-pick modal runs; do it here.
+        from ..drawing import picking, selection
+
+        cid = picking.update_hover(context, coords)
+        if cid != selection.hover:
+            selection.hover = cid
+            if context.area:
+                context.area.tag_redraw()
+
     def main(self, context: Context):
+        target = getattr(self, "target", None)
+        if target is not None:
+            try:
+                self.output_uid = target.constraint_uid
+            except AttributeError:
+                pass  # a non-registered twin (tests) has no RNA props
         self.sync_settings()
 
         deselect_all(context)
@@ -170,15 +202,12 @@ class GenericConstraintOp(Operator2d):
             "INVOKE_DEFAULT", type=target.type, index=index, handoff=True
         )
 
-    def draw(self, context: Context):
-        layout = self.layout
-
-        c = self.target
-        if not c:
-            return
-
+    def draw_settings(self, context: Context):
+        # The picked entities (and a value state) are the framework's state rows.
+        drawn = {state.property for state in self.get_states() if state.property}
         for key in self.property_keys:
-            layout.prop(self, key)
+            if key not in drawn:
+                self.layout.prop(self, key)
 
     def exists(self, context, constraint_type=None, max_constraints=1) -> bool:
         new_cids = set()
