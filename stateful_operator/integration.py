@@ -403,13 +403,29 @@ class StatefulOperator(StatefulOperatorLogic):
         Subclasses can restrict it (e.g. to object pointers only)."""
         return self.editable
 
+    def _is_picked(self, i, state) -> bool:
+        """Whether pointer state ``i`` holds a picked element (from its props)."""
+        return bool(
+            state.pointer
+            and getattr(self, "ptr%d_existing" % i, False)
+            and getattr(self, "ptr%d_kind" % i, "")
+        )
+
+    def _visible_state_props(self, i) -> list:
+        """State ``i``'s properties that belong in the redo panel (not HIDDEN)."""
+        visible = []
+        for name in self.get_property(index=i) or ():
+            prop = self.rna_type.properties.get(name) if name else None
+            if prop is not None and not prop.is_hidden:
+                visible.append(name)
+        return visible
+
     def _draw_state_row(self, layout, i, state):
         """Draw one state's redo-panel row: a picked pointer (label + eyedropper
         to re-pick) or the state's editable property."""
         # A picked pointer is rendered from its persisted identity (which
         # survives into the redo panel, unlike the transient _state_data).
-        picked = state.pointer and getattr(self, "ptr%d_existing" % i, False)
-        if picked and getattr(self, "ptr%d_kind" % i, ""):
+        if self._is_picked(i, state):
             row = layout.row(align=True)
             text, icon_kwargs = self._pointer_display(i)
             row.label(text=text, **icon_kwargs)
@@ -436,19 +452,23 @@ class StatefulOperator(StatefulOperatorLogic):
                 op.edit_state = i
             return
 
-        props = self.get_property(index=i)
-        if props:
-            for p in props:
-                layout.prop(self, p, text="")
+        for p in self._visible_state_props(i):
+            layout.prop(self, p, text="")
 
     def draw(self, context):
         layout = self.layout
 
+        # A state with nothing to show (an unpicked pointer without a value, or
+        # only hidden properties like a live placement) gets no label either.
+        drawn = 0
         for i, state in enumerate(self.get_states()):
-            if i != 0:
+            if not (self._is_picked(i, state) or self._visible_state_props(i)):
+                continue
+            if drawn:
                 layout.separator()
             layout.label(text=state.name)
             self._draw_state_row(layout, i, state)
+            drawn += 1
 
         if hasattr(self, "draw_settings"):
             self.draw_settings(context)
