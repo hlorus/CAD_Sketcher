@@ -9,7 +9,12 @@ from ..declarations import Operators
 from ..model.sketch_ref import get_active_constraints, get_active_sketch
 from ..stateful_operator.utilities.keymap import is_numeric_input, is_unit_input
 from ..stateful_operator.utilities.numeric import NumericInput, parse_numeric
-from ..stateful_operator.utilities.switch import FORWARD, SWITCH, key_action
+from ..stateful_operator.utilities.switch import (
+    CANCEL,
+    FORWARD,
+    SWITCH,
+    key_action,
+)
 from ..utilities.view import get_picking_origin_end
 
 # Confirm / cancel the placement modal.
@@ -61,8 +66,10 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
                 return {"RUNNING_MODAL"}
 
             # Another tool's shortcut keeps the dimension where it is (like Esc
-            # here) and passes the key on to start that tool.
+            # here) and passes the key on to start that tool; undo acts like Esc.
             action = key_action(context, event)
+            if action == CANCEL:
+                return {"FINISHED"}
             if action == SWITCH:
                 return {"FINISHED", "PASS_THROUGH"}
             if action == FORWARD:

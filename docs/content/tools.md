@@ -101,6 +101,7 @@ The basic tool interaction is consistent between tools.
 |0-9 / (-)|-|Activate numeric edit|
 |Enter / Lmb|-|Verify the operation|
 |Esc / Rmb|-|Cancel the operation|
+|Z|Ctrl|Cancel the operation (like Esc); press again to undo|
 
 **While numeric edit is active**
 

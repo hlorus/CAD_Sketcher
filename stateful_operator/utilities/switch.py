@@ -3,7 +3,8 @@
 A running modal operator sees every key before the keymaps do. A key bound to
 starting another tool ends the running operator and passes the event on, so the
 keymap starts the new tool as if nothing had been running. A key bound to a
-setting toggle passes on while the running operator keeps going.
+setting toggle passes on while the running operator keeps going, and undo
+cancels the running operator like Esc.
 """
 
 from typing import Callable, Iterable, Iterator, Optional
@@ -18,7 +19,12 @@ from ..constants import Operators
 #   SWITCH  end the running tool and pass the key on
 #   FORWARD pass the key on and keep running
 #   BLOCK   the running tool keeps the key
-SKIP, SWITCH, FORWARD, BLOCK = range(4)
+#   CANCEL  undo: cancel the running tool, like Esc
+SKIP, SWITCH, FORWARD, BLOCK, CANCEL = range(5)
+
+# Where Blender binds undo, looked up so a remapped undo key works too.
+UNDO_KEYMAP = "Screen"
+UNDO_OPERATOR = "ed.undo"
 
 # Tool keymaps are looked up first, then these (as Blender does for the 3D view).
 FALLBACK_KEYMAPS = ("Object Mode",)
@@ -143,13 +149,25 @@ def first_action(
     return BLOCK
 
 
+def is_undo_event(context: Context, event: Event) -> bool:
+    """Return True if the key press is bound to undo."""
+    km = context.window_manager.keyconfigs.user.keymaps.get(UNDO_KEYMAP)
+    if km is None:
+        return False
+    return any(
+        kmi.idname == UNDO_OPERATOR and matches(kmi, event) for kmi in km.keymap_items
+    )
+
+
 def key_action(context: Context, event: Event, exclude: str = "") -> int:
-    """Return SWITCH, FORWARD or BLOCK for a key press during a running tool.
+    """Return SWITCH, FORWARD, CANCEL or BLOCK for a key press during a running tool.
 
     Only letter keys are considered: the shortcuts use them, and it keeps mouse
     and navigation events away from the keymap walk.
     """
     if event.value != "PRESS" or len(event.type) != 1:
         return BLOCK
+    if is_undo_event(context, event):
+        return CANCEL
     items = (kmi for km in _active_keymaps(context) for kmi in km.keymap_items)
     return first_action(items, event, lambda kmi: classify(context, kmi, exclude))

@@ -13,7 +13,7 @@ from .utilities.description import state_desc, stateful_op_desc
 from .utilities.generic import to_list
 from .utilities.keymap import get_key_map_desc, is_numeric_input, is_unit_input
 from .utilities.numeric import NumericInput, parse_numeric
-from .utilities.switch import FORWARD, SWITCH, key_action
+from .utilities.switch import CANCEL, FORWARD, SWITCH, key_action
 
 # Re-export so any `from .logic import _NumericInput` keeps working.
 _NumericInput = NumericInput
@@ -596,7 +596,12 @@ class StatefulOperatorLogic(_StateMachineMixin):
         elif is_numeric_event:
             is_numeric_edit = self.init_numeric(True)
 
-        if event.type in {"RIGHTMOUSE", "ESC"}:
+        # Shortcuts that reach the keymap while this tool runs (see switch).
+        action = None if is_numeric_event else self.key_action(context, event)
+
+        # Undo drops the unfinished element like Esc; a second undo then works
+        # on the history as usual.
+        if event.type in {"RIGHTMOUSE", "ESC"} or action == CANCEL:
             return self._end(context, False)
 
         # Global axis constraint (X/Y/Z), only for states that opt in and apply
@@ -615,7 +620,6 @@ class StatefulOperatorLogic(_StateMachineMixin):
         # Another tool's shortcut ends this one, discarding the unfinished
         # element like Esc does, and passes the key on so the keymap starts it.
         # A toggle shortcut passes on while this tool keeps running.
-        action = None if is_numeric_event else self.key_action(context, event)
         if action == SWITCH:
             self._end(context, False)
             return {"CANCELLED", "PASS_THROUGH"}

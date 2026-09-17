@@ -127,6 +127,26 @@ class TestClassify(TestCase):
 
 
 class TestKeyAction(TestCase):
+    def _context(self, items):
+        keymaps = {switch.UNDO_KEYMAP: SimpleNamespace(keymap_items=items)}
+        user = SimpleNamespace(keymaps=keymaps)
+        wm = SimpleNamespace(keyconfigs=SimpleNamespace(user=user))
+        return SimpleNamespace(window_manager=wm)
+
+    def test_undo_key_cancels(self):
+        undo = _kmi(switch.UNDO_OPERATOR, "Z", ctrl=True)
+        context = self._context([undo])
+        event = _event("Z", ctrl=True)
+        self.assertEqual(switch.key_action(context, event), switch.CANCEL)
+
+    def test_remapped_undo(self):
+        context = self._context([_kmi(switch.UNDO_OPERATOR, "U", ctrl=True)])
+        with mock.patch.object(switch, "_active_keymaps", return_value=[]):
+            plain = switch.key_action(context, _event("Z", ctrl=True))
+        self.assertEqual(plain, switch.BLOCK)
+        remapped = switch.key_action(context, _event("U", ctrl=True))
+        self.assertEqual(remapped, switch.CANCEL)
+
     def test_ignores_non_letter_keys(self):
         with mock.patch.object(switch, "_active_keymaps") as keymaps:
             for event_type in ("LEFTMOUSE", "ONE", "ESC", "WHEELUPMOUSE"):
@@ -173,7 +193,7 @@ class TestRunningToolHandsOver(Sketch2dTestCase):
         op._axis_lock = None
         self.ended = []
         op._end = lambda context, succeede, **kw: self.ended.append(succeede)
-        actions = {"C": switch.SWITCH, "K": switch.FORWARD}
+        actions = {"C": switch.SWITCH, "K": switch.FORWARD, "Z": switch.CANCEL}
         op.key_action = lambda context, event: actions.get(event.type, switch.BLOCK)
         op.evaluate_state = lambda *args: {"RUNNING_MODAL"}
         op.set_status_text = lambda context: None
@@ -189,6 +209,11 @@ class TestRunningToolHandsOver(Sketch2dTestCase):
         self.assertEqual(
             op.modal(self.context, self._key("C")), {"CANCELLED", "PASS_THROUGH"}
         )
+        self.assertEqual(self.ended, [False])
+
+    def test_undo_cancels_like_esc(self):
+        op = self._op()
+        op.modal(self.context, self._key("Z"))
         self.assertEqual(self.ended, [False])
 
     def test_toggle_key_passes_on_and_keeps_running(self):
