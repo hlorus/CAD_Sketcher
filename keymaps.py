@@ -278,6 +278,7 @@ tool_node = (
 tool_select = (
     *tool_base_keymap,
     *tool_access,
+    use_construction,
     (
         Operators.SelectAll,
         {"type": "ESC", "value": "PRESS"},
@@ -406,6 +407,14 @@ def register():
         register_switch_operator(_op)
     register_switch_operator(Operators.NodeBoolean)
     register_switch_operator(Operators.SetActiveSketch, _leaves_sketch)
+    # Toggling construction applies to what is being drawn.
+    register_switch_operator(
+        use_construction[0], _toggles_construction, keep_running=True
+    )
+
+
+def _toggles_construction(context, kmi) -> bool:
+    return kmi.properties.data_path == "scene.sketcher.use_construction"
 
 
 def _leaves_sketch(context, kmi) -> bool:

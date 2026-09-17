@@ -1,8 +1,9 @@
-"""Let a key that starts another tool interrupt a running tool.
+"""Let shortcuts reach the keymap while a tool is running.
 
-A running modal operator sees every key before the keymaps do. When a key is
-bound to starting another tool, the running operator ends and passes the event
-on, so the keymap starts the new tool as if nothing had been running.
+A running modal operator sees every key before the keymaps do. A key bound to
+starting another tool ends the running operator and passes the event on, so the
+keymap starts the new tool as if nothing had been running. A key bound to a
+setting toggle passes on while the running operator keeps going.
 """
 
 from typing import Callable, Iterable, Iterator, Optional
@@ -12,32 +13,41 @@ from bpy.types import Context, Event, KeyMap, KeyMapItem
 
 from ..constants import Operators
 
-# What a keymap item does with a key press in the current context.
-PASS, SWITCH, BLOCK = range(3)
+# What a key press does to a running tool:
+#   SKIP    the keymap item doesn't act here, the next one is tried
+#   SWITCH  end the running tool and pass the key on
+#   FORWARD pass the key on and keep running
+#   BLOCK   the running tool keeps the key
+SKIP, SWITCH, FORWARD, BLOCK = range(4)
 
 # Tool keymaps are looked up first, then these (as Blender does for the 3D view).
 FALLBACK_KEYMAPS = ("Object Mode",)
 
 _MODIFIERS = ("ctrl", "shift", "alt", "oskey", "hyper")
 
-# idname -> predicate(context, kmi), or None to use the operator's poll.
-_switch_operators: dict = {}
+Predicate = Callable[[Context, KeyMapItem], bool]
+
+# idname -> (predicate or None to use the operator's poll, action when it acts)
+_operators: dict = {}
 
 
 def register_switch_operator(
-    idname: str, predicate: Optional[Callable[[Context, KeyMapItem], bool]] = None
+    idname: str, predicate: Optional[Predicate] = None, keep_running: bool = False
 ) -> None:
-    """Treat keymap items calling ``idname`` as starting another tool.
+    """Let keymap items calling ``idname`` act while a tool is running.
 
-    ``predicate`` tells whether the item acts in the given context; otherwise the
-    operator's poll decides. Items that don't act let the key through.
+    By default the running tool ends first, as for starting another tool; with
+    ``keep_running`` it continues (for toggles). ``predicate`` tells whether the
+    item acts in the given context, otherwise the operator's poll decides.
+    Items that don't act leave the key to the next item.
     """
-    _switch_operators[getattr(idname, "value", idname)] = predicate
+    key = getattr(idname, "value", idname)
+    _operators[key] = (predicate, FORWARD if keep_running else SWITCH)
 
 
 def clear_switch_operators() -> None:
     """Forget all operators registered with ``register_switch_operator``."""
-    _switch_operators.clear()
+    _operators.clear()
 
 
 def tool_available(context: Context, tool_name: str) -> bool:
@@ -78,7 +88,7 @@ def matches(kmi: KeyMapItem, event: Event) -> bool:
 
 
 def classify(context: Context, kmi: KeyMapItem, exclude: str = "") -> int:
-    """Return PASS, SWITCH or BLOCK for a keymap item matching a key press.
+    """Return what a keymap item matching a key press does to a running tool.
 
     ``exclude`` is the running operator: its own shortcut doesn't restart it.
     """
@@ -89,18 +99,16 @@ def classify(context: Context, kmi: KeyMapItem, exclude: str = "") -> int:
             return BLOCK
         if tool_available(context, props.tool_name):
             return SWITCH
-        return PASS if props.fallthrough else BLOCK
+        return SKIP if props.fallthrough else BLOCK
 
-    if idname not in _switch_operators:
+    if idname not in _operators or idname == exclude:
         return BLOCK
-    if idname == exclude:
-        return BLOCK
-    predicate = _switch_operators[idname]
+    predicate, action = _operators[idname]
     if predicate is None:
         active = _operator_polls(idname)
     else:
         active = predicate(context, kmi)
-    return SWITCH if active else PASS
+    return action if active else SKIP
 
 
 def _active_keymaps(context: Context) -> Iterator[KeyMap]:
@@ -122,26 +130,26 @@ def _active_keymaps(context: Context) -> Iterator[KeyMap]:
             yield km
 
 
-def first_verdict(
+def first_action(
     items: Iterable[KeyMapItem], event: Event, verdict: Callable[[KeyMapItem], int]
-) -> bool:
-    """Walk items in Blender's order; the first one that doesn't pass decides."""
+) -> int:
+    """Walk items in Blender's order; the first one that acts decides."""
     for kmi in items:
         if not matches(kmi, event):
             continue
         result = verdict(kmi)
-        if result != PASS:
-            return result == SWITCH
-    return False
+        if result != SKIP:
+            return result
+    return BLOCK
 
 
-def is_switch_event(context: Context, event: Event, exclude: str = "") -> bool:
-    """Return True if the key press would start another tool.
+def key_action(context: Context, event: Event, exclude: str = "") -> int:
+    """Return SWITCH, FORWARD or BLOCK for a key press during a running tool.
 
-    Only letter keys are considered: tool shortcuts use them, and it keeps mouse
+    Only letter keys are considered: the shortcuts use them, and it keeps mouse
     and navigation events away from the keymap walk.
     """
     if event.value != "PRESS" or len(event.type) != 1:
-        return False
+        return BLOCK
     items = (kmi for km in _active_keymaps(context) for kmi in km.keymap_items)
-    return first_verdict(items, event, lambda kmi: classify(context, kmi, exclude))
+    return first_action(items, event, lambda kmi: classify(context, kmi, exclude))

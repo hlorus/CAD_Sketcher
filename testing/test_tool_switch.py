@@ -78,7 +78,7 @@ class TestClassify(TestCase):
         local = _invoke("S", "tool.gone", "op.sketch")
         glob = _invoke("S", "tool.gone", "op.sketch", fallthrough=True)
         self.assertEqual(switch.classify(None, local, "op.line"), switch.BLOCK)
-        self.assertEqual(switch.classify(None, glob, "op.line"), switch.PASS)
+        self.assertEqual(switch.classify(None, glob, "op.line"), switch.SKIP)
 
     def test_unregistered_operator_blocks(self):
         kmi = _kmi("wm.something", "G")
@@ -89,7 +89,7 @@ class TestClassify(TestCase):
         on = _kmi("op.leave", "A", {"on": True})
         off = _kmi("op.leave", "A", {"on": False})
         self.assertEqual(switch.classify(None, on, "op.line"), switch.SWITCH)
-        self.assertEqual(switch.classify(None, off, "op.line"), switch.PASS)
+        self.assertEqual(switch.classify(None, off, "op.line"), switch.SKIP)
         self.assertEqual(switch.classify(None, on, "op.leave"), switch.BLOCK)
 
     def test_register_by_enum_member(self):
@@ -99,8 +99,17 @@ class TestClassify(TestCase):
         kmi = _kmi(Operators.AddHorizontal.value, "H", shift=True)
         self.assertEqual(switch.classify(None, kmi, "op.line"), switch.SWITCH)
 
+    def test_keep_running_operator_forwards(self):
+        switch.register_switch_operator(
+            "wm.toggle", lambda c, k: k.properties.path == "a", keep_running=True
+        )
+        mine = _kmi("wm.toggle", "C", {"path": "a"}, alt=True, shift=True)
+        other = _kmi("wm.toggle", "C", {"path": "b"}, alt=True, shift=True)
+        self.assertEqual(switch.classify(None, mine, "op.line"), switch.FORWARD)
+        self.assertEqual(switch.classify(None, other, "op.line"), switch.SKIP)
+
     def _decide(self, items, event, exclude="op.line"):
-        return switch.first_verdict(
+        return switch.first_action(
             items, event, lambda kmi: switch.classify(None, kmi, exclude)
         )
 
@@ -109,19 +118,20 @@ class TestClassify(TestCase):
         bevel = _invoke("B", "tool.here", "op.bevel", True, ctrl=True, shift=True)
         array = _invoke("B", "tool.gone", "op.array", True, ctrl=True, shift=True)
         chain = _kmi("op.select_chain", "B", ctrl=True, shift=True)
-        self.assertTrue(self._decide([array, bevel], event))
-        self.assertFalse(self._decide([array, chain, bevel], event))
+        self.assertEqual(self._decide([array, bevel], event), switch.SWITCH)
+        self.assertEqual(self._decide([array, chain, bevel], event), switch.BLOCK)
 
     def test_unbound_key_does_not_switch(self):
         items = [_invoke("C", "tool.here", "op.circle")]
-        self.assertFalse(self._decide(items, _event("Q")))
+        self.assertEqual(self._decide(items, _event("Q")), switch.BLOCK)
 
 
-class TestIsSwitchEvent(TestCase):
+class TestKeyAction(TestCase):
     def test_ignores_non_letter_keys(self):
         with mock.patch.object(switch, "_active_keymaps") as keymaps:
             for event_type in ("LEFTMOUSE", "ONE", "ESC", "WHEELUPMOUSE"):
-                self.assertFalse(switch.is_switch_event(None, _event(event_type)))
+                action = switch.key_action(None, _event(event_type))
+                self.assertEqual(action, switch.BLOCK)
             keymaps.assert_not_called()
 
 
@@ -163,7 +173,8 @@ class TestRunningToolHandsOver(Sketch2dTestCase):
         op._axis_lock = None
         self.ended = []
         op._end = lambda context, succeede, **kw: self.ended.append(succeede)
-        op.is_switch_event = lambda context, event: event.type == "C"
+        actions = {"C": switch.SWITCH, "K": switch.FORWARD}
+        op.key_action = lambda context, event: actions.get(event.type, switch.BLOCK)
         op.evaluate_state = lambda *args: {"RUNNING_MODAL"}
         op.set_status_text = lambda context: None
         return op
@@ -180,6 +191,11 @@ class TestRunningToolHandsOver(Sketch2dTestCase):
         )
         self.assertEqual(self.ended, [False])
 
+    def test_toggle_key_passes_on_and_keeps_running(self):
+        op = self._op()
+        self.assertEqual(op.modal(self.context, self._key("K")), {"PASS_THROUGH"})
+        self.assertEqual(self.ended, [])
+
     def test_other_keys_keep_running(self):
         op = self._op()
         self.assertEqual(op.modal(self.context, self._key("Q")), {"RUNNING_MODAL"})
@@ -195,3 +211,15 @@ class TestRunningToolHandsOver(Sketch2dTestCase):
         self.assertEqual(op.modal(self.context, self._key("C")), {"RUNNING_MODAL"})
         self.assertEqual(self.ended, [])
         self.assertEqual(op._numeric.current, "5c")
+
+
+class TestHoverCycleOutsideSketch(TestCase):
+    def test_passes_alt_wheel_on(self):
+        import bpy
+
+        from ..operators import select
+
+        op = SimpleNamespace(direction=1)
+        with mock.patch.object(select, "get_active_sketch", return_value=None):
+            result = select.View3D_OT_slvs_hover_cycle.execute(op, bpy.context)
+        self.assertEqual(result, {"PASS_THROUGH"})
