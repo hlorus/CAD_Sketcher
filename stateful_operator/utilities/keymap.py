@@ -31,12 +31,15 @@ def _get_matching_kmi(
     Optionally filtered by filter_func.
     """
     wm = context.window_manager
-    kc = wm.keyconfigs.addon
+    # The user keyconfig holds the add-on's items with the user's edits applied.
+    kc = wm.keyconfigs.user
 
     km_items = []
+    if kc is None:
+        return km_items
     for km in kc.keymaps:
         for kmi in km.keymap_items:
-            if not kmi.idname == id_name:
+            if not kmi.idname == id_name or not kmi.active:
                 continue
             if kmi.type in ("LEFTMOUSE", "MIDDLEMOUSE", "RIGHTMOUSE"):
                 continue
@@ -53,7 +56,7 @@ def _get_matching_kmi(
 def get_key_map_desc(context: Context, id_name: str) -> str:
     """
     Returns a list of shortcut hints to operator with given idname.
-    Looks through keymaps in addon keyconfig.
+    Looks through keymaps in the user keyconfig, so remapped keys show.
     """
 
     def _targets_operator(kmi):
