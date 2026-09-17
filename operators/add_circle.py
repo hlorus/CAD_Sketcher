@@ -11,14 +11,14 @@ from ..model.curve_ref import CircleRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.view import get_blender_snap_info, get_pos_2d, get_wp_matrix
-from .base_2d import Operator2d
+from .base_2d import Operator2d, ReplaceableOutputOp
 from .constants import types_point_2d
 from .utilities import ignore_hover
 
 logger = logging.getLogger(__name__)
 
 
-class View3D_OT_slvs_add_circle2d(Operator, Operator2d):
+class View3D_OT_slvs_add_circle2d(Operator, ReplaceableOutputOp, Operator2d):
     """Add a circle to the active sketch"""
 
     bl_idname = Operators.AddCircle2D

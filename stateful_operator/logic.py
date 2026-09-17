@@ -439,6 +439,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
         # from) before the user changes it -- e.g. node ops relocating a modifier.
         self._prepare_edit(context)
         i = self.edit_state
+        # The pick runs in state i, but the re-apply must rebuild every state.
+        self._edit_full_state_index = self.state_index
         self.get_state_data(i).pop("type", None)
         self.set_state(context, i)
         global_data.hover_types = self.get_states()[i].types
@@ -494,7 +496,14 @@ class StatefulOperatorLogic(_StateMachineMixin):
             self.state_data["is_existing_entity"] = True
             self.set_state_pointer(values, implicit=True)
             self._store_pointers()
+            self.state_index = max(self._edit_full_state_index, self.state_index)
             ok = self._reapply(context)
+            # Finish like any other run (fini adds a tool's follow-up constraints
+            # and solves), then record the output this run created.
+            if hasattr(self, "fini"):
+                self.fini(context, ok)
+            if ok:
+                self._record_committed_output(context)
             if context.area:
                 context.area.tag_redraw()
             return self._end_edit(context, ok)
@@ -1119,6 +1128,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
         last_index, values, last_type = self._take_last_state_pointer()
 
         self._reset_op()
+        # The next segment's output is what gets created from here on.
+        self._capture_baseline(context)
 
         # Re-inject the saved endpoint as the seed for the new segment
         data = self.get_state_data(0)

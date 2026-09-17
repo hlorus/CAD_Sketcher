@@ -9,13 +9,13 @@ from ..drawing import selection
 from ..model.curve_ref import PointRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
-from .base_2d import Operator2d
+from .base_2d import Operator2d, ReplaceableOutputOp
 from .placement import placement_of
 
 logger = logging.getLogger(__name__)
 
 
-class View3D_OT_slvs_add_point2d(Operator, Operator2d):
+class View3D_OT_slvs_add_point2d(Operator, ReplaceableOutputOp, Operator2d):
     """Add a point to the active sketch"""
 
     bl_idname = Operators.AddPoint2D

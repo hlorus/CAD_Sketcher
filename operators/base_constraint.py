@@ -137,16 +137,6 @@ class GenericConstraintOp(Operator2d):
         with reusing_constraint_uids([self.output_uid]):
             return super()._reapply(context)
 
-    def _update_pick_hover(self, context: Context, coords):
-        # Gizmos don't hover-test while the re-pick modal runs; do it here.
-        from ..drawing import picking, selection
-
-        cid = picking.update_hover(context, coords)
-        if cid != selection.hover:
-            selection.hover = cid
-            if context.area:
-                context.area.tag_redraw()
-
     def main(self, context: Context):
         target = getattr(self, "target", None)
         if target is not None:
