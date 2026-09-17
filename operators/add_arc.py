@@ -1,15 +1,16 @@
 import logging
 import math
 
+from bpy.props import FloatVectorProperty
 from bpy.types import Context, Event, Operator
 from mathutils import Vector
 
 from ..curve_solver import solve_system
 from ..declarations import Operators
-from ..model.curve_ref import ArcRef
+from ..model.curve_ref import ArcRef, PointRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
-from ..utilities.geometry import intersect_line_sphere_2d
+from ..utilities.geometry import arc_through_points, intersect_line_sphere_2d
 from ..utilities.math import pol2cart
 from ..utilities.view import get_blender_snap_info, get_pos_2d, get_wp_matrix
 from .base_2d import Operator2d
@@ -164,4 +165,126 @@ class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
             self.solve_state(context, self.sketch)
 
 
-register, unregister = register_stateops_factory((View3D_OT_slvs_add_arc2d,))
+class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
+    """Add an arc through a start point, an end point and a point on the arc"""
+
+    bl_idname = Operators.AddArc3Point2D
+    bl_label = "Add 3-Point Arc"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        """An arc is planar geometry -- reject it in a free-3D sketch."""
+        from ..model.sketch_ref import poll_active_2d_sketch
+
+        return poll_active_2d_sketch(context)
+
+    # Where the arc passes through. Only shapes the arc, nothing is placed there.
+    through: FloatVectorProperty(
+        name="Through",
+        description="A point the arc passes through",
+        size=2,
+        subtype="XYZ",
+        unit="LENGTH",
+        precision=5,
+    )
+
+    states = (
+        state_from_args(
+            "Startpoint",
+            description="Pick or place starting point.",
+            pointer="p1",
+            types=types_point_2d,
+        ),
+        state_from_args(
+            "Endpoint",
+            description="Pick or place ending point.",
+            pointer="p2",
+            types=types_point_2d,
+        ),
+        state_from_args(
+            "Through",
+            description="Move to shape the arc, click to confirm.",
+            property="through",
+            state_func="get_through_pos",
+            interactive=True,
+            allow_prefill=False,
+        ),
+    )
+
+    def get_through_pos(self, context: Context, coords):
+        """The workplane position under the mouse, if it bends the arc."""
+        wp = self._get_wp()
+        self._snap = get_blender_snap_info(context, coords)
+        pos = get_pos_2d(context, wp, coords, respect_snapping=True)
+        if pos is None:
+            return None
+        p1 = self.get_point(context, 0).co
+        p2 = self.get_point(context, 1).co
+        # On the chord no arc exists: keep the last valid shape.
+        if arc_through_points(p1, p2, pos) is None:
+            return None
+        return Vector(pos[:2])
+
+    def _arc_geometry(self, context: Context):
+        """``(start, end, center, reversed)`` of the arc, or None while undefined."""
+        p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
+        result = arc_through_points(p1.co, p2.co, Vector(self.through))
+        if result is None:
+            return None
+        center, reverse = result
+        start, end = (p2, p1) if reverse else (p1, p2)
+        return start, end, center, reverse
+
+    def solve_state(self, context: Context, _event: Event):
+        solve_system(context, sketch=self.sketch)
+        return True
+
+    preview_in_place = True
+
+    def preview_structure(self, context: Context):
+        """Also rebuild when the arc flips to the other side of its chord."""
+        structure = super().preview_structure(context)
+        if structure is None:
+            return None
+        geometry = self._arc_geometry(context)
+        if geometry is None:
+            return None
+        return structure, geometry[3]
+
+    def update_preview(self, context: Context) -> bool:
+        """Move the arc's center instead of recreating the arc."""
+        target = getattr(self, "target", None)
+        center = getattr(self, "_center", None)
+        if target is None or not target.valid or center is None or not center.valid:
+            return False
+        geometry = self._arc_geometry(context)
+        if geometry is None:
+            return False
+        center.co = geometry[2]
+        return True
+
+    def main(self, context: Context):
+        geometry = self._arc_geometry(context)
+        if geometry is None:
+            return False
+        start, end, co, _reverse = geometry
+        sketch = self.sketch
+        construction = context.scene.sketcher.use_construction
+
+        ct = PointRef.create(sketch, co, construction=construction)
+        self.target = ArcRef.create(sketch, ct, start, end, construction=construction)
+        self._center = ct
+        ignore_hover(ct.curve_id)
+        ignore_hover(self.target.curve_id)
+        return True
+
+    def fini(self, context: Context, succeede: bool):
+        if hasattr(self, "target"):
+            logger.debug("Add: {}".format(self.target))
+            self.solve_state(context, self.sketch)
+
+
+register, unregister = register_stateops_factory(
+    (View3D_OT_slvs_add_arc2d, View3D_OT_slvs_add_arc3pt2d)
+)

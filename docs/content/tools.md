@@ -152,6 +152,8 @@ while picking geometry inside a drawing or constraint tool.
 
 ::: CAD_Sketcher.operators.add_arc.View3D_OT_slvs_add_arc2d
 
+::: CAD_Sketcher.operators.add_arc.View3D_OT_slvs_add_arc3pt2d
+
 ::: CAD_Sketcher.operators.add_rectangle.View3D_OT_slvs_add_rectangle
 
 ::: CAD_Sketcher.operators.trim.View3D_OT_slvs_trim

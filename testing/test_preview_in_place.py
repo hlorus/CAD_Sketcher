@@ -168,6 +168,27 @@ class TestPreviewInPlace(Sketch2dTestCase):
             in_place_moves=5,
         )
 
+    def test_three_point_arc(self):
+        from ..operators.add_arc import View3D_OT_slvs_add_arc3pt2d
+
+        guide = self.guide.curve_id
+        self.assert_matches_rebuild(
+            View3D_OT_slvs_add_arc3pt2d,
+            [
+                ("click", (0.0, 0.0), ""),
+                ("click", (4.0, 0.0), ""),
+                ("move", (2.0, 1.0), ""),
+                ("move", (2.0, 3.0), ""),
+                # Past the start: the sweep grows beyond a half circle.
+                ("move", (-1.0, 1.0), ""),
+                # Across the chord: the arc flips to the other side.
+                ("move", (2.0, -1.0), ""),
+                ("move", (5.0, -2.0), ""),
+                ("move", (0.0, -3.0), guide),
+            ],
+            in_place_moves=4,
+        )
+
     def _snaps(self):
         """Snap targets on a mesh edge from (8, 0) to (10, 2)."""
         ob = new_mesh_object(
