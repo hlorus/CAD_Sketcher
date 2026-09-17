@@ -77,22 +77,17 @@ class VIEW3D_OT_slvs_add_distance(Operator, GenericConstraintOp):
             self.target.draw_offset = 0.05 * context.region_data.view_distance
         super().fini(context, succeede)
 
-    def draw(self, context: Context):
-        if not hasattr(self, "target"):
-            return
-
+    def draw_settings(self, context: Context):
         layout = self.layout
-        c = self.target
+        c = getattr(self, "target", None)
+        layout.prop(self, "value")
 
         row = layout.row()
-        row.prop(self, "value")
-
-        row = layout.row()
-        row.enabled = c.use_align()
+        row.enabled = bool(c) and c.use_align()
         row.prop(self, "align")
 
         row = layout.row()
-        row.enabled = c.use_flipping()
+        row.enabled = bool(c) and c.use_flipping()
         row.prop(self, "flip")
 
 

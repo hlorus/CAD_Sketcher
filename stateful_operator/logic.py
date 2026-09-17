@@ -429,7 +429,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         # though the workspace tool that normally owns it isn't active.
         self._prepare_pick_ui(context)
         context.window.cursor_modal_set("EYEDROPPER")
-        self.set_status_text(context)
+        self._set_edit_status(context)
         # A modal invoked from a redo-panel button can stall waiting for its first
         # event (the button-click context delivers none until the mouse moves).
         # A modal timer keeps it ticking so it becomes responsive immediately.
@@ -439,6 +439,23 @@ class StatefulOperatorLogic(_StateMachineMixin):
         context.window_manager.modal_handler_add(self)
         return {"RUNNING_MODAL"}
 
+    def _set_edit_status(self, context: Context):
+        """Tell the user a re-pick is in progress and what to click.
+
+        Shown in the viewport header, where it's hard to miss, and in the status
+        bar with how to cancel. The status bar is re-asserted every event: the
+        redo panel's re-run of the previous operator clears it.
+        """
+        from .utilities.description import pick_types_label
+
+        state = self.state
+        text = "Re-pick {}: click a {}".format(
+            state.name, pick_types_label(state.types)
+        )
+        if context.area:
+            context.area.header_text_set(text)
+        context.workspace.status_text_set(text + "    Esc / Right-click: cancel")
+
     def _modal_edit(self, context: Context, event: Event):
         # Clicking the eyedropper button in the redo panel makes Blender also
         # re-run the previous operator's execute()/_end() (an implicit undo +
@@ -447,6 +464,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         # modifier). Re-assert both every event so the pick keeps working.
         global_data.hover_types = self.get_states()[self.edit_state].types
         self._maintain_pick_ui(context)
+        self._set_edit_status(context)
         if event.type in {"RIGHTMOUSE", "ESC"} and event.value == "PRESS":
             return self._end_edit(context, False)
         if event.type == "TIMER":
@@ -477,6 +495,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
             self._edit_timer = None
         self._finish_pick_ui(context)
         context.window.cursor_modal_restore()
+        if context.area:
+            context.area.header_text_set(None)
         context.workspace.status_text_set(None)
         global_data.hover_types = None
         global_data.hover_element = None

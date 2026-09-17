@@ -61,6 +61,8 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
     type = None
     property_keys = ()
     has_value_state = False
+    # A re-pick can change which kind of dimension this is; not supported yet.
+    editable = False
 
     # Live label offset. Filled by the placement state's ``state_func`` as a
     # display-only side effect; the property itself is only a confirm carrier.
