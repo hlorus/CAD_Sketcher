@@ -8,7 +8,7 @@ from ..declarations import Operators
 from ..model.curve_ref import LineRef, PointRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
-from .base_2d import Operator2d
+from .base_2d import Operator2d, ReplaceableOutputOp
 from .constants import types_point_2d
 from .utilities import ignore_hover
 
@@ -27,7 +27,7 @@ def rectangle_corners(
     return (end[0], start[1]), (start[0], end[1])
 
 
-class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
+class View3D_OT_slvs_add_rectangle(Operator, ReplaceableOutputOp, Operator2d):
     """Add a rectangle to the active sketch"""
 
     bl_idname = Operators.AddRectangle

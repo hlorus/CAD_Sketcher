@@ -1,6 +1,7 @@
 from typing import Any, List
 
 import bpy
+from bpy.props import StringProperty
 from bpy.types import Context, Event
 
 from ..model.curve_ref import CurveRef, PointRef, curve_ref
@@ -95,6 +96,16 @@ class Operator2d(GenericEntityOp):
             self._snap_handle = None
         return super()._end(context, succeede, *args, **kwargs)
 
+    def _update_pick_hover(self, context: Context, coords):
+        # Gizmos don't hover-test while the re-pick modal runs; do it here.
+        from ..drawing import picking, selection
+
+        cid = picking.update_hover(context, coords)
+        if cid != selection.hover:
+            selection.hover = cid
+            if context.area:
+                context.area.tag_redraw()
+
     def init(self, context: Context, event: Event):
         from ..model.sketch_ref import get_active_sketch
 
@@ -123,13 +134,15 @@ class Operator2d(GenericEntityOp):
 
     @property
     def sketch(self):
-        if not self._active_sketch:
-            import bpy
-
+        # init() sets this on the invoke path; a redo-panel re-run is a fresh
+        # instance that never ran init(), so fall back to the active sketch.
+        active = getattr(self, "_active_sketch", None)
+        if not active:
             from ..model.sketch_ref import get_active_sketch
 
-            self._active_sketch = get_active_sketch(bpy.context)
-        return self._active_sketch
+            active = get_active_sketch(bpy.context)
+            self._active_sketch = active
+        return active
 
     def _get_wp(self):
         """Get the workplane (empty object or entity) for this sketch."""
@@ -376,7 +389,12 @@ class Operator2d(GenericEntityOp):
         # below instead, so skip those.
         fixed = placement.snapped and not placement.hovered
 
-        ref = PointRef.create(sketch, loc, fixed=fixed)
+        # Recreate a placed point under the id it had before (re-run from the
+        # redo panel or a re-pick), so the op's stored identity stays valid.
+        from ..utilities.curve_data import reusing_curve_ids
+
+        with reusing_curve_ids(sketch, [state_data.get("curve_id", "")]):
+            ref = PointRef.create(sketch, loc, fixed=fixed)
         cid = ref.curve_id
 
         self.add_coincident(context, ref, state, state_data)
@@ -462,3 +480,116 @@ class Operator2d(GenericEntityOp):
         if cid:
             return PointRef(sketch, cid)
         return getattr(self, state.pointer)
+
+
+class ReplaceableOutputOp:
+    """Mixin for 2D tools whose picked points can be re-picked from the redo panel.
+
+    Re-running the operator (a redo-panel change or a re-pick) must replace what
+    it created before with exactly one new copy. The operator therefore records
+    its own output (curve ids and constraint uids) and removes it before
+    rebuilding, and the rebuild reuses those ids so everything that refers to
+    them (stored picks, the recorded output itself) stays valid.
+    """
+
+    editable = True
+    # Curves ("c:<id>") and constraints ("k:<uid>") this operator created.
+    output_ids: StringProperty(options={"HIDDEN"})
+    # Curve ids main() created, in creation order, for main to reuse.
+    main_output_ids: StringProperty(options={"HIDDEN"})
+
+    def _run_main(self, context: Context):
+        from ..utilities.curve_data import reusing_curve_ids
+
+        used = []
+        with reusing_curve_ids(
+            self.sketch, getattr(self, "main_output_ids", "").split(), record=used
+        ):
+            result = self.main(context)
+        if used:
+            self._set_hidden("main_output_ids", " ".join(used))
+        return result
+
+    def _reapply(self, context: Context):
+        from ..model.group_constraints import reusing_constraint_uids
+
+        # Removing a curve drops its name, so carry names over to the recreated
+        # curves (they get the same ids).
+        names = self._output_names()
+        self._remove_output(context)
+        # Recorded once the run finishes (after fini), see _record_committed_output.
+        self._baseline_ids = self._collect_output_ids(context)
+        uids = [t[2:] for t in getattr(self, "output_ids", "").split() if t[:2] == "k:"]
+        with reusing_constraint_uids(uids):
+            result = super()._reapply(context)
+        self._restore_names(names)
+        return result
+
+    def _output_names(self) -> dict:
+        from ..model.curve_ref import curve_ref
+
+        sketch = self.sketch
+        names = {}
+        for token in getattr(self, "output_ids", "").split():
+            if token[:2] != "c:" or sketch is None:
+                continue
+            ref = curve_ref(sketch, token[2:])
+            if ref.valid:
+                names[token[2:]] = ref._get_attr_value("name", "")
+        return names
+
+    def _restore_names(self, names: dict) -> None:
+        from ..model.curve_ref import curve_ref
+
+        for cid, name in names.items():
+            ref = curve_ref(self.sketch, cid)
+            if name and ref.valid:
+                ref.name = name
+
+    def _capture_baseline(self, context: Context):
+        self._baseline_ids = self._collect_output_ids(context)
+
+    def _record_committed_output(self, context: Context):
+        baseline = getattr(self, "_baseline_ids", None)
+        if baseline is None:
+            return
+        created = self._collect_output_ids(context) - baseline
+        self._set_hidden("output_ids", " ".join(sorted(created)))
+
+    def _set_hidden(self, name: str, value: str) -> None:
+        try:
+            setattr(self, name, value)
+        except AttributeError:
+            pass  # a non-registered twin (tests) has no RNA props
+
+    def _collect_output_ids(self, context: Context) -> set:
+        """Every curve id and constraint uid currently in the active sketch."""
+        from ..utilities.curve_data import read_uuid_list
+
+        ids = set()
+        sketch = self.sketch
+        obj = getattr(sketch, "target_object", None) if sketch else None
+        if obj is None or obj.data is None:
+            return ids
+        ids.update("c:" + cid for cid in read_uuid_list(obj.data, "curve_id") if cid)
+        for constraint in sketch.constraints.all:
+            uid = getattr(constraint, "constraint_uid", "")
+            if uid:
+                ids.add("k:" + uid)
+        return ids
+
+    def _remove_output(self, context: Context) -> None:
+        """Remove the curves and constraints recorded in ``output_ids``."""
+        from ..utilities.curve_data import remove_native_curve_by_id
+
+        sketch = self.sketch
+        if sketch is None:
+            return
+        for token in getattr(self, "output_ids", "").split():
+            kind, _, ident = token.partition(":")
+            if kind == "k":
+                constraint = sketch.constraints.get_by_uid(ident)
+                if constraint is not None:
+                    sketch.constraints.remove(constraint)
+            elif kind == "c":
+                remove_native_curve_by_id(sketch, ident)
