@@ -56,3 +56,15 @@ class TestConstraintRepick(Sketch2dTestCase):
 
         self.assertTrue(VIEW3D_OT_slvs_add_parallel.editable)
         self.assertFalse(VIEW3D_OT_slvs_add_dimension.editable)
+
+
+class TestPickTypesLabel(Sketch2dTestCase):
+    def test_readable_type_names(self):
+        import bpy
+
+        from ..model.types import SlvsLine2D, SlvsPoint2D
+        from ..stateful_operator.utilities.description import pick_types_label
+
+        self.assertEqual(pick_types_label((SlvsLine2D, SlvsPoint2D)), "line or point")
+        self.assertEqual(pick_types_label((bpy.types.MeshPolygon,)), "face")
+        self.assertEqual(pick_types_label(()), "element")
