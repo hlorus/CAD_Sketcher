@@ -71,7 +71,7 @@ def on_load_post(*args):
     from .drawing import constraint_icons, overlay, selection
     from .model.base_constraint import reset_data_owner_cache
     from .utilities.curve_data import reset_merge_cache
-    from .utilities.validate import reset_cache
+    from .utilities.validate import repair_constraint_values, reset_cache
 
     reset_cache()
     reset_merge_cache()
@@ -79,6 +79,15 @@ def on_load_post(*args):
     overlay.invalidate()
     constraint_icons.invalidate()
     selection.clear()
+
+    # Restore dimension values whose scene property was lost with the file they
+    # were linked or appended from, or by an earlier uid change.
+    scene = bpy.context.scene
+    if scene is not None:
+        try:
+            repair_constraint_values(scene)
+        except Exception:
+            logger.exception("Restoring dimension values failed")
 
 
 def on_depsgraph_update(scene, depsgraph):

@@ -157,8 +157,9 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
     def _get_init_value(self, setting):
         r1, r2 = self.ref(1), self.ref(2)
         # Guard against unresolved references (e.g. legacy files before
-        # migration remaps entity pointers to curve ids).
-        if r1 is None or r2 is None:
+        # migration remaps entity pointers to curve ids) and against a
+        # reference that no longer resolves to a directed curve.
+        if not hasattr(r1, "direction_vec") or not hasattr(r2, "direction_vec"):
             return 0.0
         return self._get_angle(r1.direction_vec(), r2.direction_vec())
 
