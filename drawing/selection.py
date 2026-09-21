@@ -24,6 +24,12 @@ hover_candidates = []
 # when the cursor moves to a different element.
 hover_locked = False
 
+# True once the hover was cycled away from the nearest candidate (Alt+wheel or
+# Alt+click). Only then does the hover stick while the cursor stays over it;
+# otherwise the nearest candidate (points first) always wins, so sliding along a
+# line onto its endpoint hovers the point rather than keeping the line.
+hover_cycled = False
+
 # curve_ids to render highlighted in addition to hover -- e.g. the geometry a
 # hovered constraint acts on. Cleared by the preselection gizmo.
 highlight_curve_ids = []
@@ -48,7 +54,7 @@ def cycle_hover(direction=1, lock=False):
     ``lock`` marks the hover as explicitly positioned (used by the Alt+wheel
     preview), so a following Alt+click commits it rather than advancing past it.
     """
-    global hover, hover_locked
+    global hover, hover_locked, hover_cycled
     if len(hover_candidates) < 2:
         return False
     try:
@@ -57,6 +63,7 @@ def cycle_hover(direction=1, lock=False):
         index = 0
     step = 1 if direction >= 0 else -1
     hover = hover_candidates[(index + step) % len(hover_candidates)]
+    hover_cycled = True
     if lock:
         hover_locked = True
     return True
@@ -78,7 +85,8 @@ def clear():
     highlight_entities.clear()
     ignore_list.clear()
     hover_candidates.clear()
-    global hover, highlight_constraint, hover_locked
+    global hover, highlight_constraint, hover_locked, hover_cycled
     hover = ""
     hover_locked = False
+    hover_cycled = False
     highlight_constraint = None

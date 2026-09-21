@@ -51,6 +51,7 @@ class TestPicking(Sketch2dTestCase):
         selection.hover = ""
         selection.hover_candidates = []
         selection.hover_locked = False
+        selection.hover_cycled = False
         super().tearDown()
 
     def test_pick_ranked_returns_overlapping_stack(self):
@@ -70,6 +71,13 @@ class TestPicking(Sketch2dTestCase):
         self.assertTrue(selection.cycle_hover(1))
         self.assertEqual(selection.hover, self.line.curve_id)
         self.assertEqual(picking.update_hover(self.ctx, (40, 0)), self.line.curve_id)
+
+    def test_update_hover_prefers_point_over_stale_line(self):
+        # Hovering the line, then moving onto its endpoint must hover the point:
+        # an uncycled hover does not stick just because it is still in range.
+        selection.hover = picking.update_hover(self.ctx, (20, 0))
+        self.assertEqual(selection.hover, self.line.curve_id)
+        self.assertEqual(picking.update_hover(self.ctx, (40, 0)), self.b.curve_id)
 
     def test_cycle_hover_wraps_and_noops(self):
         selection.hover_candidates = ["a", "b", "c"]

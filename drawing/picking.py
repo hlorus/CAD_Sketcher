@@ -184,14 +184,15 @@ def update_hover(context, coords):
     """Cycle-aware hover resolution shared by the preselection gizmo and picking.
 
     Stores the ranked candidate list on ``selection.hover_candidates`` and returns
-    the curve_id to hover: the current hover is kept if it is still under the
-    cursor (so a cycled choice survives small mouse moves), otherwise the nearest.
+    the curve_id to hover: a cycled choice is kept while it is still under the
+    cursor (so it survives small mouse moves), otherwise the nearest.
     """
     ranked = pick_ranked(context, coords)
     selection.hover_candidates = ranked
-    if selection.hover in ranked:
+    if selection.hover_cycled and selection.hover in ranked:
         return selection.hover
-    # Moved to a different element (or off geometry): drop any wheel-set lock.
+    # Moved to a different element (or off geometry): drop any cycling state.
+    selection.hover_cycled = False
     selection.hover_locked = False
     return ranked[0] if ranked else ""
 
