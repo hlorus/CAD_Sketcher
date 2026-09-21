@@ -1,6 +1,6 @@
 import logging
 from contextlib import contextmanager
-from typing import List
+from typing import List, Optional
 
 import bpy
 from bpy.props import BoolProperty, StringProperty
@@ -381,22 +381,45 @@ class DimensionalConstraint(GenericConstraint):
 
         return bpy.context.scene
 
-    def _set_value_force(self, value: float):
-        scene = self._get_scene()
+    def value_key(self) -> Optional[str]:
+        """The scene custom property holding this constraint's value, if any."""
         uid = getattr(self, "constraint_uid", "")
-        if scene is not None and uid:
-            scene[f"slvs:c:{uid}"] = value
+        return f"slvs:c:{uid}" if uid else None
+
+    def stored_value(self) -> Optional[float]:
+        """The value kept on the constraint itself, or None when unset.
+
+        ``value_store`` mirrors the scene property so the number travels with
+        the sketch: a scene key is left behind when the sketch is linked or
+        appended into another file, and orphaned whenever the uid changes.
+        Zero means "never stored", since no dimension is meaningfully zero.
+        """
+        if not hasattr(self, "value_store") or not self.is_property_set("value_store"):
+            return None
+        stored = float(self.value_store)
+        return stored if stored else None
+
+    def _set_value_force(self, value: float):
+        # Write both: the scene property is the driver endpoint (it can be
+        # animated, see on_frame_change), value_store is the durable copy.
+        if hasattr(self, "value_store"):
+            self.value_store = value
+        scene = self._get_scene()
+        key = self.value_key()
+        if scene is not None and key:
+            scene[key] = value
 
     def _get_value(self):
         if self.is_reference:
             val = self.init_props()["value"]
             return self.to_displayed_value(val)
         scene = self._get_scene()
-        uid = getattr(self, "constraint_uid", "")
-        if scene is not None and uid:
-            key = f"slvs:c:{uid}"
-            if key in scene:
-                return self.to_displayed_value(float(scene[key]))
+        key = self.value_key()
+        if scene is not None and key and key in scene:
+            return self.to_displayed_value(float(scene[key]))
+        stored = self.stored_value()
+        if stored is not None:
+            return self.to_displayed_value(stored)
         val = self.init_props().get("value", 0.0)
         return self.to_displayed_value(val)
 

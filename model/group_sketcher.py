@@ -245,14 +245,20 @@ class SketcherProps(PropertyGroup):
         scene = self.id_data
         key = f"{_EP_PREFIX}{uid}"
         if key not in scene:
-            if hasattr(constraint, "value_store") and constraint.is_property_set(
-                "value_store"
-            ):
-                init_value = float(constraint.value_store)
-            elif hasattr(constraint, "value") and constraint.is_property_set("value"):
-                init_value = float(constraint.value)
-            else:
-                init_value = 0.0
+            # Seed from the constraint's own copy, else from what it is set to.
+            # Never seed a zero while the number is recoverable: a zeroed
+            # dimension collapses its sketch on the next solve.
+            stored = (
+                constraint.stored_value()
+                if hasattr(constraint, "stored_value")
+                else None
+            )
+            if stored is None and hasattr(constraint, "value"):
+                try:
+                    stored = float(constraint.value) or None
+                except (AttributeError, TypeError):
+                    stored = None
+            init_value = stored if stored is not None else 0.0
 
             scene[key] = init_value
             try:

@@ -43,9 +43,10 @@ _ORIGIN_EPS = 1e-6
 _validated = {}
 
 # Attributes the model depends on (the identity sub-attributes plus type/name).
-_REQUIRED_ATTRS = tuple(
-    f".{field}_{k}" for field in UUID_FIELDS for k in range(4)
-) + ("sketch_type", "name")
+_REQUIRED_ATTRS = tuple(f".{field}_{k}" for field in UUID_FIELDS for k in range(4)) + (
+    "sketch_type",
+    "name",
+)
 
 
 def reset_cache():
@@ -59,7 +60,10 @@ def _signature(curve_data):
     n = len(curve_data.curves)
     ends = ()
     if has_uuid_field(curve_data, "curve_id") and n:
-        ends = (get_uuid(curve_data, "curve_id", 0), get_uuid(curve_data, "curve_id", n - 1))
+        ends = (
+            get_uuid(curve_data, "curve_id", 0),
+            get_uuid(curve_data, "curve_id", n - 1),
+        )
     return (
         n,
         len(curve_data.points),
@@ -184,7 +188,7 @@ def validate_sketch(sketch):
         return False
 
     cd = _get_original_data(sketch)
-    if cd is None:
+    if cd is None or not is_editable(cd):
         return False
 
     sig = _signature(cd)
@@ -279,6 +283,33 @@ def validate_sketch(sketch):
     return changed
 
 
+def _editable_sketch_data(scene):
+    """Yield each sketch whose curve data this file may write, once per datablock.
+
+    Several objects can share one sketch datablock (a linked asset used more
+    than once, a library override, a linked duplicate). Visiting such a sketch
+    once per object makes its constraints look like duplicates of themselves,
+    and data from a library cannot be written at all.
+    """
+    from ..model.sketch_ref import get_sketches
+
+    seen = set()
+    for sketch in get_sketches(scene):
+        data = getattr(sketch.target_object, "data", None)
+        if data is None or not is_editable(data):
+            continue
+        key = data.original.as_pointer()
+        if key in seen:
+            continue
+        seen.add(key)
+        yield sketch
+
+
+def is_editable(curve_data) -> bool:
+    """Whether this file may write to ``curve_data`` (not linked from a library)."""
+    return bool(getattr(curve_data, "is_editable", True))
+
+
 def _dedup_constraint_uids(scene):
     """Give duplicated sketches independent constraint uids.
 
@@ -287,11 +318,9 @@ def _dedup_constraint_uids(scene):
     Keep each uid's first occurrence; re-mint later ones and copy their current
     value across so the copy stays independent.
     """
-    from ..model.sketch_ref import get_sketches
-
     seen = set()
     changed = False
-    for sketch in get_sketches(scene):
+    for sketch in _editable_sketch_data(scene):
         try:
             constraints = sketch.constraints
         except Exception:
@@ -305,24 +334,75 @@ def _dedup_constraint_uids(scene):
             new = secrets.token_hex(8)
             while new in seen:
                 new = secrets.token_hex(8)
-            c.constraint_uid = new
-            # Carry the stored value over so the copy keeps its current value
-            # (dimensional constraints only; geometric ones store nothing).
+            # Read the value under the old uid before re-minting, so the copy
+            # keeps its current number (geometric constraints store none).
             old_key = f"slvs:c:{uid}" if uid else None
+            carried = scene[old_key] if old_key and old_key in scene else None
+            if carried is None and hasattr(c, "stored_value"):
+                carried = c.stored_value()
+            c.constraint_uid = new
             new_key = f"slvs:c:{new}"
-            if old_key and old_key in scene and new_key not in scene:
-                scene[new_key] = scene[old_key]
+            if carried is not None and new_key not in scene:
+                scene[new_key] = float(carried)
             seen.add(new)
             changed = True
     return changed
 
 
+def repair_constraint_values(scene) -> int:
+    """Restore dimension values that lost their scene property, return the count.
+
+    A dimension's number is written to ``scene["slvs:c:<uid>"]`` so it can be
+    driven, and mirrored onto the constraint as ``value_store``. Files written
+    before that mirror existed can reach this point with the scene property
+    gone (the sketch was linked or appended from another file, whose values
+    stayed behind) or zeroed (its uid changed, so the value was recreated from
+    an unset store). Both make the dimension stop holding its number, and a
+    zero one collapses the sketch on the next solve. Fall back to the stored
+    value, else to what the geometry currently measures, which is the shape the
+    file was last saved in.
+    """
+    repaired = 0
+    for sketch in _editable_sketch_data(scene):
+        try:
+            constraints = list(sketch.constraints.all)
+        except Exception:
+            continue
+        for c in constraints:
+            if not hasattr(c, "value_store") or c.is_reference:
+                continue
+            key = c.value_key()
+            if key is None:
+                continue
+            current = float(scene[key]) if key in scene else None
+            if current:
+                # Healthy: keep the mirror in step so a later uid change or a
+                # link into another file can recover from it.
+                if c.stored_value() != current:
+                    c.value_store = current
+                continue
+            value = c.stored_value()
+            if value is None:
+                try:
+                    measured = c.init_props().get("value", 0.0)
+                except Exception:
+                    logger.exception("Could not measure '%s'", c.name)
+                    continue
+                value = float(measured) or None
+            if value is None:
+                continue
+            scene[key] = value
+            c.value_store = value
+            repaired += 1
+    if repaired:
+        logger.info("Restored %s dimension value(s) from the sketch geometry", repaired)
+    return repaired
+
+
 def validate_all_sketches(scene):
     """Validate every sketch in the scene. Returns True if anything changed."""
-    from ..model.sketch_ref import get_sketches
-
     any_changed = False
-    for sketch in get_sketches(scene):
+    for sketch in _editable_sketch_data(scene):
         try:
             if validate_sketch(sketch):
                 any_changed = True

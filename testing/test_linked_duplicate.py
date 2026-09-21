@@ -53,7 +53,13 @@ class TestLinkedDuplicate(Sketch2dTestCase):
         self.assertEqual(tuple(b.lock_rotation), (False, False, False))
         self.assertEqual(tuple(b.lock_scale), (False, False, False))
 
-    def test_demotion_stops_the_churn(self):
+    def test_no_scene_key_leak_while_data_is_shared(self):
+        """Neither the shared-data phase nor demotion may leak scene keys.
+
+        The self-heal skips a datablock it has already visited, so a shared
+        sketch no longer looks like a duplicate of itself; demotion then
+        removes the second sketch entry as well.
+        """
         self._dimensioned_sketch()
         a, b = self._link_duplicate()
 
@@ -62,18 +68,19 @@ class TestLinkedDuplicate(Sketch2dTestCase):
                 [k for k in self.context.scene.keys() if k.startswith("slvs:c:")]
             )
 
-        # Shared data churns the self-heal and leaks a scene key per pass.
+        # Settle first: sketches left by earlier tests in this scene may hold a
+        # copied uid, which is re-minted once (legitimately) on the first pass.
+        validate_all_sketches(self.context.scene)
         start = n_keys()
         for _ in range(3):
             validate_all_sketches(self.context.scene)
-        self.assertGreater(n_keys(), start, "linked-dup should churn before the fix")
+        self.assertEqual(n_keys(), start, "shared data must not leak scene keys")
 
         reconcile_linked_duplicates(self.context.scene)
 
-        before = n_keys()
         for _ in range(5):
             validate_all_sketches(self.context.scene)
-        self.assertEqual(n_keys(), before, "demotion must stop the scene-key leak")
+        self.assertEqual(n_keys(), start, "demotion must stop the scene-key leak")
 
     def test_full_duplicate_stays_a_sketch(self):
         self._dimensioned_sketch()
