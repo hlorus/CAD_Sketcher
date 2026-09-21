@@ -162,15 +162,12 @@ class OperatorSketch3d(base_2d.Operator2d):
             prev_state = self.get_states_definition()[self.state_index - 1]
             prop = getattr(prev_state, "property", None)
             if prop and getattr(self, prop, None) is not None:
-                frame = self.sketch.target_object.parent or self.sketch.target_object
                 return (
-                    frame.matrix_world @ mathutils.Vector(getattr(self, prop)).to_3d()
+                    self.sketch.plane_matrix
+                    @ mathutils.Vector(getattr(self, prop)).to_3d()
                 ).copy()
 
-        origin = self.sketch.target_object.parent
-        if origin is not None:
-            return origin.matrix_world.translation.copy()
-        return self.sketch.target_object.matrix_world.translation.copy()
+        return self.sketch.plane_matrix.translation.copy()
 
     def _view_plane_normal(self, context):
         """Return the actual viewport-facing plane normal in world space.
@@ -232,13 +229,7 @@ class OperatorSketch3d(base_2d.Operator2d):
         # The free-3D Curves child is identity-parented to the origin Empty. Use
         # that frame directly so interactive origin transforms cannot leave a
         # stale child matrix between depsgraph updates while placing new points.
-        frame = self.sketch.target_object.parent
-        matrix = (
-            frame.matrix_world
-            if frame is not None
-            else self.sketch.target_object.matrix_world
-        )
-        local = matrix.inverted_safe() @ world
+        local = self.sketch.plane_matrix.inverted_safe() @ world
         return mathutils.Vector(local).to_3d()
 
     def state_func(self, context, coords):

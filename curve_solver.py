@@ -103,18 +103,12 @@ class CurveSolver:
             self._normal_handle = None
             return
 
-        wp_obj = ensure_workplane_empty(self.sketch)
+        # Legacy entity sketches still mint their empty on first solve; native
+        # ones answer from their own plane.
+        ensure_workplane_empty(self.sketch)
 
-        # Fallback: curve object's parent
-        if (
-            not wp_obj
-            and self.sketch.target_object
-            and self.sketch.target_object.parent
-        ):
-            wp_obj = self.sketch.target_object.parent
-
-        if wp_obj:
-            mat = wp_obj.matrix_world
+        if hasattr(self.sketch, "plane_matrix"):
+            mat = self.sketch.plane_matrix
             origin_loc = mat.translation
             quat = mat.to_quaternion()
         elif hasattr(self.sketch, "wp") and self.sketch.wp:
@@ -301,10 +295,11 @@ class CurveSolver:
 
     def _tweak_uv(self) -> tuple[float, float]:
         """The tweak position in the sketch workplane's 2D coordinates."""
-        wp_obj = self.sketch.workplane_object
-        if not wp_obj and self.sketch.target_object:
-            wp_obj = self.sketch.target_object.parent
-        wp_mat = wp_obj.matrix_world if wp_obj else _Matrix.Identity(4)
+        wp_mat = (
+            self.sketch.plane_matrix
+            if hasattr(self.sketch, "plane_matrix")
+            else _Matrix.Identity(4)
+        )
         tw_u, tw_v, _ = wp_mat.inverted() @ self._tweak_pos
         return tw_u, tw_v
 

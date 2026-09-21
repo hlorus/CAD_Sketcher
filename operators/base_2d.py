@@ -132,13 +132,10 @@ class Operator2d(GenericEntityOp):
         return self._active_sketch
 
     def _get_wp(self):
-        """Get the workplane (empty object or entity) for this sketch."""
-        if self.sketch.workplane_object:
-            return self.sketch.workplane_object
-        # Fallback: curve object's parent is the workplane empty
-        if self.sketch.target_object and self.sketch.target_object.parent:
-            return self.sketch.target_object.parent
-        return None
+        """The plane this sketch draws on: its workplane object, else its frame."""
+        if not self.sketch:
+            return None
+        return self.sketch.workplane_object or self.sketch.plane_matrix
 
     def state_func(self, context: Context, coords):
         state = self.state

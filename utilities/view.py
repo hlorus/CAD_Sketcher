@@ -7,7 +7,7 @@ from bpy_extras.view3d_utils import (
     region_2d_to_origin_3d,
     region_2d_to_vector_3d,
 )
-from mathutils import Vector
+from mathutils import Matrix, Vector
 from mathutils.geometry import intersect_line_line, intersect_line_plane
 
 
@@ -42,7 +42,13 @@ def get_placement_pos(context: Context, coords: Vector) -> Vector:
 
 
 def get_wp_matrix(wp):
-    """World matrix of a workplane, whether it's an entity or an empty object."""
+    """World matrix of a workplane: an entity, an Object, or a plain Matrix.
+
+    A sketch that owns its transform has no workplane object, so its plane is
+    handed around as the matrix itself (see ``Sketch.plane_matrix``).
+    """
+    if isinstance(wp, Matrix):
+        return wp
     return wp.matrix_basis if hasattr(wp, "p1") else wp.matrix_world
 
 
@@ -568,21 +574,22 @@ def get_pos_2d(
 ) -> Vector:
     """Returns the coordinates on the workplane the mouse points at.
 
-    wp can be a SlvsWorkplane entity or a Blender Object (empty). When
-    ``respect_snapping`` is set and Blender's snapping is active, the position is
-    snapped to the projection of nearby 3D geometry onto the workplane.
+    wp can be a SlvsWorkplane entity, a Blender Object (empty), or the plane
+    matrix itself. When ``respect_snapping`` is set and Blender's snapping is
+    active, the position is snapped to the projection of nearby 3D geometry onto
+    the workplane. Returns None when there is no plane to project onto.
     """
+    if wp is None:
+        return None
+
     origin, end_point = get_picking_origin_end(context, coords)
 
-    # Support both entity workplanes and empty objects
+    mat = get_wp_matrix(wp)
     if hasattr(wp, "p1"):
         # Entity workplane
         wp_origin = wp.p1.location
         wp_normal = wp.normal
-        mat = wp.matrix_basis
     else:
-        # Empty object
-        mat = wp.matrix_world
         wp_origin = mat.translation
         wp_normal = Vector(mat.col[2][:3]).normalized()
 

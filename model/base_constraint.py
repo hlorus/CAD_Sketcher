@@ -225,11 +225,8 @@ class GenericConstraint:
             sketch = self.sketch
 
         if sketch:
-            wp_obj = getattr(sketch, "workplane_object", None)
-            if not wp_obj and hasattr(sketch, "target_object") and sketch.target_object:
-                wp_obj = sketch.target_object.parent
-            if wp_obj:
-                mat = wp_obj.matrix_world
+            mat = getattr(sketch, "plane_matrix", None)
+            if mat is not None:
                 return mat.translation.copy(), Vector(mat.col[2][:3]).normalized()
             wp = getattr(sketch, "wp", None)
             if wp:

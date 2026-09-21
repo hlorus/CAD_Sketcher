@@ -150,12 +150,9 @@ class CurveRef:
 
     @property
     def wp_matrix(self):
-        obj = self._sketch.target_object
-        if obj and obj.parent:
-            return obj.parent.matrix_world
-        if obj:
-            return obj.matrix_world
-        return Matrix.Identity(4)
+        if not self._sketch or not self._sketch.target_object:
+            return Matrix.Identity(4)
+        return self._sketch.plane_matrix
 
     # -- Flags (read/write) --
 

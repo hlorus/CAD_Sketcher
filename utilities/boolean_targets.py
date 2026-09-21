@@ -33,9 +33,6 @@ def sketch_source_body(sketch):
     """
     wp = getattr(sketch, "workplane_object", None)
     if wp is None:
-        target = getattr(sketch, "target_object", None)
-        wp = target.parent if target is not None else None
-    if wp is None:
         return None
     source = wp.get(KEY_SOURCE)
     return source if isinstance(source, bpy.types.Object) else None

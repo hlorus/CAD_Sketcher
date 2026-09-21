@@ -35,12 +35,7 @@ _SEEDING_COORDS = False
 
 def _solver_wp_matrix(sketch):
     """The workplane matrix the solver uses, for placing a drag target."""
-    from mathutils import Matrix
-
-    wp_obj = sketch.workplane_object
-    if not wp_obj and sketch.target_object:
-        wp_obj = sketch.target_object.parent
-    return wp_obj.matrix_world if wp_obj else Matrix.Identity(4)
+    return sketch.plane_matrix
 
 
 def _update_coord_editor(self, context: Context) -> None:
@@ -301,10 +296,16 @@ def register():
     register_class(ProjectedSourceSlot)
     register_class(SketcherProps)
     bpy.types.Object.slvs_project_sources = CollectionProperty(type=ProjectedSourceSlot)
+    # The Object whose frame a sketch's local coordinates live in. Explicit, so a
+    # sketch's plane is independent of whatever parents (places) the sketch.
+    bpy.types.Object.slvs_workplane = PointerProperty(
+        type=bpy.types.Object, name="Workplane Object"
+    )
     bpy.types.Scene.sketcher = PointerProperty(type=SketcherProps)
 
 
 def unregister():
+    del bpy.types.Object.slvs_workplane
     del bpy.types.Object.slvs_project_sources
     del bpy.types.Scene.sketcher
     unregister_class(SketcherProps)

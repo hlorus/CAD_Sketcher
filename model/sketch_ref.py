@@ -36,25 +36,47 @@ class Sketch:
 
     @property
     def workplane_object(self):
-        return self._obj.parent
+        """The Object providing this sketch's plane, or None if it is its own.
+
+        Stored as an explicit pointer rather than read from ``parent``: a sketch
+        that owns its transform (nothing above it in the hierarchy places it)
+        still has a plane, and its plane is its own frame. Old files predate the
+        pointer, so fall back to the parent, which is what placed them.
+        """
+        obj = self._obj
+        wp = getattr(obj, "slvs_workplane", None)
+        return wp if wp is not None else obj.parent
+
+    @workplane_object.setter
+    def workplane_object(self, value):
+        self._obj.slvs_workplane = value
+
+    @property
+    def plane_matrix(self):
+        """The frame this sketch's local coordinates are expressed in.
+
+        The single answer to "where is this sketch": its workplane's frame, or
+        its own when it has no workplane object. Every consumer that unprojects
+        a click, seeds the solver, or places a gizmo must go through here, so
+        that they cannot disagree about which matrix resolves a stored point.
+        """
+        wp = self.workplane_object
+        if wp is not None:
+            return wp.matrix_world
+        return self._obj.matrix_world
 
     @property
     def world_matrix(self):
         """The sketch's world frame for placing and reading geometry.
 
-        A free-3D sketch is anchored by a parent origin Empty; the Curves child's
-        own derived ``matrix_world`` can lag the parent between depsgraph updates
-        (e.g. while the origin is being dragged), so read the parent -- the
-        movable frame. 2D sketches keep the child matrix (it is their workplane).
+        The same frame the solver works in: drawing, picking and solving must not
+        disagree about where a stored coordinate ends up. A free-3D sketch is
+        anchored by an origin Empty and a 2D one by its workplane; both are the
+        sketch's plane object, and reading it (rather than the Curves object's own
+        derived matrix) also avoids the child lagging its frame between depsgraph
+        updates while that frame is dragged.
         """
-        obj = self._obj
-        if (
-            self.is_3d
-            and obj.parent is not None
-            and obj.parent.get("is_3d_sketch_origin", False)
-        ):
-            return obj.parent.matrix_world
-        return obj.matrix_world
+        return self.plane_matrix
 
     @property
     def is_3d(self):

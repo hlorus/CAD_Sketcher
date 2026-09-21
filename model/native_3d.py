@@ -183,6 +183,7 @@ def create_3d_sketch(context, name="3D Sketch", matrix=None):
     _set_convert_fill(modifier, False)
 
     obj.parent = origin
+    obj.slvs_workplane = origin
     obj.matrix_parent_inverse = Matrix.Identity(4)
     obj.matrix_basis = Matrix.Identity(4)
     obj.lock_location = (True, True, True)

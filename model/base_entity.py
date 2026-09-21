@@ -422,10 +422,9 @@ class Entity2D(SlvsGenericEntity):
     @property
     def wp_matrix(self):
         """Get the workplane transform matrix from any available source."""
-        if self.sketch.workplane_object:
-            return self.sketch.workplane_object.matrix_world
-        if self.sketch.target_object and self.sketch.target_object.parent:
-            return self.sketch.target_object.parent.matrix_world
+        plane_matrix = getattr(self.sketch, "plane_matrix", None)
+        if plane_matrix is not None:
+            return plane_matrix
         if self.sketch.wp:
             return self.sketch.wp.matrix_basis
         from mathutils import Matrix
