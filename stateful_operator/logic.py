@@ -448,7 +448,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         i = self.edit_state
         # The pick runs in state i, but the re-apply must rebuild every state.
         self._edit_full_state_index = self.state_index
-        self.get_state_data(i).pop("type", None)
+        self._reset_edited_state(i)
         self.set_state(context, i)
         global_data.hover_types = self.get_states()[i].types
         # Make the op's hover/preselection UI available for the re-pick even
@@ -464,6 +464,18 @@ class StatefulOperatorLogic(_StateMachineMixin):
         )
         context.window_manager.modal_handler_add(self)
         return {"RUNNING_MODAL"}
+
+    def _reset_edited_state(self, i: int) -> None:
+        """Blank state ``i`` so it can be picked fresh.
+
+        A clear keeps the picked type: the value it falls back to is read from
+        the pick itself (see ``pick_fallback_value``), so dropping the type would
+        leave the state with nothing to fall back to and the clear would do
+        nothing.
+        """
+        if self._pending_clear:
+            return
+        self.get_state_data(i).pop("type", None)
 
     def _set_edit_status(self, context: Context):
         """Tell the user a re-pick is in progress and what to click.

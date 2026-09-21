@@ -201,3 +201,23 @@ class TestEntityRepick(Sketch2dTestCase):
         self.assertNotEqual(lines[0].p2.curve_id, target.curve_id)
         self.assertAlmostEqual((lines[0].p2.co - target.co).length, 0.0)
         self.assertTrue(target.valid)
+
+    def test_clear_keeps_the_picked_type_to_fall_back_on(self):
+        """The edit invoke blanks the state for a re-pick, but a clear needs the
+        pick to read its fallback position from."""
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+
+        target = self.add_point((5.0, 2.0))
+        h = OpHarness(View3D_OT_slvs_add_line2d, self.sketch, self.context)
+        h.place_point((0.0, 0.0)).pick(target)
+        first = self._commit(h)
+
+        again = self._fresh(
+            View3D_OT_slvs_add_line2d, self._persisted(first), state_index=1
+        )
+        again._restore_pointers()
+        again._pending_clear = True
+        again._reset_edited_state(1)
+        value = again.pick_fallback_value(self.context, 1)
+        self.assertIsNotNone(value)
+        self.assertAlmostEqual((value - target.co).length, 0.0)
