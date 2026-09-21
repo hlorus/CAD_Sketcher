@@ -71,9 +71,11 @@ def on_load_post(*args):
     from .drawing import constraint_icons, overlay, selection
     from .model.base_constraint import reset_data_owner_cache
     from .utilities.curve_data import reset_merge_cache
+    from .utilities.part import reset_cache as reset_part_cache
     from .utilities.validate import repair_constraint_values, reset_cache
 
     reset_cache()
+    reset_part_cache()
     reset_merge_cache()
     reset_data_owner_cache()
     overlay.invalidate()
@@ -118,6 +120,13 @@ def on_depsgraph_update(scene, depsgraph):
         from .utilities.consumable import reconcile_linked_duplicates
 
         if reconcile_linked_duplicates(scene):
+            global_data.needs_solve = True
+
+        # A part root deleted with Blender's own Delete never reaches our delete
+        # operator; put its members back on their feet and hand the part on.
+        from .utilities.part import reconcile_parts
+
+        if reconcile_parts(scene):
             global_data.needs_solve = True
 
         # Undo/redo can flatten the origin workplane empties to identity (they

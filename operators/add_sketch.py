@@ -66,7 +66,7 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     # Resolve the plane and the part before activate, so align_view sees both.
     wp_orig = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
     root = _part_for_workplane(context, wp_orig)
-    from ..utilities.part import join_part, mark_part_root
+    from ..utilities.part import join_part, mark_part_member, mark_part_root
 
     if root is None:
         # Starts a new part: the sketch owns its transform and is its own plane,
@@ -80,6 +80,7 @@ def build_sketch_on_workplane(context: Context, wp_empty):
         sketch_obj.lock_rotation = (True, True, True)
         sketch_obj.lock_scale = (True, True, True)
         join_part(root, wp_orig)
+        mark_part_member(sketch_obj, root)
 
     # Tuck a dedicated (face/custom) workplane in with its sketch, not at the root.
     from ..utilities.collections import nest_workplane

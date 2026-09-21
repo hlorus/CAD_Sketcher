@@ -11,9 +11,11 @@ from mathutils import Matrix, Vector
 
 from ..operators.add_sketch import build_sketch_on_workplane, create_face_workplane
 from ..utilities.part import (
+    PART_ROOT_KEY,
     is_part_root,
     join_part,
     part_root_of,
+    reconcile_parts,
     rehome_children,
 )
 from .utils import BgsTestCase
@@ -125,3 +127,81 @@ class TestPartRoot(BgsTestCase):
         self.assertIsNone(member_obj.slvs_workplane)
         self.assertEqual(member.plane_matrix.translation, placed_at)
         self.assertEqual(part_root_of(wp), member_obj)
+
+    def test_demoted_linked_duplicate_stops_rooting_a_part(self):
+        from ..utilities.consumable import reconcile_linked_duplicates
+
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        root = sketch.target_object
+
+        # Alt+D: a second object sharing the same curve data, props and all.
+        copy = root.copy()
+        self.scene.collection.objects.link(copy)
+        self.assertTrue(copy[PART_ROOT_KEY])
+
+        self.assertTrue(reconcile_linked_duplicates(self.scene))
+        self.assertFalse(is_part_root(copy))
+        self.assertTrue(is_part_root(root))
+
+    def test_deleting_a_root_outside_the_operator_is_repaired(self):
+        # Blender's own Delete never reaches the sketch delete operator: it drops
+        # the parent and keeps the child's local transform, so the part would
+        # collapse back toward where it was first assembled.
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        root = sketch.target_object
+
+        wp = bpy.data.objects.new("WP", None)
+        self.scene.collection.objects.link(wp)
+        join_part(root, wp)
+        member = build_sketch_on_workplane(self.context, wp)
+        member_obj = member.target_object
+
+        # The part is assembled, then moved as a whole.
+        root.matrix_basis = Matrix.Translation(Vector((0.0, 0.0, 6.0)))
+        reconcile_parts(self.scene)  # remembers the part's frame
+        placed_at = member.plane_matrix.translation.copy()
+
+        bpy.data.objects.remove(root)
+        self.assertTrue(reconcile_parts(self.scene))
+
+        self.assertTrue(is_part_root(member_obj))
+        self.assertIsNone(member_obj.slvs_workplane)
+        self.assertEqual(member.plane_matrix.translation, placed_at)
+        self.assertEqual(part_root_of(wp), member_obj)
+
+    def test_reconcile_is_quiet_when_nothing_is_orphaned(self):
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        wp = bpy.data.objects.new("WP", None)
+        self.scene.collection.objects.link(wp)
+        join_part(sketch.target_object, wp)
+
+        self.assertFalse(reconcile_parts(self.scene))
+        self.assertFalse(reconcile_parts(self.scene))
+
+    def test_moving_a_part_carries_its_solved_geometry(self):
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        root = sketch.target_object
+
+        from ..curve_solver import solve_system
+        from ..model.curve_ref import LineRef, PointRef
+
+        origin = PointRef.create(sketch, (0.0, 0.0), fixed=True)
+        p1 = PointRef.create(sketch, (10.0, 0.0))
+        line = LineRef.create(sketch, origin, p1)
+        sketch.constraints.add_distance(
+            curve_id_1=origin.curve_id, curve_id_2=p1.curve_id
+        ).value = 30.0
+        self.assertTrue(solve_system(self.context, sketch=sketch))
+
+        local_before = Vector(p1.co)
+        self.assertAlmostEqual(local_before.length, 30.0, places=4)
+
+        root.matrix_basis = Matrix.Translation(Vector((100.0, 0.0, 0.0)))
+        self.context.view_layer.update()
+        self.assertTrue(solve_system(self.context, sketch=sketch))
+
+        # The part moved; the sketch is unchanged in its own frame and simply
+        # rides along in world space.
+        self.assertAlmostEqual((Vector(p1.co) - local_before).length, 0.0, places=4)
+        self.assertEqual(p1.location, Vector((100.0, 0.0, 0.0)) + local_before.to_3d())
+        self.assertEqual(line.wp_matrix, sketch.plane_matrix)

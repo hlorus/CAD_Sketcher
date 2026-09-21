@@ -23,9 +23,13 @@ from ..model.sketch_ref import _DOF, _OWNER, _SOLVER_STATE, _TAG, is_sketch_obje
 
 def _demote(copy: bpy.types.Object) -> None:
     """Drop a linked-duplicate copy's sketch role: untag and unlock its transform."""
+    from .part import clear_part_root
+
     for key in (_TAG, _SOLVER_STATE, _DOF):
         if key in copy:
             del copy[key]
+    # It is not a sketch any more, so it cannot root a part either.
+    clear_part_root(copy)
     copy.lock_location = (False, False, False)
     copy.lock_rotation = (False, False, False)
     copy.lock_scale = (False, False, False)
