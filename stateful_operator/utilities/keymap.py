@@ -1,8 +1,8 @@
-from ..constants import Operators, numeric_events, unit_key_types
-
-from bpy.types import KeyMapItem, Context, Event
-
 from typing import List
+
+from bpy.types import Context, Event, KeyMapItem
+
+from ..constants import Operators, numeric_events, unit_key_types
 
 
 def _get_key_hint(kmi: KeyMapItem) -> List[str]:
@@ -31,12 +31,15 @@ def _get_matching_kmi(
     Optionally filtered by filter_func.
     """
     wm = context.window_manager
-    kc = wm.keyconfigs.addon
+    # The user keyconfig holds the add-on's items with the user's edits applied.
+    kc = wm.keyconfigs.user
 
     km_items = []
+    if kc is None:
+        return km_items
     for km in kc.keymaps:
         for kmi in km.keymap_items:
-            if not kmi.idname == id_name:
+            if not kmi.idname == id_name or not kmi.active:
                 continue
             if kmi.type in ("LEFTMOUSE", "MIDDLEMOUSE", "RIGHTMOUSE"):
                 continue
@@ -50,10 +53,11 @@ def _get_matching_kmi(
     return km_items
 
 
-def get_key_map_desc(context: Context, id_name: str) -> str:
+def get_key_map_desc(context: Context, id_name: str, filter_func=None) -> str:
     """
     Returns a list of shortcut hints to operator with given idname.
-    Looks through keymaps in addon keyconfig.
+    Looks through keymaps in the user keyconfig, so remapped keys show.
+    ``filter_func(kmi)`` narrows the items calling the operator directly.
     """
 
     def _targets_operator(kmi):
@@ -64,7 +68,7 @@ def get_key_map_desc(context: Context, id_name: str) -> str:
         except (KeyError, TypeError):
             return False
 
-    km_items = _get_matching_kmi(context, id_name)
+    km_items = _get_matching_kmi(context, id_name, filter_func=filter_func)
     km_items.extend(
         _get_matching_kmi(
             context,
@@ -122,8 +126,20 @@ def is_numeric_input(event: Event):
     return event.type in (*numeric_events, "BACK_SPACE")
 
 
-def is_unit_input(event: Event):
-    return event.type in unit_key_types
+def is_unit_input(event: Event, current: str, prop=None) -> bool:
+    """Return True if the event types a unit suffix onto the number in ``current``.
+
+    Unit letters overlap the tool shortcuts, so only claim them where a unit
+    can apply: after a digit was typed, for a property that has a unit
+    (``prop=None`` skips that check), and with no modifier held.
+    """
+    if event.type not in unit_key_types:
+        return False
+    if event.ctrl or event.alt or event.shift or event.oskey:
+        return False
+    if prop is not None and prop.unit == "NONE":
+        return False
+    return any(c.isdigit() for c in current)
 
 
 def get_unit_value(event: Event):
@@ -132,17 +148,28 @@ def get_unit_value(event: Event):
 
 
 _EVENT_TO_DIGIT = {
-    "ZERO": "0", "NUMPAD_0": "0",
-    "ONE": "1", "NUMPAD_1": "1",
-    "TWO": "2", "NUMPAD_2": "2",
-    "THREE": "3", "NUMPAD_3": "3",
-    "FOUR": "4", "NUMPAD_4": "4",
-    "FIVE": "5", "NUMPAD_5": "5",
-    "SIX": "6", "NUMPAD_6": "6",
-    "SEVEN": "7", "NUMPAD_7": "7",
-    "EIGHT": "8", "NUMPAD_8": "8",
-    "NINE": "9", "NUMPAD_9": "9",
-    "PERIOD": ".", "NUMPAD_PERIOD": ".",
+    "ZERO": "0",
+    "NUMPAD_0": "0",
+    "ONE": "1",
+    "NUMPAD_1": "1",
+    "TWO": "2",
+    "NUMPAD_2": "2",
+    "THREE": "3",
+    "NUMPAD_3": "3",
+    "FOUR": "4",
+    "NUMPAD_4": "4",
+    "FIVE": "5",
+    "NUMPAD_5": "5",
+    "SIX": "6",
+    "NUMPAD_6": "6",
+    "SEVEN": "7",
+    "NUMPAD_7": "7",
+    "EIGHT": "8",
+    "NUMPAD_8": "8",
+    "NINE": "9",
+    "NUMPAD_9": "9",
+    "PERIOD": ".",
+    "NUMPAD_PERIOD": ".",
 }
 
 

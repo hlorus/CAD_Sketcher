@@ -1,22 +1,16 @@
-import logging
-
 from bpy.props import BoolProperty, FloatProperty
 from bpy.types import Operator
+from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
-from ..model.diameter import SlvsDiameter
-from ..stateful_operator.utilities.register import register_stateops_factory
-from .base_constraint import GenericConstraintOp
-
-logger = logging.getLogger(__name__)
+from .add_dimension import DimensionAlias
 
 
-class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
+class VIEW3D_OT_slvs_add_diameter(DimensionAlias, Operator):
     """Add a diameter constraint"""
 
     bl_idname = Operators.AddDiameter
     bl_label = "Diameter"
-    bl_options = {"UNDO", "REGISTER"}
 
     # Either Radius or Diameter
     value: FloatProperty(
@@ -27,19 +21,12 @@ class VIEW3D_OT_slvs_add_diameter(Operator, GenericConstraintOp):
         options={"SKIP_SAVE"},
     )
     setting: BoolProperty(name="Use Radius")
-    type = "DIAMETER"
-    property_keys = ("value", "setting")
-    has_value_state = False
 
-    def main(self, context):
-        if not self.exists(context, SlvsDiameter):
-            self.target = self.sketch.constraints.add_diameter(
-                init=not self.initialized,
-                curve_id_1=self.entity1.curve_id,
-                **self.get_settings(),
-            )
-
-        return super().main(context)
+    def dimension_flags(self) -> dict:
+        flags = {"kind": "DIAMETER", "radius": self.setting}
+        if self.properties.is_property_set("value"):
+            flags["length"] = self.value
+        return flags
 
 
-register, unregister = register_stateops_factory((VIEW3D_OT_slvs_add_diameter,))
+register, unregister = register_classes_factory((VIEW3D_OT_slvs_add_diameter,))

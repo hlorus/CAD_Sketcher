@@ -1,6 +1,6 @@
 import bpy
-from bpy.props import StringProperty
-from bpy.types import Context, Operator
+from bpy.props import BoolProperty, StringProperty
+from bpy.types import Context, Event, Operator
 
 from .constants import Operators
 
@@ -13,6 +13,21 @@ class View3D_OT_invoke_tool(Operator):
 
     # TODO: get the operator from tool attribute (tool.bl_operator)?
     operator: StringProperty(name="Operator ID")
+    fallthrough: BoolProperty(
+        name="Fall Through",
+        description=(
+            "Let other shortcuts on the same key run when the tool isn't "
+            "available in this context"
+        ),
+        default=False,
+    )
+
+    def invoke(self, context: Context, event: Event):
+        from .utilities.switch import tool_available
+
+        if self.fallthrough and not tool_available(context, self.tool_name):
+            return {"PASS_THROUGH"}
+        return self.execute(context)
 
     def execute(self, context: Context):
         bpy.ops.wm.tool_set_by_id(name=self.tool_name)

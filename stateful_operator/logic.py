@@ -13,6 +13,7 @@ from .utilities.description import state_desc, stateful_op_desc
 from .utilities.generic import to_list
 from .utilities.keymap import get_key_map_desc, is_numeric_input, is_unit_input
 from .utilities.numeric import NumericInput, parse_numeric
+from .utilities.switch import CANCEL, FORWARD, SWITCH, key_action
 
 # Re-export so any `from .logic import _NumericInput` keeps working.
 _NumericInput = NumericInput
@@ -564,6 +565,20 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """Hook: after a successful commit, record what the op created."""
         pass
 
+    def key_action(self, context: Context, event: Event) -> int:
+        """Return what a shortcut key does to this running tool (see switch)."""
+        return key_action(
+            context, event, exclude=self.bl_idname, is_same=self.is_same_invocation
+        )
+
+    def is_same_invocation(self, kmi) -> bool:
+        """Whether a keymap item calling this operator starts it as it runs now.
+
+        Such a key doesn't restart the running tool. Override when properties
+        make the same operator behave as different tools.
+        """
+        return True
+
     def _handle_pass_through(self, context: Context, event: Event):
         if event.type in {"MIDDLEMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE", "MOUSEMOVE"}:
             return {"PASS_THROUGH"}
@@ -581,7 +596,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         is_numeric_event = event.value == "PRESS" and is_numeric_input(event)
 
         if is_numeric_edit:
-            if is_unit_input(event) and event.value == "PRESS":
+            if event.value == "PRESS" and is_unit_input(
+                event, self._numeric.current, self._numeric.prop
+            ):
                 is_numeric_event = True
             elif event.type == "TAB" and event.value == "PRESS":
                 self._numeric.iterate()
@@ -589,7 +606,12 @@ class StatefulOperatorLogic(_StateMachineMixin):
         elif is_numeric_event:
             is_numeric_edit = self.init_numeric(True)
 
-        if event.type in {"RIGHTMOUSE", "ESC"}:
+        # Shortcuts that reach the keymap while this tool runs (see switch).
+        action = None if is_numeric_event else self.key_action(context, event)
+
+        # Undo drops the unfinished element like Esc; a second undo then works
+        # on the history as usual.
+        if event.type in {"RIGHTMOUSE", "ESC"} or action == CANCEL:
             return self._end(context, False)
 
         # Global axis constraint (X/Y/Z), only for states that opt in and apply
@@ -604,6 +626,15 @@ class StatefulOperatorLogic(_StateMachineMixin):
             self._axis_lock = None if self._axis_lock == axis else axis
             self.set_status_text(context)
             return self.evaluate_state(context, event, False)
+
+        # Another tool's shortcut ends this one, discarding the unfinished
+        # element like Esc does, and passes the key on so the keymap starts it.
+        # A toggle shortcut passes on while this tool keeps running.
+        if action == SWITCH:
+            self._end(context, False)
+            return {"CANCELLED", "PASS_THROUGH"}
+        if action == FORWARD:
+            return {"PASS_THROUGH"}
 
         # HACK: calling ops.ed.undo() inside a modal triggers a spurious MOUSEMOVE.
         # Check actual pixel movement to filter it out.

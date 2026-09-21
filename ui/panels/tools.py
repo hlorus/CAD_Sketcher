@@ -33,8 +33,20 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
                 if op in declarations.Supported3DConstraintOperators
             )
 
-        dimensional = _supported(declarations.DimensionalConstraintOperators)
+        dimensional = tuple(
+            kind
+            for kind in declarations.DimensionKinds
+            if not is_3d or kind in declarations.Supported3DDimensionKinds
+        )
         geometric = _supported(declarations.GeometricConstraintOperators)
+
+        def _dimension(layout, kind, text=""):
+            props = layout.operator(
+                declarations.Operators.AddDimension,
+                text=text,
+                icon_value=icon_manager.get_dimension_icon(kind),
+            )
+            props.kind = kind
 
         layout.operator(declarations.Operators.MergePoints)
         layout.operator(declarations.Operators.ProjectGeometry, icon="MOD_SHRINKWRAP")
@@ -65,8 +77,8 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
             # Dimensional constraints (value-based) go in their own grid, kept
             # separate from the geometric ones. Both use the same column count and
             # scale so the buttons are identically sized.
-            def _icon_grid(operators):
-                if not operators:
+            def _icon_grid(operators, dimensions=()):
+                if not operators and not dimensions:
                     return
                 grid = layout.grid_flow(
                     row_major=True,
@@ -77,17 +89,19 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
                 )
                 grid.scale_x = 1.2
                 grid.scale_y = 1.2
+                for kind in dimensions:
+                    _dimension(grid, kind)
                 for op in operators:
                     grid.operator(
                         op, text="", icon_value=icon_manager.get_constraint_icon(op)
                     )
 
-            _icon_grid(dimensional)
+            _icon_grid((), dimensional)
             _icon_grid(geometric)
         else:
             col = layout.column(align=True)
-            for op in dimensional:
-                col.operator(op, icon_value=icon_manager.get_constraint_icon(op))
+            for kind in dimensional:
+                _dimension(col, kind, text=kind.title())
             if dimensional and geometric:
                 col.separator()
             for op in geometric:

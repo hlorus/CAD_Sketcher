@@ -4,6 +4,7 @@ from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from ..drawing import selection
+from ..model.sketch_ref import get_active_sketch
 from ..utilities.highlighting import HighlightElement
 from ..utilities.select import deselect_all, mode_property, select_all
 from .utilities import select_extend, select_invert
@@ -128,6 +129,9 @@ class View3D_OT_slvs_hover_cycle(Operator):
     direction: IntProperty(default=1)
 
     def execute(self, context: Context):
+        # Outside a sketch, leave Alt+wheel to Blender (frame stepping).
+        if not get_active_sketch(context):
+            return {"PASS_THROUGH"}
         # lock=True: this is a preview cycle, so a following Alt+click commits the
         # positioned hover rather than advancing past it.
         if not selection.cycle_hover(self.direction, lock=True):

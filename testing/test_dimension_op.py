@@ -258,3 +258,180 @@ class TestDimensionOp(Sketch2dTestCase):
     def tearDown(self):
         selection.selected.clear()
         return super().tearDown()
+
+
+class TestDimensionPresets(Sketch2dTestCase):
+    """The Dimension tool preset like the former Distance/Angle/Diameter tools."""
+
+    def _op(self, **flags):
+        from ..operators.add_dimension import VIEW3D_OT_slvs_add_dimension
+
+        h = OpHarness(VIEW3D_OT_slvs_add_dimension, self.sketch, self.context)
+        for name, value in flags.items():
+            setattr(h.op, name, value)
+        return h
+
+    def _line(self, p1, p2):
+        return self.add_line(self.add_point(p1), self.add_point(p2))
+
+    def _run(self, refs, **flags):
+        selection.selected.clear()
+        selection.selected.extend(r.curve_id for r in refs)
+        h = self._op(**flags)
+        h.prefill()
+        h.finish(run_fini=False)
+        return h
+
+    def _state_names(self, h):
+        return [(s.name, s.optional) for s in h.op.get_states()]
+
+    def test_radius(self):
+        from ..model.diameter import SlvsDiameter
+
+        c = self.add_circle(self.add_point((0.0, 0.0)), 2.0)
+        target = self._run([c], kind="DIAMETER", radius=True).op.target
+        self.assertIsInstance(target, SlvsDiameter)
+        self.assertTrue(target.setting)
+        self.assertAlmostEqual(target.value, 2.0, places=4)
+
+    def test_horizontal_line_length(self):
+        from ..model.distance import SlvsDistance
+
+        line = self._line((0.0, 0.0), (3.0, 1.0))
+        target = self._run([line], kind="DISTANCE", align="HORIZONTAL").op.target
+        self.assertIsInstance(target, SlvsDistance)
+        self.assertEqual(target.align, "HORIZONTAL")
+        self.assertAlmostEqual(target.value, 3.0, places=4)
+
+    def test_angle_between_parallel_lines(self):
+        from ..model.angle import SlvsAngle
+
+        l1 = self._line((0.0, 0.0), (3.0, 1.0))
+        l2 = self._line((0.0, 2.0), (3.0, 3.0))
+        target = self._run([l1, l2], kind="ANGLE").op.target
+        self.assertIsInstance(target, SlvsAngle)
+        self.assertAlmostEqual(target.value, 0.0, places=4)
+
+    def test_supplementary_angle(self):
+        l1 = self._line((0.0, 0.0), (4.0, 0.0))
+        l2 = self._line((0.0, 0.0), (3.0, 3.0))
+        target = self._run([l1, l2], kind="ANGLE", supplementary=True).op.target
+        self.assertTrue(target.setting)
+        self.assertAlmostEqual(target.value, 3 * 3.14159265 / 4, places=4)
+
+    def test_horizontal_and_vertical_distance_are_not_duplicates(self):
+        p1 = self.add_point((0.0, 0.0))
+        p2 = self.add_point((3.0, 1.0))
+        first = self._run([p1, p2], kind="DISTANCE", align="VERTICAL")
+        first.op.fini(self.context, True)
+        second = self._run([p1, p2], kind="DISTANCE", align="HORIZONTAL")
+        self.assertFalse(second.op._is_duplicate(self.context, second.op.target))
+        again = self._run([p1, p2], kind="DISTANCE", align="VERTICAL")
+        self.assertTrue(again.op._is_duplicate(self.context, again.op.target))
+
+    def test_preset_value(self):
+        line = self._line((0.0, 0.0), (3.0, 0.0))
+        h = self._op(kind="DISTANCE")
+        h.op._preset_value = 5.0
+        selection.selected[:] = [line.curve_id]
+        h.prefill()
+        h.finish(run_fini=False)
+        self.assertAlmostEqual(h.op.target.value, 5.0, places=4)
+
+    def test_states_per_kind(self):
+        line = self._line((0.0, 0.0), (3.0, 0.0))
+        c = self.add_circle(self.add_point((6.0, 0.0)), 1.0)
+        cases = (
+            ("ANGLE", line, [("Entity 1", False), ("Entity 2", False)]),
+            ("DIAMETER", c, [("Entity 1", False)]),
+            ("DISTANCE", c, [("Entity 1", False), ("Entity 2", False)]),
+            ("AUTO", c, [("Entity 1", False)]),
+        )
+        for kind, first, expected in cases:
+            with self.subTest(kind=kind):
+                h = self._run([first], kind=kind)
+                self.assertEqual(self._state_names(h)[:-1], expected)
+                self.assertEqual(self._state_names(h)[-1][0], "Placement")
+
+    def test_partner_rules(self):
+        from ..model.curve_ref import curve_ref
+
+        l1 = self._line((0.0, 0.0), (4.0, 0.0))
+        tilted = curve_ref(self.sketch, self._line((0.0, 1.0), (3.0, 4.0)).curve_id)
+        parallel = curve_ref(self.sketch, self._line((0.0, 2.0), (4.0, 2.0)).curve_id)
+        point = curve_ref(self.sketch, self.add_point((1.0, 3.0)).curve_id)
+
+        auto = self._run([l1]).op
+        self.assertTrue(auto._accepts_partner(tilted))
+        distance = self._run([l1], kind="DISTANCE").op
+        self.assertFalse(distance._accepts_partner(tilted))
+        self.assertTrue(distance._accepts_partner(parallel))
+        self.assertTrue(distance._accepts_partner(point))
+        aligned = self._run([l1], kind="DISTANCE", align="HORIZONTAL").op
+        self.assertFalse(aligned._accepts_partner(point))
+
+    def test_same_invocation_compares_presets(self):
+        from types import SimpleNamespace
+
+        op = self._op(kind="DISTANCE", align="HORIZONTAL").op
+        same = SimpleNamespace(
+            properties=SimpleNamespace(kind="DISTANCE", align="HORIZONTAL")
+        )
+        other = SimpleNamespace(
+            properties=SimpleNamespace(kind="DISTANCE", align="VERTICAL")
+        )
+        plain = SimpleNamespace(properties=SimpleNamespace())
+        self.assertTrue(op.is_same_invocation(same))
+        self.assertFalse(op.is_same_invocation(other))
+        self.assertFalse(op.is_same_invocation(plain))
+
+    def _redo(self, refs, **props):
+        """Run the redo path: the constraint is rebuilt from the given props."""
+        selection.selected.clear()
+        selection.selected.extend(r.curve_id for r in refs)
+        h = self._op(**props)
+        h.op._redoing = True
+        h.prefill()
+        h.finish(run_fini=False)
+        return h.op.target
+
+    def test_redo_applies_distance_value_and_flip(self):
+        p = self.add_point((0.0, 2.0))
+        line = self._line((-5.0, 0.0), (5.0, 0.0))
+        props = dict(kind="AUTO", align="NONE", last_align="NONE", length=4.0)
+        target = self._redo([p, line], flip=True, **props)
+        self.assertAlmostEqual(target.value, 4.0, places=4)
+        self.assertTrue(target.flip)
+
+    def test_redo_alignment_change_remeasures(self):
+        p1 = self.add_point((0.0, 0.0))
+        p2 = self.add_point((3.0, 1.0))
+        target = self._redo(
+            [p1, p2], align="VERTICAL", last_align="NONE", length=9.0, flip=False
+        )
+        self.assertEqual(target.align, "VERTICAL")
+        self.assertAlmostEqual(target.value, 1.0, places=4)
+
+    def test_redo_radius_toggle_keeps_the_circle(self):
+        c = self.add_circle(self.add_point((0.0, 0.0)), 2.0)
+        # Measured as a diameter (4), then switched to radius in the redo panel.
+        target = self._redo(
+            [c], kind="DIAMETER", radius=True, last_radius=False, length=4.0
+        )
+        self.assertTrue(target.setting)
+        self.assertAlmostEqual(target.value, 2.0, places=4)
+
+    def test_redo_supplementary_toggle_keeps_the_lines(self):
+        import math
+
+        l1 = self._line((0.0, 0.0), (4.0, 0.0))
+        l2 = self._line((0.0, 0.0), (3.0, 3.0))
+        target = self._redo(
+            [l1, l2],
+            kind="ANGLE",
+            supplementary=True,
+            last_supplementary=False,
+            angle=math.pi / 4,
+        )
+        self.assertTrue(target.setting)
+        self.assertAlmostEqual(target.value, 3 * math.pi / 4, places=4)
