@@ -1,6 +1,6 @@
 import math
 from statistics import mean
-from typing import Tuple
+from typing import Optional, Tuple
 
 import mathutils
 from mathutils import Matrix, Vector
@@ -124,6 +124,35 @@ def intersect_line_line_2d(
         *line_abc_form(lineA_p1, lineA_p2),
         *line_abc_form(lineB_p1, lineB_p2),
     )
+
+
+def arc_through_points(
+    start: Vector, end: Vector, through: Vector, tol: float = 1e-6
+) -> Optional[Tuple[Vector, bool]]:
+    """The arc from ``start`` to ``end`` that passes through ``through``.
+
+    Returns ``(center, reversed)``, where ``reversed`` means the arc runs
+    counter-clockwise from ``end`` to ``start`` rather than from ``start`` to
+    ``end``. Returns None when the three points are (nearly) collinear, since
+    no finite circle passes through them.
+    """
+    ax, ay = start
+    bx, by = end
+    cx, cy = through
+    chord = (bx - ax, by - ay)
+    chord_sq = chord[0] ** 2 + chord[1] ** 2
+    # Twice the signed triangle area; scale the tolerance by the chord so the
+    # test doesn't depend on the sketch's units.
+    cross = chord[0] * (cy - ay) - chord[1] * (cx - ax)
+    if chord_sq == 0.0 or abs(cross) <= tol * chord_sq:
+        return None
+
+    d = 2.0 * cross
+    a_sq, b_sq, c_sq = ax * ax + ay * ay, bx * bx + by * by, cx * cx + cy * cy
+    ux = (a_sq * (by - cy) + b_sq * (cy - ay) + c_sq * (ay - by)) / d
+    uy = (a_sq * (cx - bx) + b_sq * (ax - cx) + c_sq * (bx - ax)) / d
+    # Counter-clockwise from start to end passes on the right of the chord.
+    return Vector((ux, uy)), cross > 0.0
 
 
 # https://stackoverflow.com/questions/30844482/what-is-most-efficient-way-to-find-the-intersection-of-a-line-and-a-circle-in-py

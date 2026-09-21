@@ -26,3 +26,22 @@ class VIEW3D_T_slvs_add_arc2d(GenericStateTool, WorkSpaceTool):
         layout.prop(
             context.scene.sketcher, "use_snap_project", text="Live Project Snaps"
         )
+
+
+class VIEW3D_T_slvs_add_arc3pt2d(GenericStateTool, WorkSpaceTool):
+    bl_space_type = "VIEW_3D"
+    bl_context_mode = "OBJECT"
+    bl_idname = WorkSpaceTools.AddArc3Point2D
+    bl_label = "Add 3-Point Arc"
+    bl_description = (
+        "Add an arc from its start and end points and a point it passes through"
+    )
+    bl_operator = Operators.AddArc3Point2D
+    bl_icon = "ops.gpencil.primitive_arc"
+    bl_widget = GizmoGroups.Preselection
+    bl_keymap = (
+        *tool_generic,
+        *operator_access(Operators.AddArc3Point2D),
+    )
+
+    draw_settings = VIEW3D_T_slvs_add_arc2d.draw_settings

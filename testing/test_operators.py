@@ -9,6 +9,10 @@ for a property state, ``pick`` for an existing element -- and assert the geometr
 and the auto-constraints ``main``/``fini`` add.
 """
 
+import math
+
+from mathutils import Vector
+
 from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef
 from ..operators.placement import placement_of
 from .utils import OpHarness, Sketch2dTestCase
@@ -182,6 +186,44 @@ class TestCreateOperators(Sketch2dTestCase):
         self.assertIsInstance(arc, ArcRef)
         self.assertAlmostEqual(arc.ct.co.x, 0.0)
         self.assertAlmostEqual(arc.ct.co.y, 0.0)
+
+    def _three_point_arc(self, through):
+        from ..operators.add_arc import View3D_OT_slvs_add_arc3pt2d
+
+        h = self._harness(View3D_OT_slvs_add_arc3pt2d)
+        h.place_point((1.0, 0.0))  # start
+        h.place_point((-1.0, 0.0))  # end
+        h.set_value(through)
+        self.assertTrue(h.finish())
+        return h.op.target
+
+    def test_three_point_arc_passes_through_point(self):
+        arc = self._three_point_arc((0.0, 1.0))
+        self.assertIsInstance(arc, ArcRef)
+        self.assertAlmostEqual(arc.ct.co.x, 0.0, places=5)
+        self.assertAlmostEqual(arc.ct.co.y, 0.0, places=5)
+        self.assertAlmostEqual(arc.radius, 1.0, places=5)
+        # Counter-clockwise from (1, 0) over the top to (-1, 0).
+        self.assertAlmostEqual(arc.start.co.x, 1.0)
+        self.assertAlmostEqual(arc.angle, math.pi, places=5)
+
+    def test_three_point_arc_bulges_toward_through_point(self):
+        arc = self._three_point_arc((0.5, -3.0))
+        center, radius = arc.ct.co, arc.radius
+        self.assertAlmostEqual((Vector((0.5, -3.0)) - center).length, radius, 5)
+        # Below the chord, so the arc runs from (-1, 0) around the bottom.
+        self.assertAlmostEqual(arc.start.co.x, -1.0)
+        self.assertGreater(arc.angle, math.pi)
+        mid = arc.point_on_curve(arc.angle / 2)
+        self.assertLess(mid.y, 0.0)
+
+    def test_three_point_arc_on_chord_creates_nothing(self):
+        from ..operators.add_arc import View3D_OT_slvs_add_arc3pt2d
+
+        h = self._harness(View3D_OT_slvs_add_arc3pt2d)
+        h.place_point((1.0, 0.0)).place_point((-1.0, 0.0)).set_value((0.2, 0.0))
+        self.assertFalse(h.finish())
+        self.assertFalse(hasattr(h.op, "target"))
 
     # -- rectangle (two pointer states -> four lines) ------------------------
     def test_rectangle_builds_four_lines(self):

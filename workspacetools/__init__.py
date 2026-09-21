@@ -1,5 +1,6 @@
+from ..declarations import WorkSpaceTools
 from . import manager
-from .add_arc2d import VIEW3D_T_slvs_add_arc2d
+from .add_arc2d import VIEW3D_T_slvs_add_arc2d, VIEW3D_T_slvs_add_arc3pt2d
 from .add_circle2d import VIEW3D_T_slvs_add_circle2d
 from .add_dimension import VIEW3D_T_slvs_add_dimension
 from .add_line2d import VIEW3D_T_slvs_add_line2d
@@ -38,11 +39,17 @@ add(
     separator=False,
     group=False,
 )
+# Both arc tools share one toolbar button with a flyout.
 add(
     VIEW3D_T_slvs_add_arc2d,
     visibility=ToolGroup.SKETCH_2D,
     separator=False,
-    group=False,
+    group=True,
+)
+add(
+    VIEW3D_T_slvs_add_arc3pt2d,
+    visibility=ToolGroup.SKETCH_2D,
+    after={WorkSpaceTools.AddArc2D.value},
 )
 add(
     VIEW3D_T_slvs_add_rectangle,
