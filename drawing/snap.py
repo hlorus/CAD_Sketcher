@@ -64,7 +64,12 @@ def _region_pixel_projection(region):
 def draw_snap_marker(owner, context):
     """Draw ``owner._snap``'s marker, if any. Safe from a POST_PIXEL handler or a
     gizmo ``draw()`` (sets up its own region-pixel matrix)."""
-    snap = getattr(owner, "_snap", None)
+    try:
+        snap = getattr(owner, "_snap", None)
+    except ReferenceError:
+        # The operator was freed without removing its handler; draw nothing
+        # rather than raising on every redraw.
+        return
     if not snap or "world_point" not in snap:
         return
     region, rv3d = context.region, context.region_data

@@ -40,6 +40,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
     # >= 0 -> re-enter to edit just that state: restore the persisted input, let
     # the user re-pick that one state, then re-apply idempotently. -1 = normal.
     edit_state: IntProperty(default=-1, options={"HIDDEN", "SKIP_SAVE"})
+    # With edit_state, drop that state's pick and go back to its own value
+    # (e.g. a line endpoint stops following a point and keeps its location).
+    edit_clear: BoolProperty(default=False, options={"HIDDEN", "SKIP_SAVE"})
 
     executed = False
     # Tool id to activate once the operator succeeds (see _end). Lets a one-off
@@ -435,6 +438,10 @@ class StatefulOperatorLogic(_StateMachineMixin):
         # apply (_run_main) replaces this op's own output.
         self._state_snapshot = None
         self._restore_pointers()
+        # Clearing needs no pick, but still runs through the modal: an operator
+        # that finishes inside invoke() is not recorded as the adjustable last
+        # operation, so the redo panel would keep showing the old pick.
+        self._pending_clear = bool(self.edit_clear)
         # Let subclasses snapshot pre-re-pick state (the target being edited away
         # from) before the user changes it -- e.g. node ops relocating a modifier.
         self._prepare_edit(context)
@@ -475,7 +482,37 @@ class StatefulOperatorLogic(_StateMachineMixin):
             context.area.header_text_set(text)
         context.workspace.status_text_set(text + "    Esc / Right-click: cancel")
 
+    def _clear_pick(self, context: Context):
+        """Turn state ``edit_state``'s pick back into its own value and re-apply."""
+        i = self.edit_state
+        value = self.pick_fallback_value(context, i)
+        props = self.get_property(index=i) or ()
+        if value is None or not props:
+            return self._end_edit(context, False)
+        for name in props:
+            setattr(self, name, value)
+        data = self.get_state_data(i)
+        data["is_existing_entity"] = False
+        data.pop("curve_id", None)
+        self.state_index = max(self._edit_full_state_index, self.state_index)
+        ok = self._reapply(context)
+        if hasattr(self, "fini"):
+            self.fini(context, ok)
+        if ok:
+            self._store_pointers()
+            self._record_committed_output(context)
+        if context.area:
+            context.area.tag_redraw()
+        return self._end_edit(context, ok)
+
+    def pick_fallback_value(self, context: Context, i):
+        """Hook: the value a cleared pick falls back to, or None if it has none."""
+        return None
+
     def _modal_edit(self, context: Context, event: Event):
+        if getattr(self, "_pending_clear", False):
+            self._pending_clear = False
+            return self._clear_pick(context)
         # Clicking the eyedropper button in the redo panel makes Blender also
         # re-run the previous operator's execute()/_end() (an implicit undo +
         # re-apply). That nulls the shared global_data.hover_types this edit modal

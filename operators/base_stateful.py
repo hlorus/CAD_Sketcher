@@ -356,6 +356,12 @@ class GenericEntityOp(StatefulOperator):
         registry.update({cls.__name__: cls for cls in _curve_ref_classes(CurveRef)})
         return registry
 
+    def pick_fallback_value(self, context: Context, i):
+        # A picked sketch element falls back to a point at its own position.
+        ref = self.get_state_pointer(index=i)
+        co = getattr(ref, "co", None)
+        return None if co is None else co.copy()
+
     def _pointer_display(self, i):
         # A picked sketch element is stored by its curve id; show its name and
         # type icon instead of the raw id.

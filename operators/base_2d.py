@@ -84,17 +84,27 @@ class Operator2d(GenericEntityOp):
         from ..drawing.snap import draw_snap_marker
 
         self._snap = None
-        self._snap_handle = bpy.types.SpaceView3D.draw_handler_add(
-            draw_snap_marker, (self, context), "WINDOW", "POST_PIXEL"
-        )
+        # A re-pick from the redo panel picks an existing element; it never
+        # snaps, and it ends through _end_edit rather than _end.
+        if self.edit_state < 0:
+            self._snap_handle = bpy.types.SpaceView3D.draw_handler_add(
+                draw_snap_marker, (self, context), "WINDOW", "POST_PIXEL"
+            )
         return super().invoke(context, event)
 
-    def _end(self, context: Context, succeede, *args, **kwargs):
+    def _remove_snap_handle(self):
         handle = getattr(self, "_snap_handle", None)
         if handle is not None:
             bpy.types.SpaceView3D.draw_handler_remove(handle, "WINDOW")
             self._snap_handle = None
+
+    def _end(self, context: Context, succeede, *args, **kwargs):
+        self._remove_snap_handle()
         return super()._end(context, succeede, *args, **kwargs)
+
+    def _end_edit(self, context: Context, ok: bool):
+        self._remove_snap_handle()
+        return super()._end_edit(context, ok)
 
     def _update_pick_hover(self, context: Context, coords):
         # Gizmos don't hover-test while the re-pick modal runs; do it here.

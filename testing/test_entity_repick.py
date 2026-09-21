@@ -171,3 +171,33 @@ class TestEntityRepick(Sketch2dTestCase):
         self.assertEqual(len(self._refs(LineRef)), 4)
         self.assertEqual(len(list(self.sketch.constraints.all)), constraints)
         self.assertTrue(corner.valid)
+
+    def test_clearing_a_pick_falls_back_to_a_point_of_its_own(self):
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+
+        target = self.add_point((5.0, 2.0))
+        h = OpHarness(View3D_OT_slvs_add_line2d, self.sketch, self.context)
+        h.place_point((0.0, 0.0)).pick(target)
+        first = self._commit(h)
+        self.assertEqual(len(self._refs(LineRef)), 1)
+
+        again = self._fresh(
+            View3D_OT_slvs_add_line2d, self._persisted(first), state_index=1
+        )
+        again._restore_pointers()
+        # What the redo panel's clear button does for state 1.
+        value = again.pick_fallback_value(self.context, 1)
+        self.assertAlmostEqual((value - target.co).length, 0.0)
+        for name in again.get_property(index=1):
+            setattr(again, name, value)
+        data = again.get_state_data(1)
+        data["is_existing_entity"] = False
+        data.pop("curve_id", None)
+        self._rerun(again)
+
+        lines = self._refs(LineRef)
+        self.assertEqual(len(lines), 1)
+        # The line ends at its own point now, where the picked one was.
+        self.assertNotEqual(lines[0].p2.curve_id, target.curve_id)
+        self.assertAlmostEqual((lines[0].p2.co - target.co).length, 0.0)
+        self.assertTrue(target.valid)

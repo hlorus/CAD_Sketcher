@@ -420,14 +420,17 @@ class StatefulOperator(StatefulOperatorLogic):
                 visible.append(name)
         return visible
 
-    def _draw_repick_button(self, layout, i):
-        """Eyedropper that re-enters this operator to pick state ``i`` again."""
+    def _draw_repick_button(self, layout, i, clear=False):
+        """Button that re-enters this operator to pick state ``i`` again.
+
+        ``clear`` drops the pick instead, leaving the state at its own value.
+        """
         # Re-enter THIS op to edit just state i. Use the class bl_idname (dotted,
         # via the str-Enum .value); the instance form is the RNA identifier which
         # layout.operator won't accept. Forward the op's current props so it
         # restores full state, then edits state i.
         idname = getattr(type(self).bl_idname, "value", type(self).bl_idname)
-        op = layout.operator(idname, text="", icon="EYEDROPPER")
+        op = layout.operator(idname, text="", icon="X" if clear else "EYEDROPPER")
         for name in self._declared_prop_names():
             if name == "edit_state" or name.startswith("_"):
                 continue
@@ -442,6 +445,7 @@ class StatefulOperator(StatefulOperatorLogic):
             except (AttributeError, TypeError):
                 pass
         op.edit_state = i
+        op.edit_clear = clear
 
     def _draw_state_row(self, layout, i, state):
         """Draw one state's redo-panel row: a picked pointer (label + eyedropper
@@ -454,6 +458,9 @@ class StatefulOperator(StatefulOperatorLogic):
             row.label(text=text, **icon_kwargs)
             if self._state_is_editable(i, state):
                 self._draw_repick_button(row, i)
+                if self._visible_state_props(i):
+                    # The state has a value of its own to fall back to.
+                    self._draw_repick_button(row, i, clear=True)
             return
 
         props = self._visible_state_props(i)
