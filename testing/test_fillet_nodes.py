@@ -6,6 +6,7 @@ elements. Independent of sketch data, so most tests drive it on plain meshes.
 """
 
 import unittest
+from types import SimpleNamespace
 from unittest import TestCase
 
 import bpy
@@ -416,6 +417,64 @@ class TestFilletHover(TestCase):
         self.assertEqual(
             _IDLE_HOVER_TYPES.get(WorkSpaceTools.Fillet), (bpy.types.MeshEdge,)
         )
+
+
+class TestFilletRun(TestCase):
+    """One run keeps picking: status text, Esc/right-click and undo per pick all
+    come from the framework, as in the other tools."""
+
+    def test_operator_repeats_its_states(self):
+        from ..operators.fillet import View3D_OT_slvs_fillet_select
+
+        self.assertTrue(View3D_OT_slvs_fillet_select.repeat_states)
+
+    def test_repeating_run_starts_the_states_over(self):
+        from ..stateful_operator.logic import StatefulOperatorLogic
+
+        calls = {}
+
+        class Op(StatefulOperatorLogic):
+            bl_label = "Repeat"
+
+            def _end(self, context, succeede, **kwargs):
+                calls["end"] = kwargs.get("keep_stateful_running")
+
+            def _reset_op(self):
+                calls["reset"] = True
+
+            def _capture_baseline(self, context):
+                pass
+
+            def set_state(self, context, index):
+                calls["state"] = index
+
+            def create_snapshot(self, context):
+                return None
+
+        Op().do_repeat_states(bpy.context)
+        self.assertTrue(calls["end"], "the run must not end between picks")
+        self.assertTrue(calls["reset"])
+        self.assertEqual(calls["state"], 0, "picking starts over on the first state")
+
+    def test_fini_only_restores_when_the_run_ends(self):
+        from ..operators import fillet
+
+        bpy.ops.mesh.primitive_cube_add(size=2)
+        ob = bpy.context.active_object
+        try:
+            modifier = fillet.add_fillet_modifier(ob)
+            fillet.hide_fillet(bpy.context, ob)
+            self.assertFalse(modifier.show_viewport)
+
+            op = fillet.View3D_OT_slvs_fillet_select
+            op.fini(SimpleNamespace(_run_continues=True), bpy.context, True)
+            self.assertFalse(modifier.show_viewport, "stays hidden between picks")
+
+            op.fini(SimpleNamespace(_run_continues=False), bpy.context, True)
+            self.assertTrue(modifier.show_viewport, "restored when the run ends")
+        finally:
+            fillet.restore_fillets(bpy.context)
+            bpy.data.objects.remove(ob, do_unlink=True)
 
 
 if __name__ == "__main__":

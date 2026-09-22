@@ -71,6 +71,13 @@ class StatefulOperatorLogic(_StateMachineMixin):
     _drag_mode = False
     # The invoking click already confirmed the first state (see invoke).
     _invoked_by_click = False
+    # True while _end only commits a step of a repeating run (read in fini).
+    _run_continues = False
+    # Commit each run and start over on the same states instead of ending, so one
+    # invocation keeps picking (a tool that applies something per pick). Unlike
+    # continuous_draw it seeds nothing from the finished run, which also makes it
+    # work for a single-state operator.
+    repeat_states = False
     # A continuous-draw chain committed at least one segment, so ending the
     # chain still counts as a finished operator (see _end).
     _chain_committed = False
@@ -878,6 +885,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
             if not self.next_state(context):
                 if self.check_continuous_draw():
                     self.do_continuous_draw(context)
+                elif self.repeat_states:
+                    self.do_repeat_states(context)
                 else:
                     return self._end(context, succeede)
             if is_numeric:
@@ -1137,6 +1146,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
     def _end(self, context, succeede, skip_undo=False, keep_stateful_running=False):
         context.window.cursor_modal_restore()
+        # Tells fini whether the whole run ends here or this is just one
+        # committed step of a repeating/chaining run.
+        self._run_continues = keep_stateful_running
         self._run_fini(context, succeede)
         # One-off tools return to their select tool once done (only on success,
         # so a missed pick keeps the tool for a retry). The target tool differs
@@ -1207,6 +1219,19 @@ class StatefulOperatorLogic(_StateMachineMixin):
         self._numeric = NumericInput()
         self._state_snapshot = None
         self._preview_key = None
+
+    def do_repeat_states(self, context):
+        """Commit this run and start the states over, keeping the tool running.
+
+        Each pick becomes its own undo step, and the operator stays modal, so the
+        status text and Esc/right-click behave as in every other tool.
+        """
+        self._end(context, True, keep_stateful_running=True)
+        bpy.ops.ed.undo_push(message=self.bl_label)
+        self._reset_op()
+        self._capture_baseline(context)
+        self.set_state(context, 0)
+        self._state_snapshot = self.create_snapshot(context)
 
     def _take_last_state_pointer(self):
         """Return (last_index, implicit_values, type_metadata) for the last pointer state."""

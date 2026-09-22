@@ -146,6 +146,9 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
         min=0.0,
         subtype="DISTANCE",
     )
+    # One invocation keeps picking: every click rounds another edge, and the run
+    # ends with Esc/right-click like the other tools.
+    repeat_states = True
     # Object whose fillet is being edited, so a redo re-finds the modifier.
     target_name: StringProperty(options={"HIDDEN"})
 
@@ -166,7 +169,19 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
 
     def init(self, context: Context, event: Event):
         build_fillet_node_group()
+        # Show the geometry the fillet reads while picking, so a click lands on
+        # the element the node tree indexes (edit mode shows base geometry the
+        # same way). Restored when the run ends.
+        ob = context.object
+        if ob is not None:
+            hide_fillet(context, ob)
         return True
+
+    def fini(self, context: Context, succeede: bool):
+        # Each pick commits through _end; only put the fillet back when the whole
+        # run is over, so the next click still picks on the same geometry.
+        if not self._run_continues:
+            restore_fillets(context)
 
     def _picked(self):
         """``(object, edge index)`` of the current pick, or ``(None, -1)``.
