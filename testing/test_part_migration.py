@@ -190,9 +190,10 @@ class TestPartMigration(Sketch2dTestCase):
 
         self.assertTrue(needs_part_migration(self.scene))
 
-    def test_a_file_from_the_latest_channel_is_offered_migration(self):
-        # Those builds wrote 0.32.0 into files that predate parts, which is why
-        # this change bumps the version: without it they would look current.
+    def test_a_file_from_the_latest_channel_is_not_prompted(self):
+        # Pre-parts builds on the "latest" channel wrote 0.32.0, the version
+        # parts ship in, so those files look current and are not prompted. They
+        # are updated by running the operator by hand instead.
         from ..utilities.part import needs_part_migration
 
         self.scene.sketcher.version = (0, 32, 0)
@@ -200,4 +201,15 @@ class TestPartMigration(Sketch2dTestCase):
         self._place_on(obj, self._legacy_plane())
         self._add_extrude(obj)
 
-        self.assertTrue(needs_part_migration(self.scene))
+        self.assertFalse(needs_part_migration(self.scene))
+
+    def test_running_it_by_hand_still_updates_such_a_file(self):
+        from ..utilities.part import is_part_root
+
+        self.scene.sketcher.version = (0, 32, 0)
+        obj = self.sketch.target_object
+        self._place_on(obj, self._legacy_plane())
+        self._add_extrude(obj)
+
+        bpy.ops.view3d.slvs_migrate_legacy()
+        self.assertTrue(is_part_root(obj))

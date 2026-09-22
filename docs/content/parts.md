@@ -140,8 +140,8 @@ A cutter tells you what it is doing:
 ## Older files
 
 Sketches saved before parts existed keep working, but cannot be moved as parts
-until the file is updated. The Sketcher panel offers **Update File** when it was
-saved by an older version: a sketch drawn on a body joins that body's part, and
+until the file is updated. Run **Update File** (search for it with `F3`), or take
+the offer the Sketcher panel makes when the file was saved by an older version: a sketch drawn on a body joins that body's part, and
 one that has been made solid roots a part of its own. It is never done
 automatically on file open, since it restructures the file.
 

@@ -688,11 +688,11 @@ def _has_solid_feature(obj: bpy.types.Object) -> bool:
     )
 
 
-# The version that introduced parts. A file saved by an older build may hold
-# sketches that predate them; one saved by this build or later cannot. This is
-# why the change carries a version bump: builds on the "latest" channel already
-# wrote 0.32.0 into files that know nothing about parts.
-PARTS_VERSION = (0, 33, 0)
+# The version parts ship in. A file saved by an older build may hold sketches
+# that predate them, so it is offered the update; one saved by 0.32 is not, since
+# that covers both this build and the pre-parts builds on the "latest" channel.
+# Those files can still be updated by running the operator by hand.
+PARTS_VERSION = (0, 32, 0)
 
 
 def needs_part_migration(scene: bpy.types.Scene) -> bool:
