@@ -299,6 +299,45 @@ def transform_owner(obj: bpy.types.Object) -> bpy.types.Object:
     return obj
 
 
+def promote_to_root(obj: bpy.types.Object) -> None:
+    """Make ``obj`` root a part, taking over the transform from whatever placed it.
+
+    A root owns its transform and is its own plane. A sketch created before parts
+    existed (or on a base datum) is placed by a workplane empty, so promoting it
+    means keeping its world position while letting go of that plane: otherwise the
+    part would appear unmovable, since the geometry would keep drawing on the plane
+    the sketch no longer follows.
+    """
+    if obj.parent is not None:
+        world = world_matrix_of(obj)
+        obj.parent = None
+        obj.matrix_parent_inverse = Matrix.Identity(4)
+        obj.matrix_basis = world
+    if getattr(obj, "slvs_workplane", None) is not None:
+        obj.slvs_workplane = None
+    if PART_MEMBER_KEY in obj:
+        del obj[PART_MEMBER_KEY]
+    mark_part_root(obj)
+
+
+def _join_keeping_its_plane(root: bpy.types.Object, obj: bpy.types.Object) -> None:
+    """Put ``obj`` in ``root``'s part without separating it from its plane.
+
+    A sketch placed by a workplane must keep following that plane, so the *plane*
+    is what joins the part and the sketch rides along; re-parenting the sketch
+    itself would leave its geometry drawing on a plane that no longer moves with
+    it. A sketch that owns its transform simply joins directly.
+    """
+    plane = obj.parent
+    if plane is not None and getattr(obj, "slvs_workplane", None) == plane:
+        if part_root_of(plane) is None:
+            join_part(root, plane)
+        mark_part_member(obj, root)
+        return
+    join_part(root, obj)
+    fix_transform(obj)
+
+
 def settle_membership(
     sketch_obj: bpy.types.Object, bodies
 ) -> Optional[bpy.types.Object]:
@@ -333,7 +372,7 @@ def settle_membership(
             owners.append(owner)
 
     if not owners:
-        mark_part_root(sketch_obj)
+        promote_to_root(sketch_obj)
         return sketch_obj
 
     if len(owners) > 1:
@@ -353,8 +392,7 @@ def settle_membership(
     root = owners[0]
     if not is_part_root(root):
         mark_part_root(root)
-    join_part(root, sketch_obj)
-    fix_transform(sketch_obj)
+    _join_keeping_its_plane(root, sketch_obj)
     return root
 
 
@@ -661,3 +699,53 @@ def _bodies_by_cutter(scene: bpy.types.Scene) -> dict:
         for cutter in boolean_cutters(body):
             fed.setdefault(cutter.name, []).append(body)
     return fed
+
+
+def _has_solid_feature(obj: bpy.types.Object) -> bool:
+    """Whether a sketch has been made solid (an extrude or revolve modifier)."""
+    from .extrude_nodes import EXTRUDE_NODE_GROUP
+    from .revolve_nodes import REVOLVE_NODE_GROUP
+
+    solids = {EXTRUDE_NODE_GROUP, REVOLVE_NODE_GROUP}
+    return any(
+        getattr(mod, "node_group", None) is not None and mod.node_group.name in solids
+        for mod in obj.modifiers
+    )
+
+
+def migrate_parts(scene: bpy.types.Scene) -> bool:
+    """Bring sketches from files written before parts existed into the model.
+
+    Applies the same rules new sketches follow, from what the file already
+    records: a sketch drawn on a body joins that body's part, and one that has
+    been made solid roots a part of its own. A plain sketch that is neither is
+    left exactly as it was, still placed by its workplane, and settles the first
+    time it becomes solid.
+
+    Idempotent: anything already in a part is skipped, so it is safe on load.
+    """
+    from ..model.sketch_ref import get_sketches
+    from .boolean_targets import sketch_source_body
+
+    changed = False
+    for sketch in get_sketches(scene):
+        obj = sketch.target_object
+        owner = transform_owner(obj)
+        if part_root_of(owner) is not None:
+            continue
+
+        source = sketch_source_body(sketch)
+        if source is not None and source != obj:
+            root = part_root_of(source)
+            if root is None:
+                root = source
+                mark_part_root(root)
+            _join_keeping_its_plane(root, obj)
+            changed = True
+            continue
+
+        if _has_solid_feature(obj):
+            promote_to_root(owner)
+            changed = True
+
+    return changed

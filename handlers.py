@@ -60,6 +60,19 @@ def unregister_handlers():
         logger.debug(msg)
 
 
+def _migrate_parts_on_load():
+    """Adopt an older file's sketches into parts (cheap and idempotent)."""
+    from .utilities.collections import sync_part_collections
+    from .utilities.part import migrate_parts
+
+    for scene in bpy.data.scenes:
+        try:
+            if migrate_parts(scene):
+                sync_part_collections(scene)
+        except Exception:
+            logger.exception("Part migration failed for scene '%s'", scene.name)
+
+
 def on_load_post(*args):
     """Reset transient in-memory state carried over from the previous file.
 
@@ -78,6 +91,7 @@ def on_load_post(*args):
     reset_cache()
     reset_part_cache()
     reset_collection_cache()
+    _migrate_parts_on_load()
     reset_merge_cache()
     reset_data_owner_cache()
     overlay.invalidate()
