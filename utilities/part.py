@@ -282,6 +282,7 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
         _last_root_matrices[name] = world_matrix_of(root)
 
     changed = False
+    touched = []
     orphans = {}
     for obj in scene.objects:
         if is_part_root(obj):
@@ -295,6 +296,7 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
             # between parts. Parenting *is* membership, so follow it.
             if stamp != root.name:
                 obj[PART_MEMBER_KEY] = root.name
+                touched.append(obj)
                 changed = True
             if _is_managed_member(obj) and not all(obj.lock_location):
                 fix_transform(obj)
@@ -311,6 +313,7 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
                 strip_part_plane(obj)
             if _is_managed_member(obj):
                 free_transform(obj)
+            touched.append(obj)
             changed = True
             continue
 
@@ -326,6 +329,7 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
         # Forget roots that are simply gone, with nothing left behind.
         for name in [n for n in _last_root_matrices if n not in roots]:
             del _last_root_matrices[name]
+        _refresh_cutter_display(scene, touched)
         return changed
 
     for root_name, members in orphans.items():
@@ -352,8 +356,27 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
                 if PART_PLANE_KEY in member:
                     strip_part_plane(member)
                 join_part(successor, member)
+        touched.extend(members)
 
+    _refresh_cutter_display(scene, touched)
     return True
+
+
+def _refresh_cutter_display(scene: bpy.types.Scene, touched) -> None:
+    """Re-apply the cutter display rules after membership changed.
+
+    Joining or leaving a part changes whether a cutter should be hidden, and that
+    is decided by the extrude tool, which is not running here. Only cutters that
+    actually feed a body are touched, so a plain sketch the user hid stays hidden.
+    """
+    if not touched:
+        return
+
+    fed = _bodies_by_cutter(scene)
+    for obj in touched:
+        bodies = fed.get(obj.name)
+        if bodies:
+            update_cutter_display(obj, bodies, True)
 
 
 def ensure_part_planes(context, root: bpy.types.Object) -> list:
@@ -460,3 +483,34 @@ def existing_part_plane(root: bpy.types.Object, axis: str):
         if child.get(PART_PLANE_KEY) == axis:
             return child
     return None
+
+
+def update_cutter_display(cutter: bpy.types.Object, bodies, cuts: bool) -> None:
+    """Show a cutter according to what it is actually doing.
+
+    A cutter doing its job is in the way: its own solid sits over the result, so
+    hide it (with the eye, never ``hide_viewport``, which would drop it from
+    evaluation and with it the boolean). Two cases stay visible as wireframe
+    because the user needs to find them: one that cuts across several parts, which
+    belongs to no part and is the only handle on that cut, and one that means to
+    cut but currently reaches nothing, which would otherwise look like a finished
+    body. A solid with no boolean at all is just a body, so it shows as one.
+    """
+    if cuts and bodies and part_root_of(cutter) is not None:
+        cutter.display_type = "TEXTURED"
+        cutter.hide_set(True)
+        return
+
+    cutter.hide_set(False)
+    cutter.display_type = "WIRE" if cuts else "TEXTURED"
+
+
+def _bodies_by_cutter(scene: bpy.types.Scene) -> dict:
+    """Map each cutter to the bodies it feeds, read back out of the modifiers."""
+    from ..operators.modifiers import boolean_cutters
+
+    fed = {}
+    for body in scene.objects:
+        for cutter in boolean_cutters(body):
+            fed.setdefault(cutter.name, []).append(body)
+    return fed

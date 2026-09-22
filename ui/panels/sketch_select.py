@@ -62,6 +62,32 @@ class VIEW3D_MT_slvs_sketch_workplane(Menu):
             ).sketch_name = sketch.target_object.name
 
 
+def _draw_part(layout: UILayout, sketch):
+    """Say which part the sketch belongs to, or that it belongs to none.
+
+    Membership is implied (from what the sketch was drawn on, and from what its
+    solid cuts), so it has to be visible: otherwise the only way to find out is
+    to move a part and watch what follows.
+    """
+    from ...utilities.part import is_part_root, part_root_of
+
+    obj = sketch.target_object
+    root = part_root_of(obj)
+
+    split = layout.split(factor=0.4)
+    left = split.row()
+    left.alignment = "RIGHT"
+    left.label(text="Part")
+    row = split.row(align=True)
+    if root is None:
+        # Not in a part: it becomes one, or joins one, once it is made solid.
+        row.label(text="Global", icon="WORLD")
+    elif is_part_root(obj):
+        row.label(text=f"{root.name} (root)", icon="OUTLINER_OB_MESH")
+    else:
+        row.label(text=root.name, icon="LINKED")
+
+
 def _draw_workplane(context: Context, layout: UILayout, sketch):
     """Show the sketch's workplane and its face anchor, actions in a dropdown.
 
@@ -190,6 +216,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             row = layout.row()
             row.prop(sketch.target_object, "name", text="Name")
             _draw_workplane(context, layout, sketch)
+            _draw_part(layout, sketch)
 
         else:
             # Sketch list — a scrollable UIList over scene.objects, filtered to
