@@ -189,3 +189,15 @@ class TestPartMigration(Sketch2dTestCase):
         self._add_extrude(obj)
 
         self.assertTrue(needs_part_migration(self.scene))
+
+    def test_a_file_from_the_latest_channel_is_offered_migration(self):
+        # Those builds wrote 0.32.0 into files that predate parts, which is why
+        # this change bumps the version: without it they would look current.
+        from ..utilities.part import needs_part_migration
+
+        self.scene.sketcher.version = (0, 32, 0)
+        obj = self.sketch.target_object
+        self._place_on(obj, self._legacy_plane())
+        self._add_extrude(obj)
+
+        self.assertTrue(needs_part_migration(self.scene))
