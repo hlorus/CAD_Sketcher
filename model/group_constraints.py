@@ -30,13 +30,20 @@ _reuse_uids = []
 
 
 @contextmanager
-def reusing_constraint_uids(uids):
-    """Give constraints created inside the block these uids, in order."""
-    _reuse_uids[:] = [uid for uid in uids if uid]
+def reusing_constraint_uids(uids: list):
+    """Give constraints created inside the block these uids, in order.
+
+    The list is consumed in place, so a re-run can split its rebuild over
+    several blocks (the geometry first, then the constraints its ``fini`` adds)
+    and still hand each constraint the id it had before.
+    """
+    global _reuse_uids
+    previous = _reuse_uids
+    _reuse_uids = uids if isinstance(uids, list) else [uid for uid in uids if uid]
     try:
         yield
     finally:
-        _reuse_uids.clear()
+        _reuse_uids = previous
 
 
 class SlvsConstraints(PropertyGroup):

@@ -18,7 +18,7 @@ class TestEntityRepick(Sketch2dTestCase):
         op = harness.op
         op._capture_baseline(self.context)
         self.assertTrue(op._reapply(self.context))
-        op.fini(self.context, True)
+        op._run_fini(self.context, True)
         op._record_committed_output(self.context)
         op._store_pointers()
         return op
@@ -64,7 +64,7 @@ class TestEntityRepick(Sketch2dTestCase):
             op._store_pointers()
         op._capture_baseline(self.context)
         self.assertTrue(op._reapply(self.context))
-        op.fini(self.context, True)
+        op._run_fini(self.context, True)
         op._record_committed_output(self.context)
         op._store_pointers()
         return op
@@ -221,3 +221,56 @@ class TestEntityRepick(Sketch2dTestCase):
         value = again.pick_fallback_value(self.context, 1)
         self.assertIsNotNone(value)
         self.assertAlmostEqual((value - target.co).length, 0.0)
+
+    def test_clearing_a_rectangle_pick_keeps_one_set_of_constraints(self):
+        from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
+
+        self.context.scene.sketcher.auto_axis_constraints = True
+        corner = self.add_point((-1.0, -1.0))
+        h = OpHarness(View3D_OT_slvs_add_rectangle, self.sketch, self.context)
+        h.pick(corner).place_point((3.0, 2.0))
+        first = self._commit(h)
+        constraints = len(list(self.sketch.constraints.all))
+        self.assertEqual(len(self._refs(LineRef)), 4)
+
+        again = self._fresh(
+            View3D_OT_slvs_add_rectangle, self._persisted(first), state_index=1
+        )
+        again._restore_pointers()
+        again._pending_clear = True
+        again._reset_edited_state(0)
+        value = again.pick_fallback_value(self.context, 0)
+        for name in again.get_property(index=0):
+            setattr(again, name, value)
+        data = again.get_state_data(0)
+        data["is_existing_entity"] = False
+        data.pop("curve_id", None)
+        self._rerun(again)
+
+        self.assertEqual(len(self._refs(LineRef)), 4)
+        self.assertEqual(len(list(self.sketch.constraints.all)), constraints)
+
+    def test_rerun_keeps_constraint_ids(self):
+        """A re-apply must hand the constraints its fini re-creates their old ids:
+        they are how the run after that recognizes (and replaces) its own output."""
+        from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
+
+        self.context.scene.sketcher.auto_axis_constraints = True
+        h = OpHarness(View3D_OT_slvs_add_rectangle, self.sketch, self.context)
+        h.place_point((-1.0, -1.0)).place_point((3.0, 2.0))
+        first = self._commit(h)
+        uids = sorted(c.constraint_uid for c in self.sketch.constraints.all)
+        self.assertEqual(len(uids), 4)
+
+        again = self._fresh(
+            View3D_OT_slvs_add_rectangle, self._persisted(first), state_index=1
+        )
+        self._rerun(again)
+
+        self.assertEqual(
+            sorted(c.constraint_uid for c in self.sketch.constraints.all), uids
+        )
+        self.assertEqual(
+            sorted(t for t in again.output_ids.split() if t.startswith("k:")),
+            sorted(t for t in first.output_ids.split() if t.startswith("k:")),
+        )

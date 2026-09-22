@@ -529,11 +529,30 @@ class ReplaceableOutputOp:
         self._remove_output(context)
         # Recorded once the run finishes (after fini), see _record_committed_output.
         self._baseline_ids = self._collect_output_ids(context)
-        uids = [t[2:] for t in getattr(self, "output_ids", "").split() if t[:2] == "k:"]
-        with reusing_constraint_uids(uids):
+        # Handed out here and in the fini that follows (see _run_fini): a tool's
+        # auto constraints are created there, and they must come back with the
+        # ids this run just removed, or the next re-apply won't recognize them
+        # as its own output and would leave a duplicate set behind.
+        self._reuse_uids = [
+            t[2:] for t in getattr(self, "output_ids", "").split() if t[:2] == "k:"
+        ]
+        with reusing_constraint_uids(self._reuse_uids):
             result = super()._reapply(context)
         self._restore_names(names)
         return result
+
+    def _run_fini(self, context: Context, succeede: bool) -> None:
+        from ..model.group_constraints import reusing_constraint_uids
+
+        uids = getattr(self, "_reuse_uids", None)
+        if uids is None:
+            super()._run_fini(context, succeede)
+            return
+        try:
+            with reusing_constraint_uids(uids):
+                super()._run_fini(context, succeede)
+        finally:
+            self._reuse_uids = None
 
     def _output_names(self) -> dict:
         from ..model.curve_ref import curve_ref

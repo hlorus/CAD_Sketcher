@@ -508,8 +508,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         data.pop("curve_id", None)
         self.state_index = max(self._edit_full_state_index, self.state_index)
         ok = self._reapply(context)
-        if hasattr(self, "fini"):
-            self.fini(context, ok)
+        self._run_fini(context, ok)
         if ok:
             self._store_pointers()
             self._record_committed_output(context)
@@ -549,8 +548,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
             ok = self._reapply(context)
             # Finish like any other run (fini adds a tool's follow-up constraints
             # and solves), then record the output this run created.
-            if hasattr(self, "fini"):
-                self.fini(context, ok)
+            self._run_fini(context, ok)
             if ok:
                 self._record_committed_output(context)
             if context.area:
@@ -592,6 +590,13 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """Invoke ``main``; a hook for subclasses to make apply idempotent
         (e.g. entity ops that own + replace their created output)."""
         return self.main(context)
+
+    def _run_fini(self, context: Context, succeede: bool) -> None:
+        """Call the operator's ``fini`` (the commit tail: follow-up constraints,
+        a solve). A hook so a subclass can wrap it, e.g. to keep what fini
+        creates part of the same idempotent re-apply."""
+        if hasattr(self, "fini"):
+            self.fini(context, succeede)
 
     def _reapply(self, context: Context):
         """Rebuild everything from persisted state and run main -- the shared
@@ -1093,8 +1098,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
     def _end(self, context, succeede, skip_undo=False, keep_stateful_running=False):
         context.window.cursor_modal_restore()
-        if hasattr(self, "fini"):
-            self.fini(context, succeede)
+        self._run_fini(context, succeede)
         # One-off tools return to their select tool once done (only on success,
         # so a missed pick keeps the tool for a retry). The target tool differs
         # per operator: object tools -> Blender's select, sketch tools -> the
