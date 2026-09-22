@@ -6,11 +6,11 @@ from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
-from ..utilities.part import instance_part, part_root_of, world_matrix_of
+from ..utilities.part import instance_part, instanceable_root, world_matrix_of
 
 
 class View3D_OT_slvs_instance_part(Operator):
-    """Place another copy of the selected part.
+    """Place another copy of the selected part, or of a selected assembly.
 
     The copy is linked: there is one part, placed in several spots, so editing it
     updates every copy. Edits happen on the part itself; a placement renders the
@@ -34,12 +34,14 @@ class View3D_OT_slvs_instance_part(Operator):
     def poll(cls, context: Context):
         # See View3D_OT_slvs_duplicate_part.poll: the preference is checked in
         # invoke so that turning the shortcut off does not disable the button.
-        return any(part_root_of(obj) is not None for obj in context.selected_objects)
+        return any(
+            instanceable_root(obj) is not None for obj in context.selected_objects
+        )
 
     def execute(self, context: Context):
         roots = []
         for obj in context.selected_objects:
-            root = part_root_of(obj)
+            root = instanceable_root(obj)
             if root is not None and root not in roots:
                 roots.append(root)
 
@@ -55,7 +57,7 @@ class View3D_OT_slvs_instance_part(Operator):
         if placements:
             context.view_layer.objects.active = placements[0]
 
-        self.report({"INFO"}, f"Placed {len(placements)} part copy(s)")
+        self.report({"INFO"}, f"Placed {len(placements)} copy(s)")
         return {"FINISHED"}
 
     def invoke(self, context: Context, event):

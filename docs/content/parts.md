@@ -108,7 +108,9 @@ without its cutters. Turn both shortcuts off in the add-on preferences if you
 would rather keep `Shift+D` and `Alt+D` as they were.
 
 **Instance Part** places another copy of the same part: at the 3D cursor from the
-panel, or on the original and ready to move on `Alt+D`. There is still only one part: each placement renders it, so editing the
+panel, or on the original and ready to move on `Alt+D`. Select an assembly
+instead and it places a copy of the whole assembly, which is how one sub-assembly
+ends up in several places. There is still only one part: each placement renders it, so editing the
 part updates every copy at once, and a copy costs almost nothing.
 
 Placements are not edited where they stand, because they hold no geometry of

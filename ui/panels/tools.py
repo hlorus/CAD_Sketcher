@@ -128,10 +128,13 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         layout.separator()
         layout.label(text="Parts:")
 
-        from ...utilities.part import part_root_of
+        from ...utilities.part import instanceable_root, part_root_of
 
         has_part = any(
             part_root_of(obj) is not None for obj in context.selected_objects
+        )
+        has_group = any(
+            instanceable_root(obj) is not None for obj in context.selected_objects
         )
         # One aligned column so the three buttons merge like the tool lists above;
         # the gate goes on a row inside it, since a second column would break the
@@ -148,7 +151,7 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         row.enabled = has_part
         row.operator(declarations.Operators.DuplicatePart, icon="DUPLICATE")
         row = col.row(align=True)
-        row.enabled = has_part
+        row.enabled = has_group
         row.operator(declarations.Operators.InstancePart, icon="LINKED")
 
     def draw(self, context: Context):

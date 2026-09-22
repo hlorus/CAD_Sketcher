@@ -768,34 +768,51 @@ def migrate_parts(scene: bpy.types.Scene) -> bool:
 
 
 def is_part_instance(obj: Optional[bpy.types.Object]) -> bool:
-    """Whether ``obj`` places a copy of a part instead of being part geometry.
+    """Whether ``obj`` places a copy of a part or an assembly.
 
-    Derived, not stamped: an Empty whose instance collection is a part collection
-    *is* a placement of that part.
+    Derived, not stamped: an Empty whose instance collection is one of the
+    collections we generate *is* a placement of what that collection holds.
     """
-    from .collections import is_part_collection
+    from .collections import is_group_collection
 
     return bool(
         obj is not None
         and obj.type == "EMPTY"
         and obj.instance_type == "COLLECTION"
-        and is_part_collection(obj.instance_collection)
+        and is_group_collection(obj.instance_collection)
     )
 
 
+def instanceable_root(obj: Optional[bpy.types.Object]) -> Optional[bpy.types.Object]:
+    """What ``obj`` would place a copy of: its assembly, else its part.
+
+    An assembly is picked over the part inside it only when the assembly itself
+    is what is selected; selecting a part inside one still places that part.
+    """
+    if is_assembly_root(obj):
+        return obj
+    return part_root_of(obj)
+
+
 def instance_part(context, root: bpy.types.Object, location=None) -> bpy.types.Object:
-    """Place a linked copy of ``root``'s part, at the 3D cursor by default.
+    """Place a linked copy of ``root``'s part or assembly, at the cursor by default.
 
     The copy is a collection instance: one source, any number of placements, so
-    editing the part updates every one of them. It joins the source's assembly if
-    it has one, since a second copy of a part belongs wherever the first does.
+    editing the source updates every one of them. A part's copy joins the
+    source's assembly if it has one, since a second copy belongs wherever the
+    first does.
 
     The placements are not editable where they stand (Blender renders instanced
-    geometry, it does not duplicate the objects), so edits go to the part itself.
+    geometry, it does not duplicate the objects), so edits go to the source.
     """
-    from .collections import link_to_scene_root, part_collection
+    from .collections import assembly_collection, link_to_scene_root, part_collection
 
-    coll = part_collection(root, context.scene)
+    is_assembly = is_assembly_root(root)
+    coll = (
+        assembly_collection(root, context.scene)
+        if is_assembly
+        else part_collection(root, context.scene)
+    )
     # Without this the contents would be drawn at their own world position *plus*
     # the placement, putting the copy at twice the offset.
     coll.instance_offset = world_matrix_of(root).translation
@@ -809,9 +826,10 @@ def instance_part(context, root: bpy.types.Object, location=None) -> bpy.types.O
         location = context.scene.cursor.location
     instance.matrix_basis = Matrix.Translation(location)
 
-    assembly = assembly_root_of(root)
-    if assembly is not None:
-        join_assembly(assembly, instance)
+    if not is_assembly:
+        assembly = assembly_root_of(root)
+        if assembly is not None:
+            join_assembly(assembly, instance)
     return instance
 
 

@@ -190,3 +190,52 @@ class TestAssembly(BgsTestCase):
 
         offered = {obj.name for obj, _pick_id in iter_wp_empties(self.context)}
         self.assertNotIn(placement.name, offered)
+
+    def test_an_assembly_can_be_placed_as_a_copy(self):
+        from ..utilities.collections import assembly_collection, sync_part_collections
+        from ..utilities.part import instance_part, is_part_instance
+
+        part = self._part("part")
+        assembly = create_assembly(self.context)
+        join_assembly(assembly, part)
+        sync_part_collections(self.scene)
+
+        placement = instance_part(self.context, assembly)
+
+        self.assertTrue(is_part_instance(placement))
+        self.assertEqual(
+            placement.instance_collection, assembly_collection(assembly, self.scene)
+        )
+        # A copy of an assembly stands on its own; it does not join itself.
+        self.assertIsNone(assembly_root_of(placement))
+
+    def test_selecting_an_assembly_places_the_assembly(self):
+        from ..utilities.part import instanceable_root
+
+        part = self._part("part")
+        assembly = create_assembly(self.context)
+        join_assembly(assembly, part)
+
+        self.assertEqual(instanceable_root(assembly), assembly)
+        # Selecting something inside it still places that part.
+        self.assertEqual(instanceable_root(part), part)
+
+    def test_the_operator_places_a_selected_assembly(self):
+        from ..utilities.collections import sync_part_collections
+        from ..utilities.part import is_part_instance
+
+        part = self._part("part")
+        assembly = create_assembly(self.context)
+        join_assembly(assembly, part)
+        sync_part_collections(self.scene)
+
+        bpy.ops.object.select_all(action="DESELECT")
+        assembly.select_set(True)
+        self.context.view_layer.objects.active = assembly
+
+        before = {o.name for o in self.scene.objects}
+        bpy.ops.view3d.slvs_instance_part()
+        created = [o for o in self.scene.objects if o.name not in before]
+
+        self.assertEqual(len(created), 1)
+        self.assertTrue(is_part_instance(created[0]))

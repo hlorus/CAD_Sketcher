@@ -170,6 +170,14 @@ def is_part_collection(coll) -> bool:
     return bool(coll is not None and coll.get(_PART_MARKER, False))
 
 
+def is_group_collection(coll) -> bool:
+    """Whether ``coll`` is one this addon generates: a part's or an assembly's."""
+    return bool(
+        coll is not None
+        and (coll.get(_PART_MARKER, False) or coll.get(_ASSEMBLY_MARKER, False))
+    )
+
+
 def part_collection(root, scene, created=None, claimed=None):
     """The collection holding the part rooted at ``root``."""
     return _collection_for(root, scene, _PART_MARKER, created, claimed)
