@@ -104,10 +104,11 @@ contain assemblies.
 workplanes, sketches and cutters that shape it. It is on `Shift+D` while the
 selection belongs to a part; everything else still gets Blender's own duplicate,
 which copies only what you selected, so a body duplicated that way would arrive
-without its cutters. Turn the shortcut off in the add-on preferences if you would
-rather keep `Shift+D` as it was.
+without its cutters. Turn both shortcuts off in the add-on preferences if you
+would rather keep `Shift+D` and `Alt+D` as they were.
 
-**Instance Part** places another copy of the same part at the 3D cursor. There is still only one part: each placement renders it, so editing the
+**Instance Part** places another copy of the same part: at the 3D cursor from the
+panel, or on the original and ready to move on `Alt+D`. There is still only one part: each placement renders it, so editing the
 part updates every copy at once, and a copy costs almost nothing.
 
 Placements are not edited where they stand, because they hold no geometry of

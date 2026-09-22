@@ -126,21 +126,25 @@ class TestDuplicatePart(BgsTestCase):
 
         self.assertFalse(bpy.ops.view3d.slvs_duplicate_part.poll())
 
-    def test_the_shortcut_can_be_turned_off(self):
+    def test_the_button_still_works_when_the_shortcut_is_off(self):
+        # The preference belongs to the key, not to the operator: gating the poll
+        # on it would grey the panel button out too.
         from ..utilities.preferences import get_prefs
 
         body, _cutter = self._part_with_cutter()
         bpy.ops.object.select_all(action="DESELECT")
         body.select_set(True)
         self.context.view_layer.objects.active = body
-        self.assertTrue(bpy.ops.view3d.slvs_duplicate_part.poll())
 
         prefs = get_prefs()
-        prefs.part_duplicate_shortcut = False
+        prefs.part_duplicate_shortcuts = False
         try:
-            self.assertFalse(bpy.ops.view3d.slvs_duplicate_part.poll())
+            self.assertTrue(bpy.ops.view3d.slvs_duplicate_part.poll())
+            before = {o.name for o in self.scene.objects}
+            bpy.ops.view3d.slvs_duplicate_part()
+            self.assertTrue({o.name for o in self.scene.objects} - before)
         finally:
-            prefs.part_duplicate_shortcut = True
+            prefs.part_duplicate_shortcuts = True
 
     def test_the_copies_end_up_selected(self):
         body, _cutter = self._part_with_cutter()

@@ -19,6 +19,7 @@ from ..utilities.part import (
     join_assembly,
     mark_part_root,
     part_root_of,
+    world_matrix_of,
 )
 from .utils import BgsTestCase
 
@@ -125,3 +126,30 @@ class TestPartInstance(BgsTestCase):
         }
         self.assertIn(root.name, drawn)
         self.assertNotIn(cutter.name, drawn)
+
+    def test_a_placement_can_land_on_the_original(self):
+        # What Alt+D does: the copy appears on the original and is then moved,
+        # rather than jumping to the 3D cursor.
+        root = self._part("widget", location=(3.0, 0.0, 0.0))
+        self.context.view_layer.update()
+        self.scene.cursor.location = Vector((0.0, 0.0, 0.0))
+
+        placement = instance_part(
+            self.context, root, location=world_matrix_of(root).translation
+        )
+        self.assertEqual(placement.matrix_basis.translation, Vector((3.0, 0.0, 0.0)))
+
+    def test_the_operator_places_at_the_original_when_asked(self):
+        root = self._part("widget", location=(2.0, 0.0, 0.0))
+        self.context.view_layer.update()
+        self.scene.cursor.location = Vector((9.0, 9.0, 9.0))
+        bpy.ops.object.select_all(action="DESELECT")
+        root.select_set(True)
+        self.context.view_layer.objects.active = root
+
+        before = {o.name for o in self.scene.objects}
+        bpy.ops.view3d.slvs_instance_part(at_cursor=False)
+        placement = next(o for o in self.scene.objects if o.name not in before)
+
+        self.assertEqual(placement.matrix_basis.translation, Vector((2.0, 0.0, 0.0)))
+        self.assertTrue(placement.select_get())

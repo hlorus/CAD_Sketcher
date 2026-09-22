@@ -86,12 +86,13 @@ class Preferences(AddonPreferences):
         description="Hide entity-based drawing (shows only native curve overlay)",
         default=False,
     )
-    part_duplicate_shortcut: BoolProperty(
-        name="Duplicate Parts with Shift+D",
+    part_duplicate_shortcuts: BoolProperty(
+        name="Part Shortcuts for Duplicate",
         description=(
             "Make Shift+D copy a whole part (its workplanes, sketches and "
-            "cutters) when the selection belongs to one. Blender's duplicate "
-            "still applies to everything else, and to all of it when this is off"
+            "cutters) and Alt+D place another copy of it, when the selection "
+            "belongs to a part. Blender's own duplicates still apply to "
+            "everything else, and to all of it when this is off"
         ),
         default=True,
     )

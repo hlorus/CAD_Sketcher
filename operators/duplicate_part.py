@@ -22,13 +22,10 @@ class View3D_OT_slvs_duplicate_part(Operator):
 
     @classmethod
     def poll(cls, context: Context):
-        # Bound to Shift+D as well as the button. A failing poll does not consume
-        # the key, so anything that is not a part still gets Blender's own
-        # duplicate, and so does everything when the preference is off.
-        from ..utilities.preferences import get_prefs
-
-        if not get_prefs().part_duplicate_shortcut:
-            return False
+        # Bound to Shift+D as well as the panel button. A failing poll does not
+        # consume the key, so anything that is not a part still gets Blender's
+        # own duplicate. The preference is checked in invoke instead: gating the
+        # poll on it would grey the button out too.
         return any(part_root_of(obj) is not None for obj in context.selected_objects)
 
     def execute(self, context: Context):
@@ -51,6 +48,12 @@ class View3D_OT_slvs_duplicate_part(Operator):
         return {"FINISHED"}
 
     def invoke(self, context: Context, event):
+        from ..utilities.preferences import get_prefs
+
+        if not get_prefs().part_duplicate_shortcuts:
+            # Hand the key back: Blender's own duplicate takes it from here.
+            return {"PASS_THROUGH"}
+
         # Shift+D hands the copy straight to a move, and a part copy landing
         # exactly on its original would otherwise look like nothing happened.
         result = self.execute(context)

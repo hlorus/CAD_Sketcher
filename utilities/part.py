@@ -783,8 +783,8 @@ def is_part_instance(obj: Optional[bpy.types.Object]) -> bool:
     )
 
 
-def instance_part(context, root: bpy.types.Object) -> bpy.types.Object:
-    """Place a linked copy of ``root``'s part at the 3D cursor.
+def instance_part(context, root: bpy.types.Object, location=None) -> bpy.types.Object:
+    """Place a linked copy of ``root``'s part, at the 3D cursor by default.
 
     The copy is a collection instance: one source, any number of placements, so
     editing the part updates every one of them. It joins the source's assembly if
@@ -805,7 +805,9 @@ def instance_part(context, root: bpy.types.Object) -> bpy.types.Object:
     instance.instance_collection = coll
     instance.empty_display_size = 0.25
     link_to_scene_root(instance, context.scene)
-    instance.matrix_basis = Matrix.Translation(context.scene.cursor.location)
+    if location is None:
+        location = context.scene.cursor.location
+    instance.matrix_basis = Matrix.Translation(location)
 
     assembly = assembly_root_of(root)
     if assembly is not None:
