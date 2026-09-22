@@ -70,10 +70,10 @@ to an existing part.
 
 ## Part workplanes
 
-Select a part and the Add Sketch tool offers that part's own XY, XZ and YZ planes
-(drawn smaller than the global ones) alongside the scene's. Use them when a part
-has been moved or rotated and you want to sketch in *its* frame rather than the
-world's.
+Select a part and the Add Sketch tool offers that part's own XY, XZ and YZ planes,
+drawn smaller, *in place of* the scene's. Use them when a part has been moved or
+rotated and you want to sketch in its frame rather than the world's. Deselect to
+get the scene's planes back, which is also how you start a new part.
 
 ## Changing membership by hand
 

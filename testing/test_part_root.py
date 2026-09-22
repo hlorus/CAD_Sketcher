@@ -594,3 +594,23 @@ class TestPartRoot(BgsTestCase):
         self.assertNotIn(
             theirs.name, {o.name for o, _ in iter_wp_empties(self.context)}
         )
+
+    def test_a_focused_parts_planes_stand_in_for_the_world_ones(self):
+        # Six rectangles for three choices is a crowded viewport; while a part is
+        # in focus its own frame is the one being worked in.
+        from ..utilities.part import ensure_part_planes
+        from ..utilities.workplane import iter_wp_empties
+
+        body = self._cube("host")
+        mark_part_root(body)
+        ensure_part_planes(self.context, body)
+
+        bpy.ops.object.select_all(action="DESELECT")
+        self.context.view_layer.objects.active = None
+        world = {obj.name for obj, _ in iter_wp_empties(self.context)}
+        self.assertIn(self.context.scene.sketcher.wp_xy.name, world)
+
+        self._focus(body)
+        focused = {obj.name for obj, _ in iter_wp_empties(self.context)}
+        self.assertIn(f"{body.name} XY", focused)
+        self.assertNotIn(self.context.scene.sketcher.wp_xy.name, focused)

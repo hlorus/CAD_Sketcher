@@ -102,9 +102,15 @@ def iter_wp_empties(context):
     empty gets a sequential id starting at ``_EMPTY_PICK_START``. Ordering is
     deterministic within a frame so draw and hit-test agree on ids.
     """
+    from .part import PART_PLANE_KEY, part_plane_objects
+
     sketcher = context.scene.sketcher
     origin_names = set()
     show_origin = sketcher.show_origin
+
+    # The base planes of the part in focus, in the part's own frame: sketching on
+    # a moved or rotated part otherwise only offers world-aligned planes.
+    part_planes = part_plane_objects(context) if show_origin else []
 
     for wp_obj, wp_id in (
         (sketcher.wp_xy, WP_ID_XY),
@@ -113,20 +119,17 @@ def iter_wp_empties(context):
     ):
         if wp_obj:
             # Track the name so the generic loop below never re-yields an origin,
-            # but only expose it for drawing/picking when the toggle is on.
+            # but only expose it for drawing/picking when the toggle is on. While
+            # a part is in focus its own planes stand in for them: showing both
+            # sets at once is six rectangles for three choices, and the part's
+            # frame is the one being worked in. Deselect to sketch on the world.
             origin_names.add(wp_obj.name)
-            if show_origin:
+            if show_origin and not part_planes:
                 yield wp_obj, wp_id
 
-    # The base planes of the part in focus, in the part's own frame: sketching on
-    # a moved or rotated part otherwise only offers world-aligned planes. They
-    # have no object until one is picked.
-    if show_origin:
-        from .part import PART_PLANE_KEY, part_plane_objects
-
-        for plane in part_plane_objects(context):
-            origin_names.add(plane.name)
-            yield plane, _PART_PLANE_IDS[_PART_PLANE_AXIS_ORDER[plane[PART_PLANE_KEY]]]
+    for plane in part_planes:
+        origin_names.add(plane.name)
+        yield plane, _PART_PLANE_IDS[_PART_PLANE_AXIS_ORDER[plane[PART_PLANE_KEY]]]
 
     pick_id = _EMPTY_PICK_START
     for obj in context.scene.objects:
