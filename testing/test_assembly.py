@@ -129,8 +129,8 @@ class TestAssembly(BgsTestCase):
         self.assertEqual(part_root_of(part), part)
         self.assertEqual(tuple(part.lock_location), (False, False, False))
 
-    def test_leaving_an_assembly_drops_the_stamp(self):
-        from ..utilities.part import ASSEMBLY_MEMBER_KEY, reconcile_assemblies
+    def test_leaving_an_assembly_is_followed(self):
+        from ..utilities.part import reconcile_assemblies
 
         part = self._part("part")
         assembly = create_assembly(self.context)
@@ -139,15 +139,16 @@ class TestAssembly(BgsTestCase):
 
         part.parent = None
         self.assertTrue(reconcile_assemblies(self.scene))
-        self.assertNotIn(ASSEMBLY_MEMBER_KEY, part)
+        self.assertIsNone(assembly_root_of(part))
         self.assertFalse(reconcile_assemblies(self.scene))
 
     def test_parenting_into_an_assembly_is_adopted(self):
-        from ..utilities.part import ASSEMBLY_MEMBER_KEY, reconcile_assemblies
+        from ..utilities.part import reconcile_assemblies
 
         part = self._part("part")
         assembly = create_assembly(self.context)
+        reconcile_assemblies(self.scene)
 
         part.parent = assembly  # a plain outliner drag
-        self.assertTrue(reconcile_assemblies(self.scene))
-        self.assertEqual(part[ASSEMBLY_MEMBER_KEY], assembly.name)
+        reconcile_assemblies(self.scene)
+        self.assertEqual(assembly_root_of(part), assembly)

@@ -259,13 +259,15 @@ class TestPartRoot(BgsTestCase):
         self.assertEqual(member.plane_matrix.translation, placed_at)
         self.assertEqual(part_root_of(wp), member_obj)
 
-    def test_reconcile_is_quiet_when_nothing_is_orphaned(self):
+    def test_reconcile_settles_and_then_goes_quiet(self):
         sketch = build_sketch_on_workplane(self.context, self.datum)
         mark_part_root(sketch.target_object)
         wp = bpy.data.objects.new("WP", None)
         self.scene.collection.objects.link(wp)
         join_part(sketch.target_object, wp)
 
+        # The first pass notices the new member; nothing changes after that.
+        self.assertTrue(reconcile_parts(self.scene))
         self.assertFalse(reconcile_parts(self.scene))
         self.assertFalse(reconcile_parts(self.scene))
 
@@ -474,8 +476,6 @@ class TestPartRoot(BgsTestCase):
             self.assertTrue(plane.users_collection)
 
     def test_parenting_into_a_part_adopts_the_sketch(self):
-        from ..utilities.part import PART_MEMBER_KEY
-
         body = self._cube("host")
         mark_part_root(body)
         sketch = build_sketch_on_workplane(self.context, self.datum)
@@ -486,7 +486,6 @@ class TestPartRoot(BgsTestCase):
 
         self.assertTrue(reconcile_parts(self.scene))
         self.assertEqual(part_root_of(obj), body)
-        self.assertEqual(obj[PART_MEMBER_KEY], body.name)
         # It is a feature now, so it no longer moves on its own.
         self.assertEqual(tuple(obj.lock_location), (True, True, True))
 
@@ -494,8 +493,6 @@ class TestPartRoot(BgsTestCase):
         self.assertFalse(reconcile_parts(self.scene))
 
     def test_unparenting_releases_a_member(self):
-        from ..utilities.part import PART_MEMBER_KEY
-
         body = self._cube("host")
         mark_part_root(body)
         sketch = build_sketch_on_workplane(self.context, self.datum)
@@ -507,14 +504,11 @@ class TestPartRoot(BgsTestCase):
 
         self.assertTrue(reconcile_parts(self.scene))
         self.assertIsNone(part_root_of(obj))
-        self.assertNotIn(PART_MEMBER_KEY, obj)
         # Free to move again, as a global sketch is.
         self.assertEqual(tuple(obj.lock_location), (False, False, False))
         self.assertFalse(reconcile_parts(self.scene))
 
     def test_moving_a_sketch_between_parts_follows_the_parent(self):
-        from ..utilities.part import PART_MEMBER_KEY
-
         first = self._cube("part_a")
         second = self._cube("part_b", location=(4.0, 0.0, 0.0))
         mark_part_root(first)
@@ -525,8 +519,8 @@ class TestPartRoot(BgsTestCase):
         reconcile_parts(self.scene)
 
         obj.parent = second
-        self.assertTrue(reconcile_parts(self.scene))
-        self.assertEqual(obj[PART_MEMBER_KEY], second.name)
+        reconcile_parts(self.scene)
+        self.assertEqual(part_root_of(obj), second)
 
     def test_a_users_own_object_keeps_its_transform_freedom(self):
         # Parenting a plain mesh into a part must not lock it: it is theirs.

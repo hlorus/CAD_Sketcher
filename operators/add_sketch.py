@@ -79,12 +79,7 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     # Resolve the plane and the part before activate, so align_view sees both.
     wp_orig = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
     root = _part_for_workplane(context, wp_orig)
-    from ..utilities.part import (
-        fix_transform,
-        free_transform,
-        join_part,
-        mark_part_member,
-    )
+    from ..utilities.part import fix_transform, free_transform, join_part
 
     if root is None:
         # Nothing obvious to belong to, so the sketch is global: it owns its
@@ -97,7 +92,6 @@ def build_sketch_on_workplane(context: Context, wp_empty):
         sketch_obj.slvs_workplane = wp_orig
         fix_transform(sketch_obj)
         join_part(root, wp_orig)
-        mark_part_member(sketch_obj, root)
 
     sketch = Sketch(sketch_obj)
 

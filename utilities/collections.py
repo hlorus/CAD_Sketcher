@@ -115,31 +115,44 @@ def _marked_collections(root, marker):
     return found
 
 
-def _collection_for(obj, scene, marker):
+def _link_into(obj, coll):
+    """Put ``obj`` in ``coll`` and nowhere else. True if that changed anything."""
+    if len(obj.users_collection) == 1 and obj.users_collection[0] == coll:
+        return False
+    _clear_object_collections(obj)
+    coll.objects.link(obj)
+    return True
+
+
+def _collection_for(obj, scene, marker, created=None):
     """The collection standing for ``obj`` (a part or assembly root), created once.
 
-    Keyed by the root's name rather than a pointer because a collection cannot
-    hold an object reference; the sync repairs the link if a root is renamed.
+    Found by containment: a root's collection is the marked one holding it. That
+    needs no stored link back to the root, so renaming either, or the user moving
+    a root somewhere of their own, cannot leave a dangling reference.
     """
-    key = f"cad_root:{marker}"
     for coll in _marked_collections(scene.collection, marker):
-        if coll.get(key) == obj.name:
+        if obj.name in coll.objects:
             return coll
     coll = bpy.data.collections.new(obj.name)
     coll[marker] = True
-    coll[key] = obj.name
     scene.collection.children.link(coll)
+    # Link the root straight away, or the next pass would not recognise this
+    # collection as its own and would make another.
+    _link_into(obj, coll)
+    if created is not None:
+        created.append(coll)
     return coll
 
 
-def part_collection(root, scene):
+def part_collection(root, scene, created=None):
     """The collection holding the part rooted at ``root``."""
-    return _collection_for(root, scene, _PART_MARKER)
+    return _collection_for(root, scene, _PART_MARKER, created)
 
 
-def assembly_collection(root, scene):
+def assembly_collection(root, scene, created=None):
     """The collection holding the assembly rooted at ``root``."""
-    return _collection_for(root, scene, _ASSEMBLY_MARKER)
+    return _collection_for(root, scene, _ASSEMBLY_MARKER, created)
 
 
 def _reparent_collection(coll, parent):
@@ -153,15 +166,6 @@ def _reparent_collection(coll, parent):
         if coll.name in other.children:
             other.children.unlink(coll)
     parent.children.link(coll)
-    return True
-
-
-def _link_into(obj, coll):
-    """Put ``obj`` in ``coll`` and nowhere else. True if that changed anything."""
-    if len(obj.users_collection) == 1 and obj.users_collection[0] == coll:
-        return False
-    _clear_object_collections(obj)
-    coll.objects.link(obj)
     return True
 
 
@@ -201,10 +205,11 @@ def sync_part_collections(scene) -> bool:
 
     changed = dissolve_legacy_sketch_collections(scene)
 
+    created = []
     owned = {}
     for obj in scene.objects:
         if is_assembly_root(obj):
-            coll = assembly_collection(obj, scene)
+            coll = assembly_collection(obj, scene, created)
             for member in (obj, *obj.children_recursive):
                 # Parts inside keep their own collection; only loose members of
                 # the assembly itself live directly in it.
@@ -214,7 +219,7 @@ def sync_part_collections(scene) -> bool:
     for obj in scene.objects:
         if not is_part_root(obj):
             continue
-        coll = part_collection(obj, scene)
+        coll = part_collection(obj, scene, created)
         assembly = assembly_root_of(obj)
         if assembly is not None:
             if _reparent_collection(coll, assembly_collection(assembly, scene)):
@@ -235,6 +240,8 @@ def sync_part_collections(scene) -> bool:
                 link_to_scene_root(obj, scene)
                 changed = True
                 break
+
+    changed = changed or bool(created)
 
     for marker in (_PART_MARKER, _ASSEMBLY_MARKER):
         for coll in _marked_collections(scene.collection, marker):

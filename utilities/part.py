@@ -40,29 +40,26 @@ PART_PLANE_AXES = (
     ("YZ", (math.pi / 2, 0.0, math.pi / 2)),
 )
 
-# Stamped on every part (or sub-assembly) with the name of the assembly holding
-# it, so an assembly can be taken apart safely when its root goes.
-ASSEMBLY_MEMBER_KEY = "slvs:assembly_of"
-
-# Stamped on every member with the name of the root it belongs to. Membership is
-# the parent chain, but a name survives the root being deleted, which is exactly
-# when a member has to be recognised and put back on its feet.
-PART_MEMBER_KEY = "slvs:part"
-
-# Last known world transform of each part root, by name. A deleted root takes its
-# transform with it, and Blender leaves its children holding only a local matrix,
-# so the part would collapse toward the origin. Remembering the frame lets the
-# reconcile put the members back where they were.
+# What each root held on the last pass: its world transform and the names of its
+# members. Nothing of this is written to the file -- membership lives in the
+# parent chain, and this is only what the chain looked like a moment ago, which is
+# what a deleted root takes with it. Blender leaves its children holding only a
+# local matrix, so without the remembered frame the part would collapse toward the
+# origin, and without the remembered members there would be nothing to collect.
 _last_root_matrices = {}
+_last_members = {}
 
 # Same, for assembly roots.
 _last_assembly_matrices = {}
+_last_assembly_members = {}
 
 
 def reset_cache():
-    """Drop the remembered root transforms (e.g. on file load)."""
+    """Drop what the last pass saw (e.g. on file load); it is rebuilt at once."""
     _last_root_matrices.clear()
+    _last_members.clear()
     _last_assembly_matrices.clear()
+    _last_assembly_members.clear()
 
 
 def is_part_root(obj: Optional[bpy.types.Object]) -> bool:
@@ -155,7 +152,6 @@ def join_assembly(assembly: bpy.types.Object, obj: bpy.types.Object) -> None:
     obj.parent = assembly
     obj.matrix_parent_inverse = world_matrix_of(assembly).inverted_safe()
     obj.matrix_basis = world
-    obj[ASSEMBLY_MEMBER_KEY] = assembly.name
 
 
 def part_root_of(obj: Optional[bpy.types.Object]) -> Optional[bpy.types.Object]:
@@ -201,7 +197,6 @@ def join_part(root: bpy.types.Object, obj: bpy.types.Object) -> None:
     obj.parent = root
     obj.matrix_parent_inverse = world_matrix_of(root).inverted_safe()
     obj.matrix_basis = world
-    obj[PART_MEMBER_KEY] = root.name
 
 
 def _bake_world_transform(obj: bpy.types.Object) -> None:
@@ -246,20 +241,8 @@ def rehome_children(root: bpy.types.Object) -> Optional[bpy.types.Object]:
     return successor
 
 
-def mark_part_member(obj: bpy.types.Object, root: bpy.types.Object) -> None:
-    """Record which part ``obj`` belongs to, without re-parenting it.
-
-    For things placed by something inside the part rather than by the root
-    itself, such as a sketch sitting on one of the part's workplanes.
-    """
-    clear_part_root(obj)
-    obj[PART_MEMBER_KEY] = root.name
-
-
 def _promote(obj: bpy.types.Object) -> None:
     """Make ``obj`` root its part: it owns its transform, so it is its own plane."""
-    if PART_MEMBER_KEY in obj:
-        del obj[PART_MEMBER_KEY]
     mark_part_root(obj)
     obj.slvs_workplane = None
 
@@ -315,8 +298,6 @@ def promote_to_root(obj: bpy.types.Object) -> None:
         obj.matrix_basis = world
     if getattr(obj, "slvs_workplane", None) is not None:
         obj.slvs_workplane = None
-    if PART_MEMBER_KEY in obj:
-        del obj[PART_MEMBER_KEY]
     mark_part_root(obj)
 
 
@@ -332,7 +313,7 @@ def _join_keeping_its_plane(root: bpy.types.Object, obj: bpy.types.Object) -> No
     if plane is not None and getattr(obj, "slvs_workplane", None) == plane:
         if part_root_of(plane) is None:
             join_part(root, plane)
-        mark_part_member(obj, root)
+        clear_part_root(obj)
         return
     join_part(root, obj)
     fix_transform(obj)
@@ -396,14 +377,19 @@ def settle_membership(
     return root
 
 
+def _members_of(root: bpy.types.Object) -> set:
+    """Names of everything in ``root``'s group, at any depth."""
+    return {child.name for child in root.children_recursive}
+
+
 def reconcile_parts(scene: bpy.types.Scene) -> bool:
     """Follow what the user did to the hierarchy, and repair broken parts.
 
     Membership *is* the parent chain, so parenting a sketch into a part (Ctrl+P,
     or a drag in the outliner) is how it joins one, and unparenting it is how it
-    leaves. This pass records that: adopted members get stamped and pinned, ones
-    taken out are released, and their stamp is what lets a part be put back
-    together later.
+    leaves. Nothing about that is written to the file; this pass compares the
+    chain with what it saw last time, pins what joined, releases what left, and
+    remembers the shape for next time.
 
     The repair half handles a root deleted with Blender's own Delete, which never
     reaches the sketch delete operator: Blender drops the parent but keeps each
@@ -417,88 +403,79 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
     from ..model.sketch_ref import is_sketch_object
 
     roots = {obj.name: obj for obj in scene.objects if is_part_root(obj)}
-    for name, root in roots.items():
-        _last_root_matrices[name] = world_matrix_of(root)
+    members = {name: _members_of(root) for name, root in roots.items()}
 
     changed = False
     touched = []
     orphans = {}
-    for obj in scene.objects:
-        if is_part_root(obj):
-            continue
 
-        root = part_root_of(obj)
-        stamp = obj.get(PART_MEMBER_KEY)
-
-        if root is not None:
-            # In a part: either adopted by the user parenting it there, or moved
-            # between parts. Parenting *is* membership, so follow it.
-            if stamp != root.name:
-                obj[PART_MEMBER_KEY] = root.name
+    # What each part holds now: pin what we manage (a feature does not move on
+    # its own), and note what joined since the last pass -- a mesh joining writes
+    # nothing at all, but its cutter display still has to follow.
+    for root_name, names in members.items():
+        joined = names - _last_members.get(root_name, set())
+        for name in names:
+            obj = scene.objects.get(name)
+            if obj is None or is_part_root(obj):
+                continue
+            if name in joined:
                 touched.append(obj)
                 changed = True
             if _is_managed_member(obj) and not all(obj.lock_location):
                 fix_transform(obj)
+                if obj not in touched:
+                    touched.append(obj)
                 changed = True
-            continue
 
-        if stamp is None:
-            continue
+    # What has left a part since the last pass, by whichever route.
+    for root_name, previous in _last_members.items():
+        for name in previous - members.get(root_name, set()):
+            obj = scene.objects.get(name)
+            if obj is None or part_root_of(obj) is not None:
+                continue  # gone, or simply moved to another part
 
-        if stamp in roots:
-            # Taken out of a part whose root is still there: it is on its own now.
-            del obj[PART_MEMBER_KEY]
-            if PART_PLANE_KEY in obj:
-                strip_part_plane(obj)
-            if _is_managed_member(obj):
-                free_transform(obj)
-            touched.append(obj)
-            changed = True
-            continue
+            if root_name in roots:
+                # Taken out of a part whose root is still there: on its own now.
+                if PART_PLANE_KEY in obj:
+                    strip_part_plane(obj)
+                if _is_managed_member(obj):
+                    free_transform(obj)
+                touched.append(obj)
+                changed = True
+                continue
 
-        orphans.setdefault(stamp, []).append(obj)
+            orphans.setdefault(root_name, []).append(obj)
 
-    # A member's own children (a sketch on an orphaned workplane) are part of the
-    # same wreck, even though only the member itself carries the stamp.
-    for members in orphans.values():
-        for member in list(members):
-            members.extend(c for c in member.children_recursive if c not in members)
-
-    if not orphans:
-        # Forget roots that are simply gone, with nothing left behind.
-        for name in [n for n in _last_root_matrices if n not in roots]:
-            del _last_root_matrices[name]
-        _refresh_cutter_display(scene, touched)
-        return changed
-
-    for root_name, members in orphans.items():
-        root_matrix = _last_root_matrices.pop(root_name, None)
+    for root_name, stranded in orphans.items():
+        root_matrix = _last_root_matrices.get(root_name)
         if root_matrix is not None:
-            for member in members:
+            for member in stranded:
                 if member.parent is None:
                     _restore_world(member, root_matrix)
 
-        successor = next((m for m in members if is_sketch_object(m)), None)
-        if successor is None:
-            # No sketch left to root the part: the remains stand on their own.
-            for member in members:
-                if PART_MEMBER_KEY in member:
-                    del member[PART_MEMBER_KEY]
-            continue
+        successor = next((m for m in stranded if is_sketch_object(m)), None)
+        if successor is not None:
+            # Lift the successor clear of whatever placed it before it can take
+            # members on: leaving it parented to one would close a parent cycle.
+            _bake_world_transform(successor)
+            _promote(successor)
+            for member in stranded:
+                if member != successor and member.parent is None:
+                    if PART_PLANE_KEY in member:
+                        strip_part_plane(member)
+                    join_part(successor, member)
+            touched.extend(stranded)
+        changed = True
 
-        # Lift the successor clear of whatever placed it before it can take
-        # members on: leaving it parented to one would close a parent cycle.
-        _bake_world_transform(successor)
-        _promote(successor)
-        for member in members:
-            if member != successor and member.parent is None:
-                if PART_PLANE_KEY in member:
-                    strip_part_plane(member)
-                join_part(successor, member)
-        touched.extend(members)
+    _last_members.clear()
+    for name, root in roots.items():
+        _last_root_matrices[name] = world_matrix_of(root)
+        _last_members[name] = _members_of(root)
+    for name in [n for n in _last_root_matrices if n not in roots]:
+        del _last_root_matrices[name]
 
     _refresh_cutter_display(scene, touched)
-    return True
+    return changed
 
 
 def reconcile_assemblies(scene: bpy.types.Scene) -> bool:
@@ -515,33 +492,25 @@ def reconcile_assemblies(scene: bpy.types.Scene) -> bool:
     """
     changed = False
     assemblies = {obj.name: obj for obj in scene.objects if is_assembly_root(obj)}
+    members = {name: _members_of(root) for name, root in assemblies.items()}
+
+    for assembly_name, previous in _last_assembly_members.items():
+        for name in previous - members.get(assembly_name, set()):
+            obj = scene.objects.get(name)
+            if obj is None or assembly_root_of(obj) is not None:
+                continue
+
+            if assembly_name not in assemblies and obj.parent is None:
+                # The assembly is gone: put the part back where it was standing.
+                matrix = _last_assembly_matrices.get(assembly_name)
+                if matrix is not None:
+                    _restore_world(obj, matrix)
+            changed = True
+
+    _last_assembly_members.clear()
     for name, root in assemblies.items():
         _last_assembly_matrices[name] = world_matrix_of(root)
-
-    for obj in scene.objects:
-        if is_assembly_root(obj):
-            continue
-
-        assembly = assembly_root_of(obj)
-        stamp = obj.get(ASSEMBLY_MEMBER_KEY)
-
-        if assembly is not None:
-            if stamp != assembly.name:
-                obj[ASSEMBLY_MEMBER_KEY] = assembly.name
-                changed = True
-            continue
-
-        if stamp is None:
-            continue
-
-        if stamp not in assemblies and obj.parent is None:
-            # The assembly is gone: put the part back where it was standing.
-            matrix = _last_assembly_matrices.get(stamp)
-            if matrix is not None:
-                _restore_world(obj, matrix)
-        del obj[ASSEMBLY_MEMBER_KEY]
-        changed = True
-
+        _last_assembly_members[name] = members[name]
     for name in [n for n in _last_assembly_matrices if n not in assemblies]:
         del _last_assembly_matrices[name]
 
@@ -597,7 +566,6 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
             empty.parent = root
             empty.matrix_parent_inverse = Matrix.Identity(4)
             empty.matrix_basis = Euler(euler).to_matrix().to_4x4()
-            mark_part_member(empty, root)
             fix_transform(empty)
             created.append(empty)
         planes.append(empty)
