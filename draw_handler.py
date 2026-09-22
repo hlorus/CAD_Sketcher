@@ -42,6 +42,11 @@ def draw_cb():
     # constraint gizmos and icons drawn later in this redraw read from.
     frame_cache.begin_frame()
     context = bpy.context
+    # The Fillet tool hides the fillet it edits; put it back once that tool is
+    # gone (there is no tool-deactivated callback to hook).
+    from .operators.fillet import restore_fillets_when_tool_left
+
+    restore_fillets_when_tool_left(context)
     _draw_curves_overlay(context)
 
 
@@ -259,6 +264,27 @@ def _draw_text_block(plane_mat, lines, dims, gap, size, scale, x, y, align):
             cursor -= gap
 
 
+def draw_fillet_picks():
+    """POST_VIEW: the edges the Fillet tool rounds, while that tool is active."""
+    from .declarations import WorkSpaceTools
+    from .operators.fillet import fillet_modifier, picked_edge_points
+    from .utilities.fillet_nodes import get_domain, get_picks
+
+    context = bpy.context
+    tool = context.workspace.tools.from_space_view3d_mode(context.mode)
+    if tool is None or tool.idname != WorkSpaceTools.Fillet:
+        return
+    ob = context.object
+    modifier = fillet_modifier(ob) if ob else None
+    if modifier is None or context.region is None:
+        return
+    points = picked_edge_points(context, ob, get_picks(modifier), get_domain(modifier))
+    if not points:
+        return
+    col = (*get_prefs().theme_settings.entity.selected[:3], 1.0)
+    _draw_lines_hover(points, col, preferences.get_scale(), width=3)
+
+
 def draw_origin_labels():
     """POST_VIEW: name each workplane, lying in its plane.
 
@@ -388,6 +414,7 @@ _DRAW_HANDLERS = (
     ("draw_handle", draw_cb, "POST_VIEW"),
     ("hover_draw_handle", draw_hover_element, "POST_VIEW"),
     ("origin_label_draw_handle", draw_origin_labels, "POST_VIEW"),
+    ("fillet_picks_draw_handle", draw_fillet_picks, "POST_VIEW"),
     ("icon_draw_handle", None, "POST_PIXEL"),  # callback resolved in register()
 )
 

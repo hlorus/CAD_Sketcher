@@ -319,11 +319,11 @@ class TestFilletPicks(TestCase):
             bpy.data.objects.remove(ob, do_unlink=True)
 
 
-class TestGeneratedMesh(TestCase):
-    """Reading the mesh a node stack builds on a Curves object (a sketch output)."""
+class TestPickedEdgeDrawing(TestCase):
+    """The picked edges are read back from the generated mesh, to draw them."""
 
-    def test_generated_mesh_of_a_curves_object(self):
-        from ..utilities.mesh_pick import element_points, generated_mesh
+    def test_points_of_picks_on_a_curves_object(self):
+        from ..operators.fillet import picked_edge_points
 
         curves = bpy.data.hair_curves.new("probe")
         curves.add_curves([4])
@@ -347,15 +347,13 @@ class TestGeneratedMesh(TestCase):
         mod.node_group = group
 
         try:
-            # to_mesh() can't read it; the depsgraph instance can.
+            # A sketch's generated mesh isn't on the evaluated object ...
             dg = bpy.context.evaluated_depsgraph_get()
             with self.assertRaises(RuntimeError):
                 ob.evaluated_get(dg).to_mesh()
-            mesh, matrix = generated_mesh(dg, ob)
-            self.assertIsNotNone(mesh)
-            self.assertGreater(len(mesh.edges), 0)
-            points = element_points(mesh, 0, "EDGE", matrix)
-            self.assertEqual(len(points), 2)
+            # ... but the framework's evaluated-surface helper still finds it.
+            points = picked_edge_points(bpy.context, ob, [0, 1], "EDGE")
+            self.assertEqual(len(points), 4)
         finally:
             bpy.data.objects.remove(ob, do_unlink=True)
             bpy.data.node_groups.remove(group)
@@ -372,6 +370,19 @@ class TestFilletTool(TestCase):
         self.assertEqual(entries.get(WorkSpaceTools.Fillet), ToolGroup.NON_SKETCH)
         self.assertTrue(hasattr(bpy.types, "VIEW3D_OT_slvs_fillet_select"))
         self.assertEqual(Operators.FilletSelect, "view3d.slvs_fillet_select")
+
+    def test_tool_is_stateful_like_the_other_node_tools(self):
+        from ..operators.fillet import View3D_OT_slvs_fillet_select
+        from ..stateful_operator.logic import StatefulOperatorLogic
+        from ..workspacetools.fillet import VIEW3D_T_slvs_fillet
+
+        self.assertTrue(issubclass(View3D_OT_slvs_fillet_select, StatefulOperatorLogic))
+        states = View3D_OT_slvs_fillet_select.get_states_definition()
+        self.assertEqual([s.name for s in states], ["Edge"])
+        self.assertIs(states[0].types[0], bpy.types.MeshEdge)
+        # Drives the tool through the framework's operator access keymap.
+        idnames = {item[0] for item in VIEW3D_T_slvs_fillet.bl_keymap}
+        self.assertIn(View3D_OT_slvs_fillet_select.bl_idname, idnames)
 
     def test_tool_has_a_shortcut(self):
         from .. import keymaps

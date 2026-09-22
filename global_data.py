@@ -36,6 +36,7 @@ draw_handle = None
 hover_draw_handle = None
 icon_draw_handle = None
 origin_label_draw_handle = None
+fillet_picks_draw_handle = None
 
 COPY_BUFFER = {}
 
