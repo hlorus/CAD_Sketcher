@@ -99,3 +99,29 @@ class TestPartInstance(BgsTestCase):
         self.assertEqual(
             new_objects[0].instance_collection, part_collection(root, self.scene)
         )
+
+    def test_a_placement_does_not_show_the_parts_cutters(self):
+        # The eye is view-layer state and does not reach instanced copies, so a
+        # cutter hidden that way would draw over the result at every placement.
+        from ..operators.modifiers import apply_boolean
+        from ..utilities.part import join_part, update_cutter_display
+
+        root = self._part("widget")
+        cutter = bpy.data.objects.new("cutter", bpy.data.meshes.new("cutter"))
+        self.scene.collection.objects.link(cutter)
+        join_part(root, cutter)
+        apply_boolean(root, cutter, "Difference")
+        update_cutter_display(cutter, [root], True)
+        sync_part_collections(self.scene)
+
+        instance = instance_part(self.context, root)
+        self.context.view_layer.update()
+
+        depsgraph = self.context.evaluated_depsgraph_get()
+        drawn = {
+            inst.object.name
+            for inst in depsgraph.object_instances
+            if inst.is_instance and inst.parent and inst.parent.original == instance
+        }
+        self.assertIn(root.name, drawn)
+        self.assertNotIn(cutter.name, drawn)

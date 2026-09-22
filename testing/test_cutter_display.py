@@ -32,9 +32,9 @@ class TestCutterDisplay(BgsTestCase):
 
         _update_cutter_display(cutter, [body], True)
         self.assertFalse(cutter.visible_get())
-        # Never hide_viewport: that would drop it from evaluation, and the
-        # boolean reads its evaluated geometry.
-        self.assertFalse(cutter.hide_viewport)
+        # hide_viewport, not the eye: the eye is view-layer state, so an
+        # instanced copy of the part would still draw the cutter over its result.
+        self.assertTrue(cutter.hide_viewport)
 
     def test_a_cutter_spanning_parts_stays_visible_as_wire(self):
         body = self._cube("body")
@@ -72,6 +72,7 @@ class TestCutterDisplay(BgsTestCase):
         # The extrude no longer reaches the body.
         _update_cutter_display(cutter, [], True)
         self.assertTrue(cutter.visible_get())
+        self.assertFalse(cutter.hide_viewport)
         self.assertEqual(cutter.display_type, "WIRE")
 
         # And the boolean is switched off entirely.

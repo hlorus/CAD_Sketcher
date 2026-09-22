@@ -633,18 +633,25 @@ def update_cutter_display(cutter: bpy.types.Object, bodies, cuts: bool) -> None:
     """Show a cutter according to what it is actually doing.
 
     A cutter doing its job is in the way: its own solid sits over the result, so
-    hide it (with the eye, never ``hide_viewport``, which would drop it from
-    evaluation and with it the boolean). Two cases stay visible as wireframe
-    because the user needs to find them: one that cuts across several parts, which
-    belongs to no part and is the only handle on that cut, and one that means to
-    cut but currently reaches nothing, which would otherwise look like a finished
-    body. A solid with no boolean at all is just a body, so it shows as one.
+    hide it with ``hide_viewport``. The eye (``hide_set``) is not enough: it is
+    view-layer state, so an instanced copy of the part would still draw the
+    cutter over its own result. ``hide_viewport`` keeps the cutter's modifiers
+    evaluating and its transform live, so the boolean still reads it and still
+    follows it (unlike a workplane empty, whose matrix we read ourselves and
+    which must stay evaluated -- see ``_hide_managed_empty``).
+
+    Two cases stay visible as wireframe because the user needs to find them: one
+    that cuts across several parts, which belongs to no part and is the only
+    handle on that cut, and one that means to cut but currently reaches nothing,
+    which would otherwise look like a finished body. A solid with no boolean at
+    all is just a body, so it shows as one.
     """
     if cuts and bodies and part_root_of(cutter) is not None:
         cutter.display_type = "TEXTURED"
-        cutter.hide_set(True)
+        cutter.hide_viewport = True
         return
 
+    cutter.hide_viewport = False
     cutter.hide_set(False)
     cutter.display_type = "WIRE" if cuts else "TEXTURED"
 
