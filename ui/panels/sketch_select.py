@@ -204,6 +204,14 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             # Sketch list — a scrollable UIList over scene.objects, filtered to
             # sketch objects (see VIEW3D_UL_sketches.filter_items).
             if any(True for _ in get_sketches(context)):
+                from ...utilities.part import focused_part
+
+                root = focused_part(context)
+                if root is not None:
+                    # The list is scoped to this part; say so, or the selection
+                    # silently deciding what you can see would be baffling.
+                    row = layout.row()
+                    row.label(text=root.name, icon="OUTLINER_OB_MESH")
                 layout.template_list(
                     "VIEW3D_UL_sketches",
                     "",
