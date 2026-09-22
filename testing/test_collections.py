@@ -229,3 +229,46 @@ class TestManagedCollection(Sketch2dTestCase):
         self.assertNotEqual(copy_coll, source_coll)
         self.assertIn(root.name, source_coll.objects)
         self.assertNotIn(copy.name, source_coll.objects)
+
+    def test_collection_ownership_is_stable(self):
+        # A placement points at a collection datablock, so which root owns a
+        # collection must not depend on the order objects happen to be visited.
+        root = self.sketch.target_object
+        mark_part_root(root)
+        sync_part_collections(self.context.scene)
+        source_coll = self._part_collection(root)
+
+        copy = root.copy()
+        copy.data = root.data.copy()
+        source_coll.objects.link(copy)
+
+        # Ask for the copy's collection first, as a pass that happened to visit
+        # it before the original would: the original must keep what is its own.
+        from ..utilities.collections import part_collection
+
+        self.assertNotEqual(part_collection(copy, self.context.scene), source_coll)
+
+        for _pass in range(3):
+            sync_part_collections(self.context.scene)
+            self.assertEqual(self._part_collection(root), source_coll)
+            self.assertNotEqual(self._part_collection(copy), source_coll)
+
+    def test_a_placement_keeps_showing_its_own_part(self):
+        from ..utilities.part import instance_part
+
+        root = self.sketch.target_object
+        mark_part_root(root)
+        sync_part_collections(self.context.scene)
+        placement = instance_part(self.context, root)
+        shown = placement.instance_collection
+
+        # A duplicate of the part turns up in the same collection...
+        copy = root.copy()
+        copy.data = root.data.copy()
+        shown.objects.link(copy)
+        sync_part_collections(self.context.scene)
+
+        # ...and must not end up inside what the placement renders.
+        self.assertEqual(placement.instance_collection, shown)
+        self.assertIn(root.name, shown.objects)
+        self.assertNotIn(copy.name, shown.objects)

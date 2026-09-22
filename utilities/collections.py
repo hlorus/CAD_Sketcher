@@ -127,22 +127,38 @@ def _link_into(obj, coll):
 def _collection_for(obj, scene, marker, created=None, claimed=None):
     """The collection standing for ``obj`` (a part or assembly root), created once.
 
-    Found by containment: a root's collection is the marked one holding it. That
-    needs no stored link back to the root, so renaming either, or the user moving
-    a root somewhere of their own, cannot leave a dangling reference.
+    Ownership is recorded on the collection rather than inferred from what it
+    holds. Containment alone is not stable: a duplicated root lands in its
+    source's collection, and which of the two then owns it would depend on the
+    order objects happen to be visited. A placement points at a collection
+    datablock, so a flip there makes it render the other part's contents.
 
-    ``claimed`` names the collections other roots have already taken, so a
-    duplicated root (which Blender links into its source's collection) gets one
-    of its own instead of the two parts sharing a container.
+    A collection claimed by a root that no longer exists is adopted by the root
+    inside it, so renaming one does not orphan an instanced collection.
     """
-    for coll in _marked_collections(scene.collection, marker):
-        if obj.name in coll.objects and (claimed is None or coll.name not in claimed):
+    key = f"cad_root:{marker}"
+    marked = _marked_collections(scene.collection, marker)
+
+    for coll in marked:
+        if coll.get(key) == obj.name:
             return coll
+
+    for coll in marked:
+        owner = coll.get(key)
+        if obj.name not in coll.objects:
+            continue
+        if claimed is not None and coll.name in claimed:
+            continue
+        if owner is None or owner not in scene.objects:
+            coll[key] = obj.name
+            return coll
+
     coll = bpy.data.collections.new(obj.name)
     coll[marker] = True
+    coll[key] = obj.name
     scene.collection.children.link(coll)
-    # Link the root straight away, or the next pass would not recognise this
-    # collection as its own and would make another.
+    # Link the root straight away, or a later pass could hand this collection to
+    # something else before it holds anything.
     _link_into(obj, coll)
     if created is not None:
         created.append(coll)
