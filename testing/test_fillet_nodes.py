@@ -406,5 +406,17 @@ class TestFilletTool(TestCase):
             bpy.data.objects.remove(ob, do_unlink=True)
 
 
+class TestFilletHover(TestCase):
+    def test_tool_previews_the_edge_under_the_cursor(self):
+        """The hover gizmo highlights edges while the tool idles, as for the
+        projection tool -- otherwise nothing shows until a click."""
+        from ..declarations import WorkSpaceTools
+        from ..gizmos.object_hover import _IDLE_HOVER_TYPES
+
+        self.assertEqual(
+            _IDLE_HOVER_TYPES.get(WorkSpaceTools.Fillet), (bpy.types.MeshEdge,)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
