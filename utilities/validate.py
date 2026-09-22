@@ -95,6 +95,11 @@ def _other_sketch_ids(obj):
 
 def _prune_dangling_constraints(sketch, valid_ids):
     """Remove constraints referencing a curve_id that exists in no sketch."""
+    data = getattr(sketch.target_object, "data", None)
+    if data is None or not is_owned(data):
+        # Never delete constraints out of a library's sketch: the removal is
+        # either refused or lost on reload, and it is not ours to make.
+        return False
     valid_ids = valid_ids | _other_sketch_ids(sketch.target_object)
     try:
         constraints = sketch.constraints
@@ -110,7 +115,12 @@ def _prune_dangling_constraints(sketch, valid_ids):
                 getattr(c, "curve_id_3", ""),
             )
             if any(r and r not in valid_ids for r in refs):
-                coll.remove(i)
+                try:
+                    coll.remove(i)
+                except TypeError:
+                    # Collections Blender refuses to restructure (an override
+                    # slipped past is_owned): leave that sketch's constraints be.
+                    return removed
                 removed = True
     return removed
 
@@ -188,7 +198,7 @@ def validate_sketch(sketch):
         return False
 
     cd = _get_original_data(sketch)
-    if cd is None or not is_editable(cd):
+    if cd is None or not is_owned(cd):
         return False
 
     sig = _signature(cd)
@@ -283,20 +293,19 @@ def validate_sketch(sketch):
     return changed
 
 
-def _editable_sketch_data(scene):
-    """Yield each sketch whose curve data this file may write, once per datablock.
+def _owned_sketches(scene):
+    """Yield each sketch whose curve data this file owns, once per datablock.
 
     Several objects can share one sketch datablock (a linked asset used more
     than once, a library override, a linked duplicate). Visiting such a sketch
-    once per object makes its constraints look like duplicates of themselves,
-    and data from a library cannot be written at all.
+    once per object makes its constraints look like duplicates of themselves.
     """
     from ..model.sketch_ref import get_sketches
 
     seen = set()
     for sketch in get_sketches(scene):
         data = getattr(sketch.target_object, "data", None)
-        if data is None or not is_editable(data):
+        if data is None or not is_owned(data):
             continue
         key = data.original.as_pointer()
         if key in seen:
@@ -305,9 +314,18 @@ def _editable_sketch_data(scene):
         yield sketch
 
 
-def is_editable(curve_data) -> bool:
-    """Whether this file may write to ``curve_data`` (not linked from a library)."""
-    return bool(getattr(curve_data, "is_editable", True))
+def is_owned(curve_data) -> bool:
+    """Whether this file owns ``curve_data`` and may repair it.
+
+    Data linked from a library is read-only. A library override is writable
+    only for the properties Blender tracks as overridden: its constraint
+    collection cannot be restructured (Blender refuses the removal), and edits
+    to it are lost on reload. A sketch like that is repaired in the file that
+    owns it, not here.
+    """
+    if not getattr(curve_data, "is_editable", True):
+        return False
+    return getattr(curve_data, "override_library", None) is None
 
 
 def _dedup_constraint_uids(scene):
@@ -320,7 +338,7 @@ def _dedup_constraint_uids(scene):
     """
     seen = set()
     changed = False
-    for sketch in _editable_sketch_data(scene):
+    for sketch in _owned_sketches(scene):
         try:
             constraints = sketch.constraints
         except Exception:
@@ -363,7 +381,7 @@ def repair_constraint_values(scene) -> int:
     file was last saved in.
     """
     repaired = 0
-    for sketch in _editable_sketch_data(scene):
+    for sketch in _owned_sketches(scene):
         try:
             constraints = list(sketch.constraints.all)
         except Exception:
@@ -402,7 +420,7 @@ def repair_constraint_values(scene) -> int:
 def validate_all_sketches(scene):
     """Validate every sketch in the scene. Returns True if anything changed."""
     any_changed = False
-    for sketch in _editable_sketch_data(scene):
+    for sketch in _owned_sketches(scene):
         try:
             if validate_sketch(sketch):
                 any_changed = True

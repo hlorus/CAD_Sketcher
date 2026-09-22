@@ -95,12 +95,55 @@ class TestSharedSketchData(Sketch2dTestCase):
         self.assertEqual(c.constraint_uid, uid)
         self.assertAlmostEqual(c.value, 5.0, places=5)
 
-    def test_linked_data_is_not_written_to(self):
+    def test_data_this_file_does_not_own_is_left_alone(self):
         a = self.add_point((0, 0), fixed=True)
         b = self.add_point((5, 0))
         self.sketch.constraints.add_distance(
             init=True, curve_id_1=a.curve_id, curve_id_2=b.curve_id
         )
-        with mock.patch.object(validate, "is_editable", return_value=False):
+        with mock.patch.object(validate, "is_owned", return_value=False):
             self.assertFalse(validate.validate_all_sketches(self.scene))
             self.assertEqual(validate.repair_constraint_values(self.scene), 0)
+
+    def test_linked_and_override_data_is_not_owned(self):
+        """A library override is writable, but not restructurable."""
+
+        class FakeData:
+            is_editable = True
+            override_library = None
+
+        data = FakeData()
+        self.assertTrue(validate.is_owned(data))
+
+        data.override_library = object()
+        self.assertFalse(validate.is_owned(data))
+
+        data.override_library = None
+        data.is_editable = False
+        self.assertFalse(validate.is_owned(data))
+
+    def test_prune_gives_up_when_a_collection_refuses_removal(self):
+        """Blender refuses to restructure some collections (an override's)."""
+        a = self.add_point((0, 0), fixed=True)
+        b = self.add_point((5, 0))
+        self.sketch.constraints.add_distance(
+            init=True, curve_id_1=a.curve_id, curve_id_2=b.curve_id
+        )
+        before = len(list(self.sketch.constraints.all))
+
+        def refuse(_index):
+            raise TypeError("remove() not supported for this collection")
+
+        lists = self.sketch.constraints.get_lists()
+        with mock.patch.object(type(self.sketch.constraints), "get_lists") as get_lists:
+            get_lists.return_value = [
+                mock.Mock(
+                    __len__=lambda _self: len(coll),
+                    __getitem__=lambda _self, i: coll[i],
+                    remove=refuse,
+                )
+                for coll in lists
+            ]
+            # No id is valid, so every constraint looks dangling.
+            self.assertFalse(validate._prune_dangling_constraints(self.sketch, set()))
+        self.assertEqual(len(list(self.sketch.constraints.all)), before)
