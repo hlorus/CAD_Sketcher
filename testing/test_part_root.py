@@ -614,3 +614,35 @@ class TestPartRoot(BgsTestCase):
         focused = {obj.name for obj, _ in iter_wp_empties(self.context)}
         self.assertIn(f"{body.name} XY", focused)
         self.assertNotIn(self.context.scene.sketcher.wp_xy.name, focused)
+
+    def test_a_part_plane_is_labelled_with_its_part(self):
+        # They stand in for the world planes, so the axis alone would not say
+        # which frame you are about to sketch in.
+        from ..utilities.part import ensure_part_planes
+        from ..utilities.workplane import (
+            WP_ID_PART_XY,
+            WP_ID_XY,
+            workplane_label,
+        )
+
+        body = self._cube("bracket")
+        mark_part_root(body)
+        plane = ensure_part_planes(self.context, body)[0]
+
+        self.assertEqual(workplane_label(plane, WP_ID_PART_XY), "bracket XY")
+        self.assertEqual(
+            workplane_label(self.context.scene.sketcher.wp_xy, WP_ID_XY), "XY"
+        )
+
+    def test_part_planes_are_still_smaller_than_the_world_ones(self):
+        from ..utilities.workplane import (
+            WP_ID_PART_XY,
+            WP_ID_XY,
+            wp_plane_bounds,
+        )
+
+        def side(pick_id):
+            min_x, _min_y, max_x, _max_y = wp_plane_bounds(self.context, pick_id)
+            return max_x - min_x
+
+        self.assertLess(side(WP_ID_PART_XY), side(WP_ID_XY))

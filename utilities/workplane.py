@@ -29,9 +29,10 @@ WP_ID_PART_YZ = 0xF00013
 _PART_PLANE_IDS = (WP_ID_PART_XY, WP_ID_PART_XZ, WP_ID_PART_YZ)
 _PART_PLANE_AXIS_ORDER = {"XY": 0, "XZ": 1, "YZ": 2}
 
-# A part's planes are drawn much smaller than the world's, so a part sitting near
-# the origin reads as a part rather than competing with the scene datums.
-PART_PLANE_SIZE_FACTOR = 0.3
+# A part's planes stand in for the world's rather than being drawn beside them, so
+# they can be close to full size; still smaller, so which set you are looking at
+# is obvious at a glance.
+PART_PLANE_SIZE_FACTOR = 0.6
 
 # A part's base planes read as the same axes as the world's, so they are tinted
 # the same way: the part's frame is what tells them apart, not the colour.
@@ -52,6 +53,22 @@ ORIGIN_LABEL = {
     WP_ID_PART_XZ: "XZ",
     WP_ID_PART_YZ: "YZ",
 }
+
+
+def workplane_label(wp_obj, pick_id) -> str:
+    """The text drawn on a base plane, or "" for a plane that carries none.
+
+    A part's planes name the part as well as the axis: they replace the world's
+    while a part is in focus, and the two sets are otherwise indistinguishable,
+    which makes it easy to sketch in the wrong frame.
+    """
+    axis = ORIGIN_LABEL.get(pick_id, "")
+    if not axis or pick_id not in _PART_PLANE_IDS:
+        return axis
+
+    root = wp_obj.parent
+    return f"{root.name} {axis}" if root is not None else axis
+
 
 # Sequential pick IDs for non-origin empties start here
 _EMPTY_PICK_START = 0xE00001

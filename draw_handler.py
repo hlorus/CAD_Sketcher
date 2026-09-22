@@ -228,8 +228,8 @@ def draw_origin_labels():
     from .drawing import selection
     from .utilities.workplane import (
         ORIGIN_AXIS_COLOR,
-        ORIGIN_LABEL,
         iter_wp_empties,
+        workplane_label,
         wp_plane_bounds,
     )
 
@@ -249,7 +249,7 @@ def draw_origin_labels():
     gpu.state.depth_test_set("NONE")
 
     for wp_obj, pick_id in iter_wp_empties(context):
-        label = ORIGIN_LABEL.get(pick_id)
+        label = workplane_label(wp_obj, pick_id)
         if not label:
             continue
 
