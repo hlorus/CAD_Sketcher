@@ -592,7 +592,8 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             self._second_ref = ref if ref.valid else None
         return super().execute(context)
 
-    def draw(self, context: Context):
+    def draw_settings(self, context: Context):
+        # The framework draws the picked entities; add the dimension's own values.
         layout = self.layout
         layout.use_property_split = True
         result = self.result

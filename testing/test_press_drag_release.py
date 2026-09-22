@@ -25,7 +25,9 @@ class TestPressDragRelease(Sketch2dTestCase):
         return op
 
     def _far(self):
-        return bpy.context.preferences.inputs.drag_threshold_mouse + 10
+        from ..stateful_operator.logic import StatefulOperatorLogic
+
+        return StatefulOperatorLogic.drag_threshold() + 10
 
     def test_click_confirms_on_press_only(self):
         op = self._op()
@@ -44,10 +46,20 @@ class TestPressDragRelease(Sketch2dTestCase):
         self.assertTrue(op.check_event(_Event("RELEASE", x=50)))
 
     def test_release_within_threshold_is_not_a_drag(self):
+        from ..stateful_operator.logic import StatefulOperatorLogic
+
         op = self._op()
         op.check_event(_Event("PRESS"))
-        near = max(bpy.context.preferences.inputs.drag_threshold_mouse - 1, 0)
+        near = max(StatefulOperatorLogic.drag_threshold() - 1, 0)
         self.assertFalse(op.check_event(_Event("RELEASE", x=near)))
+
+    def test_click_wobble_is_not_a_drag(self):
+        """A shaky click (past Blender's small mouse threshold) stays a click."""
+        op = self._op()
+        wobble = bpy.context.preferences.inputs.drag_threshold_mouse + 2
+        self.assertTrue(op.check_event(_Event("PRESS")))
+        self.assertFalse(op.check_event(_Event("RELEASE", x=wobble)))
+        self.assertFalse(op._drag_mode)
 
     def test_release_without_press_is_ignored(self):
         op = self._op()

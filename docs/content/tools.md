@@ -103,6 +103,7 @@ The basic tool interaction is consistent between tools.
 |Tab|-|Jump to next tool state or property substate when in numerical edit|
 |0-9 / (-)|-|Activate numeric edit|
 |Enter / Lmb|-|Verify the operation|
+|Lmb (drag)|-|Draw by dragging: press, drag past the Drag Threshold (Preferences > Input), release|
 |Esc / Rmb|-|Cancel the operation|
 |Z|Ctrl|Cancel the operation (like Esc); press again to undo|
 
