@@ -151,16 +151,9 @@ class View3D_OT_slvs_add_rectangle(Operator, ReplaceableOutputOp, Operator2d):
                     continue
                 value[i] = orig[i] + val
 
-        construction = context.scene.sketcher.use_construction
-
-        ref = PointRef.create(self.sketch, value, construction=construction)
-        cid = ref.curve_id
-        state_data["curve_id"] = cid
-        ignore_hover(cid)
-
-        self.add_coincident(context, ref, state, state_data)
-        state_data["type"] = PointRef
-        return cid
+        # The shared creation path, so the corner keeps its id across a re-run
+        # (main applies construction to it, see above).
+        return self.create_element(context, [value], state, state_data)
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_rectangle,))

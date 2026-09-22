@@ -270,7 +270,28 @@ class TestEntityRepick(Sketch2dTestCase):
         self.assertEqual(
             sorted(c.constraint_uid for c in self.sketch.constraints.all), uids
         )
-        self.assertEqual(
-            sorted(t for t in again.output_ids.split() if t.startswith("k:")),
-            sorted(t for t in first.output_ids.split() if t.startswith("k:")),
+        self.assertEqual(again.output_ids, first.output_ids)
+
+    def test_repick_ignores_the_tools_own_output(self):
+        """The curves a re-pick is about to replace must not be pickable: the
+        operator would end up referencing geometry it removes."""
+        from ..drawing import selection
+        from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
+
+        h = OpHarness(View3D_OT_slvs_add_rectangle, self.sketch, self.context)
+        h.place_point((-1.0, -1.0)).place_point((3.0, 2.0))
+        first = self._commit(h)
+        own = [t[2:] for t in first.output_ids.split() if t.startswith("c:")]
+        self.assertEqual(len(own), 8)
+
+        again = self._fresh(
+            View3D_OT_slvs_add_rectangle, self._persisted(first), state_index=1
         )
+        selection.ignore_list.clear()
+        try:
+            again._prepare_pick_ui(self.context)
+            self.assertEqual(sorted(selection.ignore_list), sorted(own))
+            again._finish_pick_ui(self.context)
+            self.assertEqual(selection.ignore_list, [])
+        finally:
+            selection.ignore_list.clear()

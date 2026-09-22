@@ -541,6 +541,35 @@ class ReplaceableOutputOp:
         self._restore_names(names)
         return result
 
+    def _ignore_own_output(self) -> None:
+        """Make the curves this operator created unpickable.
+
+        A re-pick replaces them, so picking one would leave the operator
+        referencing geometry it is about to remove (a line ending on its own
+        endpoint, a rectangle cornered on itself).
+        """
+        from ..drawing import selection
+
+        for token in getattr(self, "output_ids", "").split():
+            if token[:2] == "c:" and token[2:] not in selection.ignore_list:
+                selection.ignore_list.append(token[2:])
+
+    def _prepare_pick_ui(self, context: Context) -> None:
+        super()._prepare_pick_ui(context)
+        self._ignore_own_output()
+
+    def _maintain_pick_ui(self, context: Context) -> None:
+        super()._maintain_pick_ui(context)
+        # The panel's implicit re-run of this operator clears the ignore list
+        # (see on_before_redo_states), so put our own output back on it.
+        self._ignore_own_output()
+
+    def _finish_pick_ui(self, context: Context) -> None:
+        from ..drawing import selection
+
+        super()._finish_pick_ui(context)
+        selection.ignore_list.clear()
+
     def _run_fini(self, context: Context, succeede: bool) -> None:
         from ..model.group_constraints import reusing_constraint_uids
 
