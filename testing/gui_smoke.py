@@ -90,6 +90,10 @@ def main():
     import importlib
 
     add_sketch = importlib.import_module(f"{TARGET}.operators.add_sketch")
+    curve_ref = importlib.import_module(f"{TARGET}.model.curve_ref")
+    curve_data = importlib.import_module(f"{TARGET}.utilities.curve_data")
+    solver = importlib.import_module(f"{TARGET}.curve_solver")
+    extrude_nodes = importlib.import_module(f"{TARGET}.utilities.extrude_nodes")
     part = importlib.import_module(f"{TARGET}.utilities.part")
     sketch_ref = importlib.import_module(f"{TARGET}.model.sketch_ref")
     workplane = importlib.import_module(f"{TARGET}.utilities.workplane")
@@ -141,6 +145,69 @@ def main():
             cutter = build_sketch_on_workplane(context, context.scene.sketcher.wp_xz)
             settle_membership(cutter.target_object, [globals()["sketch_obj"]])
             _redraw()
+
+        @_check("extrude settles membership end to end")
+        def _():
+            # The whole chain in one go: geometry, a real extrude through the
+            # operator, auto-boolean target detection against evaluated geometry,
+            # and the membership that follows from what it cut. Only reachable
+            # with a window: detection needs the solid evaluated.
+            def rectangle(sketch, half, offset=(0.0, 0.0)):
+                ox, oy = offset
+                corners = [
+                    (ox - half, oy - half),
+                    (ox + half, oy - half),
+                    (ox + half, oy + half),
+                    (ox - half, oy + half),
+                ]
+                points = [curve_ref.PointRef.create(sketch, c) for c in corners]
+                for i in range(4):
+                    curve_ref.LineRef.create(sketch, points[i], points[(i + 1) % 4])
+                solver.solve_system(context, sketch=sketch)
+                curve_data.refresh_curve_geometry(sketch)
+
+            base = build_sketch_on_workplane(context, context.scene.sketcher.wp_xy)
+            rectangle(base, 1.0)
+            body = base.target_object
+            context.view_layer.update()
+            # The tool builds its node group in init(), which only the modal
+            # invoke path runs; do it here so the operator can be executed
+            # straight through instead of waiting for mouse input.
+            extrude_nodes.build_extrude_node_group()
+            extrude_nodes.ensure_extrude_edge_walls(
+                bpy.data.node_groups.get(extrude_nodes.EXTRUDE_NODE_GROUP)
+            )
+            bpy.ops.view3d.slvs_node_extrude(target_name=body.name, offset=1.0)
+            _redraw()
+            assert part.is_part_root(body), "a standalone solid must root a part"
+
+            # A second solid cutting it must become a feature of the first part
+            # and hide itself. The target list is stubbed rather than detected:
+            # a sketch's solid does not evaluate to geometry in this harness, so
+            # the overlap test would find nothing. Everything after detection --
+            # the booleans, the membership, the display, the collections -- is the
+            # tool's real path.
+            cutter_sketch = build_sketch_on_workplane(
+                context, context.scene.sketcher.wp_xy
+            )
+            rectangle(cutter_sketch, 0.4)
+            cutter = cutter_sketch.target_object
+            context.view_layer.update()
+
+            boolean_targets = importlib.import_module(
+                f"{TARGET}.utilities.boolean_targets"
+            )
+            detect = boolean_targets.detect_targets
+            boolean_targets.detect_targets = lambda *a, **k: [body]
+            try:
+                bpy.ops.view3d.slvs_node_extrude(target_name=cutter.name, offset=2.0)
+            finally:
+                boolean_targets.detect_targets = detect
+            _redraw()
+            assert part.part_root_of(cutter) == body, (
+                f"cutter joined {part.part_root_of(cutter)}, expected {body.name}"
+            )
+            assert not cutter.visible_get(), "a cutter doing its job must be hidden"
 
         @_check("sketch activated and drawn")
         def _():

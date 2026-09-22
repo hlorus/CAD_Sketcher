@@ -567,7 +567,9 @@ class NodeOperator(Operator3d):
         self.modifier = ob.modifiers.new(mod_name, "NODES")
         nodegroup = bpy.data.node_groups.get(self.NODEGROUP_NAME)
         if not nodegroup:
-            self.report({"Error"}, f"Unable to load node group {self.NODEGROUP_NAME}")
+            # "ERROR", not "Error": an unknown report type raises a ValueError and
+            # buries the actual problem.
+            self.report({"ERROR"}, f"Unable to load node group {self.NODEGROUP_NAME}")
             return False
         self.modifier.node_group = nodegroup
         return True

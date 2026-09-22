@@ -10,6 +10,7 @@ nav:
     - getting_started.md
     - user_interface.md
     - tools.md
+    - parts.md
     - entities.md
     - constraints.md
     - solver.md
