@@ -17,7 +17,11 @@ modifier and drops the fill (the curve object is both source and consumable).
 Visibility is a display concern; evaluation must keep running.
 """
 
+import logging
+
 import bpy
+
+logger = logging.getLogger(__name__)
 
 ORIGIN_COLLECTION_NAME = "Origin"
 _ORIGIN_MARKER = "cad_origin_collection"
@@ -56,9 +60,31 @@ def _hierarchy_signature(scene):
     )
 
 
+def is_editable(datablock) -> bool:
+    """Whether this addon may restructure ``datablock``.
+
+    Linked data belongs to the file it came from, and Blender refuses to
+    (un)link objects of an overridden collection at all. A file that links parts
+    of itself from elsewhere would otherwise make the sync raise on every
+    depsgraph update.
+    """
+    return bool(
+        datablock is not None
+        and datablock.library is None
+        and datablock.override_library is None
+    )
+
+
 def _clear_object_collections(obj):
     for coll in list(obj.users_collection):
-        coll.objects.unlink(obj)
+        if not is_editable(coll):
+            continue
+        try:
+            coll.objects.unlink(obj)
+        except RuntimeError:
+            # Overrides and other protected collections refuse; leaving the
+            # object where it is beats aborting the pass.
+            logger.warning("Could not take '%s' out of '%s'", obj.name, coll.name)
 
 
 def link_to_scene_root(obj, scene):
@@ -119,8 +145,14 @@ def _link_into(obj, coll):
     """Put ``obj`` in ``coll`` and nowhere else. True if that changed anything."""
     if len(obj.users_collection) == 1 and obj.users_collection[0] == coll:
         return False
+    if not is_editable(obj) or not is_editable(coll):
+        return False
     _clear_object_collections(obj)
-    coll.objects.link(obj)
+    try:
+        coll.objects.link(obj)
+    except RuntimeError:
+        logger.warning("Could not put '%s' in '%s'", obj.name, coll.name)
+        return False
     return True
 
 
@@ -245,6 +277,8 @@ def sync_part_collections(scene) -> bool:
     claimed = set()
     owned = {}
     for obj in scene.objects:
+        if not is_editable(obj):
+            continue
         if is_assembly_root(obj):
             coll = assembly_collection(obj, scene, created, claimed)
             claimed.add(coll.name)
@@ -255,7 +289,7 @@ def sync_part_collections(scene) -> bool:
                     owned.setdefault(member.name, coll)
 
     for obj in scene.objects:
-        if not is_part_root(obj):
+        if not is_part_root(obj) or not is_editable(obj):
             continue
         coll = part_collection(obj, scene, created, claimed)
         claimed.add(coll.name)
@@ -267,6 +301,8 @@ def sync_part_collections(scene) -> bool:
             owned[member.name] = coll
 
     for obj in scene.objects:
+        if not is_editable(obj):
+            continue
         target = owned.get(obj.name)
         if target is not None:
             if _link_into(obj, target):
@@ -284,6 +320,8 @@ def sync_part_collections(scene) -> bool:
 
     for marker in (_PART_MARKER, _ASSEMBLY_MARKER):
         for coll in _marked_collections(scene.collection, marker):
+            if not is_editable(coll):
+                continue
             if not coll.objects and not coll.children:
                 bpy.data.collections.remove(coll)
                 changed = True

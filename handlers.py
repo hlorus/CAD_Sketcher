@@ -148,7 +148,13 @@ def on_depsgraph_update(scene, depsgraph):
         # assemblies they sit in). Derived, so it settles in one pass.
         from .utilities.collections import sync_part_collections
 
-        sync_part_collections(scene)
+        # A file can hold data this addon must not restructure (linked, or
+        # overridden). The passes skip it, but a handler that raises breaks every
+        # handler after it, so never let this one out.
+        try:
+            sync_part_collections(scene)
+        except Exception:
+            logger.exception("Could not sync part collections")
 
     if depsgraph.id_type_updated("SCENE"):
         global_data.needs_solve = True

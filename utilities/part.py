@@ -257,11 +257,13 @@ def _is_managed_member(obj: bpy.types.Object) -> bool:
     """Whether this addon placed ``obj``, and so may pin or free its transform.
 
     A mesh the user parented into a part is theirs to move; a sketch or one of our
-    workplane empties is a feature and stays put within its part.
+    workplane empties is a feature and stays put within its part. Linked and
+    overridden data belongs to the file it came from either way.
     """
     from ..model.sketch_ref import is_sketch_object
+    from .collections import is_editable
 
-    return bool(is_sketch_object(obj) or PART_PLANE_KEY in obj)
+    return bool(is_editable(obj) and (is_sketch_object(obj) or PART_PLANE_KEY in obj))
 
 
 def transform_owner(obj: bpy.types.Object) -> bpy.types.Object:
@@ -378,8 +380,14 @@ def settle_membership(
 
 
 def _members_of(root: bpy.types.Object) -> set:
-    """Names of everything in ``root``'s group, at any depth."""
-    return {child.name for child in root.children_recursive}
+    """Names of everything in ``root``'s group, at any depth.
+
+    Linked and overridden children are left out: they belong to the file they
+    came from, so nothing here may pin, move or re-home them.
+    """
+    from .collections import is_editable
+
+    return {child.name for child in root.children_recursive if is_editable(child)}
 
 
 def reconcile_parts(scene: bpy.types.Scene) -> bool:
@@ -401,8 +409,11 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
     Returns True if anything changed.
     """
     from ..model.sketch_ref import is_sketch_object
+    from .collections import is_editable
 
-    roots = {obj.name: obj for obj in scene.objects if is_part_root(obj)}
+    roots = {
+        obj.name: obj for obj in scene.objects if is_part_root(obj) and is_editable(obj)
+    }
     members = {name: _members_of(root) for name, root in roots.items()}
 
     changed = False
@@ -491,7 +502,13 @@ def reconcile_assemblies(scene: bpy.types.Scene) -> bool:
     Returns True if anything changed.
     """
     changed = False
-    assemblies = {obj.name: obj for obj in scene.objects if is_assembly_root(obj)}
+    from .collections import is_editable
+
+    assemblies = {
+        obj.name: obj
+        for obj in scene.objects
+        if is_assembly_root(obj) and is_editable(obj)
+    }
     members = {name: _members_of(root) for name, root in assemblies.items()}
 
     for assembly_name, previous in _last_assembly_members.items():
@@ -655,6 +672,11 @@ def update_cutter_display(cutter: bpy.types.Object, bodies, cuts: bool) -> None:
     which would otherwise look like a finished body. A solid with no boolean at
     all is just a body, so it shows as one.
     """
+    from .collections import is_editable
+
+    if not is_editable(cutter):
+        return  # not ours to hide: it belongs to the file it came from
+
     if cuts and bodies and part_root_of(cutter) is not None:
         cutter.display_type = "TEXTURED"
         cutter.hide_viewport = True
@@ -742,10 +764,13 @@ def migrate_parts(scene: bpy.types.Scene) -> bool:
     """
     from ..model.sketch_ref import get_sketches
     from .boolean_targets import sketch_source_body
+    from .collections import is_editable
 
     changed = False
     for sketch in get_sketches(scene):
         obj = sketch.target_object
+        if not is_editable(obj):
+            continue  # a linked sketch is the owning file's to update
         owner = transform_owner(obj)
         if part_root_of(owner) is not None:
             continue
