@@ -74,6 +74,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
     # A continuous-draw chain committed at least one segment, so ending the
     # chain still counts as a finished operator (see _end).
     _chain_committed = False
+    # That segment's properties, so the redo panel adjusts it and not the
+    # segment the chain was in the middle of when it ended.
+    _committed_props = None
 
     # -------------------------------------------------------------------------
     # Snapshot / undo hooks (override in subclasses)
@@ -1022,6 +1025,30 @@ class StatefulOperatorLogic(_StateMachineMixin):
             return [index]
         return None
 
+    def _capture_props(self) -> dict:
+        """The operator's own properties as they stand, to restore later."""
+        values = {}
+        names = getattr(self, "_declared_prop_names", None)
+        for name in names() if names else ():
+            if name.startswith("_") or name in ("edit_state", "edit_clear"):
+                continue
+            try:
+                value = getattr(self, name)
+            except (AttributeError, TypeError):
+                continue
+            if hasattr(value, "__len__") and not isinstance(value, str):
+                value = tuple(value)
+            values[name] = value
+        return values
+
+    def _apply_props(self, values: dict) -> None:
+        """Put back what ``_capture_props`` took."""
+        for name, value in (values or {}).items():
+            try:
+                setattr(self, name, value)
+            except (AttributeError, TypeError):
+                pass
+
     def _store_pointers(self):
         """Write each resolved pointer state's identity to its hidden props."""
         for i, state in enumerate(self.get_states()):
@@ -1144,11 +1171,16 @@ class StatefulOperatorLogic(_StateMachineMixin):
         self._state_snapshot = None
         if succeede:
             return {"FINISHED"}
+        if not self._chain_committed:
+            return {"CANCELLED"}
         # Ending a continuous chain cancels only the segment in progress: what
         # the chain already committed stands, so report FINISHED. Blender
         # registers finished operators only, and without it the segments just
-        # drawn would have no "Adjust Last Operation" panel at all.
-        return {"FINISHED"} if self._chain_committed else {"CANCELLED"}
+        # drawn would have no "Adjust Last Operation" panel at all. The panel
+        # adjusts the last committed segment, so the props describe that one
+        # again rather than the segment just abandoned.
+        self._apply_props(self._committed_props)
+        return {"FINISHED"}
 
     # -------------------------------------------------------------------------
     # Continuous draw
@@ -1189,8 +1221,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """
         self._end(context, True, keep_stateful_running=True)
         bpy.ops.ed.undo_push(message=self.bl_label)
-        # What this run committed survives the chain being cancelled (see _end).
+        # What this run committed survives the chain being cancelled (see _end),
+        # and the redo panel has to adjust that segment, not the aborted one the
+        # props describe by the time the chain ends.
         self._chain_committed = True
+        self._committed_props = self._capture_props()
 
         # Save the endpoint before _reset_op wipes state
         last_index, values, last_type = self._take_last_state_pointer()
