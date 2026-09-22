@@ -730,3 +730,49 @@ def migrate_parts(scene: bpy.types.Scene) -> bool:
             changed = True
 
     return changed
+
+
+def is_part_instance(obj: Optional[bpy.types.Object]) -> bool:
+    """Whether ``obj`` places a copy of a part instead of being part geometry.
+
+    Derived, not stamped: an Empty whose instance collection is a part collection
+    *is* a placement of that part.
+    """
+    from .collections import is_part_collection
+
+    return bool(
+        obj is not None
+        and obj.type == "EMPTY"
+        and obj.instance_type == "COLLECTION"
+        and is_part_collection(obj.instance_collection)
+    )
+
+
+def instance_part(context, root: bpy.types.Object) -> bpy.types.Object:
+    """Place a linked copy of ``root``'s part at the 3D cursor.
+
+    The copy is a collection instance: one source, any number of placements, so
+    editing the part updates every one of them. It joins the source's assembly if
+    it has one, since a second copy of a part belongs wherever the first does.
+
+    The placements are not editable where they stand (Blender renders instanced
+    geometry, it does not duplicate the objects), so edits go to the part itself.
+    """
+    from .collections import link_to_scene_root, part_collection
+
+    coll = part_collection(root, context.scene)
+    # Without this the contents would be drawn at their own world position *plus*
+    # the placement, putting the copy at twice the offset.
+    coll.instance_offset = world_matrix_of(root).translation
+
+    instance = bpy.data.objects.new(f"{root.name} instance", None)
+    instance.instance_type = "COLLECTION"
+    instance.instance_collection = coll
+    instance.empty_display_size = 0.25
+    link_to_scene_root(instance, context.scene)
+    instance.matrix_basis = Matrix.Translation(context.scene.cursor.location)
+
+    assembly = assembly_root_of(root)
+    if assembly is not None:
+        join_assembly(assembly, instance)
+    return instance

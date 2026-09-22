@@ -231,3 +231,10 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                 text="Add Assembly",
                 icon="OUTLINER_OB_GROUP_INSTANCE",
             )
+            row = layout.row()
+            row.enabled = _has_selected_part(context)
+            row.operator(
+                declarations.Operators.InstancePart.value,
+                text="Instance Part",
+                icon="DUPLICATE",
+            )

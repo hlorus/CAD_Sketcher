@@ -89,6 +89,17 @@ Select the parts you want to group and use **Add Assembly** in the Sketcher
 panel. Parts stay individually movable inside an assembly, and assemblies can
 contain assemblies.
 
+## Reusing a part
+
+Select a part and use **Instance Part** to place another copy of it at the 3D
+cursor. There is still only one part: each placement renders it, so editing the
+part updates every copy at once, and a copy costs almost nothing.
+
+Placements are not edited where they stand, because they hold no geometry of
+their own: to change anything, edit the part itself. A placement joins whatever
+assembly the part is in, and it is not a part itself, so it never collects
+sketches of its own.
+
 ## Cutter display
 
 A cutter tells you what it is doing:
