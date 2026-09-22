@@ -811,3 +811,74 @@ def instance_part(context, root: bpy.types.Object) -> bpy.types.Object:
     if assembly is not None:
         join_assembly(assembly, instance)
     return instance
+
+
+def duplicate_part(context, root: bpy.types.Object) -> bpy.types.Object:
+    """Copy a whole part: its body, its workplanes, the sketches on them.
+
+    A part is a unit, so duplicating one has to take the lot. Blender's own
+    duplicate copies just what is selected, which on a body leaves the copy
+    without the cutters that shape it: a part that looks finished and is not.
+
+    Every object gets its own data, so the copy is independent of the original;
+    use :func:`instance_part` for another copy of the *same* part. References
+    between the copied objects (a boolean's cutter, a sketch's workplane) are
+    rewritten to point inside the copy.
+    """
+    from .collections import link_to_scene_root, sync_part_collections
+
+    originals = [root, *root.children_recursive]
+    copies = {}
+    for obj in originals:
+        copy = obj.copy()
+        if obj.data is not None:
+            copy.data = obj.data.copy()
+        link_to_scene_root(copy, context.scene)
+        copies[obj.name] = copy
+
+    for obj in originals:
+        copy = copies[obj.name]
+        if obj.parent is not None and obj.parent.name in copies:
+            copy.parent = copies[obj.parent.name]
+            copy.matrix_parent_inverse = obj.matrix_parent_inverse.copy()
+        _redirect_references(copy, copies)
+
+    new_root = copies[root.name]
+    new_root.parent = None
+    mark_part_root(new_root)
+    sync_part_collections(context.scene)
+    return new_root
+
+
+def _redirect_references(copy: bpy.types.Object, copies: dict) -> None:
+    """Point a copied object's references at the copies, not the originals.
+
+    Otherwise the new part's body would still be cut by the *old* part's cutter,
+    and its sketches would still sit on the old workplanes.
+    """
+    from ..operators.modifiers import (
+        boolean_input_ids,
+        get_modifier_input,
+        set_modifier_input,
+    )
+    from .boolean_nodes import BOOLEAN_NODE_GROUP
+    from .face_anchor import KEY_SOURCE
+
+    plane = copy.slvs_workplane
+    if plane is not None and plane.name in copies:
+        copy.slvs_workplane = copies[plane.name]
+
+    source = copy.get(KEY_SOURCE)
+    if isinstance(source, bpy.types.Object) and source.name in copies:
+        copy[KEY_SOURCE] = copies[source.name]
+
+    for modifier in copy.modifiers:
+        group = getattr(modifier, "node_group", None)
+        if modifier.type != "NODES" or group is None:
+            continue
+        if group.name != BOOLEAN_NODE_GROUP:
+            continue
+        cutter_id = boolean_input_ids(group)["Cutter"]
+        cutter = get_modifier_input(modifier, cutter_id)
+        if cutter is not None and cutter.name in copies:
+            set_modifier_input(modifier, cutter_id, copies[cutter.name])

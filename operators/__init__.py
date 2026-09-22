@@ -16,6 +16,7 @@ modules = [
     "add_assembly",
     "add_part_instance",
     "make_part",
+    "duplicate_part",
     "workplane_anchor",
     "add_point_2d",
     "add_point_3d",

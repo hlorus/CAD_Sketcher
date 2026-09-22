@@ -146,7 +146,10 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         )
         row = col.row(align=True)
         row.enabled = has_part
-        row.operator(declarations.Operators.InstancePart, icon="DUPLICATE")
+        row.operator(declarations.Operators.DuplicatePart, icon="DUPLICATE")
+        row = col.row(align=True)
+        row.enabled = has_part
+        row.operator(declarations.Operators.InstancePart, icon="LINKED")
 
     def draw(self, context: Context):
         # Mirror the workspace toolbar: sketch tools while a sketch is active,

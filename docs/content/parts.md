@@ -98,10 +98,14 @@ Select the parts you want to group and use **Add Assembly** in the Tools panel
 assembly at the 3D cursor, to be filled by dragging parts into it. Parts stay individually movable inside an assembly, and assemblies can
 contain assemblies.
 
-## Reusing a part
+## Copying and reusing a part
 
-Select a part and use **Instance Part** in the Tools panel to place another copy of it at the 3D
-cursor. There is still only one part: each placement renders it, so editing the
+**Duplicate Part** makes an independent copy of the whole part, with the
+workplanes, sketches and cutters that shape it. Blender's own duplicate copies
+only what you selected, so a body duplicated on its own arrives without its
+cutters.
+
+**Instance Part** places another copy of the same part at the 3D cursor. There is still only one part: each placement renders it, so editing the
 part updates every copy at once, and a copy costs almost nothing.
 
 Placements are not edited where they stand, because they hold no geometry of
