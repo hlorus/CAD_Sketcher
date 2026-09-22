@@ -615,8 +615,9 @@ class TestPartRoot(BgsTestCase):
         self.assertIn(f"{body.name} XY", focused)
         self.assertNotIn(self.context.scene.sketcher.wp_xy.name, focused)
 
-    def test_a_plane_is_labelled_with_its_axis_only(self):
-        # The label is sized to the plane, so a part name would overflow it.
+    def test_a_part_plane_is_told_apart_from_the_scenes(self):
+        # They replace each other on screen, so the axis alone would not say
+        # which frame you are about to sketch in.
         from ..utilities.part import ensure_part_planes
         from ..utilities.workplane import (
             WP_ID_PART_XY,
@@ -630,7 +631,7 @@ class TestPartRoot(BgsTestCase):
 
         self.assertEqual(workplane_label(plane, WP_ID_PART_XY), "XY")
         self.assertEqual(
-            workplane_label(self.context.scene.sketcher.wp_xy, WP_ID_XY), "XY"
+            workplane_label(self.context.scene.sketcher.wp_xy, WP_ID_XY), "Origin XY"
         )
 
     def test_part_planes_are_still_smaller_than_the_world_ones(self):

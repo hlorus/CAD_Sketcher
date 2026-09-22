@@ -45,10 +45,12 @@ ORIGIN_AXIS_COLOR = {
     WP_ID_PART_YZ: _AXIS_X,
 }
 
+# The scene's datums say so, since a part's planes replace them on screen and the
+# axis alone would not tell you which frame you are about to sketch in.
 ORIGIN_LABEL = {
-    WP_ID_XY: "XY",
-    WP_ID_XZ: "XZ",
-    WP_ID_YZ: "YZ",
+    WP_ID_XY: "Origin XY",
+    WP_ID_XZ: "Origin XZ",
+    WP_ID_YZ: "Origin YZ",
     WP_ID_PART_XY: "XY",
     WP_ID_PART_XZ: "XZ",
     WP_ID_PART_YZ: "YZ",
@@ -58,9 +60,9 @@ ORIGIN_LABEL = {
 def workplane_label(wp_obj, pick_id) -> str:
     """The text drawn on a base plane, or "" for a plane that carries none.
 
-    Just the axis: the label is sized to the plane it sits on, so anything longer
-    overflows it. A part's planes are told apart by where they are and how big
-    they are drawn, and only one set is ever shown at a time.
+    A part's planes carry the bare axis; the scene's say "Origin", since the two
+    sets replace each other on screen. The drawing fits the label to the plane,
+    so the longer one simply renders smaller.
     """
     return ORIGIN_LABEL.get(pick_id, "")
 
