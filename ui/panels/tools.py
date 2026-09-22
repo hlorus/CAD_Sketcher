@@ -123,6 +123,7 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         col.operator(declarations.Operators.NodeArrayLinear)
         col.operator(declarations.Operators.NodeBoolean)
         col.operator(declarations.Operators.AddFillet, icon="MOD_BEVEL")
+        col.operator(declarations.Operators.FilletSelect, icon="EDGESEL")
 
         # Grouping and reusing parts acts on whole objects, so it belongs with the
         # other object-level tools rather than inside a sketch.

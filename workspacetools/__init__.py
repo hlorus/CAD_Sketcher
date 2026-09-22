@@ -12,6 +12,7 @@ from .add_sketch import VIEW3D_T_slvs_add_sketch
 from .array_linear import VIEW3D_T_slvs_node_array_linear
 from .bevel import VIEW3D_T_slvs_bevel
 from .extrude import VIEW3D_T_slvs_node_extrude
+from .fillet import VIEW3D_T_slvs_fillet
 from .manager import ToolGroup, add
 from .offset import VIEW3D_T_slvs_offset
 from .project_geometry import VIEW3D_T_slvs_project_geometry
@@ -115,6 +116,7 @@ add(
     separator=False,
     group=False,
 )
+add(VIEW3D_T_slvs_fillet, visibility=ToolGroup.NON_SKETCH, separator=True, group=False)
 
 
 def register():

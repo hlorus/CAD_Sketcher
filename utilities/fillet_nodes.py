@@ -21,7 +21,15 @@ or an angle threshold) is the intended way to fillet specific elements.
 import bpy
 
 FILLET_NODE_GROUP = "CAD Sketcher Fillet"
-FILLET_VERSION = 5  # drive Mesh Bevel per-side offsets so Amount controls width
+FILLET_VERSION = 6  # fillet only the picked elements
+
+# Picked elements live on the node group (modifiers take no custom properties):
+# the indices and the domain they index.
+PICKS_KEY = "cad_fillet_picks"
+DOMAIN_KEY = "cad_fillet_domain"
+# Which group a picked set belongs to, so a group is never shared by two
+# modifiers with different picks.
+OWNER_KEY = "cad_fillet_owner"
 
 # ``Affect`` values. An int, not a menu socket: menu sockets don't evaluate
 # reliably as modifier inputs on Blender 5.0/5.1 (see boolean_nodes).
@@ -127,16 +135,87 @@ def _bevel(nodes, links, geometry, selection, amount, segments, affect_kind):
     return node.outputs["Mesh"]
 
 
-def build_fillet_node_group(name: str = FILLET_NODE_GROUP):
-    """Build the generic fillet group (idempotent, version-gated)."""
+def _value_sockets(node_group):
+    return [
+        item
+        for item in node_group.interface.items_tree
+        if getattr(item, "item_type", "") == "SOCKET"
+        and getattr(item, "in_out", "") == "INPUT"
+        and item.socket_type != "NodeSocketGeometry"
+    ]
+
+
+def _snapshot_modifier_inputs(node_group):
+    """Input values of every modifier using ``node_group``, keyed by socket name.
+
+    A rebuild re-mints the socket identifiers modifier inputs are keyed by, so
+    without this the picks would reset Amount/Segments to 0 (see the node-group
+    rebuild note in CONTRIBUTING).
+    """
+    from ..operators.modifiers import get_modifier_input
+
+    saved = []
+    for obj in bpy.data.objects:
+        for mod in obj.modifiers:
+            if getattr(mod, "type", None) != "NODES" or mod.node_group != node_group:
+                continue
+            values = {}
+            for item in _value_sockets(node_group):
+                try:
+                    values[item.name] = get_modifier_input(mod, item.identifier)
+                except Exception:
+                    pass
+            saved.append((mod, values))
+    return saved
+
+
+def _restore_modifier_inputs(node_group, saved) -> None:
+    """Re-apply values from :func:`_snapshot_modifier_inputs` by socket name."""
+    from ..operators.modifiers import set_modifier_input
+
+    for mod, values in saved:
+        for item in _value_sockets(node_group):
+            value = values.get(item.name, item.default_value)
+            try:
+                set_modifier_input(mod, item.identifier, value)
+            except Exception:
+                pass
+
+
+def _picked_selection(nodes, links, picks, base_selection):
+    """Boolean: the element is one of ``picks`` (and passes ``base_selection``).
+
+    The picks are element indices, so this is an OR of index comparisons -- the
+    tool writes what the user clicked, no rule to author.
+    """
+    index = nodes.new("GeometryNodeInputIndex")
+    matched = None
+    for pick in picks:
+        eq = _compare(nodes, links, "INT", "EQUAL", index.outputs["Index"], int(pick))
+        matched = eq if matched is None else _bool(nodes, links, "OR", matched, eq)
+    return _bool(nodes, links, "AND", base_selection, matched)
+
+
+def build_fillet_node_group(name: str = FILLET_NODE_GROUP, picks=()):
+    """Build the generic fillet group (idempotent, version-gated).
+
+    ``picks`` are element indices to fillet; empty fillets everything the
+    ``Selection`` input allows.
+    """
     ng = bpy.data.node_groups.get(name)
     if ng is None:
         ng = bpy.data.node_groups.new(name, "GeometryNodeTree")
 
     ng.is_modifier = True
 
-    if ng.get("cad_fillet_version") == FILLET_VERSION:
+    picks = [int(p) for p in picks]
+    if (
+        ng.get("cad_fillet_version") == FILLET_VERSION
+        and list(ng.get(PICKS_KEY, [])) == picks
+    ):
         return ng
+
+    saved = _snapshot_modifier_inputs(ng)
     ng.nodes.clear()
     ng.links.clear()
     ng.interface.clear()
@@ -178,6 +257,9 @@ def build_fillet_node_group(name: str = FILLET_NODE_GROUP):
     amt = gi.outputs["Amount"]
     seg = gi.outputs["Segments"]
 
+    if picks:
+        sel = _picked_selection(nodes, links, picks, sel)
+
     # Two branches; the Switch below evaluates only the one it selects.
     verts = _bevel(nodes, links, geo, sel, amt, seg, "Vertices")
     edges = _bevel(nodes, links, geo, sel, amt, seg, "Edges")
@@ -206,7 +288,65 @@ def build_fillet_node_group(name: str = FILLET_NODE_GROUP):
     links.new(switch.outputs["Output"], go.inputs["Geometry"])
 
     ng["cad_fillet_version"] = FILLET_VERSION
+    ng[PICKS_KEY] = picks
+    _restore_modifier_inputs(ng, saved)
     return ng
+
+
+def get_picks(modifier) -> list:
+    """Element indices the modifier fillets (empty = all)."""
+    group = modifier.node_group
+    return [int(i) for i in group.get(PICKS_KEY, [])] if group else []
+
+
+def get_domain(modifier) -> str:
+    """Domain the picks index: ``EDGE`` or ``POINT``."""
+    group = modifier.node_group
+    return group.get(DOMAIN_KEY, "EDGE") if group else "EDGE"
+
+
+def set_picks(modifier, picks, domain: str = "EDGE"):
+    """Store the picked elements and rebuild the modifier's group around them.
+
+    Each modifier with picks gets its own group: the picks live in the node tree
+    (as index comparisons), so a shared group would apply one object's picks to
+    another's.
+    """
+    picks = sorted({int(p) for p in picks})
+    owner = f"{modifier.id_data.name}/{modifier.name}" if modifier.id_data else ""
+
+    if not picks:
+        # Nothing picked: back to the shared group, which fillets everything.
+        modifier.node_group = build_fillet_node_group()
+        return modifier.node_group
+
+    group = modifier.node_group
+    if group is None or group.get(OWNER_KEY) != owner:
+        group = build_fillet_node_group().copy()
+        group.name = f"{FILLET_NODE_GROUP} {owner}"
+        group[OWNER_KEY] = owner
+        # A copy carries the shared group's version; force the rebuild below.
+        group["cad_fillet_version"] = -1
+
+    group = build_fillet_node_group(group.name, picks)
+    group[DOMAIN_KEY] = domain
+    group[OWNER_KEY] = owner
+    modifier.node_group = group
+    set_affect_for_domain(modifier, domain)
+    return group
+
+
+def set_affect_for_domain(modifier, domain: str):
+    """Point ``Affect`` at the domain the picks index."""
+    from ..operators.modifiers import set_modifier_input
+
+    group = modifier.node_group
+    if group is None:
+        return
+    affect = AFFECT_VERTICES if domain == "POINT" else AFFECT_EDGES
+    ids = fillet_input_ids(group)
+    if "Affect" in ids:
+        set_modifier_input(modifier, ids["Affect"], affect)
 
 
 def fillet_input_ids(node_group) -> dict:

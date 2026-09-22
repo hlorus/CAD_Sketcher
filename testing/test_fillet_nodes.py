@@ -223,3 +223,177 @@ class TestFilletOnSketch(TestCase):
 
         self.assertLess(rounded, sharp, "fillet did not round the sketch output")
         self.assertGreater(rounded, 0.0)
+
+
+class TestFilletPicks(TestCase):
+    """Picked elements: the tool stores what was clicked, no rule to author."""
+
+    def _cube(self):
+        bpy.ops.mesh.primitive_cube_add(size=2)
+        return bpy.context.active_object
+
+    def _fillet(self, ob):
+        from ..operators.fillet import add_fillet_modifier
+
+        return add_fillet_modifier(ob, 0.2)
+
+    def _eval(self, ob):
+        dg = bpy.context.evaluated_depsgraph_get()
+        ev = ob.evaluated_get(dg)
+        me = ev.to_mesh()
+        counts = (len(me.vertices), len(me.polygons))
+        ev.to_mesh_clear()
+        return counts
+
+    def test_picks_are_stored_on_the_modifier(self):
+        from ..utilities.fillet_nodes import get_domain, get_picks, set_picks
+
+        ob = self._cube()
+        try:
+            mod = self._fillet(ob)
+            set_picks(mod, [3, 1, 1], "EDGE")
+            self.assertEqual(get_picks(mod), [1, 3])
+            self.assertEqual(get_domain(mod), "EDGE")
+        finally:
+            bpy.data.objects.remove(ob, do_unlink=True)
+
+    def test_picking_fillets_fewer_edges_than_all(self):
+        from ..utilities.fillet_nodes import set_picks
+
+        ob = self._cube()
+        try:
+            mod = self._fillet(ob)
+            set_picks(mod, range(12), "EDGE")  # every edge
+            all_verts, _ = self._eval(ob)
+            set_picks(mod, [0, 1], "EDGE")
+            some_verts, _ = self._eval(ob)
+            plain = 8
+            self.assertGreater(some_verts, plain, "picked edges should be rounded")
+            self.assertLess(some_verts, all_verts, "only the picks should round")
+        finally:
+            bpy.data.objects.remove(ob, do_unlink=True)
+
+    def test_picks_get_their_own_group(self):
+        """Two objects with different picks must not share one node group."""
+        from ..utilities.fillet_nodes import FILLET_NODE_GROUP, set_picks
+
+        first, second = self._cube(), self._cube()
+        try:
+            mod1, mod2 = self._fillet(first), self._fillet(second)
+            self.assertIs(mod1.node_group, mod2.node_group)  # shared while unpicked
+            set_picks(mod1, [0], "EDGE")
+            set_picks(mod2, [5], "EDGE")
+            self.assertIsNot(mod1.node_group, mod2.node_group)
+            self.assertNotEqual(mod1.node_group.name, FILLET_NODE_GROUP)
+        finally:
+            for ob in (first, second):
+                bpy.data.objects.remove(ob, do_unlink=True)
+
+    def test_clearing_picks_returns_to_the_shared_group(self):
+        from ..utilities.fillet_nodes import FILLET_NODE_GROUP, set_picks
+
+        ob = self._cube()
+        try:
+            mod = self._fillet(ob)
+            set_picks(mod, [2], "EDGE")
+            set_picks(mod, [], "EDGE")
+            self.assertEqual(mod.node_group.name, FILLET_NODE_GROUP)
+        finally:
+            bpy.data.objects.remove(ob, do_unlink=True)
+
+    def test_corner_picks_use_the_vertex_domain(self):
+        from ..operators.modifiers import get_modifier_input
+        from ..utilities.fillet_nodes import (
+            AFFECT_VERTICES,
+            fillet_input_ids,
+            set_picks,
+        )
+
+        ob = self._cube()
+        try:
+            mod = self._fillet(ob)
+            set_picks(mod, [0], "POINT")
+            ids = fillet_input_ids(mod.node_group)
+            self.assertEqual(get_modifier_input(mod, ids["Affect"]), AFFECT_VERTICES)
+        finally:
+            bpy.data.objects.remove(ob, do_unlink=True)
+
+
+class TestGeneratedMesh(TestCase):
+    """Reading the mesh a node stack builds on a Curves object (a sketch output)."""
+
+    def test_generated_mesh_of_a_curves_object(self):
+        from ..utilities.mesh_pick import element_points, generated_mesh
+
+        curves = bpy.data.hair_curves.new("probe")
+        curves.add_curves([4])
+        for point, co in zip(
+            curves.points, ((0, 0, 0), (2, 0, 0), (2, 1, 0), (0, 1, 0))
+        ):
+            point.position = co
+        ob = bpy.data.objects.new("probe", curves)
+        bpy.context.scene.collection.objects.link(ob)
+
+        group = bpy.data.node_groups.new("probe_fill", "GeometryNodeTree")
+        iface = group.interface
+        iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+        iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+        gi = group.nodes.new("NodeGroupInput")
+        go = group.nodes.new("NodeGroupOutput")
+        fill = group.nodes.new("GeometryNodeFillCurve")
+        group.links.new(gi.outputs["Geometry"], fill.inputs["Curve"])
+        group.links.new(fill.outputs["Mesh"], go.inputs["Geometry"])
+        mod = ob.modifiers.new("nodes", "NODES")
+        mod.node_group = group
+
+        try:
+            # to_mesh() can't read it; the depsgraph instance can.
+            dg = bpy.context.evaluated_depsgraph_get()
+            with self.assertRaises(RuntimeError):
+                ob.evaluated_get(dg).to_mesh()
+            mesh, matrix = generated_mesh(dg, ob)
+            self.assertIsNotNone(mesh)
+            self.assertGreater(len(mesh.edges), 0)
+            points = element_points(mesh, 0, "EDGE", matrix)
+            self.assertEqual(len(points), 2)
+        finally:
+            bpy.data.objects.remove(ob, do_unlink=True)
+            bpy.data.node_groups.remove(group)
+
+
+class TestFilletTool(TestCase):
+    """The Fillet workspace tool: pick elements, no rule to author."""
+
+    def test_tool_is_registered_with_the_object_tools(self):
+        from ..declarations import Operators, WorkSpaceTools
+        from ..workspacetools.manager import ToolGroup, _registry
+
+        entries = {cls.bl_idname: group for cls, _kwargs, group in _registry}
+        self.assertEqual(entries.get(WorkSpaceTools.Fillet), ToolGroup.NON_SKETCH)
+        self.assertTrue(hasattr(bpy.types, "VIEW3D_OT_slvs_fillet_select"))
+        self.assertEqual(Operators.FilletSelect, "view3d.slvs_fillet_select")
+
+    def test_tool_has_a_shortcut(self):
+        from .. import keymaps
+        from ..declarations import WorkSpaceTools
+
+        keys = {row[0]: row[2:] for row in keymaps.NODE_TOOL_KEYS}
+        self.assertEqual(keys.get(WorkSpaceTools.Fillet), ("F", "F"))
+
+    def test_fillet_modifier_is_found_by_its_group(self):
+        from ..operators.fillet import add_fillet_modifier, fillet_modifier
+
+        bpy.ops.mesh.primitive_cube_add(size=2)
+        ob = bpy.context.active_object
+        try:
+            self.assertIsNone(fillet_modifier(ob))
+            modifier = add_fillet_modifier(ob)
+            found = fillet_modifier(ob)
+            self.assertIsNotNone(found)
+            self.assertEqual(found.name, modifier.name)
+        finally:
+            bpy.data.objects.remove(ob, do_unlink=True)
+
+
+if __name__ == "__main__":
+    unittest.main()
