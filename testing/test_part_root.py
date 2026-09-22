@@ -360,3 +360,27 @@ class TestPartRoot(BgsTestCase):
         wp = as_workplane_object(self.context, part_planes(self.context)[0])
         sketch = build_sketch_on_workplane(self.context, wp)
         self.assertEqual(part_root_of(sketch.target_object), body)
+
+    def test_every_drawable_plane_has_a_colour_and_label(self):
+        # The draw handler indexes both maps by pick id, so a plane that is
+        # offered without an entry raises mid-draw (KeyError on the axis colour).
+        from ..utilities.workplane import (
+            ORIGIN_AXIS_COLOR,
+            ORIGIN_LABEL,
+            iter_wp_empties,
+            wp_plane_bounds,
+        )
+
+        body = self._cube("host")
+        mark_part_root(body)
+        bpy.ops.object.select_all(action="DESELECT")
+        body.select_set(True)
+        self.context.view_layer.objects.active = body
+
+        ids = [pick_id for _plane, pick_id in iter_wp_empties(self.context)]
+        self.assertTrue(any(pick_id in ORIGIN_LABEL for pick_id in ids))
+        for pick_id in ids:
+            if pick_id in ORIGIN_LABEL:
+                self.assertIn(pick_id, ORIGIN_AXIS_COLOR)
+            # Bounds are looked up per drawn plane too.
+            self.assertEqual(len(wp_plane_bounds(self.context, pick_id)), 4)

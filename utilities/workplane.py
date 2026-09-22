@@ -18,17 +18,23 @@ WP_ID_YZ = 0xF00003
 _AXIS_X = (0.80, 0.24, 0.24)
 _AXIS_Y = (0.34, 0.67, 0.20)
 _AXIS_Z = (0.22, 0.40, 0.80)
-ORIGIN_AXIS_COLOR = {
-    WP_ID_XY: _AXIS_Z,
-    WP_ID_XZ: _AXIS_Y,
-    WP_ID_YZ: _AXIS_X,
-}
 # Pick ids for the base planes of the part in focus (see utilities.part).
 WP_ID_PART_XY = 0xF00011
 WP_ID_PART_XZ = 0xF00012
 WP_ID_PART_YZ = 0xF00013
 
 _PART_PLANE_IDS = (WP_ID_PART_XY, WP_ID_PART_XZ, WP_ID_PART_YZ)
+
+# A part's base planes read as the same axes as the world's, so they are tinted
+# the same way: the part's frame is what tells them apart, not the colour.
+ORIGIN_AXIS_COLOR = {
+    WP_ID_XY: _AXIS_Z,
+    WP_ID_XZ: _AXIS_Y,
+    WP_ID_YZ: _AXIS_X,
+    WP_ID_PART_XY: _AXIS_Z,
+    WP_ID_PART_XZ: _AXIS_Y,
+    WP_ID_PART_YZ: _AXIS_X,
+}
 
 ORIGIN_LABEL = {
     WP_ID_XY: "XY",
