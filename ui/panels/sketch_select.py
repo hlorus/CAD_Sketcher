@@ -103,44 +103,30 @@ def _draw_workplane(context: Context, layout: UILayout, sketch):
 
 
 def _draw_migration_prompt(context: Context, layout: UILayout):
-    """Offer migration when the file holds legacy (entity-based) sketches.
+    """Offer migration when the file needs anything bringing up to date.
 
-    Such sketches don't render under the native-curve model, so without this
-    prompt an old file would look empty. The check runs only while this panel is
-    drawn -- never as a file-load handler for every user."""
+    Legacy (entity-based) sketches don't render under the native-curve model, so
+    without this prompt an old file would look empty; sketches that predate parts
+    do render, but cannot be moved as parts until they are adopted. One button
+    does whichever applies. The checks run only while this panel is drawn, never
+    as a file-load handler for every user."""
     from ...utilities.migrate import scene_needs_migration
+    from ...utilities.part import needs_part_migration
 
-    if not scene_needs_migration(context):
+    legacy = scene_needs_migration(context)
+    if not legacy and not needs_part_migration(context.scene):
         return
 
     box = layout.box()
-    box.alert = True
-    box.label(text="Legacy sketches detected", icon="ERROR")
+    box.alert = legacy
+    if legacy:
+        box.label(text="Legacy sketches detected", icon="ERROR")
+    else:
+        box.label(text="Sketches not in parts", icon="INFO")
     box.label(text="Saved by an older CAD Sketcher version.")
     box.operator(
         declarations.Operators.MigrateLegacy,
-        text="Migrate to curves",
-        icon="FILE_REFRESH",
-    )
-
-
-def _draw_part_migration_prompt(context: Context, layout: UILayout):
-    """Offer part adoption when the file predates parts.
-
-    Unlike legacy sketches these still draw and solve fine; they just cannot be
-    moved as parts yet, so this is an invitation rather than a warning. Checked
-    only while the panel is drawn, never on file load."""
-    from ...utilities.part import needs_part_migration
-
-    if not needs_part_migration(context.scene):
-        return
-
-    box = layout.box()
-    box.label(text="Sketches not in parts", icon="INFO")
-    box.label(text="Adopt them to move them as parts.")
-    box.operator(
-        declarations.Operators.MigrateParts,
-        text="Adopt into parts",
+        text="Migrate file",
         icon="FILE_REFRESH",
     )
 
@@ -190,7 +176,6 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
         layout = self.layout
 
         _draw_migration_prompt(context, layout)
-        _draw_part_migration_prompt(context, layout)
         sketch_selector(context, layout)
         sketch = get_active_sketch(context)
         layout.use_property_split = True

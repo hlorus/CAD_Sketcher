@@ -120,7 +120,7 @@ class TestPartMigration(Sketch2dTestCase):
         # The plane it used to hang from must not hold the geometry back.
         self.assertEqual(migrated.plane_matrix.translation, Vector((5.0, 0.0, 0.0)))
 
-    def test_detection_and_the_operator(self):
+    def test_detection_and_the_one_migrate_operator(self):
         from ..utilities.part import needs_part_migration
 
         obj = self.sketch.target_object
@@ -131,7 +131,7 @@ class TestPartMigration(Sketch2dTestCase):
         self._add_extrude(obj)
         self.assertTrue(needs_part_migration(self.scene))
 
-        bpy.ops.view3d.slvs_migrate_parts()
+        bpy.ops.view3d.slvs_migrate_legacy()
         self.assertTrue(is_part_root(obj))
         self.assertFalse(needs_part_migration(self.scene))
 

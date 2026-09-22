@@ -102,10 +102,10 @@ A cutter tells you what it is doing:
 ## Older files
 
 Sketches saved before parts existed keep working, but cannot be moved as parts
-until they are adopted. The Sketcher panel offers **Adopt into parts** when it
-finds them: a sketch drawn on a body joins that body's part, and one that has
-been made solid roots a part of its own. It is never done automatically on file
-open, since it restructures the hierarchy.
+until the file is migrated. The Sketcher panel offers **Migrate file** when it
+finds anything out of date: a sketch drawn on a body joins that body's part, and
+one that has been made solid roots a part of its own. It is never done
+automatically on file open, since it restructures the hierarchy.
 
 ## Collections
 

@@ -6,16 +6,20 @@ from ..declarations import Operators
 
 
 class VIEW3D_OT_slvs_migrate_legacy(Operator):
-    """Convert sketches saved by older CAD Sketcher versions to the native-curve
-    model and upgrade a bundled revolve node group to the current build.
+    """Bring a file saved by an older CAD Sketcher version up to date.
 
-    Run this on files made with an entity-based (pre native-curve) version --
-    their sketches don't appear until migrated. Migration used to run
-    automatically on every file load; it is manual so it never costs anything
-    for users who don't need it."""
+    Everything a file may need, in one pass and in order: sketches from an
+    entity-based (pre native-curve) version are converted to curves, a bundled
+    revolve node group is rebuilt, and sketches that predate parts are adopted
+    into them. Each step checks whether it applies, so running it is always safe.
+
+    Manual rather than automatic: migration used to run on every file load, and
+    it costs nothing for users who don't need it this way. Adopting sketches into
+    parts also restructures the object hierarchy, which opening a file should not
+    do unasked."""
 
     bl_idname = Operators.MigrateLegacy
-    bl_label = "Migrate Legacy Sketches"
+    bl_label = "Migrate File"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context: Context):
@@ -50,39 +54,19 @@ class VIEW3D_OT_slvs_migrate_legacy(Operator):
         except Exception:
             self.report({"WARNING"}, "Revolve node group upgrade failed")
 
-        if not migrated:
-            self.report({"INFO"}, "No legacy sketches to migrate")
-        return {"FINISHED"}
-
-
-class VIEW3D_OT_slvs_migrate_parts(Operator):
-    """Adopt sketches saved before parts existed into the part model.
-
-    A sketch drawn on a body joins that body's part, and one that has been made
-    solid roots a part of its own, so existing work becomes movable. Manual
-    rather than automatic: it restructures the object hierarchy, which is not
-    something opening a file should do unasked."""
-
-    bl_idname = Operators.MigrateParts
-    bl_label = "Migrate Sketches to Parts"
-    bl_options = {"REGISTER", "UNDO"}
-
-    def execute(self, context: Context):
+        # Sketches that predate parts: adopt them so they can be moved as parts.
+        # After the conversion above, so sketches it just created are included.
         from ..utilities.collections import sync_part_collections
         from ..utilities.part import migrate_parts
 
-        if not migrate_parts(context.scene):
-            self.report({"INFO"}, "No sketches to adopt into parts")
-            return {"FINISHED"}
+        adopted = migrate_parts(context.scene)
+        if adopted:
+            sync_part_collections(context.scene)
+            self.report({"INFO"}, "Sketches adopted into parts")
 
-        sync_part_collections(context.scene)
-        self.report({"INFO"}, "Sketches adopted into parts")
+        if not migrated and not adopted:
+            self.report({"INFO"}, "Nothing to migrate")
         return {"FINISHED"}
 
 
-register, unregister = register_classes_factory(
-    (
-        VIEW3D_OT_slvs_migrate_legacy,
-        VIEW3D_OT_slvs_migrate_parts,
-    )
-)
+register, unregister = register_classes_factory((VIEW3D_OT_slvs_migrate_legacy,))
