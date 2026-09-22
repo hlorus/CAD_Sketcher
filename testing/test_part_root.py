@@ -665,3 +665,20 @@ class TestPartRoot(BgsTestCase):
             "still active, as Blender does",
         )
         self.assertIsNone(focused_part(self.context))
+
+    def test_an_unfocused_parts_planes_are_not_drawn(self):
+        # They are managed workplanes, so the generic branch would offer them
+        # even while hidden: three unlabelled grey rectangles per part.
+        from ..utilities.part import ensure_part_planes
+        from ..utilities.workplane import iter_wp_empties
+
+        body = self._cube("host")
+        mark_part_root(body)
+        planes = ensure_part_planes(self.context, body)
+
+        bpy.ops.object.select_all(action="DESELECT")
+        self.context.view_layer.objects.active = None
+
+        offered = {obj.name for obj, _ in iter_wp_empties(self.context)}
+        for plane in planes:
+            self.assertNotIn(plane.name, offered)

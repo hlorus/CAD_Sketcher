@@ -158,6 +158,12 @@ def iter_wp_empties(context):
             continue
         if _is_group_empty(obj):
             continue
+        if PART_PLANE_KEY in obj:
+            # A part's base planes are offered only for the part in focus, by the
+            # branch above. Reaching them here (they are managed, so being hidden
+            # does not stop this loop) would draw every part's planes at once,
+            # unlabelled and in the themed default colour.
+            continue
         yield obj, pick_id
         pick_id += 1
 
