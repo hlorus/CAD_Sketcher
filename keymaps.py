@@ -367,6 +367,17 @@ def register():
             kmi.properties.fallthrough = True
             addon_keymaps.append((km, kmi))
 
+        # Duplicate a part as a unit. Passes the key on (and so gets Blender's
+        # own duplicate) when the selection is not part of one, or when the
+        # preference is off.
+        kmi = km.keymap_items.new(Operators.DuplicatePart, "D", "PRESS", shift=True)
+        addon_keymaps.append((km, kmi))
+
+        # And Alt+D places another copy of the part, the linked counterpart.
+        kmi = km.keymap_items.new(Operators.InstancePart, "D", "PRESS", alt=True)
+        kmi.properties.at_cursor = False
+        addon_keymaps.append((km, kmi))
+
         # Leave Sketch (same shortcut as add sketch). Passes the key on when no
         # sketch is active.
         kmi = km.keymap_items.new(

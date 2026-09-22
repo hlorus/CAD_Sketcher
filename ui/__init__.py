@@ -11,6 +11,7 @@ from .panels.debug import VIEW3D_PT_sketcher_debug
 from .panels.entities_list import VIEW3D_PT_sketcher_entities
 from .panels.sketch_select import (
     VIEW3D_MT_slvs_add_sketch,
+    VIEW3D_MT_slvs_part_sketches,
     VIEW3D_MT_slvs_sketch_workplane,
     VIEW3D_PT_sketcher,
 )
@@ -20,17 +21,30 @@ from .sketches_list import VIEW3D_UL_sketches
 
 
 def draw_object_context_menu(self, context: Context):
+    from ..model.sketch_ref import is_sketch_object
+    from ..utilities.part import part_root_of
+    from .panels.sketch_select import part_sketches
+
     layout = self.layout
     ob = context.active_object
+
+    # Resolve what was clicked to a part: right-clicking a body should reach the
+    # sketches that made it, including the cutters, which are hidden while they
+    # cut and so cannot be clicked themselves.
+    root = part_root_of(ob) if ob else None
+    sketches = part_sketches(context, root) if root is not None else []
+
+    if len(sketches) > 1:
+        layout.menu(declarations.Menus.PartSketches.value, text="Edit Sketch")
+        layout.separator()
+        return
+
     row = layout.row()
-
     props = row.operator(declarations.Operators.SetActiveSketch, text="Edit Sketch")
-
-    from ..model.sketch_ref import is_sketch_object
-
-    if ob and is_sketch_object(ob):
+    target = sketches[0] if sketches else (ob if ob and is_sketch_object(ob) else None)
+    if target is not None:
         row.enabled = True
-        props.sketch_name = ob.name
+        props.sketch_name = target.name
     else:
         row.enabled = False
     layout.separator()
@@ -74,6 +88,7 @@ classes = [
     VIEW3D_MT_selected_menu,
     VIEW3D_MT_slvs_add_sketch,
     VIEW3D_MT_slvs_sketch_workplane,
+    VIEW3D_MT_slvs_part_sketches,
 ]
 
 

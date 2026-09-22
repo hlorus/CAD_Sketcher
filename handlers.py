@@ -70,10 +70,14 @@ def on_load_post(*args):
     """
     from .drawing import constraint_icons, overlay, selection
     from .model.base_constraint import reset_data_owner_cache
+    from .utilities.collections import reset_cache as reset_collection_cache
     from .utilities.curve_data import reset_merge_cache
+    from .utilities.part import reset_cache as reset_part_cache
     from .utilities.validate import repair_constraint_values, reset_cache
 
     reset_cache()
+    reset_part_cache()
+    reset_collection_cache()
     reset_merge_cache()
     reset_data_owner_cache()
     overlay.invalidate()
@@ -120,6 +124,19 @@ def on_depsgraph_update(scene, depsgraph):
         if reconcile_linked_duplicates(scene):
             global_data.needs_solve = True
 
+        # A part root deleted with Blender's own Delete never reaches our delete
+        # operator; put its members back on their feet and hand the part on.
+        from .utilities.part import reconcile_parts
+
+        if reconcile_parts(scene):
+            global_data.needs_solve = True
+
+        # Same one level up: an assembly root deleted outside our operators must
+        # not drag its parts out of place.
+        from .utilities.part import reconcile_assemblies
+
+        reconcile_assemblies(scene)
+
         # Undo/redo can flatten the origin workplane empties to identity (they
         # then stack into a mushy overlap, #571); re-assert their transforms.
         # Only rewrites when drifted, so this settles in one pass.
@@ -127,11 +144,17 @@ def on_depsgraph_update(scene, depsgraph):
 
         repair_origin_workplanes(bpy.context)
 
-        # Sketches rename through a plain name field; keep their collections in
-        # step (drift-reconcile, settles in one pass like the workplane repair).
-        from .utilities.collections import sync_sketch_collection_names
+        # Keep the collection layout in step with the hierarchy (parts, and the
+        # assemblies they sit in). Derived, so it settles in one pass.
+        from .utilities.collections import sync_part_collections
 
-        sync_sketch_collection_names(scene)
+        # A file can hold data this addon must not restructure (linked, or
+        # overridden). The passes skip it, but a handler that raises breaks every
+        # handler after it, so never let this one out.
+        try:
+            sync_part_collections(scene)
+        except Exception:
+            logger.exception("Could not sync part collections")
 
     if depsgraph.id_type_updated("SCENE"):
         global_data.needs_solve = True

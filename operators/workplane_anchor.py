@@ -145,9 +145,11 @@ class View3D_OT_slvs_change_sketch_workplane(Operator):
         return sketch is not None and not sketch.is_3d
 
     def invoke(self, context: Context, event: Event):
+        from ..operators.add_sketch import _ensure_focused_part_planes
         from ..utilities.workplane import ensure_origin_workplane_empties
 
         ensure_origin_workplane_empties(context)
+        _ensure_focused_part_planes(context)
         self._hover, self._preview = "", None
         # The Add Sketch gizmo only exists while its tool is active, which isn't
         # available in sketch mode, so draw the same picker from here.

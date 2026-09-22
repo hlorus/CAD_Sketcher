@@ -228,8 +228,8 @@ def draw_origin_labels():
     from .drawing import selection
     from .utilities.workplane import (
         ORIGIN_AXIS_COLOR,
-        ORIGIN_LABEL,
         iter_wp_empties,
+        workplane_label,
         wp_plane_bounds,
     )
 
@@ -249,7 +249,7 @@ def draw_origin_labels():
     gpu.state.depth_test_set("NONE")
 
     for wp_obj, pick_id in iter_wp_empties(context):
-        label = ORIGIN_LABEL.get(pick_id)
+        label = workplane_label(wp_obj, pick_id)
         if not label:
             continue
 
@@ -272,11 +272,17 @@ def draw_origin_labels():
         w, h = blf.dimensions(_FONT_ID, label)
         if h <= 0.0:
             continue
-        scale = target_h / h
 
         # Anchor the text box's outer corner a margin in from the plane's outer
         # corner, so it reads as a corner label rather than filling the plane.
         margin = side * _LABEL_CORNER_MARGIN
+
+        # Fit by width as well as height: a longer label (an origin plane says so)
+        # would otherwise keep its glyph height and run off the plane's edge.
+        scale = target_h / h
+        usable = side - 2.0 * margin
+        if w > 0.0 and w * scale > usable:
+            scale = usable / w
         box_cx = max_x - margin - (w * scale) / 2
         box_cy = max_y - margin - (h * scale) / 2
 

@@ -52,6 +52,10 @@ class Operators(str, Enum):
     AddRectangle = "view3d.slvs_add_rectangle"
     AddSketch = "view3d.slvs_add_sketch"
     AddSketch3D = "view3d.slvs_add_sketch3d"
+    AddAssembly = "view3d.slvs_add_assembly"
+    InstancePart = "view3d.slvs_instance_part"
+    MakePart = "view3d.slvs_make_part"
+    DuplicatePart = "view3d.slvs_duplicate_part"
     AddSketchOnPlane = "view3d.slvs_add_sketch_on_plane"
     AddTangent = "view3d.slvs_add_tangent"
     AddVertical = "view3d.slvs_add_vertical"
@@ -107,6 +111,7 @@ class Menus(str, Enum):
     SelectedMenu = "VIEW3D_MT_selected_menu"
     AddSketch = "VIEW3D_MT_slvs_add_sketch"
     SketchWorkplane = "VIEW3D_MT_slvs_sketch_workplane"
+    PartSketches = "VIEW3D_MT_slvs_part_sketches"
 
 
 class Panels(str, Enum):

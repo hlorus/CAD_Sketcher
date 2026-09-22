@@ -15,11 +15,50 @@ from .utilities import activate_sketch
 logger = logging.getLogger(__name__)
 
 
-def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
-    """Create and activate a Curves sketch parented to ``wp_empty``.
+def _ensure_focused_part_planes(context: Context):
+    """Make sure the part in focus has its own base planes to offer.
 
-    Shared by the interactive Add Sketch operator and the direct
-    keyboard-driven origin-plane operator so both build the sketch identically.
+    Objects can only be added from operator context, so the pickers ask for them
+    as they start rather than the draw code creating them on the fly.
+    """
+    from ..utilities.part import ensure_part_planes, focused_part
+
+    root = focused_part(context)
+    if root is not None:
+        ensure_part_planes(context, root)
+
+
+def _part_for_workplane(context: Context, wp_empty):
+    """The part a sketch on ``wp_empty`` belongs to, creating one if it should.
+
+    Sketching on a mesh face means "add a feature to that thing", so the face's
+    object becomes a part (if it is not already in one) and the sketch joins it.
+    A sketch on a base datum plane belongs to no existing part, so it starts one
+    of its own and there is nothing to return.
+    """
+    from ..utilities.face_anchor import KEY_SOURCE
+    from ..utilities.part import mark_part_root, part_root_of
+
+    root = part_root_of(wp_empty)
+    if root is not None:
+        return root
+
+    source = wp_empty.get(KEY_SOURCE)
+    if not isinstance(source, bpy.types.Object):
+        return None
+
+    root = part_root_of(source)
+    if root is None:
+        root = source
+        mark_part_root(root)
+    return root
+
+
+def build_sketch_on_workplane(context: Context, wp_empty):
+    """Create a Curves sketch on ``wp_empty``, without activating it.
+
+    A sketch that joins an existing part is placed by its workplane, as features
+    are; one that starts a part roots it and owns its own transform.
     Returns the wrapped :class:`Sketch`.
     """
     from ..model.sketch_ref import Sketch, stamp_sketch_props
@@ -30,44 +69,64 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
     sketch_obj = bpy.data.objects.new("Sketch", curve)
 
     scene = context.scene
-    from ..utilities.collections import link_sketch_object
+    from ..utilities.collections import link_to_scene_root
 
-    link_sketch_object(sketch_obj, scene)
+    link_to_scene_root(sketch_obj, scene)
 
     stamp_sketch_props(sketch_obj)
     _ensure_convert_modifier(sketch_obj)
 
-    # Parent to workplane empty (before activate so align_view works)
+    # Resolve the plane and the part before activate, so align_view sees both.
     wp_orig = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
-    sketch_obj.parent = wp_orig
-    sketch_obj.slvs_workplane = wp_orig
-    sketch_obj.lock_location = (True, True, True)
-    sketch_obj.lock_rotation = (True, True, True)
-    sketch_obj.lock_scale = (True, True, True)
+    root = _part_for_workplane(context, wp_orig)
+    from ..utilities.part import fix_transform, free_transform, join_part
 
-    # Tuck a dedicated (face/custom) workplane in with its sketch, not at the root.
-    from ..utilities.collections import nest_workplane
-
-    nest_workplane(wp_orig, sketch_obj)
+    if root is None:
+        # Nothing obvious to belong to, so the sketch is global: it owns its
+        # transform and is its own plane, placed where the datum plane it was
+        # drawn on sits. It joins or starts a part once it is made solid.
+        sketch_obj.matrix_world = wp_orig.matrix_world.copy()
+        free_transform(sketch_obj)
+    else:
+        sketch_obj.parent = wp_orig
+        sketch_obj.slvs_workplane = wp_orig
+        fix_transform(sketch_obj)
+        join_part(root, wp_orig)
 
     sketch = Sketch(sketch_obj)
 
     origin = PointRef.create(sketch, (0.0, 0.0), fixed=True, is_origin=True)
     assert origin is not None, "Failed to create origin point"
 
-    activate_sketch(context, sketch_obj, operator)
+    return sketch
+
+
+def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
+    """Create and activate a Curves sketch on ``wp_empty``.
+
+    Shared by the interactive Add Sketch operator and the direct
+    keyboard-driven origin-plane operator so both build the sketch identically.
+    Returns the wrapped :class:`Sketch`.
+    """
+    sketch = build_sketch_on_workplane(context, wp_empty)
+    activate_sketch(context, sketch.target_object, operator)
     return sketch
 
 
 def new_workplane_empty(context: Context, matrix):
     """Create an unattached workplane Empty at ``matrix``, linked at scene level."""
-    from ..utilities.collections import link_loose_workplane
+    from ..utilities.collections import link_to_scene_root
+    from ..utilities.workplane import hide_managed_workplane, mark_managed_workplane
 
     empty = bpy.data.objects.new("Workplane", None)
     empty.empty_display_type = "PLAIN_AXES"
     empty.empty_display_size = 0.5
-    link_loose_workplane(empty, context.scene)
+    mark_managed_workplane(empty)
+    link_to_scene_root(empty, context.scene)
     empty.matrix_world = matrix
+    # A workplane is only worth looking at while you are choosing one, and the
+    # pickers draw it themselves; left visible its axes clutter every other mode.
+    hide_managed_workplane(empty, context)
     return empty
 
 
@@ -80,15 +139,20 @@ def create_face_workplane(context: Context, ob, face_index: int):
     utilities/face_anchor).
     """
     from ..stateful_operator.utilities.geometry import get_evaluated_obj
-    from ..utilities.face_anchor import can_anchor_face, stamp_face_anchor
+    from ..utilities.face_anchor import KEY_SOURCE, can_anchor_face, stamp_face_anchor
 
+    source = getattr(ob, "original", ob)
     empty = new_workplane_empty(context, face_workplane_matrix(context, ob, face_index))
 
-    # When a modifier changed the topology the picked face can't be anchored;
-    # leave the empty as a plain fixed workplane (issue #342-adjacent crash on
-    # box.blend meshes).
-    if can_anchor_face(ob, get_evaluated_obj(context, ob)):
-        stamp_face_anchor(empty, ob, face_index)
+    # Record what the sketch was drawn on even when the face itself cannot be
+    # anchored: that is what puts the sketch in the same part as the thing it sits
+    # on. Only sketches on a *mesh* can be anchored (a sketch body is a Curves
+    # object, so drawing on a sketch's own face never anchors), and a modifier
+    # that changed the topology rules it out too (issue #342-adjacent crash on
+    # box.blend meshes) -- the empty then stays a plain fixed workplane.
+    empty[KEY_SOURCE] = source
+    if can_anchor_face(source, get_evaluated_obj(context, source)):
+        stamp_face_anchor(empty, source, face_index)
     return empty
 
 
@@ -124,32 +188,34 @@ def set_sketch_workplane(context: Context, sketch_obj, wp_empty) -> bool:
     Returns False when ``wp_empty`` already is the sketch's workplane.
     """
     from .. import global_data
-    from ..utilities.collections import (
-        in_sketch_collection,
-        link_loose_workplane,
-        nest_workplane,
-    )
+    from ..utilities.collections import link_to_scene_root
     from ..utilities.face_anchor import KEY_FACE_ID, clear_anchor
+    from ..utilities.part import is_part_root
+    from ..utilities.workplane import is_managed_workplane
 
     wp_empty = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
     old = _sketch_workplane(sketch_obj)
     if old == wp_empty:
         return False
 
+    if is_part_root(sketch_obj):
+        # A root is not placed by a plane; putting it "on" one moves the part
+        # there and leaves it owning its transform.
+        sketch_obj.matrix_world = wp_empty.matrix_world.copy()
+        global_data.needs_solve = True
+        return True
+
     owned = _owns_workplane(context, sketch_obj, old)
-    managed = old is not None and (
-        KEY_FACE_ID in old or in_sketch_collection(old, sketch_obj)
-    )
+    managed = old is not None and (KEY_FACE_ID in old or is_managed_workplane(old))
     sketch_obj.parent = wp_empty
     sketch_obj.slvs_workplane = wp_empty
     sketch_obj.matrix_parent_inverse.identity()
-    nest_workplane(wp_empty, sketch_obj)
 
     if owned and managed:
         clear_anchor(old)
         bpy.data.objects.remove(old, do_unlink=True)
     elif owned:
-        link_loose_workplane(old, context.scene)
+        link_to_scene_root(old, context.scene)
 
     global_data.needs_solve = True
     return True
@@ -256,6 +322,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
 
     def prepare_origin_elements(self, context):
         ensure_origin_workplane_empties(context)
+        _ensure_focused_part_planes(context)
         return True
 
     def invoke(self, context: Context, event: Event):

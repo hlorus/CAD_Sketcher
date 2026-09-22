@@ -86,6 +86,16 @@ class Preferences(AddonPreferences):
         description="Hide entity-based drawing (shows only native curve overlay)",
         default=False,
     )
+    part_duplicate_shortcuts: BoolProperty(
+        name="Part Shortcuts for Duplicate",
+        description=(
+            "Make Shift+D copy a whole part (its workplanes, sketches and "
+            "cutters) and Alt+D place another copy of it, when the selection "
+            "belongs to a part. Blender's own duplicates still apply to "
+            "everything else, and to all of it when this is off"
+        ),
+        default=True,
+    )
     constraint_grid_view: BoolProperty(
         name="Constraint Grid View",
         description="Show the constraint tools as a compact icon grid instead of a list",

@@ -1,8 +1,23 @@
 import bpy
-from bpy.types import UIList, Context, UILayout, PropertyGroup
+from bpy.types import Context, PropertyGroup, UILayout, UIList
 
 from ..declarations import Operators
 from ..model.sketch_ref import Sketch, is_sketch_object
+
+
+def _cutting_sketches(scene) -> set:
+    """Names of the sketches currently feeding a boolean on some body.
+
+    Gathered in one pass because the list needs it per row, and a per-row scan of
+    every object's modifiers would run as often as the panel redraws.
+    """
+    from ..operators.modifiers import boolean_cutters
+
+    cutting = set()
+    for body in scene.objects:
+        for cutter in boolean_cutters(body):
+            cutting.add(cutter.name)
+    return cutting
 
 
 class VIEW3D_UL_sketches(UIList):
@@ -33,13 +48,19 @@ class VIEW3D_UL_sketches(UIList):
 
             row = layout.row(align=True)
 
-            # Visibility toggle (eye)
-            row.operator(
-                Operators.SetSketchVisibility,
-                text="",
-                icon="HIDE_ON" if obj.hide_viewport else "HIDE_OFF",
-                emboss=False,
-            ).sketch_name = obj.name
+            if obj.name in getattr(self, "_cutting", ()):
+                # Hidden because it is cutting: its solid would sit over the
+                # result. Not the user's hide to give back, so show what is going
+                # on rather than a toggle that the next solve would undo.
+                row.label(text="", icon="MOD_BOOLEAN")
+            else:
+                # Visibility toggle (eye)
+                row.operator(
+                    Operators.SetSketchVisibility,
+                    text="",
+                    icon="HIDE_ON" if obj.hide_viewport else "HIDE_OFF",
+                    emboss=False,
+                ).sketch_name = obj.name
 
             # Editable name -- expands to fill, pushing the icons below to the
             # right edge of the row (standard Blender UIList layout).
@@ -67,7 +88,18 @@ class VIEW3D_UL_sketches(UIList):
             layout.label(text="", icon="OUTLINER_DATA_GP_LAYER")
 
     def filter_items(self, context: Context, data, propname):
-        """Show only sketch objects; still honor the built-in name search box."""
+        """Show the sketches worth listing; honor the built-in name search box.
+
+        Scoped to the part in focus when there is one, so the list says which
+        part you are looking at instead of pooling every sketch in the file. With
+        nothing in focus it lists them all, which is the old behaviour and the
+        right one for a scene that has no parts yet.
+
+        Runs once per draw, so it is also where the row-level lookups are
+        gathered (which sketches are currently cutting something).
+        """
+        from ..utilities.part import focused_part, part_root_of
+
         objects = getattr(data, propname)
         helper = bpy.types.UI_UL_list
 
@@ -78,8 +110,13 @@ class VIEW3D_UL_sketches(UIList):
         else:
             flags = [self.bitflag_filter_item] * len(objects)
 
+        self._cutting = _cutting_sketches(context.scene)
+        root = focused_part(context)
+
         for i, obj in enumerate(objects):
             if not is_sketch_object(obj):
+                flags[i] &= ~self.bitflag_filter_item
+            elif root is not None and part_root_of(obj) != root:
                 flags[i] &= ~self.bitflag_filter_item
 
         return flags, []

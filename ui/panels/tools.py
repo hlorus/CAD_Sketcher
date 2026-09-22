@@ -123,6 +123,37 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         col.operator(declarations.Operators.NodeArrayLinear)
         col.operator(declarations.Operators.NodeBoolean)
 
+        # Grouping and reusing parts acts on whole objects, so it belongs with the
+        # other object-level tools rather than inside a sketch.
+        layout.separator()
+        layout.label(text="Parts:")
+
+        from ...utilities.part import instanceable_root, part_root_of
+
+        has_part = any(
+            part_root_of(obj) is not None for obj in context.selected_objects
+        )
+        has_group = any(
+            instanceable_root(obj) is not None for obj in context.selected_objects
+        )
+        # One aligned column so the three buttons merge like the tool lists above;
+        # the gate goes on a row inside it, since a second column would break the
+        # merged edges and leave the last button looking misplaced.
+        col = layout.column(align=True)
+        col.operator(declarations.Operators.MakePart, icon="OUTLINER_OB_MESH")
+        # Assemblies can start empty and be filled by dragging parts in, so this
+        # one is never gated on the selection; a placement needs a part to place.
+        col.operator(
+            declarations.Operators.AddAssembly,
+            icon="OUTLINER_OB_GROUP_INSTANCE",
+        )
+        row = col.row(align=True)
+        row.enabled = has_part
+        row.operator(declarations.Operators.DuplicatePart, icon="DUPLICATE")
+        row = col.row(align=True)
+        row.enabled = has_group
+        row.operator(declarations.Operators.InstancePart, icon="LINKED")
+
     def draw(self, context: Context):
         # Mirror the workspace toolbar: sketch tools while a sketch is active,
         # node tools otherwise, instead of showing both at once.

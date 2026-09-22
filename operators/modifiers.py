@@ -261,25 +261,38 @@ class BooleanFromToolMixin:
 
         sketch = Sketch(cutter) if cutter.type == "CURVES" else None
 
-        if not self.boolean_detected:
-            if context.scene.sketcher.use_auto_boolean:
-                has_source = (
-                    sketch is not None and sketch_source_body(sketch) is not None
-                )
-                self.operation = default_operation(self._boolean_offset(), has_source)
-            else:
-                # Auto boolean is off: leave the new solid standalone. The user can
-                # still pick an operation in the redo panel to boolean on demand.
-                self.operation = "None"
+        auto = context.scene.sketcher.use_auto_boolean
+        if not self.boolean_detected and not auto:
+            # Auto boolean is off: leave the new solid standalone. The user can
+            # still pick an operation in the redo panel to boolean on demand.
+            self.operation = "None"
             self.boolean_detected = True
 
-        # The solid must be evaluated before the overlap test can see it. Skip the
-        # overlap detection entirely when there is no operation to apply.
-        if self.operation != "None":
+        # The solid must be evaluated before the overlap test can see it. Look for
+        # targets while the operation is still undecided too: what a solid reaches
+        # is what decides whether it is a cut at all.
+        undecided = not self.boolean_detected and auto
+        if self.operation != "None" or undecided:
             context.view_layer.update()
             targets = detect_targets(context, cutter, sketch)
         else:
             targets = []
+
+        if undecided:
+            if targets:
+                # Push/pull: outward from the face you sketched on adds material,
+                # into it removes material.
+                has_source = (
+                    sketch is not None and sketch_source_body(sketch) is not None
+                )
+                self.operation = default_operation(self._boolean_offset(), has_source)
+                self.boolean_detected = True
+            else:
+                # It reaches nothing, so it is not a cut: a solid standing on its
+                # own. Left undecided, so a longer extrude that does reach a body
+                # still gets a sensible default rather than being stuck at None.
+                self.operation = "None"
+                targets = []
 
         # Preserve exclusions across redo while adding newly-overlapping bodies; a
         # target that drops out of detection loses its (now moot) boolean anyway.
@@ -290,23 +303,37 @@ class BooleanFromToolMixin:
             item.name = obj.name
             item.enabled = prev_enabled.get(obj.name, True)
 
-        self._apply_boolean_targets(cutter)
+        enabled_bodies = self._apply_boolean_targets(cutter)
 
-        # Nest the cutter's collection under the bodies it now feeds.
-        from ..utilities.collections import organize_part_nesting
+        # Making a sketch solid is what settles which part it belongs to: a cut
+        # joins the part it cuts, a standalone solid roots one. A mesh cutter is
+        # left alone -- a part with its own history stays a part.
+        if sketch is not None:
+            from ..utilities.part import settle_membership
 
-        organize_part_nesting(context.scene)
+            settle_membership(cutter, enabled_bodies)
+
+        from ..utilities.part import update_cutter_display
+
+        update_cutter_display(cutter, enabled_bodies, self.operation != "None")
+
+        # Membership (and with it the collection layout) follows the hierarchy,
+        # which settle_membership has just updated; the sync picks it up.
+        from ..utilities.collections import sync_part_collections
+
+        sync_part_collections(context.scene)
 
     def _apply_boolean_targets(self, cutter):
+        """Apply this cutter's booleans. Returns the bodies it feeds, in order."""
         name = boolean_modifier_name(cutter)
-        enabled_bodies = set()
+        enabled_bodies = []
         for item in self.boolean_targets:
             body = bpy.data.objects.get(item.name)
             if body is None:
                 continue
             if self.operation != "None" and item.enabled:
                 apply_boolean(body, cutter, self.operation)
-                enabled_bodies.add(body)
+                enabled_bodies.append(body)
         # Strip this cutter's boolean from every other body, so excluding a target,
         # setting the operation to None, or a shorter extrude no longer reaching a
         # body all remove its (now stale) boolean -- even if it left the list.
@@ -316,10 +343,7 @@ class BooleanFromToolMixin:
             mod = body.modifiers.get(name)
             if mod is not None:
                 body.modifiers.remove(mod)
-        # A solid cutter sitting over the bodies would hide the result -- wireframe
-        # it, matching the standalone Boolean tool.
-        if enabled_bodies:
-            cutter.display_type = "WIRE"
+        return enabled_bodies
 
     def draw_boolean_settings(self, layout):
         layout.separator()
@@ -556,7 +580,9 @@ class NodeOperator(Operator3d):
         self.modifier = ob.modifiers.new(mod_name, "NODES")
         nodegroup = bpy.data.node_groups.get(self.NODEGROUP_NAME)
         if not nodegroup:
-            self.report({"Error"}, f"Unable to load node group {self.NODEGROUP_NAME}")
+            # "ERROR", not "Error": an unknown report type raises a ValueError and
+            # buries the actual problem.
+            self.report({"ERROR"}, f"Unable to load node group {self.NODEGROUP_NAME}")
             return False
         self.modifier.node_group = nodegroup
         return True
@@ -1229,8 +1255,22 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         # Reveal the result: a solid cutter sitting over the body would hide it.
         # Done here, once, rather than in main() -- main() can re-run during the
         # modal's undo/redo churn, so the display change belongs at completion.
-        if succeed and getattr(self, "_cutter", None) is not None:
-            self._cutter.display_type = self.cutter_display
+        cutter = getattr(self, "_cutter", None)
+        if not succeed or cutter is None:
+            return
+        cutter.display_type = self.cutter_display
+
+        # A cut belongs to what it cuts, however it was made: the same rule the
+        # extrude and revolve tools apply. Only sketch cutters, so a body with a
+        # history of its own stays a part rather than being absorbed.
+        from ..model.sketch_ref import is_sketch_object
+        from ..utilities.collections import sync_part_collections
+        from ..utilities.part import settle_membership
+
+        body = self.resolved_object()
+        if body is not None and is_sketch_object(cutter):
+            settle_membership(cutter, [body.original])
+            sync_part_collections(context.scene)
 
     def set_props(self):
         m = self.modifier
