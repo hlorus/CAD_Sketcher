@@ -150,30 +150,34 @@ def _draw_workplane(context: Context, layout: UILayout, sketch):
 
 
 def _draw_migration_prompt(context: Context, layout: UILayout):
-    """Offer migration when the file needs anything bringing up to date.
+    """Offer to update a file that an older version saved.
 
-    Legacy (entity-based) sketches don't render under the native-curve model, so
-    without this prompt an old file would look empty; sketches that predate parts
-    do render, but cannot be moved as parts until they are adopted. One button
-    does whichever applies. The checks run only while this panel is drawn, never
-    as a file-load handler for every user."""
+    Said in the file's terms rather than the feature's: what a given version
+    changed is not the user's problem, and one button applies whatever this file
+    needs. The severity is worth distinguishing though, since sketches from an
+    entity-based version do not render at all until they are converted, while
+    everything else keeps working meanwhile.
+
+    The checks run only while this panel is drawn, never as a file-load handler
+    for every user."""
     from ...utilities.migrate import scene_needs_migration
     from ...utilities.part import needs_part_migration
 
-    legacy = scene_needs_migration(context)
-    if not legacy and not needs_part_migration(context.scene):
+    unreadable = scene_needs_migration(context)
+    if not unreadable and not needs_part_migration(context.scene):
         return
 
     box = layout.box()
-    box.alert = legacy
-    if legacy:
-        box.label(text="Legacy sketches detected", icon="ERROR")
-    else:
-        box.label(text="Sketches not in parts", icon="INFO")
-    box.label(text="Saved by an older CAD Sketcher version.")
+    box.alert = unreadable
+    box.label(
+        text="Saved by an older version",
+        icon="ERROR" if unreadable else "INFO",
+    )
+    if unreadable:
+        box.label(text="Its sketches stay hidden until it is updated.")
     box.operator(
         declarations.Operators.MigrateLegacy,
-        text="Migrate file",
+        text="Update File",
         icon="FILE_REFRESH",
     )
 

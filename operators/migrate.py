@@ -1,25 +1,27 @@
+import logging
+
 import bpy
 from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 
+logger = logging.getLogger(__name__)
+
 
 class VIEW3D_OT_slvs_migrate_legacy(Operator):
-    """Bring a file saved by an older CAD Sketcher version up to date.
+    """Update a file that was saved by an older version of CAD Sketcher.
 
-    Everything a file may need, in one pass and in order: sketches from an
-    entity-based (pre native-curve) version are converted to curves, a bundled
-    revolve node group is rebuilt, and sketches that predate parts are adopted
-    into them. Each step checks whether it applies, so running it is always safe.
+    Applies whatever this particular file needs, and nothing it doesn't, so it is
+    safe to run at any time. Manual rather than automatic because updating can
+    restructure the file, which opening it should never do unasked.
 
-    Manual rather than automatic: migration used to run on every file load, and
-    it costs nothing for users who don't need it this way. Adopting sketches into
-    parts also restructures the object hierarchy, which opening a file should not
-    do unasked."""
+    Each version's steps live behind their own check (see the utilities they call
+    into); keeping them in one operator means users have one button to press
+    rather than one per release."""
 
     bl_idname = Operators.MigrateLegacy
-    bl_label = "Migrate File"
+    bl_label = "Update File"
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context: Context):
@@ -32,13 +34,7 @@ class VIEW3D_OT_slvs_migrate_legacy(Operator):
             # convert it to curves (do_versioning used to run on file load).
             do_versioning()
             summary = migrate_scene(context)
-            self.report(
-                {"INFO"},
-                "Migrated legacy sketches: "
-                f"{summary['sketches']} sketches, {summary['points']} points, "
-                f"{summary['segments']} segments, "
-                f"{summary['constraints']} constraints",
-            )
+            logger.info("Converted legacy sketches: %s", summary)
 
         # Rebuild a baked revolve node group so existing revolves pick up fixes.
         # build_revolve_node_group preserves each modifier's settings across the
@@ -68,11 +64,13 @@ class VIEW3D_OT_slvs_migrate_legacy(Operator):
         dissolved = dissolve_legacy_sketch_collections(context.scene)
         if adopted or dissolved:
             sync_part_collections(context.scene)
-        if adopted:
-            self.report({"INFO"}, "Sketches adopted into parts")
 
-        if not migrated and not adopted and not dissolved:
-            self.report({"INFO"}, "Nothing to migrate")
+        # One result, in the user's terms: which steps ran is an implementation
+        # detail, and the log carries the detail if anyone needs it.
+        if migrated or adopted or dissolved:
+            self.report({"INFO"}, "File updated")
+        else:
+            self.report({"INFO"}, "File is already up to date")
         return {"FINISHED"}
 
 
