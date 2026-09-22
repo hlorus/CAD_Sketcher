@@ -529,9 +529,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
         # Clicking the eyedropper button in the redo panel makes Blender also
         # re-run the previous operator's execute()/_end() (an implicit undo +
         # re-apply). That nulls the shared global_data.hover_types this edit modal
-        # set, and reverts any state _prepare_pick_ui changed (e.g. a hidden
-        # modifier). Re-assert both every event so the pick keeps working.
+        # set, restores the cursor this modal set, and reverts any state
+        # _prepare_pick_ui changed (e.g. a hidden modifier). Re-assert them every
+        # event so the pick keeps working and keeps looking like a pick.
         global_data.hover_types = self.get_states()[self.edit_state].types
+        context.window.cursor_modal_set("CROSSHAIR")
         self._maintain_pick_ui(context)
         self._set_edit_status(context)
         if event.type in {"RIGHTMOUSE", "ESC"} and event.value == "PRESS":
