@@ -12,7 +12,7 @@ from ..model.curve_ref import LineRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.constants import HALF_TURN, QUARTER_TURN
-from .base_2d import Operator2d
+from .base_2d import Operator2d, ReplaceableOutputOp
 from .constants import types_point_2d
 from .placement import placement_of
 from .utilities import ignore_hover
@@ -34,7 +34,7 @@ def _alignment(vec: Vector) -> Optional[str]:
     return None
 
 
-class View3D_OT_slvs_add_line2d(Operator, Operator2d):
+class View3D_OT_slvs_add_line2d(Operator, ReplaceableOutputOp, Operator2d):
     """Add a line to the active sketch"""
 
     bl_idname = Operators.AddLine2D

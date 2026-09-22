@@ -8,7 +8,7 @@ from ..declarations import Operators
 from ..model.curve_ref import LineRef, PointRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
-from .base_2d import Operator2d
+from .base_2d import Operator2d, ReplaceableOutputOp
 from .constants import types_point_2d
 from .utilities import ignore_hover
 
@@ -27,7 +27,7 @@ def rectangle_corners(
     return (end[0], start[1]), (start[0], end[1])
 
 
-class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
+class View3D_OT_slvs_add_rectangle(Operator, ReplaceableOutputOp, Operator2d):
     """Add a rectangle to the active sketch"""
 
     bl_idname = Operators.AddRectangle
@@ -151,16 +151,9 @@ class View3D_OT_slvs_add_rectangle(Operator, Operator2d):
                     continue
                 value[i] = orig[i] + val
 
-        construction = context.scene.sketcher.use_construction
-
-        ref = PointRef.create(self.sketch, value, construction=construction)
-        cid = ref.curve_id
-        state_data["curve_id"] = cid
-        ignore_hover(cid)
-
-        self.add_coincident(context, ref, state, state_data)
-        state_data["type"] = PointRef
-        return cid
+        # The shared creation path, so the corner keeps its id across a re-run
+        # (main applies construction to it, see above).
+        return self.create_element(context, [value], state, state_data)
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_rectangle,))

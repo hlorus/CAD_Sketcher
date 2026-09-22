@@ -129,6 +129,31 @@ class TestGateCoversConnectivityChanges(MergeGateEquivalence):
                 self.solve()
                 self.assert_gate_matches_recompute()
 
+    def test_recreating_the_last_segment_under_the_same_id(self):
+        """What an operator re-run does: remove its curves, rebuild them with the
+        very same ids. Rebuilt in place, the signature comes back identical while
+        the recreated points carry no weld id at all.
+        """
+        from ..model.curve_ref import LineRef
+        from ..utilities.curve_data import (
+            remove_native_curve_by_id,
+            reusing_curve_ids,
+        )
+
+        p0 = self.add_point((0, 0), fixed=True)
+        p1 = self.add_point((2, 0))
+        line = self.add_line(p0, p1)
+        self.solve()
+        compute_merge_ids(self.sketch)
+
+        # The line is the last curve, so recreating it restores the exact layout.
+        cid = line.curve_id
+        remove_native_curve_by_id(self.sketch, cid)
+        with reusing_curve_ids(self.sketch, [cid]):
+            LineRef.create(self.sketch, p0, p1)
+        self.solve()
+        self.assert_gate_matches_recompute()
+
     def test_after_a_geometry_refresh(self):
         """refresh_curve_geometry rebuilds topology and restores attributes."""
         p0 = self.add_point((0, 0), fixed=True)

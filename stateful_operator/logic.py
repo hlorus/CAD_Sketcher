@@ -40,6 +40,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
     # >= 0 -> re-enter to edit just that state: restore the persisted input, let
     # the user re-pick that one state, then re-apply idempotently. -1 = normal.
     edit_state: IntProperty(default=-1, options={"HIDDEN", "SKIP_SAVE"})
+    # With edit_state, drop that state's pick and go back to its own value
+    # (e.g. a line endpoint stops following a point and keeps its location).
+    edit_clear: BoolProperty(default=False, options={"HIDDEN", "SKIP_SAVE"})
 
     executed = False
     # Tool id to activate once the operator succeeds (see _end). Lets a one-off
@@ -68,6 +71,12 @@ class StatefulOperatorLogic(_StateMachineMixin):
     _drag_mode = False
     # The invoking click already confirmed the first state (see invoke).
     _invoked_by_click = False
+    # A continuous-draw chain committed at least one segment, so ending the
+    # chain still counts as a finished operator (see _end).
+    _chain_committed = False
+    # That segment's properties, so the redo panel adjusts it and not the
+    # segment the chain was in the middle of when it ended.
+    _committed_props = None
 
     # -------------------------------------------------------------------------
     # Snapshot / undo hooks (override in subclasses)
@@ -435,17 +444,25 @@ class StatefulOperatorLogic(_StateMachineMixin):
         # apply (_run_main) replaces this op's own output.
         self._state_snapshot = None
         self._restore_pointers()
+        # Clearing needs no pick, but still runs through the modal: an operator
+        # that finishes inside invoke() is not recorded as the adjustable last
+        # operation, so the redo panel would keep showing the old pick.
+        self._pending_clear = bool(self.edit_clear)
         # Let subclasses snapshot pre-re-pick state (the target being edited away
         # from) before the user changes it -- e.g. node ops relocating a modifier.
         self._prepare_edit(context)
         i = self.edit_state
-        self.get_state_data(i).pop("type", None)
+        # The pick runs in state i, but the re-apply must rebuild every state.
+        self._edit_full_state_index = self.state_index
+        self._reset_edited_state(i)
         self.set_state(context, i)
         global_data.hover_types = self.get_states()[i].types
         # Make the op's hover/preselection UI available for the re-pick even
         # though the workspace tool that normally owns it isn't active.
         self._prepare_pick_ui(context)
-        context.window.cursor_modal_set("EYEDROPPER")
+        # The same cursor the tool draws with: re-picking is the very same click
+        # on the very same targets, just outside the drawing run.
+        context.window.cursor_modal_set("CROSSHAIR")
         self._set_edit_status(context)
         # A modal invoked from a redo-panel button can stall waiting for its first
         # event (the button-click context delivers none until the mouse moves).
@@ -455,6 +472,18 @@ class StatefulOperatorLogic(_StateMachineMixin):
         )
         context.window_manager.modal_handler_add(self)
         return {"RUNNING_MODAL"}
+
+    def _reset_edited_state(self, i: int) -> None:
+        """Blank state ``i`` so it can be picked fresh.
+
+        A clear keeps the picked type: the value it falls back to is read from
+        the pick itself (see ``pick_fallback_value``), so dropping the type would
+        leave the state with nothing to fall back to and the clear would do
+        nothing.
+        """
+        if self._pending_clear:
+            return
+        self.get_state_data(i).pop("type", None)
 
     def _set_edit_status(self, context: Context):
         """Tell the user a re-pick is in progress and what to click.
@@ -473,13 +502,44 @@ class StatefulOperatorLogic(_StateMachineMixin):
             context.area.header_text_set(text)
         context.workspace.status_text_set(text + "    Esc / Right-click: cancel")
 
+    def _clear_pick(self, context: Context):
+        """Turn state ``edit_state``'s pick back into its own value and re-apply."""
+        i = self.edit_state
+        value = self.pick_fallback_value(context, i)
+        props = self.get_property(index=i) or ()
+        if value is None or not props:
+            return self._end_edit(context, False)
+        for name in props:
+            setattr(self, name, value)
+        data = self.get_state_data(i)
+        data["is_existing_entity"] = False
+        data.pop("curve_id", None)
+        self.state_index = max(self._edit_full_state_index, self.state_index)
+        ok = self._reapply(context)
+        self._run_fini(context, ok)
+        if ok:
+            self._store_pointers()
+            self._record_committed_output(context)
+        if context.area:
+            context.area.tag_redraw()
+        return self._end_edit(context, ok)
+
+    def pick_fallback_value(self, context: Context, i):
+        """Hook: the value a cleared pick falls back to, or None if it has none."""
+        return None
+
     def _modal_edit(self, context: Context, event: Event):
+        if getattr(self, "_pending_clear", False):
+            self._pending_clear = False
+            return self._clear_pick(context)
         # Clicking the eyedropper button in the redo panel makes Blender also
         # re-run the previous operator's execute()/_end() (an implicit undo +
         # re-apply). That nulls the shared global_data.hover_types this edit modal
-        # set, and reverts any state _prepare_pick_ui changed (e.g. a hidden
-        # modifier). Re-assert both every event so the pick keeps working.
+        # set, restores the cursor this modal set, and reverts any state
+        # _prepare_pick_ui changed (e.g. a hidden modifier). Re-assert them every
+        # event so the pick keeps working and keeps looking like a pick.
         global_data.hover_types = self.get_states()[self.edit_state].types
+        context.window.cursor_modal_set("CROSSHAIR")
         self._maintain_pick_ui(context)
         self._set_edit_status(context)
         if event.type in {"RIGHTMOUSE", "ESC"} and event.value == "PRESS":
@@ -494,7 +554,13 @@ class StatefulOperatorLogic(_StateMachineMixin):
             self.state_data["is_existing_entity"] = True
             self.set_state_pointer(values, implicit=True)
             self._store_pointers()
+            self.state_index = max(self._edit_full_state_index, self.state_index)
             ok = self._reapply(context)
+            # Finish like any other run (fini adds a tool's follow-up constraints
+            # and solves), then record the output this run created.
+            self._run_fini(context, ok)
+            if ok:
+                self._record_committed_output(context)
             if context.area:
                 context.area.tag_redraw()
             return self._end_edit(context, ok)
@@ -521,6 +587,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
         return {"FINISHED"} if ok else {"CANCELLED"}
 
     def execute(self, context: Context):
+        # Rebuild from the persisted props alone. State data is shared between
+        # runs (one class-level dict, see _StateMachineMixin), so whatever the
+        # last run left there would win over the props in _restore_pointers --
+        # a redo after a continuous chain rebuilt the abandoned segment.
+        self._state_data.clear()
         global_data.stateful_op_running = True
         try:
             self._numeric = NumericInput()
@@ -534,6 +605,13 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """Invoke ``main``; a hook for subclasses to make apply idempotent
         (e.g. entity ops that own + replace their created output)."""
         return self.main(context)
+
+    def _run_fini(self, context: Context, succeede: bool) -> None:
+        """Call the operator's ``fini`` (the commit tail: follow-up constraints,
+        a solve). A hook so a subclass can wrap it, e.g. to keep what fini
+        creates part of the same idempotent re-apply."""
+        if hasattr(self, "fini"):
+            self.fini(context, succeede)
 
     def _reapply(self, context: Context):
         """Rebuild everything from persisted state and run main -- the shared
@@ -952,6 +1030,30 @@ class StatefulOperatorLogic(_StateMachineMixin):
             return [index]
         return None
 
+    def _capture_props(self) -> dict:
+        """The operator's own properties as they stand, to restore later."""
+        values = {}
+        names = getattr(self, "_declared_prop_names", None)
+        for name in names() if names else ():
+            if name.startswith("_") or name in ("edit_state", "edit_clear"):
+                continue
+            try:
+                value = getattr(self, name)
+            except (AttributeError, TypeError):
+                continue
+            if hasattr(value, "__len__") and not isinstance(value, str):
+                value = tuple(value)
+            values[name] = value
+        return values
+
+    def _apply_props(self, values: dict) -> None:
+        """Put back what ``_capture_props`` took."""
+        for name, value in (values or {}).items():
+            try:
+                setattr(self, name, value)
+            except (AttributeError, TypeError):
+                pass
+
     def _store_pointers(self):
         """Write each resolved pointer state's identity to its hidden props."""
         for i, state in enumerate(self.get_states()):
@@ -1035,8 +1137,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
     def _end(self, context, succeede, skip_undo=False, keep_stateful_running=False):
         context.window.cursor_modal_restore()
-        if hasattr(self, "fini"):
-            self.fini(context, succeede)
+        self._run_fini(context, succeede)
         # One-off tools return to their select tool once done (only on success,
         # so a missed pick keeps the tool for a retry). The target tool differs
         # per operator: object tools -> Blender's select, sketch tools -> the
@@ -1073,7 +1174,18 @@ class StatefulOperatorLogic(_StateMachineMixin):
             self._record_committed_output(context)
 
         self._state_snapshot = None
-        return {"FINISHED"} if succeede else {"CANCELLED"}
+        if succeede:
+            return {"FINISHED"}
+        if not self._chain_committed:
+            return {"CANCELLED"}
+        # Ending a continuous chain cancels only the segment in progress: what
+        # the chain already committed stands, so report FINISHED. Blender
+        # registers finished operators only, and without it the segments just
+        # drawn would have no "Adjust Last Operation" panel at all. The panel
+        # adjusts the last committed segment, so the props describe that one
+        # again rather than the segment just abandoned.
+        self._apply_props(self._committed_props)
+        return {"FINISHED"}
 
     # -------------------------------------------------------------------------
     # Continuous draw
@@ -1114,11 +1226,18 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """
         self._end(context, True, keep_stateful_running=True)
         bpy.ops.ed.undo_push(message=self.bl_label)
+        # What this run committed survives the chain being cancelled (see _end),
+        # and the redo panel has to adjust that segment, not the aborted one the
+        # props describe by the time the chain ends.
+        self._chain_committed = True
+        self._committed_props = self._capture_props()
 
         # Save the endpoint before _reset_op wipes state
         last_index, values, last_type = self._take_last_state_pointer()
 
         self._reset_op()
+        # The next segment's output is what gets created from here on.
+        self._capture_baseline(context)
 
         # Re-inject the saved endpoint as the seed for the new segment
         data = self.get_state_data(0)

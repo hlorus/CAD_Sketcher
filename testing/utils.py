@@ -51,8 +51,11 @@ def make_operator_double(real_cls):
         cells = list(func.__closure__ or ())
         cells[idx] = types.CellType(cls)
         rebound = types.FunctionType(
-            func.__code__, func.__globals__, func.__name__,
-            func.__defaults__, tuple(cells),
+            func.__code__,
+            func.__globals__,
+            func.__name__,
+            func.__defaults__,
+            tuple(cells),
         )
         rebound.__dict__.update(func.__dict__)
         setattr(cls, name, wrapper(rebound) if wrapper else rebound)
@@ -130,8 +133,8 @@ class OpHarness:
         self.op.redo_states(self.context)
         result = self.op.main(self.context)
         self.op.executed = True
-        if run_fini and hasattr(self.op, "fini"):
-            self.op.fini(self.context, bool(result))
+        if run_fini:
+            self.op._run_fini(self.context, bool(result))
         return result
 
     def state_curve_id(self, index):
@@ -149,7 +152,11 @@ class BgsTestCase(TestCase):
     def is_interactive(cls):
         """Check if interactive mode is enabled via environment variable or class attribute"""
         import os
-        return os.environ.get("RUN_TESTS_INTERACTIVE", "").lower() in ("true", "1", "yes") or cls.interactive
+
+        return (
+            os.environ.get("RUN_TESTS_INTERACTIVE", "").lower() in ("true", "1", "yes")
+            or cls.interactive
+        )
 
     @classmethod
     def setUpClass(cls):
@@ -194,26 +201,32 @@ class Sketch2dTestCase(BgsTestCase):
         wp = self.entities.origin_plane_XY
         entity_sketch = self.entities.add_sketch(wp)
         from ..utilities.curve_data import ensure_sketch_curve_object
+
         ensure_sketch_curve_object(entity_sketch)
         # Wrap as Sketch accessor
         from ..model.sketch_ref import Sketch, stamp_sketch_props
+
         stamp_sketch_props(entity_sketch.target_object)
         return Sketch(entity_sketch.target_object)
 
     def add_point(self, co, **kwargs):
         from ..model.curve_ref import PointRef
+
         return PointRef.create(self.sketch, co, **kwargs)
 
     def add_line(self, p1, p2, **kwargs):
         from ..model.curve_ref import LineRef
+
         return LineRef.create(self.sketch, p1, p2, **kwargs)
 
     def add_arc(self, ct, start, end, **kwargs):
         from ..model.curve_ref import ArcRef
+
         return ArcRef.create(self.sketch, ct, start, end, **kwargs)
 
     def add_circle(self, ct, radius, **kwargs):
         from ..model.curve_ref import CircleRef
+
         return CircleRef.create(self.sketch, ct, radius, **kwargs)
 
     @classmethod
@@ -233,12 +246,14 @@ class Sketch2dTestCase(BgsTestCase):
         self.sketch = self.new_sketch()
         self.sketch.name = self._testMethodName
         from ..model.sketch_ref import set_active_sketch
-        if hasattr(self.sketch, 'target_object'):
+
+        if hasattr(self.sketch, "target_object"):
             set_active_sketch(self.context, self.sketch.target_object)
         return super().setUp()
 
     def tearDown(self) -> None:
         from ..model.sketch_ref import set_active_sketch
+
         set_active_sketch(self.context, None)
         return super().tearDown()
 

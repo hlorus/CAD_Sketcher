@@ -13,7 +13,7 @@ from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.geometry import arc_through_points, intersect_line_sphere_2d
 from ..utilities.math import pol2cart
 from ..utilities.view import get_blender_snap_info, get_pos_2d, get_wp_matrix
-from .base_2d import Operator2d
+from .base_2d import Operator2d, ReplaceableOutputOp
 from .constants import types_point_2d
 from .placement import placement_of
 from .utilities import ignore_hover
@@ -21,7 +21,7 @@ from .utilities import ignore_hover
 logger = logging.getLogger(__name__)
 
 
-class View3D_OT_slvs_add_arc2d(Operator, Operator2d):
+class View3D_OT_slvs_add_arc2d(Operator, ReplaceableOutputOp, Operator2d):
     """Add an arc to the active sketch"""
 
     bl_idname = Operators.AddArc2D

@@ -2,6 +2,7 @@
 
 import logging
 import secrets
+from contextlib import contextmanager
 
 import bpy
 import numpy as np
@@ -377,9 +378,53 @@ def read_curve_id_list(curve_data):
     return read_uuid_list(curve_data, "curve_id")
 
 
+# Curve ids an operator re-run hands back to the curves it recreates, so its
+# stored identities (picked points, its own output) stay valid. Keyed per sketch
+# object; ``_alloc_records`` captures the ids handed out while recording.
+_reuse_queues = {}
+_alloc_records = {}
+
+
+def _reuse_key(sketch):
+    obj = getattr(sketch, "target_object", None)
+    return obj.as_pointer() if obj is not None else None
+
+
+@contextmanager
+def reusing_curve_ids(sketch, ids, record=None):
+    """Give curves created inside the block these ids, in order.
+
+    An id already in use is skipped, so a stale id can never duplicate a live
+    curve. When ``record`` is a list, every id handed out is appended to it.
+    """
+    key = _reuse_key(sketch)
+    if key is None:
+        yield
+        return
+    _reuse_queues[key] = [cid for cid in ids if cid]
+    if record is not None:
+        _alloc_records[key] = record
+    try:
+        yield
+    finally:
+        _reuse_queues.pop(key, None)
+        _alloc_records.pop(key, None)
+
+
 def _allocate_curve_id(sketch):
-    """Allocate a unique curve_id using UUID generation."""
-    return secrets.token_hex(16)
+    """Allocate a curve_id: a queued reuse id if one is free, else a new one."""
+    key = _reuse_key(sketch)
+    cid = ""
+    queue = _reuse_queues.get(key)
+    while queue and not cid:
+        candidate = queue.pop(0)
+        if get_curve_index(sketch, candidate) is None:
+            cid = candidate
+    cid = cid or secrets.token_hex(16)
+    record = _alloc_records.get(key)
+    if record is not None:
+        record.append(cid)
+    return cid
 
 
 def get_curve_index(sketch, curve_id):
@@ -422,13 +467,18 @@ def _rebuild_curve_id_cache(sketch, lookup_id=None):
 
 def invalidate_curve_id_cache(sketch=None):
     """Invalidate the curve_id caches. Call after add/remove curves."""
+    # The weld ids go too: removing curves clears them for everything recreated
+    # afterwards, and the connectivity signature can't tell -- an operator that
+    # rebuilds its own output brings the very same ids back (see compute_merge_ids).
     if sketch and sketch.target_object:
         invalidate_curve_data_caches(sketch.target_object.data)
+        _merge_signatures.pop(sketch.target_object.name, None)
     else:
         _curve_id_cache.clear()
         _curve_id_built_len.clear()
         _uuid_list_cache.clear()
         _uuid_raw_cache.clear()
+        _merge_signatures.clear()
 
 
 def invalidate_curve_data_caches(curve_data):
