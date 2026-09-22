@@ -116,7 +116,7 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
 def new_workplane_empty(context: Context, matrix):
     """Create an unattached workplane Empty at ``matrix``, linked at scene level."""
     from ..utilities.collections import link_to_scene_root
-    from ..utilities.workplane import mark_managed_workplane
+    from ..utilities.workplane import hide_managed_workplane, mark_managed_workplane
 
     empty = bpy.data.objects.new("Workplane", None)
     empty.empty_display_type = "PLAIN_AXES"
@@ -124,6 +124,9 @@ def new_workplane_empty(context: Context, matrix):
     mark_managed_workplane(empty)
     link_to_scene_root(empty, context.scene)
     empty.matrix_world = matrix
+    # A workplane is only worth looking at while you are choosing one, and the
+    # pickers draw it themselves; left visible its axes clutter every other mode.
+    hide_managed_workplane(empty, context)
     return empty
 
 

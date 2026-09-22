@@ -547,7 +547,7 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
     add objects), which is why the Add Sketch tool asks for them as it starts.
     """
     from .collections import link_to_scene_root
-    from .workplane import _hide_managed_empty, mark_managed_workplane
+    from .workplane import hide_managed_workplane, mark_managed_workplane
 
     planes = []
     created = []
@@ -570,17 +570,8 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
             created.append(empty)
         planes.append(empty)
 
-    if created:
-        # hide_set() needs the object present in the view layer, and linking alone
-        # does not resync it -- without this the first pick after creating a part
-        # raises "cannot be hidden because it is not in View Layer".
-        context.view_layer.update()
-        for empty in created:
-            try:
-                _hide_managed_empty(empty, context.scene)
-            except RuntimeError:
-                # Not worth failing the pick over: an unhidden plane still works.
-                logger.warning("Could not hide part plane '%s'", empty.name)
+    for empty in created:
+        hide_managed_workplane(empty, context)
     return planes
 
 

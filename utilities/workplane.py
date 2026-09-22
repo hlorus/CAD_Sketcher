@@ -1,9 +1,12 @@
 """Workplane empty management."""
 
+import logging
 import math
 
 import bpy
 from mathutils import Vector
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Workplane empty IDs for picking
@@ -116,7 +119,11 @@ def iter_wp_empties(context):
         # visible_get() covers the eye-icon hide and collection visibility too,
         # not just hide_viewport (the monitor icon) -- an empty hidden with the
         # eye was still getting its workplane overlay drawn.
-        if obj.type != "EMPTY" or obj.name in origin_names or not obj.visible_get():
+        # Ours are hidden on purpose (see hide_managed_workplane) but must stay
+        # pickable; an empty the user made is offered only while they can see it.
+        if obj.type != "EMPTY" or obj.name in origin_names:
+            continue
+        if not is_managed_workplane(obj) and not obj.visible_get():
             continue
         yield obj, pick_id
         pick_id += 1
@@ -255,6 +262,20 @@ def mark_managed_workplane(empty) -> None:
 def is_managed_workplane(empty) -> bool:
     """Whether this addon created ``empty`` (and so may retire it)."""
     return bool(empty is not None and empty.get(MANAGED_WP_KEY, False))
+
+
+def hide_managed_workplane(empty, context) -> None:
+    """Take a workplane we created out of the viewport, keeping it pickable.
+
+    ``hide_set`` needs the object present in the view layer, and linking alone
+    does not resync it, so the layer is updated first. A failure is not worth
+    aborting a pick over: a visible workplane still works.
+    """
+    context.view_layer.update()
+    try:
+        _hide_managed_empty(empty, context.scene)
+    except RuntimeError:
+        logger.warning("Could not hide workplane '%s'", empty.name)
 
 
 def _hide_managed_empty(empty, scene):

@@ -564,3 +564,33 @@ class TestPartRoot(BgsTestCase):
         self.assertEqual(settle_membership(sketch.target_object, [body]), body)
         self.assertEqual(part_root_of(origin), body)
         self.assertEqual(origin.parent, body)
+
+    def test_a_face_workplane_is_hidden_but_still_pickable(self):
+        # Its axes would otherwise draw in every mode; the Add Sketch picker
+        # draws the plane itself while you are choosing one.
+        from ..utilities.workplane import is_managed_workplane, iter_wp_empties
+
+        body = self._cube("host")
+        wp = create_face_workplane(self.context, body, 0)
+
+        self.assertTrue(is_managed_workplane(wp))
+        self.assertFalse(wp.visible_get())
+        self.assertTrue(wp.hide_select)
+        # Never hide_viewport: the anchor recomputes from evaluated geometry.
+        self.assertFalse(wp.hide_viewport)
+
+        offered = {obj.name for obj, _pick_id in iter_wp_empties(self.context)}
+        self.assertIn(wp.name, offered)
+
+    def test_an_empty_the_user_hid_is_not_offered(self):
+        from ..utilities.workplane import iter_wp_empties
+
+        theirs = bpy.data.objects.new("their_empty", None)
+        self.scene.collection.objects.link(theirs)
+        self.context.view_layer.update()
+        self.assertIn(theirs.name, {o.name for o, _ in iter_wp_empties(self.context)})
+
+        theirs.hide_set(True)
+        self.assertNotIn(
+            theirs.name, {o.name for o, _ in iter_wp_empties(self.context)}
+        )
