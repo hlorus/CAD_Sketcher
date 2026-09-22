@@ -467,13 +467,18 @@ def _rebuild_curve_id_cache(sketch, lookup_id=None):
 
 def invalidate_curve_id_cache(sketch=None):
     """Invalidate the curve_id caches. Call after add/remove curves."""
+    # The weld ids go too: removing curves clears them for everything recreated
+    # afterwards, and the connectivity signature can't tell -- an operator that
+    # rebuilds its own output brings the very same ids back (see compute_merge_ids).
     if sketch and sketch.target_object:
         invalidate_curve_data_caches(sketch.target_object.data)
+        _merge_signatures.pop(sketch.target_object.name, None)
     else:
         _curve_id_cache.clear()
         _curve_id_built_len.clear()
         _uuid_list_cache.clear()
         _uuid_raw_cache.clear()
+        _merge_signatures.clear()
 
 
 def invalidate_curve_data_caches(curve_data):
