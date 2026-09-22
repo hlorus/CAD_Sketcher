@@ -242,6 +242,21 @@ def resolve_sketch_base(context, coords):
 # ---------------------------------------------------------------------------
 
 
+# Stamped on every workplane Empty this addon creates, so a workplane the user
+# placed themselves is never silently deleted or re-anchored.
+MANAGED_WP_KEY = "slvs:managed_wp"
+
+
+def mark_managed_workplane(empty) -> None:
+    """Record that this addon created ``empty`` as a workplane."""
+    empty[MANAGED_WP_KEY] = True
+
+
+def is_managed_workplane(empty) -> bool:
+    """Whether this addon created ``empty`` (and so may retire it)."""
+    return bool(empty is not None and empty.get(MANAGED_WP_KEY, False))
+
+
 def _hide_managed_empty(empty, scene):
     """Hide an addon-managed workplane empty without dropping it from eval.
 
@@ -285,19 +300,18 @@ def ensure_workplane_empty(sketch):
     name = f"WP_{sketch.name}"
     empty = bpy.data.objects.new(name, None)
     empty.empty_display_type = "SINGLE_ARROW"
+    mark_managed_workplane(empty)
     empty.lock_location = (True, True, True)
     empty.lock_rotation = (True, True, True)
     empty.lock_scale = (True, True, True)
     empty.matrix_world = sketch.wp.matrix_basis
 
     scene = bpy.context.scene
-    from .collections import link_loose_workplane, nest_workplane
+    from .collections import link_to_scene_root
 
-    # Group the workplane with its sketch when the sketch object exists; otherwise
-    # keep it at the scene level until a sketch claims it.
-    target = getattr(sketch, "target_object", None)
-    if target is None or nest_workplane(empty, target) is None:
-        link_loose_workplane(empty, scene)
+    # Scene level to start with; the part sync claims it once its sketch is in a
+    # part.
+    link_to_scene_root(empty, scene)
 
     # Hide only after linking: hide_set needs the object in the view layer.
     _hide_managed_empty(empty, scene)

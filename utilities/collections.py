@@ -1,10 +1,15 @@
 """Managed collections for CAD Sketcher.
 
-Layout is *project-centric*, not addon-centric: each part is its own collection
-at the **scene level** (where users expect their models), with cutter sketches
-nested under the body they feed and each sketch's own workplane grouped inside
-it. The only genuinely shared thing -- the three origin planes -- lives in a
-scene-level ``Origin`` collection. There is no addon wrapper collection.
+Layout is *project-centric*, not addon-centric: one collection per **part** at the
+scene level (where users expect their models), nested inside its assembly's
+collection when it has one. The only genuinely shared thing, the three origin
+planes, lives in a scene-level ``Origin`` collection. There is no addon wrapper
+collection.
+
+Collections are a **derived view**, never the authority: membership lives in the
+object hierarchy (see ``utilities.part``), and ``sync_part_collections`` moves
+objects to follow it. Names are set when a collection is created and then left
+alone, so users can rename containers and a renamed root does not churn.
 
 Critical invariant: nothing is **excluded** from the view layer. Excluding a
 collection removes its objects from the depsgraph, which stops the convert
@@ -15,9 +20,13 @@ Visibility is a display concern; evaluation must keep running.
 import bpy
 
 ORIGIN_COLLECTION_NAME = "Origin"
-_SKETCH_MARKER = "cad_sketch_collection"
 _ORIGIN_MARKER = "cad_origin_collection"
-_SYNCED_NAME = "cad_synced_name"
+_PART_MARKER = "cad_part_collection"
+_ASSEMBLY_MARKER = "cad_assembly_collection"
+
+# Per-sketch collections from before parts existed. Recognised only so old files
+# can be dissolved into the part layout; nothing creates them any more.
+_LEGACY_SKETCH_MARKER = "cad_sketch_collection"
 
 
 def _clear_object_collections(obj):
@@ -25,12 +34,12 @@ def _clear_object_collections(obj):
         coll.objects.unlink(obj)
 
 
-def link_loose_workplane(obj, scene):
-    """Link a not-yet-claimed workplane empty at the scene level (transient home).
+def link_to_scene_root(obj, scene):
+    """Link ``obj`` directly at the scene level.
 
-    Used for a workplane created before its sketch exists (e.g. a face pick);
-    ``nest_workplane`` moves it into the sketch's collection once that's created.
-    A workplane that never gets a sketch simply stays a scene-level object.
+    The home for anything that belongs to no part: a global sketch, a workplane
+    nobody has claimed yet, a cutter that spans parts. Objects that *are* in a
+    part are moved into its collection by ``sync_part_collections``.
     """
     if obj.name not in scene.collection.objects:
         _clear_object_collections(obj)
@@ -63,95 +72,53 @@ def link_origin_workplane(obj, scene):
     return coll
 
 
-def nest_workplane(workplane, sketch_obj):
-    """Move a dedicated workplane empty into its sketch's collection.
-
-    A workplane made for one sketch (face, entity, or free-3D origin) otherwise
-    clutters the scene root; grouping it with its sketch keeps the tree tidy.
-    Skipped for origin planes (shared) and for a workplane already grouped with a
-    sketch (don't steal a shared custom plane). Returns the collection, or None.
-    """
-    if workplane is None:
-        return None
-    for coll in workplane.users_collection:
-        if coll.get(_ORIGIN_MARKER) or coll.get(_SKETCH_MARKER):
-            return None
-    sub = next((c for c in sketch_obj.users_collection if c.get(_SKETCH_MARKER)), None)
-    if sub is None:
-        return None
-    if workplane.name not in sub.objects:
-        _clear_object_collections(workplane)
-        sub.objects.link(workplane)
-    return sub
+# ---------------------------------------------------------------------------
+# Part and assembly collections
+# ---------------------------------------------------------------------------
 
 
-def in_sketch_collection(obj, sketch_obj) -> bool:
-    """Whether ``obj`` is grouped in ``sketch_obj``'s own sketch collection."""
-    return any(
-        coll.get(_SKETCH_MARKER) and sketch_obj.name in coll.objects
-        for coll in obj.users_collection
-    )
-
-
-def link_sketch_object(obj, scene):
-    """Put a sketch's curve object in its own scene-level collection.
-
-    One collection per sketch keeps the outliner readable; the sketch's workplane
-    nests in here too. Idempotent: an object already in a sketch collection is
-    left where it is.
-    """
-    for coll in obj.users_collection:
-        if coll.get(_SKETCH_MARKER):
-            return coll
-    sub = bpy.data.collections.new(obj.name)
-    sub[_SKETCH_MARKER] = True
-    sub[_SYNCED_NAME] = obj.name
-    # Part collections live at the scene level, not inside the internals wrapper.
-    scene.collection.children.link(sub)
-    _clear_object_collections(obj)
-    sub.objects.link(obj)
-    return sub
-
-
-def sync_sketch_collection_names(scene):
-    """Reconcile each per-sketch sub-collection's name with its sketch object.
-
-    Sketches rename through a plain name field (no callback), so drift is fixed
-    here (from the depsgraph handler). The last intended name is tracked so a
-    collision -- where Blender appends a numeric suffix -- can't spin a rename
-    loop; only writes on an actual change, settling in one pass.
-    """
-    for sub in _walk_sketch_collections(scene.collection):
-        obj = next((o for o in sub.objects if o.type == "CURVES"), None)
-        if obj is None:
-            continue
-        if sub.get(_SYNCED_NAME) != obj.name:
-            sub.name = obj.name
-            sub[_SYNCED_NAME] = obj.name
-
-
-def cleanup_sketch_collections(scene):
-    """Remove empty per-sketch collections (e.g. after a sketch is deleted)."""
-    for sub in _walk_sketch_collections(scene.collection):
-        if not sub.objects and not sub.children:
-            bpy.data.collections.remove(sub)
-
-
-def _walk_sketch_collections(root):
-    """All per-sketch sub-collections anywhere under ``root``."""
+def _marked_collections(root, marker):
+    """Every collection under ``root`` carrying ``marker``."""
     found, stack = [], list(root.children)
     while stack:
         coll = stack.pop()
-        if coll.get(_SKETCH_MARKER):
+        if coll.get(marker):
             found.append(coll)
         stack.extend(coll.children)
     return found
 
 
+def _collection_for(obj, scene, marker):
+    """The collection standing for ``obj`` (a part or assembly root), created once.
+
+    Keyed by the root's name rather than a pointer because a collection cannot
+    hold an object reference; the sync repairs the link if a root is renamed.
+    """
+    key = f"cad_root:{marker}"
+    for coll in _marked_collections(scene.collection, marker):
+        if coll.get(key) == obj.name:
+            return coll
+    coll = bpy.data.collections.new(obj.name)
+    coll[marker] = True
+    coll[key] = obj.name
+    scene.collection.children.link(coll)
+    return coll
+
+
+def part_collection(root, scene):
+    """The collection holding the part rooted at ``root``."""
+    return _collection_for(root, scene, _PART_MARKER)
+
+
+def assembly_collection(root, scene):
+    """The collection holding the assembly rooted at ``root``."""
+    return _collection_for(root, scene, _ASSEMBLY_MARKER)
+
+
 def _reparent_collection(coll, parent):
-    """Move ``coll`` to be the single direct child of ``parent``."""
+    """Move ``coll`` to be a direct child of ``parent``, unlinked from elsewhere."""
     if coll.name in parent.children:
-        return
+        return False
     for scene in bpy.data.scenes:
         if coll.name in scene.collection.children:
             scene.collection.children.unlink(coll)
@@ -159,38 +126,89 @@ def _reparent_collection(coll, parent):
         if coll.name in other.children:
             other.children.unlink(coll)
     parent.children.link(coll)
+    return True
 
 
-def organize_part_nesting(scene):
-    """Nest each cutter sketch's collection under the body it feeds.
+def _link_into(obj, coll):
+    """Put ``obj`` in ``coll`` and nowhere else. True if that changed anything."""
+    if len(obj.users_collection) == 1 and obj.users_collection[0] == coll:
+        return False
+    _clear_object_collections(obj)
+    coll.objects.link(obj)
+    return True
 
-    Rebuilt from the boolean dependency graph, so it converges no matter the order
-    booleans were added or removed. Parts live at the scene level; a cutter's
-    collection moves under the body's. The graph is a DAG (the boolean tool
-    refuses cycles), so the tree can't cycle. A cutter feeding several bodies
-    nests under one -- Blender has no clean multi-parent tree; the others still
-    reference it, which is harmless.
+
+def dissolve_legacy_sketch_collections(scene) -> bool:
+    """Empty out the per-sketch collections older files were saved with.
+
+    Their objects move to the scene level, from where the part sync claims the
+    ones that belong to a part. Left in place they would strand old files in a
+    layout nothing maintains any more.
     """
-    from ..operators.modifiers import boolean_cutters
+    changed = False
+    for coll in _marked_collections(scene.collection, _LEGACY_SKETCH_MARKER):
+        for obj in list(coll.objects):
+            link_to_scene_root(obj, scene)
+            changed = True
+        for child in list(coll.children):
+            _reparent_collection(child, scene.collection)
+            changed = True
+        bpy.data.collections.remove(coll)
+        changed = True
+    return changed
 
-    container = scene.collection
-    by_obj = {}
-    for coll in _walk_sketch_collections(container):
-        for obj in coll.objects:
-            by_obj[obj] = coll
 
-    parent_of = {}
-    for body, body_coll in by_obj.items():
-        for cutter in boolean_cutters(body):
-            cutter_coll = by_obj.get(cutter)
-            if cutter_coll is not None and cutter_coll is not body_coll:
-                parent_of[cutter_coll] = body_coll
+def sync_part_collections(scene) -> bool:
+    """Move objects into the collection of the part (and assembly) they are in.
 
-    # Flatten to the scene root first so nesting can't transiently form a cycle.
-    subs = set(by_obj.values())
-    for coll in subs:
-        _reparent_collection(coll, container)
-    for coll in subs:
-        target = parent_of.get(coll)
+    Derived from the object hierarchy, so it converges regardless of how things
+    got there: parenting a sketch into a part moves it here on the next pass, and
+    taking it out returns it to the scene level. Collections that end up empty are
+    removed. Returns True if anything changed.
+    """
+    from .part import assembly_root_of, is_assembly_root, is_part_root
+
+    changed = dissolve_legacy_sketch_collections(scene)
+
+    owned = {}
+    for obj in scene.objects:
+        if is_assembly_root(obj):
+            coll = assembly_collection(obj, scene)
+            for member in (obj, *obj.children_recursive):
+                # Parts inside keep their own collection; only loose members of
+                # the assembly itself live directly in it.
+                if not is_part_root(member) and assembly_root_of(member) is obj:
+                    owned.setdefault(member.name, coll)
+
+    for obj in scene.objects:
+        if not is_part_root(obj):
+            continue
+        coll = part_collection(obj, scene)
+        assembly = assembly_root_of(obj)
+        if assembly is not None:
+            if _reparent_collection(coll, assembly_collection(assembly, scene)):
+                changed = True
+        for member in (obj, *obj.children_recursive):
+            owned[member.name] = coll
+
+    for obj in scene.objects:
+        target = owned.get(obj.name)
         if target is not None:
-            _reparent_collection(coll, target)
+            if _link_into(obj, target):
+                changed = True
+            continue
+        # Not in a part or assembly: belongs at the scene level, unless the user
+        # (or the origin collection) put it somewhere deliberate.
+        for coll in obj.users_collection:
+            if coll.get(_PART_MARKER) or coll.get(_ASSEMBLY_MARKER):
+                link_to_scene_root(obj, scene)
+                changed = True
+                break
+
+    for marker in (_PART_MARKER, _ASSEMBLY_MARKER):
+        for coll in _marked_collections(scene.collection, marker):
+            if not coll.objects and not coll.children:
+                bpy.data.collections.remove(coll)
+                changed = True
+
+    return changed

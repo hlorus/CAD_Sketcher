@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 # Stamped on the object that roots a part.
 PART_ROOT_KEY = "slvs:part_root"
 
+# Stamped on the Empty that roots an assembly: a group of parts with a transform
+# of its own. An assembly has no geometry, so an Empty is the right carrier, and
+# joints will later act on exactly this transform.
+ASSEMBLY_ROOT_KEY = "slvs:assembly_root"
+
 # Stamped on a workplane empty that is one of a part's own base planes, with the
 # axis pair it stands for, so a second sketch on the same part plane reuses it.
 PART_PLANE_KEY = "slvs:part_plane"
@@ -86,6 +91,62 @@ def clear_part_root(obj: bpy.types.Object) -> None:
     """Drop the part-root mark, e.g. when the object joins another part."""
     if PART_ROOT_KEY in obj:
         del obj[PART_ROOT_KEY]
+
+
+def is_assembly_root(obj: Optional[bpy.types.Object]) -> bool:
+    """Whether ``obj`` roots an assembly (owns a group of parts)."""
+    return bool(obj is not None and obj.get(ASSEMBLY_ROOT_KEY, False))
+
+
+def mark_assembly_root(obj: bpy.types.Object) -> None:
+    """Make ``obj`` the root of an assembly: free to move, scale still locked."""
+    obj[ASSEMBLY_ROOT_KEY] = True
+    free_transform(obj)
+
+
+def assembly_root_of(obj: Optional[bpy.types.Object]) -> Optional[bpy.types.Object]:
+    """The assembly ``obj`` sits in, or None.
+
+    The same upward walk as :func:`part_root_of` with a different marker, so an
+    assembly is simply the next level of the one hierarchy rather than a parallel
+    concept: parts parent under it, sub-assemblies under those.
+    """
+    seen = set()
+    current = obj
+    while current is not None and current.name not in seen:
+        if is_assembly_root(current):
+            return current
+        seen.add(current.name)
+        current = current.parent
+    return None
+
+
+def create_assembly(context, name: str = "Assembly") -> bpy.types.Object:
+    """Create an empty assembly root at the 3D cursor, linked at the scene level."""
+    from .collections import assembly_collection, link_to_scene_root
+
+    root = bpy.data.objects.new(name, None)
+    root.empty_display_type = "ARROWS"
+    root.empty_display_size = 0.5
+    link_to_scene_root(root, context.scene)
+    root.matrix_basis = Matrix.Translation(context.scene.cursor.location)
+    mark_assembly_root(root)
+    assembly_collection(root, context.scene)
+    return root
+
+
+def join_assembly(assembly: bpy.types.Object, obj: bpy.types.Object) -> None:
+    """Put a part (or sub-assembly) in ``assembly``, keeping its world position.
+
+    A part keeps its own transform inside an assembly: the assembly places the
+    group, the part is still free to move within it.
+    """
+    if obj == assembly or assembly_root_of(assembly) == obj:
+        return
+    world = world_matrix_of(obj)
+    obj.parent = assembly
+    obj.matrix_parent_inverse = world_matrix_of(assembly).inverted_safe()
+    obj.matrix_basis = world
 
 
 def part_root_of(obj: Optional[bpy.types.Object]) -> Optional[bpy.types.Object]:
@@ -247,6 +308,17 @@ def settle_membership(
         return sketch_obj
 
     if len(owners) > 1:
+        # Belongs to no single part. If they all sit in one assembly it is an
+        # assembly-level feature and lives there; otherwise it stays global.
+        assemblies = {
+            (assembly_root_of(owner).name if assembly_root_of(owner) else None)
+            for owner in owners
+        }
+        if len(assemblies) == 1 and None not in assemblies:
+            assembly = assembly_root_of(owners[0])
+            join_assembly(assembly, sketch_obj)
+            fix_transform(sketch_obj)
+            return assembly
         return None
 
     root = owners[0]
@@ -391,8 +463,8 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
     Created from operator context only (never a depsgraph handler, which must not
     add objects), which is why the Add Sketch tool asks for them as it starts.
     """
-    from .collections import link_loose_workplane, nest_workplane
-    from .workplane import _hide_managed_empty
+    from .collections import link_to_scene_root
+    from .workplane import _hide_managed_empty, mark_managed_workplane
 
     planes = []
     created = []
@@ -403,9 +475,8 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
             empty.empty_display_type = "PLAIN_AXES"
             empty.empty_display_size = 0.25
             empty[PART_PLANE_KEY] = axis
-            link_loose_workplane(empty, context.scene)
-            if nest_workplane(empty, root) is None:
-                link_loose_workplane(empty, context.scene)
+            mark_managed_workplane(empty)
+            link_to_scene_root(empty, context.scene)
             # Plain parenting, not join_part: these planes are *defined* by the
             # part's frame, so they must inherit it rather than keep a world
             # position of their own.

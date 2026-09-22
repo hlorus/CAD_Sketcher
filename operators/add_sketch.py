@@ -69,9 +69,9 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     sketch_obj = bpy.data.objects.new("Sketch", curve)
 
     scene = context.scene
-    from ..utilities.collections import link_sketch_object
+    from ..utilities.collections import link_to_scene_root
 
-    link_sketch_object(sketch_obj, scene)
+    link_to_scene_root(sketch_obj, scene)
 
     stamp_sketch_props(sketch_obj)
     _ensure_convert_modifier(sketch_obj)
@@ -99,11 +99,6 @@ def build_sketch_on_workplane(context: Context, wp_empty):
         join_part(root, wp_orig)
         mark_part_member(sketch_obj, root)
 
-    # Tuck a dedicated (face/custom) workplane in with its sketch, not at the root.
-    from ..utilities.collections import nest_workplane
-
-    nest_workplane(wp_orig, sketch_obj)
-
     sketch = Sketch(sketch_obj)
 
     origin = PointRef.create(sketch, (0.0, 0.0), fixed=True, is_origin=True)
@@ -126,12 +121,14 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
 
 def new_workplane_empty(context: Context, matrix):
     """Create an unattached workplane Empty at ``matrix``, linked at scene level."""
-    from ..utilities.collections import link_loose_workplane
+    from ..utilities.collections import link_to_scene_root
+    from ..utilities.workplane import mark_managed_workplane
 
     empty = bpy.data.objects.new("Workplane", None)
     empty.empty_display_type = "PLAIN_AXES"
     empty.empty_display_size = 0.5
-    link_loose_workplane(empty, context.scene)
+    mark_managed_workplane(empty)
+    link_to_scene_root(empty, context.scene)
     empty.matrix_world = matrix
     return empty
 
@@ -194,13 +191,10 @@ def set_sketch_workplane(context: Context, sketch_obj, wp_empty) -> bool:
     Returns False when ``wp_empty`` already is the sketch's workplane.
     """
     from .. import global_data
-    from ..utilities.collections import (
-        in_sketch_collection,
-        link_loose_workplane,
-        nest_workplane,
-    )
+    from ..utilities.collections import link_to_scene_root
     from ..utilities.face_anchor import KEY_FACE_ID, clear_anchor
     from ..utilities.part import is_part_root
+    from ..utilities.workplane import is_managed_workplane
 
     wp_empty = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
     old = _sketch_workplane(sketch_obj)
@@ -215,19 +209,16 @@ def set_sketch_workplane(context: Context, sketch_obj, wp_empty) -> bool:
         return True
 
     owned = _owns_workplane(context, sketch_obj, old)
-    managed = old is not None and (
-        KEY_FACE_ID in old or in_sketch_collection(old, sketch_obj)
-    )
+    managed = old is not None and (KEY_FACE_ID in old or is_managed_workplane(old))
     sketch_obj.parent = wp_empty
     sketch_obj.slvs_workplane = wp_empty
     sketch_obj.matrix_parent_inverse.identity()
-    nest_workplane(wp_empty, sketch_obj)
 
     if owned and managed:
         clear_anchor(old)
         bpy.data.objects.remove(old, do_unlink=True)
     elif owned:
-        link_loose_workplane(old, context.scene)
+        link_to_scene_root(old, context.scene)
 
     global_data.needs_solve = True
     return True

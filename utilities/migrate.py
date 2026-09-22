@@ -50,9 +50,9 @@ def _create_workplane_empty(context, wp, name):
     empty.lock_scale = (True, True, True)
     # A legacy workplane can be shared by several sketches, so keep it at the
     # scene level rather than nesting it under one sketch.
-    from .collections import link_loose_workplane
+    from .collections import link_to_scene_root
 
-    link_loose_workplane(empty, context.scene)
+    link_to_scene_root(empty, context.scene)
     empty.matrix_world = wp.matrix_basis
     return empty
 
@@ -63,9 +63,9 @@ def _create_sketch_object(context, empty, name):
 
     curve = bpy.data.hair_curves.new(name)
     obj = bpy.data.objects.new(name, curve)
-    from .collections import link_sketch_object
+    from .collections import link_to_scene_root
 
-    link_sketch_object(obj, context.scene)
+    link_to_scene_root(obj, context.scene)
     stamp_sketch_props(obj)
     _ensure_convert_modifier(obj)
     obj.parent = empty

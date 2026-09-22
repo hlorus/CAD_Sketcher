@@ -13,6 +13,7 @@ modules = [
     "copy_paste",
     "add_sketch",
     "add_sketch_3d",
+    "add_assembly",
     "workplane_anchor",
     "add_point_2d",
     "add_point_3d",

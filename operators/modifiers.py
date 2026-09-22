@@ -304,10 +304,11 @@ class BooleanFromToolMixin:
 
         update_cutter_display(cutter, enabled_bodies, self.operation != "None")
 
-        # Nest the cutter's collection under the bodies it now feeds.
-        from ..utilities.collections import organize_part_nesting
+        # Membership (and with it the collection layout) follows the hierarchy,
+        # which settle_membership has just updated; the sync picks it up.
+        from ..utilities.collections import sync_part_collections
 
-        organize_part_nesting(context.scene)
+        sync_part_collections(context.scene)
 
     def _apply_boolean_targets(self, cutter):
         """Apply this cutter's booleans. Returns the bodies it feeds, in order."""

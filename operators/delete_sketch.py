@@ -38,10 +38,10 @@ class View3D_OT_slvs_delete_sketch(Operator):
         # Remove the object (handler cleans up orphan constraints)
         bpy.data.objects.remove(ob)
 
-        # Drop the now-empty per-sketch collection.
-        from ..utilities.collections import cleanup_sketch_collections
+        # Drop a part collection the deletion emptied.
+        from ..utilities.collections import sync_part_collections
 
-        cleanup_sketch_collections(context.scene)
+        sync_part_collections(context.scene)
         return {"FINISHED"}
 
 

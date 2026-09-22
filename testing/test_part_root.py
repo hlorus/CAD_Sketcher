@@ -462,16 +462,16 @@ class TestPartRoot(BgsTestCase):
             self.assertFalse(plane.visible_get())
 
     def test_part_planes_can_be_created_for_a_plain_mesh_part(self):
-        # A mesh promoted to a part lives in an ordinary collection, so its planes
-        # cannot nest in a sketch collection; they must still end up in the view
-        # layer, or hiding them raises.
+        # They must end up reachable from the scene, or hiding them raises. Where
+        # exactly is the collection sync's business (the part's own collection).
         from ..utilities.part import ensure_part_planes
 
         body = self._cube("plain")
         mark_part_root(body)
         planes = ensure_part_planes(self.context, body)
         for plane in planes:
-            self.assertIn(plane.name, self.scene.collection.objects)
+            self.assertIn(plane.name, self.scene.collection.all_objects)
+            self.assertTrue(plane.users_collection)
 
     def test_parenting_into_a_part_adopts_the_sketch(self):
         from ..utilities.part import PART_MEMBER_KEY

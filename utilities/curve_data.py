@@ -720,9 +720,9 @@ def ensure_sketch_curve_object(sketch):
 
         scene = bpy.context.scene
         assert scene is not None, "No active scene"
-        from .collections import link_sketch_object
+        from .collections import link_to_scene_root
 
-        link_sketch_object(ob, scene)
+        link_to_scene_root(ob, scene)
 
         _ensure_convert_modifier(ob)
 
