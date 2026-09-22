@@ -60,6 +60,14 @@ is settled when the sketch becomes solid:
 A cut has to travel with the body it cuts, which is why it joins that part: were
 it left behind, moving the body would silently change the result.
 
+## Making a part by hand
+
+Parts normally appear on their own, but imported geometry never passes through a
+sketch tool. Select it and use **Make Part** in the Tools panel: the active
+object roots the part and anything else selected joins it. With a part already
+active it simply takes the rest of the selection in, which is how you add a body
+to an existing part.
+
 ## Part workplanes
 
 Select a part and the Add Sketch tool offers that part's own XY, XZ and YZ planes

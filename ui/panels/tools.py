@@ -133,6 +133,9 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
             part_root_of(obj) is not None for obj in context.selected_objects
         )
         col = layout.column(align=True)
+        col.operator(declarations.Operators.MakePart, icon="OUTLINER_OB_MESH")
+
+        col = layout.column(align=True)
         col.enabled = has_part
         col.operator(
             declarations.Operators.AddAssembly,
