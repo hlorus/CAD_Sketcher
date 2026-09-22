@@ -290,7 +290,15 @@ class BooleanFromToolMixin:
             item.name = obj.name
             item.enabled = prev_enabled.get(obj.name, True)
 
-        self._apply_boolean_targets(cutter)
+        enabled_bodies = self._apply_boolean_targets(cutter)
+
+        # Making a sketch solid is what settles which part it belongs to: a cut
+        # joins the part it cuts, a standalone solid roots one. A mesh cutter is
+        # left alone -- a part with its own history stays a part.
+        if sketch is not None:
+            from ..utilities.part import settle_membership
+
+            settle_membership(cutter, enabled_bodies)
 
         # Nest the cutter's collection under the bodies it now feeds.
         from ..utilities.collections import organize_part_nesting
@@ -298,15 +306,16 @@ class BooleanFromToolMixin:
         organize_part_nesting(context.scene)
 
     def _apply_boolean_targets(self, cutter):
+        """Apply this cutter's booleans. Returns the bodies it feeds, in order."""
         name = boolean_modifier_name(cutter)
-        enabled_bodies = set()
+        enabled_bodies = []
         for item in self.boolean_targets:
             body = bpy.data.objects.get(item.name)
             if body is None:
                 continue
             if self.operation != "None" and item.enabled:
                 apply_boolean(body, cutter, self.operation)
-                enabled_bodies.add(body)
+                enabled_bodies.append(body)
         # Strip this cutter's boolean from every other body, so excluding a target,
         # setting the operation to None, or a shorter extrude no longer reaching a
         # body all remove its (now stale) boolean -- even if it left the list.
@@ -320,6 +329,7 @@ class BooleanFromToolMixin:
         # it, matching the standalone Boolean tool.
         if enabled_bodies:
             cutter.display_type = "WIRE"
+        return enabled_bodies
 
     def draw_boolean_settings(self, layout):
         layout.separator()

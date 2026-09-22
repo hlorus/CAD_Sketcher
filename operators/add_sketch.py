@@ -66,19 +66,23 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     # Resolve the plane and the part before activate, so align_view sees both.
     wp_orig = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
     root = _part_for_workplane(context, wp_orig)
-    from ..utilities.part import join_part, mark_part_member, mark_part_root
+    from ..utilities.part import (
+        fix_transform,
+        free_transform,
+        join_part,
+        mark_part_member,
+    )
 
     if root is None:
-        # Starts a new part: the sketch owns its transform and is its own plane,
-        # placed where the datum plane it was drawn on sits.
+        # Nothing obvious to belong to, so the sketch is global: it owns its
+        # transform and is its own plane, placed where the datum plane it was
+        # drawn on sits. It joins or starts a part once it is made solid.
         sketch_obj.matrix_world = wp_orig.matrix_world.copy()
-        mark_part_root(sketch_obj)
+        free_transform(sketch_obj)
     else:
         sketch_obj.parent = wp_orig
         sketch_obj.slvs_workplane = wp_orig
-        sketch_obj.lock_location = (True, True, True)
-        sketch_obj.lock_rotation = (True, True, True)
-        sketch_obj.lock_scale = (True, True, True)
+        fix_transform(sketch_obj)
         join_part(root, wp_orig)
         mark_part_member(sketch_obj, root)
 

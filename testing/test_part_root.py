@@ -14,9 +14,11 @@ from ..utilities.part import (
     PART_ROOT_KEY,
     is_part_root,
     join_part,
+    mark_part_root,
     part_root_of,
     reconcile_parts,
     rehome_children,
+    settle_membership,
 )
 from .utils import BgsTestCase
 
@@ -41,17 +43,19 @@ class TestPartRoot(BgsTestCase):
         ob.location = location
         return ob
 
-    def test_sketch_on_a_datum_plane_starts_a_part(self):
+    def test_sketch_on_a_datum_plane_is_global(self):
+        # Nothing obvious to belong to: it stays global until it is made solid.
         sketch = build_sketch_on_workplane(self.context, self.datum)
         obj = sketch.target_object
 
-        self.assertTrue(is_part_root(obj))
+        self.assertFalse(is_part_root(obj))
+        self.assertIsNone(part_root_of(obj))
         self.assertIsNone(obj.parent)
         # It is its own plane, sitting where the datum plane it was drawn on is.
         self.assertIsNone(obj.slvs_workplane)
         self.assertEqual(sketch.plane_matrix, self.datum.matrix_world)
 
-    def test_a_part_root_can_be_moved(self):
+    def test_a_global_sketch_can_be_moved(self):
         sketch = build_sketch_on_workplane(self.context, self.datum)
         obj = sketch.target_object
 
@@ -62,6 +66,52 @@ class TestPartRoot(BgsTestCase):
 
         obj.matrix_world = Matrix.Translation(Vector((5.0, 0.0, 0.0)))
         self.assertEqual(sketch.plane_matrix.translation, Vector((5.0, 0.0, 0.0)))
+
+    def test_a_standalone_solid_roots_its_own_part(self):
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        obj = sketch.target_object
+
+        # Extruded with nothing to boolean into.
+        self.assertEqual(settle_membership(obj, []), obj)
+        self.assertTrue(is_part_root(obj))
+        self.assertEqual(tuple(obj.lock_location), (False, False, False))
+
+    def test_a_solid_that_cuts_a_body_joins_its_part(self):
+        body = self._cube("target", location=(1.0, 0.0, 0.0))
+        mark_part_root(body)
+        cutter = build_sketch_on_workplane(self.context, self.datum)
+        obj = cutter.target_object
+
+        self.assertEqual(settle_membership(obj, [body]), body)
+        self.assertEqual(part_root_of(obj), body)
+        self.assertFalse(is_part_root(obj))
+        # A feature does not move on its own any more.
+        self.assertEqual(tuple(obj.lock_location), (True, True, True))
+
+        # And the cut travels with the body it cuts.
+        before = cutter.plane_matrix.translation.copy()
+        body.matrix_basis = Matrix.Translation(Vector((0.0, 0.0, 4.0)))
+        self.context.view_layer.update()
+        self.assertEqual(
+            cutter.plane_matrix.translation, before + Vector((0.0, 0.0, 4.0))
+        )
+
+    def test_cutting_a_bare_body_makes_it_a_part(self):
+        body = self._cube("bare")
+        cutter = build_sketch_on_workplane(self.context, self.datum)
+
+        self.assertEqual(settle_membership(cutter.target_object, [body]), body)
+        self.assertTrue(is_part_root(body))
+
+    def test_a_sketch_already_in_a_part_keeps_it(self):
+        body = self._cube()
+        wp = create_face_workplane(self.context, body, 0)
+        sketch = build_sketch_on_workplane(self.context, wp)
+        other = self._cube("other", location=(10.0, 0.0, 0.0))
+        mark_part_root(other)
+
+        self.assertEqual(settle_membership(sketch.target_object, [other]), body)
+        self.assertEqual(part_root_of(sketch.target_object), body)
 
     def test_sketch_on_a_face_joins_that_object_s_part(self):
         body = self._cube()
@@ -103,6 +153,7 @@ class TestPartRoot(BgsTestCase):
     def test_rehoming_keeps_members_in_place_and_promotes_a_successor(self):
         sketch = build_sketch_on_workplane(self.context, self.datum)
         root = sketch.target_object
+        mark_part_root(root)
         root.matrix_world = Matrix.Translation(Vector((7.0, 0.0, 0.0)))
         self.context.view_layer.update()
 
@@ -133,6 +184,7 @@ class TestPartRoot(BgsTestCase):
 
         sketch = build_sketch_on_workplane(self.context, self.datum)
         root = sketch.target_object
+        mark_part_root(root)
 
         # Alt+D: a second object sharing the same curve data, props and all.
         copy = root.copy()
@@ -149,6 +201,7 @@ class TestPartRoot(BgsTestCase):
         # collapse back toward where it was first assembled.
         sketch = build_sketch_on_workplane(self.context, self.datum)
         root = sketch.target_object
+        mark_part_root(root)
 
         wp = bpy.data.objects.new("WP", None)
         self.scene.collection.objects.link(wp)
@@ -171,6 +224,7 @@ class TestPartRoot(BgsTestCase):
 
     def test_reconcile_is_quiet_when_nothing_is_orphaned(self):
         sketch = build_sketch_on_workplane(self.context, self.datum)
+        mark_part_root(sketch.target_object)
         wp = bpy.data.objects.new("WP", None)
         self.scene.collection.objects.link(wp)
         join_part(sketch.target_object, wp)
@@ -181,6 +235,7 @@ class TestPartRoot(BgsTestCase):
     def test_moving_a_part_carries_its_solved_geometry(self):
         sketch = build_sketch_on_workplane(self.context, self.datum)
         root = sketch.target_object
+        mark_part_root(root)
 
         from ..curve_solver import solve_system
         from ..model.curve_ref import LineRef, PointRef
@@ -215,7 +270,7 @@ class TestPartRoot(BgsTestCase):
 
         first = build_sketch_on_workplane(self.context, self.datum)
         body = first.target_object
-        self.assertTrue(is_part_root(body))
+        self.assertFalse(is_part_root(body))  # global until something joins it
 
         # The workplane a non-anchorable pick produces: source recorded, no anchor.
         wp = bpy.data.objects.new("WP", None)
@@ -224,6 +279,8 @@ class TestPartRoot(BgsTestCase):
         self.assertNotIn(KEY_FACE_ID, wp)
 
         second = build_sketch_on_workplane(self.context, wp)
+        # Drawing on a global sketch is what promotes it to a part.
+        self.assertTrue(is_part_root(body))
         self.assertEqual(part_root_of(second.target_object), body)
 
         # And it follows when the part moves.

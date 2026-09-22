@@ -41,17 +41,29 @@ def is_part_root(obj: Optional[bpy.types.Object]) -> bool:
     return bool(obj is not None and obj.get(PART_ROOT_KEY, False))
 
 
-def mark_part_root(obj: bpy.types.Object) -> None:
-    """Make ``obj`` the root of a part: free to move, scale still locked.
+def free_transform(obj: bpy.types.Object) -> None:
+    """Let the user move and rotate ``obj``, but never scale it.
 
-    Scale is kept locked because the solver reads the plane as a rigid frame
-    (origin plus quaternion) and silently drops any scale, so a scaled part
+    Scale stays locked because the solver reads a sketch's plane as a rigid frame
+    (origin plus quaternion) and silently drops any scale, so a scaled sketch
     would draw and solve at different sizes.
     """
-    obj[PART_ROOT_KEY] = True
     obj.lock_location = (False, False, False)
     obj.lock_rotation = (False, False, False)
     obj.lock_scale = (True, True, True)
+
+
+def fix_transform(obj: bpy.types.Object) -> None:
+    """Pin ``obj`` within its part: a feature does not move on its own."""
+    obj.lock_location = (True, True, True)
+    obj.lock_rotation = (True, True, True)
+    obj.lock_scale = (True, True, True)
+
+
+def mark_part_root(obj: bpy.types.Object) -> None:
+    """Make ``obj`` the root of a part, owning the part's transform."""
+    obj[PART_ROOT_KEY] = True
+    free_transform(obj)
 
 
 def clear_part_root(obj: bpy.types.Object) -> None:
@@ -170,6 +182,41 @@ def _restore_world(obj: bpy.types.Object, root_matrix: Matrix) -> None:
     """Put an orphaned member back where its (now gone) root held it."""
     obj.matrix_basis = root_matrix @ obj.matrix_parent_inverse @ obj.matrix_basis
     obj.matrix_parent_inverse = Matrix.Identity(4)
+
+
+def settle_membership(
+    sketch_obj: bpy.types.Object, bodies
+) -> Optional[bpy.types.Object]:
+    """Decide which part a sketch belongs to, now that it has become solid.
+
+    Membership is settled when material appears, not when a sketch is drawn: a
+    sketch on a base datum plane is global until it is extruded or revolved.
+    Then either it cuts or adds to an existing body, which makes it a feature of
+    that body's part (a cut has to travel with what it cuts, or moving the target
+    silently changes the result), or it stands alone and roots a part of its own.
+
+    ``bodies`` are the bodies this solid booleans into, in the order the tool
+    applied them; only the first can own it, since membership is single-valued.
+    A sketch that already belongs to a part keeps that part.
+
+    Returns the part root the sketch ended up in.
+    """
+    existing = part_root_of(sketch_obj)
+    if existing is not None:
+        return existing
+
+    target = next(iter(bodies), None)
+    if target is None:
+        mark_part_root(sketch_obj)
+        return sketch_obj
+
+    root = part_root_of(target)
+    if root is None:
+        root = target
+        mark_part_root(root)
+    join_part(root, sketch_obj)
+    fix_transform(sketch_obj)
+    return root
 
 
 def reconcile_parts(scene: bpy.types.Scene) -> bool:
