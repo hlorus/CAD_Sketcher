@@ -295,3 +295,35 @@ class TestEntityRepick(Sketch2dTestCase):
             self.assertEqual(selection.ignore_list, [])
         finally:
             selection.ignore_list.clear()
+
+    def test_execute_starts_from_empty_state_data(self):
+        """A redo run rebuilds from the props alone.
+
+        State data is one dict shared by every instance of an operator, so what
+        the last run left in it would otherwise win over the props: a redo after
+        a continuous-draw chain rebuilt the segment the chain had abandoned.
+        """
+        from ..model.curve_ref import PointRef
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+
+        h = OpHarness(View3D_OT_slvs_add_line2d, self.sketch, self.context)
+        h.place_point((0.0, 0.0)).place_point((3.0, 1.0))
+        first = self._commit(h)
+
+        again = self._fresh(
+            View3D_OT_slvs_add_line2d, self._persisted(first), state_index=1
+        )
+        # What an interrupted run leaves behind.
+        again._state_data[0] = {
+            "type": PointRef,
+            "is_existing_entity": True,
+            "curve_id": "stale",
+        }
+        seen = {}
+        again._reapply = lambda context: seen.setdefault(
+            "data", dict(again._state_data)
+        )
+        again._end = lambda context, ok, **kwargs: {"FINISHED"}
+        again.execute(self.context)
+
+        self.assertEqual(seen["data"], {})

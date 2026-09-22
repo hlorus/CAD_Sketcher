@@ -587,6 +587,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
         return {"FINISHED"} if ok else {"CANCELLED"}
 
     def execute(self, context: Context):
+        # Rebuild from the persisted props alone. State data is shared between
+        # runs (one class-level dict, see _StateMachineMixin), so whatever the
+        # last run left there would win over the props in _restore_pointers --
+        # a redo after a continuous chain rebuilt the abandoned segment.
+        self._state_data.clear()
         global_data.stateful_op_running = True
         try:
             self._numeric = NumericInput()
