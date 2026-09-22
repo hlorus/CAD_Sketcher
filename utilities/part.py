@@ -212,23 +212,34 @@ def settle_membership(
     silently changes the result), or it stands alone and roots a part of its own.
 
     ``bodies`` are the bodies this solid booleans into, in the order the tool
-    applied them; only the first can own it, since membership is single-valued.
-    A sketch that already belongs to a part keeps that part.
+    applied them (the body whose face was sketched on leads). A sketch that
+    already belongs to a part keeps that part.
 
-    Returns the part root the sketch ended up in.
+    A cut reaching bodies in *several* parts belongs to none of them: it is an
+    assembly-level feature, and staying global says so instead of picking an
+    owner arbitrarily. Returns the part root the sketch ended up in, or None when
+    it stays global.
     """
     existing = part_root_of(sketch_obj)
     if existing is not None:
         return existing
 
-    target = next(iter(bodies), None)
-    if target is None:
+    # Each target either already roots/belongs to a part, or would become one.
+    owners = []
+    for body in bodies:
+        owner = part_root_of(body) or body
+        if owner not in owners:
+            owners.append(owner)
+
+    if not owners:
         mark_part_root(sketch_obj)
         return sketch_obj
 
-    root = part_root_of(target)
-    if root is None:
-        root = target
+    if len(owners) > 1:
+        return None
+
+    root = owners[0]
+    if not is_part_root(root):
         mark_part_root(root)
     join_part(root, sketch_obj)
     fix_transform(sketch_obj)

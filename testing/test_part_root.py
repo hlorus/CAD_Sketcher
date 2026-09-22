@@ -96,6 +96,43 @@ class TestPartRoot(BgsTestCase):
             cutter.plane_matrix.translation, before + Vector((0.0, 0.0, 4.0))
         )
 
+    def test_a_cut_across_two_parts_stays_global(self):
+        # It is an assembly-level feature: it belongs to neither part, rather than
+        # to whichever one detection happened to return first.
+        first = self._cube("part_a")
+        second = self._cube("part_b", location=(5.0, 0.0, 0.0))
+        mark_part_root(first)
+        mark_part_root(second)
+        cutter = build_sketch_on_workplane(self.context, self.datum)
+        obj = cutter.target_object
+
+        self.assertIsNone(settle_membership(obj, [first, second]))
+        self.assertIsNone(part_root_of(obj))
+        self.assertFalse(is_part_root(obj))
+        # Still free to move, like any global sketch.
+        self.assertEqual(tuple(obj.lock_location), (False, False, False))
+
+    def test_a_cut_through_two_bodies_of_one_part_joins_it(self):
+        root = self._cube("part_a")
+        mark_part_root(root)
+        second_body = self._cube("second_body", location=(1.0, 0.0, 0.0))
+        join_part(root, second_body)
+        cutter = build_sketch_on_workplane(self.context, self.datum)
+
+        self.assertEqual(
+            settle_membership(cutter.target_object, [root, second_body]), root
+        )
+        self.assertEqual(part_root_of(cutter.target_object), root)
+
+    def test_a_cut_across_two_bare_bodies_stays_global(self):
+        first = self._cube("bare_a")
+        second = self._cube("bare_b", location=(5.0, 0.0, 0.0))
+        cutter = build_sketch_on_workplane(self.context, self.datum)
+
+        self.assertIsNone(settle_membership(cutter.target_object, [first, second]))
+        self.assertFalse(is_part_root(first))
+        self.assertFalse(is_part_root(second))
+
     def test_cutting_a_bare_body_makes_it_a_part(self):
         body = self._cube("bare")
         cutter = build_sketch_on_workplane(self.context, self.datum)

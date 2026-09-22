@@ -211,6 +211,29 @@ BOOLEAN_TOOL_OPERATIONS = (
 )
 
 
+def _update_cutter_display(cutter, enabled_bodies, operation):
+    """Show a cutter according to what it is actually doing.
+
+    A cutter doing its job is in the way: its own solid sits over the result, so
+    hide it (with the eye, never ``hide_viewport``, which would drop it from
+    evaluation and with it the boolean). Two cases stay visible as wireframe
+    because the user needs to find them: one that cuts across several parts, which
+    belongs to no part and is the only handle on that cut, and one that means to
+    cut but currently reaches nothing, which would otherwise look like a finished
+    body. A solid with no boolean at all is just a body, so it shows as one.
+    """
+    from ..utilities.part import part_root_of
+
+    cuts_something = operation != "None" and bool(enabled_bodies)
+    if cuts_something and part_root_of(cutter) is not None:
+        cutter.display_type = "TEXTURED"
+        cutter.hide_set(True)
+        return
+
+    cutter.hide_set(False)
+    cutter.display_type = "TEXTURED" if operation == "None" else "WIRE"
+
+
 class BooleanFromToolMixin:
     """Boolean an extrude/revolve solid into auto-detected targets.
 
@@ -300,6 +323,8 @@ class BooleanFromToolMixin:
 
             settle_membership(cutter, enabled_bodies)
 
+        _update_cutter_display(cutter, enabled_bodies, self.operation)
+
         # Nest the cutter's collection under the bodies it now feeds.
         from ..utilities.collections import organize_part_nesting
 
@@ -325,10 +350,6 @@ class BooleanFromToolMixin:
             mod = body.modifiers.get(name)
             if mod is not None:
                 body.modifiers.remove(mod)
-        # A solid cutter sitting over the bodies would hide the result -- wireframe
-        # it, matching the standalone Boolean tool.
-        if enabled_bodies:
-            cutter.display_type = "WIRE"
         return enabled_bodies
 
     def draw_boolean_settings(self, layout):
