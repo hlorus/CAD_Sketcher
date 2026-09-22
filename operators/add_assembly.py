@@ -8,7 +8,10 @@ from ..utilities.part import create_assembly, join_assembly, part_root_of
 
 
 class View3D_OT_slvs_add_assembly(Operator):
-    """Add an assembly, taking the selected parts into it."""
+    """Add an assembly at the 3D cursor, taking any selected parts into it.
+
+    Works with nothing selected: an assembly can start empty and be filled by
+    parenting parts into it, which is how membership works everywhere else."""
 
     bl_idname = Operators.AddAssembly
     bl_label = "Add Assembly"

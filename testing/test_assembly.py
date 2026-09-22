@@ -152,3 +152,17 @@ class TestAssembly(BgsTestCase):
         part.parent = assembly  # a plain outliner drag
         reconcile_assemblies(self.scene)
         self.assertEqual(assembly_root_of(part), assembly)
+
+    def test_an_assembly_can_start_empty(self):
+        # Nothing selected: the assembly is created anyway, to be filled by
+        # dragging parts into it.
+        bpy.ops.object.select_all(action="DESELECT")
+        self.context.view_layer.objects.active = None
+
+        before = {o.name for o in self.scene.objects}
+        bpy.ops.view3d.slvs_add_assembly()
+        created = [o for o in self.scene.objects if o.name not in before]
+
+        self.assertEqual(len(created), 1)
+        self.assertTrue(is_assembly_root(created[0]))
+        self.assertFalse(created[0].children)

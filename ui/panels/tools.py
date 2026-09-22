@@ -134,13 +134,15 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         )
         col = layout.column(align=True)
         col.operator(declarations.Operators.MakePart, icon="OUTLINER_OB_MESH")
-
-        col = layout.column(align=True)
-        col.enabled = has_part
+        # Assemblies can start empty and be filled by dragging parts in, so this
+        # one is never gated on the selection; a placement needs a part to place.
         col.operator(
             declarations.Operators.AddAssembly,
             icon="OUTLINER_OB_GROUP_INSTANCE",
         )
+
+        col = layout.column(align=True)
+        col.enabled = has_part
         col.operator(declarations.Operators.InstancePart, icon="DUPLICATE")
 
     def draw(self, context: Context):

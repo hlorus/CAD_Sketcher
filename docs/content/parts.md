@@ -94,7 +94,8 @@ applies to an assembly, whose parts simply stand on their own again.
 ## Assemblies
 
 Select the parts you want to group and use **Add Assembly** in the Tools panel
-(shown when no sketch is active). Parts stay individually movable inside an assembly, and assemblies can
+(shown when no sketch is active). With nothing selected it creates an empty
+assembly at the 3D cursor, to be filled by dragging parts into it. Parts stay individually movable inside an assembly, and assemblies can
 contain assemblies.
 
 ## Reusing a part
