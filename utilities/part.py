@@ -605,6 +605,10 @@ def focused_part(context) -> Optional[bpy.types.Object]:
     Read from the active sketch first, then from the selection, so which part's
     planes are offered is always something visible on screen rather than a mode
     the user has to keep in mind.
+
+    Only *selected* objects count. Blender leaves an object active after it is
+    deselected, so consulting the active object alone would make focus stick:
+    clicking empty space would never get you back to the world planes.
     """
     from ..model.sketch_ref import get_active_sketch
 
@@ -614,7 +618,12 @@ def focused_part(context) -> Optional[bpy.types.Object]:
         if root is not None:
             return root
 
-    for obj in (context.active_object, *context.selected_objects):
+    selected = list(context.selected_objects)
+    active = context.active_object
+    if active is not None and active in selected:
+        selected.insert(0, active)
+
+    for obj in selected:
         root = part_root_of(obj)
         if root is not None:
             return root

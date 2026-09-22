@@ -58,16 +58,11 @@ ORIGIN_LABEL = {
 def workplane_label(wp_obj, pick_id) -> str:
     """The text drawn on a base plane, or "" for a plane that carries none.
 
-    A part's planes name the part as well as the axis: they replace the world's
-    while a part is in focus, and the two sets are otherwise indistinguishable,
-    which makes it easy to sketch in the wrong frame.
+    Just the axis: the label is sized to the plane it sits on, so anything longer
+    overflows it. A part's planes are told apart by where they are and how big
+    they are drawn, and only one set is ever shown at a time.
     """
-    axis = ORIGIN_LABEL.get(pick_id, "")
-    if not axis or pick_id not in _PART_PLANE_IDS:
-        return axis
-
-    root = wp_obj.parent
-    return f"{root.name} {axis}" if root is not None else axis
+    return ORIGIN_LABEL.get(pick_id, "")
 
 
 # Sequential pick IDs for non-origin empties start here

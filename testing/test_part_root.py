@@ -615,9 +615,8 @@ class TestPartRoot(BgsTestCase):
         self.assertIn(f"{body.name} XY", focused)
         self.assertNotIn(self.context.scene.sketcher.wp_xy.name, focused)
 
-    def test_a_part_plane_is_labelled_with_its_part(self):
-        # They stand in for the world planes, so the axis alone would not say
-        # which frame you are about to sketch in.
+    def test_a_plane_is_labelled_with_its_axis_only(self):
+        # The label is sized to the plane, so a part name would overflow it.
         from ..utilities.part import ensure_part_planes
         from ..utilities.workplane import (
             WP_ID_PART_XY,
@@ -629,7 +628,7 @@ class TestPartRoot(BgsTestCase):
         mark_part_root(body)
         plane = ensure_part_planes(self.context, body)[0]
 
-        self.assertEqual(workplane_label(plane, WP_ID_PART_XY), "bracket XY")
+        self.assertEqual(workplane_label(plane, WP_ID_PART_XY), "XY")
         self.assertEqual(
             workplane_label(self.context.scene.sketcher.wp_xy, WP_ID_XY), "XY"
         )
@@ -646,3 +645,22 @@ class TestPartRoot(BgsTestCase):
             return max_x - min_x
 
         self.assertLess(side(WP_ID_PART_XY), side(WP_ID_XY))
+
+    def test_focus_follows_the_selection_not_the_lingering_active_object(self):
+        # Blender keeps an object active after it is deselected, so focus read
+        # from the active object alone would stick and the world planes would
+        # never come back.
+        from ..utilities.part import focused_part
+
+        body = self._cube("host")
+        mark_part_root(body)
+        self._focus(body)
+        self.assertEqual(focused_part(self.context), body)
+
+        bpy.ops.object.select_all(action="DESELECT")
+        self.assertEqual(
+            self.context.view_layer.objects.active,
+            body,
+            "still active, as Blender does",
+        )
+        self.assertIsNone(focused_part(self.context))
