@@ -145,9 +145,11 @@ class View3D_OT_slvs_change_sketch_workplane(Operator):
         return sketch is not None and not sketch.is_3d
 
     def invoke(self, context: Context, event: Event):
+        from ..operators.add_sketch import _ensure_focused_part_planes
         from ..utilities.workplane import ensure_origin_workplane_empties
 
         ensure_origin_workplane_empties(context)
+        _ensure_focused_part_planes(context)
         self._hover, self._preview = "", None
         # The Add Sketch gizmo only exists while its tool is active, which isn't
         # available in sketch mode, so draw the same picker from here.
@@ -180,13 +182,10 @@ class View3D_OT_slvs_change_sketch_workplane(Operator):
         from .add_sketch import move_sketch_to_face, set_sketch_workplane
 
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
-        from ..utilities.part import as_workplane_object
-
         kind, a, b = resolve_sketch_base(context, coords)
         sketch_obj = get_active_sketch(context).target_object
         if kind in ("border", "interior"):
-            wp = as_workplane_object(context, b)
-            return self._finish(context, set_sketch_workplane(context, sketch_obj, wp))
+            return self._finish(context, set_sketch_workplane(context, sketch_obj, b))
         if kind == "mesh":
             move_sketch_to_face(context, sketch_obj, a, b)
             return self._finish(context, True)

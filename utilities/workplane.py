@@ -24,6 +24,11 @@ WP_ID_PART_XZ = 0xF00012
 WP_ID_PART_YZ = 0xF00013
 
 _PART_PLANE_IDS = (WP_ID_PART_XY, WP_ID_PART_XZ, WP_ID_PART_YZ)
+_PART_PLANE_AXIS_ORDER = {"XY": 0, "XZ": 1, "YZ": 2}
+
+# A part's planes are drawn much smaller than the world's, so a part sitting near
+# the origin reads as a part rather than competing with the scene datums.
+PART_PLANE_SIZE_FACTOR = 0.3
 
 # A part's base planes read as the same axes as the world's, so they are tinted
 # the same way: the part's frame is what tells them apart, not the colour.
@@ -100,10 +105,11 @@ def iter_wp_empties(context):
     # a moved or rotated part otherwise only offers world-aligned planes. They
     # have no object until one is picked.
     if show_origin:
-        from .part import part_planes
+        from .part import PART_PLANE_KEY, part_plane_objects
 
-        for plane, wp_id in zip(part_planes(context), _PART_PLANE_IDS):
-            yield plane, wp_id
+        for plane in part_plane_objects(context):
+            origin_names.add(plane.name)
+            yield plane, _PART_PLANE_IDS[_PART_PLANE_AXIS_ORDER[plane[PART_PLANE_KEY]]]
 
     pick_id = _EMPTY_PICK_START
     for obj in context.scene.objects:
@@ -143,6 +149,8 @@ def wp_plane_bounds(context, pick_id):
     Shared by drawing and hit-testing so the visible and pickable areas match.
     """
     h = wp_display_half_size(context)
+    if pick_id in _PART_PLANE_IDS:
+        h *= PART_PLANE_SIZE_FACTOR
     if pick_id in (WP_ID_XY, WP_ID_XZ, WP_ID_YZ) + _PART_PLANE_IDS:
         gap = h * WP_ORIGIN_GAP_FRACTION
         side = 2.0 * h

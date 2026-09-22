@@ -8,12 +8,24 @@ from ..model.curve_ref import PointRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.geometry import face_workplane_matrix
-from ..utilities.part import as_workplane_object
 from ..utilities.workplane import ensure_origin_workplane_empties, resolve_sketch_base
 from .base_3d import Operator3d
 from .utilities import activate_sketch
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_focused_part_planes(context: Context):
+    """Make sure the part in focus has its own base planes to offer.
+
+    Objects can only be added from operator context, so the pickers ask for them
+    as they start rather than the draw code creating them on the fly.
+    """
+    from ..utilities.part import ensure_part_planes, focused_part
+
+    root = focused_part(context)
+    if root is not None:
+        ensure_part_planes(context, root)
 
 
 def _part_for_workplane(context: Context, wp_empty):
@@ -311,7 +323,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         kind, a, b = resolve_sketch_base(context, coords)
 
         if kind in ("border", "interior"):
-            return self._use_workplane(as_workplane_object(context, b))
+            return self._use_workplane(b)
 
         if kind == "mesh":
             empty = create_face_workplane(context, a, b)
@@ -322,6 +334,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
 
     def prepare_origin_elements(self, context):
         ensure_origin_workplane_empties(context)
+        _ensure_focused_part_planes(context)
         return True
 
     def invoke(self, context: Context, event: Event):

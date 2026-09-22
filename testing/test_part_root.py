@@ -298,8 +298,13 @@ class TestPartRoot(BgsTestCase):
         wp = create_face_workplane(self.context, body, 0)
         self.assertEqual(wp[KEY_SOURCE], body)
 
-    def test_part_planes_are_offered_in_the_parts_own_frame(self):
-        from ..utilities.part import part_planes
+    def _focus(self, obj):
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        self.context.view_layer.objects.active = obj
+
+    def test_part_planes_sit_in_the_parts_own_frame(self):
+        from ..utilities.part import PART_PLANE_KEY, ensure_part_planes
 
         body = self._cube("moved")
         mark_part_root(body)
@@ -307,63 +312,88 @@ class TestPartRoot(BgsTestCase):
             Vector((3.0, 0.0, 0.0))
         ) @ Matrix.Rotation(1.0, 4, "Y")
         self.context.view_layer.update()
-        bpy.ops.object.select_all(action="DESELECT")
-        body.select_set(True)
-        self.context.view_layer.objects.active = body
 
-        planes = part_planes(self.context)
-        self.assertEqual([p.axis for p in planes], ["XY", "XZ", "YZ"])
-        # A moved, rotated part offers planes in its frame, not the world's.
+        planes = ensure_part_planes(self.context, body)
+        self.assertEqual([p[PART_PLANE_KEY] for p in planes], ["XY", "XZ", "YZ"])
+        for plane in planes:
+            self.assertEqual(plane.type, "EMPTY")
+            self.assertEqual(part_root_of(plane), body)
+
+        self.context.view_layer.update()
         xy = planes[0]
+        # A moved, rotated part offers planes in its frame, not the world's.
         self.assertEqual(xy.matrix_world.translation, Vector((3.0, 0.0, 0.0)))
         self.assertEqual(
             xy.matrix_world.to_quaternion(), body.matrix_basis.to_quaternion()
         )
 
-    def test_no_part_in_focus_offers_no_part_planes(self):
-        from ..utilities.part import part_planes
+    def test_part_planes_are_created_once(self):
+        from ..utilities.part import ensure_part_planes
+
+        body = self._cube("host")
+        mark_part_root(body)
+        first = ensure_part_planes(self.context, body)
+        again = ensure_part_planes(self.context, body)
+        self.assertEqual(first, again)
+
+    def test_part_planes_are_drawn_smaller_than_the_world_planes(self):
+        from ..utilities.workplane import (
+            WP_ID_PART_XY,
+            WP_ID_XY,
+            wp_plane_bounds,
+        )
+
+        def side(pick_id):
+            min_x, _min_y, max_x, _max_y = wp_plane_bounds(self.context, pick_id)
+            return max_x - min_x
+
+        self.assertLess(side(WP_ID_PART_XY), side(WP_ID_XY))
+
+    def test_only_the_focused_parts_planes_are_offered(self):
+        from ..utilities.part import ensure_part_planes, part_plane_objects
+
+        body = self._cube("host")
+        mark_part_root(body)
+        ensure_part_planes(self.context, body)
+
+        self._focus(body)
+        self.assertEqual(len(part_plane_objects(self.context)), 3)
 
         bpy.ops.object.select_all(action="DESELECT")
         self.context.view_layer.objects.active = None
-        self.assertEqual(part_planes(self.context), [])
-
-    def test_picking_a_part_plane_materializes_one_empty(self):
-        from ..utilities.part import PART_PLANE_KEY, as_workplane_object, part_planes
-
-        body = self._cube("host")
-        mark_part_root(body)
-        bpy.ops.object.select_all(action="DESELECT")
-        body.select_set(True)
-        self.context.view_layer.objects.active = body
-
-        plane = part_planes(self.context)[1]  # XZ
-        empty = as_workplane_object(self.context, plane)
-
-        self.assertEqual(empty.type, "EMPTY")
-        self.assertEqual(empty[PART_PLANE_KEY], "XZ")
-        self.assertEqual(part_root_of(empty), body)
-        self.assertEqual(empty.matrix_world.translation, plane.matrix_world.translation)
-
-        # Picking it again reuses it instead of stacking coincident workplanes.
-        again = as_workplane_object(self.context, part_planes(self.context)[1])
-        self.assertEqual(again, empty)
+        self.assertEqual(part_plane_objects(self.context), [])
 
     def test_a_sketch_on_a_part_plane_joins_that_part(self):
-        from ..utilities.part import as_workplane_object, part_planes
+        from ..utilities.part import ensure_part_planes
 
         body = self._cube("host")
         mark_part_root(body)
-        bpy.ops.object.select_all(action="DESELECT")
-        body.select_set(True)
-        self.context.view_layer.objects.active = body
+        wp = ensure_part_planes(self.context, body)[0]
 
-        wp = as_workplane_object(self.context, part_planes(self.context)[0])
         sketch = build_sketch_on_workplane(self.context, wp)
         self.assertEqual(part_root_of(sketch.target_object), body)
+
+    def test_a_plane_that_loses_its_part_becomes_an_ordinary_workplane(self):
+        from ..utilities.part import PART_PLANE_KEY, ensure_part_planes
+
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        root = sketch.target_object
+        mark_part_root(root)
+        plane = ensure_part_planes(self.context, root)[0]
+        member = build_sketch_on_workplane(self.context, plane)
+
+        reconcile_parts(self.scene)
+        bpy.data.objects.remove(root)
+        self.assertTrue(reconcile_parts(self.scene))
+
+        # It no longer stands for a frame it is not in; it stays where it was.
+        self.assertNotIn(PART_PLANE_KEY, plane)
+        self.assertEqual(part_root_of(plane), member.target_object)
 
     def test_every_drawable_plane_has_a_colour_and_label(self):
         # The draw handler indexes both maps by pick id, so a plane that is
         # offered without an entry raises mid-draw (KeyError on the axis colour).
+        from ..utilities.part import ensure_part_planes
         from ..utilities.workplane import (
             ORIGIN_AXIS_COLOR,
             ORIGIN_LABEL,
@@ -373,9 +403,8 @@ class TestPartRoot(BgsTestCase):
 
         body = self._cube("host")
         mark_part_root(body)
-        bpy.ops.object.select_all(action="DESELECT")
-        body.select_set(True)
-        self.context.view_layer.objects.active = body
+        ensure_part_planes(self.context, body)
+        self._focus(body)
 
         ids = [pick_id for _plane, pick_id in iter_wp_empties(self.context)]
         self.assertTrue(any(pick_id in ORIGIN_LABEL for pick_id in ids))
