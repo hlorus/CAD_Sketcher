@@ -454,7 +454,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         # Make the op's hover/preselection UI available for the re-pick even
         # though the workspace tool that normally owns it isn't active.
         self._prepare_pick_ui(context)
-        context.window.cursor_modal_set("EYEDROPPER")
+        # The same cursor the tool draws with: re-picking is the very same click
+        # on the very same targets, just outside the drawing run.
+        context.window.cursor_modal_set("CROSSHAIR")
         self._set_edit_status(context)
         # A modal invoked from a redo-panel button can stall waiting for its first
         # event (the button-click context delivers none until the mouse moves).
