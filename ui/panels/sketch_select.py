@@ -62,13 +62,6 @@ class VIEW3D_MT_slvs_sketch_workplane(Menu):
             ).sketch_name = sketch.target_object.name
 
 
-def _has_selected_part(context: Context) -> bool:
-    """Whether the selection holds anything that belongs to a part."""
-    from ...utilities.part import part_root_of
-
-    return any(part_root_of(obj) is not None for obj in context.selected_objects)
-
-
 def _draw_workplane(context: Context, layout: UILayout, sketch):
     """Show the sketch's workplane and its face anchor, actions in a dropdown.
 
@@ -220,21 +213,3 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                     "ui_active_sketch",
                     rows=3,
                 )
-
-            # Grouping parts is a scene-level act, so it belongs here rather than
-            # inside a sketch: it takes the selected parts into one assembly.
-            layout.separator()
-            row = layout.row()
-            row.enabled = _has_selected_part(context)
-            row.operator(
-                declarations.Operators.AddAssembly.value,
-                text="Add Assembly",
-                icon="OUTLINER_OB_GROUP_INSTANCE",
-            )
-            row = layout.row()
-            row.enabled = _has_selected_part(context)
-            row.operator(
-                declarations.Operators.InstancePart.value,
-                text="Instance Part",
-                icon="DUPLICATE",
-            )

@@ -123,6 +123,23 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         col.operator(declarations.Operators.NodeArrayLinear)
         col.operator(declarations.Operators.NodeBoolean)
 
+        # Grouping and reusing parts acts on whole objects, so it belongs with the
+        # other object-level tools rather than inside a sketch.
+        layout.separator()
+        layout.label(text="Parts:")
+        from ...utilities.part import part_root_of
+
+        has_part = any(
+            part_root_of(obj) is not None for obj in context.selected_objects
+        )
+        col = layout.column(align=True)
+        col.enabled = has_part
+        col.operator(
+            declarations.Operators.AddAssembly,
+            icon="OUTLINER_OB_GROUP_INSTANCE",
+        )
+        col.operator(declarations.Operators.InstancePart, icon="DUPLICATE")
+
     def draw(self, context: Context):
         # Mirror the workspace toolbar: sketch tools while a sketch is active,
         # node tools otherwise, instead of showing both at once.

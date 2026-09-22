@@ -85,13 +85,13 @@ applies to an assembly, whose parts simply stand on their own again.
 
 ## Assemblies
 
-Select the parts you want to group and use **Add Assembly** in the Sketcher
-panel. Parts stay individually movable inside an assembly, and assemblies can
+Select the parts you want to group and use **Add Assembly** in the Tools panel
+(shown when no sketch is active). Parts stay individually movable inside an assembly, and assemblies can
 contain assemblies.
 
 ## Reusing a part
 
-Select a part and use **Instance Part** to place another copy of it at the 3D
+Select a part and use **Instance Part** in the Tools panel to place another copy of it at the 3D
 cursor. There is still only one part: each placement renders it, so editing the
 part updates every copy at once, and a copy costs almost nothing.
 
