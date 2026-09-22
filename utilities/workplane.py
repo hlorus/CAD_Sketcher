@@ -354,13 +354,8 @@ def get_workplane_origin_normal(sketch):
     Returns:
         tuple: (origin: Vector, normal: Vector) or (None, None)
     """
-    wp_obj = sketch.workplane_object if sketch else None
+    if not sketch:
+        return None, None
 
-    if not wp_obj and sketch and sketch.target_object and sketch.target_object.parent:
-        wp_obj = sketch.target_object.parent
-
-    if wp_obj:
-        mat = wp_obj.matrix_world
-        return mat.translation.copy(), Vector(mat.col[2][:3]).normalized()
-
-    return None, None
+    mat = sketch.plane_matrix
+    return mat.translation.copy(), Vector(mat.col[2][:3]).normalized()

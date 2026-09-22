@@ -69,6 +69,7 @@ def _create_sketch_object(context, empty, name):
     stamp_sketch_props(obj)
     _ensure_convert_modifier(obj)
     obj.parent = empty
+    obj.slvs_workplane = empty
     obj.lock_location = (True, True, True)
     obj.lock_rotation = (True, True, True)
     obj.lock_scale = (True, True, True)

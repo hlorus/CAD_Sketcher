@@ -62,11 +62,10 @@ class View3D_OT_slvs_tweak(Operator):
         self._snap = None
 
     def _get_wp(self):
-        """The sketch's workplane object (same resolution as the solver uses)."""
-        wp = self.sketch.workplane_object if self.sketch else None
-        if not wp and self.sketch.target_object and self.sketch.target_object.parent:
-            wp = self.sketch.target_object.parent
-        return wp
+        """The sketch's plane (same resolution as the solver uses)."""
+        if not self.sketch:
+            return None
+        return self.sketch.workplane_object or self.sketch.plane_matrix
 
     def _get_tweak_pos_3d(self, context: Context, coords):
         """World-space free-3D drag position on the temporary interaction plane."""

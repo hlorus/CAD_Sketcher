@@ -40,6 +40,7 @@ def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
     # Parent to workplane empty (before activate so align_view works)
     wp_orig = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
     sketch_obj.parent = wp_orig
+    sketch_obj.slvs_workplane = wp_orig
     sketch_obj.lock_location = (True, True, True)
     sketch_obj.lock_rotation = (True, True, True)
     sketch_obj.lock_scale = (True, True, True)
@@ -106,6 +107,12 @@ def _owns_workplane(context: Context, sketch_obj, wp) -> bool:
     )
 
 
+def _sketch_workplane(sketch_obj):
+    """The workplane object of a sketch object, pointer first then parent."""
+    wp = getattr(sketch_obj, "slvs_workplane", None)
+    return wp if wp is not None else sketch_obj.parent
+
+
 def set_sketch_workplane(context: Context, sketch_obj, wp_empty) -> bool:
     """Move a 2D sketch onto another workplane, keeping its 2D geometry.
 
@@ -125,7 +132,7 @@ def set_sketch_workplane(context: Context, sketch_obj, wp_empty) -> bool:
     from ..utilities.face_anchor import KEY_FACE_ID, clear_anchor
 
     wp_empty = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
-    old = sketch_obj.parent
+    old = _sketch_workplane(sketch_obj)
     if old == wp_empty:
         return False
 
@@ -134,6 +141,7 @@ def set_sketch_workplane(context: Context, sketch_obj, wp_empty) -> bool:
         KEY_FACE_ID in old or in_sketch_collection(old, sketch_obj)
     )
     sketch_obj.parent = wp_empty
+    sketch_obj.slvs_workplane = wp_empty
     sketch_obj.matrix_parent_inverse.identity()
     nest_workplane(wp_empty, sketch_obj)
 
@@ -159,7 +167,7 @@ def move_sketch_to_face(context: Context, sketch_obj, ob, face_index: int):
     from ..stateful_operator.utilities.geometry import get_evaluated_obj
     from ..utilities.face_anchor import can_anchor_face, clear_anchor, stamp_face_anchor
 
-    wp = sketch_obj.parent
+    wp = _sketch_workplane(sketch_obj)
     if not _owns_workplane(context, sketch_obj, wp):
         empty = create_face_workplane(context, ob, face_index)
         set_sketch_workplane(context, sketch_obj, empty)
@@ -183,7 +191,9 @@ def free_sketch_workplane(context: Context, sketch_obj):
     """
     from ..utilities.face_anchor import clear_anchor
 
-    wp = sketch_obj.parent
+    wp = _sketch_workplane(sketch_obj)
+    if wp is None:
+        return None
     if _owns_workplane(context, sketch_obj, wp):
         clear_anchor(wp)
         return wp

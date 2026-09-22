@@ -33,7 +33,9 @@ class View3D_OT_slvs_make_workplane_free(Operator):
         sketch_obj = (
             bpy.data.objects.get(self.sketch_name) if self.sketch_name else None
         )
-        if sketch_obj is not None and sketch_obj.parent is not None:
+        from .add_sketch import _sketch_workplane
+
+        if sketch_obj is not None and _sketch_workplane(sketch_obj) is not None:
             free_sketch_workplane(context, sketch_obj)
         else:
             empty = bpy.data.objects.get(self.empty_name)

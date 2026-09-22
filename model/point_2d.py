@@ -40,10 +40,13 @@ class Point2D(Entity2D):
     def location(self):
         u, v = self.co
         mat_local = Matrix.Translation(Vector((u, v, 0)))
+        plane_matrix = (
+            getattr(self.sketch, "plane_matrix", None) if self.sketch else None
+        )
         if self.wp:
             mat = self.wp_matrix @ mat_local
-        elif self.sketch and self.sketch.workplane_object:
-            mat = self.sketch.workplane_object.matrix_world @ mat_local
+        elif plane_matrix is not None:
+            mat = plane_matrix @ mat_local
         else:
             mat = mat_local
         return mat @ Vector((0, 0, 0))
@@ -59,7 +62,7 @@ class Point2D(Entity2D):
         self.py_data = handle
 
     def update_from_slvs(self, solvesys):
-        coords = [solvesys.get_param_value(self.py_data['param'][i]) for i in range(2)]
+        coords = [solvesys.get_param_value(self.py_data["param"][i]) for i in range(2)]
         self.co = coords
 
     def closest_picking_point(self, origin, view_vector):

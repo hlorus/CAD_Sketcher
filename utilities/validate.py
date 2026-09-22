@@ -417,10 +417,27 @@ def repair_constraint_values(scene) -> int:
     return repaired
 
 
+def _backfill_workplane_pointer(sketch):
+    """Adopt the parent as the workplane on files written before the pointer.
+
+    The plane used to be read straight off ``parent``, so pre-0.33 sketches carry
+    no pointer. Stamp it once from whatever parents them, which is exactly what
+    placed them, so the two readings cannot drift apart later.
+    """
+    obj = sketch.target_object
+    if obj is None or obj.slvs_workplane is not None or obj.parent is None:
+        return
+    obj.slvs_workplane = obj.parent
+
+
 def validate_all_sketches(scene):
     """Validate every sketch in the scene. Returns True if anything changed."""
     any_changed = False
     for sketch in _owned_sketches(scene):
+        try:
+            _backfill_workplane_pointer(sketch)
+        except Exception:
+            logger.exception("Workplane backfill failed for '%s'", sketch.name)
         try:
             if validate_sketch(sketch):
                 any_changed = True

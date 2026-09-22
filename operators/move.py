@@ -116,14 +116,8 @@ class View3D_OT_slvs_move(Operator, Operator2d):
             points = get_points(context)
             if points:
                 self._move_anchor_world = points[0].location.copy()
-            elif sketch.target_object.parent:
-                self._move_anchor_world = (
-                    sketch.target_object.parent.matrix_world.translation.copy()
-                )
             else:
-                self._move_anchor_world = (
-                    sketch.target_object.matrix_world.translation.copy()
-                )
+                self._move_anchor_world = sketch.plane_matrix.translation.copy()
 
             _origin, direction = get_picking_origin_dir(context, coords)
             self._move_view_normal = Vector(direction).normalized()
