@@ -1,5 +1,6 @@
 """Copy a whole part."""
 
+import bpy
 from bpy.types import Context, Operator
 from bpy.utils import register_classes_factory
 
@@ -21,6 +22,13 @@ class View3D_OT_slvs_duplicate_part(Operator):
 
     @classmethod
     def poll(cls, context: Context):
+        # Bound to Shift+D as well as the button. A failing poll does not consume
+        # the key, so anything that is not a part still gets Blender's own
+        # duplicate, and so does everything when the preference is off.
+        from ..utilities.preferences import get_prefs
+
+        if not get_prefs().part_duplicate_shortcut:
+            return False
         return any(part_root_of(obj) is not None for obj in context.selected_objects)
 
     def execute(self, context: Context):
@@ -31,8 +39,24 @@ class View3D_OT_slvs_duplicate_part(Operator):
                 roots.append(root)
 
         copies = [duplicate_part(context, root) for root in roots]
+
+        # Leave the copies selected, as duplicating anything else would.
+        bpy.ops.object.select_all(action="DESELECT")
+        for copy in copies:
+            copy.select_set(True)
+        if copies:
+            context.view_layer.objects.active = copies[0]
+
         self.report({"INFO"}, f"Copied {len(copies)} part(s)")
         return {"FINISHED"}
+
+    def invoke(self, context: Context, event):
+        # Shift+D hands the copy straight to a move, and a part copy landing
+        # exactly on its original would otherwise look like nothing happened.
+        result = self.execute(context)
+        if result != {"FINISHED"}:
+            return result
+        return bpy.ops.transform.translate("INVOKE_DEFAULT")
 
 
 register, unregister = register_classes_factory((View3D_OT_slvs_duplicate_part,))

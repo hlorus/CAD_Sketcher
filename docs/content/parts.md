@@ -101,9 +101,11 @@ contain assemblies.
 ## Copying and reusing a part
 
 **Duplicate Part** makes an independent copy of the whole part, with the
-workplanes, sketches and cutters that shape it. Blender's own duplicate copies
-only what you selected, so a body duplicated on its own arrives without its
-cutters.
+workplanes, sketches and cutters that shape it. It is on `Shift+D` while the
+selection belongs to a part; everything else still gets Blender's own duplicate,
+which copies only what you selected, so a body duplicated that way would arrive
+without its cutters. Turn the shortcut off in the add-on preferences if you would
+rather keep `Shift+D` as it was.
 
 **Instance Part** places another copy of the same part at the 3D cursor. There is still only one part: each placement renders it, so editing the
 part updates every copy at once, and a copy costs almost nothing.

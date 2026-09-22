@@ -116,3 +116,39 @@ class TestDuplicatePart(BgsTestCase):
         new_objects = [o for o in self.scene.objects if o.name not in before]
 
         self.assertEqual(len(new_objects), 2, "body and cutter")
+
+    def test_the_shortcut_passes_the_key_on_when_no_part_is_selected(self):
+        # A failing poll leaves Shift+D to Blender's own duplicate.
+        plain = self._cube("plain")
+        bpy.ops.object.select_all(action="DESELECT")
+        plain.select_set(True)
+        self.context.view_layer.objects.active = plain
+
+        self.assertFalse(bpy.ops.view3d.slvs_duplicate_part.poll())
+
+    def test_the_shortcut_can_be_turned_off(self):
+        from ..utilities.preferences import get_prefs
+
+        body, _cutter = self._part_with_cutter()
+        bpy.ops.object.select_all(action="DESELECT")
+        body.select_set(True)
+        self.context.view_layer.objects.active = body
+        self.assertTrue(bpy.ops.view3d.slvs_duplicate_part.poll())
+
+        prefs = get_prefs()
+        prefs.part_duplicate_shortcut = False
+        try:
+            self.assertFalse(bpy.ops.view3d.slvs_duplicate_part.poll())
+        finally:
+            prefs.part_duplicate_shortcut = True
+
+    def test_the_copies_end_up_selected(self):
+        body, _cutter = self._part_with_cutter()
+        bpy.ops.object.select_all(action="DESELECT")
+        body.select_set(True)
+        self.context.view_layer.objects.active = body
+
+        bpy.ops.view3d.slvs_duplicate_part()
+        self.assertFalse(body.select_get())
+        self.assertTrue(self.context.view_layer.objects.active.select_get())
+        self.assertNotEqual(self.context.view_layer.objects.active, body)
