@@ -208,7 +208,10 @@ def sync_part_collections(scene) -> bool:
     if _last_signature.get(scene.name) == signature:
         return False
 
-    changed = dissolve_legacy_sketch_collections(scene)
+    # Note: the per-sketch collections of older files are *not* dissolved here.
+    # This runs from the depsgraph handler, and merely opening a file must not
+    # rearrange the outliner; that belongs to the migrate operator.
+    changed = False
 
     created = []
     owned = {}

@@ -56,15 +56,22 @@ class VIEW3D_OT_slvs_migrate_legacy(Operator):
 
         # Sketches that predate parts: adopt them so they can be moved as parts.
         # After the conversion above, so sketches it just created are included.
-        from ..utilities.collections import sync_part_collections
+        from ..utilities.collections import (
+            dissolve_legacy_sketch_collections,
+            sync_part_collections,
+        )
         from ..utilities.part import migrate_parts
 
         adopted = migrate_parts(context.scene)
-        if adopted:
+        # The per-sketch collections older files were saved with are dissolved
+        # here rather than on load, so opening a file leaves its outliner alone.
+        dissolved = dissolve_legacy_sketch_collections(context.scene)
+        if adopted or dissolved:
             sync_part_collections(context.scene)
+        if adopted:
             self.report({"INFO"}, "Sketches adopted into parts")
 
-        if not migrated and not adopted:
+        if not migrated and not adopted and not dissolved:
             self.report({"INFO"}, "Nothing to migrate")
         return {"FINISHED"}
 

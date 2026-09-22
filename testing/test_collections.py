@@ -110,19 +110,33 @@ class TestManagedCollection(Sketch2dTestCase):
         sync_part_collections(self.context.scene)
         self.assertFalse(sync_part_collections(self.context.scene))
 
-    def test_legacy_per_sketch_collections_are_dissolved(self):
-        # What older files were saved with: a marked collection per sketch.
-        ob = self.sketch.target_object
+    def _legacy_collection(self, ob):
+        """What older files were saved with: a marked collection per sketch."""
         legacy = bpy.data.collections.new("legacy_sketch")
         legacy["cad_sketch_collection"] = True
         self.scene.collection.children.link(legacy)
         for coll in list(ob.users_collection):
             coll.objects.unlink(ob)
         legacy.objects.link(ob)
+        return legacy
+
+    def test_legacy_per_sketch_collections_are_dissolved(self):
+        ob = self.sketch.target_object
+        self._legacy_collection(ob)
 
         self.assertTrue(dissolve_legacy_sketch_collections(self.context.scene))
         self.assertNotIn("legacy_sketch", {c.name for c in bpy.data.collections})
         self.assertIn(ob.name, self.context.scene.collection.objects)
+
+    def test_opening_a_file_leaves_its_old_collections_alone(self):
+        # The sync runs from the depsgraph handler, so it must not rearrange the
+        # outliner of a file that was merely opened; migration does that.
+        ob = self.sketch.target_object
+        legacy = self._legacy_collection(ob)
+
+        sync_part_collections(self.context.scene)
+        self.assertIn(legacy.name, {c.name for c in bpy.data.collections})
+        self.assertIn(ob.name, legacy.objects)
 
     def test_origin_planes_go_in_a_scene_level_origin_collection(self):
         from ..utilities.workplane import ensure_origin_workplane_empties
