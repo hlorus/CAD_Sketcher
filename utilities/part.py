@@ -40,6 +40,10 @@ PART_PLANE_AXES = (
     ("YZ", (math.pi / 2, 0.0, math.pi / 2)),
 )
 
+# Stamped on every part (or sub-assembly) with the name of the assembly holding
+# it, so an assembly can be taken apart safely when its root goes.
+ASSEMBLY_MEMBER_KEY = "slvs:assembly_of"
+
 # Stamped on every member with the name of the root it belongs to. Membership is
 # the parent chain, but a name survives the root being deleted, which is exactly
 # when a member has to be recognised and put back on its feet.
@@ -51,10 +55,14 @@ PART_MEMBER_KEY = "slvs:part"
 # reconcile put the members back where they were.
 _last_root_matrices = {}
 
+# Same, for assembly roots.
+_last_assembly_matrices = {}
+
 
 def reset_cache():
-    """Drop the remembered part-root transforms (e.g. on file load)."""
+    """Drop the remembered root transforms (e.g. on file load)."""
     _last_root_matrices.clear()
+    _last_assembly_matrices.clear()
 
 
 def is_part_root(obj: Optional[bpy.types.Object]) -> bool:
@@ -147,6 +155,7 @@ def join_assembly(assembly: bpy.types.Object, obj: bpy.types.Object) -> None:
     obj.parent = assembly
     obj.matrix_parent_inverse = world_matrix_of(assembly).inverted_safe()
     obj.matrix_basis = world
+    obj[ASSEMBLY_MEMBER_KEY] = assembly.name
 
 
 def part_root_of(obj: Optional[bpy.types.Object]) -> Optional[bpy.types.Object]:
@@ -432,6 +441,53 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
 
     _refresh_cutter_display(scene, touched)
     return True
+
+
+def reconcile_assemblies(scene: bpy.types.Scene) -> bool:
+    """Follow what the user did to assemblies, and take apart broken ones.
+
+    The part-level pass one level up: parenting a part under an assembly root is
+    how it joins, unparenting is how it leaves, and an assembly root deleted
+    outside our operators would otherwise leave its parts holding only a local
+    transform, so they jump by the assembly's transform. Unlike a part there is no
+    successor to promote: an assembly is a container, so its parts simply stand on
+    their own again.
+
+    Returns True if anything changed.
+    """
+    changed = False
+    assemblies = {obj.name: obj for obj in scene.objects if is_assembly_root(obj)}
+    for name, root in assemblies.items():
+        _last_assembly_matrices[name] = world_matrix_of(root)
+
+    for obj in scene.objects:
+        if is_assembly_root(obj):
+            continue
+
+        assembly = assembly_root_of(obj)
+        stamp = obj.get(ASSEMBLY_MEMBER_KEY)
+
+        if assembly is not None:
+            if stamp != assembly.name:
+                obj[ASSEMBLY_MEMBER_KEY] = assembly.name
+                changed = True
+            continue
+
+        if stamp is None:
+            continue
+
+        if stamp not in assemblies and obj.parent is None:
+            # The assembly is gone: put the part back where it was standing.
+            matrix = _last_assembly_matrices.get(stamp)
+            if matrix is not None:
+                _restore_world(obj, matrix)
+        del obj[ASSEMBLY_MEMBER_KEY]
+        changed = True
+
+    for name in [n for n in _last_assembly_matrices if n not in assemblies]:
+        del _last_assembly_matrices[name]
+
+    return changed
 
 
 def _refresh_cutter_display(scene: bpy.types.Scene, touched) -> None:

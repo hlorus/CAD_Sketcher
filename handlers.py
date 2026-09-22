@@ -70,12 +70,14 @@ def on_load_post(*args):
     """
     from .drawing import constraint_icons, overlay, selection
     from .model.base_constraint import reset_data_owner_cache
+    from .utilities.collections import reset_cache as reset_collection_cache
     from .utilities.curve_data import reset_merge_cache
     from .utilities.part import reset_cache as reset_part_cache
     from .utilities.validate import repair_constraint_values, reset_cache
 
     reset_cache()
     reset_part_cache()
+    reset_collection_cache()
     reset_merge_cache()
     reset_data_owner_cache()
     overlay.invalidate()
@@ -128,6 +130,12 @@ def on_depsgraph_update(scene, depsgraph):
 
         if reconcile_parts(scene):
             global_data.needs_solve = True
+
+        # Same one level up: an assembly root deleted outside our operators must
+        # not drag its parts out of place.
+        from .utilities.part import reconcile_assemblies
+
+        reconcile_assemblies(scene)
 
         # Undo/redo can flatten the origin workplane empties to identity (they
         # then stack into a mushy overlap, #571); re-assert their transforms.

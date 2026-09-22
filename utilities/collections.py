@@ -29,6 +29,33 @@ _ASSEMBLY_MARKER = "cad_assembly_collection"
 _LEGACY_SKETCH_MARKER = "cad_sketch_collection"
 
 
+# Signature of the hierarchy the layout is derived from, so the sync only runs
+# when something it cares about moved. Rebuilding it is one cheap pass; the sync
+# itself walks subtrees and rewrites collection links, which is not.
+_last_signature = {}
+
+
+def reset_cache():
+    """Forget the hierarchy signature (e.g. on file load)."""
+    _last_signature.clear()
+
+
+def _hierarchy_signature(scene):
+    """What the collection layout depends on: parenting, roles, and placement."""
+    from .part import ASSEMBLY_ROOT_KEY, PART_ROOT_KEY
+
+    return tuple(
+        (
+            obj.name,
+            obj.parent.name if obj.parent else "",
+            bool(obj.get(PART_ROOT_KEY, False)),
+            bool(obj.get(ASSEMBLY_ROOT_KEY, False)),
+            obj.users_collection[0].name if obj.users_collection else "",
+        )
+        for obj in scene.objects
+    )
+
+
 def _clear_object_collections(obj):
     for coll in list(obj.users_collection):
         coll.objects.unlink(obj)
@@ -168,6 +195,10 @@ def sync_part_collections(scene) -> bool:
     """
     from .part import assembly_root_of, is_assembly_root, is_part_root
 
+    signature = _hierarchy_signature(scene)
+    if _last_signature.get(scene.name) == signature:
+        return False
+
     changed = dissolve_legacy_sketch_collections(scene)
 
     owned = {}
@@ -211,4 +242,7 @@ def sync_part_collections(scene) -> bool:
                 bpy.data.collections.remove(coll)
                 changed = True
 
+    # Record the settled state, not the one we were handed, so the next pass is
+    # skipped rather than reacting to our own writes.
+    _last_signature[scene.name] = _hierarchy_signature(scene)
     return changed

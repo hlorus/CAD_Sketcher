@@ -181,3 +181,17 @@ class TestManagedCollection(Sketch2dTestCase):
         self.assertAlmostEqual(
             area, 16.0, delta=0.01, msg="fill did not evaluate -> collection excluded?"
         )
+
+    def test_the_sync_is_skipped_when_nothing_moved(self):
+        # It walks subtrees and rewrites links, so it must not run on every
+        # depsgraph update: the hierarchy signature gates it.
+        root = self.sketch.target_object
+        mark_part_root(root)
+        sync_part_collections(self.context.scene)
+
+        self.assertFalse(sync_part_collections(self.context.scene))
+
+        member = bpy.data.objects.new("member", None)
+        self.scene.collection.objects.link(member)
+        join_part(root, member)
+        self.assertTrue(sync_part_collections(self.context.scene))
