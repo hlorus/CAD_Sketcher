@@ -472,3 +472,69 @@ class TestPartRoot(BgsTestCase):
         planes = ensure_part_planes(self.context, body)
         for plane in planes:
             self.assertIn(plane.name, self.scene.collection.objects)
+
+    def test_parenting_into_a_part_adopts_the_sketch(self):
+        from ..utilities.part import PART_MEMBER_KEY
+
+        body = self._cube("host")
+        mark_part_root(body)
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        obj = sketch.target_object
+
+        # What Ctrl+P / an outliner drag does, nothing more.
+        obj.parent = body
+
+        self.assertTrue(reconcile_parts(self.scene))
+        self.assertEqual(part_root_of(obj), body)
+        self.assertEqual(obj[PART_MEMBER_KEY], body.name)
+        # It is a feature now, so it no longer moves on its own.
+        self.assertEqual(tuple(obj.lock_location), (True, True, True))
+
+        # Nothing further to do on the next pass.
+        self.assertFalse(reconcile_parts(self.scene))
+
+    def test_unparenting_releases_a_member(self):
+        from ..utilities.part import PART_MEMBER_KEY
+
+        body = self._cube("host")
+        mark_part_root(body)
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        obj = sketch.target_object
+        join_part(body, obj)
+        reconcile_parts(self.scene)
+
+        obj.parent = None
+
+        self.assertTrue(reconcile_parts(self.scene))
+        self.assertIsNone(part_root_of(obj))
+        self.assertNotIn(PART_MEMBER_KEY, obj)
+        # Free to move again, as a global sketch is.
+        self.assertEqual(tuple(obj.lock_location), (False, False, False))
+        self.assertFalse(reconcile_parts(self.scene))
+
+    def test_moving_a_sketch_between_parts_follows_the_parent(self):
+        from ..utilities.part import PART_MEMBER_KEY
+
+        first = self._cube("part_a")
+        second = self._cube("part_b", location=(4.0, 0.0, 0.0))
+        mark_part_root(first)
+        mark_part_root(second)
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        obj = sketch.target_object
+        join_part(first, obj)
+        reconcile_parts(self.scene)
+
+        obj.parent = second
+        self.assertTrue(reconcile_parts(self.scene))
+        self.assertEqual(obj[PART_MEMBER_KEY], second.name)
+
+    def test_a_users_own_object_keeps_its_transform_freedom(self):
+        # Parenting a plain mesh into a part must not lock it: it is theirs.
+        body = self._cube("host")
+        mark_part_root(body)
+        mesh = self._cube("theirs", location=(0.0, 2.0, 0.0))
+
+        mesh.parent = body
+        self.assertTrue(reconcile_parts(self.scene))
+        self.assertEqual(part_root_of(mesh), body)
+        self.assertEqual(tuple(mesh.lock_location), (False, False, False))

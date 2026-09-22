@@ -200,6 +200,17 @@ def _restore_world(obj: bpy.types.Object, root_matrix: Matrix) -> None:
     obj.matrix_parent_inverse = Matrix.Identity(4)
 
 
+def _is_managed_member(obj: bpy.types.Object) -> bool:
+    """Whether this addon placed ``obj``, and so may pin or free its transform.
+
+    A mesh the user parented into a part is theirs to move; a sketch or one of our
+    workplane empties is a feature and stays put within its part.
+    """
+    from ..model.sketch_ref import is_sketch_object
+
+    return bool(is_sketch_object(obj) or PART_PLANE_KEY in obj)
+
+
 def settle_membership(
     sketch_obj: bpy.types.Object, bodies
 ) -> Optional[bpy.types.Object]:
@@ -247,13 +258,20 @@ def settle_membership(
 
 
 def reconcile_parts(scene: bpy.types.Scene) -> bool:
-    """Repair parts whose root was deleted or unparented outside our operators.
+    """Follow what the user did to the hierarchy, and repair broken parts.
 
-    Deleting a root with Blender's own Delete never reaches the sketch delete
-    operator, and Blender silently drops the parent while keeping each child's
-    *local* transform, so the part's workplanes and sketches jump by the part's
-    transform. Put them back using the root's remembered frame and hand the part
-    to the next sketch in it, the same succession a deliberate delete follows.
+    Membership *is* the parent chain, so parenting a sketch into a part (Ctrl+P,
+    or a drag in the outliner) is how it joins one, and unparenting it is how it
+    leaves. This pass records that: adopted members get stamped and pinned, ones
+    taken out are released, and their stamp is what lets a part be put back
+    together later.
+
+    The repair half handles a root deleted with Blender's own Delete, which never
+    reaches the sketch delete operator: Blender drops the parent but keeps each
+    child's *local* transform, so the part's workplanes and sketches would jump by
+    the part's transform. They are put back using the root's remembered frame and
+    the part is handed to the next sketch in it, the same succession a deliberate
+    delete follows.
 
     Returns True if anything changed.
     """
@@ -263,16 +281,40 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
     for name, root in roots.items():
         _last_root_matrices[name] = world_matrix_of(root)
 
+    changed = False
     orphans = {}
     for obj in scene.objects:
-        root_name = obj.get(PART_MEMBER_KEY)
-        if not root_name or root_name in roots:
+        if is_part_root(obj):
             continue
-        if obj.parent is not None and part_root_of(obj) is not None:
-            # Still placed inside some part; its stamp is just stale.
-            obj[PART_MEMBER_KEY] = part_root_of(obj).name
+
+        root = part_root_of(obj)
+        stamp = obj.get(PART_MEMBER_KEY)
+
+        if root is not None:
+            # In a part: either adopted by the user parenting it there, or moved
+            # between parts. Parenting *is* membership, so follow it.
+            if stamp != root.name:
+                obj[PART_MEMBER_KEY] = root.name
+                changed = True
+            if _is_managed_member(obj) and not all(obj.lock_location):
+                fix_transform(obj)
+                changed = True
             continue
-        orphans.setdefault(root_name, []).append(obj)
+
+        if stamp is None:
+            continue
+
+        if stamp in roots:
+            # Taken out of a part whose root is still there: it is on its own now.
+            del obj[PART_MEMBER_KEY]
+            if PART_PLANE_KEY in obj:
+                strip_part_plane(obj)
+            if _is_managed_member(obj):
+                free_transform(obj)
+            changed = True
+            continue
+
+        orphans.setdefault(stamp, []).append(obj)
 
     # A member's own children (a sketch on an orphaned workplane) are part of the
     # same wreck, even though only the member itself carries the stamp.
@@ -284,7 +326,7 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
         # Forget roots that are simply gone, with nothing left behind.
         for name in [n for n in _last_root_matrices if n not in roots]:
             del _last_root_matrices[name]
-        return False
+        return changed
 
     for root_name, members in orphans.items():
         root_matrix = _last_root_matrices.pop(root_name, None)
