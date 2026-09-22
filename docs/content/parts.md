@@ -5,6 +5,35 @@ workplanes that define it. An **assembly** is a group of parts you can move as a
 whole. Both are just object parenting, so the outliner shows the real structure
 and you edit it there.
 
+## In the outliner
+
+The outliner is where parts live. It shows two things at once: collections group
+each part, and objects nest under the object that carries them.
+
+```text
+Scene Collection
+├─ Origin                        the shared XY / XZ / YZ datum planes
+├─ Bracket                       assembly collection
+│  ├─ Plate                      part collection
+│  │  └─ Plate                   the part's body (sketch + extrude)
+│  │     ├─ Plate XY             the part's own base planes
+│  │     ├─ Plate XZ
+│  │     ├─ Plate YZ
+│  │     └─ Workplane            on a face of Plate
+│  │        └─ Hole              cutter sketch, hidden while it cuts
+│  └─ Pin                        part collection
+│     └─ Pin                     a second part in the same assembly
+└─ Sketch                        global: drawn on a datum, not yet solid
+```
+
+Read the indentation, not the collections: **`Hole` is part of `Plate` because it
+hangs under it**, through the workplane it sits on. The collections follow that
+structure, they do not define it. Moving `Plate` moves everything beneath it;
+moving `Bracket` moves both parts.
+
+This is also why parenting is how you change membership: drag `Sketch` onto
+`Plate` and it becomes one of its features.
+
 ## Moving a part
 
 Leave the sketch (parts are moved in Object Mode), select the part's body and
@@ -80,8 +109,7 @@ open, since it restructures the hierarchy.
 
 ## Collections
 
-Each part gets its own collection, nested inside its assembly's, holding
-everything in the part. Anything belonging to no part sits at the scene level.
-The collections follow the parenting, so they are a view of the structure rather
-than a second place to edit it. Never **exclude** one from the view layer:
-excluding stops evaluation, which drops the sketch fill.
+Collections are created and maintained for you, one per part and one per
+assembly, and anything belonging to no part sits at the scene level. Never
+**exclude** one from the view layer: excluding stops evaluation, which drops the
+sketch fill. Hide objects instead.
