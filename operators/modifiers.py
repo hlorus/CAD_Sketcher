@@ -261,25 +261,38 @@ class BooleanFromToolMixin:
 
         sketch = Sketch(cutter) if cutter.type == "CURVES" else None
 
-        if not self.boolean_detected:
-            if context.scene.sketcher.use_auto_boolean:
-                has_source = (
-                    sketch is not None and sketch_source_body(sketch) is not None
-                )
-                self.operation = default_operation(self._boolean_offset(), has_source)
-            else:
-                # Auto boolean is off: leave the new solid standalone. The user can
-                # still pick an operation in the redo panel to boolean on demand.
-                self.operation = "None"
+        auto = context.scene.sketcher.use_auto_boolean
+        if not self.boolean_detected and not auto:
+            # Auto boolean is off: leave the new solid standalone. The user can
+            # still pick an operation in the redo panel to boolean on demand.
+            self.operation = "None"
             self.boolean_detected = True
 
-        # The solid must be evaluated before the overlap test can see it. Skip the
-        # overlap detection entirely when there is no operation to apply.
-        if self.operation != "None":
+        # The solid must be evaluated before the overlap test can see it. Look for
+        # targets while the operation is still undecided too: what a solid reaches
+        # is what decides whether it is a cut at all.
+        undecided = not self.boolean_detected and auto
+        if self.operation != "None" or undecided:
             context.view_layer.update()
             targets = detect_targets(context, cutter, sketch)
         else:
             targets = []
+
+        if undecided:
+            if targets:
+                # Push/pull: outward from the face you sketched on adds material,
+                # into it removes material.
+                has_source = (
+                    sketch is not None and sketch_source_body(sketch) is not None
+                )
+                self.operation = default_operation(self._boolean_offset(), has_source)
+                self.boolean_detected = True
+            else:
+                # It reaches nothing, so it is not a cut: a solid standing on its
+                # own. Left undecided, so a longer extrude that does reach a body
+                # still gets a sensible default rather than being stuck at None.
+                self.operation = "None"
+                targets = []
 
         # Preserve exclusions across redo while adding newly-overlapping bodies; a
         # target that drops out of detection loses its (now moot) boolean anyway.

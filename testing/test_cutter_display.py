@@ -129,3 +129,37 @@ class TestCutterDisplay(BgsTestCase):
         settle_membership(mesh_cutter, [body])
         # Already a part of its own: left alone.
         self.assertEqual(part_root_of(mesh_cutter), mesh_cutter)
+
+    def test_a_solid_reaching_nothing_is_not_a_cut(self):
+        # Extruding in empty space used to default to Difference, because the
+        # operation was chosen before anything was detected.
+        from ..operators import modifiers
+        from ..utilities import boolean_targets
+
+        class _Tool(modifiers.BooleanFromToolMixin):
+            operation = "Difference"
+            boolean_detected = False
+            offset = 1.0
+
+            def __init__(self, cutter):
+                self._obj = cutter
+                self.boolean_targets = []
+
+            def resolved_object(self):
+                return self._obj
+
+        cutter = self._cube("lonely")
+        tool = _Tool(cutter)
+
+        detect = boolean_targets.detect_targets
+        boolean_targets.detect_targets = lambda *a, **k: []
+        try:
+            tool.finish_booleans(self.context)
+        finally:
+            boolean_targets.detect_targets = detect
+
+        self.assertEqual(tool.operation, "None")
+        # Undecided, not decided-as-None: a longer extrude can still auto-boolean.
+        self.assertFalse(tool.boolean_detected)
+        self.assertTrue(cutter.visible_get())
+        self.assertEqual(cutter.display_type, "TEXTURED")
