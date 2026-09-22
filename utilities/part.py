@@ -11,11 +11,14 @@ parent and its plane is its own frame (see ``Sketch.plane_matrix``), while a
 member keeps its workplane empty as both parent and plane.
 """
 
+import logging
 import math
 from typing import Optional
 
 import bpy
 from mathutils import Euler, Matrix
+
+logger = logging.getLogger(__name__)
 
 # Stamped on the object that roots a part.
 PART_ROOT_KEY = "slvs:part_root"
@@ -316,6 +319,7 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
     from .workplane import _hide_managed_empty
 
     planes = []
+    created = []
     for axis, euler in PART_PLANE_AXES:
         empty = existing_part_plane(root, axis)
         if empty is None:
@@ -324,6 +328,8 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
             empty.empty_display_size = 0.25
             empty[PART_PLANE_KEY] = axis
             link_loose_workplane(empty, context.scene)
+            if nest_workplane(empty, root) is None:
+                link_loose_workplane(empty, context.scene)
             # Plain parenting, not join_part: these planes are *defined* by the
             # part's frame, so they must inherit it rather than keep a world
             # position of their own.
@@ -332,10 +338,20 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
             empty.matrix_basis = Euler(euler).to_matrix().to_4x4()
             mark_part_member(empty, root)
             fix_transform(empty)
-            if nest_workplane(empty, root) is None:
-                link_loose_workplane(empty, context.scene)
-            _hide_managed_empty(empty, context.scene)
+            created.append(empty)
         planes.append(empty)
+
+    if created:
+        # hide_set() needs the object present in the view layer, and linking alone
+        # does not resync it -- without this the first pick after creating a part
+        # raises "cannot be hidden because it is not in View Layer".
+        context.view_layer.update()
+        for empty in created:
+            try:
+                _hide_managed_empty(empty, context.scene)
+            except RuntimeError:
+                # Not worth failing the pick over: an unhidden plane still works.
+                logger.warning("Could not hide part plane '%s'", empty.name)
     return planes
 
 

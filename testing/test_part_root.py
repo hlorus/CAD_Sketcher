@@ -413,3 +413,25 @@ class TestPartRoot(BgsTestCase):
                 self.assertIn(pick_id, ORIGIN_AXIS_COLOR)
             # Bounds are looked up per drawn plane too.
             self.assertEqual(len(wp_plane_bounds(self.context, pick_id)), 4)
+
+    def test_part_planes_are_hidden_and_unselectable(self):
+        from ..utilities.part import ensure_part_planes
+
+        body = self._cube("host")
+        mark_part_root(body)
+        for plane in ensure_part_planes(self.context, body):
+            self.assertTrue(plane.hide_select)
+            self.assertFalse(plane.hide_viewport)  # must stay evaluated
+            self.assertFalse(plane.visible_get())
+
+    def test_part_planes_can_be_created_for_a_plain_mesh_part(self):
+        # A mesh promoted to a part lives in an ordinary collection, so its planes
+        # cannot nest in a sketch collection; they must still end up in the view
+        # layer, or hiding them raises.
+        from ..utilities.part import ensure_part_planes
+
+        body = self._cube("plain")
+        mark_part_root(body)
+        planes = ensure_part_planes(self.context, body)
+        for plane in planes:
+            self.assertIn(plane.name, self.scene.collection.objects)
