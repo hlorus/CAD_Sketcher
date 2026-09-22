@@ -1240,8 +1240,22 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         # Reveal the result: a solid cutter sitting over the body would hide it.
         # Done here, once, rather than in main() -- main() can re-run during the
         # modal's undo/redo churn, so the display change belongs at completion.
-        if succeed and getattr(self, "_cutter", None) is not None:
-            self._cutter.display_type = self.cutter_display
+        cutter = getattr(self, "_cutter", None)
+        if not succeed or cutter is None:
+            return
+        cutter.display_type = self.cutter_display
+
+        # A cut belongs to what it cuts, however it was made: the same rule the
+        # extrude and revolve tools apply. Only sketch cutters, so a body with a
+        # history of its own stays a part rather than being absorbed.
+        from ..model.sketch_ref import is_sketch_object
+        from ..utilities.collections import sync_part_collections
+        from ..utilities.part import settle_membership
+
+        body = self.resolved_object()
+        if body is not None and is_sketch_object(cutter):
+            settle_membership(cutter, [body.original])
+            sync_part_collections(context.scene)
 
     def set_props(self):
         m = self.modifier

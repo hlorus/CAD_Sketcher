@@ -106,3 +106,26 @@ class TestCutterDisplay(BgsTestCase):
         reconcile_parts(self.scene)
         # It feeds no body, so its display is none of our business.
         self.assertFalse(other.visible_get())
+
+    def test_the_boolean_tool_settles_membership_for_a_sketch_cutter(self):
+        # The standalone Boolean tool follows the same rule as extrude: only a
+        # sketch cutter joins, so a mesh body with its own history stays a part.
+        from ..model.sketch_ref import stamp_sketch_props
+        from ..utilities.part import part_root_of, settle_membership
+
+        body = self._cube("body")
+        mark_part_root(body)
+
+        curve = bpy.data.hair_curves.new("cutter_sketch")
+        cutter = bpy.data.objects.new("cutter_sketch", curve)
+        self.scene.collection.objects.link(cutter)
+        stamp_sketch_props(cutter)
+
+        settle_membership(cutter, [body])
+        self.assertEqual(part_root_of(cutter), body)
+
+        mesh_cutter = self._cube("mesh_cutter")
+        mark_part_root(mesh_cutter)
+        settle_membership(mesh_cutter, [body])
+        # Already a part of its own: left alone.
+        self.assertEqual(part_root_of(mesh_cutter), mesh_cutter)

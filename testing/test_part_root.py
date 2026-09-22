@@ -538,3 +538,35 @@ class TestPartRoot(BgsTestCase):
         self.assertTrue(reconcile_parts(self.scene))
         self.assertEqual(part_root_of(mesh), body)
         self.assertEqual(tuple(mesh.lock_location), (False, False, False))
+
+    def test_a_free_3d_sketch_roots_its_part_in_its_origin_empty(self):
+        # The Empty owns the transform, so it is what the part must be rooted in;
+        # rooting the sketch would leave two movable things to disagree.
+        from ..model.native_3d import create_3d_sketch
+        from ..utilities.part import transform_owner
+
+        sketch = create_3d_sketch(self.context)
+        obj = sketch.target_object
+        origin = obj.parent
+        self.assertTrue(origin.get("is_3d_sketch_origin", False))
+        self.assertEqual(transform_owner(obj), origin)
+
+        self.assertEqual(settle_membership(obj, []), origin)
+        self.assertTrue(is_part_root(origin))
+        self.assertFalse(is_part_root(obj))
+        self.assertEqual(part_root_of(obj), origin)
+        # The sketch stays pinned to its origin; the Empty is the handle.
+        self.assertEqual(tuple(obj.lock_location), (True, True, True))
+        self.assertEqual(tuple(origin.lock_location), (False, False, False))
+
+    def test_a_free_3d_sketch_joins_a_part_by_its_origin(self):
+        from ..model.native_3d import create_3d_sketch
+
+        body = self._cube("host")
+        mark_part_root(body)
+        sketch = create_3d_sketch(self.context)
+        origin = sketch.target_object.parent
+
+        self.assertEqual(settle_membership(sketch.target_object, [body]), body)
+        self.assertEqual(part_root_of(origin), body)
+        self.assertEqual(origin.parent, body)

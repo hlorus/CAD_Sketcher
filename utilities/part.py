@@ -281,6 +281,24 @@ def _is_managed_member(obj: bpy.types.Object) -> bool:
     return bool(is_sketch_object(obj) or PART_PLANE_KEY in obj)
 
 
+def transform_owner(obj: bpy.types.Object) -> bpy.types.Object:
+    """The object that actually owns ``obj``'s transform.
+
+    A free-3D sketch is placed by an origin Empty and keeps its own transform
+    locked, so the Empty is what a part must be rooted in and what an assembly
+    must carry: rooting the sketch itself would leave two movable things
+    disagreeing about where the part is.
+    """
+    parent = obj.parent
+    if (
+        parent is not None
+        and obj.get("is_3d_sketch")
+        and parent.get("is_3d_sketch_origin", False)
+    ):
+        return parent
+    return obj
+
+
 def settle_membership(
     sketch_obj: bpy.types.Object, bodies
 ) -> Optional[bpy.types.Object]:
@@ -301,6 +319,8 @@ def settle_membership(
     owner arbitrarily. Returns the part root the sketch ended up in, or None when
     it stays global.
     """
+    sketch_obj = transform_owner(sketch_obj)
+
     existing = part_root_of(sketch_obj)
     if existing is not None:
         return existing
