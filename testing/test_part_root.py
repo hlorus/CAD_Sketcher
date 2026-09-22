@@ -205,3 +205,38 @@ class TestPartRoot(BgsTestCase):
         self.assertAlmostEqual((Vector(p1.co) - local_before).length, 0.0, places=4)
         self.assertEqual(p1.location, Vector((100.0, 0.0, 0.0)) + local_before.to_3d())
         self.assertEqual(line.wp_matrix, sketch.plane_matrix)
+
+    def test_sketch_on_a_sketch_body_joins_its_part(self):
+        # The reported case: a rectangle sketch, then a sketch on the rectangle.
+        # A sketch body is a Curves object, so its face can never be anchored
+        # (can_anchor_face needs polygons), and part membership must not depend on
+        # anchoring having worked -- only on what the sketch was drawn on.
+        from ..utilities.face_anchor import KEY_FACE_ID, KEY_SOURCE
+
+        first = build_sketch_on_workplane(self.context, self.datum)
+        body = first.target_object
+        self.assertTrue(is_part_root(body))
+
+        # The workplane a non-anchorable pick produces: source recorded, no anchor.
+        wp = bpy.data.objects.new("WP", None)
+        self.scene.collection.objects.link(wp)
+        wp[KEY_SOURCE] = body
+        self.assertNotIn(KEY_FACE_ID, wp)
+
+        second = build_sketch_on_workplane(self.context, wp)
+        self.assertEqual(part_root_of(second.target_object), body)
+
+        # And it follows when the part moves.
+        before = second.plane_matrix.translation.copy()
+        body.matrix_basis = Matrix.Translation(Vector((0.0, 0.0, 9.0)))
+        self.context.view_layer.update()
+        self.assertEqual(
+            second.plane_matrix.translation, before + Vector((0.0, 0.0, 9.0))
+        )
+
+    def test_face_workplane_records_its_source(self):
+        from ..utilities.face_anchor import KEY_SOURCE
+
+        body = self._cube()
+        wp = create_face_workplane(self.context, body, 0)
+        self.assertEqual(wp[KEY_SOURCE], body)

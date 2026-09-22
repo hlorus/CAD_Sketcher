@@ -128,15 +128,20 @@ def create_face_workplane(context: Context, ob, face_index: int):
     utilities/face_anchor).
     """
     from ..stateful_operator.utilities.geometry import get_evaluated_obj
-    from ..utilities.face_anchor import can_anchor_face, stamp_face_anchor
+    from ..utilities.face_anchor import KEY_SOURCE, can_anchor_face, stamp_face_anchor
 
+    source = getattr(ob, "original", ob)
     empty = new_workplane_empty(context, face_workplane_matrix(context, ob, face_index))
 
-    # When a modifier changed the topology the picked face can't be anchored;
-    # leave the empty as a plain fixed workplane (issue #342-adjacent crash on
-    # box.blend meshes).
-    if can_anchor_face(ob, get_evaluated_obj(context, ob)):
-        stamp_face_anchor(empty, ob, face_index)
+    # Record what the sketch was drawn on even when the face itself cannot be
+    # anchored: that is what puts the sketch in the same part as the thing it sits
+    # on. Only sketches on a *mesh* can be anchored (a sketch body is a Curves
+    # object, so drawing on a sketch's own face never anchors), and a modifier
+    # that changed the topology rules it out too (issue #342-adjacent crash on
+    # box.blend meshes) -- the empty then stays a plain fixed workplane.
+    empty[KEY_SOURCE] = source
+    if can_anchor_face(source, get_evaluated_obj(context, source)):
+        stamp_face_anchor(empty, source, face_index)
     return empty
 
 
