@@ -11,13 +11,26 @@ parent and its plane is its own frame (see ``Sketch.plane_matrix``), while a
 member keeps its workplane empty as both parent and plane.
 """
 
+import math
 from typing import Optional
 
 import bpy
-from mathutils import Matrix
+from mathutils import Euler, Matrix
 
 # Stamped on the object that roots a part.
 PART_ROOT_KEY = "slvs:part_root"
+
+# Stamped on a workplane empty that is one of a part's own base planes, with the
+# axis pair it stands for, so a second sketch on the same part plane reuses it.
+PART_PLANE_KEY = "slvs:part_plane"
+
+# A part's base planes, in its root's frame. Same orientations as the scene's
+# origin planes, so "the part's XY" means what the user expects.
+PART_PLANE_AXES = (
+    ("XY", (0.0, 0.0, 0.0)),
+    ("XZ", (math.pi / 2, 0.0, 0.0)),
+    ("YZ", (math.pi / 2, 0.0, math.pi / 2)),
+)
 
 # Stamped on every member with the name of the root it belongs to. Membership is
 # the parent chain, but a name survives the root being deleted, which is exactly
@@ -283,3 +296,96 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
                 join_part(successor, member)
 
     return True
+
+
+class PartPlane:
+    """One of a part's base planes, as a pick target that owns no object yet.
+
+    A part that has been moved or rotated needs planes in *its* frame to sketch
+    on, not the world's. Materializing three empties per part up front would
+    clutter every file with objects most parts never use, so these stand in for
+    drawing and picking (they answer ``matrix_world`` like an Empty does) and
+    only become real when one is picked (see :func:`materialize_part_plane`).
+    """
+
+    __slots__ = ("root", "axis", "euler")
+
+    def __init__(self, root: bpy.types.Object, axis: str, euler):
+        self.root = root
+        self.axis = axis
+        self.euler = euler
+
+    @property
+    def matrix_world(self) -> Matrix:
+        return world_matrix_of(self.root) @ Euler(self.euler).to_matrix().to_4x4()
+
+    @property
+    def name(self) -> str:
+        return f"{self.root.name} {self.axis}"
+
+
+def focused_part(context) -> Optional[bpy.types.Object]:
+    """The part the user is working on, or None.
+
+    Read from the active sketch first, then from the selection, so which part's
+    planes are offered is always something visible on screen rather than a mode
+    the user has to keep in mind.
+    """
+    from ..model.sketch_ref import get_active_sketch
+
+    sketch = get_active_sketch(context)
+    if sketch is not None:
+        root = part_root_of(sketch.target_object)
+        if root is not None:
+            return root
+
+    for obj in (context.active_object, *context.selected_objects):
+        root = part_root_of(obj)
+        if root is not None:
+            return root
+    return None
+
+
+def part_planes(context):
+    """The base planes of the part in focus, as :class:`PartPlane` stand-ins."""
+    root = focused_part(context)
+    if root is None:
+        return []
+    return [PartPlane(root, axis, euler) for axis, euler in PART_PLANE_AXES]
+
+
+def existing_part_plane(root: bpy.types.Object, axis: str):
+    """The real empty already standing for ``root``'s ``axis`` plane, if any."""
+    for child in root.children_recursive:
+        if child.get(PART_PLANE_KEY) == axis:
+            return child
+    return None
+
+
+def materialize_part_plane(context, plane: PartPlane) -> bpy.types.Object:
+    """Turn a picked :class:`PartPlane` into a real workplane empty in the part.
+
+    Reused on the next pick of the same plane, so repeatedly sketching on a
+    part's XY does not litter it with coincident workplanes.
+    """
+    existing = existing_part_plane(plane.root, plane.axis)
+    if existing is not None:
+        return existing
+
+    from .collections import link_loose_workplane
+
+    empty = bpy.data.objects.new(plane.name, None)
+    empty.empty_display_type = "PLAIN_AXES"
+    empty.empty_display_size = 0.5
+    empty[PART_PLANE_KEY] = plane.axis
+    link_loose_workplane(empty, context.scene)
+    empty.matrix_basis = plane.matrix_world
+    join_part(plane.root, empty)
+    return empty
+
+
+def as_workplane_object(context, picked) -> bpy.types.Object:
+    """The real workplane Empty for a pick, materializing a part plane if needed."""
+    if isinstance(picked, PartPlane):
+        return materialize_part_plane(context, picked)
+    return picked

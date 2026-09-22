@@ -180,10 +180,13 @@ class View3D_OT_slvs_change_sketch_workplane(Operator):
         from .add_sketch import move_sketch_to_face, set_sketch_workplane
 
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
+        from ..utilities.part import as_workplane_object
+
         kind, a, b = resolve_sketch_base(context, coords)
         sketch_obj = get_active_sketch(context).target_object
         if kind in ("border", "interior"):
-            return self._finish(context, set_sketch_workplane(context, sketch_obj, b))
+            wp = as_workplane_object(context, b)
+            return self._finish(context, set_sketch_workplane(context, sketch_obj, wp))
         if kind == "mesh":
             move_sketch_to_face(context, sketch_obj, a, b)
             return self._finish(context, True)

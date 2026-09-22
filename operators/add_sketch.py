@@ -8,6 +8,7 @@ from ..model.curve_ref import PointRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.geometry import face_workplane_matrix
+from ..utilities.part import as_workplane_object
 from ..utilities.workplane import ensure_origin_workplane_empties, resolve_sketch_base
 from .base_3d import Operator3d
 from .utilities import activate_sketch
@@ -310,7 +311,7 @@ class View3D_OT_slvs_add_sketch(Operator, Operator3d):
         kind, a, b = resolve_sketch_base(context, coords)
 
         if kind in ("border", "interior"):
-            return self._use_workplane(b)
+            return self._use_workplane(as_workplane_object(context, b))
 
         if kind == "mesh":
             empty = create_face_workplane(context, a, b)

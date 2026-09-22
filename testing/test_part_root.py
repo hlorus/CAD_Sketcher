@@ -297,3 +297,66 @@ class TestPartRoot(BgsTestCase):
         body = self._cube()
         wp = create_face_workplane(self.context, body, 0)
         self.assertEqual(wp[KEY_SOURCE], body)
+
+    def test_part_planes_are_offered_in_the_parts_own_frame(self):
+        from ..utilities.part import part_planes
+
+        body = self._cube("moved")
+        mark_part_root(body)
+        body.matrix_basis = Matrix.Translation(
+            Vector((3.0, 0.0, 0.0))
+        ) @ Matrix.Rotation(1.0, 4, "Y")
+        self.context.view_layer.update()
+        bpy.ops.object.select_all(action="DESELECT")
+        body.select_set(True)
+        self.context.view_layer.objects.active = body
+
+        planes = part_planes(self.context)
+        self.assertEqual([p.axis for p in planes], ["XY", "XZ", "YZ"])
+        # A moved, rotated part offers planes in its frame, not the world's.
+        xy = planes[0]
+        self.assertEqual(xy.matrix_world.translation, Vector((3.0, 0.0, 0.0)))
+        self.assertEqual(
+            xy.matrix_world.to_quaternion(), body.matrix_basis.to_quaternion()
+        )
+
+    def test_no_part_in_focus_offers_no_part_planes(self):
+        from ..utilities.part import part_planes
+
+        bpy.ops.object.select_all(action="DESELECT")
+        self.context.view_layer.objects.active = None
+        self.assertEqual(part_planes(self.context), [])
+
+    def test_picking_a_part_plane_materializes_one_empty(self):
+        from ..utilities.part import PART_PLANE_KEY, as_workplane_object, part_planes
+
+        body = self._cube("host")
+        mark_part_root(body)
+        bpy.ops.object.select_all(action="DESELECT")
+        body.select_set(True)
+        self.context.view_layer.objects.active = body
+
+        plane = part_planes(self.context)[1]  # XZ
+        empty = as_workplane_object(self.context, plane)
+
+        self.assertEqual(empty.type, "EMPTY")
+        self.assertEqual(empty[PART_PLANE_KEY], "XZ")
+        self.assertEqual(part_root_of(empty), body)
+        self.assertEqual(empty.matrix_world.translation, plane.matrix_world.translation)
+
+        # Picking it again reuses it instead of stacking coincident workplanes.
+        again = as_workplane_object(self.context, part_planes(self.context)[1])
+        self.assertEqual(again, empty)
+
+    def test_a_sketch_on_a_part_plane_joins_that_part(self):
+        from ..utilities.part import as_workplane_object, part_planes
+
+        body = self._cube("host")
+        mark_part_root(body)
+        bpy.ops.object.select_all(action="DESELECT")
+        body.select_set(True)
+        self.context.view_layer.objects.active = body
+
+        wp = as_workplane_object(self.context, part_planes(self.context)[0])
+        sketch = build_sketch_on_workplane(self.context, wp)
+        self.assertEqual(part_root_of(sketch.target_object), body)

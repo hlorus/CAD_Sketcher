@@ -23,10 +23,20 @@ ORIGIN_AXIS_COLOR = {
     WP_ID_XZ: _AXIS_Y,
     WP_ID_YZ: _AXIS_X,
 }
+# Pick ids for the base planes of the part in focus (see utilities.part).
+WP_ID_PART_XY = 0xF00011
+WP_ID_PART_XZ = 0xF00012
+WP_ID_PART_YZ = 0xF00013
+
+_PART_PLANE_IDS = (WP_ID_PART_XY, WP_ID_PART_XZ, WP_ID_PART_YZ)
+
 ORIGIN_LABEL = {
     WP_ID_XY: "XY",
     WP_ID_XZ: "XZ",
     WP_ID_YZ: "YZ",
+    WP_ID_PART_XY: "XY",
+    WP_ID_PART_XZ: "XZ",
+    WP_ID_PART_YZ: "YZ",
 }
 
 # Sequential pick IDs for non-origin empties start here
@@ -80,6 +90,15 @@ def iter_wp_empties(context):
             if show_origin:
                 yield wp_obj, wp_id
 
+    # The base planes of the part in focus, in the part's own frame: sketching on
+    # a moved or rotated part otherwise only offers world-aligned planes. They
+    # have no object until one is picked.
+    if show_origin:
+        from .part import part_planes
+
+        for plane, wp_id in zip(part_planes(context), _PART_PLANE_IDS):
+            yield plane, wp_id
+
     pick_id = _EMPTY_PICK_START
     for obj in context.scene.objects:
         # visible_get() covers the eye-icon hide and collection visibility too,
@@ -118,7 +137,7 @@ def wp_plane_bounds(context, pick_id):
     Shared by drawing and hit-testing so the visible and pickable areas match.
     """
     h = wp_display_half_size(context)
-    if pick_id in (WP_ID_XY, WP_ID_XZ, WP_ID_YZ):
+    if pick_id in (WP_ID_XY, WP_ID_XZ, WP_ID_YZ) + _PART_PLANE_IDS:
         gap = h * WP_ORIGIN_GAP_FRACTION
         side = 2.0 * h
         return gap, gap, gap + side, gap + side
