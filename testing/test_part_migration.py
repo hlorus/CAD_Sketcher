@@ -20,6 +20,15 @@ from .utils import Sketch2dTestCase
 
 
 class TestPartMigration(Sketch2dTestCase):
+    def setUp(self):
+        super().setUp()
+        # The scene is shared across the class, so settle anything an earlier
+        # test left behind; each test then speaks only about what it creates.
+        migrate_parts(self.scene)
+        # Pretend the file was written before parts existed; otherwise there is
+        # nothing to migrate and the prompt stays away (which is the point).
+        self.scene.sketcher.version = (0, 31, 0)
+
     def _legacy_plane(self, name="WP", matrix=None):
         """A workplane empty placing a sketch, as older files store it."""
         empty = bpy.data.objects.new(name, None)
@@ -148,3 +157,35 @@ class TestPartMigration(Sketch2dTestCase):
         on_load_post(None)
         self.assertFalse(is_part_root(obj))
         self.assertEqual(obj.parent, plane)
+
+    def test_a_new_file_is_never_asked_to_migrate(self):
+        # The reported annoyance: sketching in a fresh file offered migration,
+        # because a sketch is global until it is made solid.
+        from ..utilities.part import needs_part_migration
+
+        self.scene.sketcher.version = (0, 0, 0)  # never saved
+        obj = self.sketch.target_object
+        self._place_on(obj, self._legacy_plane())
+        self._add_extrude(obj)
+
+        self.assertFalse(needs_part_migration(self.scene))
+
+    def test_a_file_saved_by_this_build_is_not_asked_either(self):
+        from ..utilities.part import PARTS_VERSION, needs_part_migration
+
+        self.scene.sketcher.version = PARTS_VERSION
+        obj = self.sketch.target_object
+        self._place_on(obj, self._legacy_plane())
+        self._add_extrude(obj)
+
+        self.assertFalse(needs_part_migration(self.scene))
+
+    def test_an_older_file_still_is(self):
+        from ..utilities.part import needs_part_migration
+
+        self.scene.sketcher.version = (0, 31, 0)
+        obj = self.sketch.target_object
+        self._place_on(obj, self._legacy_plane())
+        self._add_extrude(obj)
+
+        self.assertTrue(needs_part_migration(self.scene))

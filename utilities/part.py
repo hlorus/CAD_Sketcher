@@ -679,8 +679,21 @@ def _has_solid_feature(obj: bpy.types.Object) -> bool:
     )
 
 
+# The version that introduced parts. A file saved by an older build may hold
+# sketches that predate them; one saved by this build or later cannot.
+PARTS_VERSION = (0, 32, 0)
+
+
 def needs_part_migration(scene: bpy.types.Scene) -> bool:
     """Whether ``scene`` holds sketches from before parts existed.
+
+    Gated on the version the file was saved with, because "a sketch in no part"
+    is not by itself a sign of age: a sketch is global until it is made solid,
+    and a cut spanning several parts stays global for good. Without the gate a
+    brand-new file would offer to migrate itself as soon as it held a sketch.
+
+    A scene with no recorded version was never saved, so it belongs to this
+    session and is current by definition.
 
     Cheap enough to call while a panel is drawn (a pass over the sketches), which
     is how it is offered: never as a file-load handler, matching how legacy
@@ -689,6 +702,10 @@ def needs_part_migration(scene: bpy.types.Scene) -> bool:
     """
     from ..model.sketch_ref import get_sketches
     from .boolean_targets import sketch_source_body
+
+    saved_with = tuple(scene.sketcher.version)
+    if not any(saved_with) or saved_with >= PARTS_VERSION:
+        return False
 
     for sketch in get_sketches(scene):
         obj = sketch.target_object
