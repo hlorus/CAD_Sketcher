@@ -81,3 +81,58 @@ class TestSketchList(Sketch2dTestCase):
 
     def test_a_plain_sketch_is_not_marked_as_cutting(self):
         self.assertNotIn(self.sketch.target_object.name, _cutting_sketches(self.scene))
+
+
+class TestPartSketchesMenu(Sketch2dTestCase):
+    """What "Edit Sketch" reaches when a part holds more than one sketch."""
+
+    def _cube(self, name):
+        me = bpy.data.meshes.new(name)
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new(name, me)
+        self.scene.collection.objects.link(ob)
+        return ob
+
+    def test_a_parts_sketches_are_listed_body_first(self):
+        from ..ui.panels.sketch_select import part_sketches
+
+        body = self.sketch.target_object
+        mark_part_root(body)
+        cutter = self.new_sketch().target_object
+        cutter.name = "aaa_cutter"  # sorts before the body by name
+        join_part(body, cutter)
+
+        listed = part_sketches(self.context, body)
+        self.assertEqual([o.name for o in listed], [body.name, cutter.name])
+
+    def test_a_hidden_cutter_is_still_reachable(self):
+        # It cannot be clicked in the viewport while it cuts, so the menu is the
+        # only way in.
+        from ..ui.panels.sketch_select import part_sketches
+        from ..utilities.part import update_cutter_display
+
+        body = self.sketch.target_object
+        mark_part_root(body)
+        cutter = self.new_sketch().target_object
+        join_part(body, cutter)
+        apply_boolean(body, cutter, "Difference")
+        update_cutter_display(cutter, [body], True)
+
+        self.assertFalse(cutter.visible_get())
+        self.assertIn(cutter, part_sketches(self.context, body))
+
+    def test_sketches_of_other_parts_are_not_listed(self):
+        from ..ui.panels.sketch_select import part_sketches
+
+        body = self.sketch.target_object
+        mark_part_root(body)
+        other_body = self._cube("other")
+        mark_part_root(other_body)
+        other_sketch = self.new_sketch().target_object
+        join_part(other_body, other_sketch)
+
+        listed = part_sketches(self.context, body)
+        self.assertNotIn(other_sketch, listed)

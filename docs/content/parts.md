@@ -100,6 +100,15 @@ their own: to change anything, edit the part itself. A placement joins whatever
 assembly the part is in, and it is not a part itself, so it never collects
 sketches of its own.
 
+## Editing a part's sketches
+
+Right-click a part in the viewport and **Edit Sketch** opens the sketch that made
+it. When the part holds several sketches you get them as a menu, body first: that
+is also the way to a cutter, which cannot be clicked while it is hidden.
+
+The sketch list in the Sketcher panel shows the same sketches, scoped to the part
+you have selected.
+
 ## Cutter display
 
 A cutter tells you what it is doing:

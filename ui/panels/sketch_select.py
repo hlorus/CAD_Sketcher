@@ -42,6 +42,60 @@ def _anchor_name(wp) -> str:
     return source.name
 
 
+def part_sketches(context, root):
+    """The sketches of the part rooted at ``root``, body first.
+
+    The body leads because it is the sketch that made the part; the rest follow
+    in name order so the menu is stable while you work.
+    """
+    from ...model.sketch_ref import is_sketch_object
+    from ...utilities.part import part_root_of
+
+    members = [
+        obj
+        for obj in context.scene.objects
+        if is_sketch_object(obj) and part_root_of(obj) == root
+    ]
+    members.sort(key=lambda obj: (obj != root, obj.name))
+    return members
+
+
+class VIEW3D_MT_slvs_part_sketches(Menu):
+    """The sketches of the part under the cursor, so any of them can be edited.
+
+    A part holds more than the sketch that made it: cutters live in it too, and
+    those are hidden while they cut, so this menu is how they are reached from
+    the viewport at all.
+    """
+
+    bl_idname = declarations.Menus.PartSketches.value
+    bl_label = "Edit Sketch"
+
+    def draw(self, context: Context):
+        from ...model.sketch_ref import is_sketch_object
+        from ...ui.sketches_list import _cutting_sketches
+        from ...utilities.part import part_root_of
+
+        obj = context.active_object
+        root = part_root_of(obj) or (obj if is_sketch_object(obj) else None)
+        if root is None:
+            return
+
+        layout = self.layout
+        cutting = _cutting_sketches(context.scene)
+        for sketch_obj in part_sketches(context, root):
+            icon = (
+                "MOD_BOOLEAN"
+                if sketch_obj.name in cutting
+                else "OUTLINER_DATA_GP_LAYER"
+            )
+            layout.operator(
+                declarations.Operators.SetActiveSketch,
+                text=sketch_obj.name,
+                icon=icon,
+            ).sketch_name = sketch_obj.name
+
+
 class VIEW3D_MT_slvs_sketch_workplane(Menu):
     """Occasional actions on the active sketch's workplane."""
 

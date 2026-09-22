@@ -109,6 +109,7 @@ class Menus(str, Enum):
     SelectedMenu = "VIEW3D_MT_selected_menu"
     AddSketch = "VIEW3D_MT_slvs_add_sketch"
     SketchWorkplane = "VIEW3D_MT_slvs_sketch_workplane"
+    PartSketches = "VIEW3D_MT_slvs_part_sketches"
 
 
 class Panels(str, Enum):
