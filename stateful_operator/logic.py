@@ -299,13 +299,29 @@ class StatefulOperatorLogic(_StateMachineMixin):
     # Operator lifecycle — invoke / modal / execute / _end
     # -------------------------------------------------------------------------
 
+    @staticmethod
+    def drag_threshold() -> float:
+        """Pixels the cursor must travel while pressed to count as a drag.
+
+        Blender's mouse threshold (3px by default) is meant for gestures and is
+        small enough that the wobble of a normal click reads as a drag, which
+        would switch the tool to press-drag-release by accident. Use the general
+        drag threshold instead (Preferences > Input > Drag Threshold), scaled like
+        Blender scales its own.
+        """
+        prefs = bpy.context.preferences
+        inputs = prefs.inputs
+        threshold = max(inputs.drag_threshold, inputs.drag_threshold_mouse)
+        # ui_scale reads 0 with no UI (background runs), which would make every
+        # click a drag.
+        return threshold * (prefs.system.ui_scale or 1.0)
+
     def _is_drag(self, event) -> bool:
-        """Whether the cursor left Blender's drag threshold since the last press."""
+        """Whether the cursor left the drag threshold since the last press."""
         if self._press_coords is None:
             return False
         coords = Vector((event.mouse_region_x, event.mouse_region_y))
-        threshold = bpy.context.preferences.inputs.drag_threshold_mouse
-        return (coords - self._press_coords).length > threshold
+        return (coords - self._press_coords).length > self.drag_threshold()
 
     def check_event(self, event):
         # Both click-move-click and press-drag-release confirm states. A press
