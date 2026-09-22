@@ -71,6 +71,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
     _drag_mode = False
     # The invoking click already confirmed the first state (see invoke).
     _invoked_by_click = False
+    # A continuous-draw chain committed at least one segment, so ending the
+    # chain still counts as a finished operator (see _end).
+    _chain_committed = False
 
     # -------------------------------------------------------------------------
     # Snapshot / undo hooks (override in subclasses)
@@ -1139,7 +1142,13 @@ class StatefulOperatorLogic(_StateMachineMixin):
             self._record_committed_output(context)
 
         self._state_snapshot = None
-        return {"FINISHED"} if succeede else {"CANCELLED"}
+        if succeede:
+            return {"FINISHED"}
+        # Ending a continuous chain cancels only the segment in progress: what
+        # the chain already committed stands, so report FINISHED. Blender
+        # registers finished operators only, and without it the segments just
+        # drawn would have no "Adjust Last Operation" panel at all.
+        return {"FINISHED"} if self._chain_committed else {"CANCELLED"}
 
     # -------------------------------------------------------------------------
     # Continuous draw
@@ -1180,6 +1189,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """
         self._end(context, True, keep_stateful_running=True)
         bpy.ops.ed.undo_push(message=self.bl_label)
+        # What this run committed survives the chain being cancelled (see _end).
+        self._chain_committed = True
 
         # Save the endpoint before _reset_op wipes state
         last_index, values, last_type = self._take_last_state_pointer()
