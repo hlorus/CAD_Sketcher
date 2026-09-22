@@ -209,3 +209,23 @@ class TestManagedCollection(Sketch2dTestCase):
         self.scene.collection.objects.link(member)
         join_part(root, member)
         self.assertTrue(sync_part_collections(self.context.scene))
+
+    def test_a_duplicated_part_gets_its_own_collection(self):
+        # Blender links a duplicate into its source's collections, so without
+        # this two parts would share one container and instancing it would
+        # render both.
+        root = self.sketch.target_object
+        mark_part_root(root)
+        sync_part_collections(self.context.scene)
+        source_coll = self._part_collection(root)
+
+        copy = root.copy()
+        copy.data = root.data.copy()
+        source_coll.objects.link(copy)
+
+        self.assertTrue(sync_part_collections(self.context.scene))
+        copy_coll = self._part_collection(copy)
+        self.assertIsNotNone(copy_coll)
+        self.assertNotEqual(copy_coll, source_coll)
+        self.assertIn(root.name, source_coll.objects)
+        self.assertNotIn(copy.name, source_coll.objects)

@@ -124,15 +124,19 @@ def _link_into(obj, coll):
     return True
 
 
-def _collection_for(obj, scene, marker, created=None):
+def _collection_for(obj, scene, marker, created=None, claimed=None):
     """The collection standing for ``obj`` (a part or assembly root), created once.
 
     Found by containment: a root's collection is the marked one holding it. That
     needs no stored link back to the root, so renaming either, or the user moving
     a root somewhere of their own, cannot leave a dangling reference.
+
+    ``claimed`` names the collections other roots have already taken, so a
+    duplicated root (which Blender links into its source's collection) gets one
+    of its own instead of the two parts sharing a container.
     """
     for coll in _marked_collections(scene.collection, marker):
-        if obj.name in coll.objects:
+        if obj.name in coll.objects and (claimed is None or coll.name not in claimed):
             return coll
     coll = bpy.data.collections.new(obj.name)
     coll[marker] = True
@@ -150,14 +154,14 @@ def is_part_collection(coll) -> bool:
     return bool(coll is not None and coll.get(_PART_MARKER, False))
 
 
-def part_collection(root, scene, created=None):
+def part_collection(root, scene, created=None, claimed=None):
     """The collection holding the part rooted at ``root``."""
-    return _collection_for(root, scene, _PART_MARKER, created)
+    return _collection_for(root, scene, _PART_MARKER, created, claimed)
 
 
-def assembly_collection(root, scene, created=None):
+def assembly_collection(root, scene, created=None, claimed=None):
     """The collection holding the assembly rooted at ``root``."""
-    return _collection_for(root, scene, _ASSEMBLY_MARKER, created)
+    return _collection_for(root, scene, _ASSEMBLY_MARKER, created, claimed)
 
 
 def _reparent_collection(coll, parent):
@@ -214,10 +218,12 @@ def sync_part_collections(scene) -> bool:
     changed = False
 
     created = []
+    claimed = set()
     owned = {}
     for obj in scene.objects:
         if is_assembly_root(obj):
-            coll = assembly_collection(obj, scene, created)
+            coll = assembly_collection(obj, scene, created, claimed)
+            claimed.add(coll.name)
             for member in (obj, *obj.children_recursive):
                 # Parts inside keep their own collection; only loose members of
                 # the assembly itself live directly in it.
@@ -227,7 +233,8 @@ def sync_part_collections(scene) -> bool:
     for obj in scene.objects:
         if not is_part_root(obj):
             continue
-        coll = part_collection(obj, scene, created)
+        coll = part_collection(obj, scene, created, claimed)
+        claimed.add(coll.name)
         assembly = assembly_root_of(obj)
         if assembly is not None:
             if _reparent_collection(coll, assembly_collection(assembly, scene)):
