@@ -81,6 +81,20 @@ def get_workplane_empty_by_id(wp_id):
 # ---------------------------------------------------------------------------
 
 
+def _is_group_empty(obj) -> bool:
+    """Whether ``obj`` is an Empty that stands for a group rather than a plane.
+
+    An assembly root and a part placement are both Empties, so the picker would
+    otherwise offer them as workplanes. Sketching on one promises more than it
+    delivers: the sketch would sit at that frame but belong to nothing and would
+    not follow it. Assembly-level sketches are worth having, but they need their
+    own answer for what happens when one is made solid.
+    """
+    from .part import is_assembly_root, is_part_instance
+
+    return is_assembly_root(obj) or is_part_instance(obj)
+
+
 def iter_wp_empties(context):
     """Yield (empty_obj, pick_id) for all drawable workplane empties.
 
@@ -124,6 +138,8 @@ def iter_wp_empties(context):
         if obj.type != "EMPTY" or obj.name in origin_names:
             continue
         if not is_managed_workplane(obj) and not obj.visible_get():
+            continue
+        if _is_group_empty(obj):
             continue
         yield obj, pick_id
         pick_id += 1

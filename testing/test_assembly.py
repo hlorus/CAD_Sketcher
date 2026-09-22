@@ -166,3 +166,27 @@ class TestAssembly(BgsTestCase):
         self.assertEqual(len(created), 1)
         self.assertTrue(is_assembly_root(created[0]))
         self.assertFalse(created[0].children)
+
+    def test_an_assembly_is_not_offered_as_a_workplane(self):
+        # It is an Empty, so the picker would offer it; a sketch drawn on it
+        # would sit at its frame and yet belong to nothing.
+        from ..utilities.workplane import iter_wp_empties
+
+        assembly = create_assembly(self.context)
+        self.context.view_layer.update()
+
+        offered = {obj.name for obj, _pick_id in iter_wp_empties(self.context)}
+        self.assertNotIn(assembly.name, offered)
+
+    def test_a_placement_is_not_offered_as_a_workplane(self):
+        from ..utilities.collections import sync_part_collections
+        from ..utilities.part import instance_part
+        from ..utilities.workplane import iter_wp_empties
+
+        root = self._part("widget")
+        sync_part_collections(self.scene)
+        placement = instance_part(self.context, root)
+        self.context.view_layer.update()
+
+        offered = {obj.name for obj, _pick_id in iter_wp_empties(self.context)}
+        self.assertNotIn(placement.name, offered)
