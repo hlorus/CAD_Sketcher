@@ -55,4 +55,34 @@ class VIEW3D_OT_slvs_migrate_legacy(Operator):
         return {"FINISHED"}
 
 
-register, unregister = register_classes_factory((VIEW3D_OT_slvs_migrate_legacy,))
+class VIEW3D_OT_slvs_migrate_parts(Operator):
+    """Adopt sketches saved before parts existed into the part model.
+
+    A sketch drawn on a body joins that body's part, and one that has been made
+    solid roots a part of its own, so existing work becomes movable. Manual
+    rather than automatic: it restructures the object hierarchy, which is not
+    something opening a file should do unasked."""
+
+    bl_idname = Operators.MigrateParts
+    bl_label = "Migrate Sketches to Parts"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context: Context):
+        from ..utilities.collections import sync_part_collections
+        from ..utilities.part import migrate_parts
+
+        if not migrate_parts(context.scene):
+            self.report({"INFO"}, "No sketches to adopt into parts")
+            return {"FINISHED"}
+
+        sync_part_collections(context.scene)
+        self.report({"INFO"}, "Sketches adopted into parts")
+        return {"FINISHED"}
+
+
+register, unregister = register_classes_factory(
+    (
+        VIEW3D_OT_slvs_migrate_legacy,
+        VIEW3D_OT_slvs_migrate_parts,
+    )
+)

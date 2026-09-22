@@ -124,6 +124,27 @@ def _draw_migration_prompt(context: Context, layout: UILayout):
     )
 
 
+def _draw_part_migration_prompt(context: Context, layout: UILayout):
+    """Offer part adoption when the file predates parts.
+
+    Unlike legacy sketches these still draw and solve fine; they just cannot be
+    moved as parts yet, so this is an invitation rather than a warning. Checked
+    only while the panel is drawn, never on file load."""
+    from ...utilities.part import needs_part_migration
+
+    if not needs_part_migration(context.scene):
+        return
+
+    box = layout.box()
+    box.label(text="Sketches not in parts", icon="INFO")
+    box.label(text="Adopt them to move them as parts.")
+    box.operator(
+        declarations.Operators.MigrateParts,
+        text="Adopt into parts",
+        icon="FILE_REFRESH",
+    )
+
+
 def sketch_selector(
     context: Context,
     layout: UILayout,
@@ -169,6 +190,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
         layout = self.layout
 
         _draw_migration_prompt(context, layout)
+        _draw_part_migration_prompt(context, layout)
         sketch_selector(context, layout)
         sketch = get_active_sketch(context)
         layout.use_property_split = True

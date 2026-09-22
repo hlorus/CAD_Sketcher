@@ -119,3 +119,32 @@ class TestPartMigration(Sketch2dTestCase):
         self.context.view_layer.update()
         # The plane it used to hang from must not hold the geometry back.
         self.assertEqual(migrated.plane_matrix.translation, Vector((5.0, 0.0, 0.0)))
+
+    def test_detection_and_the_operator(self):
+        from ..utilities.part import needs_part_migration
+
+        obj = self.sketch.target_object
+        plane = self._legacy_plane()
+        self._place_on(obj, plane)
+        self.assertFalse(needs_part_migration(self.scene))  # a plain sketch: nothing
+
+        self._add_extrude(obj)
+        self.assertTrue(needs_part_migration(self.scene))
+
+        bpy.ops.view3d.slvs_migrate_parts()
+        self.assertTrue(is_part_root(obj))
+        self.assertFalse(needs_part_migration(self.scene))
+
+    def test_nothing_happens_on_file_load(self):
+        # Migration restructures the hierarchy, so opening a file must not do it:
+        # the load handler leaves everything alone (see the panel prompt).
+        from ..handlers import on_load_post
+
+        obj = self.sketch.target_object
+        plane = self._legacy_plane()
+        self._place_on(obj, plane)
+        self._add_extrude(obj)
+
+        on_load_post(None)
+        self.assertFalse(is_part_root(obj))
+        self.assertEqual(obj.parent, plane)

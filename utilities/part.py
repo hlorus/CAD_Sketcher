@@ -713,6 +713,27 @@ def _has_solid_feature(obj: bpy.types.Object) -> bool:
     )
 
 
+def needs_part_migration(scene: bpy.types.Scene) -> bool:
+    """Whether ``scene`` holds sketches from before parts existed.
+
+    Cheap enough to call while a panel is drawn (a pass over the sketches), which
+    is how it is offered: never as a file-load handler, matching how legacy
+    sketch migration is surfaced. Migrating restructures the hierarchy, so it is
+    the user's call, not something a file open does behind their back.
+    """
+    from ..model.sketch_ref import get_sketches
+    from .boolean_targets import sketch_source_body
+
+    for sketch in get_sketches(scene):
+        obj = sketch.target_object
+        if part_root_of(transform_owner(obj)) is not None:
+            continue
+        source = sketch_source_body(sketch)
+        if (source is not None and source != obj) or _has_solid_feature(obj):
+            return True
+    return False
+
+
 def migrate_parts(scene: bpy.types.Scene) -> bool:
     """Bring sketches from files written before parts existed into the model.
 
@@ -722,7 +743,8 @@ def migrate_parts(scene: bpy.types.Scene) -> bool:
     left exactly as it was, still placed by its workplane, and settles the first
     time it becomes solid.
 
-    Idempotent: anything already in a part is skipped, so it is safe on load.
+    Idempotent: anything already in a part is skipped, so running it twice is
+    harmless. Offered through an operator (see ``needs_part_migration``).
     """
     from ..model.sketch_ref import get_sketches
     from .boolean_targets import sketch_source_body

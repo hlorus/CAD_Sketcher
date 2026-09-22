@@ -53,6 +53,7 @@ class Operators(str, Enum):
     AddSketch = "view3d.slvs_add_sketch"
     AddSketch3D = "view3d.slvs_add_sketch3d"
     AddAssembly = "view3d.slvs_add_assembly"
+    MigrateParts = "view3d.slvs_migrate_parts"
     AddSketchOnPlane = "view3d.slvs_add_sketch_on_plane"
     AddTangent = "view3d.slvs_add_tangent"
     AddVertical = "view3d.slvs_add_vertical"
