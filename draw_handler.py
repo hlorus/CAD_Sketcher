@@ -288,8 +288,9 @@ def draw_origin_labels():
         w = max(_w for _w, _h in dims)
         h = line_h * len(lines) + gap * (len(lines) - 1)
 
-        # Anchor the text box's outer corner a margin in from the plane's outer
-        # corner, so it reads as a corner label rather than filling the plane.
+        # Anchor the text box a margin in from the plane's top-left corner, so
+        # it reads as a corner label rather than filling the plane, and always
+        # from the corner text starts at.
         margin = side * _LABEL_CORNER_MARGIN
 
         # Fit by width as well as height: a longer label (an origin plane says so)
@@ -298,13 +299,18 @@ def draw_origin_labels():
         usable = side - 2.0 * margin
         if w > 0.0 and w * scale > usable:
             scale = usable / w
-        box_cx = max_x - margin - (w * scale) / 2
-        box_cy = max_y - margin - (h * scale) / 2
-
         normal = plane_mat.to_3x3().col[2].normalized()
         # Flip in-plane X when looking at the plane's back so the glyphs read
         # left-to-right from the viewer's side instead of mirrored.
         sx = -1.0 if normal.dot(view_forward) > 0.0 else 1.0
+
+        # Top left as the viewer sees it: seen from behind, the plane's own -X
+        # corner is the one on their right, so the anchor flips with the glyphs.
+        if sx > 0.0:
+            box_cx = min_x + margin + (w * scale) / 2
+        else:
+            box_cx = max_x - margin - (w * scale) / 2
+        box_cy = max_y - margin - (h * scale) / 2
 
         # Right-to-left: center the glyph box, mirror if needed, scale to world,
         # move to the corner anchor, then into the plane's frame.
