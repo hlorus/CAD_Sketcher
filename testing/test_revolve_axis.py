@@ -168,3 +168,33 @@ class TestRevolveAxis(BgsTestCase):
         finally:
             global_data.axis_picker = False
             global_data.hover_axis = None
+
+    def test_the_axes_come_back_for_a_re_pick(self):
+        # The eyedropper re-pick starts in one state without running the tool
+        # from the top, and the redo-panel re-run calls fini() behind it, which
+        # put the axes away mid-pick.
+        from .. import global_data
+        from ..operators.modifiers import View3D_OT_node_revolve
+        from .utils import make_operator_double
+
+        op = make_operator_double(View3D_OT_node_revolve)()
+        states = op.get_states()
+        op.edit_state = next(
+            i for i, state in enumerate(states) if state.name == "Axis"
+        )
+        op._hidden_modifier = None
+
+        global_data.axis_picker = False
+        try:
+            op._maintain_pick_ui(self.context)
+            self.assertTrue(global_data.axis_picker, "a re-pick must show them")
+
+            op.fini(self.context, False)  # what the redo-panel re-run triggers
+            op._maintain_pick_ui(self.context)
+            self.assertTrue(global_data.axis_picker, "and keep showing them")
+
+            op._finish_pick_ui(self.context)
+            self.assertFalse(global_data.axis_picker)
+        finally:
+            global_data.axis_picker = False
+            global_data.hover_axis = None

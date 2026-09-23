@@ -1027,20 +1027,38 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         return True
 
     def fini(self, context: Context, succeede: bool):
-        from .. import global_data
-
-        global_data.axis_picker = False
-        global_data.hover_axis = None
+        self._show_axes(False)
         if succeede:
             self.finish_booleans(context)
 
     def set_state(self, context: Context, index: int):
         super().set_state(context, index)
-        # The axes are only worth drawing while one is being picked.
+        self._show_axes(self.get_states()[index].name == "Axis")
+
+    def _prepare_pick_ui(self, context):
+        # A re-pick starts in one state without running the tool from the top,
+        # so the axes have to be asked for here as well.
+        super()._prepare_pick_ui(context)
+        self._show_axes(self.get_states()[self.edit_state].name == "Axis")
+
+    def _maintain_pick_ui(self, context):
+        # The redo-panel re-run calls fini() behind this modal, which puts the
+        # axes away again; ask for them back every event, as the base class does
+        # for the rest of the pick UI.
+        super()._maintain_pick_ui(context)
+        self._show_axes(self.get_states()[self.edit_state].name == "Axis")
+
+    def _finish_pick_ui(self, context):
+        super()._finish_pick_ui(context)
+        self._show_axes(False)
+
+    @staticmethod
+    def _show_axes(visible: bool):
+        """Draw the axes on offer, or put them away (see draw_axis_candidates)."""
         from .. import global_data
 
-        global_data.axis_picker = self.get_states()[index].name == "Axis"
-        if not global_data.axis_picker:
+        global_data.axis_picker = visible
+        if not visible:
             global_data.hover_axis = None
 
     def get_point(self, context, index):
