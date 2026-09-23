@@ -330,10 +330,20 @@ def draw_origin_labels():
                 return None
             return max(8, min(round((s1 - s0).length), 256))
 
-        normal = plane_mat.to_3x3().col[2].normalized()
-        # Flip in-plane X when looking at the plane's back so the glyphs read
-        # left-to-right from the viewer's side instead of mirrored.
-        sx = -1.0 if normal.dot(view_forward) > 0.0 else 1.0
+        # Flip in-plane X when the plane's own +X points to the viewer's left,
+        # so the glyphs read left-to-right and the corner anchors below mean the
+        # corners the viewer sees. Judged from the projection: the normal alone
+        # cannot tell, since it assumes the plane's +Y is up on screen, and when
+        # it guesses wrong the text is mirrored across its anchor and hangs off
+        # the very edge it was anchored to.
+        right_world = plane_mat.to_3x3().col[0].normalized()
+        p0 = location_3d_to_region_2d(region, rv3d, center)
+        p1 = location_3d_to_region_2d(region, rv3d, center + right_world * side * 0.1)
+        if p0 is not None and p1 is not None and abs(p1.x - p0.x) > 1e-6:
+            sx = 1.0 if p1.x > p0.x else -1.0
+        else:
+            normal = plane_mat.to_3x3().col[2].normalized()
+            sx = -1.0 if normal.dot(view_forward) > 0.0 else 1.0
         margin = side * _LABEL_CORNER_MARGIN
         usable = side - 2.0 * margin
 
