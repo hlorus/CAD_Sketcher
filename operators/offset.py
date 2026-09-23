@@ -178,7 +178,7 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
 
         # Create segments
         use_construction = context.scene.sketcher.use_construction
-        self._sources = list(segments)
+        self._sources = []
         self._new_path = []
         for i, seg in enumerate(segments):
             i_start = (i - 1 if is_cyclic else i) % len(segments)
@@ -189,14 +189,34 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             new_seg = topo.create_like(seg, p1, p2, construction=use_construction)
             if new_seg:
                 ignore_hover(new_seg.curve_id)
+                self._sources.append(seg)
                 self._new_path.append(new_seg)
 
         refresh(context)
         return True
 
     def fini(self, context: Context, succeede: bool):
-        if succeede and self.dimension_distance:
+        if not succeede:
+            return
+        self._constrain_offset()
+        if self.dimension_distance:
             self._dimension_offset()
+
+    def _constrain_offset(self):
+        """Tie the offset to what it was offset from.
+
+        An offset line runs parallel to its source. An offset arc is concentric
+        with its source, which ``create_like`` already gives it by reusing the
+        source's center point, so there is nothing left to constrain there.
+        """
+        constraints = self.sketch.constraints
+        for source, target in zip(
+            getattr(self, "_sources", []), getattr(self, "_new_path", [])
+        ):
+            if isinstance(source, LineRef) and isinstance(target, LineRef):
+                constraints.add_parallel(
+                    curve_id_1=source.curve_id, curve_id_2=target.curve_id
+                )
 
     def _dimension_offset(self):
         """Dimension the offset that was just built, on its first segment.
