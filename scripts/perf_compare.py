@@ -78,7 +78,12 @@ def main():
             delta = h - b
             if delta > 0:
                 regressed.append(k)
-            lines.append(f"| `{k}` | {b} | {h} | {delta:+d} |")
+            # Averaged counts (calls per frame) are floats, so don't format the
+            # delta as an integer -- that raised and left the comment empty.
+            sign = "+" if delta >= 0 else "-"
+            lines.append(
+                f"| `{k}` | {_fmt(b)} | {_fmt(h)} | {sign}{_fmt(abs(delta))} |"
+            )
         else:
             # Wall-clock: informational trend (machine-dependent).
             pct = (h - b) / b * 100 if b else 0.0
