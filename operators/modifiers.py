@@ -1071,27 +1071,29 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         # aren't ray-castable, so fall back to the shared screen-space
         # curve-segment pick -- the same one the hover gizmo uses, so the
         # highlight and the pick agree.
-        result = super().pick_element(context, coords)
-        if result is not None:
-            return result
-
         from ..utilities.view import curve_segment_under_cursor
         from ..utilities.workplane import hit_test_axis
 
         radius = 12.0 * context.preferences.system.ui_scale
+
+        # A base plane's own direction, first: the axes are drawn on top and run
+        # through the part they belong to, so there is nearly always geometry
+        # behind them, and the mesh pick would always win. The plane empty is
+        # the pointer, so the axis follows the part it is in.
+        _pick_id, plane, index = hit_test_axis(context, coords, radius)
+        if plane is not None:
+            self.state_data["type"] = MeshEdge
+            return plane.name, index
+
+        result = super().pick_element(context, coords)
+        if result is not None:
+            return result
+
         hit = curve_segment_under_cursor(context, coords, radius)
         if hit is not None:
             obj, point_index = hit
             self.state_data["type"] = MeshEdge
             return obj.name, point_index
-
-        # A base plane's own direction: revolving around a part's X or Z is the
-        # common case, and there is rarely an edge lying on it to click instead.
-        # The plane empty is the pointer, so the axis follows the part it is in.
-        _pick_id, plane, index = hit_test_axis(context, coords, radius)
-        if plane is not None:
-            self.state_data["type"] = MeshEdge
-            return plane.name, index
         return None
 
     def _axis_endpoints(self):

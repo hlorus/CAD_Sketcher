@@ -170,9 +170,7 @@ def main():
             # The hover gizmo runs with a full view context (region included),
             # which the steps here do not otherwise have.
             with bpy.context.temp_override(**view):
-                hovered = object_hover.detect_axis_hover(
-                    bpy.context, _V(on_screen), None
-                )
+                hovered = object_hover.detect_axis_hover(bpy.context, _V(on_screen))
             assert hovered is not None, "an axis under the cursor must publish"
             global_data.hover_axis = hovered
             _redraw()

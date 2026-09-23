@@ -155,19 +155,26 @@ class TestRevolveAxis(BgsTestCase):
         from .. import global_data
         from ..gizmos.object_hover import detect_axis_hover
 
-        global_data.axis_picker = True
         global_data.hover_axis = None
         try:
-            # Nothing while something more specific is hovered.
-            self.assertIsNone(
-                detect_axis_hover(self.context, Vector((0.0, 0.0)), ("EDGE", "x", 0))
-            )
             # Nothing when no state is picking an axis.
             global_data.axis_picker = False
-            self.assertIsNone(detect_axis_hover(self.context, Vector((0.0, 0.0)), None))
+            self.assertIsNone(detect_axis_hover(self.context, Vector((0.0, 0.0))))
         finally:
             global_data.axis_picker = False
             global_data.hover_axis = None
+
+    def test_an_axis_is_picked_before_the_geometry_behind_it(self):
+        # The axes are drawn on top and run through the part, so a mesh pick
+        # would otherwise always win and the axis could never be clicked.
+        import inspect
+
+        from ..operators.modifiers import View3D_OT_node_revolve
+
+        source = inspect.getsource(View3D_OT_node_revolve.pick_element)
+        axis_at = source.index("hit_test_axis(context, coords, radius)")
+        mesh_at = source.index("super().pick_element(context, coords)")
+        self.assertLess(axis_at, mesh_at, "the axis hit test must come first")
 
     def test_the_axes_come_back_for_a_re_pick(self):
         # The eyedropper re-pick starts in one state without running the tool
