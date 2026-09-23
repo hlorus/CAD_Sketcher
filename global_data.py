@@ -31,6 +31,11 @@ snap_bypass = False
 axis_picker = False
 hover_axis = None
 
+# True while an older file is being converted: the names are being handed over
+# in steps there, and a pass that re-derived them mid-way would take the name
+# the body is about to be given.
+migrating_bodies = False
+
 # Guards re-entry while the depsgraph handler writes face-anchored workplane
 # matrices (setting matrix_world itself triggers depsgraph_update_post).
 updating_face_wp = False

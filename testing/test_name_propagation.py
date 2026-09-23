@@ -1,8 +1,8 @@
 """Renaming a body renames what is named after it.
 
-The body is how a part is named, so its sketch, planes and mesh follow it. A
-name the user gave a sketch themselves is left alone: only a body whose own name
-changed is followed (see utilities.body.rename_after_bodies).
+The body is how a part is named; its sketch, planes and mesh carry labels
+derived from that name rather than names of their own, so they are re-derived
+rather than remembered (see utilities.body.rename_after_bodies).
 """
 
 from ..operators.add_sketch import build_sketch_on_workplane
@@ -46,19 +46,32 @@ class TestNamePropagation(BgsTestCase):
         self.assertEqual(sketch_obj.name, "Latch Sketch")
         self.assertEqual(existing_part_plane(body, "XY").name, "Latch XY")
 
-    def test_a_name_the_user_gave_a_sketch_is_kept(self):
+    def test_a_name_typed_on_the_sketch_is_derived_away(self):
+        # The sketch's name is a label for the body's, not a name of its own.
         sketch_obj, _body = self._part("Plate")
         sketch_obj.name = "Outline"
 
-        self.assertFalse(rename_after_bodies(self.scene))
-        self.assertEqual(sketch_obj.name, "Outline")
+        self.assertTrue(rename_after_bodies(self.scene))
+        self.assertEqual(sketch_obj.name, f"{_body.name} Sketch")
 
-    def test_renaming_the_body_again_takes_the_sketch_back(self):
-        # The body is what names the part, so a later rename wins over the name
-        # the sketch was carrying.
+    def test_only_what_this_update_touched_is_looked_at(self):
+        # The pass runs on every depsgraph update, so it is scoped to the ids
+        # that changed; a body nobody touched cannot have drifted.
         sketch_obj, body = self._part("Plate")
         sketch_obj.name = "Outline"
 
-        body.name = "Cover"
-        self.assertTrue(rename_after_bodies(self.scene))
-        self.assertEqual(sketch_obj.name, "Cover Sketch")
+        class _Update:
+            def __init__(self, id):
+                self.id = id
+
+        class _Depsgraph:
+            updates = ()
+
+        quiet = _Depsgraph()
+        self.assertFalse(rename_after_bodies(self.scene, quiet))
+        self.assertEqual(sketch_obj.name, "Outline", "not touched, not looked at")
+
+        touched = _Depsgraph()
+        touched.updates = (_Update(body),)
+        self.assertTrue(rename_after_bodies(self.scene, touched))
+        self.assertEqual(sketch_obj.name, f"{body.name} Sketch")

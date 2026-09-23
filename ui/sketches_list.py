@@ -73,8 +73,12 @@ class VIEW3D_UL_sketches(UIList):
                 ).sketch_name = obj.name
 
             # Editable name -- expands to fill, pushing the icons below to the
-            # right edge of the row (standard Blender UIList layout).
-            row.prop(obj, "name", text="", emboss=False)
+            # right edge of the row (standard Blender UIList layout). The body's
+            # name, since the sketch's is derived from it: typing one here would
+            # be re-derived away on the next update.
+            from ..utilities.body import body_of
+
+            row.prop(body_of(obj) or obj, "name", text="", emboss=False)
 
             # Trailing controls: solver-state, enter (edit), delete
             if obj.get("solver_state", "OKAY") != "OKAY":
