@@ -30,10 +30,6 @@ def ensure_attribute(attributes, name, type, domain):
     return attr
 
 
-# Only cosmetic text remains a STRING attribute. Blender drops CURVE-domain
-# STRING attributes entirely on curve removal, so identity is stored as ints.
-_STRING_ATTRS = frozenset(("name",))
-
 # ---------------------------------------------------------------------------
 # Curve identity: 128-bit UUIDs stored as 2x INT32_2D sub-attributes.
 #
@@ -254,24 +250,53 @@ def read_uuid_raw_list(curve_data, field):
     return result
 
 
-def default_curve_name(curve_data, ctype):
-    """A per-type default name like 'Line 3' based on current curve counts."""
+TYPE_LABELS = {}
+
+
+def _type_labels():
     from ..model.constants import SketchCurveType
 
-    labels = {
-        SketchCurveType.POINT: "Point",
-        SketchCurveType.LINE: "Line",
-        SketchCurveType.ARC: "Arc",
-        SketchCurveType.CIRCLE: "Circle",
-    }
-    label = labels.get(ctype, "Curve")
+    if not TYPE_LABELS:
+        TYPE_LABELS.update(
+            {
+                SketchCurveType.POINT: "Point",
+                SketchCurveType.LINE: "Line",
+                SketchCurveType.ARC: "Arc",
+                SketchCurveType.CIRCLE: "Circle",
+            }
+        )
+    return TYPE_LABELS
+
+
+def type_label(ctype) -> str:
+    """The word a curve of this type goes by, e.g. "Line"."""
+    return _type_labels().get(ctype, "Curve")
+
+
+def next_name_ordinal(curve_data, ctype) -> int:
+    """The next free ordinal for this type, so names stay unique.
+
+    Counted from the highest one in use rather than from how many there are:
+    deleting "Line 2" must not make the next line a second "Line 3".
+    """
+    import numpy as np
+
+    n = len(curve_data.curves)
     type_attr = curve_data.attributes.get("sketch_type")
-    n = 0
-    if type_attr:
-        for i in range(len(type_attr.data)):
-            if type_attr.data[i].value == ctype:
-                n += 1
-    return f"{label} {n}"
+    ordinal_attr = curve_data.attributes.get("name_ordinal")
+    if not n or type_attr is None or ordinal_attr is None:
+        return 1
+    types = np.zeros(n, dtype=np.int32)
+    type_attr.data.foreach_get("value", types)
+    ordinals = np.zeros(n, dtype=np.int32)
+    ordinal_attr.data.foreach_get("value", ordinals)
+    mine = ordinals[types == int(ctype)]
+    return int(mine.max()) + 1 if mine.size else 1
+
+
+def default_curve_name(curve_data, ctype) -> str:
+    """A per-type default name like 'Line 3' for the next curve of that type."""
+    return f"{type_label(ctype)} {next_name_ordinal(curve_data, ctype)}"
 
 
 def set_attribute(attributes, name: str, value, index: int = None):
@@ -295,14 +320,7 @@ def set_attribute(attributes, name: str, value, index: int = None):
             _update_cached_uuid(curve_data, name, index, lo_pair, hi_pair)
         return
     attribute = attributes.get(name)
-    if name in _STRING_ATTRS:
-        val = value.encode() if isinstance(value, str) else value
-        if index is None:
-            for i in range(len(attribute.data)):
-                attribute.data[i].value = val
-        else:
-            attribute.data[index].value = val
-    elif index is None:
+    if index is None:
         attribute.data.foreach_set("value", (value,) * len(attribute.data))
     else:
         attribute.data[index].value = value
@@ -349,19 +367,8 @@ def ensure_standard_attributes(curve_data):
     for field in UUID_FIELDS:
         for sub in _uuid_subnames(field):
             ensure_attribute(attributes, sub, "INT32_2D", "CURVE")
-    ensure_attribute(attributes, "name", "STRING", "CURVE")
-
-
-def init_string_attrs(curve_data, curve_idx):
-    """Initialize the STRING name attribute to empty for a curve index.
-
-    Blender doesn't zero-init STRING attribute memory, so new curves may
-    contain garbage bytes. (INT identity sub-attributes are zero-initialized.)
-    """
-    for name in _STRING_ATTRS:
-        attr = curve_data.attributes.get(name)
-        if attr:
-            attr.data[curve_idx].value = b""
+    # Ordinal behind a displayed name like "Line 3" (see model/curve_names.py).
+    ensure_attribute(attributes, "name_ordinal", "INT", "CURVE")
 
 
 # ---------------------------------------------------------------------------
@@ -754,25 +761,11 @@ def remove_native_curve_by_id(sketch, curve_id):
             to_remove.append(curve_idx)
 
     if to_remove:
-        # INT identity attributes survive remove_curves() and re-index, but the
-        # STRING `name` attribute is dropped entirely, so snapshot the survivors'
-        # names (in order) and restore them afterwards.
-        remove_set = set(to_remove)
-        attrs = curve_data.attributes
-        name_attr = attrs.get("name")
-        survivor_names = [
-            name_attr.data[i].value
-            for i in range(n_curves)
-            if i not in remove_set and name_attr
-        ]
-
+        # Identity, flags and the name ordinal are integers: they survive
+        # remove_curves() and re-index themselves, so nothing has to be carried
+        # across (see model/curve_names.py).
         curve_data.remove_curves(indices=to_remove)
-
-        ensure_standard_attributes(curve_data)  # recreate the dropped `name`
-        name_attr = curve_data.attributes.get("name")
-        if name_attr:
-            for new_idx, val in enumerate(survivor_names):
-                name_attr.data[new_idx].value = val
+        ensure_standard_attributes(curve_data)
 
         invalidate_curve_id_cache(sketch)
         curve_data.update_tag()

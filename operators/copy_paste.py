@@ -13,6 +13,7 @@ from ..utilities.curve_data import (
     get_curve_data,
     get_uuid,
     invalidate_curve_id_cache,
+    next_name_ordinal,
 )
 
 
@@ -279,8 +280,17 @@ class View3D_OT_slvs_paste(Operator):
                     else:
                         attr.data[pt_idx].value = val
 
-            # Select pasted curves (skip points)
+            # A copy is a new entity, so it takes the next free ordinal rather
+            # than showing the source entity's name (see model/curve_names.py).
             ctype = snap["curve_attrs"].get("sketch_type", -1)
+            set_attribute(
+                curve_data.attributes,
+                "name_ordinal",
+                next_name_ordinal(curve_data, ctype),
+                curve_idx,
+            )
+
+            # Select pasted curves (skip points)
             if ctype != SketchCurveType.POINT:
                 selection.selected.append(new_cid)
 

@@ -520,9 +520,6 @@ class ReplaceableOutputOp:
     def _reapply(self, context: Context):
         from ..model.group_constraints import reusing_constraint_uids
 
-        # Removing a curve drops its name, so carry names over to the recreated
-        # curves (they get the same ids).
-        names = self._output_names()
         self._remove_output(context)
         # Recorded once the run finishes (after fini), see _record_committed_output.
         self._baseline_ids = self._collect_output_ids(context)
@@ -535,7 +532,6 @@ class ReplaceableOutputOp:
         ]
         with reusing_constraint_uids(self._reuse_uids):
             result = super()._reapply(context)
-        self._restore_names(names)
         return result
 
     def _ignore_own_output(self) -> None:
@@ -579,27 +575,6 @@ class ReplaceableOutputOp:
                 super()._run_fini(context, succeede)
         finally:
             self._reuse_uids = None
-
-    def _output_names(self) -> dict:
-        from ..model.curve_ref import curve_ref
-
-        sketch = self.sketch
-        names = {}
-        for token in getattr(self, "output_ids", "").split():
-            if token[:2] != "c:" or sketch is None:
-                continue
-            ref = curve_ref(sketch, token[2:])
-            if ref.valid:
-                names[token[2:]] = ref._get_attr_value("name", "")
-        return names
-
-    def _restore_names(self, names: dict) -> None:
-        from ..model.curve_ref import curve_ref
-
-        for cid, name in names.items():
-            ref = curve_ref(self.sketch, cid)
-            if name and ref.valid:
-                ref.name = name
 
     def _capture_baseline(self, context: Context):
         self._baseline_ids = self._collect_output_ids(context)

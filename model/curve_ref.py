@@ -187,12 +187,30 @@ class CurveRef:
 
     @property
     def name(self):
-        """User-facing name stored on the curve (falls back to the type)."""
-        return self._get_attr_value("name", "") or self._type_label
+        """The name a user gave this entity, else its type and ordinal."""
+        from .curve_names import custom_name
+
+        if not self._resolve():
+            return self._type_label
+        given = custom_name(self._curve_data, self.curve_id)
+        if given:
+            return given
+        ordinal = self._get_attr_value("name_ordinal", 0)
+        return f"{self._type_label} {ordinal}" if ordinal else self._type_label
 
     @name.setter
     def name(self, value):
-        self._set_attr_value("name", value)
+        """Rename the entity; an empty name goes back to type and ordinal."""
+        from .curve_names import set_custom_name
+
+        if not self._resolve():
+            return
+        given = (
+            ""
+            if value == f"{self._type_label} {self._get_attr_value('name_ordinal', 0)}"
+            else value
+        )
+        set_custom_name(self._curve_data, self.curve_id, given)
 
     # -- UI --
 
@@ -280,12 +298,11 @@ def _allocate(sketch):
 
 def _ensure_attrs(curve_data, curve_idx=None):
     """Ensure standard and user-defined attributes exist for a new curve."""
-    from ..utilities.curve_data import ensure_standard_attributes, init_string_attrs
+    from ..utilities.curve_data import ensure_standard_attributes
     from ..utilities.custom_attributes import initialize_curve_defaults
 
     ensure_standard_attributes(curve_data)
     if curve_idx is not None:
-        init_string_attrs(curve_data, curve_idx)
         initialize_curve_defaults(curve_data, curve_idx)
 
 
@@ -483,7 +500,8 @@ class PointRef(CurveRef):
             PointRef for the new curve.
         """
         from ..model.constants import SketchCurveType
-        from ..utilities.curve_data import default_curve_name, set_attribute
+        from ..utilities.curve_data import next_name_ordinal, set_attribute
+        from .curve_names import set_custom_name
 
         curve_data = _ensure_curve_data(sketch)
         if curve_data is None:
@@ -507,10 +525,12 @@ class PointRef(CurveRef):
             set_attribute(attrs, "is_origin", True, curve_idx)
         set_attribute(
             attrs,
-            "name",
-            name or default_curve_name(curve_data, SketchCurveType.POINT),
+            "name_ordinal",
+            next_name_ordinal(curve_data, SketchCurveType.POINT),
             curve_idx,
         )
+        if name:
+            set_custom_name(curve_data, cid, name)
 
         _invalidate(sketch)
         curve_data.update_tag()
@@ -586,7 +606,8 @@ class LineRef(CurveRef):
             LineRef for the new curve.
         """
         from ..model.constants import BezierHandleType, SketchCurveType
-        from ..utilities.curve_data import default_curve_name, set_attribute
+        from ..utilities.curve_data import next_name_ordinal, set_attribute
+        from .curve_names import set_custom_name
 
         curve_data = _ensure_curve_data(sketch)
         if curve_data is None:
@@ -637,10 +658,12 @@ class LineRef(CurveRef):
         set_attribute(attrs, "visible", True, curve_idx)
         set_attribute(
             attrs,
-            "name",
-            name or default_curve_name(curve_data, SketchCurveType.LINE),
+            "name_ordinal",
+            next_name_ordinal(curve_data, SketchCurveType.LINE),
             curve_idx,
         )
+        if name:
+            set_custom_name(curve_data, cid, name)
 
         _invalidate(sketch)
         curve_data.update_tag()
@@ -751,7 +774,8 @@ class ArcRef(CurveRef):
         """
         from ..model.constants import BezierHandleType, SketchCurveType
         from ..utilities.constants import QUARTER_TURN
-        from ..utilities.curve_data import default_curve_name, set_attribute
+        from ..utilities.curve_data import next_name_ordinal, set_attribute
+        from .curve_names import set_custom_name
 
         curve_data = _ensure_curve_data(sketch)
         if curve_data is None:
@@ -788,10 +812,12 @@ class ArcRef(CurveRef):
         set_attribute(attrs, "visible", True, curve_idx)
         set_attribute(
             attrs,
-            "name",
-            name or default_curve_name(curve_data, SketchCurveType.ARC),
+            "name_ordinal",
+            next_name_ordinal(curve_data, SketchCurveType.ARC),
             curve_idx,
         )
+        if name:
+            set_custom_name(curve_data, cid, name)
 
         # Compute bezier geometry
         _build_arc_bezier(curve_data, curve_idx, center, start.co, end.co)
@@ -884,7 +910,8 @@ class CircleRef(CurveRef):
             CircleRef for the new curve.
         """
         from ..model.constants import BezierHandleType, SketchCurveType
-        from ..utilities.curve_data import default_curve_name, set_attribute
+        from ..utilities.curve_data import next_name_ordinal, set_attribute
+        from .curve_names import set_custom_name
 
         curve_data = _ensure_curve_data(sketch)
         if curve_data is None:
@@ -914,10 +941,12 @@ class CircleRef(CurveRef):
         set_attribute(attrs, "visible", True, curve_idx)
         set_attribute(
             attrs,
-            "name",
-            name or default_curve_name(curve_data, SketchCurveType.CIRCLE),
+            "name_ordinal",
+            next_name_ordinal(curve_data, SketchCurveType.CIRCLE),
             curve_idx,
         )
+        if name:
+            set_custom_name(curve_data, cid, name)
 
         # Compute bezier geometry — use start point at (center.x + radius, center.y)
         center = ct.co

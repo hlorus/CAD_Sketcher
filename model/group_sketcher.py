@@ -92,7 +92,7 @@ def _update_coord_editor(self, context: Context) -> None:
 
 
 def _update_entity_name(self, context: Context) -> None:
-    """Rename the edited entity through its curve ``name`` attribute."""
+    """Rename the edited entity (stored in the sketch's rename map)."""
     if _SEEDING_COORDS:
         return
 

@@ -6,13 +6,13 @@ natively-added (empty) or duplicated curves, and prune constraints that
 reference a curve which no longer exists.
 """
 
-from .utils import Sketch2dTestCase
 from ..utilities.curve_data import (
     get_uuid,
-    set_uuid,
     remove_native_curve_by_id,
+    set_uuid,
 )
-from ..utilities.validate import validate_sketch, reset_cache
+from ..utilities.validate import reset_cache, validate_sketch
+from .utils import Sketch2dTestCase
 
 
 def _ids(sketch):
@@ -57,11 +57,11 @@ class TestValidate(Sketch2dTestCase):
     def test_recreates_dropped_attribute(self):
         self.add_point((0.0, 0.0))
         cd = self.sketch.target_object.data
-        cd.attributes.remove(cd.attributes.get("name"))
-        self.assertIsNone(cd.attributes.get("name"))
+        cd.attributes.remove(cd.attributes.get("name_ordinal"))
+        self.assertIsNone(cd.attributes.get("name_ordinal"))
 
         self.assertTrue(validate_sketch(self.sketch))
-        self.assertIsNotNone(cd.attributes.get("name"))
+        self.assertIsNotNone(cd.attributes.get("name_ordinal"))
 
     def test_prunes_constraint_for_deleted_curve(self):
         p1 = self.add_point((0.0, 0.0))
@@ -84,6 +84,7 @@ class TestValidate(Sketch2dTestCase):
 
     def test_removes_degenerate_line(self):
         from ..model.constants import SketchCurveType
+
         # A real sketch always carries its protected origin; tag it so self-heal
         # doesn't fabricate a replacement and skew the count.
         self.add_point((0.0, 0.0), fixed=True, is_origin=True)
@@ -100,7 +101,7 @@ class TestValidate(Sketch2dTestCase):
         p1 = self.add_point((0.0, 0.0))
         self.add_point((1.0, 0.0))
         set_uuid(self.sketch.target_object.data, "curve_id", 1, p1.curve_id)
-        self.assertTrue(validate_sketch(self.sketch))   # fixes dup, caches sig
+        self.assertTrue(validate_sketch(self.sketch))  # fixes dup, caches sig
         self.assertFalse(validate_sketch(self.sketch))  # unchanged -> skip
 
     def _origin_flags(self):
