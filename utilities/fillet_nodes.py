@@ -21,7 +21,7 @@ or an angle threshold) is the intended way to fillet specific elements.
 import bpy
 
 FILLET_NODE_GROUP = "CAD Sketcher Fillet"
-FILLET_VERSION = 6  # fillet only the picked elements
+FILLET_VERSION = 7  # flat fillet by default (one segment)
 
 # Picked elements live on the node group (modifiers take no custom properties):
 # the indices and the domain they index.
@@ -230,9 +230,10 @@ def build_fillet_node_group(name: str = FILLET_NODE_GROUP, picks=()):
     except Exception:
         pass
     segments = iface.new_socket("Segments", in_out="INPUT", socket_type="NodeSocketInt")
-    segments.default_value = 4
+    # One segment is a flat fillet (a chamfer); raise it to round the edge.
+    segments.default_value = 1
     segments.min_value = 1
-    segments.description = "Segments per rounded corner/edge"
+    segments.description = "Segments per corner/edge: 1 is flat, more rounds it"
     affect = iface.new_socket("Affect", in_out="INPUT", socket_type="NodeSocketInt")
     affect.default_value = AFFECT_AUTO
     affect.min_value = 0

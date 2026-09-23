@@ -1,7 +1,6 @@
-"""Operators: add the ``CAD Sketcher Fillet`` modifier and pick what it rounds.
+"""The ``Fillet`` tool: pick the edges the ``CAD Sketcher Fillet`` modifier rounds.
 
-``Add Fillet`` puts the modifier on the active object. ``Fillet`` is the
-interactive part, a stateful tool like the other node tools: each click picks one
+A stateful tool like the other node tools: each click picks one
 edge of the object's output and rounds it (clicking a rounded edge again drops
 it), so every pick is its own step. While the tool is active the object shows
 without its fillet, so a click lands on the element the node tree indexes. The
@@ -134,31 +133,6 @@ def _sync_timer():
     return _TIMER_INTERVAL
 
 
-class View3D_OT_slvs_add_fillet(Operator):
-    """Round the corners of the active object's output with a Fillet modifier"""
-
-    bl_idname = Operators.AddFillet
-    bl_label = "Add Fillet"
-    bl_options = {"REGISTER", "UNDO"}
-
-    amount: FloatProperty(
-        name="Amount",
-        description="Fillet width",
-        default=0.1,
-        min=0.0,
-        subtype="DISTANCE",
-    )
-
-    @classmethod
-    def poll(cls, context: Context) -> bool:
-        ob = context.object
-        return ob is not None and ob.type in {"MESH", "CURVES", "CURVE"}
-
-    def execute(self, context: Context):
-        add_fillet_modifier(context.object, self.amount)
-        return {"FINISHED"}
-
-
 class View3D_OT_slvs_fillet_select(Operator, Operator3d):
     """Click the edges to round; click a rounded edge again to drop it"""
 
@@ -258,7 +232,7 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
 
 
 _register_classes, _unregister_classes = register_stateops_factory(
-    (View3D_OT_slvs_add_fillet, View3D_OT_slvs_fillet_select)
+    (View3D_OT_slvs_fillet_select,)
 )
 
 

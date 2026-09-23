@@ -549,5 +549,38 @@ class TestFilletRedo(TestCase):
             bpy.data.objects.remove(ob, do_unlink=True)
 
 
+class TestFilletDefaults(TestCase):
+    def test_default_is_a_flat_fillet(self):
+        """One segment by default: a flat fillet, raised to round the edge."""
+        from ..utilities.fillet_nodes import build_fillet_node_group
+
+        group = build_fillet_node_group("test_fillet_defaults")
+        try:
+            segments = next(
+                item
+                for item in group.interface.items_tree
+                if item.name == "Segments" and item.in_out == "INPUT"
+            )
+            self.assertEqual(segments.default_value, 1)
+            self.assertEqual(segments.min_value, 1)
+        finally:
+            bpy.data.node_groups.remove(group)
+
+    def test_the_panel_activates_the_tool(self):
+        """The sidebar button starts the Fillet tool, so picking behaves the same
+        as from the toolbar, and the one-shot Add Fillet operator is gone."""
+        import inspect
+
+        from ..declarations import Operators
+        from ..ui.panels.tools import VIEW3D_PT_sketcher_tools
+
+        source = inspect.getsource(VIEW3D_PT_sketcher_tools._draw_node_tools)
+        self.assertIn("InvokeTool", source)
+        self.assertIn("WorkSpaceTools.Fillet", source)
+        self.assertIn("Operators.FilletSelect", source)
+        self.assertFalse(hasattr(bpy.types, "VIEW3D_OT_slvs_add_fillet"))
+        self.assertFalse(hasattr(Operators, "AddFillet"))
+
+
 if __name__ == "__main__":
     unittest.main()
