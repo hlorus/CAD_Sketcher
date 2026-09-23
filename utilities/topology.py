@@ -61,6 +61,15 @@ def _get_point_ids(ref):
     return ids
 
 
+def _ordered_ends(sketch, ref):
+    """A segment's start and end points in its own order, or None."""
+    start = ref._get_attr_value("start_point_id", "")
+    end = ref._get_attr_value("end_point_id", "")
+    if not start or not end:
+        return None
+    return (PointRef(sketch, start), PointRef(sketch, end))
+
+
 class SketchTopology:
     """Topology and geometric query layer for a sketch's curve data."""
 
@@ -452,15 +461,20 @@ class SketchTopology:
         first = path.segments[0]
         last = path.segments[-1]
 
+        # A single segment is the whole path: its own ends, in walk order. Taking
+        # them from the id set would hand back the same arbitrary point twice.
+        if len(path.segments) == 1:
+            ends = _ordered_ends(self._sketch, first)
+            if ends is None:
+                return None
+            inverted = path.directions[0] if path.directions else False
+            return tuple(reversed(ends)) if inverted else ends
+
         # Start point: the point of first segment NOT shared with second
-        if len(path.segments) > 1:
-            shared_start = _get_point_ids(first) & _get_point_ids(path.segments[1])
-            first_pts = _get_point_ids(first) - shared_start
-            shared_end = _get_point_ids(last) & _get_point_ids(path.segments[-2])
-            last_pts = _get_point_ids(last) - shared_end
-        else:
-            first_pts = _get_point_ids(first)
-            last_pts = first_pts
+        shared_start = _get_point_ids(first) & _get_point_ids(path.segments[1])
+        first_pts = _get_point_ids(first) - shared_start
+        shared_end = _get_point_ids(last) & _get_point_ids(path.segments[-2])
+        last_pts = _get_point_ids(last) - shared_end
 
         start = PointRef(self._sketch, next(iter(first_pts))) if first_pts else None
         end = PointRef(self._sketch, next(iter(last_pts))) if last_pts else None
