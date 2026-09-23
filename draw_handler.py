@@ -227,8 +227,8 @@ def draw_origin_labels():
     from .declarations import GizmoGroups
     from .drawing import selection
     from .utilities.workplane import (
-        ORIGIN_AXIS_COLOR,
         iter_wp_empties,
+        workplane_color,
         workplane_label,
         wp_plane_bounds,
     )
@@ -303,7 +303,7 @@ def draw_origin_labels():
 
         # Axis-tinted, lightened toward white so the text reads a bit softer
         # than the plane fill, brighter still while hovered.
-        axis = ORIGIN_AXIS_COLOR[pick_id]
+        axis = workplane_color(pick_id)
         lift = 0.55 if selection.hover == pick_id else 0.35
         color = tuple(c + (1.0 - c) * lift for c in axis) + (1.0,)
         blf.color(_FONT_ID, *color)

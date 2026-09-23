@@ -779,3 +779,25 @@ class TestPartRoot(BgsTestCase):
         offered = {obj.name for obj, _ in iter_wp_empties(self.context)}
         for plane in planes:
             self.assertNotIn(plane.name, offered)
+
+    def test_every_offered_plane_can_be_labelled_and_tinted(self):
+        # A label with no colour for its id used to raise straight out of the
+        # draw handler, which takes the whole overlay down with it.
+        from ..utilities.workplane import (
+            iter_wp_empties,
+            workplane_color,
+            workplane_label,
+        )
+
+        body = self._cube("bracket")
+        mark_part_root(body)
+        from ..utilities.part import ensure_part_planes
+
+        ensure_part_planes(self.context, body)
+        build_sketch_on_workplane(self.context, self.datum)
+
+        offered = list(iter_wp_empties(self.context))
+        self.assertTrue(offered)
+        for plane, pick_id in offered:
+            self.assertTrue(workplane_label(plane, pick_id))
+            self.assertEqual(len(workplane_color(pick_id)), 3)

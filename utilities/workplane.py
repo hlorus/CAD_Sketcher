@@ -18,6 +18,8 @@ WP_ID_YZ = 0xF00003
 
 # Blender-style axis colors used to tint each origin plane by its normal
 # (XY -> Z/blue, XZ -> Y/green, YZ -> X/red) and the short label drawn on it.
+# A plane that stands for no axis: its label is tinted like the plane itself.
+_PLAIN = (0.55, 0.55, 0.58)
 _AXIS_X = (0.80, 0.24, 0.24)
 _AXIS_Y = (0.34, 0.67, 0.20)
 _AXIS_Z = (0.22, 0.40, 0.80)
@@ -55,6 +57,11 @@ ORIGIN_LABEL = {
     WP_ID_PART_XZ: "XZ",
     WP_ID_PART_YZ: "YZ",
 }
+
+
+def workplane_color(pick_id) -> tuple:
+    """The axis colour a plane's label is tinted with, grey for a plain one."""
+    return ORIGIN_AXIS_COLOR.get(pick_id, _PLAIN)
 
 
 def workplane_label(wp_obj, pick_id) -> str:
