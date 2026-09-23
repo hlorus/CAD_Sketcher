@@ -86,3 +86,18 @@ class TestBody(Sketch2dTestCase):
         obj.hide_set(True)
 
         self.assertFalse(sketch.is_visible(self.context))
+
+    def test_leaving_a_sketch_selects_its_body(self):
+        # What the user is left holding is the mesh, not the source it is built
+        # from: the sketch object is hidden and not in the view layer at all.
+        from ..model.sketch_ref import set_active_sketch
+        from ..operators.utilities import select_result_ob
+
+        sketch, body = self._disc()
+        set_active_sketch(self.context, None)
+        self.context.view_layer.update()
+
+        select_result_ob(self.context, sketch)
+
+        self.assertEqual(self.context.view_layer.objects.active, body)
+        self.assertTrue(body.select_get())
