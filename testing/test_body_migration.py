@@ -118,4 +118,4 @@ class TestBodyMigration(Sketch2dTestCase):
         self.assertEqual(body.name, "Bracket")
         self.assertEqual(body.data.name, "Bracket")
         self.assertEqual(obj.name, "Bracket Sketch")
-        self.assertEqual(obj.slvs_workplane.name, "Bracket Plane")
+        self.assertEqual(obj.slvs_workplane.name, "Bracket Workplane")

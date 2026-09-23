@@ -18,7 +18,7 @@ each part, and objects nest under the object that carries them.
     - **Bracket** &mdash; an assembly collection
         - **Plate** &mdash; a part collection
             - **Plate** &mdash; the part's body: a mesh, carrying the features
-                - **Plate Plane** &mdash; the plane its sketch sits on
+                - **Plate Workplane** &mdash; the plane its sketch sits on
                     - **Plate Sketch** &mdash; the source the body is built from
                 - **Plate XY**, **Plate XZ**, **Plate YZ** &mdash; the part's own base planes
                 - **Workplane** &mdash; on a face of Plate

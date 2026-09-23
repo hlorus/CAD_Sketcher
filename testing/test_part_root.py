@@ -73,7 +73,7 @@ class TestPartRoot(BgsTestCase):
 
         self.assertEqual(obj.name, f"{body.name} Sketch")
         self.assertEqual(obj.data.name, obj.name)
-        self.assertEqual(obj.slvs_workplane.name, f"{body.name} Plane")
+        self.assertEqual(obj.slvs_workplane.name, f"{body.name} Workplane")
 
     def test_a_body_joining_a_part_takes_its_name(self):
         # It is a feature of that part, not a "Body" of its own: Blender numbers
@@ -109,7 +109,7 @@ class TestPartRoot(BgsTestCase):
 
         self.assertEqual(body.data.name, "Latch")
         self.assertEqual(obj.name, "Latch Sketch")
-        self.assertEqual(obj.slvs_workplane.name, "Latch Plane")
+        self.assertEqual(obj.slvs_workplane.name, "Latch Workplane")
 
     def test_a_sketch_joining_a_part_leaves_its_plane_named(self):
         # The plane belongs to whatever the sketch was drawn on, so it keeps the

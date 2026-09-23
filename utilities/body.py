@@ -110,7 +110,7 @@ def name_after_body(body: bpy.types.Object, sketch_obj, plane=None) -> None:
     sketch_obj.name = f"{body.name} Sketch"
     sketch_obj.data.name = sketch_obj.name
     if plane is not None:
-        plane.name = f"{body.name} Plane"
+        plane.name = f"{body.name} Workplane"
 
 
 def remove_body(sketch_obj: bpy.types.Object) -> None:
