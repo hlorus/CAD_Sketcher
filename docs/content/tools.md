@@ -82,6 +82,24 @@ Available while any of the extension's tools is active.
 |M|Alt|Merge points|
 |C|Alt+Shift|Toggle construction mode|
 
+### Fillet
+Round picked edges of an object built from a sketch (or any mesh). Activate the
+Fillet tool and keep clicking edges to round them; clicking a rounded edge again
+drops it, and each pick is its own undo step. The picks are stored on the object's
+Fillet modifier: Amount sets the width, and Segments the roundness (1, the
+default, gives a flat fillet).
+
+While the Fillet tool is active, filleted objects show without their fillet, so a
+click always lands on the geometry the fillet reads and the picked edges keep
+their numbering; confirming (Esc or right-click) goes back to Blender's Select tool and shows the
+rounded result.
+
+|Key|Modifier|Action|
+|:---:|---|---|
+|Lmb|-|Round the edge under the cursor, or drop it again|
+|Enter|-|Confirm: keep the picks and go back to Blender's Select tool|
+|Esc / Rmb|-|The same: the picks are applied as they are made|
+
 ### Global Shortcuts
 Available in Object Mode regardless of the active tool, also while a tool is running.
 
@@ -92,6 +110,7 @@ Available in Object Mode regardless of the active tool, also while a tool is run
 |R|Ctrl+Shift|Revolve|
 |D|Ctrl+Shift|Linear array|
 |B|Ctrl+Shift|Boolean|
+|F|Ctrl+Shift|Fillet picked edges|
 |M|Ctrl+Shift|Open the CAD Sketcher pie menu (drawing tools and constraints)|
 |Esc|Shift|Switch to Blender's Select tool|
 

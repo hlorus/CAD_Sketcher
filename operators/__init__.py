@@ -30,6 +30,7 @@ modules = [
     "bevel",
     "offset",
     "project_geometry",
+    "fillet",
     "set_sketch",
     "delete_entity",
     "delete_sketch",

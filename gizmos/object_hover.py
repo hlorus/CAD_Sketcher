@@ -36,6 +36,9 @@ _IDLE_HOVER_TYPES = {
     WorkSpaceTools.ArrayLinear: (Object,),
     WorkSpaceTools.Revolve: (Object,),
     WorkSpaceTools.ProjectGeometry: mesh_element_types,
+    # The fillet picks edges of the object's output (a mesh, or the mesh a sketch
+    # generates), so preview the edge under the cursor while the tool idles.
+    WorkSpaceTools.Fillet: (MeshEdge,),
 }
 
 

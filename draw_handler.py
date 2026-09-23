@@ -259,6 +259,22 @@ def _draw_text_block(plane_mat, lines, dims, gap, size, scale, x, y, align):
             cursor -= gap
 
 
+def draw_fillet_picks():
+    """POST_VIEW: the edges the Fillet tool rounds, while that tool is active."""
+    from .declarations import WorkSpaceTools
+    from .operators.fillet import picked_overlay_points
+
+    context = bpy.context
+    tool = context.workspace.tools.from_space_view3d_mode(context.mode)
+    if tool is None or tool.idname != WorkSpaceTools.Fillet or context.region is None:
+        return
+    points = picked_overlay_points(context)
+    if not points:
+        return
+    col = (*get_prefs().theme_settings.entity.selected[:3], 1.0)
+    _draw_lines_hover(points, col, preferences.get_scale(), width=3)
+
+
 def draw_origin_labels():
     """POST_VIEW: name each workplane, lying in its plane.
 
@@ -388,6 +404,7 @@ _DRAW_HANDLERS = (
     ("draw_handle", draw_cb, "POST_VIEW"),
     ("hover_draw_handle", draw_hover_element, "POST_VIEW"),
     ("origin_label_draw_handle", draw_origin_labels, "POST_VIEW"),
+    ("fillet_picks_draw_handle", draw_fillet_picks, "POST_VIEW"),
     ("icon_draw_handle", None, "POST_PIXEL"),  # callback resolved in register()
 )
 

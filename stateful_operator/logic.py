@@ -71,6 +71,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
     _drag_mode = False
     # The invoking click already confirmed the first state (see invoke).
     _invoked_by_click = False
+    # Commit each run and start over on the same states instead of ending, so one
+    # invocation keeps picking (a tool that applies something per pick). Unlike
+    # continuous_draw it seeds nothing from the finished run, which also makes it
+    # work for a single-state operator.
+    repeat_states = False
     # A continuous-draw chain committed at least one segment, so ending the
     # chain still counts as a finished operator (see _end).
     _chain_committed = False
@@ -92,6 +97,17 @@ class StatefulOperatorLogic(_StateMachineMixin):
     def restore_snapshot(self, context: Context, snapshot: Any) -> None:
         """Restore state from a snapshot produced by ``create_snapshot``."""
         pass
+
+    def _should_return_to_tool(self, succeede, keep_stateful_running) -> bool:
+        """Whether ending this way hands back to ``return_to_tool``.
+
+        One-off tools return once done, but only on success, so a missed pick
+        keeps the tool for a retry. A repeating/chaining run returns when the run
+        ends having committed something, not after its first step.
+        """
+        if keep_stateful_running or not self.return_to_tool:
+            return False
+        return bool(succeede or self._chain_committed)
 
     def on_before_redo_states(self, context: Context):
         """Called before ``redo_states`` during undo/redo cycles.
@@ -878,6 +894,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
             if not self.next_state(context):
                 if self.check_continuous_draw():
                     self.do_continuous_draw(context)
+                elif self.repeat_states:
+                    self.do_repeat_states(context)
                 else:
                     return self._end(context, succeede)
             if is_numeric:
@@ -1138,11 +1156,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
     def _end(self, context, succeede, skip_undo=False, keep_stateful_running=False):
         context.window.cursor_modal_restore()
         self._run_fini(context, succeede)
-        # One-off tools return to their select tool once done (only on success,
-        # so a missed pick keeps the tool for a retry). The target tool differs
-        # per operator: object tools -> Blender's select, sketch tools -> the
-        # sketch select tool.
-        if succeede and self.return_to_tool:
+        if self._should_return_to_tool(succeede, keep_stateful_running):
             try:
                 bpy.ops.wm.tool_set_by_id(name=self.return_to_tool)
             except Exception:
@@ -1207,6 +1221,23 @@ class StatefulOperatorLogic(_StateMachineMixin):
         self._numeric = NumericInput()
         self._state_snapshot = None
         self._preview_key = None
+
+    def do_repeat_states(self, context):
+        """Commit this run and start the states over, keeping the tool running.
+
+        Each pick becomes its own undo step, and the operator stays modal, so the
+        status text and Esc/right-click behave as in every other tool.
+        """
+        self._end(context, True, keep_stateful_running=True)
+        bpy.ops.ed.undo_push(message=self.bl_label)
+        # What this step committed stands even when the run is ended with Esc, and
+        # the redo panel has to adjust that step (see _end / do_continuous_draw).
+        self._chain_committed = True
+        self._committed_props = self._capture_props()
+        self._reset_op()
+        self._capture_baseline(context)
+        self.set_state(context, 0)
+        self._state_snapshot = self.create_snapshot(context)
 
     def _take_last_state_pointer(self):
         """Return (last_index, implicit_values, type_metadata) for the last pointer state."""

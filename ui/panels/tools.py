@@ -1,6 +1,7 @@
 from bpy.types import Context
 
 from ...model.sketch_ref import get_active_sketch
+from ...stateful_operator.constants import Operators as StatefulOps
 from .. import declarations, icon_manager, preferences
 from . import VIEW3D_PT_sketcher_base
 
@@ -122,6 +123,13 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         col.operator(declarations.Operators.NodeRevolve)
         col.operator(declarations.Operators.NodeArrayLinear)
         col.operator(declarations.Operators.NodeBoolean)
+        # Activates the Fillet tool rather than running the operator once: the
+        # picking session lasts as long as that tool (see operators/fillet).
+        props = col.operator(
+            StatefulOps.InvokeTool.value, text="Fillet", icon="MOD_BEVEL"
+        )
+        props.tool_name = declarations.WorkSpaceTools.Fillet.value
+        props.operator = declarations.Operators.FilletSelect.value
 
         # Grouping and reusing parts acts on whole objects, so it belongs with the
         # other object-level tools rather than inside a sketch.
