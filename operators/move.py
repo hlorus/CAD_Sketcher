@@ -196,7 +196,37 @@ class View3D_OT_slvs_move(Operator, Operator2d):
             offset = Vector(self.offset[:2])
             for point in points:
                 point.co = point.co + offset
+            self._carry_circles(moved_ids, offset)
         return {"FINISHED"}
+
+    def _carry_circles(self, moved_ids, offset):
+        """Move the control point that carries a circle's radius with its center.
+
+        A circle's radius is the distance from its center point to its first
+        control point, and the center is the only handle it has. Leaving that
+        point behind would rebuild the circle at whatever radius the move
+        happened to leave -- and collapse it when the center lands on it.
+        """
+        from ..model.constants import SketchCurveType
+        from ..utilities.curve_data import read_uuid_list
+
+        curve_data = self.sketch.target_object.data
+        types = curve_data.attributes.get("sketch_type")
+        if types is None:
+            return
+        centers = read_uuid_list(curve_data, "center_point_id")
+        for index in range(len(curve_data.curves)):
+            if types.data[index].value != SketchCurveType.CIRCLE:
+                continue
+            if centers[index] not in moved_ids:
+                continue
+            anchor = curve_data.curves[index].points[0].index
+            position = Vector(curve_data.points[anchor].position)
+            curve_data.points[anchor].position = (
+                position.x + offset.x,
+                position.y + offset.y,
+                position.z,
+            )
 
     def fini(self, context: Context, succeede: bool):
         if succeede:
