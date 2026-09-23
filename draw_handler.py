@@ -23,8 +23,9 @@ _LABEL_HEIGHT_FACTOR = 0.22
 # drawn smaller.
 _NAME_HEIGHT_FACTOR = 0.10
 # How far the name is inset from the plane's corner, in corner margins: enough
-# that it reads as inside the rectangle rather than sitting on its edge.
-_NAME_INSET = 1.5
+# that it reads as inside the rectangle with air around it, rather than sitting
+# against its edge.
+_NAME_INSET = 2.5
 # Space between those lines, as a fraction of one line's height.
 _LABEL_LINE_GAP = 0.2
 # Inset of the label from the plane's outer corner, as a fraction of its side.
