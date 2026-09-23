@@ -78,6 +78,45 @@ def object_under_cursor(context, coords):
     return best
 
 
+def detect_axis_hover(context, coords):
+    """Which offered revolve axis is under the cursor, or None.
+
+    Only while a state is picking an axis. An axis wins over whatever geometry
+    is behind it: the axes are drawn on top, they run through the part they
+    belong to, so there is nearly always an edge or face under them, and a click
+    takes the axis too (see View3D_OT_node_revolve.pick_element).
+    """
+    from ..utilities.workplane import hit_test_axis
+
+    if not global_data.axis_picker:
+        return None
+    radius = 12.0 * context.preferences.system.ui_scale
+    pick_id, _plane, _index = hit_test_axis(context, coords, radius)
+    return pick_id
+
+
+def publish_hover(context, coords, types) -> bool:
+    """Work out what is under the cursor and publish it. True if it changed.
+
+    Both the hover gizmo and the edit re-pick modal go through here: a gizmo
+    does not get mouse events while a modal operator runs, so the modal has to
+    do its own hover, and the two must agree on what wins.
+    """
+    axis = detect_axis_hover(context, coords)
+    # An axis takes precedence over the geometry behind it, so the highlight
+    # says what a click would take (see View3D_OT_node_revolve.pick_element).
+    element = None if axis is not None else detect_hover(context, coords, types)
+
+    changed = False
+    if element != global_data.hover_element:
+        global_data.hover_element = element
+        changed = True
+    if axis != global_data.hover_axis:
+        global_data.hover_axis = axis
+        changed = True
+    return changed
+
+
 def detect_hover(context, coords, types):
     """Return the hover element under the cursor for the accepted ``types``.
 
@@ -167,9 +206,7 @@ class VIEW3D_GT_slvs_object_hover(Gizmo):
         types = global_data.hover_types
         if types is None:
             types = _idle_hover_types(context)
-        element = detect_hover(context, Vector(location), types)
-        if element != global_data.hover_element:
-            global_data.hover_element = element
+        if publish_hover(context, Vector(location), types):
             context.area.tag_redraw()
         # Never claim the click: fall through to the tool keymap / operator.
         return -1

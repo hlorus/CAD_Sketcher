@@ -520,3 +520,131 @@ def get_workplane_origin_normal(sketch):
 
     mat = sketch.plane_matrix
     return mat.translation.copy(), Vector(mat.col[2][:3]).normalized()
+
+
+# ---------------------------------------------------------------------------
+# Base-plane axes
+#
+# An axis is not an object of its own: it is one of a base plane's own
+# directions. The plane empties are parented into their part, so reading an
+# axis off one keeps it bound to that part -- move the part and the axis moves
+# with it -- and the world's datums give the world axes the same way.
+# ---------------------------------------------------------------------------
+
+AXIS_LETTERS = ("X", "Y", "Z")
+# Pick ids for the three axes, in the same reserved block as the base planes.
+AXIS_ID_X = 0xF00021
+AXIS_ID_Y = 0xF00022
+AXIS_ID_Z = 0xF00023
+_AXIS_IDS = (AXIS_ID_X, AXIS_ID_Y, AXIS_ID_Z)
+AXIS_COLOR = {AXIS_ID_X: _AXIS_X, AXIS_ID_Y: _AXIS_Y, AXIS_ID_Z: _AXIS_Z}
+
+# How far an axis line reaches from its origin, as a fraction of the drawn
+# workplane's half size: long enough to aim at, short enough not to fill the view.
+AXIS_LENGTH_FACTOR = 2.0
+
+
+def axis_plane(context):
+    """The base plane whose frame the offered axes are read from, or None.
+
+    The XY plane of the part in focus, and otherwise the scene's: the same
+    "a part's frame stands in for the world's" rule the planes themselves follow.
+    """
+    from .part import PART_PLANE_KEY, part_plane_objects
+
+    for plane in part_plane_objects(context):
+        if plane.get(PART_PLANE_KEY) == "XY":
+            return plane
+    return context.scene.sketcher.wp_xy
+
+
+def iter_axis_candidates(context):
+    """Yield ``(plane, index, pick_id)`` for each axis on offer.
+
+    ``index`` is which of the plane's own directions the axis is (0/1/2 for
+    X/Y/Z), so the pair resolves live through the plane's matrix rather than
+    freezing a direction at pick time.
+    """
+    plane = axis_plane(context)
+    if plane is None:
+        return
+    for index, pick_id in enumerate(_AXIS_IDS):
+        yield plane, index, pick_id
+
+
+def axis_endpoints(plane, index, context=None):
+    """World ends of one of ``plane``'s axes, reaching both ways from it.
+
+    An axis is a line, not a ray: it is drawn to both sides of the frame and a
+    revolve does not care which end was picked, so the same two ends serve the
+    drawing and the hit test. Halves that disagree is how the negative side came
+    to be drawn but not pickable.
+    """
+    matrix = plane.matrix_world
+    origin = matrix.translation.copy()
+    direction = matrix.to_3x3().col[index].normalized()
+    reach = wp_display_half_size(context) if context else 1.0
+    span = direction * reach * AXIS_LENGTH_FACTOR
+    return origin - span, origin + span
+
+
+def axis_label(plane, index) -> str:
+    """The text drawn on an axis: whose frame it is, and which direction.
+
+    Reads like the planes do ("Bracket X"), since a part's axes stand in for the
+    world's exactly as its planes do and the letter alone would not say whose.
+    """
+    from .part import PART_PLANE_KEY
+
+    letter = AXIS_LETTERS[index]
+    if plane.get(PART_PLANE_KEY):
+        owner = plane.name.rsplit(" ", 1)[0]
+        return f"{owner} {letter}"
+    return f"Origin {letter}"
+
+
+def axis_by_pick_id(context, pick_id):
+    """Resolve an axis pick id to ``(plane, index)``, or ``(None, None)``."""
+    for plane, index, candidate in iter_axis_candidates(context):
+        if candidate == pick_id:
+            return plane, index
+    return None, None
+
+
+def hit_test_axis(context, coords, radius=12.0):
+    """Nearest offered axis within ``radius`` pixels of ``coords``.
+
+    Returns ``(pick_id, plane, index)`` or ``(None, None, None)``. Screen-space
+    like the curve-segment pick, so what is highlighted and what is picked agree.
+    """
+    from bpy_extras.view3d_utils import location_3d_to_region_2d
+
+    region = context.region
+    rv3d = context.region_data
+    if region is None or rv3d is None:
+        return None, None, None
+
+    cursor = Vector(coords)
+    best = None
+    best_dist = radius
+    for plane, index, pick_id in iter_axis_candidates(context):
+        start, end = axis_endpoints(plane, index, context)
+        s0 = location_3d_to_region_2d(region, rv3d, start)
+        s1 = location_3d_to_region_2d(region, rv3d, end)
+        if s0 is None or s1 is None:  # behind the view plane
+            continue
+        distance = _distance_to_segment(cursor, s0, s1)
+        if distance <= best_dist:
+            best_dist = distance
+            best = (pick_id, plane, index)
+    return best if best is not None else (None, None, None)
+
+
+def _distance_to_segment(point, start, end) -> float:
+    """Shortest distance from ``point`` to the segment ``start``-``end``."""
+    span = end - start
+    length_squared = span.length_squared
+    if length_squared == 0.0:
+        return (point - start).length
+    t = max(0.0, min(1.0, (point - start).dot(span) / length_squared))
+    return (point - (start + span * t)).length

@@ -550,13 +550,10 @@ class NodeOperator(Operator3d):
 
     def _update_pick_hover(self, context, coords):
         from .. import global_data
-        from ..gizmos.object_hover import detect_hover
+        from ..gizmos.object_hover import publish_hover
 
-        element = detect_hover(context, coords, global_data.hover_types)
-        if element != global_data.hover_element:
-            global_data.hover_element = element
-            if context.area:
-                context.area.tag_redraw()
+        if publish_hover(context, coords, global_data.hover_types) and context.area:
+            context.area.tag_redraw()
 
     def resolved_object(self):
         """The object to operate on: the live/restored pointer, else the
@@ -996,7 +993,8 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         *BASE_STATES,
         state_from_args(
             "Axis",
-            description="Click a mesh edge or curve/sketch line to revolve around",
+            description="Click an axis, a mesh edge or a curve/sketch line to "
+            "revolve around",
             pointer="axis",
             types=(MeshEdge,),
             use_create=False,
@@ -1026,8 +1024,39 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         return True
 
     def fini(self, context: Context, succeede: bool):
+        self._show_axes(False)
         if succeede:
             self.finish_booleans(context)
+
+    def set_state(self, context: Context, index: int):
+        super().set_state(context, index)
+        self._show_axes(self.get_states()[index].name == "Axis")
+
+    def _prepare_pick_ui(self, context):
+        # A re-pick starts in one state without running the tool from the top,
+        # so the axes have to be asked for here as well.
+        super()._prepare_pick_ui(context)
+        self._show_axes(self.get_states()[self.edit_state].name == "Axis")
+
+    def _maintain_pick_ui(self, context):
+        # The redo-panel re-run calls fini() behind this modal, which puts the
+        # axes away again; ask for them back every event, as the base class does
+        # for the rest of the pick UI.
+        super()._maintain_pick_ui(context)
+        self._show_axes(self.get_states()[self.edit_state].name == "Axis")
+
+    def _finish_pick_ui(self, context):
+        super()._finish_pick_ui(context)
+        self._show_axes(False)
+
+    @staticmethod
+    def _show_axes(visible: bool):
+        """Draw the axes on offer, or put them away (see draw_axis_candidates)."""
+        from .. import global_data
+
+        global_data.axis_picker = visible
+        if not visible:
+            global_data.hover_axis = None
 
     def get_point(self, context, index):
         # The axis is a picked edge, resolved to endpoints in set_props; there
@@ -1039,12 +1068,24 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         # aren't ray-castable, so fall back to the shared screen-space
         # curve-segment pick -- the same one the hover gizmo uses, so the
         # highlight and the pick agree.
+        from ..utilities.view import curve_segment_under_cursor
+        from ..utilities.workplane import hit_test_axis
+
+        radius = 12.0 * context.preferences.system.ui_scale
+
+        # A base plane's own direction, first: the axes are drawn on top and run
+        # through the part they belong to, so there is nearly always geometry
+        # behind them, and the mesh pick would always win. The plane empty is
+        # the pointer, so the axis follows the part it is in.
+        _pick_id, plane, index = hit_test_axis(context, coords, radius)
+        if plane is not None:
+            self.state_data["type"] = MeshEdge
+            return plane.name, index
+
         result = super().pick_element(context, coords)
         if result is not None:
             return result
-        from ..utilities.view import curve_segment_under_cursor
 
-        radius = 12.0 * context.preferences.system.ui_scale
         hit = curve_segment_under_cursor(context, coords, radius)
         if hit is not None:
             obj, point_index = hit
@@ -1053,7 +1094,11 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         return None
 
     def _axis_endpoints(self):
-        """World endpoints of the picked axis edge (mesh or curve), or None."""
+        """World endpoints of the picked axis, or None.
+
+        A mesh edge, a curve segment, or one of a base plane's own directions
+        (picked as the plane empty plus which direction it is).
+        """
         try:
             ob_name, index = self.get_state_pointer(index=1, implicit=True)
         except Exception:
@@ -1061,6 +1106,10 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         ob = bpy.data.objects.get(ob_name)
         if ob is None:
             return None
+        if ob.type == "EMPTY":
+            from ..utilities.workplane import axis_endpoints
+
+            return axis_endpoints(ob, index)
         if ob.type in {"CURVE", "CURVES"}:
             pts = getattr(ob.data, "points", None)
             if pts is None or index + 1 >= len(pts):
