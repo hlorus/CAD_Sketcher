@@ -95,8 +95,9 @@ class TestRectangleVariants(Sketch2dTestCase):
         self.assertEqual(types.count("PARALLEL"), 2)
         self.assertNotIn("HORIZONTAL", types)
 
-    def test_three_point_rectangle_assumes_a_square_until_the_width_is_set(self):
-        """The edge is drawn against a rectangle, not against two loose points."""
+    def test_three_point_rectangle_assumes_a_width_until_it_is_set(self):
+        """The edge is drawn against a rectangle, not against two loose points,
+        and the stand-in width is a share of the edge rather than a square."""
         h = OpHarness(View3D_OT_slvs_add_rectangle_3point, self.sketch, self.context)
         h.place_point((0.0, 0.0)).place_point((3.0, 0.0))
         h.op.state_index = 1
@@ -105,4 +106,4 @@ class TestRectangleVariants(Sketch2dTestCase):
 
         corners = [line.p1.co for line in self._lines()]
         self.assertEqual(len(corners), 4)
-        self.assertAlmostEqual(max(c.y for c in corners), 3.0, places=5)
+        self.assertAlmostEqual(max(c.y for c in corners), 1.5, places=5)

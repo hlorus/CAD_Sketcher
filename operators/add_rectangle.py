@@ -392,14 +392,19 @@ class View3D_OT_slvs_add_rectangle_3point(Operator, _RectangleVariant):
             return None
         return start, end
 
+    # The width stood in for while the edge is drawn, as a share of its length.
+    # A square reads as one shape being dragged; half that reads as a rectangle
+    # whose width is still to come.
+    _ASSUMED_WIDTH = 0.5
+
     def _width_value(self, context: Context) -> Optional[float]:
-        """The width in use: a square stands in until the state is reached."""
+        """The width in use: a share of the edge until the state is reached."""
         edge = self._edge(context)
         if edge is None:
             return None
         if self.state_index >= 2:
             return self.width
-        return (edge[1].co - edge[0].co).length
+        return (edge[1].co - edge[0].co).length * self._ASSUMED_WIDTH
 
     def set_state(self, context: Context, index: int):
         if index == 1:
