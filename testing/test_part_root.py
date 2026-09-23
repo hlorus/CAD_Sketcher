@@ -801,3 +801,28 @@ class TestPartRoot(BgsTestCase):
         for plane, pick_id in offered:
             self.assertTrue(workplane_label(plane, pick_id))
             self.assertEqual(len(workplane_color(pick_id)), 3)
+
+    def test_another_parts_planes_stay_out_of_the_picker(self):
+        from ..utilities.body import body_of
+
+        # Every sketch has a workplane, so without this the picker fills up with
+        # one rectangle per sketch in the file.
+        from ..utilities.workplane import iter_wp_empties
+
+        other = build_sketch_on_workplane(self.context, self.datum)
+        other_plane = other.target_object.slvs_workplane
+        mark_part_root(body_of(other.target_object))
+
+        mine = build_sketch_on_workplane(self.context, self.datum)
+        mine_plane = mine.target_object.slvs_workplane
+        my_body = body_of(mine.target_object)
+        mark_part_root(my_body)
+        for ob in self.scene.objects:
+            ob.select_set(False)
+        self.context.view_layer.update()
+        my_body.select_set(True)
+        self.context.view_layer.objects.active = my_body
+
+        offered = [plane for plane, _id in iter_wp_empties(self.context)]
+        self.assertIn(mine_plane, offered)
+        self.assertNotIn(other_plane, offered)
