@@ -30,6 +30,17 @@ def _inverted_dist(invert, distance):
     return math.copysign(distance, sign)
 
 
+def _segment_dist(ref, inverted, distance):
+    """A segment's offset, signed positive to the left of travel.
+
+    An arc sweeps counter-clockwise from its start to its end, so walking it
+    forwards keeps its center on the left: the left of travel is the smaller
+    radius, the opposite sign from the line case.
+    """
+    signed = _inverted_dist(inverted, distance)
+    return -signed if isinstance(ref, (ArcRef, CircleRef)) else signed
+
+
 def _get_offset_elements(topo, ref, offset):
     """Get offset geometry description for intersection calculations."""
     if isinstance(ref, LineRef):
@@ -133,10 +144,10 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
                 return False
 
             offset_a = _get_offset_elements(
-                topo, seg, _inverted_dist(seg_dir, distance)
+                topo, seg, _segment_dist(seg, seg_dir, distance)
             )
             offset_b = _get_offset_elements(
-                topo, neighbour, _inverted_dist(neighbour_dir, distance)
+                topo, neighbour, _segment_dist(neighbour, neighbour_dir, distance)
             )
 
             if not offset_a or not offset_b:
@@ -163,12 +174,12 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
                 start_co = _get_offset_co(
                     start_pt.co,
                     topo.normal_at(segments[0], start_pt.co),
-                    _inverted_dist(directions[0], distance),
+                    _segment_dist(segments[0], directions[0], distance),
                 )
                 end_co = _get_offset_co(
                     end_pt.co,
                     topo.normal_at(segments[-1], end_pt.co),
-                    _inverted_dist(directions[-1], distance),
+                    _segment_dist(segments[-1], directions[-1], distance),
                 )
                 points.insert(0, PointRef.create(sketch, start_co))
                 points.append(PointRef.create(sketch, end_co))
@@ -199,7 +210,7 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         if not succeede:
             return
         self._constrain_offset()
-        if self.dimension_distance:
+        if getattr(self, "dimension_distance", False):
             self._dimension_offset()
 
     def _constrain_offset(self):
