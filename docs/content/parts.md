@@ -10,23 +10,18 @@ and you edit it there.
 The outliner is where parts live. It shows two things at once: collections group
 each part, and objects nest under the object that carries them.
 
-```text
-Scene Collection
-├─ Origin                        the shared XY / XZ / YZ datum planes
-├─ Bracket                       assembly collection
-│  ├─ Plate                      part collection
-│  │  └─ Plate                   the part's body (sketch + extrude)
-│  │     ├─ Plate XY             the part's own base planes
-│  │     ├─ Plate XZ
-│  │     ├─ Plate YZ
-│  │     └─ Workplane            on a face of Plate
-│  │        └─ Hole              cutter sketch, hidden while it cuts
-│  └─ Pin                        part collection
-│     └─ Pin                     a second part in the same assembly
-└─ Sketch                        global: drawn on a datum, not yet solid
-```
+- **Scene Collection**
+    - **Origin** &mdash; the shared XY / XZ / YZ datum planes
+    - **Bracket** &mdash; an assembly collection
+        - **Plate** &mdash; a part collection
+            - **Plate** &mdash; the part's body (sketch + extrude)
+                - **Plate XY**, **Plate XZ**, **Plate YZ** &mdash; the part's own base planes
+                - **Workplane** &mdash; on a face of Plate
+                    - **Hole** &mdash; a cutter sketch, hidden while it cuts
+        - **Pin** &mdash; a second part in the same assembly
+    - **Sketch** &mdash; global: drawn on a datum, not yet solid
 
-Read the indentation, not the collections: **`Hole` is part of `Plate` because it
+Read the nesting, not the collections: **`Hole` is part of `Plate` because it
 hangs under it**, through the workplane it sits on. The collections follow that
 structure, they do not define it. Moving `Plate` moves everything beneath it;
 moving `Bracket` moves both parts.
