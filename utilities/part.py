@@ -424,7 +424,66 @@ def settle_membership(
     if not is_part_root(root):
         mark_part_root(root)
     _join_keeping_its_plane(root, sketch_obj)
+    merge_coincident_plane(root, sketch_obj)
     return root
+
+
+def merge_coincident_plane(root: bpy.types.Object, body: bpy.types.Object) -> None:
+    """Drop a joining body's own plane when the part already has that plane.
+
+    A body drawn on a scene datum carries a plane of its own, and joining a part
+    whose base plane stands in the very same place leaves two rectangles on top
+    of each other. Its sketches move onto the part's plane, which is where they
+    already were, and the spare empty goes.
+    """
+    from .workplane import is_managed_workplane
+
+    own = next(
+        (
+            child
+            for child in body.children
+            if is_managed_workplane(child) and PART_PLANE_KEY not in child
+        ),
+        None,
+    )
+    if own is None:
+        return
+
+    here = world_matrix_of(own)
+    existing = next(
+        (
+            plane
+            for plane in root.children_recursive
+            if plane != own
+            and is_managed_workplane(plane)
+            and _same_plane(world_matrix_of(plane), here)
+        ),
+        None,
+    )
+    if existing is None:
+        return
+
+    for child in list(own.children):
+        child.parent = existing
+        child.matrix_parent_inverse = Matrix.Identity(4)
+        child.matrix_basis = Matrix.Identity(4)
+        if getattr(child, "slvs_workplane", None) == own:
+            child.slvs_workplane = existing
+    bpy.data.objects.remove(own)
+
+
+def _same_plane(a: Matrix, b: Matrix, tolerance: float = 1e-5) -> bool:
+    """Whether two workplane transforms stand in the same place and orientation.
+
+    Compared whole rather than by plane and normal: a sketch's coordinates are
+    coordinates in this frame, so a plane turned within itself is not the same
+    plane to draw on.
+    """
+    return all(
+        abs(x - y) <= tolerance
+        for row_a, row_b in zip(a, b)
+        for x, y in zip(row_a, row_b)
+    )
 
 
 def _members_of(root: bpy.types.Object) -> set:

@@ -904,3 +904,46 @@ class TestPartRoot(BgsTestCase):
         self.assertNotEqual(sketch.target_object.slvs_workplane, empty)
         self.assertEqual(sketch.plane_matrix.translation, Vector((0.0, 0.0, 2.0)))
         self.assertIsNone(empty.parent)
+
+    def test_joining_drops_a_plane_the_part_already_has(self):
+        # Reported: a second sketch drawn on the scene's XY, to cut the part made
+        # from the first, left a plane sitting exactly on the part's own XY.
+        from ..utilities.body import body_of
+        from ..utilities.part import settle_membership
+        from ..utilities.workplane import is_managed_workplane
+
+        first = build_sketch_on_workplane(self.context, self.datum)
+        base = body_of(first.target_object)
+        mark_part_root(base)  # what extruding it does
+        base_plane = first.target_object.slvs_workplane
+
+        second = build_sketch_on_workplane(self.context, self.datum)
+        cutter = body_of(second.target_object)
+        own = second.target_object.slvs_workplane
+        self.assertNotEqual(own, base_plane)
+
+        settle_membership(second.target_object, [base])
+
+        # One plane in that place, and the cutter's sketch is on it.
+        self.assertEqual(second.target_object.slvs_workplane, base_plane)
+        self.assertEqual(second.target_object.parent, base_plane)
+        self.assertEqual(part_root_of(cutter), base)
+        planes = [c for c in base.children_recursive if is_managed_workplane(c)]
+        self.assertEqual(planes, [base_plane])
+
+    def test_a_plane_somewhere_else_is_kept_on_joining(self):
+        from ..utilities.body import body_of
+        from ..utilities.part import settle_membership
+
+        first = build_sketch_on_workplane(self.context, self.datum)
+        base = body_of(first.target_object)
+        mark_part_root(base)
+
+        second = build_sketch_on_workplane(
+            self.context, self.context.scene.sketcher.wp_xz
+        )
+        own = second.target_object.slvs_workplane
+
+        settle_membership(second.target_object, [base])
+
+        self.assertEqual(second.target_object.slvs_workplane, own)
