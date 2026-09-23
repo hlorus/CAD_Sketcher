@@ -42,11 +42,6 @@ def draw_cb():
     # constraint gizmos and icons drawn later in this redraw read from.
     frame_cache.begin_frame()
     context = bpy.context
-    # The Fillet tool hides the fillet it edits; put it back once that tool is
-    # gone (there is no tool-deactivated callback to hook).
-    from .operators.fillet import restore_fillets_when_tool_left
-
-    restore_fillets_when_tool_left(context)
     _draw_curves_overlay(context)
 
 

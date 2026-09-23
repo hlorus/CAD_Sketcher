@@ -85,15 +85,17 @@ Available while any of the extension's tools is active.
 ### Fillet
 Round picked edges of an object built from a sketch (or any mesh). Activate the
 Fillet tool and keep clicking edges to round them; clicking a rounded edge again
-drops it, and each pick is its own undo step. While the run lasts the object
-shows without its fillet, so a click always lands on the geometry the fillet
-reads; ending the run shows the result. The picks are stored on the object's
+drops it, and each pick is its own undo step. The picks are stored on the object's
 Fillet modifier, whose Amount and Segments set the size and roundness.
+
+While the Fillet tool is active the object shows without its fillet, so a click
+always lands on the geometry the fillet reads and the picked edges stay
+recognisable; switching to any other tool shows the rounded result.
 
 |Key|Modifier|Action|
 |:---:|---|---|
 |Lmb|-|Round the edge under the cursor, or drop it again|
-|Esc / Rmb|-|End the run|
+|Esc / Rmb|-|Stop picking (the picks stay)|
 
 ### Global Shortcuts
 Available in Object Mode regardless of the active tool, also while a tool is running.

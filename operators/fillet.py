@@ -82,22 +82,6 @@ def hide_fillet(context: Context, ob) -> None:
     context.view_layer.update()
 
 
-def show_fillet(context: Context, ob) -> None:
-    """Make sure ``ob``'s fillet is visible again.
-
-    A pick's undo step was recorded while the fillet was hidden for picking, so a
-    redo brings that hidden state back; ending a run always shows it again.
-    """
-    modifier = fillet_modifier(ob) if ob else None
-    if modifier is None or modifier.show_viewport:
-        return
-    modifier.show_viewport = True
-    _hidden.pop((ob.name, modifier.name), None)
-    ob.update_tag()
-    if context.view_layer:
-        context.view_layer.update()
-
-
 def restore_fillets(context: Context) -> None:
     """Undo :func:`hide_fillet` for every object it touched."""
     for ob_name, mod_name in list(_hidden):
@@ -111,16 +95,43 @@ def restore_fillets(context: Context) -> None:
         context.view_layer.update()
 
 
-def restore_fillets_when_tool_left(context: Context) -> None:
-    """Called each redraw: put hidden fillets back once the tool is gone."""
-    if not _hidden:
-        return
+def fillet_tool_active(context: Context) -> bool:
+    """Whether the Fillet workspace tool is the active tool."""
     from ..declarations import WorkSpaceTools
 
-    tool = context.workspace.tools.from_space_view3d_mode(context.mode)
-    if tool is not None and tool.idname == WorkSpaceTools.Fillet:
-        return
-    restore_fillets(context)
+    workspace = getattr(context, "workspace", None)
+    if workspace is None:
+        return False
+    try:
+        tool = workspace.tools.from_space_view3d_mode(context.mode)
+    except Exception:
+        return False
+    return tool is not None and tool.idname == WorkSpaceTools.Fillet
+
+
+def sync_fillet_visibility(context: Context) -> None:
+    """Hide the fillet exactly while its tool is active, else show it again.
+
+    The picking session lasts as long as the tool: the object shows the geometry
+    the fillet reads (so a click lands on the element the node tree indexes), and
+    picking up any other tool brings the rounded result back. Blender has no
+    tool-activated callback, so a timer keeps the two in step; this also repairs
+    the hidden state an undo step recorded mid-session.
+    """
+    if fillet_tool_active(context):
+        ob = getattr(context, "object", None)
+        if ob is not None:
+            hide_fillet(context, ob)
+    elif _hidden:
+        restore_fillets(context)
+
+
+_TIMER_INTERVAL = 0.2
+
+
+def _sync_timer():
+    sync_fillet_visibility(bpy.context)
+    return _TIMER_INTERVAL
 
 
 class View3D_OT_slvs_add_fillet(Operator):
@@ -192,20 +203,7 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
 
     def init(self, context: Context, event: Event):
         build_fillet_node_group()
-        # Show the geometry the fillet reads while picking, so a click lands on
-        # the element the node tree indexes (edit mode shows base geometry the
-        # same way). Restored when the run ends.
-        ob = context.object
-        if ob is not None:
-            hide_fillet(context, ob)
         return True
-
-    def fini(self, context: Context, succeede: bool):
-        # Each pick commits through _end; only put the fillet back when the whole
-        # run is over, so the next click still picks on the same geometry.
-        if not self._run_continues:
-            restore_fillets(context)
-            show_fillet(context, self._target(context))
 
     def _picked(self):
         """``(object, edge index)`` of the current pick, or ``(None, -1)``.
@@ -250,13 +248,28 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
         else:
             # Nothing left to round, and an empty pick set would round everything.
             ob.modifiers.remove(modifier)
-        hide_fillet(context, ob)
+        # Keep showing the pre-fillet geometry: the session lasts as long as the
+        # tool, so the next click picks on the same elements.
+        sync_fillet_visibility(context)
         return True
 
     def draw_settings(self, context: Context):
         self.layout.prop(self, "amount")
 
 
-register, unregister = register_stateops_factory(
+_register_classes, _unregister_classes = register_stateops_factory(
     (View3D_OT_slvs_add_fillet, View3D_OT_slvs_fillet_select)
 )
+
+
+def register():
+    _register_classes()
+    if not bpy.app.background and not bpy.app.timers.is_registered(_sync_timer):
+        bpy.app.timers.register(_sync_timer, persistent=True)
+
+
+def unregister():
+    if bpy.app.timers.is_registered(_sync_timer):
+        bpy.app.timers.unregister(_sync_timer)
+    restore_fillets(bpy.context)
+    _unregister_classes()

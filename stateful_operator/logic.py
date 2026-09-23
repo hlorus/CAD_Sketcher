@@ -71,8 +71,6 @@ class StatefulOperatorLogic(_StateMachineMixin):
     _drag_mode = False
     # The invoking click already confirmed the first state (see invoke).
     _invoked_by_click = False
-    # True while _end only commits a step of a repeating run (read in fini).
-    _run_continues = False
     # Commit each run and start over on the same states instead of ending, so one
     # invocation keeps picking (a tool that applies something per pick). Unlike
     # continuous_draw it seeds nothing from the finished run, which also makes it
@@ -1146,9 +1144,6 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
     def _end(self, context, succeede, skip_undo=False, keep_stateful_running=False):
         context.window.cursor_modal_restore()
-        # Tells fini whether the whole run ends here or this is just one
-        # committed step of a repeating/chaining run.
-        self._run_continues = keep_stateful_running
         self._run_fini(context, succeede)
         # One-off tools return to their select tool once done (only on success,
         # so a missed pick keeps the tool for a retry). The target tool differs

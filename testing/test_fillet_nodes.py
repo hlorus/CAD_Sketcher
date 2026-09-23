@@ -6,7 +6,6 @@ elements. Independent of sketch data, so most tests drive it on plain meshes.
 """
 
 import unittest
-from types import SimpleNamespace
 from unittest import TestCase
 
 import bpy
@@ -456,24 +455,25 @@ class TestFilletRun(TestCase):
         self.assertTrue(calls["reset"])
         self.assertEqual(calls["state"], 0, "picking starts over on the first state")
 
-    def test_fini_only_restores_when_the_run_ends(self):
+    def test_the_session_lasts_as_long_as_the_tool(self):
+        """The fillet is hidden while its tool is active (so clicks land on the
+        geometry the node tree indexes) and shown again for any other tool."""
+        from unittest import mock
+
         from ..operators import fillet
 
         bpy.ops.mesh.primitive_cube_add(size=2)
         ob = bpy.context.active_object
         try:
             modifier = fillet.add_fillet_modifier(ob)
-            fillet.hide_fillet(bpy.context, ob)
-            self.assertFalse(modifier.show_viewport)
-
-            op = fillet.View3D_OT_slvs_fillet_select
-            mid_run = SimpleNamespace(_run_continues=True, _target=lambda ctx: ob)
-            op.fini(mid_run, bpy.context, True)
-            self.assertFalse(modifier.show_viewport, "stays hidden between picks")
-
-            run_end = SimpleNamespace(_run_continues=False, _target=lambda ctx: ob)
-            op.fini(run_end, bpy.context, True)
-            self.assertTrue(modifier.show_viewport, "restored when the run ends")
+            with mock.patch.object(fillet, "fillet_tool_active", return_value=True):
+                fillet.sync_fillet_visibility(bpy.context)
+                self.assertFalse(modifier.show_viewport, "hidden while picking")
+                fillet.sync_fillet_visibility(bpy.context)  # idempotent
+                self.assertFalse(modifier.show_viewport)
+            with mock.patch.object(fillet, "fillet_tool_active", return_value=False):
+                fillet.sync_fillet_visibility(bpy.context)
+            self.assertTrue(modifier.show_viewport, "shown again for another tool")
         finally:
             fillet.restore_fillets(bpy.context)
             bpy.data.objects.remove(ob, do_unlink=True)
