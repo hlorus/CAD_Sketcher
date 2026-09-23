@@ -785,173 +785,113 @@ class View3D_OT_node_extrude(Operator, BooleanFromToolMixin, NodeOperator):
         self.draw_boolean_settings(layout)
 
 
-def second_array_axis(offset: Vector, offset_2: Vector) -> tuple:
-    """Direction and spacing of an array's second axis.
+class AxisOverlayMixin:
+    """Draw the axes on offer while the state that works off one is running.
 
-    An explicit ``offset_2`` is used as is. When it's zero, the grid continues at
-    a right angle to ``offset`` in the object's XY plane (where sketches lie)
-    with the same spacing, so turning on a second row gives a square grid.
+    The concrete operator names that state in ``AXIS_STATE``: the axes are drawn
+    (and the one under the cursor highlighted by the hover gizmo) for as long as
+    it runs, and put away when the run ends. What the axes are is up to
+    ``utilities.workplane``: the frame of the part in focus, or the world's.
     """
-    if offset_2.length > 1e-6:
-        return offset_2.normalized(), offset_2.length
-    perpendicular = Vector((-offset.y, offset.x, 0.0))
-    if perpendicular.length < 1e-6:
-        perpendicular = Vector((0.0, 1.0, 0.0))
-    return perpendicular.normalized(), offset.length
+
+    AXIS_STATE = "Axis"
+
+    def fini(self, context: Context, succeede: bool):
+        self._show_axes(False)
+
+    def set_state(self, context: Context, index: int):
+        super().set_state(context, index)
+        self._show_axes(self.get_states()[index].name == self.AXIS_STATE)
+
+    def _prepare_pick_ui(self, context):
+        # A re-pick starts in one state without running the tool from the top,
+        # so the axes have to be asked for here as well.
+        super()._prepare_pick_ui(context)
+        self._show_axes(self.get_states()[self.edit_state].name == self.AXIS_STATE)
+
+    def _maintain_pick_ui(self, context):
+        # The redo-panel re-run calls fini() behind this modal, which puts the
+        # axes away again; ask for them back every event, as the base class does
+        # for the rest of the pick UI.
+        super()._maintain_pick_ui(context)
+        self._show_axes(self.get_states()[self.edit_state].name == self.AXIS_STATE)
+
+    def _finish_pick_ui(self, context):
+        super()._finish_pick_ui(context)
+        self._show_axes(False)
+
+    @staticmethod
+    def _show_axes(visible: bool):
+        """Draw the axes on offer, or put them away (see draw_axis_candidates)."""
+        from .. import global_data
+
+        global_data.axis_picker = visible
+        if not visible:
+            global_data.hover_axis = None
+
+    def axis_under_cursor(self, context, coords):
+        """World endpoints of the axis-like line under the cursor, or None.
+
+        A drawn frame axis, a curve/sketch segment or a mesh edge -- the same
+        things a revolve axis can be picked from. Everything is judged in screen
+        space, so hovering a face is not the same as hovering its edges.
+        """
+        from ..utilities.view import curve_segment_under_cursor
+        from ..utilities.workplane import axis_endpoints, hit_test_axis
+
+        radius = 12.0 * context.preferences.system.ui_scale
+
+        _pick_id, plane, index = hit_test_axis(context, coords, radius)
+        if plane is not None:
+            return axis_endpoints(plane, index, context)
+
+        hit = curve_segment_under_cursor(context, coords, radius)
+        if hit is not None:
+            obj, point_index = hit
+            points = getattr(obj.data, "points", None)
+            if points is not None and point_index + 1 < len(points):
+                mw = obj.matrix_world
+                return (
+                    mw @ Vector(points[point_index].position),
+                    mw @ Vector(points[point_index + 1].position),
+                )
+
+        return self._mesh_edge_under_cursor(context, coords, radius)
+
+    @staticmethod
+    def _mesh_edge_under_cursor(context, coords, radius):
+        """World endpoints of a mesh edge within ``radius`` pixels, or None."""
+        from bpy_extras.view3d_utils import location_3d_to_region_2d
+
+        from ..stateful_operator.utilities.geometry import (
+            evaluated_surface_mesh,
+            get_mesh_element,
+        )
+        from ..utilities.workplane import distance_to_segment
+
+        ob, element, index = get_mesh_element(context, coords, edge=True)
+        if ob is None or element != "EDGE":
+            return None
+
+        with evaluated_surface_mesh(context, ob) as (me, mw):
+            if me is None or index >= len(me.edges):
+                return None
+            i0, i1 = me.edges[index].vertices
+            ends = (mw @ me.vertices[i0].co, mw @ me.vertices[i1].co)
+
+        # The raycast hits anywhere on a face, so the nearest edge of that face
+        # can be far from the cursor: only a line the cursor is actually on
+        # counts as the axis to follow.
+        region, rv3d = context.region, context.region_data
+        on_screen = [location_3d_to_region_2d(region, rv3d, end) for end in ends]
+        if any(point is None for point in on_screen):
+            return None
+        if distance_to_segment(Vector(coords), *on_screen) > radius:
+            return None
+        return ends
 
 
-class View3D_OT_node_array_linear(Operator, NodeOperator):
-    """Add a linear array of the selected element"""
-
-    bl_idname = Operators.NodeArrayLinear
-    bl_label = "Linear Array"
-
-    NODEGROUP_NAME = "CAD Sketcher Linear Array"
-    # Built programmatically (not shipped as an asset); see init().
-    resources = ()
-    return_to_tool = BLENDER_SELECT_TOOL
-
-    def init(self, context: Context, event: Event):
-        from ..utilities.array_nodes import build_array_node_group
-
-        build_array_node_group()
-        if self.edit_state < 0:  # not on the eyedropper re-pick (see NodeOperator.init)
-            bpy.ops.ed.undo_push(message="Add Linear Array")
-        return True
-
-    # Array offset in the object's local space (direction * spacing), captured
-    # by a single interactive drag; direction and distance derive from it.
-    offset: FloatVectorProperty(
-        name="Offset", subtype="TRANSLATION", size=3, options={"SKIP_SAVE"}
-    )
-    count: IntProperty(name="Count", default=2, min=2)
-    use_total_distance: BoolProperty(
-        name="Use Total Distance",
-        description="Treat distance as the total span rather than per-item spacing",
-    )
-    align_rotation: BoolProperty(name="Align Rotation")
-    merge: BoolProperty(name="Merge by Distance")
-    merge_distance: FloatProperty(
-        name="Merge Distance", default=0.001, min=0.0, subtype="DISTANCE"
-    )
-    count_2: IntProperty(
-        name="Count 2",
-        description="Copies along the second direction (1 keeps a single row)",
-        default=1,
-        min=1,
-    )
-    offset_2: FloatVectorProperty(
-        name="Offset 2",
-        description=(
-            "Second direction and spacing; zero uses the first spacing at a right "
-            "angle in the object's XY plane"
-        ),
-        subtype="TRANSLATION",
-        size=3,
-    )
-
-    states = (
-        *BASE_STATES,
-        state_from_args(
-            "Offset",
-            description="Drag to set the array direction and spacing",
-            property="offset",
-            state_func="get_offset",
-            interactive=True,
-            axis_lock=True,
-        ),
-        state_from_args(
-            "Count",
-            description="Amount of created elements",
-            property="count",
-            interactive=True,
-            optional=True,
-            state_func="get_count",
-        ),
-    )
-
-    def get_offset(self, context: Context, coords):
-        # The drag offset (origin -> cursor) in the object's local space; the
-        # local origin is (0,0,0), so the local hit point is the offset.
-        # Return a Vector (not a tuple) so it's set as one vector property value.
-        obj = self.object.original
-        origin = obj.matrix_world.translation
-        inv = obj.matrix_world.inverted()
-        ray_o, ray_dir = get_picking_origin_dir(context, coords)
-
-        # X/Y/Z lock: constrain to a global axis line through the origin, using
-        # the point on that line closest to the view ray (view-angle robust).
-        if self._axis_lock is not None:
-            axis = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))[self._axis_lock]
-            res = intersect_line_line(
-                origin, origin + Vector(axis), ray_o, ray_o + ray_dir
-            )
-            if res is None:
-                return Vector((0.0, 0.0, 0.0))
-            return inv @ res[0]
-
-        # Free drag: project onto the view-facing plane through the origin.
-        view_dir = context.region_data.view_rotation @ Vector((0.0, 0.0, -1.0))
-        hit = intersect_line_plane(ray_o, ray_o + ray_dir, origin, view_dir)
-        if hit is None:
-            return Vector((0.0, 0.0, 0.0))
-        return inv @ hit
-
-    def get_count(self, context: Context, coords):
-        retval = super().state_func(context, coords)
-        return abs(retval) + 2
-
-    def set_props(self):
-        offset = Vector(self.offset)
-        if offset.length > 1e-6:
-            direction = offset.normalized()
-            distance = offset.length
-        else:
-            direction = Vector((1.0, 0.0, 0.0))
-            distance = 0.0
-
-        from ..utilities.array_nodes import _input_ids
-
-        m = self.modifier
-        # Resolve by socket name: a code-built group assigns its own identifiers,
-        # so the old baked-in "Input_N" strings no longer apply. ("Flip Direciton"
-        # keeps the asset's original misspelling to stay socket-compatible.)
-        ids = _input_ids(m.node_group)
-        set_modifier_input(m, ids["Direction"], tuple(direction))
-        set_modifier_input(m, ids["Count"], self.count)
-        set_modifier_input(m, ids["Spacing / Total distance"], distance)
-        set_modifier_input(m, ids["Use Total Distance"], self.use_total_distance)
-        set_modifier_input(m, ids["Align Rotation"], self.align_rotation)
-        set_modifier_input(m, ids["Merge by Distance"], self.merge)
-        set_modifier_input(m, ids["Merge Distance"], self.merge_distance)
-        direction_2, distance_2 = second_array_axis(offset, Vector(self.offset_2))
-        set_modifier_input(m, ids["Count 2"], self.count_2)
-        set_modifier_input(m, ids["Direction 2"], tuple(direction_2))
-        set_modifier_input(m, ids["Spacing 2"], distance_2)
-        return True
-
-    def draw_settings(self, context):
-        # The first direction's Offset and Count are the framework's state rows
-        # above; the second direction follows them, then what applies to both.
-        layout = self.layout
-        layout.separator()
-        layout.label(text="Second Direction")
-        layout.prop(self, "count_2", text="Count")
-        # The offset means nothing for a single row, so don't show it at all.
-        if self.count_2 > 1:
-            layout.prop(self, "offset_2", text="")
-
-        layout.separator()
-        layout.label(text="Options")
-        layout.prop(self, "use_total_distance")
-        layout.prop(self, "align_rotation")
-        layout.prop(self, "merge")
-        sub = layout.column()
-        sub.enabled = self.merge
-        sub.prop(self, "merge_distance")
-
-
-class PickedAxisMixin:
+class PickedAxisMixin(AxisOverlayMixin):
     """Pick an axis to work around: an edge, a curve/sketch line or a base axis.
 
     Mixed into the revolve and circular-array operators. The concrete operator
@@ -967,39 +907,6 @@ class PickedAxisMixin:
     """
 
     AXIS_STATE_INDEX = 1
-
-    def fini(self, context: Context, succeede: bool):
-        self._show_axes(False)
-
-    def set_state(self, context: Context, index: int):
-        super().set_state(context, index)
-        self._show_axes(self.get_states()[index].name == "Axis")
-
-    def _prepare_pick_ui(self, context):
-        # A re-pick starts in one state without running the tool from the top,
-        # so the axes have to be asked for here as well.
-        super()._prepare_pick_ui(context)
-        self._show_axes(self.get_states()[self.edit_state].name == "Axis")
-
-    def _maintain_pick_ui(self, context):
-        # The redo-panel re-run calls fini() behind this modal, which puts the
-        # axes away again; ask for them back every event, as the base class does
-        # for the rest of the pick UI.
-        super()._maintain_pick_ui(context)
-        self._show_axes(self.get_states()[self.edit_state].name == "Axis")
-
-    def _finish_pick_ui(self, context):
-        super()._finish_pick_ui(context)
-        self._show_axes(False)
-
-    @staticmethod
-    def _show_axes(visible: bool):
-        """Draw the axes on offer, or put them away (see draw_axis_candidates)."""
-        from .. import global_data
-
-        global_data.axis_picker = visible
-        if not visible:
-            global_data.hover_axis = None
 
     def get_point(self, context, index):
         # The axis is a picked edge, resolved to endpoints in set_props; there
@@ -1103,6 +1010,200 @@ class PickedAxisMixin:
         if self._has_stored_axis():
             return Vector(self.axis_origin), Vector(self.axis_direction)
         return None
+
+
+def second_array_axis(offset: Vector, offset_2: Vector) -> tuple:
+    """Direction and spacing of an array's second axis.
+
+    An explicit ``offset_2`` is used as is. When it's zero, the grid continues at
+    a right angle to ``offset`` in the object's XY plane (where sketches lie)
+    with the same spacing, so turning on a second row gives a square grid.
+    """
+    if offset_2.length > 1e-6:
+        return offset_2.normalized(), offset_2.length
+    perpendicular = Vector((-offset.y, offset.x, 0.0))
+    if perpendicular.length < 1e-6:
+        perpendicular = Vector((0.0, 1.0, 0.0))
+    return perpendicular.normalized(), offset.length
+
+
+def offset_along_axis(inverse, ends, hit) -> Vector:
+    """The array offset for a drag that followed the axis ``ends``.
+
+    All three come in world space (``inverse`` is the object's inverted matrix);
+    the offset comes back in the object's local space, pointing along the axis
+    and as long as the drag reached along it. None if the axis is degenerate.
+    """
+    direction = (inverse @ ends[1]) - (inverse @ ends[0])
+    if direction.length < 1e-9:
+        return None
+    direction.normalize()
+    return direction * (inverse @ hit).dot(direction)
+
+
+class View3D_OT_node_array_linear(Operator, AxisOverlayMixin, NodeOperator):
+    """Add a linear array of the selected element"""
+
+    bl_idname = Operators.NodeArrayLinear
+    bl_label = "Linear Array"
+
+    NODEGROUP_NAME = "CAD Sketcher Linear Array"
+    # Built programmatically (not shipped as an asset); see init().
+    resources = ()
+    return_to_tool = BLENDER_SELECT_TOOL
+    # The axes are on offer for the whole drag: hovering one makes the array
+    # follow it (see get_offset).
+    AXIS_STATE = "Offset"
+
+    def init(self, context: Context, event: Event):
+        from ..utilities.array_nodes import build_array_node_group
+
+        build_array_node_group()
+        if self.edit_state < 0:  # not on the eyedropper re-pick (see NodeOperator.init)
+            bpy.ops.ed.undo_push(message="Add Linear Array")
+        return True
+
+    # Array offset in the object's local space (direction * spacing), captured
+    # by a single interactive drag; direction and distance derive from it.
+    offset: FloatVectorProperty(
+        name="Offset", subtype="TRANSLATION", size=3, options={"SKIP_SAVE"}
+    )
+    count: IntProperty(name="Count", default=2, min=2)
+    use_total_distance: BoolProperty(
+        name="Use Total Distance",
+        description="Treat distance as the total span rather than per-item spacing",
+    )
+    align_rotation: BoolProperty(name="Align Rotation")
+    merge: BoolProperty(name="Merge by Distance")
+    merge_distance: FloatProperty(
+        name="Merge Distance", default=0.001, min=0.0, subtype="DISTANCE"
+    )
+    count_2: IntProperty(
+        name="Count 2",
+        description="Copies along the second direction (1 keeps a single row)",
+        default=1,
+        min=1,
+    )
+    offset_2: FloatVectorProperty(
+        name="Offset 2",
+        description=(
+            "Second direction and spacing; zero uses the first spacing at a right "
+            "angle in the object's XY plane"
+        ),
+        subtype="TRANSLATION",
+        size=3,
+    )
+
+    states = (
+        *BASE_STATES,
+        state_from_args(
+            "Offset",
+            description="Drag to set the array direction and spacing",
+            property="offset",
+            state_func="get_offset",
+            interactive=True,
+            axis_lock=True,
+        ),
+        state_from_args(
+            "Count",
+            description="Amount of created elements",
+            property="count",
+            interactive=True,
+            optional=True,
+            state_func="get_count",
+        ),
+    )
+
+    def get_offset(self, context: Context, coords):
+        # The drag offset (origin -> cursor) in the object's local space; the
+        # local origin is (0,0,0), so the local hit point is the offset.
+        # Return a Vector (not a tuple) so it's set as one vector property value.
+        obj = self.object.original
+        origin = obj.matrix_world.translation
+        inv = obj.matrix_world.inverted()
+        ray_o, ray_dir = get_picking_origin_dir(context, coords)
+
+        # X/Y/Z lock: constrain to a global axis line through the origin, using
+        # the point on that line closest to the view ray (view-angle robust).
+        if self._axis_lock is not None:
+            axis = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))[self._axis_lock]
+            res = intersect_line_line(
+                origin, origin + Vector(axis), ray_o, ray_o + ray_dir
+            )
+            if res is None:
+                return Vector((0.0, 0.0, 0.0))
+            return inv @ res[0]
+
+        # Hovering one of the axes on offer (or an edge, or a sketch line): the
+        # array runs along it and the drag only says how far, which is how a row
+        # is put on an existing direction instead of eyeballed.
+        ends = self.axis_under_cursor(context, coords)
+        if ends is not None:
+            res = intersect_line_line(*ends, ray_o, ray_o + ray_dir)
+            if res is not None:
+                offset = offset_along_axis(inv, ends, res[0])
+                if offset is not None:
+                    return offset
+
+        # Free drag: project onto the view-facing plane through the origin.
+        view_dir = context.region_data.view_rotation @ Vector((0.0, 0.0, -1.0))
+        hit = intersect_line_plane(ray_o, ray_o + ray_dir, origin, view_dir)
+        if hit is None:
+            return Vector((0.0, 0.0, 0.0))
+        return inv @ hit
+
+    def get_count(self, context: Context, coords):
+        retval = super().state_func(context, coords)
+        return abs(retval) + 2
+
+    def set_props(self):
+        offset = Vector(self.offset)
+        if offset.length > 1e-6:
+            direction = offset.normalized()
+            distance = offset.length
+        else:
+            direction = Vector((1.0, 0.0, 0.0))
+            distance = 0.0
+
+        from ..utilities.array_nodes import _input_ids
+
+        m = self.modifier
+        # Resolve by socket name: a code-built group assigns its own identifiers,
+        # so the old baked-in "Input_N" strings no longer apply. ("Flip Direciton"
+        # keeps the asset's original misspelling to stay socket-compatible.)
+        ids = _input_ids(m.node_group)
+        set_modifier_input(m, ids["Direction"], tuple(direction))
+        set_modifier_input(m, ids["Count"], self.count)
+        set_modifier_input(m, ids["Spacing / Total distance"], distance)
+        set_modifier_input(m, ids["Use Total Distance"], self.use_total_distance)
+        set_modifier_input(m, ids["Align Rotation"], self.align_rotation)
+        set_modifier_input(m, ids["Merge by Distance"], self.merge)
+        set_modifier_input(m, ids["Merge Distance"], self.merge_distance)
+        direction_2, distance_2 = second_array_axis(offset, Vector(self.offset_2))
+        set_modifier_input(m, ids["Count 2"], self.count_2)
+        set_modifier_input(m, ids["Direction 2"], tuple(direction_2))
+        set_modifier_input(m, ids["Spacing 2"], distance_2)
+        return True
+
+    def draw_settings(self, context):
+        # The first direction's Offset and Count are the framework's state rows
+        # above; the second direction follows them, then what applies to both.
+        layout = self.layout
+        layout.separator()
+        layout.label(text="Second Direction")
+        layout.prop(self, "count_2", text="Count")
+        # The offset means nothing for a single row, so don't show it at all.
+        if self.count_2 > 1:
+            layout.prop(self, "offset_2", text="")
+
+        layout.separator()
+        layout.label(text="Options")
+        layout.prop(self, "use_total_distance")
+        layout.prop(self, "align_rotation")
+        layout.prop(self, "merge")
+        sub = layout.column()
+        sub.enabled = self.merge
+        sub.prop(self, "merge_distance")
 
 
 class View3D_OT_node_revolve(

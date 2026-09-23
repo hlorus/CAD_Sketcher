@@ -633,14 +633,14 @@ def hit_test_axis(context, coords, radius=12.0):
         s1 = location_3d_to_region_2d(region, rv3d, end)
         if s0 is None or s1 is None:  # behind the view plane
             continue
-        distance = _distance_to_segment(cursor, s0, s1)
+        distance = distance_to_segment(cursor, s0, s1)
         if distance <= best_dist:
             best_dist = distance
             best = (pick_id, plane, index)
     return best if best is not None else (None, None, None)
 
 
-def _distance_to_segment(point, start, end) -> float:
+def distance_to_segment(point, start, end) -> float:
     """Shortest distance from ``point`` to the segment ``start``-``end``."""
     span = end - start
     length_squared = span.length_squared
