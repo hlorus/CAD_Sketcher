@@ -63,6 +63,22 @@ class TestCircularArrayTool(BgsTestCase):
             {t.bl_idname for t in bpy.types.WorkSpaceTool.__subclasses__()},
         )
 
+    def test_it_shares_the_linear_arrays_toolbar_button(self):
+        # One button with a flyout, so the arrays share one shortcut: the key
+        # names the linear tool and starts whichever the toolbar shows.
+        from ..keymaps import NODE_TOOL_KEYS
+        from ..workspacetools import manager
+
+        entries = {cls.bl_idname: kwargs for cls, kwargs, _group in manager._registry}
+        self.assertTrue(entries[WorkSpaceTools.ArrayLinear].get("group"))
+        self.assertEqual(
+            entries[WorkSpaceTools.ArrayCircular].get("after"),
+            {WorkSpaceTools.ArrayLinear.value},
+        )
+        keyed = {tool for tool, _op, *_keys in NODE_TOOL_KEYS}
+        self.assertIn(WorkSpaceTools.ArrayLinear, keyed)
+        self.assertNotIn(WorkSpaceTools.ArrayCircular, keyed)
+
     def test_it_patterns_the_target_around_the_picked_axis(self):
         ob = self._box()
 

@@ -142,10 +142,9 @@ SKETCH_3D_TOOL_KEYS = (
 NODE_TOOL_KEYS = (
     (WorkSpaceTools.Extrude, Operators.NodeExtrude, "E", "E"),
     (WorkSpaceTools.Revolve, Operators.NodeRevolve, "R", "R"),
+    # Names the array group's leading tool; the key starts whichever member of
+    # the group is active (see View3D_OT_invoke_tool).
     (WorkSpaceTools.ArrayLinear, Operators.NodeArrayLinear, "D", "D"),
-    # Ctrl+Shift+C shadows Blender's Add Constraint (with Targets), which a
-    # CAD sketch has no use for.
-    (WorkSpaceTools.ArrayCircular, Operators.NodeArrayCircular, "C", "C"),
     # Ctrl+Shift+S saves as, so Add Sketch uses Ctrl+Shift+A.
     (WorkSpaceTools.AddSketch, Operators.AddSketch, "S", "A"),
 )
