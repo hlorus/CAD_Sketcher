@@ -526,9 +526,9 @@ class TestPartRoot(BgsTestCase):
         # offered without an entry raises mid-draw (KeyError on the axis colour).
         from ..utilities.part import ensure_part_planes
         from ..utilities.workplane import (
-            ORIGIN_AXIS_COLOR,
-            ORIGIN_LABEL,
             iter_wp_empties,
+            workplane_color,
+            workplane_label,
             wp_plane_bounds,
         )
 
@@ -537,11 +537,11 @@ class TestPartRoot(BgsTestCase):
         ensure_part_planes(self.context, body)
         self._focus(body)
 
-        ids = [pick_id for _plane, pick_id in iter_wp_empties(self.context)]
-        self.assertTrue(any(pick_id in ORIGIN_LABEL for pick_id in ids))
-        for pick_id in ids:
-            if pick_id in ORIGIN_LABEL:
-                self.assertIn(pick_id, ORIGIN_AXIS_COLOR)
+        offered = list(iter_wp_empties(self.context))
+        self.assertTrue(offered)
+        for plane, pick_id in offered:
+            self.assertTrue(workplane_label(plane, pick_id))
+            self.assertEqual(len(workplane_color(pick_id)), 3)
             # Bounds are looked up per drawn plane too.
             self.assertEqual(len(wp_plane_bounds(self.context, pick_id)), 4)
 
@@ -709,12 +709,13 @@ class TestPartRoot(BgsTestCase):
 
     def test_a_part_plane_is_told_apart_from_the_scenes(self):
         # They replace each other on screen, so the axis alone would not say
-        # which frame you are about to sketch in.
+        # which frame you are about to sketch in: a part's plane says the part.
         from ..utilities.part import ensure_part_planes
         from ..utilities.workplane import (
             _EMPTY_PICK_START,
             WP_ID_PART_XY,
             WP_ID_XY,
+            label_lines,
             workplane_label,
         )
 
@@ -722,11 +723,14 @@ class TestPartRoot(BgsTestCase):
         mark_part_root(body)
         plane = ensure_part_planes(self.context, body)[0]
 
-        self.assertEqual(workplane_label(plane, WP_ID_PART_XY), "XY")
-        # Anything else says whose plane it is.
+        self.assertEqual(workplane_label(plane, WP_ID_PART_XY), "bracket XY")
+        # The part on the first line, the axis under it.
+        self.assertEqual(label_lines("bracket XY"), ["bracket", "XY"])
+        # Any other plane says its own name the same way.
         sketch = build_sketch_on_workplane(self.context, self.datum)
         plane = sketch.target_object.slvs_workplane
         self.assertEqual(workplane_label(plane, _EMPTY_PICK_START), plane.name)
+        # The scene's datums have no name worth reading, so they say Origin.
         self.assertEqual(
             workplane_label(self.context.scene.sketcher.wp_xy, WP_ID_XY), "Origin XY"
         )
@@ -779,28 +783,6 @@ class TestPartRoot(BgsTestCase):
         offered = {obj.name for obj, _ in iter_wp_empties(self.context)}
         for plane in planes:
             self.assertNotIn(plane.name, offered)
-
-    def test_every_offered_plane_can_be_labelled_and_tinted(self):
-        # A label with no colour for its id used to raise straight out of the
-        # draw handler, which takes the whole overlay down with it.
-        from ..utilities.workplane import (
-            iter_wp_empties,
-            workplane_color,
-            workplane_label,
-        )
-
-        body = self._cube("bracket")
-        mark_part_root(body)
-        from ..utilities.part import ensure_part_planes
-
-        ensure_part_planes(self.context, body)
-        build_sketch_on_workplane(self.context, self.datum)
-
-        offered = list(iter_wp_empties(self.context))
-        self.assertTrue(offered)
-        for plane, pick_id in offered:
-            self.assertTrue(workplane_label(plane, pick_id))
-            self.assertEqual(len(workplane_color(pick_id)), 3)
 
     def test_another_parts_planes_stay_out_of_the_picker(self):
         from ..utilities.body import body_of

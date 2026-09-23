@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 _FONT_ID = 0
 # Label height as a fraction of the origin plane's drawn side length.
 _LABEL_HEIGHT_FACTOR = 0.22
-# A plane named after an object says what it is, not what it is called, so its
-# name is drawn smaller than an axis label and over two lines if it is long.
+# A plane that is not a base plane is a lesser thing to pick, so its name is
+# drawn smaller.
 _NAME_HEIGHT_FACTOR = 0.10
 # Space between those lines, as a fraction of one line's height.
 _LABEL_LINE_GAP = 0.2
@@ -262,8 +262,10 @@ def draw_origin_labels():
 
         min_x, min_y, max_x, max_y = wp_plane_bounds(context, pick_id)
         side = max_x - min_x
+        # Every label breaks the same way; only the size says how prominent the
+        # plane is, base planes being what you usually pick.
+        lines = label_lines(label)
         base = is_base_plane(pick_id)
-        lines = [label] if base else label_lines(label)
         target_h = side * (_LABEL_HEIGHT_FACTOR if base else _NAME_HEIGHT_FACTOR)
 
         plane_mat = wp_obj.matrix_world

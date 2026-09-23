@@ -34,7 +34,7 @@ _PART_PLANE_AXIS_ORDER = {"XY": 0, "XZ": 1, "YZ": 2}
 # A part's planes stand in for the world's rather than being drawn beside them, so
 # they can be close to full size; still smaller, so which set you are looking at
 # is obvious at a glance.
-PART_PLANE_SIZE_FACTOR = 0.6
+PART_PLANE_SIZE_FACTOR = 0.8
 
 # A part's base planes read as the same axes as the world's, so they are tinted
 # the same way: the part's frame is what tells them apart, not the colour.
@@ -53,9 +53,6 @@ ORIGIN_LABEL = {
     WP_ID_XY: "Origin XY",
     WP_ID_XZ: "Origin XZ",
     WP_ID_YZ: "Origin YZ",
-    WP_ID_PART_XY: "XY",
-    WP_ID_PART_XZ: "XZ",
-    WP_ID_PART_YZ: "YZ",
 }
 
 
@@ -66,7 +63,7 @@ _LABEL_MAX_CHARS = 22
 
 def is_base_plane(pick_id) -> bool:
     """Whether ``pick_id`` is one of the six base planes (world or part)."""
-    return pick_id in ORIGIN_LABEL
+    return pick_id in ORIGIN_LABEL or pick_id in _PART_PLANE_IDS
 
 
 def label_lines(label: str, max_lines: int = 2) -> list:
@@ -101,13 +98,13 @@ def workplane_color(pick_id) -> tuple:
 
 
 def workplane_label(wp_obj, pick_id) -> str:
-    """The text drawn on a workplane.
+    """The text drawn on a workplane: what the object is called.
 
-    A part's planes carry the bare axis; the scene's say "Origin", since the two
-    sets replace each other on screen. Any other plane says what it is called,
-    or it is an anonymous grey rectangle with nothing to tell you whose plane it
-    is. The drawing fits the label to the plane, so a longer one simply renders
-    smaller.
+    The scene's datums have no object name worth reading ("WP_XY"), so they say
+    "Origin XY" instead. Everything else -- a part's base planes, a plane on a
+    face, one the user placed -- says its own name, which for a part's plane is
+    the part and the axis ("Bracket XY"). Drawn over two lines, so which part you
+    are about to sketch in reads at a glance.
     """
     label = ORIGIN_LABEL.get(pick_id)
     if label is not None:
