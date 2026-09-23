@@ -22,9 +22,6 @@ _LABEL_HEIGHT_FACTOR = 0.22
 # A plane that is not a base plane is a lesser thing to pick, so its name is
 # drawn smaller.
 _NAME_HEIGHT_FACTOR = 0.10
-# Extra inset from the edge the name ends at, in corner margins: right-aligned
-# text otherwise runs up against that edge. The top keeps the plain margin.
-_NAME_INSET = 2.5
 # Space between those lines, as a fraction of one line's height.
 _LABEL_LINE_GAP = 0.2
 # Inset of the label from the plane's outer corner, as a fraction of its side.
@@ -272,9 +269,10 @@ def draw_origin_labels():
     respects ``show_origin``.
 
     A base plane says the axis, large and in the middle where the eye lands, and
-    whose plane it is in its outer corner, inset so the name sits inside the
-    rectangle instead of over its edge. A plane that has only a name shows it in
-    that same corner. The glyph raster is
+    whose plane it is in smaller text just above it. Both are centred: a corner
+    anchor has a side edge to run into, and which corner the viewer sees changes
+    as the view turns, so the label moved about. A plane that has only a name
+    shows it in the middle. The glyph raster is
     sized to the on-screen height so it stays crisp instead of being magnified,
     the text is mirrored when seen from behind so it never reads backwards, and
     it skips the depth test so it stays legible over geometry.
@@ -354,6 +352,10 @@ def draw_origin_labels():
         lift = 0.55 if hovered else 0.35
         blf.color(_FONT_ID, *(tuple(c + (1.0 - c) * lift for c in tint) + (1.0,)))
 
+        middle_x = (min_x + max_x) / 2.0
+        middle_y = (min_y + max_y) / 2.0
+        axis_top = middle_y
+
         if axis_line is not None:
             size = raster_for(side * _LABEL_HEIGHT_FACTOR)
             if size is not None:
@@ -361,6 +363,7 @@ def draw_origin_labels():
                 scale = (side * _LABEL_HEIGHT_FACTOR) / height
                 if width > 0.0 and width * scale > usable:
                     scale = usable / width
+                axis_top = middle_y + height * scale / 2.0
                 _draw_text_block(
                     plane_mat,
                     [axis_line],
@@ -369,8 +372,8 @@ def draw_origin_labels():
                     size,
                     scale,
                     sx,
-                    (min_x + max_x) / 2.0,
-                    (min_y + max_y) / 2.0 - height * scale / 2.0,
+                    middle_x,
+                    middle_y - height * scale / 2.0,
                     "center",
                 )
 
@@ -382,10 +385,10 @@ def draw_origin_labels():
                 scale = (side * _NAME_HEIGHT_FACTOR) / line_h
                 if width > 0.0 and width * scale > usable:
                     scale = usable / width
-                # In the outer corner, held off the edge the text ends at.
-                # Seen from behind the outer side is the plane's own -X one.
-                inset = margin * _NAME_INSET
-                x = max_x - inset if sx > 0 else min_x + inset
+                # Centred, sitting on top of the axis: no corner to pick and
+                # no side edge to run into, so it cannot end up over the border
+                # or jump corners as the view turns (which is what anchoring it
+                # to a corner did, since which corner the viewer sees changes).
                 _draw_text_block(
                     plane_mat,
                     name_lines,
@@ -394,9 +397,9 @@ def draw_origin_labels():
                     size,
                     scale,
                     sx,
-                    x,
-                    max_y - margin - height * scale,
-                    "right",
+                    middle_x,
+                    axis_top + margin,
+                    "center",
                 )
 
     gpu.state.depth_test_set("LESS_EQUAL")
