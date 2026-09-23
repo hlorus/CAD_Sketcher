@@ -154,6 +154,26 @@ class TestGateCoversConnectivityChanges(MergeGateEquivalence):
         self.solve()
         self.assert_gate_matches_recompute()
 
+    def test_restoring_a_snapshot_drops_the_gate(self):
+        """A drawing preview restores its snapshot on every mouse move, which
+        puts back the weld ids the sketch had before the shape existed. The gate
+        cannot see that from the connectivity, so a restore has to drop it."""
+        from ..utilities.curve_data import capture_id_caches, install_id_caches
+
+        p0 = self.add_point((0, 0), fixed=True)
+        p1 = self.add_point((2, 0))
+        self.add_line(p0, p1)
+        self.solve()
+        compute_merge_ids(self.sketch)
+
+        cd = self.sketch.target_object.data
+        install_id_caches(cd, capture_id_caches(cd))
+
+        self.assertTrue(
+            compute_merge_ids(self.sketch),
+            "the gate skipped after a restore, so the weld ids stayed stale",
+        )
+
     def test_after_a_geometry_refresh(self):
         """refresh_curve_geometry rebuilds topology and restores attributes."""
         p0 = self.add_point((0, 0), fixed=True)

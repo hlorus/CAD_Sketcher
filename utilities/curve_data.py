@@ -474,12 +474,8 @@ def _rebuild_curve_id_cache(sketch, lookup_id=None):
 
 def invalidate_curve_id_cache(sketch=None):
     """Invalidate the curve_id caches. Call after add/remove curves."""
-    # The weld ids go too: removing curves clears them for everything recreated
-    # afterwards, and the connectivity signature can't tell -- an operator that
-    # rebuilds its own output brings the very same ids back (see compute_merge_ids).
     if sketch and sketch.target_object:
         invalidate_curve_data_caches(sketch.target_object.data)
-        _merge_signatures.pop(sketch.target_object.name, None)
     else:
         _curve_id_cache.clear()
         _curve_id_built_len.clear()
@@ -489,8 +485,13 @@ def invalidate_curve_id_cache(sketch=None):
 
 
 def invalidate_curve_data_caches(curve_data):
-    """Drop every id cache of one Curves datablock."""
+    """Drop every id cache of one Curves datablock, and its weld-id gate."""
     sk_key = id(curve_data)
+    # Whatever replaced the geometry also replaced the weld ids, and the
+    # connectivity signature cannot see that: a drawing preview restores its
+    # snapshot every mouse move, which puts back the weld ids the sketch had
+    # before the shape existed (see compute_merge_ids).
+    _merge_signatures.pop(sk_key, None)
     _curve_id_cache.pop(sk_key, None)
     _curve_id_built_len.pop(sk_key, None)
     for field in UUID_FIELDS:
@@ -1066,7 +1067,7 @@ def compute_merge_ids(sketch, force=False):
     signature = _connectivity_signature(cd)
     if (
         not force
-        and _merge_signatures.get(obj.name) == signature
+        and _merge_signatures.get(id(cd)) == signature
         and _merge_outputs_present(cd)
     ):
         return False
@@ -1153,7 +1154,7 @@ def compute_merge_ids(sketch, force=False):
         attr = cd.attributes.new("merge_id", "INT", "POINT")
     attr.data.foreach_set("value", ids)
     compute_generated_id_seeds(sketch)
-    _merge_signatures[obj.name] = signature
+    _merge_signatures[id(cd)] = signature
     return True
 
 

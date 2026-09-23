@@ -7,7 +7,11 @@ from .add_line2d import VIEW3D_T_slvs_add_line2d
 from .add_line3d import VIEW3D_T_slvs_add_line3d
 from .add_point2d import VIEW3D_T_slvs_add_point2d
 from .add_point3d import VIEW3D_T_slvs_add_point3d
-from .add_rectangle import VIEW3D_T_slvs_add_rectangle
+from .add_rectangle import (
+    VIEW3D_T_slvs_add_rectangle,
+    VIEW3D_T_slvs_add_rectangle_3point,
+    VIEW3D_T_slvs_add_rectangle_center,
+)
 from .add_sketch import VIEW3D_T_slvs_add_sketch
 from .array_linear import VIEW3D_T_slvs_node_array_linear
 from .bevel import VIEW3D_T_slvs_bevel
@@ -52,11 +56,22 @@ add(
     visibility=ToolGroup.SKETCH_2D,
     after={WorkSpaceTools.AddArc3Point2D.value},
 )
+# The rectangle variants share one toolbar button with a flyout.
 add(
     VIEW3D_T_slvs_add_rectangle,
     visibility=ToolGroup.SKETCH_2D,
     separator=False,
-    group=False,
+    group=True,
+)
+add(
+    VIEW3D_T_slvs_add_rectangle_center,
+    visibility=ToolGroup.SKETCH_2D,
+    after={WorkSpaceTools.AddRectangle.value},
+)
+add(
+    VIEW3D_T_slvs_add_rectangle_3point,
+    visibility=ToolGroup.SKETCH_2D,
+    after={WorkSpaceTools.AddRectangleCenter.value},
 )
 add(VIEW3D_T_slvs_trim, visibility=ToolGroup.SKETCH_2D, separator=True, group=False)
 add(VIEW3D_T_slvs_bevel, visibility=ToolGroup.SKETCH_2D, separator=False, group=False)
