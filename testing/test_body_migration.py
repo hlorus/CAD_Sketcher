@@ -105,3 +105,17 @@ class TestBodyMigration(Sketch2dTestCase):
         self._legacy_sketch()
         self.assertTrue(migrate_bodies(self.context, self.scene))
         self.assertFalse(migrate_bodies(self.context, self.scene))
+
+    def test_the_body_takes_over_the_name(self):
+        # Whatever the part was called in the old file is what the user grabs
+        # now, so the name goes with the geometry rather than the source.
+        obj = self._legacy_sketch()
+        obj.name = "Bracket"
+
+        migrate_bodies(self.context, self.scene)
+
+        body = body_of(obj)
+        self.assertEqual(body.name, "Bracket")
+        self.assertEqual(body.data.name, "Bracket")
+        self.assertEqual(obj.name, "Bracket Sketch")
+        self.assertEqual(obj.slvs_workplane.name, "Bracket Plane")

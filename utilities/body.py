@@ -71,6 +71,7 @@ def _new_body(context, sketch_obj: bpy.types.Object) -> bpy.types.Object:
     from .collections import link_to_scene_root
 
     body = bpy.data.objects.new("Part", bpy.data.meshes.new("Part"))
+    body.data.name = body.name  # or the two number themselves apart
     body[BODY_SKETCH_KEY] = sketch_obj
     sketch_obj.slvs_body = body
     link_to_scene_root(body, context.scene)
@@ -86,6 +87,21 @@ def _new_body(context, sketch_obj: bpy.types.Object) -> bpy.types.Object:
 
     set_modifier_input(source, body_input_ids(group)["Sketch"], sketch_obj)
     return body
+
+
+def name_after_body(body: bpy.types.Object, sketch_obj, plane=None) -> None:
+    """Name a body's sketch (and its own plane) after the body.
+
+    The body is the part as far as the user is concerned, so the outliner reads
+    as one thing with its source under it instead of three objects called
+    "Part". Only a plane the part owns is renamed: one it was drawn on belongs
+    to something else.
+    """
+    body.data.name = body.name
+    sketch_obj.name = f"{body.name} Sketch"
+    sketch_obj.data.name = sketch_obj.name
+    if plane is not None:
+        plane.name = f"{body.name} Plane"
 
 
 def remove_body(sketch_obj: bpy.types.Object) -> None:
@@ -187,6 +203,7 @@ def _rehome_onto_body(context, sketch_obj: bpy.types.Object, body: bpy.types.Obj
         # The sketch was its own plane: mint one where it stands, and let it ride
         # on the body, which now carries the transform.
         plane = new_workplane_empty(context, sketch_obj.matrix_world.copy())
+        owns_plane = True
         body.matrix_basis = sketch_obj.matrix_world.copy()
         plane.parent = body
         plane.matrix_parent_inverse = Matrix.Identity(4)
@@ -194,6 +211,7 @@ def _rehome_onto_body(context, sketch_obj: bpy.types.Object, body: bpy.types.Obj
     else:
         # It was placed by a plane already: the body hangs from that plane, the
         # way a new sketch's body does.
+        owns_plane = False
         body.parent = plane
         body.matrix_parent_inverse = Matrix.Identity(4)
         body.matrix_basis = Matrix.Identity(4)
@@ -211,6 +229,15 @@ def _rehome_onto_body(context, sketch_obj: bpy.types.Object, body: bpy.types.Obj
         if child in (plane,):
             continue
         child.parent = body
+
+    # The body took over the sketch's place, so it takes its name too: whatever
+    # the user called the part in the old file stays on the thing they now grab.
+    # The sketch has to let go of the name first, or the body gets a numbered one.
+    taken = sketch_obj.name
+    sketch_obj.name = f"{taken}.source"
+    body.name = taken
+    body.data.name = body.name
+    name_after_body(body, sketch_obj, plane if owns_plane else None)
 
     if was_root:
         clear_part_root(sketch_obj)

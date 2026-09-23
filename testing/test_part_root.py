@@ -62,6 +62,45 @@ class TestPartRoot(BgsTestCase):
         self.assertEqual(obj.slvs_workplane.parent, body)
         self.assertEqual(sketch.plane_matrix, self.datum.matrix_world)
 
+    def test_the_part_names_what_hangs_from_it(self):
+        # One part reads as one thing in the outliner: its plane and source say
+        # whose they are instead of every object being called "Part".
+        from ..utilities.body import body_of
+
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        obj = sketch.target_object
+        body = body_of(obj)
+
+        self.assertEqual(obj.name, f"{body.name} Sketch")
+        self.assertEqual(obj.data.name, obj.name)
+        self.assertEqual(obj.slvs_workplane.name, f"{body.name} Plane")
+
+    def test_renaming_the_part_is_all_it_takes(self):
+        from ..utilities.body import body_of, name_after_body
+
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        obj = sketch.target_object
+        body = body_of(obj)
+
+        body.name = "Latch"
+        name_after_body(body, obj, obj.slvs_workplane)
+
+        self.assertEqual(body.data.name, "Latch")
+        self.assertEqual(obj.name, "Latch Sketch")
+        self.assertEqual(obj.slvs_workplane.name, "Latch Plane")
+
+    def test_a_sketch_joining_a_part_leaves_its_plane_named(self):
+        # The plane belongs to whatever the sketch was drawn on, so it keeps the
+        # name it had; only a plane the new part owns is renamed.
+        cube = self._cube("cube")
+        mark_part_root(cube)
+        plane = create_face_workplane(self.context, cube, 0)
+        plane.name = "Top Face"
+
+        sketch = build_sketch_on_workplane(self.context, plane)
+
+        self.assertEqual(sketch.target_object.slvs_workplane.name, "Top Face")
+
     def test_a_global_sketch_can_be_moved(self):
         # The body is the handle; the sketch is pinned to its plane.
         from ..utilities.body import body_of

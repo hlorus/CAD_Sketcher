@@ -122,6 +122,10 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     fix_transform(sketch_obj)
     fix_transform(plane)
 
+    from ..utilities.body import name_after_body
+
+    name_after_body(body, sketch_obj, plane if starts_a_part else None)
+
     sketch = Sketch(sketch_obj)
 
     origin = PointRef.create(sketch, (0.0, 0.0), fixed=True, is_origin=True)
