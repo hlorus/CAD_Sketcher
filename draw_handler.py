@@ -268,9 +268,11 @@ def draw_origin_labels():
     only while the Add Sketch tool is active, and ``iter_wp_empties`` already
     respects ``show_origin``.
 
-    A base plane says two things: the axis, large and in the middle where the
-    eye lands, and whose plane it is, small in the outer corner. Any other plane
-    has only a name, which goes in that same corner. The glyph raster is
+    A base plane says the axis, large and in the middle where the eye lands, and
+    adds whose plane it is in the outer corner while it is hovered -- the planes
+    cross on screen, so naming them all at once puts one plane's name over
+    another's axis. A plane that has only a name shows it always, since that is
+    all it has to say. The glyph raster is
     sized to the on-screen height so it stays crisp instead of being magnified,
     the text is mirrored when seen from behind so it never reads backwards, and
     it skips the depth test so it stays legible over geometry.
@@ -335,8 +337,9 @@ def draw_origin_labels():
 
         # Axis-tinted, lightened toward white so the text reads a bit softer
         # than the plane fill, brighter still while hovered.
+        hovered = selection.hover == pick_id
         tint = workplane_color(pick_id)
-        lift = 0.55 if selection.hover == pick_id else 0.35
+        lift = 0.55 if hovered else 0.35
         blf.color(_FONT_ID, *(tuple(c + (1.0 - c) * lift for c in tint) + (1.0,)))
 
         if axis_line is not None:
@@ -359,7 +362,10 @@ def draw_origin_labels():
                     "center",
                 )
 
-        if name_lines:
+        # Whose plane it is only matters for the one you are about to pick, and
+        # the planes cross on screen: a name drawn on every plane at once lands
+        # on another plane's axis as often as not.
+        if name_lines and (hovered or axis_line is None):
             size = raster_for(side * _NAME_HEIGHT_FACTOR)
             if size is not None:
                 dims, gap, width, height = _text_block(name_lines, size)
