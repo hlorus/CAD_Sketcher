@@ -269,11 +269,15 @@ def _is_managed_member(obj: bpy.types.Object) -> bool:
 def transform_owner(obj: bpy.types.Object) -> bpy.types.Object:
     """The object that actually owns ``obj``'s transform.
 
-    A free-3D sketch is placed by an origin Empty and keeps its own transform
-    locked, so the Empty is what a part must be rooted in and what an assembly
-    must carry: rooting the sketch itself would leave two movable things
-    disagreeing about where the part is.
+    A sketch never owns its own: it sits on a workplane, and that workplane hangs
+    under the body its geometry is realised on, so the body is what a part is
+    rooted in and what an assembly carries. Rooting the sketch instead would
+    leave two movable things disagreeing about where the part is.
+
+    A free-3D sketch is placed by an origin Empty, which plays the same role.
     """
+    from .body import body_of
+
     parent = obj.parent
     if (
         parent is not None
@@ -281,7 +285,9 @@ def transform_owner(obj: bpy.types.Object) -> bpy.types.Object:
         and parent.get("is_3d_sketch_origin", False)
     ):
         return parent
-    return obj
+
+    body = body_of(obj)
+    return body if body is not None else obj
 
 
 def promote_to_root(obj: bpy.types.Object) -> None:

@@ -2,6 +2,7 @@ import logging
 
 import bpy
 from bpy.types import Context, Event, Operator
+from mathutils import Matrix
 
 from ..declarations import Operators, WorkSpaceTools
 from ..model.curve_ref import PointRef
@@ -62,7 +63,6 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     Returns the wrapped :class:`Sketch`.
     """
     from ..model.sketch_ref import Sketch, stamp_sketch_props
-    from ..utilities.curve_data import _ensure_convert_modifier
 
     # Create sketch as a Curves object (parent provides the transform)
     curve = bpy.data.hair_curves.new("Sketch")
@@ -74,24 +74,44 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     link_to_scene_root(sketch_obj, scene)
 
     stamp_sketch_props(sketch_obj)
-    _ensure_convert_modifier(sketch_obj)
 
     # Resolve the plane and the part before activate, so align_view sees both.
     wp_orig = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
     root = _part_for_workplane(context, wp_orig)
+    from ..utilities.body import ensure_body
     from ..utilities.part import fix_transform, free_transform, join_part
 
+    # Every sketch is realised on a body, and the body is what carries the
+    # transform: the sketch always sits on a workplane, and that workplane hangs
+    # under the body. A sketch drawn on a shared datum gets a plane of its own
+    # there, since the scene's datums belong to no part.
+    body = ensure_body(context, sketch_obj)
+    plane = wp_orig
+    if root is None or _is_shared_datum(context, wp_orig):
+        plane = new_workplane_empty(context, wp_orig.matrix_world.copy())
+
+    body.matrix_basis = plane.matrix_world.copy()
+    plane.parent = body
+    plane.matrix_parent_inverse = plane.matrix_world.inverted_safe() @ (
+        plane.matrix_world
+    )
+    plane.matrix_basis = (
+        Matrix.Identity(4)
+        if plane is not wp_orig
+        else (body.matrix_basis.inverted_safe() @ plane.matrix_world)
+    )
+    sketch_obj.parent = plane
+    sketch_obj.slvs_workplane = plane
+    sketch_obj.matrix_parent_inverse = Matrix.Identity(4)
+    sketch_obj.matrix_basis = Matrix.Identity(4)
+    fix_transform(sketch_obj)
+    fix_transform(plane)
+
     if root is None:
-        # Nothing obvious to belong to, so the sketch is global: it owns its
-        # transform and is its own plane, placed where the datum plane it was
-        # drawn on sits. It joins or starts a part once it is made solid.
-        sketch_obj.matrix_world = wp_orig.matrix_world.copy()
-        free_transform(sketch_obj)
+        # Nothing obvious to belong to: the body is free until it is made solid.
+        free_transform(body)
     else:
-        sketch_obj.parent = wp_orig
-        sketch_obj.slvs_workplane = wp_orig
-        fix_transform(sketch_obj)
-        join_part(root, wp_orig)
+        join_part(root, body)
 
     sketch = Sketch(sketch_obj)
 
@@ -99,6 +119,13 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     assert origin is not None, "Failed to create origin point"
 
     return sketch
+
+
+def _is_shared_datum(context: Context, wp_empty) -> bool:
+    """Whether ``wp_empty`` is one of the scene's datums, shared by everything."""
+    from ..utilities.face_anchor import is_origin_workplane
+
+    return is_origin_workplane(context.scene, wp_empty)
 
 
 def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):

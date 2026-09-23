@@ -45,48 +45,66 @@ class TestPartRoot(BgsTestCase):
 
     def test_sketch_on_a_datum_plane_is_global(self):
         # Nothing obvious to belong to: it stays global until it is made solid.
+        from ..utilities.body import body_of
+
         sketch = build_sketch_on_workplane(self.context, self.datum)
         obj = sketch.target_object
+        body = body_of(obj)
 
-        self.assertFalse(is_part_root(obj))
+        self.assertIsNotNone(body, "every sketch is realised on a body")
+        self.assertFalse(is_part_root(body))
         self.assertIsNone(part_root_of(obj))
-        self.assertIsNone(obj.parent)
-        # It is its own plane, sitting where the datum plane it was drawn on is.
-        self.assertIsNone(obj.slvs_workplane)
+        # It sits on a plane of its own, where the datum it was drawn on is: the
+        # scene's datums are shared, so no part may hang from one.
+        self.assertIsNotNone(obj.slvs_workplane)
+        self.assertNotEqual(obj.slvs_workplane, self.datum)
+        self.assertEqual(obj.slvs_workplane.parent, body)
         self.assertEqual(sketch.plane_matrix, self.datum.matrix_world)
 
     def test_a_global_sketch_can_be_moved(self):
+        # The body is the handle; the sketch is pinned to its plane.
+        from ..utilities.body import body_of
+
         sketch = build_sketch_on_workplane(self.context, self.datum)
-        obj = sketch.target_object
+        body = body_of(sketch.target_object)
 
-        self.assertEqual(tuple(obj.lock_location), (False, False, False))
-        self.assertEqual(tuple(obj.lock_rotation), (False, False, False))
+        self.assertEqual(tuple(body.lock_location), (False, False, False))
+        self.assertEqual(tuple(body.lock_rotation), (False, False, False))
         # Scale stays locked: the solver reads the plane as a rigid frame.
-        self.assertEqual(tuple(obj.lock_scale), (True, True, True))
+        self.assertEqual(tuple(body.lock_scale), (True, True, True))
+        self.assertEqual(tuple(sketch.target_object.lock_location), (True, True, True))
 
-        obj.matrix_world = Matrix.Translation(Vector((5.0, 0.0, 0.0)))
+        body.matrix_basis = Matrix.Translation(Vector((5.0, 0.0, 0.0)))
+        self.context.view_layer.update()
         self.assertEqual(sketch.plane_matrix.translation, Vector((5.0, 0.0, 0.0)))
 
     def test_a_standalone_solid_roots_its_own_part(self):
+        from ..utilities.body import body_of
+
         sketch = build_sketch_on_workplane(self.context, self.datum)
         obj = sketch.target_object
+        body = body_of(obj)
 
-        # Extruded with nothing to boolean into.
-        self.assertEqual(settle_membership(obj, []), obj)
-        self.assertTrue(is_part_root(obj))
-        self.assertEqual(tuple(obj.lock_location), (False, False, False))
+        # Extruded with nothing to boolean into: the body roots the part.
+        self.assertEqual(settle_membership(obj, []), body)
+        self.assertTrue(is_part_root(body))
+        self.assertEqual(part_root_of(obj), body)
+        self.assertEqual(tuple(body.lock_location), (False, False, False))
 
     def test_a_solid_that_cuts_a_body_joins_its_part(self):
+        from ..utilities.body import body_of
+
         body = self._cube("target", location=(1.0, 0.0, 0.0))
         mark_part_root(body)
         cutter = build_sketch_on_workplane(self.context, self.datum)
         obj = cutter.target_object
+        cutter_body = body_of(obj)
 
         self.assertEqual(settle_membership(obj, [body]), body)
         self.assertEqual(part_root_of(obj), body)
-        self.assertFalse(is_part_root(obj))
+        self.assertFalse(is_part_root(cutter_body))
         # A feature does not move on its own any more.
-        self.assertEqual(tuple(obj.lock_location), (True, True, True))
+        self.assertEqual(tuple(cutter_body.lock_location), (True, True, True))
 
         # And the cut travels with the body it cuts.
         before = cutter.plane_matrix.translation.copy()
@@ -106,11 +124,14 @@ class TestPartRoot(BgsTestCase):
         cutter = build_sketch_on_workplane(self.context, self.datum)
         obj = cutter.target_object
 
+        from ..utilities.body import body_of
+
+        body = body_of(obj)
         self.assertIsNone(settle_membership(obj, [first, second]))
         self.assertIsNone(part_root_of(obj))
-        self.assertFalse(is_part_root(obj))
-        # Still free to move, like any global sketch.
-        self.assertEqual(tuple(obj.lock_location), (False, False, False))
+        self.assertFalse(is_part_root(body))
+        # Still free to move, like any global sketch's body.
+        self.assertEqual(tuple(body.lock_location), (False, False, False))
 
     def test_a_cut_through_two_bodies_of_one_part_joins_it(self):
         root = self._cube("part_a")
@@ -272,8 +293,10 @@ class TestPartRoot(BgsTestCase):
         self.assertFalse(reconcile_parts(self.scene))
 
     def test_moving_a_part_carries_its_solved_geometry(self):
+        from ..utilities.body import body_of
+
         sketch = build_sketch_on_workplane(self.context, self.datum)
-        root = sketch.target_object
+        root = body_of(sketch.target_object)
         mark_part_root(root)
 
         from ..curve_solver import solve_system
@@ -413,10 +436,11 @@ class TestPartRoot(BgsTestCase):
         self.assertEqual(part_root_of(sketch.target_object), body)
 
     def test_a_plane_that_loses_its_part_becomes_an_ordinary_workplane(self):
+        from ..utilities.body import body_of
         from ..utilities.part import PART_PLANE_KEY, ensure_part_planes
 
         sketch = build_sketch_on_workplane(self.context, self.datum)
-        root = sketch.target_object
+        root = body_of(sketch.target_object)
         mark_part_root(root)
         plane = ensure_part_planes(self.context, root)[0]
         member = build_sketch_on_workplane(self.context, plane)

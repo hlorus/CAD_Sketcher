@@ -166,6 +166,9 @@ class Sketch:
             self.is_3d and parent and parent.get("is_3d_sketch_origin", False)
         )
 
+        from ..utilities.body import remove_body
+
+        remove_body(obj)
         bpy.data.objects.remove(obj)
         if remove_origin and parent.name in bpy.data.objects:
             bpy.data.objects.remove(parent)

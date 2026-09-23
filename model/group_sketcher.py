@@ -301,10 +301,15 @@ def register():
     bpy.types.Object.slvs_workplane = PointerProperty(
         type=bpy.types.Object, name="Workplane Object"
     )
+    # The mesh a sketch's geometry is realised on (see utilities.body).
+    bpy.types.Object.slvs_body = PointerProperty(
+        type=bpy.types.Object, name="Body Object"
+    )
     bpy.types.Scene.sketcher = PointerProperty(type=SketcherProps)
 
 
 def unregister():
+    del bpy.types.Object.slvs_body
     del bpy.types.Object.slvs_workplane
     del bpy.types.Object.slvs_project_sources
     del bpy.types.Scene.sketcher
