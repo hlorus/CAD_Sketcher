@@ -217,7 +217,6 @@ def rehome_children(root: bpy.types.Object) -> Optional[bpy.types.Object]:
 
     Returns the new root, or None when nothing is left to root the part.
     """
-    from ..model.sketch_ref import is_sketch_object
 
     members = list(root.children_recursive)
     # Freeze every member's world transform before any re-parenting, so each one
@@ -227,7 +226,7 @@ def rehome_children(root: bpy.types.Object) -> Optional[bpy.types.Object]:
     for child in root.children:
         _bake_world_transform(child)
 
-    successor = next((m for m in members if is_sketch_object(m)), None)
+    successor = _successor(members)
     if successor is None:
         return None
 
@@ -239,6 +238,22 @@ def rehome_children(root: bpy.types.Object) -> Optional[bpy.types.Object]:
         if member != successor and member.parent is None:
             join_part(successor, member)
     return successor
+
+
+def _successor(members) -> Optional[bpy.types.Object]:
+    """Which of these should root the part now that its root has gone.
+
+    A body first: a part is anchored in the mesh its sketches are realised on, so
+    handing the part to a sketch would leave it rooted in something that carries
+    no geometry. A sketch is the fallback, for files that predate bodies.
+    """
+    from ..model.sketch_ref import is_sketch_object
+    from .body import is_body
+
+    return next(
+        (m for m in members if is_body(m)),
+        next((m for m in members if is_sketch_object(m)), None),
+    )
 
 
 def _promote(obj: bpy.types.Object) -> None:
@@ -414,7 +429,6 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
 
     Returns True if anything changed.
     """
-    from ..model.sketch_ref import is_sketch_object
     from .collections import is_editable
 
     roots = {
@@ -470,7 +484,7 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
                 if member.parent is None:
                     _restore_world(member, root_matrix)
 
-        successor = next((m for m in stranded if is_sketch_object(m)), None)
+        successor = _successor(stranded)
         if successor is not None:
             # Lift the successor clear of whatever placed it before it can take
             # members on: leaving it parented to one would close a parent cycle.

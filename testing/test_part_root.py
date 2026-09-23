@@ -19,6 +19,7 @@ from ..utilities.part import (
     reconcile_parts,
     rehome_children,
     settle_membership,
+    world_matrix_of,
 )
 from .utils import BgsTestCase
 
@@ -106,13 +107,15 @@ class TestPartRoot(BgsTestCase):
         # A feature does not move on its own any more.
         self.assertEqual(tuple(cutter_body.lock_location), (True, True, True))
 
-        # And the cut travels with the body it cuts.
-        before = cutter.plane_matrix.translation.copy()
-        body.matrix_basis = Matrix.Translation(Vector((0.0, 0.0, 4.0)))
+        # And the cut travels with the body it cuts: what matters is that it
+        # keeps its place *within* the part, whatever the part's own placement.
         self.context.view_layer.update()
-        self.assertEqual(
-            cutter.plane_matrix.translation, before + Vector((0.0, 0.0, 4.0))
-        )
+        offset = cutter.plane_matrix.translation - world_matrix_of(body).translation
+
+        body.matrix_basis = Matrix.Translation(Vector((7.0, 0.0, 4.0)))
+        self.context.view_layer.update()
+        moved = cutter.plane_matrix.translation - world_matrix_of(body).translation
+        self.assertAlmostEqual((moved - offset).length, 0.0, places=4)
 
     def test_a_cut_across_two_parts_stays_global(self):
         # It is an assembly-level feature: it belongs to neither part, rather than
@@ -209,10 +212,12 @@ class TestPartRoot(BgsTestCase):
         self.assertEqual(member.matrix_world.translation, Vector((0.0, 4.0, 0.0)))
 
     def test_rehoming_keeps_members_in_place_and_promotes_a_successor(self):
+        from ..utilities.body import body_of
+
         sketch = build_sketch_on_workplane(self.context, self.datum)
-        root = sketch.target_object
+        root = body_of(sketch.target_object)
         mark_part_root(root)
-        root.matrix_world = Matrix.Translation(Vector((7.0, 0.0, 0.0)))
+        root.matrix_basis = Matrix.Translation(Vector((7.0, 0.0, 0.0)))
         self.context.view_layer.update()
 
         wp = bpy.data.objects.new("WP", None)
@@ -222,20 +227,20 @@ class TestPartRoot(BgsTestCase):
         join_part(root, wp)
 
         member = build_sketch_on_workplane(self.context, wp)
-        member_obj = member.target_object
+        member_body = body_of(member.target_object)
+        self.context.view_layer.update()
         placed_at = member.plane_matrix.translation.copy()
 
         successor = rehome_children(root)
         self.context.view_layer.update()
 
-        self.assertEqual(successor, member_obj)
-        self.assertTrue(is_part_root(member_obj))
-        self.assertIsNone(member_obj.parent)
-        # The successor owns its transform now, so it is its own plane, and the
-        # part's geometry did not jump when the old root let go.
-        self.assertIsNone(member_obj.slvs_workplane)
+        # The part is handed to a body, which is what anchors one.
+        self.assertEqual(successor, member_body)
+        self.assertTrue(is_part_root(successor))
+        self.assertIsNone(successor.parent)
+        # And nothing jumped when the old root let go.
         self.assertEqual(member.plane_matrix.translation, placed_at)
-        self.assertEqual(part_root_of(wp), member_obj)
+        self.assertEqual(part_root_of(wp), successor)
 
     def test_demoted_linked_duplicate_stops_rooting_a_part(self):
         from ..utilities.consumable import reconcile_linked_duplicates
@@ -254,6 +259,8 @@ class TestPartRoot(BgsTestCase):
         self.assertTrue(is_part_root(root))
 
     def test_deleting_a_root_outside_the_operator_is_repaired(self):
+        from ..utilities.body import body_of
+
         # Blender's own Delete never reaches the sketch delete operator: it drops
         # the parent and keeps the child's local transform, so the part would
         # collapse back toward where it was first assembled.
@@ -275,10 +282,9 @@ class TestPartRoot(BgsTestCase):
         bpy.data.objects.remove(root)
         self.assertTrue(reconcile_parts(self.scene))
 
-        self.assertTrue(is_part_root(member_obj))
-        self.assertIsNone(member_obj.slvs_workplane)
+        self.assertTrue(is_part_root(body_of(member_obj)))
         self.assertEqual(member.plane_matrix.translation, placed_at)
-        self.assertEqual(part_root_of(wp), member_obj)
+        self.assertEqual(part_root_of(wp), body_of(member_obj))
 
     def test_reconcile_settles_and_then_goes_quiet(self):
         sketch = build_sketch_on_workplane(self.context, self.datum)
@@ -449,9 +455,10 @@ class TestPartRoot(BgsTestCase):
         bpy.data.objects.remove(root)
         self.assertTrue(reconcile_parts(self.scene))
 
-        # It no longer stands for a frame it is not in; it stays where it was.
+        # It no longer stands for a frame it is not in; it stays where it was,
+        # and the part is handed to the member's body.
         self.assertNotIn(PART_PLANE_KEY, plane)
-        self.assertEqual(part_root_of(plane), member.target_object)
+        self.assertEqual(part_root_of(plane), body_of(member.target_object))
 
     def test_every_drawable_plane_has_a_colour_and_label(self):
         # The draw handler indexes both maps by pick id, so a plane that is

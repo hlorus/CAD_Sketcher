@@ -253,13 +253,22 @@ class BooleanFromToolMixin:
         cutter = cutter.original
 
         from ..model.sketch_ref import Sketch
+
+        # The tool works on the body; its sketch is what carries provenance (what
+        # it was drawn on), so resolve back to it.
+        from ..utilities.body import is_body, sketch_of
         from ..utilities.boolean_targets import (
             default_operation,
             detect_targets,
             sketch_source_body,
         )
 
-        sketch = Sketch(cutter) if cutter.type == "CURVES" else None
+        if cutter.type == "CURVES":
+            sketch = Sketch(cutter)
+        elif is_body(cutter) and sketch_of(cutter) is not None:
+            sketch = Sketch(sketch_of(cutter))
+        else:
+            sketch = None
 
         auto = context.scene.sketcher.use_auto_boolean
         if not self.boolean_detected and not auto:
@@ -306,8 +315,9 @@ class BooleanFromToolMixin:
         enabled_bodies = self._apply_boolean_targets(cutter)
 
         # Making a sketch solid is what settles which part it belongs to: a cut
-        # joins the part it cuts, a standalone solid roots one. A mesh cutter is
-        # left alone -- a part with its own history stays a part.
+        # joins the part it cuts, a standalone solid roots one. A mesh cutter that
+        # is not a sketch's body is left alone: a part with its own history stays
+        # a part.
         if sketch is not None:
             from ..utilities.part import settle_membership
 
@@ -382,8 +392,22 @@ BASE_STATES = (
 
 
 def is_2d_profile(obj):
-    """A sketch or curve object — a valid 2D profile to extrude (not a 3D mesh)."""
-    return obj is not None and obj.type in {"CURVE", "CURVES"}
+    """Something a solid can be made from: a curve, or a sketch's body.
+
+    A sketch is picked, but the stack goes on the mesh its geometry is realised
+    on (see utilities.body): a Curves object cannot hold a stack that outputs
+    mesh, since Blender then refuses to apply it (issue #723).
+    """
+    from ..utilities.body import is_body
+
+    return obj is not None and (obj.type == "CURVE" or is_body(obj))
+
+
+def solid_target(obj):
+    """The object a solid feature belongs on: a picked sketch means its body."""
+    from ..utilities.body import body_of
+
+    return body_of(obj) or obj
 
 
 class NodeOperator(Operator3d):
@@ -598,7 +622,7 @@ class NodeOperator(Operator3d):
             self.previous_modifier = self._modifier_name()
 
     def main(self, context):
-        ob = self.resolved_object()
+        ob = solid_target(self.resolved_object())
         if not self.is_valid_target(ob):
             self.report({"WARNING"}, self.invalid_target_msg)
             return False

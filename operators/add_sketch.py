@@ -79,39 +79,48 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     wp_orig = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
     root = _part_for_workplane(context, wp_orig)
     from ..utilities.body import ensure_body
-    from ..utilities.part import fix_transform, free_transform, join_part
+    from ..utilities.part import fix_transform, free_transform, join_part, part_root_of
 
     # Every sketch is realised on a body, and the body is what carries the
     # transform: the sketch always sits on a workplane, and that workplane hangs
     # under the body. A sketch drawn on a shared datum gets a plane of its own
     # there, since the scene's datums belong to no part.
     body = ensure_body(context, sketch_obj)
-    plane = wp_orig
-    if root is None or _is_shared_datum(context, wp_orig):
-        plane = new_workplane_empty(context, wp_orig.matrix_world.copy())
 
-    body.matrix_basis = plane.matrix_world.copy()
-    plane.parent = body
-    plane.matrix_parent_inverse = plane.matrix_world.inverted_safe() @ (
-        plane.matrix_world
+    starts_a_part = root is None or _is_shared_datum(context, wp_orig)
+    plane = (
+        new_workplane_empty(context, wp_orig.matrix_world.copy())
+        if starts_a_part
+        else wp_orig
     )
-    plane.matrix_basis = (
-        Matrix.Identity(4)
-        if plane is not wp_orig
-        else (body.matrix_basis.inverted_safe() @ plane.matrix_world)
-    )
+
+    if starts_a_part:
+        # Nothing to hang from: the body anchors the part and the plane rides on
+        # it, so body, plane and sketch all share one world matrix.
+        body.matrix_basis = plane.matrix_world.copy()
+        plane.parent = body
+        plane.matrix_parent_inverse = Matrix.Identity(4)
+        plane.matrix_basis = Matrix.Identity(4)
+        free_transform(body)
+    else:
+        # The plane is already part of something (a face of a body, or that
+        # part's own datum), so it stays where it is and the new body hangs from
+        # it. Re-parenting the plane instead would take the part's datum away.
+        if part_root_of(plane) is None:
+            # A plane picked on a body that has just become a part: it has to
+            # join, or nothing in this chain reaches the part.
+            join_part(root, plane)
+        body.parent = plane
+        body.matrix_parent_inverse = Matrix.Identity(4)
+        body.matrix_basis = Matrix.Identity(4)
+        fix_transform(body)
+
     sketch_obj.parent = plane
     sketch_obj.slvs_workplane = plane
     sketch_obj.matrix_parent_inverse = Matrix.Identity(4)
     sketch_obj.matrix_basis = Matrix.Identity(4)
     fix_transform(sketch_obj)
     fix_transform(plane)
-
-    if root is None:
-        # Nothing obvious to belong to: the body is free until it is made solid.
-        free_transform(body)
-    else:
-        join_part(root, body)
 
     sketch = Sketch(sketch_obj)
 
