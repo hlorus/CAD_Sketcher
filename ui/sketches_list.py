@@ -58,17 +58,13 @@ class VIEW3D_UL_sketches(UIList):
                 # on rather than a toggle that the next solve would undo.
                 row.label(text="", icon="MOD_BOOLEAN")
             else:
-                # Visibility toggle (eye). Reads the body, which is what stands
-                # for the sketch on screen; the curves themselves are always out
-                # of the viewport now that they are only source.
-                from ..operators.set_sketch import visibility_target
-
+                # Visibility toggle (eye): the sketch's own curves, which are
+                # hidden from the moment it is created. Not the body, which
+                # carries the features and looks nothing like the profile.
                 row.operator(
                     Operators.SetSketchVisibility,
                     text="",
-                    icon="HIDE_ON"
-                    if visibility_target(obj).hide_viewport
-                    else "HIDE_OFF",
+                    icon="HIDE_ON" if obj.hide_viewport else "HIDE_OFF",
                     emboss=False,
                 ).sketch_name = obj.name
 

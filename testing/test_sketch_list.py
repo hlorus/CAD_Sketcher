@@ -167,30 +167,21 @@ class TestListAfterTheSplit(Sketch2dTestCase):
         self.assertEqual(listed[0], first.target_object)
         self.assertIn(second.target_object, listed)
 
-    def test_the_eye_toggles_the_body_not_the_source(self):
-        # The curves are always out of the viewport now; what stands for the
-        # sketch on screen is its body.
+    def test_the_eye_puts_the_sketchs_own_curves_back_on_screen(self):
+        # A sketch is hidden when it is created, so the eye is how its outline
+        # is shown over the geometry it made. Not the body: that carries the
+        # features and looks nothing like the profile.
         from ..operators.add_sketch import build_sketch_on_workplane
-        from ..operators.set_sketch import visibility_target
         from ..utilities.body import body_of
 
         sketch = build_sketch_on_workplane(self.context, self.datum)
         obj = sketch.target_object
         body = body_of(obj)
-
-        self.assertEqual(visibility_target(obj), body)
-        self.assertTrue(obj.hide_viewport, "the source stays hidden")
+        self.assertTrue(obj.hide_viewport, "hidden from the start")
 
         bpy.ops.view3d.slvs_set_sketch_visibility(sketch_name=obj.name)
-        self.assertTrue(body.hide_viewport)
+        self.assertFalse(obj.hide_viewport)
+        self.assertFalse(body.hide_viewport, "the body is not what the eye means")
+
         bpy.ops.view3d.slvs_set_sketch_visibility(sketch_name=obj.name)
-        self.assertFalse(body.hide_viewport)
         self.assertTrue(obj.hide_viewport)
-
-    def test_a_sketch_with_no_body_still_answers_for_itself(self):
-        from ..operators.set_sketch import visibility_target
-
-        obj = self.sketch.target_object  # created through the model, no body
-        obj.slvs_body = None
-
-        self.assertEqual(visibility_target(obj), obj)

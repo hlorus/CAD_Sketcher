@@ -38,21 +38,15 @@ class View3D_OT_slvs_set_active_sketch(Operator):
         return {"CANCELLED"}
 
 
-def visibility_target(sketch_obj):
-    """What this row's eye should show or hide: the sketch's body.
-
-    A sketch is source and stays out of the viewport (see hide_sketch_curves);
-    what stands for it on screen is the mesh its geometry is realised on. Only a
-    sketch with no body of its own -- a free 3D sketch, or a file not yet
-    updated -- answers for itself.
-    """
-    from ..utilities.body import body_of
-
-    return body_of(sketch_obj) or sketch_obj
-
-
 class View3D_OT_slvs_set_sketch_visibility(Operator):
-    """Show or hide a sketch in the viewport"""
+    """Show or hide a sketch in the viewport
+
+    The curves themselves, not the body they are realised on: the body carries
+    the features (extrudes, booleans, whatever the user added) and looks nothing
+    like the profile, so showing it is not what "show this sketch" means. A
+    sketch is hidden when it is created, so this is how its outline is put back
+    on screen over the geometry it made.
+    """
 
     bl_idname = Operators.SetSketchVisibility
     bl_label = "Toggle Sketch Visibility"
@@ -62,16 +56,15 @@ class View3D_OT_slvs_set_sketch_visibility(Operator):
     @classmethod
     def description(cls, context, properties):
         ob = bpy.data.objects.get(properties.sketch_name)
-        if ob and visibility_target(ob).hide_viewport:
-            return "Show this sketch in the viewport"
-        return "Hide this sketch in the viewport"
+        if ob and ob.hide_viewport:
+            return "Show this sketch's curves in the viewport"
+        return "Hide this sketch's curves in the viewport"
 
     def execute(self, context: Context):
         ob = bpy.data.objects.get(self.sketch_name)
         if not ob:
             return {"CANCELLED"}
-        target = visibility_target(ob)
-        target.hide_viewport = not target.hide_viewport
+        ob.hide_viewport = not ob.hide_viewport
         if context.area:
             context.area.tag_redraw()
         return {"FINISHED"}
