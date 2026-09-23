@@ -136,3 +136,52 @@ class TestPartSketchesMenu(Sketch2dTestCase):
 
         listed = part_sketches(self.context, body)
         self.assertNotIn(other_sketch, listed)
+
+
+class TestListAfterTheSplit(Sketch2dTestCase):
+    """What the list and the Edit Sketch menu say now that a body is the root."""
+
+    def setUp(self):
+        super().setUp()
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        ensure_origin_workplane_empties(self.context)
+        self.datum = self.context.scene.sketcher.wp_xy
+
+    def test_the_roots_own_sketch_leads_the_menu(self):
+        # It used to lead by being the root; a mesh root never is one.
+        from ..operators.add_sketch import build_sketch_on_workplane
+        from ..ui.panels.sketch_select import part_sketches
+        from ..utilities.body import body_of
+        from ..utilities.part import mark_part_root, settle_membership
+
+        first = build_sketch_on_workplane(self.context, self.datum)
+        root = body_of(first.target_object)
+        mark_part_root(root)
+        second = build_sketch_on_workplane(self.context, self.datum)
+        settle_membership(second.target_object, [root], self.context)
+        # Name it so plain name order would not put it first.
+        first.target_object.name = "zzz last by name"
+
+        listed = part_sketches(self.context, root)
+        self.assertEqual(listed[0], first.target_object)
+        self.assertIn(second.target_object, listed)
+
+    def test_the_eye_puts_the_sketchs_own_curves_back_on_screen(self):
+        # A sketch is hidden when it is created, so the eye is how its outline
+        # is shown over the geometry it made. Not the body: that carries the
+        # features and looks nothing like the profile.
+        from ..operators.add_sketch import build_sketch_on_workplane
+        from ..utilities.body import body_of
+
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        obj = sketch.target_object
+        body = body_of(obj)
+        self.assertTrue(obj.hide_viewport, "hidden from the start")
+
+        bpy.ops.view3d.slvs_set_sketch_visibility(sketch_name=obj.name)
+        self.assertFalse(obj.hide_viewport)
+        self.assertFalse(body.hide_viewport, "the body is not what the eye means")
+
+        bpy.ops.view3d.slvs_set_sketch_visibility(sketch_name=obj.name)
+        self.assertTrue(obj.hide_viewport)

@@ -98,25 +98,83 @@ def _new_body(
     return body
 
 
-def name_after_body(body: bpy.types.Object, sketch_obj, plane=None) -> None:
+def name_after_body(body: bpy.types.Object, sketch_obj, plane=None) -> bool:
     """Name a body's sketch, base planes and mesh after the body.
 
     The body is the thing the user grabs, so the outliner reads as one named
     thing with its source under it: rename the body and the rest follows. A
     ``plane`` is renamed only when the body owns it; one the sketch was drawn on
-    belongs to something else.
+    belongs to something else. Returns whether anything was actually renamed.
     """
     from .part import PART_PLANE_AXES, PART_PLANE_KEY, existing_part_plane
 
-    body.data.name = body.name
-    sketch_obj.name = f"{body.name} Sketch"
-    sketch_obj.data.name = sketch_obj.name
+    changed = _rename(body.data, body.name)
+    if sketch_obj is not None:
+        changed |= _rename(sketch_obj, f"{body.name} Sketch")
+        changed |= _rename(sketch_obj.data, sketch_obj.name)
     if plane is not None and PART_PLANE_KEY not in plane:
-        plane.name = f"{body.name} Workplane"
+        changed |= _rename(plane, f"{body.name} Workplane")
     for axis, _euler in PART_PLANE_AXES:
         base = existing_part_plane(body, axis)
         if base is not None:
-            base.name = f"{body.name} {axis}"
+            changed |= _rename(base, f"{body.name} {axis}")
+    return changed
+
+
+def _rename(datablock, name: str) -> bool:
+    """Give ``datablock`` a name, unless it has it already. True if renamed.
+
+    Assigning a name that is taken makes Blender append ``.001``, so a pass that
+    reassigns the name it just set would walk a body's sketch up the numbers on
+    every depsgraph update.
+    """
+    if datablock is None or datablock.name == name:
+        return False
+    datablock.name = name
+    return True
+
+
+def rename_after_bodies(scene, depsgraph=None) -> bool:
+    """Keep what hangs under a body named after it.
+
+    Renaming the body is how a part is named: its sketch, planes and mesh are
+    labels derived from that name rather than names of their own, so they are
+    re-derived rather than remembered.
+
+    ``depsgraph`` narrows the pass to what this update actually touched -- a
+    rename tags the datablock, so a body or sketch that nobody touched cannot
+    have drifted. Matched by name, never by reading ``id.original``, which
+    crashes on an id that is still being built.
+    """
+    from .. import global_data
+    from ..model.sketch_ref import get_sketches
+    from .collections import is_editable
+
+    if global_data.migrating_bodies:
+        return False
+
+    touched = None
+    if depsgraph is not None:
+        touched = set()
+        for update in depsgraph.updates:
+            try:
+                touched.add(update.id.name)
+            except (AttributeError, ReferenceError):
+                continue
+
+    changed = False
+    for sketch in get_sketches(scene):
+        sketch_obj = sketch.target_object
+        body = body_of(sketch_obj)
+        if body is None:
+            continue
+        if touched is not None and not {body.name, sketch_obj.name} & touched:
+            continue
+        if not is_editable(body) or not is_editable(sketch_obj):
+            continue
+        if name_after_body(body, sketch_obj, sketch_obj.slvs_workplane):
+            changed = True
+    return changed
 
 
 def remove_body(sketch_obj: bpy.types.Object) -> None:
@@ -277,6 +335,19 @@ def migrate_bodies(context, scene) -> bool:
 
     Idempotent: a sketch that already has a body is left alone.
     """
+    from .. import global_data
+
+    changed = False
+    global_data.migrating_bodies = True
+    try:
+        changed = _migrate_bodies(context, scene)
+    finally:
+        global_data.migrating_bodies = False
+    return changed
+
+
+def _migrate_bodies(context, scene) -> bool:
+    """The conversion itself; see :func:`migrate_bodies`."""
     from ..model.sketch_ref import get_sketches, hide_sketch_curves
     from .collections import is_editable
 

@@ -58,7 +58,9 @@ class VIEW3D_UL_sketches(UIList):
                 # on rather than a toggle that the next solve would undo.
                 row.label(text="", icon="MOD_BOOLEAN")
             else:
-                # Visibility toggle (eye)
+                # Visibility toggle (eye): the sketch's own curves, which are
+                # hidden from the moment it is created. Not the body, which
+                # carries the features and looks nothing like the profile.
                 row.operator(
                     Operators.SetSketchVisibility,
                     text="",
@@ -67,8 +69,12 @@ class VIEW3D_UL_sketches(UIList):
                 ).sketch_name = obj.name
 
             # Editable name -- expands to fill, pushing the icons below to the
-            # right edge of the row (standard Blender UIList layout).
-            row.prop(obj, "name", text="", emboss=False)
+            # right edge of the row (standard Blender UIList layout). The body's
+            # name, since the sketch's is derived from it: typing one here would
+            # be re-derived away on the next update.
+            from ..utilities.body import body_of
+
+            row.prop(body_of(obj) or obj, "name", text="", emboss=False)
 
             # Trailing controls: solver-state, enter (edit), delete
             if obj.get("solver_state", "OKAY") != "OKAY":
