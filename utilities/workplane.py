@@ -362,6 +362,7 @@ def hide_managed_workplane(empty, context) -> None:
     ``hide_set`` needs the object present in the view layer, and linking alone
     does not resync it, so the layer is updated first. A failure is not worth
     aborting a pick over: a visible workplane still works.
+
     """
     context.view_layer.update()
     try:

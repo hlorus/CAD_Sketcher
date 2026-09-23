@@ -877,7 +877,12 @@ class TestPartRoot(BgsTestCase):
     def test_a_plane_the_user_made_stays_outside_the_body(self):
         empty = bpy.data.objects.new("My Plane", None)
         self.scene.collection.objects.link(empty)
-        empty.matrix_world = Matrix.Translation(Vector((0.0, 0.0, 2.0)))
+        # Place it through matrix_basis, with the view layer caught up first:
+        # assigning matrix_world to an object the depsgraph has not seen yet
+        # reads evaluated state that is not there.
+        self.context.view_layer.update()
+        empty.matrix_basis = Matrix.Translation(Vector((0.0, 0.0, 2.0)))
+        self.context.view_layer.update()
 
         sketch = build_sketch_on_workplane(self.context, empty)
 
