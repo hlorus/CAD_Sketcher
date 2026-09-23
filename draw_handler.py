@@ -230,32 +230,31 @@ def _text_block(lines, size):
     return dims, gap, width, height
 
 
-def _draw_text_block(plane_mat, lines, dims, gap, size, scale, sx, x, y, centered):
-    """Draw a measured block in plane space, anchored at its bottom-left.
+def _draw_text_block(plane_mat, lines, dims, gap, size, scale, x, y, align):
+    """Draw a measured block in the plane's own frame, sitting on ``y``.
 
-    ``x``/``y`` are that corner in the plane's own coordinates, ``sx`` mirrors
-    the glyphs when the plane is seen from behind, and ``centered`` centres each
-    line on ``x`` instead of starting there.
+    ``x`` is the block's left edge, centre or right edge in that frame, per
+    ``align`` ("left", "center", "right"). Nothing here looks at the view: the
+    text lies in the plane like a label painted on a surface, so it stays put
+    however the plane is turned.
     """
     width = max(w for w, _h in dims)
     height = sum(h for _w, h in dims) + gap * (len(dims) - 1)
-    # Mirroring flips the direction text grows in, so the anchor moves with it.
-    origin_x = x - (width * scale / 2.0 if centered else 0.0) * (
-        1.0 if sx > 0 else -1.0
-    )
-    mat = (
-        plane_mat
-        @ Matrix.Translation((origin_x, y, 0.0))
-        @ Matrix.Scale(scale, 4)
-        @ Matrix.Diagonal((sx, 1.0, 1.0, 1.0))
-    )
+    span = width * scale
+    origin_x = x - {"left": 0.0, "center": span / 2.0, "right": span}[align]
+    mat = plane_mat @ Matrix.Translation((origin_x, y, 0.0)) @ Matrix.Scale(scale, 4)
     with gpu.matrix.push_pop():
         gpu.matrix.multiply_matrix(mat)
         blf.size(_FONT_ID, size)
         cursor = height
-        for line, (_line_w, line_h) in zip(lines, dims):
+        for line, (line_w, line_h) in zip(lines, dims):
             cursor -= line_h
-            blf.position(_FONT_ID, 0.0, cursor, 0.0)
+            offset = {
+                "left": 0.0,
+                "center": (width - line_w) / 2.0,
+                "right": width - line_w,
+            }[align]
+            blf.position(_FONT_ID, offset, cursor, 0.0)
             blf.draw(_FONT_ID, line)
             cursor -= gap
 
@@ -269,10 +268,9 @@ def draw_origin_labels():
     respects ``show_origin``.
 
     A base plane says the axis, large and in the middle where the eye lands, and
-    whose plane it is in smaller text just above it. Both are centred: a corner
-    anchor has a side edge to run into, and which corner the viewer sees changes
-    as the view turns, so the label moved about. A plane that has only a name
-    shows it in the middle. The glyph raster is
+    whose plane it is in smaller text in the plane's top-right corner. Both sit
+    at fixed places in the plane's own frame, so they stay put as the view turns
+    and read from the plane's front like any label painted on a surface. The glyph raster is
     sized to the on-screen height so it stays crisp instead of being magnified,
     the text is mirrored when seen from behind so it never reads backwards, and
     it skips the depth test so it stays legible over geometry.
@@ -296,9 +294,6 @@ def draw_origin_labels():
     tool = context.workspace.tools.from_space_view3d_mode(context.mode)
     if tool is None or tool.widget != GizmoGroups.Workplane.value:
         return
-
-    # Direction the view looks along, in world space, to detect back-facing text.
-    view_forward = rv3d.view_rotation @ Vector((0.0, 0.0, -1.0))
 
     gpu.state.blend_set("ALPHA")
     gpu.state.depth_test_set("NONE")
@@ -328,20 +323,6 @@ def draw_origin_labels():
                 return None
             return max(8, min(round((s1 - s0).length), 256))
 
-        # Flip in-plane X when the plane's own +X points to the viewer's left,
-        # so the glyphs read left-to-right and the corner anchors below mean the
-        # corners the viewer sees. Judged from the projection: the normal alone
-        # cannot tell, since it assumes the plane's +Y is up on screen, and when
-        # it guesses wrong the text is mirrored across its anchor and hangs off
-        # the very edge it was anchored to.
-        right_world = plane_mat.to_3x3().col[0].normalized()
-        p0 = location_3d_to_region_2d(region, rv3d, center)
-        p1 = location_3d_to_region_2d(region, rv3d, center + right_world * side * 0.1)
-        if p0 is not None and p1 is not None and abs(p1.x - p0.x) > 1e-6:
-            sx = 1.0 if p1.x > p0.x else -1.0
-        else:
-            normal = plane_mat.to_3x3().col[2].normalized()
-            sx = -1.0 if normal.dot(view_forward) > 0.0 else 1.0
         margin = side * _LABEL_CORNER_MARGIN
         usable = side - 2.0 * margin
 
@@ -354,7 +335,6 @@ def draw_origin_labels():
 
         middle_x = (min_x + max_x) / 2.0
         middle_y = (min_y + max_y) / 2.0
-        axis_top = middle_y
 
         if axis_line is not None:
             size = raster_for(side * _LABEL_HEIGHT_FACTOR)
@@ -363,7 +343,6 @@ def draw_origin_labels():
                 scale = (side * _LABEL_HEIGHT_FACTOR) / height
                 if width > 0.0 and width * scale > usable:
                     scale = usable / width
-                axis_top = middle_y + height * scale / 2.0
                 _draw_text_block(
                     plane_mat,
                     [axis_line],
@@ -371,7 +350,6 @@ def draw_origin_labels():
                     gap,
                     size,
                     scale,
-                    sx,
                     middle_x,
                     middle_y - height * scale / 2.0,
                     "center",
@@ -385,10 +363,8 @@ def draw_origin_labels():
                 scale = (side * _NAME_HEIGHT_FACTOR) / line_h
                 if width > 0.0 and width * scale > usable:
                     scale = usable / width
-                # Centred, sitting on top of the axis: no corner to pick and
-                # no side edge to run into, so it cannot end up over the border
-                # or jump corners as the view turns (which is what anchoring it
-                # to a corner did, since which corner the viewer sees changes).
+                # Right-aligned into the plane's own top-right corner: a fixed
+                # place in the plane's frame, so it stays put whatever the view.
                 _draw_text_block(
                     plane_mat,
                     name_lines,
@@ -396,10 +372,9 @@ def draw_origin_labels():
                     gap,
                     size,
                     scale,
-                    sx,
-                    middle_x,
-                    axis_top + margin,
-                    "center",
+                    max_x - margin,
+                    max_y - margin - height * scale,
+                    "right",
                 )
 
     gpu.state.depth_test_set("LESS_EQUAL")
