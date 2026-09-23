@@ -162,3 +162,36 @@ class TestOffsetGeometry(Sketch2dTestCase):
         new = self._new(op, ArcRef)[0]
         self.assertLess(abs(math.degrees(new.angle - arc.angle)), 5.0)
         self.assertAlmostEqual(new.radius, arc.radius - 0.5, places=5)
+
+    def test_the_offset_follows_the_cursor_for_a_line(self):
+        """The distance is read off the cursor, so the new path runs under it."""
+        from ..operators.offset import cursor_distance
+
+        line = self.add_line(self.add_point((0.0, 0.0)), self.add_point((4.0, 0.0)))
+        cursor = Vector((2.0, 1.5))
+
+        op = self._offset(line, cursor_distance(line, cursor))
+
+        new = self._new(op, LineRef)[0]
+        self.assertAlmostEqual(new.p1.co.y, cursor.y, places=5)
+
+    def test_the_offset_follows_the_cursor_for_an_arc(self):
+        from ..operators.offset import cursor_distance
+
+        arc = self._quarter_arc()  # radius 2 about the origin
+        cursor = Vector((0.0, 1.2))
+
+        op = self._offset(arc, cursor_distance(arc, cursor))
+
+        self.assertAlmostEqual(self._new(op, ArcRef)[0].radius, 1.2, places=5)
+
+    def test_the_offset_follows_the_cursor_for_a_circle(self):
+        from ..model.curve_ref import CircleRef
+        from ..operators.offset import cursor_distance
+
+        circle = self.add_circle(self.add_point((0.0, 0.0)), 2.0)
+        cursor = Vector((3.5, 0.0))
+
+        op = self._offset(circle, cursor_distance(circle, cursor))
+
+        self.assertAlmostEqual(self._new(op, CircleRef)[0].radius, 3.5, places=5)

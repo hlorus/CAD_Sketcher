@@ -10,7 +10,7 @@ from ..model.curve_ref import ArcRef, CircleRef, CurveRef, LineRef, PointRef
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.intersect import ElementTypes, get_intersections
-from ..utilities.view import refresh
+from ..utilities.view import get_pos_2d, refresh
 from .base_2d import Operator2d
 from .utilities import ignore_hover
 
@@ -39,6 +39,23 @@ def _segment_dist(ref, inverted, distance):
     """
     signed = _inverted_dist(inverted, distance)
     return -signed if isinstance(ref, (ArcRef, CircleRef)) else signed
+
+
+def cursor_distance(entity, position):
+    """The offset that puts the new geometry under ``position``, or None.
+
+    Each type takes its own sign, matching how ``main`` builds the offset: a
+    line's normal, an arc's smaller radius (the left of travel, see
+    ``_segment_dist``) and a circle's larger one.
+    """
+    point = Vector(position[:2])
+    if isinstance(entity, CircleRef):
+        return (point - entity.ct.co).length - entity.radius
+    if isinstance(entity, ArcRef):
+        return entity.radius - (point - entity.ct.co).length
+    if isinstance(entity, LineRef):
+        return (point - entity.p1.co).dot(entity.normal())
+    return None
 
 
 def _corner_direction(topo, ref, inverted, at):
@@ -127,9 +144,22 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             "Distance",
             description="Distance to offset the created entities",
             property="distance",
+            state_func="get_distance",
             interactive=True,
         ),
     )
+
+    def get_distance(self, context: Context, coords):
+        """Offset so the new path runs under the cursor.
+
+        The base state function reads a scalar property as a horizontal screen
+        delta, which has nothing to do with where the offset ends up -- it even
+        runs backwards for a source facing the other way.
+        """
+        position = get_pos_2d(context, self._get_wp(), coords)
+        if position is None:
+            return None
+        return cursor_distance(self.entity, position)
 
     def evaluate_state(self, context: Context, event, triggered):
         # A typed distance is a deliberate value, so keep it as a dimension; a
