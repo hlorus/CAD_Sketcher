@@ -91,12 +91,13 @@ default, gives a flat fillet).
 
 While the Fillet tool is active, filleted objects show without their fillet, so a
 click always lands on the geometry the fillet reads and the picked edges keep
-their numbering; switching to any other tool shows the rounded result.
+their numbering; confirming (Esc or right-click) goes back to Blender's Select tool and shows the
+rounded result.
 
 |Key|Modifier|Action|
 |:---:|---|---|
 |Lmb|-|Round the edge under the cursor, or drop it again|
-|Esc / Rmb|-|Stop picking (the picks stay)|
+|Esc / Rmb|-|Confirm: keep the picks and go back to Blender's Select tool|
 
 ### Global Shortcuts
 Available in Object Mode regardless of the active tool, also while a tool is running.

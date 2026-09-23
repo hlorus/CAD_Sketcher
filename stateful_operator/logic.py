@@ -98,6 +98,17 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """Restore state from a snapshot produced by ``create_snapshot``."""
         pass
 
+    def _should_return_to_tool(self, succeede, keep_stateful_running) -> bool:
+        """Whether ending this way hands back to ``return_to_tool``.
+
+        One-off tools return once done, but only on success, so a missed pick
+        keeps the tool for a retry. A repeating/chaining run returns when the run
+        ends having committed something, not after its first step.
+        """
+        if keep_stateful_running or not self.return_to_tool:
+            return False
+        return bool(succeede or self._chain_committed)
+
     def on_before_redo_states(self, context: Context):
         """Called before ``redo_states`` during undo/redo cycles.
 
@@ -1145,11 +1156,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
     def _end(self, context, succeede, skip_undo=False, keep_stateful_running=False):
         context.window.cursor_modal_restore()
         self._run_fini(context, succeede)
-        # One-off tools return to their select tool once done (only on success,
-        # so a missed pick keeps the tool for a retry). The target tool differs
-        # per operator: object tools -> Blender's select, sketch tools -> the
-        # sketch select tool.
-        if succeede and self.return_to_tool:
+        if self._should_return_to_tool(succeede, keep_stateful_running):
             try:
                 bpy.ops.wm.tool_set_by_id(name=self.return_to_tool)
             except Exception:

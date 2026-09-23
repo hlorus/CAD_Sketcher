@@ -594,5 +594,38 @@ class TestFilletDefaults(TestCase):
         self.assertFalse(hasattr(Operators, "AddFillet"))
 
 
+class TestFilletConfirm(TestCase):
+    def test_ending_the_run_returns_to_the_select_tool(self):
+        """Confirming hands back to Blender's select tool, which is also what
+        brings the rounded result back into view."""
+        from ..declarations import BLENDER_SELECT_TOOL
+        from ..operators.fillet import View3D_OT_slvs_fillet_select
+
+        self.assertEqual(
+            View3D_OT_slvs_fillet_select.return_to_tool, BLENDER_SELECT_TOOL
+        )
+
+    def test_a_repeating_run_returns_only_once_it_ends(self):
+        """Not after the first pick: the run keeps picking until it is ended."""
+        from ..operators.fillet import View3D_OT_slvs_fillet_select
+        from .utils import make_operator_double
+
+        op = make_operator_double(View3D_OT_slvs_fillet_select)()
+        op._chain_committed = True
+        # A committed pick inside the run keeps the tool ...
+        self.assertFalse(op._should_return_to_tool(True, True))
+        # ... and ending the run hands back, even though the last step cancels.
+        self.assertTrue(op._should_return_to_tool(False, False))
+
+    def test_a_run_without_picks_keeps_the_tool(self):
+        """Ending with nothing picked is a miss, so the tool stays for a retry."""
+        from ..operators.fillet import View3D_OT_slvs_fillet_select
+        from .utils import make_operator_double
+
+        op = make_operator_double(View3D_OT_slvs_fillet_select)()
+        op._chain_committed = False
+        self.assertFalse(op._should_return_to_tool(False, False))
+
+
 if __name__ == "__main__":
     unittest.main()

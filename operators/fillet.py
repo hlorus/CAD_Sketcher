@@ -12,7 +12,7 @@ import bpy
 from bpy.props import FloatProperty, StringProperty
 from bpy.types import Context, Event, MeshEdge, Operator
 
-from ..declarations import Operators
+from ..declarations import BLENDER_SELECT_TOOL, Operators
 from ..stateful_operator.state import state_from_args
 from ..stateful_operator.utilities.geometry import evaluated_surface_mesh
 from ..stateful_operator.utilities.register import register_stateops_factory
@@ -166,6 +166,9 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
     # One invocation keeps picking: every click rounds another edge, and the run
     # ends with Esc/right-click like the other tools.
     repeat_states = True
+    # Ending the run hands back to Blender's select tool, which also brings the
+    # rounded result back into view (see sync_fillet_visibility).
+    return_to_tool = BLENDER_SELECT_TOOL
     # Set while the redo panel re-runs the operator: a pick is then re-applied
     # rather than toggled, so adjusting Amount doesn't undo the pick itself.
     _redoing = False
