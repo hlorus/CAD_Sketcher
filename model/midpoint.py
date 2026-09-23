@@ -1,14 +1,14 @@
 import logging
 
-from bpy.types import PropertyGroup
 from bpy.props import StringProperty
+from bpy.types import PropertyGroup
 from bpy.utils import register_classes_factory
 
 from ..curve_solver import Solver
 from ..global_data import WpReq
 from .base_constraint import GenericConstraint
+from .categories import LINE, POINT
 from .utilities import slvs_entity_pointer
-from .categories import POINT, LINE
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +20,13 @@ class SlvsMidpoint(GenericConstraint, PropertyGroup):
     label = "Midpoint"
     signature = (POINT, LINE)
 
-
     curve_id_1: StringProperty(name="Curve ID 1", default="")
     curve_id_2: StringProperty(name="Curve ID 2", default="")
+
+    def curve_id_placements(self):
+        # The point sits on the line's midpoint, which is where the line's own
+        # marker goes: a second icon there would just cover the first.
+        return [self.curve_id_1] if self.curve_id_1 else []
 
     def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
         h1 = handle_map.get(self.curve_id_1)
@@ -31,7 +35,7 @@ class SlvsMidpoint(GenericConstraint, PropertyGroup):
             return None
         kwargs = {}
         if wp:
-            kwargs['workplane'] = wp
+            kwargs["workplane"] = wp
         return solvesys.midpoint(group, h1, h2, **kwargs)
 
     def needs_wp(self):
