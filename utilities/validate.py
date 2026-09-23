@@ -21,12 +21,12 @@ from ..model.constants import SketchCurveType
 from .curve_data import (
     UUID_FIELDS,
     _get_original_data,
-    default_curve_name,
     ensure_standard_attributes,
     get_uuid,
     has_uuid_field,
     invalidate_curve_id_cache,
     new_uuid,
+    next_name_ordinal,
     remove_native_curve_by_id,
     set_uuid,
 )
@@ -45,13 +45,61 @@ _validated = {}
 # Attributes the model depends on (the identity sub-attributes plus type/name).
 _REQUIRED_ATTRS = tuple(f".{field}_{k}" for field in UUID_FIELDS for k in range(4)) + (
     "sketch_type",
-    "name",
+    "name_ordinal",
 )
 
 
 def reset_cache():
     """Drop the validation signature cache (e.g. on file load)."""
     _validated.clear()
+
+
+def _mint_name_ordinal(curve_data, index, ctype):
+    """Give a curve the next free ordinal of its type, so its name is unique."""
+    from .curve_data import set_attribute
+
+    set_attribute(
+        curve_data.attributes,
+        "name_ordinal",
+        next_name_ordinal(curve_data, ctype),
+        index,
+    )
+
+
+def _migrate_legacy_names(sketch, curve_data) -> bool:
+    """Move names off the curves and onto the ordinal plus the rename map.
+
+    Files written before names were derived carry a STRING ``name`` attribute.
+    A name that still reads "<Type> <n>" only needs its number; anything else
+    the user typed, so it becomes a rename. The attribute then goes, and with it
+    the save/restore dance every removal used to do for it.
+    """
+    from ..model.curve_names import custom_names
+    from .curve_data import read_uuid_list, set_attribute, type_label
+
+    legacy = curve_data.attributes.get("name")
+    if legacy is None:
+        return False
+
+    type_attr = curve_data.attributes.get("sketch_type")
+    names = custom_names(curve_data)
+    curve_ids = read_uuid_list(curve_data, "curve_id")
+    for i in range(len(curve_data.curves)):
+        value = legacy.data[i].value
+        value = value.decode() if isinstance(value, bytes) else str(value)
+        ctype = type_attr.data[i].value if type_attr else -1
+        label = type_label(ctype)
+        ordinal = 0
+        if value.startswith(label + " ") and value[len(label) + 1 :].isdigit():
+            ordinal = int(value[len(label) + 1 :])
+        elif value and names is not None and i < len(curve_ids):
+            names.set(curve_ids[i], value)
+        if not ordinal:
+            ordinal = next_name_ordinal(curve_data, ctype)
+        set_attribute(curve_data.attributes, "name_ordinal", ordinal, i)
+
+    curve_data.attributes.remove(legacy)
+    return True
 
 
 def _signature(curve_data):
@@ -212,6 +260,10 @@ def validate_sketch(sketch):
         ensure_standard_attributes(cd)
         changed = True
 
+    # 1b. One-shot: carry a pre-derived-names file over (see _migrate_legacy_names).
+    if _migrate_legacy_names(sketch, cd):
+        changed = True
+
     # 2. Give every curve a unique, non-empty id. Empty ids come from natively
     #    added curves, duplicates from natively copied ones — both get a fresh id.
     type_attr = cd.attributes.get("sketch_type")
@@ -221,12 +273,19 @@ def validate_sketch(sketch):
         if not cid or cid in seen:
             cid = new_uuid()
             set_uuid(cd, "curve_id", i, cid)
-            name_attr = cd.attributes.get("name")
-            if name_attr and not name_attr.data[i].value:
-                ctype = type_attr.data[i].value if type_attr else -1
-                name_attr.data[i].value = default_curve_name(cd, ctype).encode()
+            ctype = type_attr.data[i].value if type_attr else -1
+            _mint_name_ordinal(cd, i, ctype)
             changed = True
         seen.add(cid)
+
+    # 2a. Forget names of entities that are gone. Deliberately not done when a
+    #     curve is removed: an operator re-run removes its output and rebuilds
+    #     it under the same ids, and the names have to survive that.
+    names = getattr(cd, "sketch_names", None)
+    if names is not None and len(names.entries) and len(seen) >= len(cd.curves):
+        before = len(names.entries)
+        names.discard(seen)
+        changed = changed or len(names.entries) != before
 
     # 2b. Guarantee the protected origin point survives a native delete.
     if _ensure_origin(sketch, cd):

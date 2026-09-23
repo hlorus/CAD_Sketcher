@@ -26,6 +26,7 @@ modules = [
     "ratio",
     "symmetry",
     "group_constraints",
+    "curve_names",
     "group_sketcher",
 ]
 

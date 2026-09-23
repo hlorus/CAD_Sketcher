@@ -205,7 +205,8 @@ def create_point_3d(sketch, co, construction=False, fixed=False, name=None):
     if not is_3d_sketch(sketch):
         raise ValueError("create_point_3d requires a native 3D sketch")
 
-    from ..utilities.curve_data import default_curve_name, set_attribute
+    from ..utilities.curve_data import next_name_ordinal, set_attribute
+    from .curve_names import set_custom_name
 
     curve_data = _ensure_curve_data(sketch)
     if curve_data is None:
@@ -233,10 +234,12 @@ def create_point_3d(sketch, co, construction=False, fixed=False, name=None):
     set_attribute(attrs, "visible", True, curve_idx)
     set_attribute(
         attrs,
-        "name",
-        name or default_curve_name(curve_data, SketchCurveType.POINT),
+        "name_ordinal",
+        next_name_ordinal(curve_data, SketchCurveType.POINT),
         curve_idx,
     )
+    if name:
+        set_custom_name(curve_data, cid, name)
 
     _invalidate(sketch)
     curve_data.update_tag()
@@ -257,7 +260,8 @@ def create_line_3d(sketch, p1, p2, construction=False, name=None):
     if not isinstance(p1, PointRef) or not isinstance(p2, PointRef):
         raise TypeError("3D lines require PointRef endpoints")
 
-    from ..utilities.curve_data import default_curve_name, set_attribute
+    from ..utilities.curve_data import next_name_ordinal, set_attribute
+    from .curve_names import set_custom_name
 
     curve_data = _ensure_curve_data(sketch)
     if curve_data is None:
@@ -290,10 +294,12 @@ def create_line_3d(sketch, p1, p2, construction=False, name=None):
     set_attribute(attrs, "visible", True, curve_idx)
     set_attribute(
         attrs,
-        "name",
-        name or default_curve_name(curve_data, SketchCurveType.LINE),
+        "name_ordinal",
+        next_name_ordinal(curve_data, SketchCurveType.LINE),
         curve_idx,
     )
+    if name:
+        set_custom_name(curve_data, cid, name)
 
     _invalidate(sketch)
     rebuild_3d_lines(sketch)
