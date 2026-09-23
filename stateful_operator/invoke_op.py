@@ -29,12 +29,42 @@ class View3D_OT_invoke_tool(Operator):
             return {"PASS_THROUGH"}
         return self.execute(context)
 
+    def _group_active(self, context: Context):
+        """The tool the toolbar currently shows for this tool's group.
+
+        Tools that share one toolbar button (a flyout group) share one shortcut,
+        and the key starts whichever member the toolbar shows -- the last one
+        used -- just as clicking that button would. Outside a group, or when the
+        group can't be resolved, this is the tool the key names.
+        """
+        # Blender's own item_from_id_active_with_group() wrapper mis-unpacks this
+        # helper and hands back the index, so call the helper directly.
+        try:
+            from bl_ui.space_toolsystem_common import ToolSelectPanelHelper
+
+            cls = ToolSelectPanelHelper._tool_class_from_space_type("VIEW_3D")
+            item, _index, _group = cls._tool_get_by_id_active_with_group(
+                context, str(self.tool_name)
+            )
+        except Exception:
+            item = None
+
+        def _id(value, fallback):
+            # Tool and operator ids are str-enum members on this side.
+            value = getattr(value, "value", value)
+            return str(value) if value else str(fallback)
+
+        if getattr(item, "idname", None) is None:
+            return str(self.tool_name), str(self.operator)
+        return _id(item.idname, self.tool_name), _id(item.operator, self.operator)
+
     def execute(self, context: Context):
-        bpy.ops.wm.tool_set_by_id(name=self.tool_name)
+        tool_name, operator = self._group_active(context)
+        bpy.ops.wm.tool_set_by_id(name=tool_name)
 
         # get the tool operator props
         tool = context.workspace.tools.from_space_view3d_mode(context.mode)
-        props = tool.operator_properties(self.operator)
+        props = tool.operator_properties(operator)
 
         options = {}
         prop_names = props.rna_type.properties.keys()
@@ -64,11 +94,11 @@ class View3D_OT_invoke_tool(Operator):
         if "wait_for_input" in prop_names:
             options["wait_for_input"] = True
 
-        parts = self.operator.split(".", 1)
+        parts = operator.split(".", 1)
         if len(parts) != 2:
             self.report(
                 {"ERROR"},
-                f"Invalid operator id '{self.operator}': expected 'module.name'",
+                f"Invalid operator id '{operator}': expected 'module.name'",
             )
             return {"CANCELLED"}
 
@@ -78,7 +108,7 @@ class View3D_OT_invoke_tool(Operator):
         if op is None:
             self.report(
                 {"ERROR"},
-                f"Operator not found: '{self.operator}'",
+                f"Operator not found: '{operator}'",
             )
             return {"CANCELLED"}
 
