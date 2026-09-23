@@ -78,6 +78,22 @@ def object_under_cursor(context, coords):
     return best
 
 
+def detect_axis_hover(context, coords, element):
+    """Which offered revolve axis is under the cursor, or None.
+
+    Only while a state is picking an axis, and only where nothing more specific
+    is hovered: an edge or curve under the cursor is what a click would take, so
+    it is what should light up (see View3D_OT_node_revolve.pick_element).
+    """
+    from ..utilities.workplane import hit_test_axis
+
+    if not global_data.axis_picker or element is not None:
+        return None
+    radius = 12.0 * context.preferences.system.ui_scale
+    pick_id, _plane, _index = hit_test_axis(context, coords, radius)
+    return pick_id
+
+
 def detect_hover(context, coords, types):
     """Return the hover element under the cursor for the accepted ``types``.
 
@@ -167,9 +183,15 @@ class VIEW3D_GT_slvs_object_hover(Gizmo):
         types = global_data.hover_types
         if types is None:
             types = _idle_hover_types(context)
-        element = detect_hover(context, Vector(location), types)
+        coords = Vector(location)
+        element = detect_hover(context, coords, types)
         if element != global_data.hover_element:
             global_data.hover_element = element
+            context.area.tag_redraw()
+
+        axis = detect_axis_hover(context, coords, element)
+        if axis != global_data.hover_axis:
+            global_data.hover_axis = axis
             context.area.tag_redraw()
         # Never claim the click: fall through to the tool keymap / operator.
         return -1

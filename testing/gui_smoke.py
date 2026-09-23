@@ -74,6 +74,9 @@ def _view3d_context():
                         "area": area,
                         "region": region,
                         "space_data": area.spaces.active,
+                        # Screen-space picking (workplane and axis hit tests)
+                        # reads it; without it they find nothing at all.
+                        "region_data": area.spaces.active.region_3d,
                     }
     return None
 
@@ -151,7 +154,27 @@ def main():
             plane, index, pick_id = next(
                 iter(workplane_mod.iter_axis_candidates(context))
             )
-            global_data.hover_axis = pick_id
+            # What the hover gizmo publishes on a mouse-move over an axis: the
+            # cursor lands on the frame's origin, where all three cross.
+            from mathutils import Vector as _V
+
+            object_hover = importlib.import_module(f"{TARGET}.gizmos.object_hover")
+            from bpy_extras.view3d_utils import location_3d_to_region_2d
+
+            view = _view3d_context()
+            region = view["region"]
+            rv3d = view["space_data"].region_3d
+            start, _end = workplane_mod.axis_endpoints(plane, index, context)
+            on_screen = location_3d_to_region_2d(region, rv3d, start)
+            assert on_screen is not None, "the frame origin must be in view"
+            # The hover gizmo runs with a full view context (region included),
+            # which the steps here do not otherwise have.
+            with bpy.context.temp_override(**view):
+                hovered = object_hover.detect_axis_hover(
+                    bpy.context, _V(on_screen), None
+                )
+            assert hovered is not None, "an axis under the cursor must publish"
+            global_data.hover_axis = hovered
             _redraw()
             start, end = workplane_mod.axis_endpoints(plane, index, context)
             assert (end - start).length > 0.0, "an axis needs a direction"

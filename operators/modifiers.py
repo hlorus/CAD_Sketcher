@@ -1070,10 +1070,7 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         # A base plane's own direction: revolving around a part's X or Z is the
         # common case, and there is rarely an edge lying on it to click instead.
         # The plane empty is the pointer, so the axis follows the part it is in.
-        from .. import global_data
-
-        pick_id, plane, index = hit_test_axis(context, coords, radius)
-        global_data.hover_axis = pick_id
+        _pick_id, plane, index = hit_test_axis(context, coords, radius)
         if plane is not None:
             self.state_data["type"] = MeshEdge
             return plane.name, index

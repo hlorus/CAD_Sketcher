@@ -148,3 +148,23 @@ class TestRevolveAxis(BgsTestCase):
         op.fini(self.context, False)
         self.assertFalse(global_data.axis_picker)
         self.assertIsNone(global_data.hover_axis)
+
+    def test_the_hovered_axis_is_published_for_the_highlight(self):
+        # The hover gizmo is what runs on mouse-move; pick_element only runs on
+        # a click, which is why nothing lit up before.
+        from .. import global_data
+        from ..gizmos.object_hover import detect_axis_hover
+
+        global_data.axis_picker = True
+        global_data.hover_axis = None
+        try:
+            # Nothing while something more specific is hovered.
+            self.assertIsNone(
+                detect_axis_hover(self.context, Vector((0.0, 0.0)), ("EDGE", "x", 0))
+            )
+            # Nothing when no state is picking an axis.
+            global_data.axis_picker = False
+            self.assertIsNone(detect_axis_hover(self.context, Vector((0.0, 0.0)), None))
+        finally:
+            global_data.axis_picker = False
+            global_data.hover_axis = None
