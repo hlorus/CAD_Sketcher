@@ -33,6 +33,16 @@ from .modifiers import set_modifier_input
 _hidden = {}
 
 
+def fillet_target(ob):
+    """The object a fillet belongs on: a sketch is source, its body carries the
+    stack (see utilities/body), so redirect to that."""
+    from ..utilities.body import body_of
+
+    if ob is None:
+        return None
+    return body_of(ob) or ob
+
+
 def fillet_modifier(ob, name: str = ""):
     """The object's fillet modifier (by name, else the first one), or None."""
     for modifier in ob.modifiers:
@@ -118,7 +128,7 @@ def sync_fillet_visibility(context: Context) -> None:
     the hidden state an undo step recorded mid-session.
     """
     if fillet_tool_active(context):
-        ob = getattr(context, "object", None)
+        ob = fillet_target(getattr(context, "object", None))
         if ob is not None:
             hide_fillet(context, ob)
     elif _hidden:
@@ -196,10 +206,11 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
         ob, _index = self._picked()
         if ob is None:
             ob = bpy.data.objects.get(self.target_name) or context.object
-        return ob
+        return fillet_target(ob)
 
     def main(self, context: Context):
         ob, index = self._picked()
+        ob = fillet_target(ob)
         if ob is None or index < 0:
             return False
         self.target_name = ob.name

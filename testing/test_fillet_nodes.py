@@ -10,6 +10,8 @@ from unittest import TestCase
 
 import bpy
 
+from .utils import Sketch2dTestCase
+
 
 def _flat_quad():
     """A single flat filled n-gon (like a sketch fill)."""
@@ -319,44 +321,26 @@ class TestFilletPicks(TestCase):
             bpy.data.objects.remove(ob, do_unlink=True)
 
 
-class TestPickedEdgeDrawing(TestCase):
-    """The picked edges are read back from the generated mesh, to draw them."""
+class TestPickedEdgeDrawing(Sketch2dTestCase):
+    """The picked edges are read back from the body's geometry, to draw them."""
 
-    def test_points_of_picks_on_a_curves_object(self):
+    def test_points_of_picks_on_a_sketch_body(self):
+        from ..model.curve_ref import CircleRef, PointRef
+        from ..operators.add_sketch import build_sketch_on_workplane
         from ..operators.fillet import picked_edge_points
+        from ..utilities.body import body_of
+        from ..utilities.workplane import ensure_origin_workplane_empties
 
-        curves = bpy.data.hair_curves.new("probe")
-        curves.add_curves([4])
-        for point, co in zip(
-            curves.points, ((0, 0, 0), (2, 0, 0), (2, 1, 0), (0, 1, 0))
-        ):
-            point.position = co
-        ob = bpy.data.objects.new("probe", curves)
-        bpy.context.scene.collection.objects.link(ob)
+        ensure_origin_workplane_empties(self.context)
+        sketch = build_sketch_on_workplane(
+            self.context, self.context.scene.sketcher.wp_xy
+        )
+        CircleRef.create(sketch, PointRef.create(sketch, (0.0, 0.0)), 1.0)
+        body = body_of(sketch.target_object)
+        self.assertIsNotNone(body, "a sketch is realised on a body")
 
-        group = bpy.data.node_groups.new("probe_fill", "GeometryNodeTree")
-        iface = group.interface
-        iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
-        iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
-        gi = group.nodes.new("NodeGroupInput")
-        go = group.nodes.new("NodeGroupOutput")
-        fill = group.nodes.new("GeometryNodeFillCurve")
-        group.links.new(gi.outputs["Geometry"], fill.inputs["Curve"])
-        group.links.new(fill.outputs["Mesh"], go.inputs["Geometry"])
-        mod = ob.modifiers.new("nodes", "NODES")
-        mod.node_group = group
-
-        try:
-            # A sketch's generated mesh isn't on the evaluated object ...
-            dg = bpy.context.evaluated_depsgraph_get()
-            with self.assertRaises(RuntimeError):
-                ob.evaluated_get(dg).to_mesh()
-            # ... but the framework's evaluated-surface helper still finds it.
-            points = picked_edge_points(bpy.context, ob, [0, 1], "EDGE")
-            self.assertEqual(len(points), 4)
-        finally:
-            bpy.data.objects.remove(ob, do_unlink=True)
-            bpy.data.node_groups.remove(group)
+        points = picked_edge_points(self.context, body, [0, 1], "EDGE")
+        self.assertEqual(len(points), 4)
 
 
 class TestFilletTool(TestCase):
