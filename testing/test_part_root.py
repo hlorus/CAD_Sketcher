@@ -950,3 +950,29 @@ class TestPartRoot(BgsTestCase):
             self.assertIsNotNone(existing_part_plane(body, axis), axis)
         # The one it was drawn on is the XY, not a fourth plane.
         self.assertEqual(existing_part_plane(body, "XY"), plane)
+
+    def test_cutting_a_plain_mesh_leaves_one_plane_in_that_place(self):
+        # Reported: extruding a sketch into the default cube left the sketch's
+        # own workplane sitting on the new part's XY. The part's planes have to
+        # exist before the joining body's plane is matched against them.
+        from ..utilities.body import body_of
+        from ..utilities.part import existing_part_plane, settle_membership
+        from ..utilities.workplane import is_managed_workplane
+
+        cube = self._cube("Cube")  # never touched by CAD Sketcher before
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        cutter = body_of(sketch.target_object)
+
+        settle_membership(sketch.target_object, [cube], self.context)
+
+        self.assertTrue(is_part_root(cube))
+        self.assertEqual(part_root_of(cutter), cube)
+        # Its base planes are there, and the cutter's sketch sits on the XY
+        # rather than on a second plane in the same place.
+        for axis in ("XY", "XZ", "YZ"):
+            self.assertIsNotNone(existing_part_plane(cube, axis), axis)
+        self.assertEqual(
+            sketch.target_object.slvs_workplane, existing_part_plane(cube, "XY")
+        )
+        planes = [c for c in cube.children_recursive if is_managed_workplane(c)]
+        self.assertEqual(len(planes), 3)

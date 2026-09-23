@@ -370,7 +370,7 @@ def _join_keeping_its_plane(root: bpy.types.Object, obj: bpy.types.Object) -> No
 
 
 def settle_membership(
-    sketch_obj: bpy.types.Object, bodies
+    sketch_obj: bpy.types.Object, bodies, context=None
 ) -> Optional[bpy.types.Object]:
     """Decide which part a sketch belongs to, now that it has become solid.
 
@@ -383,6 +383,11 @@ def settle_membership(
     ``bodies`` are the bodies this solid booleans into, in the order the tool
     applied them (the body whose face was sketched on leads). A sketch that
     already belongs to a part keeps that part.
+
+    Pass ``context`` from operator code: a part being born then gets its base
+    planes here, before the joining body's own plane is matched against them.
+    Without it the planes are created later and the two end up on top of each
+    other.
 
     A cut reaching bodies in *several* parts belongs to none of them: it is an
     assembly-level feature, and staying global says so instead of picking an
@@ -423,6 +428,8 @@ def settle_membership(
     root = owners[0]
     if not is_part_root(root):
         mark_part_root(root)
+    if context is not None:
+        ensure_part_planes(context, root)
     _join_keeping_its_plane(root, sketch_obj)
     merge_coincident_plane(root, sketch_obj)
     return root

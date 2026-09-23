@@ -345,13 +345,11 @@ class BooleanFromToolMixin:
         # is not a sketch's body is left alone: a part with its own history stays
         # a part.
         if sketch is not None:
-            from ..utilities.part import ensure_part_planes, settle_membership
+            from ..utilities.part import settle_membership
 
-            root = settle_membership(cutter, enabled_bodies)
-            if root is not None:
-                # A part that has just been born gets its base planes now, so
-                # they are there to sketch on rather than appearing later.
-                ensure_part_planes(context, root)
+            # Passing the context lets a part being born take its base planes
+            # here, which is what the joining body's own plane merges onto.
+            settle_membership(cutter, enabled_bodies, context)
 
         from ..utilities.part import update_cutter_display
 
@@ -1323,11 +1321,7 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
 
         body = self.resolved_object()
         if body is not None and is_sketch_object(cutter):
-            from ..utilities.part import ensure_part_planes
-
-            root = settle_membership(cutter, [body.original])
-            if root is not None:
-                ensure_part_planes(context, root)
+            settle_membership(cutter, [body.original], context)
             sync_part_collections(context.scene)
 
     def set_props(self):
