@@ -269,8 +269,8 @@ def draw_origin_labels():
     respects ``show_origin``.
 
     A base plane says two things: the axis, large and in the middle where the
-    eye lands, and whose plane it is, small in the bottom-right corner. Any
-    other plane has only a name, which goes in that same corner. The glyph raster is
+    eye lands, and whose plane it is, small in the outer corner. Any other plane
+    has only a name, which goes in that same corner. The glyph raster is
     sized to the on-screen height so it stays crisp instead of being magnified,
     the text is mirrored when seen from behind so it never reads backwards, and
     it skips the depth test so it stays legible over geometry.
@@ -367,8 +367,11 @@ def draw_origin_labels():
                 scale = (side * _NAME_HEIGHT_FACTOR) / line_h
                 if width > 0.0 and width * scale > usable:
                     scale = usable / width
-                # Bottom-right as the viewer sees it: seen from behind, the
-                # plane's own -X corner is the one on their right.
+                # The outer corner, and right-aligned into it: the planes are
+                # drawn in their positive quadrant, so it is the only corner
+                # where all three names land in different places (XY and XZ
+                # share the bottom-right one, and their names collide there).
+                # Seen from behind, the plane's own -X corner is on the right.
                 x = max_x - margin if sx > 0 else min_x + margin
                 _draw_text_block(
                     plane_mat,
@@ -379,7 +382,7 @@ def draw_origin_labels():
                     scale,
                     sx,
                     x,
-                    min_y + margin,
+                    max_y - margin - height * scale,
                     "right",
                 )
 
