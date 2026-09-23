@@ -121,6 +121,7 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         col.operator(declarations.Operators.NodeExtrude)
         col.operator(declarations.Operators.NodeRevolve)
         col.operator(declarations.Operators.NodeArrayLinear)
+        col.operator(declarations.Operators.NodeArrayCircular)
         col.operator(declarations.Operators.NodeBoolean)
 
         # Grouping and reusing parts acts on whole objects, so it belongs with the

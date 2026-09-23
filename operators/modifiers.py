@@ -951,82 +951,25 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         sub.prop(self, "merge_distance")
 
 
-class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
-    """Revolve a 2D profile around a picked axis"""
+class PickedAxisMixin:
+    """Pick an axis to work around: an edge, a curve/sketch line or a base axis.
 
-    bl_idname = Operators.NodeRevolve
-    bl_label = "Revolve"
+    Mixed into the revolve and circular-array operators. The concrete operator
+    declares the two properties below (so they register on that operator), puts
+    an ``Axis`` pointer state at ``AXIS_STATE_INDEX`` and reads the result with
+    ``resolve_axis``:
 
-    NODEGROUP_NAME = "CAD Sketcher Revolve"
-    # Built programmatically (not shipped as an asset); see init()/main().
-    resources = ()
-    return_to_tool = BLENDER_SELECT_TOOL
+        axis_origin: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
+        axis_direction: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
 
-    invalid_target_msg = "Select a sketch, curve or mesh profile to revolve"
+    They hold the raw picked axis in object space so the redo panel can re-apply
+    the run without the transient axis pointer; hence no SKIP_SAVE.
+    """
 
-    angle: FloatProperty(
-        name="Angle",
-        subtype="ANGLE",
-        default=math.tau,
-        min=-math.tau,
-        max=math.tau,
-        options={"SKIP_SAVE"},
-    )
-    angular_resolution: FloatProperty(
-        name="Angular Resolution",
-        description="Maximum angle per segment; the step count adapts to the "
-        "revolve angle to keep a consistent smoothness",
-        subtype="ANGLE",
-        default=math.radians(2),
-        min=math.radians(0.5),
-        soft_max=math.radians(90),
-    )
-    flip: BoolProperty(name="Flip Direction")
-
-    # Raw picked axis (object space, un-flipped), persisted so the redo panel
-    # can re-apply the revolve without the transient axis pointer. Not
-    # SKIP_SAVE: must survive redo; a fresh invoke re-picks before main() runs.
-    axis_origin: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
-    axis_direction: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
-
-    states = (
-        *BASE_STATES,
-        state_from_args(
-            "Axis",
-            description="Click an axis, a mesh edge or a curve/sketch line to "
-            "revolve around",
-            pointer="axis",
-            types=(MeshEdge,),
-            use_create=False,
-        ),
-    )
-
-    def is_valid_target(self, obj):
-        # Curves and sketches, plus mesh profiles (edge paths) -- the node group
-        # converts mesh edges to a curve, so a poly-line/silhouette mesh works
-        # too, matching Blender's Screw modifier.
-        return obj is not None and obj.type in {"CURVE", "CURVES", "MESH"}
-
-    @staticmethod
-    def _input_ids(node_group):
-        from ..utilities.revolve_nodes import _input_ids
-
-        return _input_ids(node_group)
-
-    def init(self, context: Context, event: Event):
-        # Build the revolve node group in place of loading an asset.
-        from ..utilities.revolve_nodes import build_revolve_node_group
-
-        build_revolve_node_group()
-        if self.edit_state < 0:  # not on the eyedropper re-pick (see NodeOperator.init)
-            bpy.ops.ed.undo_push(message="Add Revolve")
-        self.reset_booleans()
-        return True
+    AXIS_STATE_INDEX = 1
 
     def fini(self, context: Context, succeede: bool):
         self._show_axes(False)
-        if succeede:
-            self.finish_booleans(context)
 
     def set_state(self, context: Context, index: int):
         super().set_state(context, index)
@@ -1100,7 +1043,9 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         (picked as the plane empty plus which direction it is).
         """
         try:
-            ob_name, index = self.get_state_pointer(index=1, implicit=True)
+            ob_name, index = self.get_state_pointer(
+                index=self.AXIS_STATE_INDEX, implicit=True
+            )
         except Exception:
             return None
         ob = bpy.data.objects.get(ob_name)
@@ -1126,6 +1071,119 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         mw = eob.matrix_world
         return mw @ Vector(me.vertices[i0].co), mw @ Vector(me.vertices[i1].co)
 
+    def _has_stored_axis(self):
+        return Vector(self.axis_direction).length > 1e-9
+
+    def has_axis(self):
+        """Whether the run has an axis at all: freshly picked or persisted.
+
+        Without one the modifier would sit on the node group's default axis and
+        generate something the user never asked for.
+        """
+        return self._axis_endpoints() is not None or self._has_stored_axis()
+
+    def resolve_axis(self):
+        """The picked axis in the object's local space as (origin, direction).
+
+        A fresh pick is persisted on the way out so a later redo can reuse it;
+        on the redo path the stored axis is returned. None if there is neither.
+        """
+        ends = self._axis_endpoints()
+        if ends is not None:
+            w0, w1 = ends
+            inv = self._obj.original.matrix_world.inverted()
+            origin = inv @ w0
+            direction = (inv @ w1) - origin
+            if direction.length < 1e-9:
+                return None
+            direction.normalize()
+            self.axis_origin = origin
+            self.axis_direction = direction
+            return origin, direction
+        if self._has_stored_axis():
+            return Vector(self.axis_origin), Vector(self.axis_direction)
+        return None
+
+
+class View3D_OT_node_revolve(
+    Operator, BooleanFromToolMixin, PickedAxisMixin, NodeOperator
+):
+    """Revolve a 2D profile around a picked axis"""
+
+    bl_idname = Operators.NodeRevolve
+    bl_label = "Revolve"
+
+    NODEGROUP_NAME = "CAD Sketcher Revolve"
+    # Built programmatically (not shipped as an asset); see init()/main().
+    resources = ()
+    return_to_tool = BLENDER_SELECT_TOOL
+
+    invalid_target_msg = "Select a sketch, curve or mesh profile to revolve"
+
+    angle: FloatProperty(
+        name="Angle",
+        subtype="ANGLE",
+        default=math.tau,
+        min=-math.tau,
+        max=math.tau,
+        options={"SKIP_SAVE"},
+    )
+    angular_resolution: FloatProperty(
+        name="Angular Resolution",
+        description="Maximum angle per segment; the step count adapts to the "
+        "revolve angle to keep a consistent smoothness",
+        subtype="ANGLE",
+        default=math.radians(2),
+        min=math.radians(0.5),
+        soft_max=math.radians(90),
+    )
+    flip: BoolProperty(name="Flip Direction")
+
+    # Raw picked axis (object space, un-flipped), persisted so the redo panel
+    # can re-apply the revolve without the transient axis pointer. Not
+    # SKIP_SAVE: must survive redo; a fresh invoke re-picks before main() runs.
+    axis_origin: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
+    axis_direction: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
+
+    states = (
+        *BASE_STATES,
+        state_from_args(
+            "Axis",
+            description="Click an axis, a mesh edge or a curve/sketch line to "
+            "revolve around",
+            pointer="axis",
+            types=(MeshEdge,),
+            use_create=False,
+        ),
+    )
+
+    def is_valid_target(self, obj):
+        # Curves and sketches, plus mesh profiles (edge paths) -- the node group
+        # converts mesh edges to a curve, so a poly-line/silhouette mesh works
+        # too, matching Blender's Screw modifier.
+        return obj is not None and obj.type in {"CURVE", "CURVES", "MESH"}
+
+    @staticmethod
+    def _input_ids(node_group):
+        from ..utilities.revolve_nodes import _input_ids
+
+        return _input_ids(node_group)
+
+    def init(self, context: Context, event: Event):
+        # Build the revolve node group in place of loading an asset.
+        from ..utilities.revolve_nodes import build_revolve_node_group
+
+        build_revolve_node_group()
+        if self.edit_state < 0:  # not on the eyedropper re-pick (see NodeOperator.init)
+            bpy.ops.ed.undo_push(message="Add Revolve")
+        self.reset_booleans()
+        return True
+
+    def fini(self, context: Context, succeede: bool):
+        super().fini(context, succeede)
+        if succeede:
+            self.finish_booleans(context)
+
     def read_props(self, modifier):
         # Seed the angle/resolution from the existing revolve so re-invoking on
         # the same object continues from its current sweep. The axis is re-picked
@@ -1138,42 +1196,20 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
             modifier, ids["Angular Resolution"]
         )
 
-    def _has_stored_axis(self):
-        return Vector(self.axis_direction).length > 1e-9
-
     def main(self, context):
         from ..utilities.revolve_nodes import build_revolve_node_group
 
         build_revolve_node_group()  # ensure it exists on the redo path too
-
-        # Need an axis: either freshly picked (interactive) or persisted from a
-        # previous run (redo). Without one the modifier would sit on the node
-        # group's default axis and generate a bogus revolve.
-        if self._axis_endpoints() is None and not self._has_stored_axis():
+        if not self.has_axis():
             return False
         return super().main(context)
 
     def set_props(self):
-        ends = self._axis_endpoints()
-        if ends is not None:
-            # Fresh pick: derive the raw axis in object space and persist it so a
-            # later redo can reuse it without the (now-gone) axis pointer.
-            w0, w1 = ends
-            inv = self._obj.original.matrix_world.inverted()
-            origin = inv @ w0
-            direction = (inv @ w1) - origin
-            if direction.length < 1e-9:
-                return False
-            direction.normalize()
-            self.axis_origin = origin
-            self.axis_direction = direction
-        elif self._has_stored_axis():
-            # Redo path: reuse the persisted axis.
-            origin = Vector(self.axis_origin)
-            direction = Vector(self.axis_direction)
-        else:
+        axis = self.resolve_axis()
+        if axis is None:
             self.report({"WARNING"}, "Pick a revolve axis (an edge or line)")
             return False
+        origin, direction = axis
 
         # Apply flip at write time (not baked into the stored axis) so toggling
         # it in the redo panel works.
@@ -1194,6 +1230,141 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         row.prop(self, "flip", text="", icon="ARROW_LEFTRIGHT")
         layout.prop(self, "angular_resolution")
         self.draw_boolean_settings(layout)
+
+
+class View3D_OT_node_array_circular(Operator, PickedAxisMixin, NodeOperator):
+    """Add a circular array of the selected element around a picked axis"""
+
+    bl_idname = Operators.NodeArrayCircular
+    bl_label = "Circular Array"
+
+    NODEGROUP_NAME = "CAD Sketcher Circular Array"
+    # Built programmatically (not shipped as an asset); see init()/main().
+    resources = ()
+    return_to_tool = BLENDER_SELECT_TOOL
+
+    count: IntProperty(name="Count", default=6, min=2)
+    angle: FloatProperty(
+        name="Angle",
+        description="The whole sweep the copies are spread over, or the turn "
+        "between two copies with Use Total Angle off",
+        subtype="ANGLE",
+        default=math.tau,
+        min=-math.tau,
+        max=math.tau,
+    )
+    use_total_angle: BoolProperty(
+        name="Use Total Angle",
+        description="Treat the angle as the whole sweep rather than the turn "
+        "between two copies",
+        default=True,
+    )
+    align_rotation: BoolProperty(
+        name="Align Rotation",
+        description="Turn each copy with the pattern (a bolt circle); off keeps "
+        "the original orientation while the copy travels round",
+        default=True,
+    )
+    merge: BoolProperty(name="Merge by Distance")
+    merge_distance: FloatProperty(
+        name="Merge Distance", default=0.001, min=0.0, subtype="DISTANCE"
+    )
+
+    # See PickedAxisMixin for what these hold and why they are not SKIP_SAVE.
+    axis_origin: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
+    axis_direction: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
+
+    states = (
+        *BASE_STATES,
+        state_from_args(
+            "Axis",
+            description="Click an axis, a mesh edge or a curve/sketch line to "
+            "pattern around",
+            pointer="axis",
+            types=(MeshEdge,),
+            use_create=False,
+        ),
+        state_from_args(
+            "Count",
+            description="Amount of created elements",
+            property="count",
+            interactive=True,
+            optional=True,
+            state_func="get_count",
+        ),
+    )
+
+    @staticmethod
+    def _input_ids(node_group):
+        from ..utilities.circular_array_nodes import _input_ids
+
+        return _input_ids(node_group)
+
+    def init(self, context: Context, event: Event):
+        from ..utilities.circular_array_nodes import build_circular_array_node_group
+
+        build_circular_array_node_group()
+        if self.edit_state < 0:  # not on the eyedropper re-pick (see NodeOperator.init)
+            bpy.ops.ed.undo_push(message="Add Circular Array")
+        return True
+
+    def get_count(self, context: Context, coords):
+        retval = super().state_func(context, coords)
+        return abs(retval) + 2
+
+    def read_props(self, modifier):
+        # Re-invoking on an object that already has the array continues from its
+        # current settings. The axis is re-picked each run, so it isn't read.
+        ids = self._input_ids(modifier.node_group)
+        self.count = get_modifier_input(modifier, ids["Count"])
+        self.angle = get_modifier_input(modifier, ids["Angle / Total angle"])
+        self.use_total_angle = get_modifier_input(modifier, ids["Use Total Angle"])
+        self.align_rotation = get_modifier_input(modifier, ids["Align Rotation"])
+        self.merge = get_modifier_input(modifier, ids["Merge by Distance"])
+        self.merge_distance = get_modifier_input(modifier, ids["Merge Distance"])
+
+    def main(self, context):
+        from ..utilities.circular_array_nodes import build_circular_array_node_group
+
+        build_circular_array_node_group()  # exists on the redo path too
+        if not self.has_axis():
+            return False
+        return super().main(context)
+
+    def set_props(self):
+        axis = self.resolve_axis()
+        if axis is None:
+            self.report({"WARNING"}, "Pick an axis to pattern around (an edge or line)")
+            return False
+        origin, direction = axis
+
+        m = self.modifier
+        ids = self._input_ids(m.node_group)
+        set_modifier_input(m, ids["Axis"], tuple(direction))
+        set_modifier_input(m, ids["Center"], tuple(origin))
+        set_modifier_input(m, ids["Count"], self.count)
+        set_modifier_input(m, ids["Angle / Total angle"], self.angle)
+        set_modifier_input(m, ids["Use Total Angle"], self.use_total_angle)
+        set_modifier_input(m, ids["Align Rotation"], self.align_rotation)
+        set_modifier_input(m, ids["Merge by Distance"], self.merge)
+        set_modifier_input(m, ids["Merge Distance"], self.merge_distance)
+        return True
+
+    def draw_settings(self, context):
+        # The Axis pick and Count are the framework's state rows above.
+        layout = self.layout
+        layout.prop(
+            self, "angle", text="Total Angle" if self.use_total_angle else "Step Angle"
+        )
+        layout.prop(self, "use_total_angle")
+
+        layout.separator()
+        layout.label(text="Options")
+        layout.prop(self, "align_rotation")
+        layout.prop(self, "merge")
+        sub = layout.column()
+        sub.enabled = self.merge
+        sub.prop(self, "merge_distance")
 
 
 class View3D_OT_node_boolean(Operator, NodeOperator):
@@ -1427,6 +1598,7 @@ _stateops_register, _stateops_unregister = register_stateops_factory(
     (
         View3D_OT_node_extrude,
         View3D_OT_node_array_linear,
+        View3D_OT_node_array_circular,
         View3D_OT_node_revolve,
         View3D_OT_node_boolean,
     )

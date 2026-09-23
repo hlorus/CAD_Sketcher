@@ -114,6 +114,7 @@ class TestNodeTools(BgsTestCase):
     def test_operators_registered(self):
         self.assertTrue(hasattr(bpy.ops.view3d, "slvs_node_extrude"))
         self.assertTrue(hasattr(bpy.ops.view3d, "slvs_node_array_linear"))
+        self.assertTrue(hasattr(bpy.ops.view3d, "slvs_node_array_circular"))
         self.assertTrue(hasattr(bpy.ops.view3d, "slvs_node_revolve"))
 
     def _profile_curve(self, n=5, radius=2.0, height=1.0):

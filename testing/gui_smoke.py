@@ -183,6 +183,36 @@ def main():
             global_data.hover_axis = None
             _redraw()
 
+        @_check("circular array around a picked axis")
+        def _():
+            # The tool draws the axes to pick from and hovers whole objects, both
+            # of which only run with a window. The operator is then executed
+            # straight through with the axis a pick would have stored.
+            circular_nodes = importlib.import_module(
+                f"{TARGET}.utilities.circular_array_nodes"
+            )
+            root = globals()["sketch_obj"]
+            root.select_set(True)
+            context.view_layer.objects.active = root
+
+            bpy.ops.wm.tool_set_by_id(name="sketcher.slvs_node_array_circular")
+            _redraw()
+
+            body = body_mod.body_of(root) or root
+            circular_nodes.build_circular_array_node_group()
+            bpy.ops.view3d.slvs_node_array_circular(
+                target_name=body.name,
+                axis_origin=(0.0, 0.0, 0.0),
+                axis_direction=(0.0, 0.0, 1.0),
+                count=6,
+            )
+            _redraw()
+            assert body.modifiers.get("CAD_Sketcher Circular Array") is not None, (
+                "the circular array must leave its modifier on the body"
+            )
+            bpy.ops.wm.tool_set_by_id(name="builtin.select_box")
+            _redraw()
+
         @_check("assembly created and drawn")
         def _():
             root = globals()["sketch_obj"]

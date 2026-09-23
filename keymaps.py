@@ -143,6 +143,9 @@ NODE_TOOL_KEYS = (
     (WorkSpaceTools.Extrude, Operators.NodeExtrude, "E", "E"),
     (WorkSpaceTools.Revolve, Operators.NodeRevolve, "R", "R"),
     (WorkSpaceTools.ArrayLinear, Operators.NodeArrayLinear, "D", "D"),
+    # Ctrl+Shift+C shadows Blender's Add Constraint (with Targets), which a
+    # CAD sketch has no use for.
+    (WorkSpaceTools.ArrayCircular, Operators.NodeArrayCircular, "C", "C"),
     # Ctrl+Shift+S saves as, so Add Sketch uses Ctrl+Shift+A.
     (WorkSpaceTools.AddSketch, Operators.AddSketch, "S", "A"),
 )

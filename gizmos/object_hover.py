@@ -34,6 +34,7 @@ from .utilities import context_mode_check
 _IDLE_HOVER_TYPES = {
     WorkSpaceTools.Extrude: (Object,),
     WorkSpaceTools.ArrayLinear: (Object,),
+    WorkSpaceTools.ArrayCircular: (Object,),
     WorkSpaceTools.Revolve: (Object,),
     WorkSpaceTools.ProjectGeometry: mesh_element_types,
 }

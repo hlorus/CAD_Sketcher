@@ -91,6 +91,7 @@ Available in Object Mode regardless of the active tool, also while a tool is run
 |E|Ctrl+Shift|Extrude|
 |R|Ctrl+Shift|Revolve|
 |D|Ctrl+Shift|Linear array|
+|C|Ctrl+Shift|Circular array|
 |B|Ctrl+Shift|Boolean|
 |M|Ctrl+Shift|Open the CAD Sketcher pie menu (drawing tools and constraints)|
 |Esc|Shift|Switch to Blender's Select tool|
