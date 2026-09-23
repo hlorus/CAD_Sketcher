@@ -571,8 +571,8 @@ def _refresh_cutter_display(scene: bpy.types.Scene, touched) -> None:
             update_cutter_display(obj, bodies, True)
 
 
-def ensure_part_planes(context, root: bpy.types.Object) -> list:
-    """Create (once) and return ``root``'s own base plane empties, in axis order.
+def ensure_part_plane(context, root: bpy.types.Object, axis: str):
+    """Create (once) and return ``root``'s base plane for one axis.
 
     A part that has been moved or rotated needs planes in *its* frame to sketch
     on, not the world's. They are ordinary workplane empties parented into the
@@ -580,36 +580,40 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
     workplane; they are hidden and unselectable like the origin planes so they
     stay out of the way.
 
+    One at a time, because a sketch needs only the plane it sits on: the other
+    two are worth creating when the picker offers them, not before.
+
     Created from operator context only (never a depsgraph handler, which must not
     add objects), which is why the Add Sketch tool asks for them as it starts.
     """
     from .collections import link_to_scene_root
     from .workplane import hide_managed_workplane, mark_managed_workplane
 
-    planes = []
-    created = []
-    for axis, euler in PART_PLANE_AXES:
-        empty = existing_part_plane(root, axis)
-        if empty is None:
-            empty = bpy.data.objects.new(f"{root.name} {axis}", None)
-            empty.empty_display_type = "PLAIN_AXES"
-            empty.empty_display_size = 0.25
-            empty[PART_PLANE_KEY] = axis
-            mark_managed_workplane(empty)
-            link_to_scene_root(empty, context.scene)
-            # Plain parenting, not join_part: these planes are *defined* by the
-            # part's frame, so they must inherit it rather than keep a world
-            # position of their own.
-            empty.parent = root
-            empty.matrix_parent_inverse = Matrix.Identity(4)
-            empty.matrix_basis = Euler(euler).to_matrix().to_4x4()
-            fix_transform(empty)
-            created.append(empty)
-        planes.append(empty)
+    empty = existing_part_plane(root, axis)
+    if empty is not None:
+        return empty
 
-    for empty in created:
-        hide_managed_workplane(empty, context)
-    return planes
+    euler = dict(PART_PLANE_AXES)[axis]
+    empty = bpy.data.objects.new(f"{root.name} {axis}", None)
+    empty.empty_display_type = "PLAIN_AXES"
+    empty.empty_display_size = 0.25
+    empty[PART_PLANE_KEY] = axis
+    mark_managed_workplane(empty)
+    link_to_scene_root(empty, context.scene)
+    # Plain parenting, not join_part: these planes are *defined* by the part's
+    # frame, so they must inherit it rather than keep a world position of their
+    # own.
+    empty.parent = root
+    empty.matrix_parent_inverse = Matrix.Identity(4)
+    empty.matrix_basis = Euler(euler).to_matrix().to_4x4()
+    fix_transform(empty)
+    hide_managed_workplane(empty, context)
+    return empty
+
+
+def ensure_part_planes(context, root: bpy.types.Object) -> list:
+    """``root``'s three base planes, in axis order, creating any it lacks."""
+    return [ensure_part_plane(context, root, axis) for axis, _euler in PART_PLANE_AXES]
 
 
 def part_plane_objects(context) -> list:

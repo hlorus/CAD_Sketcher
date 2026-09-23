@@ -137,17 +137,15 @@ def _own_base_plane(context: Context, body, wp_empty):
     plane that is not a datum, its XY lands on that plane). The sketch then sits
     on a real datum of the part instead of a private copy.
     """
-    from ..utilities.part import PART_PLANE_AXES, ensure_part_planes
+    from ..utilities.part import PART_PLANE_AXES, ensure_part_plane
 
     axis = _datum_axis(context, wp_empty) or "XY"
-    euler = dict(PART_PLANE_AXES)[axis]
-    frame = Euler(euler).to_matrix().to_4x4()
+    frame = Euler(dict(PART_PLANE_AXES)[axis]).to_matrix().to_4x4()
     body.matrix_basis = wp_empty.matrix_world @ frame.inverted()
 
-    planes = dict(
-        zip((a for a, _e in PART_PLANE_AXES), ensure_part_planes(context, body))
-    )
-    return planes[axis]
+    # Only the plane the sketch sits on: the other two appear when the picker
+    # offers this part's frame.
+    return ensure_part_plane(context, body, axis)
 
 
 def _datum_axis(context: Context, wp_empty):

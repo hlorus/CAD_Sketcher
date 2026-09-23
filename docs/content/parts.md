@@ -75,12 +75,13 @@ to an existing part.
 
 ## Part workplanes
 
-Every body has its own XY, XZ and YZ planes, and a sketch sits on one of them:
-drawing on the scene's XY gives you a part whose own XY lands there. Select a
-part and the Add Sketch tool offers its planes, drawn smaller, *in place of* the
-scene's, so a part that has been moved or rotated is sketched in its frame rather
-than the world's. Deselect to get the scene's planes back, which is also how you
-start a new part.
+A body has its own XY, XZ and YZ planes, and a sketch sits on one of them:
+drawing on the scene's XY gives you a part whose own XY lands there. Only the
+plane a sketch needs exists; the other two appear the first time the picker
+offers them. Select a part and the Add Sketch tool shows its planes, drawn
+smaller, *in place of* the scene's, so a part that has been moved or rotated is
+sketched in its frame rather than the world's. Deselect to get the scene's planes
+back, which is also how you start a new part.
 
 Sketching on a face makes a workplane for that face, and you can sketch on any
 empty you place yourself. Those are the only other planes: nothing creates a

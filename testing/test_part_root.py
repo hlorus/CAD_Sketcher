@@ -892,10 +892,9 @@ class TestPartRoot(BgsTestCase):
             for got, want in zip(sketch.plane_matrix, datum.matrix_world):
                 for a, b in zip(got, want):
                     self.assertAlmostEqual(a, b, places=5)
-            # Its three base planes, and nothing else.
-            planes = [c for c in body.children if PART_PLANE_KEY in c]
-            self.assertEqual(len(body.children), 3)
-            self.assertEqual(len(planes), 3)
+            # Just that one plane: a sketch does not need the other two, and
+            # the picker creates them when it offers this part's frame.
+            self.assertEqual([c for c in body.children], [plane])
 
     def test_a_plane_the_user_made_is_not_copied_either(self):
         from ..utilities.part import PART_PLANE_KEY
