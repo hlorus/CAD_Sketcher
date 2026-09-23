@@ -58,13 +58,18 @@ ORIGIN_LABEL = {
 
 
 def workplane_label(wp_obj, pick_id) -> str:
-    """The text drawn on a base plane, or "" for a plane that carries none.
+    """The text drawn on a workplane.
 
     A part's planes carry the bare axis; the scene's say "Origin", since the two
-    sets replace each other on screen. The drawing fits the label to the plane,
-    so the longer one simply renders smaller.
+    sets replace each other on screen. Any other plane says what it is called,
+    or it is an anonymous grey rectangle with nothing to tell you whose plane it
+    is. The drawing fits the label to the plane, so a longer one simply renders
+    smaller.
     """
-    return ORIGIN_LABEL.get(pick_id, "")
+    label = ORIGIN_LABEL.get(pick_id)
+    if label is not None:
+        return label
+    return wp_obj.name if wp_obj is not None else ""
 
 
 # Sequential pick IDs for non-origin empties start here

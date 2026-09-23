@@ -712,6 +712,7 @@ class TestPartRoot(BgsTestCase):
         # which frame you are about to sketch in.
         from ..utilities.part import ensure_part_planes
         from ..utilities.workplane import (
+            _EMPTY_PICK_START,
             WP_ID_PART_XY,
             WP_ID_XY,
             workplane_label,
@@ -722,6 +723,10 @@ class TestPartRoot(BgsTestCase):
         plane = ensure_part_planes(self.context, body)[0]
 
         self.assertEqual(workplane_label(plane, WP_ID_PART_XY), "XY")
+        # Anything else says whose plane it is.
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        plane = sketch.target_object.slvs_workplane
+        self.assertEqual(workplane_label(plane, _EMPTY_PICK_START), plane.name)
         self.assertEqual(
             workplane_label(self.context.scene.sketcher.wp_xy, WP_ID_XY), "Origin XY"
         )
