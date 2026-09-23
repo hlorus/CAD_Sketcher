@@ -269,10 +269,9 @@ def draw_origin_labels():
     respects ``show_origin``.
 
     A base plane says the axis, large and in the middle where the eye lands, and
-    adds whose plane it is in the outer corner while it is hovered -- the planes
-    cross on screen, so naming them all at once puts one plane's name over
-    another's axis. A plane that has only a name shows it always, since that is
-    all it has to say. The glyph raster is
+    whose plane it is just beyond its outer corner, clear of the rectangle so it
+    does not sit on the overlay. A plane that has only a name shows it there
+    too. The glyph raster is
     sized to the on-screen height so it stays crisp instead of being magnified,
     the text is mirrored when seen from behind so it never reads backwards, and
     it skips the depth test so it stays legible over geometry.
@@ -362,10 +361,7 @@ def draw_origin_labels():
                     "center",
                 )
 
-        # Whose plane it is only matters for the one you are about to pick, and
-        # the planes cross on screen: a name drawn on every plane at once lands
-        # on another plane's axis as often as not.
-        if name_lines and (hovered or axis_line is None):
+        if name_lines:
             size = raster_for(side * _NAME_HEIGHT_FACTOR)
             if size is not None:
                 dims, gap, width, height = _text_block(name_lines, size)
@@ -373,12 +369,11 @@ def draw_origin_labels():
                 scale = (side * _NAME_HEIGHT_FACTOR) / line_h
                 if width > 0.0 and width * scale > usable:
                     scale = usable / width
-                # The outer corner, and right-aligned into it: the planes are
-                # drawn in their positive quadrant, so it is the only corner
-                # where all three names land in different places (XY and XZ
-                # share the bottom-right one, and their names collide there).
-                # Seen from behind, the plane's own -X corner is on the right.
-                x = max_x - margin if sx > 0 else min_x + margin
+                # Just outside the outer corner, not on the rectangle: the
+                # overlay is translucent and the axis sits in the middle, so a
+                # name drawn inside competes with both. Flush with the outer
+                # edge, which seen from behind is the plane's own -X side.
+                x = max_x if sx > 0 else min_x
                 _draw_text_block(
                     plane_mat,
                     name_lines,
@@ -388,7 +383,7 @@ def draw_origin_labels():
                     scale,
                     sx,
                     x,
-                    max_y - margin - height * scale,
+                    max_y + margin,
                     "right",
                 )
 
