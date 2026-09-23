@@ -627,6 +627,29 @@ class TestFilletConfirm(TestCase):
         self.assertFalse(op._should_return_to_tool(False, False))
 
 
+class TestFilletConfirmKey(TestCase):
+    def test_enter_confirms_instead_of_picking(self):
+        """The framework treats Enter as a pick at the cursor; here that would
+        toggle the hovered edge off rather than end the run."""
+        from types import SimpleNamespace
+
+        from ..operators.fillet import View3D_OT_slvs_fillet_select
+        from .utils import make_operator_double
+
+        op = make_operator_double(View3D_OT_slvs_fillet_select)()
+        ended = []
+        picked = []
+        op._end = lambda context, succeede, **kw: ended.append(succeede)
+        op.main = lambda context: picked.append(True)
+
+        event = SimpleNamespace(
+            type="RET", value="PRESS", mouse_region_x=0, mouse_region_y=0
+        )
+        op.modal(bpy.context, event)
+        self.assertEqual(ended, [True], "Enter ends the run")
+        self.assertEqual(picked, [], "and picks nothing on the way out")
+
+
 class TestFilletOverlay(TestCase):
     def test_picks_of_any_filleted_object_are_drawn(self):
         """Not only the active one: the object being picked is often not selected,

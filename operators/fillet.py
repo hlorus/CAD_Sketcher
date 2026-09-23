@@ -222,6 +222,13 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
         sync_fillet_visibility(context)
         return True
 
+    def modal(self, context: Context, event: Event):
+        # Enter confirms the run. The framework otherwise treats it as a pick at
+        # the cursor, which here would toggle the hovered edge back off.
+        if event.type in {"RET", "NUMPAD_ENTER"} and event.value == "PRESS":
+            return self._end(context, True)
+        return super().modal(context, event)
+
     def _picked(self):
         """``(object, edge index)`` of the current pick, or ``(None, -1)``.
 

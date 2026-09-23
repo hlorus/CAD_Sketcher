@@ -97,7 +97,8 @@ rounded result.
 |Key|Modifier|Action|
 |:---:|---|---|
 |Lmb|-|Round the edge under the cursor, or drop it again|
-|Esc / Rmb|-|Confirm: keep the picks and go back to Blender's Select tool|
+|Enter|-|Confirm: keep the picks and go back to Blender's Select tool|
+|Esc / Rmb|-|The same: the picks are applied as they are made|
 
 ### Global Shortcuts
 Available in Object Mode regardless of the active tool, also while a tool is running.
