@@ -8,7 +8,9 @@ a decision, and the tool records it the way the bevel tool records a typed
 radius.
 """
 
-from ..model.curve_ref import CircleRef, LineRef
+from mathutils import Vector
+
+from ..model.curve_ref import CircleRef, LineRef, curve_ref
 from ..operators.offset import View3D_OT_slvs_add_offset
 from .utils import OpHarness, Sketch2dTestCase
 
@@ -93,3 +95,70 @@ class TestOffsetDimension(Sketch2dTestCase):
         op = self._offset(arc, 0.5, typed=False)
 
         self.assertEqual(op._new_path[0].ct.curve_id, center.curve_id)
+
+    def _path(self):
+        """A two-segment path to offset."""
+        a = self.add_point((0.0, 0.0))
+        b = self.add_point((4.0, 0.0))
+        c = self.add_point((4.0, 3.0))
+        return self.add_line(a, b), self.add_line(b, c)
+
+    def test_a_path_offset_holds_every_segment_at_the_same_distance(self):
+        first, _second = self._path()
+
+        self._offset(first, 1.0, typed=False)
+
+        types = [c.type for c in self._constraints()]
+        # One gauge per segment, tied together, so no segment can slide alone.
+        self.assertEqual(types.count("PARALLEL"), 2)
+        self.assertEqual(types.count("PERPENDICULAR"), 2)
+        self.assertEqual(types.count("EQUAL"), 1)
+
+    def test_the_gauges_are_construction_geometry(self):
+        first, _second = self._path()
+
+        self._offset(first, 1.0, typed=False)
+
+        perpendicular = next(
+            c for c in self._constraints() if c.type == "PERPENDICULAR"
+        )
+        gauge = curve_ref(self.sketch, perpendicular.curve_id_1)
+        self.assertTrue(gauge.construction)
+        self.assertAlmostEqual(gauge.length, 1.0, places=5)
+
+    def test_a_single_segment_offset_needs_no_gauge(self):
+        line = self.add_line(self.add_point((0.0, 0.0)), self.add_point((4.0, 0.0)))
+
+        self._offset(line, 1.0, typed=False)
+
+        types = [c.type for c in self._constraints()]
+        self.assertNotIn("PERPENDICULAR", types)
+        self.assertNotIn("EQUAL", types)
+
+    def _offset_distances(self, op):
+        """The perpendicular distance of each offset segment from its source."""
+        distances = []
+        for source, target in zip(op._sources, op._new_path):
+            direction = (source.p2.co - source.p1.co).normalized()
+            normal = Vector((-direction.y, direction.x))
+            distances.append((target.p1.co - source.p1.co).dot(normal))
+        return distances
+
+    def test_dragging_one_offset_segment_carries_the_others(self):
+        """What the gauges are for: no segment can hold its own offset."""
+        from ..curve_solver import solve_system
+
+        first, _second = self._path()
+        op = self._offset(first, 1.0, typed=False)
+        before = self._offset_distances(op)
+        self.assertAlmostEqual(before[0], before[1], places=5)
+
+        # Pull one offset segment away from its source and let the solver settle.
+        moved = op._new_path[0]
+        moved.p1.co = moved.p1.co + Vector((0.0, 1.0))
+        moved.p2.co = moved.p2.co + Vector((0.0, 1.0))
+        solve_system(self.context, sketch=self.sketch)
+
+        after = self._offset_distances(op)
+        self.assertAlmostEqual(after[0], after[1], places=4)
+        self.assertNotAlmostEqual(after[0], before[0], places=3)

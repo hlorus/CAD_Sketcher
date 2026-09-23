@@ -210,6 +210,7 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         source's center point, so there is nothing left to constrain there.
         """
         constraints = self.sketch.constraints
+        pairs = []
         for source, target in zip(
             getattr(self, "_sources", []), getattr(self, "_new_path", [])
         ):
@@ -217,6 +218,52 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
                 constraints.add_parallel(
                     curve_id_1=source.curve_id, curve_id_2=target.curve_id
                 )
+                pairs.append((source, target))
+        self._gauge_offsets(constraints, pairs)
+
+    def _gauge_offsets(self, constraints, pairs):
+        """Hold every segment the same distance from its source.
+
+        Parallel alone leaves each segment free to slide towards or away from
+        the line it was offset from, so a path ends up with a different offset
+        per segment. Each segment gets a construction line from its source's
+        start point, perpendicular to that source and ending on the offset --
+        its length is the offset distance -- and those are tied together with
+        Equal. One dimension on any of them then drives the whole offset.
+        """
+        if len(pairs) < 2:
+            return  # a single segment has nothing to be equal to
+
+        first = None
+        for source, target in pairs:
+            gauge = self._build_gauge(constraints, source, target)
+            if gauge is None:
+                continue
+            if first is None:
+                first = gauge
+                continue
+            constraints.add_equal(curve_id_1=first.curve_id, curve_id_2=gauge.curve_id)
+
+    def _build_gauge(self, constraints, source, target):
+        """The construction line measuring one segment's offset, or None."""
+        direction = source.p2.co - source.p1.co
+        if not direction.length:
+            return None
+        normal = Vector((-direction.y, direction.x)).normalized()
+        start = source.p1
+        foot = start.co + normal * (target.p1.co - start.co).dot(normal)
+
+        end = PointRef.create(self.sketch, foot, construction=True)
+        gauge = LineRef.create(self.sketch, start, end, construction=True)
+        if gauge is None:
+            return None
+        ignore_hover(end.curve_id)
+        ignore_hover(gauge.curve_id)
+        constraints.add_perpendicular(
+            curve_id_1=gauge.curve_id, curve_id_2=source.curve_id
+        )
+        constraints.add_coincident(curve_id_1=end.curve_id, curve_id_2=target.curve_id)
+        return gauge
 
     def _dimension_offset(self):
         """Dimension the offset that was just built, on its first segment.
