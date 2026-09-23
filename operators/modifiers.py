@@ -191,8 +191,28 @@ def apply_boolean(
     set_boolean_operation(mod, ids["Operation"], operation)
     set_modifier_input(mod, ids["Self Intersection"], self_intersection)
     set_modifier_input(mod, ids["Hole Tolerant"], hole_tolerant)
-    set_boolean_solver(mod, ids[SOLVER_SOCKET], solver or default_boolean_solver())
+    set_boolean_solver(mod, ids[SOLVER_SOCKET], _solver_for(body, cutter, solver))
     return mod
+
+
+def _solver_for(body, cutter, solver=None):
+    """The boolean solver to use, honouring the choice unless it would delete.
+
+    Manifold is the fast solver, but it drops an operand that is not a closed
+    volume: cutting a flat profile with it leaves nothing at all instead of a
+    profile with a hole. Exact handles that, so an open operand forces it. The
+    modifier keeps the solver as an input, so it can still be changed by hand.
+    """
+    from ..utilities.boolean_targets import is_closed_solid
+
+    chosen = solver or default_boolean_solver()
+    if chosen != "Manifold":
+        return chosen
+
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    if all(is_closed_solid(obj, depsgraph) for obj in (body, cutter)):
+        return chosen
+    return "Exact"
 
 
 class BooleanTargetItem(PropertyGroup):

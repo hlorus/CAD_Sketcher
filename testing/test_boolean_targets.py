@@ -101,6 +101,68 @@ class TestBooleanTargets(BgsTestCase):
 
         self.assertEqual(overlapping_bodies(cutter, [flat], depsgraph), [])
 
+    def test_a_filled_profile_is_still_a_target(self):
+        # Reported: a rectangle sketch, then a circle extruded through it, and
+        # the rectangle vanished. It is a valid target (a boolean cuts a hole in
+        # a flat face); what deleted it was the solver, see test_solver_choice.
+        cutter = self._box("Cutter3", (0, 0, 0))
+        me = self.data.meshes.new("Profile")
+        me.from_pydata(
+            [(-2.0, -2.0, 0.0), (2.0, -2.0, 0.0), (2.0, 2.0, 0.0), (-2.0, 2.0, 0.0)],
+            [],
+            [(0, 1, 2, 3)],
+        )
+        me.update()
+        flat = self.data.objects.new("Profile", me)
+        self.scene.collection.objects.link(flat)
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+
+        self.assertEqual(overlapping_bodies(cutter, [flat], depsgraph), [flat])
+
+    def test_the_solver_falls_back_to_exact_on_open_geometry(self):
+        # The Manifold solver drops an operand that is not a closed volume, so a
+        # flat profile cut with it comes out empty rather than holed.
+        from ..operators.modifiers import (
+            apply_boolean,
+            boolean_input_ids,
+            get_boolean_solver,
+        )
+        from ..utilities.boolean_nodes import SOLVER_SOCKET
+        from ..utilities.boolean_targets import is_closed_solid
+
+        cutter = self._box("Solid", (0, 0, 0))
+        me = self.data.meshes.new("FlatTarget")
+        me.from_pydata(
+            [(-2.0, -2.0, 0.0), (2.0, -2.0, 0.0), (2.0, 2.0, 0.0), (-2.0, 2.0, 0.0)],
+            [],
+            [(0, 1, 2, 3)],
+        )
+        me.update()
+        flat = self.data.objects.new("FlatTarget", me)
+        self.scene.collection.objects.link(flat)
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+
+        self.assertTrue(is_closed_solid(cutter, depsgraph))
+        self.assertFalse(is_closed_solid(flat, depsgraph))
+
+        mod = apply_boolean(flat, cutter, solver="Manifold")
+        ids = boolean_input_ids(mod.node_group)
+        self.assertEqual(get_boolean_solver(mod, ids[SOLVER_SOCKET]), "Exact")
+
+        # And the result is the profile with a hole in it, not nothing.
+        flat.update_tag()
+        dg = self.context.evaluated_depsgraph_get()
+        dg.update()
+        evaluated = flat.evaluated_get(dg).to_mesh()
+        self.assertGreater(len(evaluated.polygons), 0)
+
+        # A closed target keeps the fast solver.
+        solid = self._box("Target", (1, 1, 1))
+        mod = apply_boolean(solid, cutter, solver="Manifold")
+        self.assertEqual(get_boolean_solver(mod, ids[SOLVER_SOCKET]), "Manifold")
+
     def test_sketch_source_body_from_workplane_anchor(self):
         body = self._box("Body", (0, 0, 0))
         wp = self.data.objects.new("WP", None)  # empty
