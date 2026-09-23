@@ -217,6 +217,25 @@ class TestCreateOperators(Sketch2dTestCase):
         mid = arc.point_on_curve(arc.angle / 2)
         self.assertLess(mid.y, 0.0)
 
+    def test_three_point_arc_is_assumed_while_the_endpoint_is_placed(self):
+        """An arc is shown as soon as there are two points, so the endpoint is
+        placed against a real arc rather than against two loose points."""
+        from ..operators.add_arc import View3D_OT_slvs_add_arc3pt2d
+
+        h = self._harness(View3D_OT_slvs_add_arc3pt2d)
+        h.place_point((1.0, 0.0))  # start
+        h.place_point((-1.0, 0.0))  # end, the tool is still in that state
+        h.op.state_index = 1
+        h.op.redo_states(self.context)
+        self.assertTrue(h.op.main(self.context))
+
+        arc = h.op.target
+        self.assertIsInstance(arc, ArcRef)
+        # A 90 degree arc, bulging to the left of start -> end.
+        mid = arc.point_on_curve(arc.angle / 2)
+        self.assertLess(mid.y, 0.0)
+        self.assertAlmostEqual(math.degrees(arc.angle), 90.0, places=1)
+
     def test_three_point_arc_on_chord_creates_nothing(self):
         from ..operators.add_arc import View3D_OT_slvs_add_arc3pt2d
 

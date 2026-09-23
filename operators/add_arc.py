@@ -201,6 +201,8 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
             description="Pick or place ending point.",
             pointer="p2",
             types=types_point_2d,
+            # Follow the cursor, so the assumed arc is live while it is placed.
+            interactive=True,
         ),
         state_from_args(
             "Through",
@@ -226,10 +228,68 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
             return None
         return Vector(pos[:2])
 
+    # Sagitta as a fraction of the chord for the arc shown before it is shaped:
+    # (1 - cos45) / (2 sin45), a 90 degree arc.
+    _ASSUMED_BULGE = 0.2071
+
+    def _assumed_through(self, p1, p2):
+        """Where the arc passes through until the user shapes it.
+
+        The endpoint is then placed against a real arc rather than against two
+        loose points. A 90 degree arc bulging to the left of start -> end reads
+        as an arc at a glance and is short to bend either way afterwards.
+        """
+        chord = Vector(p2) - Vector(p1)
+        if not chord.length:
+            return None
+        return (Vector(p1) + Vector(p2)) / 2 + Vector(
+            (-chord.y, chord.x)
+        ) * self._ASSUMED_BULGE
+
+    def _points(self, context: Context):
+        """The start and end points, or None while the endpoint is not placed."""
+        p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
+        if p1 is None or p2 is None or not p1.valid or not p2.valid:
+            return None
+        return p1, p2
+
+    def _through_value(self, context: Context):
+        """The through point in use: the assumed one until the state is reached."""
+        if self.state_index >= 2:
+            return Vector(self.through)
+        points = self._points(context)
+        if points is None:
+            return None
+        return self._assumed_through(points[0].co, points[1].co)
+
+    def set_state(self, context: Context, index: int):
+        if index == 1:
+            # A preview runs only once every state has a value (check_props), so
+            # mark the shaping state's property as set while the endpoint is
+            # still moving. _through_value ignores it until that state is active.
+            try:
+                self.through = tuple(self.through)
+            except (AttributeError, TypeError):
+                pass  # a non-registered twin (tests) has no RNA props
+        elif index == 2:
+            # Take over the arc already on screen instead of jumping to the
+            # property's stale value until the first move shapes it.
+            assumed = self._through_value(context)
+            if assumed is not None:
+                try:
+                    self.through = assumed
+                except (AttributeError, TypeError):
+                    pass
+        super().set_state(context, index)
+
     def _arc_geometry(self, context: Context):
         """``(start, end, center, reversed)`` of the arc, or None while undefined."""
-        p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
-        result = arc_through_points(p1.co, p2.co, Vector(self.through))
+        points = self._points(context)
+        through = self._through_value(context)
+        if points is None or through is None:
+            return None
+        p1, p2 = points
+        result = arc_through_points(p1.co, p2.co, through)
         if result is None:
             return None
         center, reverse = result
@@ -257,6 +317,9 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
         target = getattr(self, "target", None)
         center = getattr(self, "_center", None)
         if target is None or not target.valid or center is None or not center.valid:
+            return False
+        # While the endpoint is still being placed it moves with the cursor too.
+        if self.state_index < 2 and not self.update_preview_point(context):
             return False
         geometry = self._arc_geometry(context)
         if geometry is None:
