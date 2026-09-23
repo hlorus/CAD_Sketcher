@@ -221,6 +221,25 @@ def _solver_for(body, cutter, solver=None):
     return "Exact"
 
 
+def select_result(context, cutter):
+    """Leave the thing the tool just made selected.
+
+    What that is depends on where the solid went: a cut joins the part it cuts,
+    and the part is what now shows the result, so that is what to hold on to. A
+    standalone solid is its own result. Never the cutter itself, which a cut
+    hides -- the user would be left holding something they cannot see.
+    """
+    from ..utilities.part import part_root_of
+
+    result = part_root_of(cutter) or cutter
+    if result.name not in context.view_layer.objects:
+        return
+    for obj in context.selected_objects:
+        obj.select_set(False)
+    result.select_set(True)
+    context.view_layer.objects.active = result
+
+
 class BooleanTargetItem(PropertyGroup):
     """One auto-detected boolean target, toggled in the extrude/revolve redo panel."""
 
@@ -360,6 +379,7 @@ class BooleanFromToolMixin:
         from ..utilities.collections import sync_part_collections
 
         sync_part_collections(context.scene)
+        select_result(context, cutter)
 
     def _apply_boolean_targets(self, cutter):
         """Apply this cutter's booleans. Returns the bodies it feeds, in order."""

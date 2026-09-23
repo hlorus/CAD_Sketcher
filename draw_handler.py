@@ -24,6 +24,9 @@ _LABEL_HEIGHT_FACTOR = 0.22
 _NAME_HEIGHT_FACTOR = 0.10
 # Space between those lines, as a fraction of one line's height.
 _LABEL_LINE_GAP = 0.2
+# How big the owner's name is next to the axis it qualifies: the axis is what
+# you are picking, the name only says whose it is.
+_NAME_SIZE_RATIO = 0.55
 # Inset of the label from the plane's outer corner, as a fraction of its side.
 _LABEL_CORNER_MARGIN = 0.08
 
@@ -278,15 +281,26 @@ def draw_origin_labels():
         s1 = location_3d_to_region_2d(region, rv3d, corner + up_world * target_h)
         if s0 is None or s1 is None:  # behind the view plane
             continue
-        blf.size(_FONT_ID, max(8, min(round((s1 - s0).length), 256)))
+        raster = max(8, min(round((s1 - s0).length), 256))
 
-        dims = [blf.dimensions(_FONT_ID, line) for line in lines]
+        # On a base plane the last line is the axis and the ones above it name
+        # the part, which is the lesser half of the label: draw it smaller.
+        sizes = [
+            raster
+            if not base or index == len(lines) - 1
+            else max(8, round(raster * _NAME_SIZE_RATIO))
+            for index in range(len(lines))
+        ]
+        dims = []
+        for line, size in zip(lines, sizes):
+            blf.size(_FONT_ID, size)
+            dims.append(blf.dimensions(_FONT_ID, line))
         line_h = max(h for _w, h in dims)
         if line_h <= 0.0:
             continue
         gap = line_h * _LABEL_LINE_GAP
         w = max(_w for _w, _h in dims)
-        h = line_h * len(lines) + gap * (len(lines) - 1)
+        h = sum(dim[1] for dim in dims) + gap * (len(lines) - 1)
 
         # Anchor the text box a margin in from the plane's top-left corner, so
         # it reads as a corner label rather than filling the plane, and always
@@ -331,12 +345,15 @@ def draw_origin_labels():
 
         with gpu.matrix.push_pop():
             gpu.matrix.multiply_matrix(mat)
-            for i, (line, _dim) in enumerate(zip(lines, dims)):
-                # Stacked downwards from the top of the box, flush left: a
-                # centred second line reads as a separate label.
-                y = h - line_h - i * (line_h + gap)
+            # Stacked downwards from the top of the box, flush left: a centred
+            # second line reads as a separate label.
+            y = h
+            for line, size, (_line_w, this_h) in zip(lines, sizes, dims):
+                y -= this_h
+                blf.size(_FONT_ID, size)
                 blf.position(_FONT_ID, 0.0, y, 0.0)
                 blf.draw(_FONT_ID, line)
+                y -= gap
 
     gpu.state.depth_test_set("LESS_EQUAL")
     gpu.state.blend_set("NONE")

@@ -976,3 +976,33 @@ class TestPartRoot(BgsTestCase):
         )
         planes = [c for c in cube.children_recursive if is_managed_workplane(c)]
         self.assertEqual(len(planes), 3)
+
+    def test_a_cut_leaves_the_part_selected(self):
+        # The cutter is hidden once it cuts, so holding it would leave the user
+        # with nothing selectable; what shows the result is the part.
+        from ..operators.modifiers import select_result
+        from ..utilities.body import body_of
+        from ..utilities.part import settle_membership
+
+        cube = self._cube("Cube")
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        cutter = body_of(sketch.target_object)
+        settle_membership(sketch.target_object, [cube], self.context)
+
+        select_result(self.context, cutter)
+
+        self.assertEqual(self.context.view_layer.objects.active, cube)
+        self.assertTrue(cube.select_get())
+        self.assertFalse(cutter.select_get())
+
+    def test_a_standalone_solid_leaves_itself_selected(self):
+        from ..operators.modifiers import select_result
+        from ..utilities.body import body_of
+
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        body = body_of(sketch.target_object)
+        mark_part_root(body)
+
+        select_result(self.context, body)
+
+        self.assertEqual(self.context.view_layer.objects.active, body)
