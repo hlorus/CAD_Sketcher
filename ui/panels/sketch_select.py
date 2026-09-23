@@ -43,12 +43,15 @@ def _anchor_name(wp) -> str:
 
 
 def part_sketches(context, root):
-    """The sketches of the part rooted at ``root``, body first.
+    """The sketches of the part rooted at ``root``, the root's own first.
 
-    The body leads because it is the sketch that made the part; the rest follow
-    in name order so the menu is stable while you work.
+    The sketch the root body is made from leads, since that is the part itself;
+    the rest follow in name order so the menu is stable while you work. Before
+    the source/body split the root *was* a sketch and led by being itself, which
+    a mesh root never is.
     """
     from ...model.sketch_ref import is_sketch_object
+    from ...utilities.body import sketch_of
     from ...utilities.part import part_root_of
 
     members = [
@@ -56,7 +59,8 @@ def part_sketches(context, root):
         for obj in context.scene.objects
         if is_sketch_object(obj) and part_root_of(obj) == root
     ]
-    members.sort(key=lambda obj: (obj != root, obj.name))
+    own = sketch_of(root)
+    members.sort(key=lambda obj: (obj != own and obj != root, obj.name))
     return members
 
 

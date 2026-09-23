@@ -137,6 +137,15 @@ def on_depsgraph_update(scene, depsgraph):
 
         reconcile_assemblies(scene)
 
+        # A body renamed in the outliner is how a part is named; carry that
+        # through to what is named after it.
+        from .utilities.body import rename_after_bodies
+
+        try:
+            rename_after_bodies(scene)
+        except Exception:
+            logger.exception("Could not follow a body rename")
+
         # Undo/redo can flatten the origin workplane empties to identity (they
         # then stack into a mushy overlap, #571); re-assert their transforms.
         # Only rewrites when drifted, so this settles in one pass.

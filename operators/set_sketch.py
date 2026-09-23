@@ -1,7 +1,7 @@
 import bpy
-from bpy.utils import register_classes_factory
 from bpy.props import StringProperty
-from bpy.types import Operator, Context
+from bpy.types import Context, Operator
+from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from .utilities import activate_sketch
@@ -23,6 +23,7 @@ class View3D_OT_slvs_set_active_sketch(Operator):
     def execute(self, context: Context):
         if not self.sketch_name:
             from ..model.sketch_ref import get_active_sketch
+
             if not get_active_sketch(context):
                 return {"PASS_THROUGH"}
             return activate_sketch(context, None, self)
@@ -30,10 +31,24 @@ class View3D_OT_slvs_set_active_sketch(Operator):
         ob = bpy.data.objects.get(self.sketch_name)
         if ob:
             from ..model.sketch_ref import is_sketch_object
+
             if is_sketch_object(ob):
                 return activate_sketch(context, ob, self)
 
         return {"CANCELLED"}
+
+
+def visibility_target(sketch_obj):
+    """What this row's eye should show or hide: the sketch's body.
+
+    A sketch is source and stays out of the viewport (see hide_sketch_curves);
+    what stands for it on screen is the mesh its geometry is realised on. Only a
+    sketch with no body of its own -- a free 3D sketch, or a file not yet
+    updated -- answers for itself.
+    """
+    from ..utilities.body import body_of
+
+    return body_of(sketch_obj) or sketch_obj
 
 
 class View3D_OT_slvs_set_sketch_visibility(Operator):
@@ -47,7 +62,7 @@ class View3D_OT_slvs_set_sketch_visibility(Operator):
     @classmethod
     def description(cls, context, properties):
         ob = bpy.data.objects.get(properties.sketch_name)
-        if ob and ob.hide_viewport:
+        if ob and visibility_target(ob).hide_viewport:
             return "Show this sketch in the viewport"
         return "Hide this sketch in the viewport"
 
@@ -55,7 +70,8 @@ class View3D_OT_slvs_set_sketch_visibility(Operator):
         ob = bpy.data.objects.get(self.sketch_name)
         if not ob:
             return {"CANCELLED"}
-        ob.hide_viewport = not ob.hide_viewport
+        target = visibility_target(ob)
+        target.hide_viewport = not target.hide_viewport
         if context.area:
             context.area.tag_redraw()
         return {"FINISHED"}

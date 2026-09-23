@@ -20,6 +20,9 @@ from mathutils import Matrix
 # The body's link back to the sketch it reads, so each can find the other without
 # searching every modifier in the file.
 BODY_SKETCH_KEY = "slvs:body_of"
+# The body name the things under it were last named after, so a rename can be
+# told from a name the user chose for one of them.
+NAMED_AFTER_KEY = "slvs:named_after"
 
 
 def is_body(obj: Optional[bpy.types.Object]) -> bool:
@@ -85,6 +88,9 @@ def _new_body(
     name = name or default_body_name()
     body = bpy.data.objects.new(name, bpy.data.meshes.new(name))
     body.data.name = body.name  # or the two number themselves apart
+    # Named after itself from the start: the rename pass follows *changes* to a
+    # body's name, and a body being built has not been renamed by anybody.
+    body[NAMED_AFTER_KEY] = body.name
     body[BODY_SKETCH_KEY] = sketch_obj
     sketch_obj.slvs_body = body
     link_to_scene_root(body, context.scene)
@@ -108,15 +114,52 @@ def name_after_body(body: bpy.types.Object, sketch_obj, plane=None) -> None:
     """
     from .part import PART_PLANE_AXES, PART_PLANE_KEY, existing_part_plane
 
-    body.data.name = body.name
-    sketch_obj.name = f"{body.name} Sketch"
-    sketch_obj.data.name = sketch_obj.name
+    _rename(body.data, body.name)
+    if sketch_obj is not None:
+        _rename(sketch_obj, f"{body.name} Sketch")
+        _rename(sketch_obj.data, sketch_obj.name)
     if plane is not None and PART_PLANE_KEY not in plane:
-        plane.name = f"{body.name} Workplane"
+        _rename(plane, f"{body.name} Workplane")
     for axis, _euler in PART_PLANE_AXES:
         base = existing_part_plane(body, axis)
         if base is not None:
-            base.name = f"{body.name} {axis}"
+            _rename(base, f"{body.name} {axis}")
+    body[NAMED_AFTER_KEY] = body.name
+
+
+def _rename(datablock, name: str) -> None:
+    """Give ``datablock`` a name, unless it has it already.
+
+    Assigning a name that is taken makes Blender append ``.001``, so a pass that
+    reassigns the name it just set would walk a body's sketch up the numbers on
+    every depsgraph update.
+    """
+    if datablock is not None and datablock.name != name:
+        datablock.name = name
+
+
+def rename_after_bodies(scene) -> bool:
+    """Follow a body rename through to what is named after it.
+
+    Renaming the body in the outliner is how a part is named, so its sketch,
+    planes and mesh follow. Only a body whose own name has changed since the
+    last pass is followed, so a name the user gave a sketch of their own accord
+    stays put.
+    """
+    from ..model.sketch_ref import get_sketches
+    from .collections import is_editable
+
+    changed = False
+    for sketch in get_sketches(scene):
+        sketch_obj = sketch.target_object
+        body = body_of(sketch_obj)
+        if body is None or body.get(NAMED_AFTER_KEY) == body.name:
+            continue
+        if not is_editable(body) or not is_editable(sketch_obj):
+            continue
+        name_after_body(body, sketch_obj, sketch_obj.slvs_workplane)
+        changed = True
+    return changed
 
 
 def remove_body(sketch_obj: bpy.types.Object) -> None:
