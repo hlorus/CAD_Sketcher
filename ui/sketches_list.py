@@ -6,17 +6,21 @@ from ..model.sketch_ref import Sketch, is_sketch_object
 
 
 def _cutting_sketches(scene) -> set:
-    """Names of the sketches currently feeding a boolean on some body.
+    """Names of the sketches whose body is currently feeding a boolean.
 
-    Gathered in one pass because the list needs it per row, and a per-row scan of
-    every object's modifiers would run as often as the panel redraws.
+    Cutters are bodies, so each is traced back to the sketch it realises: the
+    list shows sketches. Gathered in one pass because the list needs it per row,
+    and a per-row scan of every object's modifiers would run as often as the
+    panel redraws.
     """
     from ..operators.modifiers import boolean_cutters
+    from ..utilities.body import sketch_of
 
     cutting = set()
     for body in scene.objects:
         for cutter in boolean_cutters(body):
-            cutting.add(cutter.name)
+            sketch = sketch_of(cutter)
+            cutting.add(sketch.name if sketch is not None else cutter.name)
     return cutting
 
 

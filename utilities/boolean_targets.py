@@ -122,10 +122,18 @@ def candidate_bodies(context, cutter):
     would close a boolean dependency cycle (the cutter already depends on it).
     """
     from ..operators.modifiers import creates_boolean_cycle
+    from .body import body_of, sketch_of
+
+    cutter_sketch = sketch_of(cutter)
 
     result = []
     for obj in context.view_layer.objects:
         if obj == cutter or obj.type not in _BODY_TYPES:
+            continue
+        if obj == cutter_sketch:
+            continue  # a body never cuts the sketch it is made from
+        if body_of(obj) is not None:
+            # A sketch that has a body is source, not a target: its body is.
             continue
         if not obj.visible_get():
             continue

@@ -156,3 +156,24 @@ class TestDuplicatePart(BgsTestCase):
         self.assertFalse(body.select_get())
         self.assertTrue(self.context.view_layer.objects.active.select_get())
         self.assertNotEqual(self.context.view_layer.objects.active, body)
+
+    def test_a_copied_body_reads_the_copied_sketch(self):
+        # Otherwise the new part would still be shaped by the original's sketch.
+        from ..operators.add_sketch import build_sketch_on_workplane
+        from ..utilities.body import body_of, sketch_of
+        from ..utilities.part import mark_part_root
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        ensure_origin_workplane_empties(self.context)
+        sketch = build_sketch_on_workplane(
+            self.context, self.context.scene.sketcher.wp_xy
+        )
+        root = body_of(sketch.target_object)
+        mark_part_root(root)
+
+        copy = duplicate_part(self.context, root)
+        copied_sketch = sketch_of(copy)
+
+        self.assertIsNotNone(copied_sketch)
+        self.assertNotEqual(copied_sketch, sketch.target_object)
+        self.assertEqual(body_of(copied_sketch), copy)

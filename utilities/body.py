@@ -88,3 +88,17 @@ def remove_body(sketch_obj: bpy.types.Object) -> None:
         return
     sketch_obj.slvs_body = None
     bpy.data.objects.remove(body)
+
+
+def bind_body_to_sketch(body: bpy.types.Object, sketch_obj: bpy.types.Object) -> None:
+    """Point ``body``'s source modifier at ``sketch_obj``."""
+    from ..operators.modifiers import set_modifier_input
+    from .body_nodes import BODY_NODE_GROUP, body_input_ids
+
+    for modifier in body.modifiers:
+        group = getattr(modifier, "node_group", None)
+        if modifier.type != "NODES" or group is None:
+            continue
+        if group.name != BODY_NODE_GROUP:
+            continue
+        set_modifier_input(modifier, body_input_ids(group)["Sketch"], sketch_obj)

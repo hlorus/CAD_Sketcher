@@ -507,3 +507,29 @@ class TestNodeTools(BgsTestCase):
         set_modifier_input(mod, ids["Use Total Distance"], True)
         x_total = self._extent(self._eval_mesh(ob), "x")
         self.assertLess(x_total, x_spacing - 2.0)
+
+
+class TestBooleanCandidates(BgsTestCase):
+    """What a body may cut: not the sketch it is made from, nor other sources."""
+
+    def test_a_sketch_with_a_body_is_not_a_target(self):
+        from ..utilities.body import BODY_SKETCH_KEY
+        from ..utilities.boolean_targets import candidate_bodies
+
+        sketch = bpy.data.objects.new("src", bpy.data.hair_curves.new("src"))
+        self.scene.collection.objects.link(sketch)
+        body = bpy.data.objects.new("body", bpy.data.meshes.new("body"))
+        self.scene.collection.objects.link(body)
+        body[BODY_SKETCH_KEY] = sketch
+        sketch.slvs_body = body
+
+        other = bpy.data.objects.new("other", bpy.data.meshes.new("other"))
+        self.scene.collection.objects.link(other)
+        self.context.view_layer.update()
+
+        candidates = candidate_bodies(self.context, other)
+        self.assertIn(body, candidates)
+        self.assertNotIn(sketch, candidates, "source is not a target")
+
+        # And a body never cuts its own sketch.
+        self.assertNotIn(sketch, candidate_bodies(self.context, body))
