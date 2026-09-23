@@ -1,9 +1,12 @@
 # Parts and Assemblies
 
 A **part** is one thing you can move: a body together with the sketches and
-workplanes that define it. An **assembly** is a group of parts you can move as a
-whole. Both are just object parenting, so the outliner shows the real structure
-and you edit it there.
+workplanes that define it. The body is a real mesh object, and each sketch stays
+pure source whose geometry is realised on it, which is why a part exports,
+applies and edits like any other mesh.
+
+An **assembly** is a group of parts you can move as a whole. Both are just object
+parenting, so the outliner shows the real structure and you edit it there.
 
 ## In the outliner
 
@@ -14,10 +17,12 @@ each part, and objects nest under the object that carries them.
     - **Origin** &mdash; the shared XY / XZ / YZ datum planes
     - **Bracket** &mdash; an assembly collection
         - **Plate** &mdash; a part collection
-            - **Plate** &mdash; the part's body (sketch + extrude)
+            - **Plate** &mdash; the part's body: a mesh, carrying the features
+                - **Workplane** &mdash; the plane its sketch sits on
+                    - **Plate Profile** &mdash; the sketch the body is made from
                 - **Plate XY**, **Plate XZ**, **Plate YZ** &mdash; the part's own base planes
                 - **Workplane** &mdash; on a face of Plate
-                    - **Hole** &mdash; a cutter sketch, hidden while it cuts
+                    - **Hole** &mdash; a cutter sketch, and its own body
         - **Pin** &mdash; a second part in the same assembly
     - **Sketch** &mdash; global: drawn on a datum, not yet solid
 
@@ -31,13 +36,14 @@ This is also why parenting is how you change membership: drag `Sketch` onto
 
 ## Moving a part
 
-Leave the sketch (parts are moved in Object Mode), select the part's body and
-press `G` or `R`. Its sketches, workplanes and cutters follow. Scale is locked:
+Leave the sketch (parts are moved in Object Mode), select the part's body, the
+mesh, and press `G` or `R`. Its sketches, workplanes and cutters follow. Scale is
+locked:
 the solver treats a sketch's plane as a rigid frame, so a scaled part would draw
 and solve at different sizes.
 
-The object you grab is the part's first sketch, which is also its body once
-extruded, so you are moving the geometry you see rather than a helper object.
+The object you grab is the body, so you are moving the geometry you see rather
+than a helper object. The sketches that shape it are pinned within it.
 
 ## What belongs to what
 
@@ -48,8 +54,9 @@ is settled when the sketch becomes solid:
 |---|---|
 | Sketch on a body's face or on a part's workplane | Joins that part right away |
 | Sketch on a global XY/XZ/YZ plane | Stays **global**: no part, free to move |
-| Extrude or revolve with nothing to cut | The sketch roots a part of its own |
+| Extrude or revolve with nothing to cut | Its body roots a part of its own |
 | Extrude or revolve that cuts an existing body | Joins that body's part, as a cut feature |
+| Editing what a body is made of | Edit its sketch; the body follows |
 | A cut reaching bodies in several parts | Belongs to no part; if those parts share an assembly it becomes a feature of the assembly |
 
 A cut has to travel with the body it cuts, which is why it joins that part: were
