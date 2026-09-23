@@ -323,11 +323,11 @@ def draw_origin_labels():
 
         with gpu.matrix.push_pop():
             gpu.matrix.multiply_matrix(mat)
-            for i, (line, (line_w, _h)) in enumerate(zip(lines, dims)):
-                # Lines are centred in the box and stacked downwards from its top.
-                x = (w - line_w) / 2.0
+            for i, (line, _dim) in enumerate(zip(lines, dims)):
+                # Stacked downwards from the top of the box, flush left: a
+                # centred second line reads as a separate label.
                 y = h - line_h - i * (line_h + gap)
-                blf.position(_FONT_ID, x, y, 0.0)
+                blf.position(_FONT_ID, 0.0, y, 0.0)
                 blf.draw(_FONT_ID, line)
 
     gpu.state.depth_test_set("LESS_EQUAL")
