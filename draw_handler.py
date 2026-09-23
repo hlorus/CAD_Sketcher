@@ -22,9 +22,8 @@ _LABEL_HEIGHT_FACTOR = 0.22
 # A plane that is not a base plane is a lesser thing to pick, so its name is
 # drawn smaller.
 _NAME_HEIGHT_FACTOR = 0.10
-# How far the name is inset from the plane's corner, in corner margins: enough
-# that it reads as inside the rectangle with air around it, rather than sitting
-# against its edge.
+# Extra inset from the edge the name ends at, in corner margins: right-aligned
+# text otherwise runs up against that edge. The top keeps the plain margin.
 _NAME_INSET = 2.5
 # Space between those lines, as a fraction of one line's height.
 _LABEL_LINE_GAP = 0.2
@@ -373,9 +372,8 @@ def draw_origin_labels():
                 scale = (side * _NAME_HEIGHT_FACTOR) / line_h
                 if width > 0.0 and width * scale > usable:
                     scale = usable / width
-                # Inset from the outer corner, so the name sits inside the
-                # rectangle rather than running over its edge. Seen from behind
-                # the outer side is the plane's own -X one.
+                # In the outer corner, held off the edge the text ends at.
+                # Seen from behind the outer side is the plane's own -X one.
                 inset = margin * _NAME_INSET
                 x = max_x - inset if sx > 0 else min_x + inset
                 _draw_text_block(
@@ -387,7 +385,7 @@ def draw_origin_labels():
                     scale,
                     sx,
                     x,
-                    max_y - inset - height * scale,
+                    max_y - margin - height * scale,
                     "right",
                 )
 
