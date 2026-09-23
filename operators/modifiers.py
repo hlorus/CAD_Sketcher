@@ -550,13 +550,10 @@ class NodeOperator(Operator3d):
 
     def _update_pick_hover(self, context, coords):
         from .. import global_data
-        from ..gizmos.object_hover import detect_hover
+        from ..gizmos.object_hover import publish_hover
 
-        element = detect_hover(context, coords, global_data.hover_types)
-        if element != global_data.hover_element:
-            global_data.hover_element = element
-            if context.area:
-                context.area.tag_redraw()
+        if publish_hover(context, coords, global_data.hover_types) and context.area:
+            context.area.tag_redraw()
 
     def resolved_object(self):
         """The object to operate on: the live/restored pointer, else the

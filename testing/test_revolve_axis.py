@@ -223,3 +223,19 @@ class TestRevolveAxis(BgsTestCase):
             self.assertAlmostEqual(
                 _distance_to_segment(point.xy, start.xy, end.xy), 0.0, places=4
             )
+
+    def test_the_re_pick_modal_publishes_the_same_hover(self):
+        # A gizmo gets no mouse events while a modal runs, so the edit re-pick
+        # does its own hover; it went through a path that knew only about mesh
+        # elements, so the axes never lit up while re-picking.
+        import inspect
+
+        from ..gizmos.object_hover import publish_hover
+        from ..operators.modifiers import NodeOperator
+
+        self.assertIn(
+            "publish_hover",
+            inspect.getsource(NodeOperator._update_pick_hover),
+            "the modal must use the shared hover path",
+        )
+        self.assertIn("detect_axis_hover", inspect.getsource(publish_hover))
