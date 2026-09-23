@@ -719,7 +719,11 @@ def _bodies_by_cutter(scene: bpy.types.Scene) -> dict:
 
 
 def _has_solid_feature(obj: bpy.types.Object) -> bool:
-    """Whether a sketch has been made solid (an extrude or revolve modifier)."""
+    """Whether this has been made solid (an extrude or revolve modifier).
+
+    Asked of the transform owner, not the sketch: the stack lives on the body a
+    sketch is realised on.
+    """
     from .extrude_nodes import EXTRUDE_NODE_GROUP
     from .revolve_nodes import REVOLVE_NODE_GROUP
 
@@ -765,7 +769,9 @@ def needs_part_migration(scene: bpy.types.Scene) -> bool:
         if part_root_of(transform_owner(obj)) is not None:
             continue
         source = sketch_source_body(sketch)
-        if (source is not None and source != obj) or _has_solid_feature(obj):
+        if (source is not None and source != obj) or _has_solid_feature(
+            transform_owner(obj)
+        ):
             return True
     return False
 
@@ -805,7 +811,7 @@ def migrate_parts(scene: bpy.types.Scene) -> bool:
             changed = True
             continue
 
-        if _has_solid_feature(obj):
+        if _has_solid_feature(owner):
             promote_to_root(owner)
             changed = True
 
