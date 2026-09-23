@@ -26,6 +26,11 @@ stateful_op_running = False
 # True while Shift is held during a draw modal -> bypass geometry snapping live.
 snap_bypass = False
 
+# True while a state is picking a revolve axis: the base planes' own directions
+# are drawn as lines to aim at, and the one under the cursor is published here.
+axis_picker = False
+hover_axis = None
+
 # Guards re-entry while the depsgraph handler writes face-anchored workplane
 # matrices (setting matrix_world itself triggers depsgraph_update_post).
 updating_face_wp = False
@@ -36,6 +41,7 @@ draw_handle = None
 hover_draw_handle = None
 icon_draw_handle = None
 origin_label_draw_handle = None
+axis_draw_handle = None
 
 COPY_BUFFER = {}
 

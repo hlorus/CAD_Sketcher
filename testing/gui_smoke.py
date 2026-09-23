@@ -134,6 +134,32 @@ def main():
             build_sketch_on_workplane(context, planes[0])
             _redraw()
 
+        @_check("revolve axes drawn and picked")
+        def _():
+            from mathutils import Vector
+
+            workplane_mod = importlib.import_module(f"{TARGET}.utilities.workplane")
+            global_data = importlib.import_module(f"{TARGET}.global_data")
+            root = globals()["sketch_obj"]
+            ensure_part_planes(context, root)
+            root.select_set(True)
+            context.view_layer.objects.active = root
+
+            # What the Axis state switches on: the pass runs for real.
+            global_data.axis_picker = True
+            _redraw()
+            plane, index, pick_id = next(
+                iter(workplane_mod.iter_axis_candidates(context))
+            )
+            global_data.hover_axis = pick_id
+            _redraw()
+            start, end = workplane_mod.axis_endpoints(plane, index, context)
+            assert (end - start).length > 0.0, "an axis needs a direction"
+            assert isinstance(start, Vector)
+            global_data.axis_picker = False
+            global_data.hover_axis = None
+            _redraw()
+
         @_check("assembly created and drawn")
         def _():
             root = globals()["sketch_obj"]

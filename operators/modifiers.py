@@ -996,7 +996,8 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         *BASE_STATES,
         state_from_args(
             "Axis",
-            description="Click a mesh edge or curve/sketch line to revolve around",
+            description="Click an axis, a mesh edge or a curve/sketch line to "
+            "revolve around",
             pointer="axis",
             types=(MeshEdge,),
             use_create=False,
@@ -1026,8 +1027,21 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         return True
 
     def fini(self, context: Context, succeede: bool):
+        from .. import global_data
+
+        global_data.axis_picker = False
+        global_data.hover_axis = None
         if succeede:
             self.finish_booleans(context)
+
+    def set_state(self, context: Context, index: int):
+        super().set_state(context, index)
+        # The axes are only worth drawing while one is being picked.
+        from .. import global_data
+
+        global_data.axis_picker = self.get_states()[index].name == "Axis"
+        if not global_data.axis_picker:
+            global_data.hover_axis = None
 
     def get_point(self, context, index):
         # The axis is a picked edge, resolved to endpoints in set_props; there
@@ -1042,7 +1056,9 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         result = super().pick_element(context, coords)
         if result is not None:
             return result
+
         from ..utilities.view import curve_segment_under_cursor
+        from ..utilities.workplane import hit_test_axis
 
         radius = 12.0 * context.preferences.system.ui_scale
         hit = curve_segment_under_cursor(context, coords, radius)
@@ -1050,10 +1066,25 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
             obj, point_index = hit
             self.state_data["type"] = MeshEdge
             return obj.name, point_index
+
+        # A base plane's own direction: revolving around a part's X or Z is the
+        # common case, and there is rarely an edge lying on it to click instead.
+        # The plane empty is the pointer, so the axis follows the part it is in.
+        from .. import global_data
+
+        pick_id, plane, index = hit_test_axis(context, coords, radius)
+        global_data.hover_axis = pick_id
+        if plane is not None:
+            self.state_data["type"] = MeshEdge
+            return plane.name, index
         return None
 
     def _axis_endpoints(self):
-        """World endpoints of the picked axis edge (mesh or curve), or None."""
+        """World endpoints of the picked axis, or None.
+
+        A mesh edge, a curve segment, or one of a base plane's own directions
+        (picked as the plane empty plus which direction it is).
+        """
         try:
             ob_name, index = self.get_state_pointer(index=1, implicit=True)
         except Exception:
@@ -1061,6 +1092,10 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         ob = bpy.data.objects.get(ob_name)
         if ob is None:
             return None
+        if ob.type == "EMPTY":
+            from ..utilities.workplane import axis_endpoints
+
+            return axis_endpoints(ob, index)
         if ob.type in {"CURVE", "CURVES"}:
             pts = getattr(ob.data, "points", None)
             if pts is None or index + 1 >= len(pts):
