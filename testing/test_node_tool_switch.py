@@ -10,6 +10,7 @@ from unittest import TestCase
 from ..declarations import BLENDER_SELECT_TOOL, WorkSpaceTools
 from ..operators.add_sketch import View3D_OT_slvs_add_sketch
 from ..operators.modifiers import (
+    View3D_OT_node_array_circular,
     View3D_OT_node_array_linear,
     View3D_OT_node_extrude,
     View3D_OT_node_revolve,
@@ -22,6 +23,7 @@ class TestReturnToTool(TestCase):
             View3D_OT_node_extrude,
             View3D_OT_node_revolve,
             View3D_OT_node_array_linear,
+            View3D_OT_node_array_circular,
         ):
             self.assertEqual(op.return_to_tool, BLENDER_SELECT_TOOL, op.__name__)
 

@@ -79,6 +79,7 @@ class Operators(str, Enum):
     Offset = "view3d.slvs_offset"
     NodeExtrude = "view3d.slvs_node_extrude"
     NodeArrayLinear = "view3d.slvs_node_array_linear"
+    NodeArrayCircular = "view3d.slvs_node_array_circular"
     NodeRevolve = "view3d.slvs_node_revolve"
     NodeBoolean = "view3d.slvs_node_boolean"
     ProjectGeometry = "view3d.slvs_project_geometry"
@@ -149,6 +150,7 @@ class WorkSpaceTools(str, Enum):
     ProjectGeometry = "sketcher.slvs_project_geometry"
     Extrude = "sketcher.slvs_node_extrude"
     ArrayLinear = "sketcher.slvs_node_array_linear"
+    ArrayCircular = "sketcher.slvs_node_array_circular"
     Revolve = "sketcher.slvs_node_revolve"
 
 

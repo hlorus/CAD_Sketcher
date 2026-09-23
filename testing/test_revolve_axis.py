@@ -212,7 +212,7 @@ class TestRevolveAxis(BgsTestCase):
     def test_the_negative_half_picks_too(self):
         # Reported: the axes draw both ways from the frame but only highlighted
         # and picked on the positive side, because the hit test ran on a ray.
-        from ..utilities.workplane import _distance_to_segment
+        from ..utilities.workplane import distance_to_segment
 
         plane, index = axis_by_pick_id(self.context, AXIS_ID_X)
         start, end = axis_endpoints(plane, index, self.context)
@@ -221,7 +221,7 @@ class TestRevolveAxis(BgsTestCase):
         # A point a little way along each half lies on the tested segment.
         for point in (middle + (end - middle) * 0.5, middle + (start - middle) * 0.5):
             self.assertAlmostEqual(
-                _distance_to_segment(point.xy, start.xy, end.xy), 0.0, places=4
+                distance_to_segment(point.xy, start.xy, end.xy), 0.0, places=4
             )
 
     def test_the_re_pick_modal_publishes_the_same_hover(self):

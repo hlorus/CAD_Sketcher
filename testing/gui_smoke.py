@@ -183,6 +183,86 @@ def main():
             global_data.hover_axis = None
             _redraw()
 
+        @_check("circular array around a picked axis")
+        def _():
+            # The tool draws the axes to pick from and hovers whole objects, both
+            # of which only run with a window. The operator is then executed
+            # straight through with the axis a pick would have stored.
+            circular_nodes = importlib.import_module(
+                f"{TARGET}.utilities.circular_array_nodes"
+            )
+            root = globals()["sketch_obj"]
+            root.select_set(True)
+            context.view_layer.objects.active = root
+
+            bpy.ops.wm.tool_set_by_id(name="sketcher.slvs_node_array_circular")
+            _redraw()
+
+            body = body_mod.body_of(root) or root
+            circular_nodes.build_circular_array_node_group()
+            bpy.ops.view3d.slvs_node_array_circular(
+                target_name=body.name,
+                axis_origin=(0.0, 0.0, 0.0),
+                axis_direction=(0.0, 0.0, 1.0),
+                count=6,
+            )
+            _redraw()
+            assert body.modifiers.get("CAD_Sketcher Circular Array") is not None, (
+                "the circular array must leave its modifier on the body"
+            )
+            bpy.ops.wm.tool_set_by_id(name="builtin.select_box")
+            _redraw()
+
+        @_check("linear array follows the axis under the cursor")
+        def _():
+            # The drag snap needs a real region (screen-space hit tests and a
+            # raycast), so it can only be exercised here.
+            from bpy_extras.view3d_utils import location_3d_to_region_2d
+            from mathutils import Vector as _V
+
+            modifiers = importlib.import_module(f"{TARGET}.operators.modifiers")
+            workplane_mod = importlib.import_module(f"{TARGET}.utilities.workplane")
+            global_data = importlib.import_module(f"{TARGET}.global_data")
+
+            root = globals()["sketch_obj"]
+            root.select_set(True)
+            context.view_layer.objects.active = root
+
+            global_data.axis_picker = True
+            _redraw()  # the axes have to be drawn to be followed
+            plane, index, _pick_id = next(
+                iter(workplane_mod.iter_axis_candidates(context))
+            )
+            start, end = workplane_mod.axis_endpoints(plane, index, context)
+
+            view = _view3d_context()
+            region = view["region"]
+            rv3d = view["space_data"].region_3d
+            # A point along the axis, away from its middle where all three cross.
+            on_axis = start + (end - start) * 0.75
+            coords = location_3d_to_region_2d(region, rv3d, on_axis)
+            assert coords is not None, "the axis must be in view"
+
+            probe = type("_Probe", (modifiers.AxisOverlayMixin,), {})()
+            with bpy.context.temp_override(**view):
+                ends = probe.axis_under_cursor(bpy.context, _V(coords))
+            global_data.axis_picker = False
+            global_data.hover_axis = None
+            _redraw()
+
+            assert ends is not None, "the axis under the cursor must be found"
+            followed = (ends[1] - ends[0]).normalized()
+            wanted = (end - start).normalized()
+            assert abs(followed.dot(wanted)) > 0.99, (
+                f"followed {followed[:]}, expected {wanted[:]}"
+            )
+            offset = modifiers.offset_along_axis(
+                root.matrix_world.inverted(), ends, on_axis
+            )
+            assert offset is not None and offset.length > 0.0, (
+                "a drag along the axis must give an offset"
+            )
+
         @_check("assembly created and drawn")
         def _():
             root = globals()["sketch_obj"]

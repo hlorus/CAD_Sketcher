@@ -90,7 +90,7 @@ Available in Object Mode regardless of the active tool, also while a tool is run
 |A|Ctrl+Shift|Add sketch / leave the active sketch|
 |E|Ctrl+Shift|Extrude|
 |R|Ctrl+Shift|Revolve|
-|D|Ctrl+Shift|Linear array|
+|D|Ctrl+Shift|Array (linear or circular, whichever the toolbar shows)|
 |B|Ctrl+Shift|Boolean|
 |M|Ctrl+Shift|Open the CAD Sketcher pie menu (drawing tools and constraints)|
 |Esc|Shift|Switch to Blender's Select tool|

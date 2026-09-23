@@ -13,6 +13,7 @@ from .add_rectangle import (
     VIEW3D_T_slvs_add_rectangle_center,
 )
 from .add_sketch import VIEW3D_T_slvs_add_sketch
+from .array_circular import VIEW3D_T_slvs_node_array_circular
 from .array_linear import VIEW3D_T_slvs_node_array_linear
 from .bevel import VIEW3D_T_slvs_bevel
 from .extrude import VIEW3D_T_slvs_node_extrude
@@ -125,11 +126,18 @@ add(
     separator=False,
     group=False,
 )
+# Both array tools share one toolbar button with a flyout, the linear one
+# leading: it needs no axis, so it is the simpler of the two to reach for.
 add(
     VIEW3D_T_slvs_node_array_linear,
     visibility=ToolGroup.NON_SKETCH,
     separator=False,
-    group=False,
+    group=True,
+)
+add(
+    VIEW3D_T_slvs_node_array_circular,
+    visibility=ToolGroup.NON_SKETCH,
+    after={WorkSpaceTools.ArrayLinear.value},
 )
 
 

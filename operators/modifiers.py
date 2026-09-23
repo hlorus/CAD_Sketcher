@@ -785,6 +785,233 @@ class View3D_OT_node_extrude(Operator, BooleanFromToolMixin, NodeOperator):
         self.draw_boolean_settings(layout)
 
 
+class AxisOverlayMixin:
+    """Draw the axes on offer while the state that works off one is running.
+
+    The concrete operator names that state in ``AXIS_STATE``: the axes are drawn
+    (and the one under the cursor highlighted by the hover gizmo) for as long as
+    it runs, and put away when the run ends. What the axes are is up to
+    ``utilities.workplane``: the frame of the part in focus, or the world's.
+    """
+
+    AXIS_STATE = "Axis"
+
+    def fini(self, context: Context, succeede: bool):
+        self._show_axes(False)
+
+    def set_state(self, context: Context, index: int):
+        super().set_state(context, index)
+        self._show_axes(self.get_states()[index].name == self.AXIS_STATE)
+
+    def _prepare_pick_ui(self, context):
+        # A re-pick starts in one state without running the tool from the top,
+        # so the axes have to be asked for here as well.
+        super()._prepare_pick_ui(context)
+        self._show_axes(self.get_states()[self.edit_state].name == self.AXIS_STATE)
+
+    def _maintain_pick_ui(self, context):
+        # The redo-panel re-run calls fini() behind this modal, which puts the
+        # axes away again; ask for them back every event, as the base class does
+        # for the rest of the pick UI.
+        super()._maintain_pick_ui(context)
+        self._show_axes(self.get_states()[self.edit_state].name == self.AXIS_STATE)
+
+    def _finish_pick_ui(self, context):
+        super()._finish_pick_ui(context)
+        self._show_axes(False)
+
+    @staticmethod
+    def _show_axes(visible: bool):
+        """Draw the axes on offer, or put them away (see draw_axis_candidates)."""
+        from .. import global_data
+
+        global_data.axis_picker = visible
+        if not visible:
+            global_data.hover_axis = None
+
+    def axis_under_cursor(self, context, coords):
+        """World endpoints of the axis-like line under the cursor, or None.
+
+        A drawn frame axis, a curve/sketch segment or a mesh edge -- the same
+        things a revolve axis can be picked from. Everything is judged in screen
+        space, so hovering a face is not the same as hovering its edges.
+        """
+        from ..utilities.view import curve_segment_under_cursor
+        from ..utilities.workplane import axis_endpoints, hit_test_axis
+
+        radius = 12.0 * context.preferences.system.ui_scale
+
+        _pick_id, plane, index = hit_test_axis(context, coords, radius)
+        if plane is not None:
+            return axis_endpoints(plane, index, context)
+
+        hit = curve_segment_under_cursor(context, coords, radius)
+        if hit is not None:
+            obj, point_index = hit
+            points = getattr(obj.data, "points", None)
+            if points is not None and point_index + 1 < len(points):
+                mw = obj.matrix_world
+                return (
+                    mw @ Vector(points[point_index].position),
+                    mw @ Vector(points[point_index + 1].position),
+                )
+
+        return self._mesh_edge_under_cursor(context, coords, radius)
+
+    @staticmethod
+    def _mesh_edge_under_cursor(context, coords, radius):
+        """World endpoints of a mesh edge within ``radius`` pixels, or None."""
+        from bpy_extras.view3d_utils import location_3d_to_region_2d
+
+        from ..stateful_operator.utilities.geometry import (
+            evaluated_surface_mesh,
+            get_mesh_element,
+        )
+        from ..utilities.workplane import distance_to_segment
+
+        ob, element, index = get_mesh_element(context, coords, edge=True)
+        if ob is None or element != "EDGE":
+            return None
+
+        with evaluated_surface_mesh(context, ob) as (me, mw):
+            if me is None or index >= len(me.edges):
+                return None
+            i0, i1 = me.edges[index].vertices
+            ends = (mw @ me.vertices[i0].co, mw @ me.vertices[i1].co)
+
+        # The raycast hits anywhere on a face, so the nearest edge of that face
+        # can be far from the cursor: only a line the cursor is actually on
+        # counts as the axis to follow.
+        region, rv3d = context.region, context.region_data
+        on_screen = [location_3d_to_region_2d(region, rv3d, end) for end in ends]
+        if any(point is None for point in on_screen):
+            return None
+        if distance_to_segment(Vector(coords), *on_screen) > radius:
+            return None
+        return ends
+
+
+class PickedAxisMixin(AxisOverlayMixin):
+    """Pick an axis to work around: an edge, a curve/sketch line or a base axis.
+
+    Mixed into the revolve and circular-array operators. The concrete operator
+    declares the two properties below (so they register on that operator), puts
+    an ``Axis`` pointer state at ``AXIS_STATE_INDEX`` and reads the result with
+    ``resolve_axis``:
+
+        axis_origin: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
+        axis_direction: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
+
+    They hold the raw picked axis in object space so the redo panel can re-apply
+    the run without the transient axis pointer; hence no SKIP_SAVE.
+    """
+
+    AXIS_STATE_INDEX = 1
+
+    def get_point(self, context, index):
+        # The axis is a picked edge, resolved to endpoints in set_props; there
+        # is no entity to return here.
+        return None
+
+    def pick_element(self, context, coords):
+        # Mesh edges pick through the framework (object-agnostic now). Curves
+        # aren't ray-castable, so fall back to the shared screen-space
+        # curve-segment pick -- the same one the hover gizmo uses, so the
+        # highlight and the pick agree.
+        from ..utilities.view import curve_segment_under_cursor
+        from ..utilities.workplane import hit_test_axis
+
+        radius = 12.0 * context.preferences.system.ui_scale
+
+        # A base plane's own direction, first: the axes are drawn on top and run
+        # through the part they belong to, so there is nearly always geometry
+        # behind them, and the mesh pick would always win. The plane empty is
+        # the pointer, so the axis follows the part it is in.
+        _pick_id, plane, index = hit_test_axis(context, coords, radius)
+        if plane is not None:
+            self.state_data["type"] = MeshEdge
+            return plane.name, index
+
+        result = super().pick_element(context, coords)
+        if result is not None:
+            return result
+
+        hit = curve_segment_under_cursor(context, coords, radius)
+        if hit is not None:
+            obj, point_index = hit
+            self.state_data["type"] = MeshEdge
+            return obj.name, point_index
+        return None
+
+    def _axis_endpoints(self):
+        """World endpoints of the picked axis, or None.
+
+        A mesh edge, a curve segment, or one of a base plane's own directions
+        (picked as the plane empty plus which direction it is).
+        """
+        try:
+            ob_name, index = self.get_state_pointer(
+                index=self.AXIS_STATE_INDEX, implicit=True
+            )
+        except Exception:
+            return None
+        ob = bpy.data.objects.get(ob_name)
+        if ob is None:
+            return None
+        if ob.type == "EMPTY":
+            from ..utilities.workplane import axis_endpoints
+
+            return axis_endpoints(ob, index)
+        if ob.type in {"CURVE", "CURVES"}:
+            pts = getattr(ob.data, "points", None)
+            if pts is None or index + 1 >= len(pts):
+                return None
+            mw = ob.matrix_world
+            return mw @ Vector(pts[index].position), mw @ Vector(
+                pts[index + 1].position
+            )
+        eob = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        me = eob.data
+        if not hasattr(me, "edges") or index >= len(me.edges):
+            return None
+        i0, i1 = me.edges[index].vertices
+        mw = eob.matrix_world
+        return mw @ Vector(me.vertices[i0].co), mw @ Vector(me.vertices[i1].co)
+
+    def _has_stored_axis(self):
+        return Vector(self.axis_direction).length > 1e-9
+
+    def has_axis(self):
+        """Whether the run has an axis at all: freshly picked or persisted.
+
+        Without one the modifier would sit on the node group's default axis and
+        generate something the user never asked for.
+        """
+        return self._axis_endpoints() is not None or self._has_stored_axis()
+
+    def resolve_axis(self):
+        """The picked axis in the object's local space as (origin, direction).
+
+        A fresh pick is persisted on the way out so a later redo can reuse it;
+        on the redo path the stored axis is returned. None if there is neither.
+        """
+        ends = self._axis_endpoints()
+        if ends is not None:
+            w0, w1 = ends
+            inv = self._obj.original.matrix_world.inverted()
+            origin = inv @ w0
+            direction = (inv @ w1) - origin
+            if direction.length < 1e-9:
+                return None
+            direction.normalize()
+            self.axis_origin = origin
+            self.axis_direction = direction
+            return origin, direction
+        if self._has_stored_axis():
+            return Vector(self.axis_origin), Vector(self.axis_direction)
+        return None
+
+
 def second_array_axis(offset: Vector, offset_2: Vector) -> tuple:
     """Direction and spacing of an array's second axis.
 
@@ -800,7 +1027,21 @@ def second_array_axis(offset: Vector, offset_2: Vector) -> tuple:
     return perpendicular.normalized(), offset.length
 
 
-class View3D_OT_node_array_linear(Operator, NodeOperator):
+def offset_along_axis(inverse, ends, hit) -> Vector:
+    """The array offset for a drag that followed the axis ``ends``.
+
+    All three come in world space (``inverse`` is the object's inverted matrix);
+    the offset comes back in the object's local space, pointing along the axis
+    and as long as the drag reached along it. None if the axis is degenerate.
+    """
+    direction = (inverse @ ends[1]) - (inverse @ ends[0])
+    if direction.length < 1e-9:
+        return None
+    direction.normalize()
+    return direction * (inverse @ hit).dot(direction)
+
+
+class View3D_OT_node_array_linear(Operator, AxisOverlayMixin, NodeOperator):
     """Add a linear array of the selected element"""
 
     bl_idname = Operators.NodeArrayLinear
@@ -810,6 +1051,9 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
     # Built programmatically (not shipped as an asset); see init().
     resources = ()
     return_to_tool = BLENDER_SELECT_TOOL
+    # The axes are on offer for the whole drag: hovering one makes the array
+    # follow it (see get_offset).
+    AXIS_STATE = "Offset"
 
     def init(self, context: Context, event: Event):
         from ..utilities.array_nodes import build_array_node_group
@@ -890,6 +1134,17 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
                 return Vector((0.0, 0.0, 0.0))
             return inv @ res[0]
 
+        # Hovering one of the axes on offer (or an edge, or a sketch line): the
+        # array runs along it and the drag only says how far, which is how a row
+        # is put on an existing direction instead of eyeballed.
+        ends = self.axis_under_cursor(context, coords)
+        if ends is not None:
+            res = intersect_line_line(*ends, ray_o, ray_o + ray_dir)
+            if res is not None:
+                offset = offset_along_axis(inv, ends, res[0])
+                if offset is not None:
+                    return offset
+
         # Free drag: project onto the view-facing plane through the origin.
         view_dir = context.region_data.view_rotation @ Vector((0.0, 0.0, -1.0))
         hit = intersect_line_plane(ray_o, ray_o + ray_dir, origin, view_dir)
@@ -951,7 +1206,9 @@ class View3D_OT_node_array_linear(Operator, NodeOperator):
         sub.prop(self, "merge_distance")
 
 
-class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
+class View3D_OT_node_revolve(
+    Operator, BooleanFromToolMixin, PickedAxisMixin, NodeOperator
+):
     """Revolve a 2D profile around a picked axis"""
 
     bl_idname = Operators.NodeRevolve
@@ -1024,107 +1281,9 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         return True
 
     def fini(self, context: Context, succeede: bool):
-        self._show_axes(False)
+        super().fini(context, succeede)
         if succeede:
             self.finish_booleans(context)
-
-    def set_state(self, context: Context, index: int):
-        super().set_state(context, index)
-        self._show_axes(self.get_states()[index].name == "Axis")
-
-    def _prepare_pick_ui(self, context):
-        # A re-pick starts in one state without running the tool from the top,
-        # so the axes have to be asked for here as well.
-        super()._prepare_pick_ui(context)
-        self._show_axes(self.get_states()[self.edit_state].name == "Axis")
-
-    def _maintain_pick_ui(self, context):
-        # The redo-panel re-run calls fini() behind this modal, which puts the
-        # axes away again; ask for them back every event, as the base class does
-        # for the rest of the pick UI.
-        super()._maintain_pick_ui(context)
-        self._show_axes(self.get_states()[self.edit_state].name == "Axis")
-
-    def _finish_pick_ui(self, context):
-        super()._finish_pick_ui(context)
-        self._show_axes(False)
-
-    @staticmethod
-    def _show_axes(visible: bool):
-        """Draw the axes on offer, or put them away (see draw_axis_candidates)."""
-        from .. import global_data
-
-        global_data.axis_picker = visible
-        if not visible:
-            global_data.hover_axis = None
-
-    def get_point(self, context, index):
-        # The axis is a picked edge, resolved to endpoints in set_props; there
-        # is no entity to return here.
-        return None
-
-    def pick_element(self, context, coords):
-        # Mesh edges pick through the framework (object-agnostic now). Curves
-        # aren't ray-castable, so fall back to the shared screen-space
-        # curve-segment pick -- the same one the hover gizmo uses, so the
-        # highlight and the pick agree.
-        from ..utilities.view import curve_segment_under_cursor
-        from ..utilities.workplane import hit_test_axis
-
-        radius = 12.0 * context.preferences.system.ui_scale
-
-        # A base plane's own direction, first: the axes are drawn on top and run
-        # through the part they belong to, so there is nearly always geometry
-        # behind them, and the mesh pick would always win. The plane empty is
-        # the pointer, so the axis follows the part it is in.
-        _pick_id, plane, index = hit_test_axis(context, coords, radius)
-        if plane is not None:
-            self.state_data["type"] = MeshEdge
-            return plane.name, index
-
-        result = super().pick_element(context, coords)
-        if result is not None:
-            return result
-
-        hit = curve_segment_under_cursor(context, coords, radius)
-        if hit is not None:
-            obj, point_index = hit
-            self.state_data["type"] = MeshEdge
-            return obj.name, point_index
-        return None
-
-    def _axis_endpoints(self):
-        """World endpoints of the picked axis, or None.
-
-        A mesh edge, a curve segment, or one of a base plane's own directions
-        (picked as the plane empty plus which direction it is).
-        """
-        try:
-            ob_name, index = self.get_state_pointer(index=1, implicit=True)
-        except Exception:
-            return None
-        ob = bpy.data.objects.get(ob_name)
-        if ob is None:
-            return None
-        if ob.type == "EMPTY":
-            from ..utilities.workplane import axis_endpoints
-
-            return axis_endpoints(ob, index)
-        if ob.type in {"CURVE", "CURVES"}:
-            pts = getattr(ob.data, "points", None)
-            if pts is None or index + 1 >= len(pts):
-                return None
-            mw = ob.matrix_world
-            return mw @ Vector(pts[index].position), mw @ Vector(
-                pts[index + 1].position
-            )
-        eob = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
-        me = eob.data
-        if not hasattr(me, "edges") or index >= len(me.edges):
-            return None
-        i0, i1 = me.edges[index].vertices
-        mw = eob.matrix_world
-        return mw @ Vector(me.vertices[i0].co), mw @ Vector(me.vertices[i1].co)
 
     def read_props(self, modifier):
         # Seed the angle/resolution from the existing revolve so re-invoking on
@@ -1138,42 +1297,20 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
             modifier, ids["Angular Resolution"]
         )
 
-    def _has_stored_axis(self):
-        return Vector(self.axis_direction).length > 1e-9
-
     def main(self, context):
         from ..utilities.revolve_nodes import build_revolve_node_group
 
         build_revolve_node_group()  # ensure it exists on the redo path too
-
-        # Need an axis: either freshly picked (interactive) or persisted from a
-        # previous run (redo). Without one the modifier would sit on the node
-        # group's default axis and generate a bogus revolve.
-        if self._axis_endpoints() is None and not self._has_stored_axis():
+        if not self.has_axis():
             return False
         return super().main(context)
 
     def set_props(self):
-        ends = self._axis_endpoints()
-        if ends is not None:
-            # Fresh pick: derive the raw axis in object space and persist it so a
-            # later redo can reuse it without the (now-gone) axis pointer.
-            w0, w1 = ends
-            inv = self._obj.original.matrix_world.inverted()
-            origin = inv @ w0
-            direction = (inv @ w1) - origin
-            if direction.length < 1e-9:
-                return False
-            direction.normalize()
-            self.axis_origin = origin
-            self.axis_direction = direction
-        elif self._has_stored_axis():
-            # Redo path: reuse the persisted axis.
-            origin = Vector(self.axis_origin)
-            direction = Vector(self.axis_direction)
-        else:
+        axis = self.resolve_axis()
+        if axis is None:
             self.report({"WARNING"}, "Pick a revolve axis (an edge or line)")
             return False
+        origin, direction = axis
 
         # Apply flip at write time (not baked into the stored axis) so toggling
         # it in the redo panel works.
@@ -1194,6 +1331,141 @@ class View3D_OT_node_revolve(Operator, BooleanFromToolMixin, NodeOperator):
         row.prop(self, "flip", text="", icon="ARROW_LEFTRIGHT")
         layout.prop(self, "angular_resolution")
         self.draw_boolean_settings(layout)
+
+
+class View3D_OT_node_array_circular(Operator, PickedAxisMixin, NodeOperator):
+    """Add a circular array of the selected element around a picked axis"""
+
+    bl_idname = Operators.NodeArrayCircular
+    bl_label = "Circular Array"
+
+    NODEGROUP_NAME = "CAD Sketcher Circular Array"
+    # Built programmatically (not shipped as an asset); see init()/main().
+    resources = ()
+    return_to_tool = BLENDER_SELECT_TOOL
+
+    count: IntProperty(name="Count", default=6, min=2)
+    angle: FloatProperty(
+        name="Angle",
+        description="The whole sweep the copies are spread over, or the turn "
+        "between two copies with Use Total Angle off",
+        subtype="ANGLE",
+        default=math.tau,
+        min=-math.tau,
+        max=math.tau,
+    )
+    use_total_angle: BoolProperty(
+        name="Use Total Angle",
+        description="Treat the angle as the whole sweep rather than the turn "
+        "between two copies",
+        default=True,
+    )
+    align_rotation: BoolProperty(
+        name="Align Rotation",
+        description="Turn each copy with the pattern (a bolt circle); off keeps "
+        "the original orientation while the copy travels round",
+        default=True,
+    )
+    merge: BoolProperty(name="Merge by Distance")
+    merge_distance: FloatProperty(
+        name="Merge Distance", default=0.001, min=0.0, subtype="DISTANCE"
+    )
+
+    # See PickedAxisMixin for what these hold and why they are not SKIP_SAVE.
+    axis_origin: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
+    axis_direction: FloatVectorProperty(size=3, subtype="XYZ", options={"HIDDEN"})
+
+    states = (
+        *BASE_STATES,
+        state_from_args(
+            "Axis",
+            description="Click an axis, a mesh edge or a curve/sketch line to "
+            "pattern around",
+            pointer="axis",
+            types=(MeshEdge,),
+            use_create=False,
+        ),
+        state_from_args(
+            "Count",
+            description="Amount of created elements",
+            property="count",
+            interactive=True,
+            optional=True,
+            state_func="get_count",
+        ),
+    )
+
+    @staticmethod
+    def _input_ids(node_group):
+        from ..utilities.circular_array_nodes import _input_ids
+
+        return _input_ids(node_group)
+
+    def init(self, context: Context, event: Event):
+        from ..utilities.circular_array_nodes import build_circular_array_node_group
+
+        build_circular_array_node_group()
+        if self.edit_state < 0:  # not on the eyedropper re-pick (see NodeOperator.init)
+            bpy.ops.ed.undo_push(message="Add Circular Array")
+        return True
+
+    def get_count(self, context: Context, coords):
+        retval = super().state_func(context, coords)
+        return abs(retval) + 2
+
+    def read_props(self, modifier):
+        # Re-invoking on an object that already has the array continues from its
+        # current settings. The axis is re-picked each run, so it isn't read.
+        ids = self._input_ids(modifier.node_group)
+        self.count = get_modifier_input(modifier, ids["Count"])
+        self.angle = get_modifier_input(modifier, ids["Angle / Total angle"])
+        self.use_total_angle = get_modifier_input(modifier, ids["Use Total Angle"])
+        self.align_rotation = get_modifier_input(modifier, ids["Align Rotation"])
+        self.merge = get_modifier_input(modifier, ids["Merge by Distance"])
+        self.merge_distance = get_modifier_input(modifier, ids["Merge Distance"])
+
+    def main(self, context):
+        from ..utilities.circular_array_nodes import build_circular_array_node_group
+
+        build_circular_array_node_group()  # exists on the redo path too
+        if not self.has_axis():
+            return False
+        return super().main(context)
+
+    def set_props(self):
+        axis = self.resolve_axis()
+        if axis is None:
+            self.report({"WARNING"}, "Pick an axis to pattern around (an edge or line)")
+            return False
+        origin, direction = axis
+
+        m = self.modifier
+        ids = self._input_ids(m.node_group)
+        set_modifier_input(m, ids["Axis"], tuple(direction))
+        set_modifier_input(m, ids["Center"], tuple(origin))
+        set_modifier_input(m, ids["Count"], self.count)
+        set_modifier_input(m, ids["Angle / Total angle"], self.angle)
+        set_modifier_input(m, ids["Use Total Angle"], self.use_total_angle)
+        set_modifier_input(m, ids["Align Rotation"], self.align_rotation)
+        set_modifier_input(m, ids["Merge by Distance"], self.merge)
+        set_modifier_input(m, ids["Merge Distance"], self.merge_distance)
+        return True
+
+    def draw_settings(self, context):
+        # The Axis pick and Count are the framework's state rows above.
+        layout = self.layout
+        layout.prop(
+            self, "angle", text="Total Angle" if self.use_total_angle else "Step Angle"
+        )
+        layout.prop(self, "use_total_angle")
+
+        layout.separator()
+        layout.label(text="Options")
+        layout.prop(self, "align_rotation")
+        layout.prop(self, "merge")
+        sub = layout.column()
+        sub.enabled = self.merge
+        sub.prop(self, "merge_distance")
 
 
 class View3D_OT_node_boolean(Operator, NodeOperator):
@@ -1427,6 +1699,7 @@ _stateops_register, _stateops_unregister = register_stateops_factory(
     (
         View3D_OT_node_extrude,
         View3D_OT_node_array_linear,
+        View3D_OT_node_array_circular,
         View3D_OT_node_revolve,
         View3D_OT_node_boolean,
     )
