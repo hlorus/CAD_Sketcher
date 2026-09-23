@@ -1,16 +1,16 @@
 import logging
 import math
 
-from bpy.types import Operator, Context
-from bpy.props import FloatProperty
+from bpy.props import BoolProperty, FloatProperty
+from bpy.types import Context, Operator
 from mathutils import Vector
 
-from ..model.curve_ref import CurveRef, PointRef, LineRef, ArcRef, CircleRef
 from ..declarations import Operators
-from ..stateful_operator.utilities.register import register_stateops_factory
+from ..model.curve_ref import ArcRef, CircleRef, CurveRef, LineRef, PointRef
 from ..stateful_operator.state import state_from_args
+from ..stateful_operator.utilities.register import register_stateops_factory
+from ..utilities.intersect import ElementTypes, get_intersections
 from ..utilities.view import refresh
-from ..utilities.intersect import get_intersections, ElementTypes
 from .base_2d import Operator2d
 from .utilities import ignore_hover
 
@@ -43,6 +43,7 @@ def _get_offset_elements(topo, ref, offset):
 
 # State types: accept any segment CurveRef or legacy entity type
 from ..model.categories import SEGMENT
+
 _segment_types = SEGMENT
 
 
@@ -54,6 +55,12 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
     bl_options = {"REGISTER", "UNDO"}
 
     distance: FloatProperty(name="Distance", subtype="DISTANCE", unit="LENGTH")
+    dimension_distance: BoolProperty(
+        name="Dimension Distance",
+        description=(
+            "Add a dimension holding the offset (on when the distance is typed)"
+        ),
+    )
 
     states = (
         state_from_args(
@@ -71,6 +78,13 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         ),
     )
 
+    def evaluate_state(self, context: Context, event, triggered):
+        # A typed distance is a deliberate value, so keep it as a dimension; a
+        # free drag is not.
+        if self.state_index == 1 and self._numeric.is_active:
+            self.dimension_distance = True
+        return super().evaluate_state(context, event, triggered)
+
     def main(self, context: Context):
         sketch = self.sketch
         entity = self.entity
@@ -87,6 +101,8 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             new_circle = CircleRef.create(sketch, new_ct, entity.radius + distance)
             if new_circle:
                 ignore_hover(new_circle.curve_id)
+            self._sources = [entity]
+            self._new_path = [new_circle] if new_circle else []
             refresh(context)
             return True
 
@@ -116,8 +132,12 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             if not conn_pt:
                 return False
 
-            offset_a = _get_offset_elements(topo, seg, _inverted_dist(seg_dir, distance))
-            offset_b = _get_offset_elements(topo, neighbour, _inverted_dist(neighbour_dir, distance))
+            offset_a = _get_offset_elements(
+                topo, seg, _inverted_dist(seg_dir, distance)
+            )
+            offset_b = _get_offset_elements(
+                topo, neighbour, _inverted_dist(neighbour_dir, distance)
+            )
 
             if not offset_a or not offset_b:
                 return False
@@ -158,6 +178,7 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
 
         # Create segments
         use_construction = context.scene.sketcher.use_construction
+        self._sources = list(segments)
         self._new_path = []
         for i, seg in enumerate(segments):
             i_start = (i - 1 if is_cyclic else i) % len(segments)
@@ -174,7 +195,33 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
         return True
 
     def fini(self, context: Context, succeede: bool):
-        pass
+        if succeede and self.dimension_distance:
+            self._dimension_offset()
+
+    def _dimension_offset(self):
+        """Dimension the offset that was just built, on its first segment.
+
+        Measured from the new geometry (``init=True``), which was built at the
+        typed distance. A concentric arc or circle takes a radius instead: its
+        offset is the difference in radius, which a distance cannot express.
+        """
+        new_path = getattr(self, "_new_path", None)
+        sources = getattr(self, "_sources", None)
+        if not new_path or not sources:
+            return
+
+        constraints = self.sketch.constraints
+        source, target = sources[0], new_path[0]
+        if isinstance(target, (ArcRef, CircleRef)):
+            constraints.add_diameter(
+                init=True, curve_id_1=target.curve_id, setting=True
+            )
+        elif isinstance(target, LineRef) and isinstance(source, LineRef):
+            constraints.add_distance(
+                init=True,
+                curve_id_1=target.p1.curve_id,
+                curve_id_2=source.curve_id,
+            )
 
 
 register, unregister = register_stateops_factory((View3D_OT_slvs_add_offset,))
