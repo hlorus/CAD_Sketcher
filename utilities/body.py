@@ -51,24 +51,19 @@ def ensure_body(context, sketch_obj: bpy.types.Object) -> bpy.types.Object:
     mean handing the part's root (and its transform) over mid-edit.
     """
     from ..model.sketch_ref import is_sketch_object
-    from .curve_data import _ensure_convert_modifier
 
     assert is_sketch_object(sketch_obj), "ensure_body: not a sketch"
 
     existing = body_of(sketch_obj)
     if existing is not None:
         return existing
-
-    body = _new_body(context, sketch_obj)
-    # Then the usual conversion, now running on a mesh object.
-    _ensure_convert_modifier(body)
-    return body
+    return _new_body(context, sketch_obj)
 
 
 def _new_body(context, sketch_obj: bpy.types.Object) -> bpy.types.Object:
     """A bare body bound to ``sketch_obj``: linked, placed, reading the sketch."""
-    from .body_nodes import BODY_NODE_GROUP, body_input_ids, build_body_node_group
     from .collections import link_to_scene_root
+    from .curve_data import _ensure_convert_modifier
 
     body = bpy.data.objects.new("Part", bpy.data.meshes.new("Part"))
     body.data.name = body.name  # or the two number themselves apart
@@ -76,16 +71,12 @@ def _new_body(context, sketch_obj: bpy.types.Object) -> bpy.types.Object:
     sketch_obj.slvs_body = body
     link_to_scene_root(body, context.scene)
 
-    # Object Info reads in the body's local space, so matching the transforms
-    # keeps the geometry planar locally and correct in the world.
+    # The convert group reads the sketch in the body's local space, so matching
+    # the transforms keeps the geometry planar locally and correct in the world.
     body.matrix_basis = sketch_obj.matrix_world.copy()
 
-    group = build_body_node_group()
-    source = body.modifiers.new(BODY_NODE_GROUP, "NODES")
-    source.node_group = group
-    from ..operators.modifiers import set_modifier_input
-
-    set_modifier_input(source, body_input_ids(group)["Sketch"], sketch_obj)
+    _ensure_convert_modifier(body)
+    bind_body_to_sketch(body, sketch_obj)
     return body
 
 
@@ -114,17 +105,19 @@ def remove_body(sketch_obj: bpy.types.Object) -> None:
 
 
 def bind_body_to_sketch(body: bpy.types.Object, sketch_obj: bpy.types.Object) -> None:
-    """Point ``body``'s source modifier at ``sketch_obj``."""
+    """Point ``body``'s convert modifier at the sketch it is built from."""
     from ..operators.modifiers import set_modifier_input
-    from .body_nodes import BODY_NODE_GROUP, body_input_ids
+    from .convert_nodes import CONVERT_NODE_GROUP, SKETCH_INPUT, input_identifier
 
     for modifier in body.modifiers:
         group = getattr(modifier, "node_group", None)
         if modifier.type != "NODES" or group is None:
             continue
-        if group.name != BODY_NODE_GROUP:
+        if group.name != CONVERT_NODE_GROUP:
             continue
-        set_modifier_input(modifier, body_input_ids(group)["Sketch"], sketch_obj)
+        identifier = input_identifier(group, SKETCH_INPUT)
+        if identifier is not None:
+            set_modifier_input(modifier, identifier, sketch_obj)
 
 
 def _copy_modifier(source, body: bpy.types.Object):
@@ -255,7 +248,7 @@ def migrate_bodies(context, scene) -> bool:
 
     Idempotent: a sketch that already has a body is left alone.
     """
-    from ..model.sketch_ref import get_sketches
+    from ..model.sketch_ref import get_sketches, hide_sketch_curves
     from .collections import is_editable
 
     changed = False
@@ -265,12 +258,19 @@ def migrate_bodies(context, scene) -> bool:
             continue
 
         body = _new_body(context, sketch_obj)
+        # The sketch's own convert modifier carries the settings the file was
+        # drawn with, so it replaces the fresh one the body was given.
+        for modifier in list(body.modifiers):
+            body.modifiers.remove(modifier)
         for modifier in list(sketch_obj.modifiers):
             _copy_modifier(modifier, body)
             sketch_obj.modifiers.remove(modifier)
+        bind_body_to_sketch(body, sketch_obj)
 
         _redirect_to_body(scene, sketch_obj, body)
         _rehome_onto_body(context, sketch_obj, body)
+        # What the user sees is the body now; the curves would only double it.
+        hide_sketch_curves(sketch_obj)
         changed = True
 
     return changed

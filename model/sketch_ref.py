@@ -18,6 +18,9 @@ _IS_3D = "is_3d_sketch"
 # so a linked duplicate (which shares the data) can be told from its source (see
 # utilities.consumable).
 _OWNER = "slvs:sketch_owner"
+# Marks a sketch we took out of the viewport ourselves, so the overlay can keep
+# drawing it while Blender does not draw its curves.
+_MANAGED_HIDE = "slvs:managed_hide"
 
 
 class Sketch:
@@ -137,6 +140,10 @@ class Sketch:
         active = get_active_sketch(context)
         if active and active._obj == self._obj:
             return True
+        if self._obj.get(_MANAGED_HIDE, False):
+            # We hid the curves so they do not double up on the body's mesh; the
+            # sketch is still ours to draw, unless the user hid it themselves.
+            return not self._obj.hide_get()
         # visible_get() covers the eye-icon hide and collection visibility, not
         # just hide_viewport (the monitor icon) -- so an eye-hidden sketch isn't
         # drawn or pickable, matching the workplane overlay behaviour.
@@ -256,6 +263,18 @@ def poll_active_2d_sketch(context) -> bool:
     if obj is None:
         return False
     return not Sketch(obj).is_3d
+
+
+def hide_sketch_curves(sketch_obj) -> None:
+    """Take a sketch's curves out of the viewport, leaving it to the overlay.
+
+    The geometry the user sees is the body's mesh, drawn in the same place: left
+    visible the curves sit on top of it as a second outline. ``hide_viewport``
+    is what instances of a part honour (the eye is view-layer state only), and
+    the body's modifier reads the sketch anyway, so it stays evaluated.
+    """
+    sketch_obj[_MANAGED_HIDE] = True
+    sketch_obj.hide_viewport = True
 
 
 def set_active_sketch(context, sketch_or_obj):

@@ -62,7 +62,7 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     are; one that starts a part roots it and owns its own transform.
     Returns the wrapped :class:`Sketch`.
     """
-    from ..model.sketch_ref import Sketch, stamp_sketch_props
+    from ..model.sketch_ref import Sketch, hide_sketch_curves, stamp_sketch_props
 
     # Create sketch as a Curves object (parent provides the transform)
     curve = bpy.data.hair_curves.new("Sketch")
@@ -125,6 +125,7 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     from ..utilities.body import name_after_body
 
     name_after_body(body, sketch_obj, plane if starts_a_part else None)
+    hide_sketch_curves(sketch_obj)
 
     sketch = Sketch(sketch_obj)
 
