@@ -119,3 +119,22 @@ class TestBodyMigration(Sketch2dTestCase):
         self.assertEqual(body.data.name, "Bracket")
         self.assertEqual(obj.name, "Bracket Sketch")
         self.assertEqual(obj.slvs_workplane.name, "Bracket Workplane")
+
+    def test_a_linked_boolean_group_does_not_stop_the_update(self):
+        # From a real file: a boolean group linked from a library keeps whatever
+        # interface it was built with, so its Cutter socket may not be there at
+        # all. Reading it raised and took the whole update down with it.
+        obj = self._legacy_sketch()
+        cube = self._cube("target")
+        for existing in list(bpy.data.node_groups):
+            if existing.name == "CAD Sketcher Boolean":
+                existing.name = "CAD Sketcher Boolean.real"
+        stale = bpy.data.node_groups.new("CAD Sketcher Boolean", "GeometryNodeTree")
+        stale.interface.new_socket(
+            "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+        )
+        modifier = cube.modifiers.new("CAD_Sketcher Boolean", "NODES")
+        modifier.node_group = stale
+
+        self.assertTrue(migrate_bodies(self.context, self.scene))
+        self.assertIsNotNone(body_of(obj))

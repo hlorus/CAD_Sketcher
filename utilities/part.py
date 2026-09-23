@@ -1052,7 +1052,9 @@ def _redirect_references(copy: bpy.types.Object, copies: dict) -> None:
             continue
         if group.name != BOOLEAN_NODE_GROUP:
             continue
-        cutter_id = boolean_input_ids(group)["Cutter"]
+        cutter_id = boolean_input_ids(group).get("Cutter")
+        if cutter_id is None:
+            continue  # a linked group, stuck at whatever interface it was built with
         cutter = get_modifier_input(modifier, cutter_id)
         if cutter is not None and cutter.name in copies:
             set_modifier_input(modifier, cutter_id, copies[cutter.name])

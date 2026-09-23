@@ -197,7 +197,12 @@ def _redirect_to_body(scene, sketch_obj: bpy.types.Object, body: bpy.types.Objec
                 continue
             if group.name != BOOLEAN_NODE_GROUP:
                 continue
-            cutter_id = boolean_input_ids(group)["Cutter"]
+            # A linked group cannot be rebuilt to the current interface, so it
+            # may not have the socket at all: leave such a modifier alone rather
+            # than failing the whole update.
+            cutter_id = boolean_input_ids(group).get("Cutter")
+            if cutter_id is None:
+                continue
             if get_modifier_input(modifier, cutter_id) == sketch_obj:
                 set_modifier_input(modifier, cutter_id, body)
 

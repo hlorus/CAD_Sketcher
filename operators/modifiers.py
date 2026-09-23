@@ -131,7 +131,13 @@ def boolean_cutters(obj):
         group = getattr(m, "node_group", None)
         if m.type != "NODES" or group is None or group.name != BOOLEAN_NODE_GROUP:
             continue
-        cutter = get_modifier_input(m, boolean_input_ids(group)["Cutter"])
+        # A linked group keeps the interface it was built with, so the socket
+        # may not be there at all; reading it is not worth an exception in a
+        # handler-driven path.
+        cutter_id = boolean_input_ids(group).get("Cutter")
+        if cutter_id is None:
+            continue
+        cutter = get_modifier_input(m, cutter_id)
         if cutter is not None:
             cutters.append(cutter)
     return cutters
