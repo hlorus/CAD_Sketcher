@@ -41,6 +41,48 @@ def _segment_dist(ref, inverted, distance):
     return -signed if isinstance(ref, (ArcRef, CircleRef)) else signed
 
 
+def _corner_direction(topo, ref, inverted, at):
+    """Where the offset corner sits relative to the source corner.
+
+    The offset runs along one side of each segment, so its corner is off in the
+    direction both segments agree on: their offset normals added up. Two
+    candidate intersections of the same pair of offset elements can be the same
+    distance from the corner (a symmetric layout), and then only the direction
+    tells them apart.
+    """
+    normal = topo.normal_at(ref, at)
+    return normal * _segment_dist(ref, inverted, 1.0)
+
+
+def _pick_corner(topo, candidates, corner_co, first, second, distance):
+    """The intersection that continues the offset path, or None.
+
+    Candidates that fall outside a source arc's angular range are dropped: the
+    offset of an arc spans the same angles, so an intersection beyond its ends
+    belongs to another part of the circle. What is left is ranked by how well it
+    follows the direction the offset runs in, then by distance.
+    """
+    candidates = list(candidates)
+    if not candidates:
+        return None
+
+    inside = [
+        pt
+        for pt in candidates
+        if topo.is_inside(first[0], pt) and topo.is_inside(second[0], pt)
+    ]
+    if inside:
+        candidates = inside
+
+    direction = _corner_direction(topo, first[0], first[1], corner_co)
+    direction = direction + _corner_direction(topo, second[0], second[1], corner_co)
+    if direction.length:
+        direction = direction.normalized()
+        expected = Vector(corner_co[:2]) + direction * abs(distance)
+        return min(candidates, key=lambda pt: (pt - expected).length)
+    return min(candidates, key=lambda pt: (pt - Vector(corner_co[:2])).length)
+
+
 def _get_offset_elements(topo, ref, offset):
     """Get offset geometry description for intersection calculations."""
     if isinstance(ref, LineRef):
@@ -153,15 +195,18 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             if not offset_a or not offset_b:
                 return False
 
-            intersections = sorted(
+            corner = _pick_corner(
+                topo,
                 get_intersections(offset_a, offset_b),
-                key=lambda pt: (pt - conn_pt.co).length,
+                conn_pt.co,
+                (seg, seg_dir),
+                (neighbour, neighbour_dir),
+                distance,
             )
-
-            if not intersections:
+            if corner is None:
                 return False
 
-            point_coords.append(intersections[0])
+            point_coords.append(corner)
 
         # Create points
         points = [PointRef.create(sketch, co) for co in point_coords]
@@ -196,7 +241,6 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             i_end = (i_start + 1) % len(points)
             p1 = points[i_start]
             p2 = points[i_end]
-
             new_seg = topo.create_like(seg, p1, p2, construction=use_construction)
             if new_seg:
                 ignore_hover(new_seg.curve_id)

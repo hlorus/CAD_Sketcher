@@ -99,3 +99,20 @@ class TestOffsetGeometry(Sketch2dTestCase):
         for ref in op._new_path:
             self.assertNotIn(ref.curve_id, before)
             self.assertTrue(curve_ref(self.sketch, ref.curve_id).valid)
+
+    def test_an_arc_walked_backwards_keeps_its_sweep(self):
+        """Picking the far end of a path walks its arc from end to start. The
+        offset arc still has to take the same way round as its source."""
+        a = self.add_point((-4.0, 0.0))
+        b = self.add_point((-2.0, 0.0))
+        c = self.add_point((0.0, 2.0))
+        d = self.add_point((0.0, 4.0))
+        self.add_line(a, b)
+        source_arc = self.add_arc(self.add_point((-2.0, 2.0)), b, c)
+        last = self.add_line(c, d)
+        self.assertAlmostEqual(math.degrees(source_arc.angle), 90.0, places=3)
+
+        op = self._offset(last, 0.5)
+
+        arc = self._new(op, ArcRef)[0]
+        self.assertAlmostEqual(math.degrees(arc.angle), 90.0, places=3)
