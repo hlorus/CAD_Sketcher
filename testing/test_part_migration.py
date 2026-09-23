@@ -141,7 +141,11 @@ class TestPartMigration(Sketch2dTestCase):
         self.assertTrue(needs_part_migration(self.scene))
 
         bpy.ops.view3d.slvs_migrate_legacy()
-        self.assertTrue(is_part_root(obj))
+        # The update also gives the sketch a body, and that is what roots the
+        # part: a part is anchored in the mesh its sketches are realised on.
+        from ..utilities.body import body_of
+
+        self.assertTrue(is_part_root(body_of(obj)))
         self.assertFalse(needs_part_migration(self.scene))
 
     def test_nothing_happens_on_file_load(self):
@@ -211,5 +215,7 @@ class TestPartMigration(Sketch2dTestCase):
         self._place_on(obj, self._legacy_plane())
         self._add_extrude(obj)
 
+        from ..utilities.body import body_of
+
         bpy.ops.view3d.slvs_migrate_legacy()
-        self.assertTrue(is_part_root(obj))
+        self.assertTrue(is_part_root(body_of(obj)))

@@ -142,8 +142,8 @@ def get_hovered(context: Context, *types):
 
     for t in types:
         # Direct CurveRef subclass check
-        is_curve_ref_type = (
-            isinstance(t, type) and issubclass(t, (PointRef, LineRef, ArcRef, CircleRef))
+        is_curve_ref_type = isinstance(t, type) and issubclass(
+            t, (PointRef, LineRef, ArcRef, CircleRef)
         )
         if is_curve_ref_type and isinstance(ref, t):
             return ref
@@ -239,18 +239,26 @@ def activate_sketch(context: Context, sketch_obj, operator: Operator):
         refresh_curve_geometry(last)
 
     if sketch_obj is None and last:
-        select_target_ob(context, last)
+        select_result_ob(context, last)
 
     return {"FINISHED"}
 
 
-def select_target_ob(context, sketch):
-    target_ob = sketch.target_object
+def select_result_ob(context, sketch):
+    """Leave a sketch with what it made selected: its body.
 
+    The sketch object itself is source, hidden and not something to grab; the
+    body is the mesh the user sees and moves. A sketch from a file that has not
+    been updated yet has no body and still carries its own result.
+    """
+    from ..utilities.body import body_of
+
+    target_ob = sketch.target_object
     bpy.ops.object.select_all(action="DESELECT")
     if not target_ob:
         return
 
-    if target_ob.name in context.view_layer.objects:
-        target_ob.select_set(True)
-        context.view_layer.objects.active = target_ob
+    ob = body_of(target_ob) or target_ob
+    if ob.name in context.view_layer.objects:
+        ob.select_set(True)
+        context.view_layer.objects.active = ob

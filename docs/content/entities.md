@@ -1,4 +1,7 @@
-Entities are the basic elements which are used to draw geometry in CAD Sketcher. They differ from regular blender mesh or curve elements which means native blender tools aren't able to interact with it as long as they aren't converted. See the chapter [integration](integration.md) for further details on how to process extension specific geometry.
+Entities are the basic elements which are used to draw geometry in CAD Sketcher.
+They are not mesh or curve elements, so native Blender tools do not act on them
+directly; what those tools work on is the [body](integration.md) the sketch's
+geometry is realised on.
 
 Entities are defined by a set of parameters and pointers to other entities which are editable at any point in time. This allows non-destructive workflows and also ensures that geometry is resolution independent. A curve will always follow a given radius no matter how it's transformed. Entities can be created with the various [Workspacetools](user_interface.md#workspacetools).
 
@@ -27,7 +30,7 @@ There are different types of entities, some of them apply in 2 dimensional space
 
 >Entity types follow the implementation of [solvespace](https://solvespace.readthedocs.io/en/latest/entities/index.html).
 
-> Only 2D entities can be converted later, check the chapter [integration](integration.md) for details.
+> Only a 2D sketch is realised on a body, see [integration](integration.md).
 
 ::: CAD_Sketcher.model.types.SlvsPoint3D
 

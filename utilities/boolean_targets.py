@@ -38,15 +38,26 @@ def sketch_source_body(sketch):
     return source if isinstance(source, bpy.types.Object) else None
 
 
-def _world_geometry_map(depsgraph, wanted):
+def _is_closed(polys) -> bool:
+    """Whether polygons bound a volume: every edge shared by exactly two faces."""
+    used = {}
+    for poly in polys:
+        for i, a in enumerate(poly):
+            b = poly[(i + 1) % len(poly)]
+            edge = (a, b) if a < b else (b, a)
+            used[edge] = used.get(edge, 0) + 1
+    return bool(used) and all(count == 2 for count in used.values())
+
+
+def _world_geometry_map(depsgraph, wanted, closed_only=False):
     """Map each object in ``wanted`` to ``(bvh, aabb_min, aabb_max)`` in world space.
 
     Reads the *evaluated* geometry from depsgraph instances in a single pass. This
     is what makes it work for a sketch: its extrude/revolve modifier OUTPUTS a mesh
     from a Curves object, and that mesh surfaces as a depsgraph instance rather
     than on the evaluated object (``to_mesh``/``new_from_object`` raise "does not
-    have geometry data" there). Objects yielding no faces (a flat, unextruded
-    profile) are simply absent from the map.
+    have geometry data" there). Objects yielding no faces (an unfilled profile)
+    are simply absent from the map.
     """
     from ..stateful_operator.utilities.geometry import instance_origin
 
@@ -74,6 +85,8 @@ def _world_geometry_map(depsgraph, wanted):
 
     result = {}
     for obj, (verts, polys) in accum.items():
+        if closed_only and not _is_closed(polys):
+            continue
         lo = Vector(
             (min(v.x for v in verts), min(v.y for v in verts), min(v.z for v in verts))
         )
@@ -90,13 +103,25 @@ def _aabb_overlap(a, b):
     return all(a_lo[i] <= b_hi[i] and b_lo[i] <= a_hi[i] for i in range(3))
 
 
-def overlapping_bodies(cutter, candidates, depsgraph):
+def is_closed_solid(obj, depsgraph) -> bool:
+    """Whether ``obj``'s evaluated geometry is a closed volume.
+
+    The Manifold boolean solver silently drops an operand that is not, which is
+    how a flat profile came out empty instead of holed; the Exact solver handles
+    it. Read from the geometry so it also covers meshes from anywhere else.
+    """
+    geo = _world_geometry_map(depsgraph, [obj], closed_only=True)
+    return obj in geo
+
+
+def overlapping_bodies(cutter, candidates, depsgraph, geo=None):
     """Subset of ``candidates`` whose solid geometry actually overlaps ``cutter``.
 
     An AABB pre-filter (cheap, no BVH) gates the exact ``BVHTree.overlap`` test, so
     the expensive check only runs on plausibly-touching bodies. Order preserved.
     """
-    geo = _world_geometry_map(depsgraph, [cutter, *candidates])
+    if geo is None:
+        geo = _world_geometry_map(depsgraph, [cutter, *candidates])
     cutter_geo = geo.get(cutter)
     if cutter_geo is None:
         return []
@@ -122,10 +147,18 @@ def candidate_bodies(context, cutter):
     would close a boolean dependency cycle (the cutter already depends on it).
     """
     from ..operators.modifiers import creates_boolean_cycle
+    from .body import body_of, sketch_of
+
+    cutter_sketch = sketch_of(cutter)
 
     result = []
     for obj in context.view_layer.objects:
         if obj == cutter or obj.type not in _BODY_TYPES:
+            continue
+        if obj == cutter_sketch:
+            continue  # a body never cuts the sketch it is made from
+        if body_of(obj) is not None:
+            # A sketch that has a body is source, not a target: its body is.
             continue
         if not obj.visible_get():
             continue

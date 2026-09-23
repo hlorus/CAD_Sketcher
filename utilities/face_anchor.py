@@ -390,20 +390,26 @@ def update_face_workplanes(context, depsgraph):
     finally:
         global_data.updating_face_wp = False
 
-    # Datablocks that changed this update — gate work to affected sources.
+    # Datablocks that changed this update, by name — gate work to affected
+    # sources. Names rather than the ids themselves: matching an evaluated id to
+    # its original means reading ``id.original``, and following that pointer
+    # crashes Blender when the update list holds an id that is still being
+    # built, which an update right after creating objects does (see the
+    # workplanes the Add Sketch tool mints). A name collision across id types at
+    # worst re-derives an anchor that did not need it.
     changed = set()
     for u in depsgraph.updates:
-        changed.add(u.id)
-        orig = getattr(u.id, "original", None)
-        if orig is not None:
-            changed.add(orig)
+        try:
+            changed.add(u.id.name)
+        except (AttributeError, ReferenceError):
+            continue
 
     resolved = False
     for empty in iter_face_workplanes(scene):
         source = empty.get(KEY_SOURCE)
         if source is None or source.type != "MESH":
             continue
-        if source not in changed and source.data not in changed:
+        if source.name not in changed and source.data.name not in changed:
             continue
         # Edit-mode reads don't expose the id; reconcile on exit instead of
         # falsely detaching.

@@ -61,6 +61,47 @@ SOLVER_SOCKET = "Boolean Solver"
 _SOLVER_TO_NODE = {"Exact": "EXACT", "Manifold": "MANIFOLD"}
 
 
+def repair_solver_choice(scene) -> bool:
+    """Move a boolean off the Manifold solver where it would delete its target.
+
+    Manifold drops an operand that is not a closed volume, so a file saved with
+    it selected can hold a boolean whose result is simply empty (a flat profile
+    cut by a solid). New booleans choose the solver from the geometry; this is
+    the same judgement applied to what a file already has.
+    """
+    import bpy
+
+    from ..operators.modifiers import (
+        boolean_input_ids,
+        get_boolean_solver,
+        get_modifier_input,
+        set_boolean_solver,
+    )
+    from .boolean_targets import is_closed_solid
+
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    changed = False
+    for obj in scene.objects:
+        for modifier in obj.modifiers:
+            group = getattr(modifier, "node_group", None)
+            if modifier.type != "NODES" or group is None:
+                continue
+            if group.name != BOOLEAN_NODE_GROUP:
+                continue
+            ids = boolean_input_ids(group)
+            if SOLVER_SOCKET not in ids or "Cutter" not in ids:
+                continue  # a linked group, stuck at the interface it was built with
+            if get_boolean_solver(modifier, ids[SOLVER_SOCKET]) != "Manifold":
+                continue
+            cutter = get_modifier_input(modifier, ids["Cutter"])
+            operands = [obj] + ([cutter] if cutter is not None else [])
+            if all(is_closed_solid(ob, depsgraph) for ob in operands):
+                continue
+            set_boolean_solver(modifier, ids[SOLVER_SOCKET], "Exact")
+            changed = True
+    return changed
+
+
 def _geometry_sockets(node):
     """Return (single-input, multi-input) geometry sockets of a boolean node.
 

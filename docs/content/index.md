@@ -21,8 +21,8 @@ The final position and dimensions of a drawn shape is defined by [Constraints](c
 In order to have entities follow the defined constraints,
 a [Solver](solver.md) is needed.
 
-To further process the resulting geometry CAD Sketcher uses [Converters](integration.md)
-to get native Blender geometry types which then allow further modifications with native tools.
+A sketch's geometry is realised on a mesh [body](integration.md), which is what
+you extrude, boolean, export and edit with native tools.
 
 <!-- Check the [Workflow](solver.md#Workflow) section to see how it's intended to be used. -->
 

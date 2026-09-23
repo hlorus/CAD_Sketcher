@@ -5,6 +5,7 @@ from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from ..utilities.part import (
+    ensure_part_planes,
     is_part_instance,
     is_part_root,
     join_part,
@@ -61,6 +62,7 @@ class View3D_OT_slvs_make_part(Operator):
 
         if not is_part_root(root):
             promote_to_root(root)
+            ensure_part_planes(context, root)
 
         members = [
             obj

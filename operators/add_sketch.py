@@ -2,6 +2,7 @@ import logging
 
 import bpy
 from bpy.types import Context, Event, Operator
+from mathutils import Matrix
 
 from ..declarations import Operators, WorkSpaceTools
 from ..model.curve_ref import PointRef
@@ -61,8 +62,7 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     are; one that starts a part roots it and owns its own transform.
     Returns the wrapped :class:`Sketch`.
     """
-    from ..model.sketch_ref import Sketch, stamp_sketch_props
-    from ..utilities.curve_data import _ensure_convert_modifier
+    from ..model.sketch_ref import Sketch, hide_sketch_curves, stamp_sketch_props
 
     # Create sketch as a Curves object (parent provides the transform)
     curve = bpy.data.hair_curves.new("Sketch")
@@ -74,24 +74,57 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     link_to_scene_root(sketch_obj, scene)
 
     stamp_sketch_props(sketch_obj)
-    _ensure_convert_modifier(sketch_obj)
 
     # Resolve the plane and the part before activate, so align_view sees both.
     wp_orig = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
     root = _part_for_workplane(context, wp_orig)
-    from ..utilities.part import fix_transform, free_transform, join_part
+    from ..utilities.body import default_body_name, ensure_body
+    from ..utilities.part import fix_transform, free_transform, join_part, part_root_of
 
-    if root is None:
-        # Nothing obvious to belong to, so the sketch is global: it owns its
-        # transform and is its own plane, placed where the datum plane it was
-        # drawn on sits. It joins or starts a part once it is made solid.
-        sketch_obj.matrix_world = wp_orig.matrix_world.copy()
-        free_transform(sketch_obj)
+    # Every sketch is realised on a body, and the body is what carries the
+    # transform: the sketch always sits on a workplane, and that workplane hangs
+    # under the body.
+    starts_a_part = root is None or _is_shared_datum(context, wp_orig)
+    body = ensure_body(
+        context, sketch_obj, default_body_name(None if starts_a_part else root)
+    )
+
+    if starts_a_part:
+        # Nothing to hang from: the scene's datums are shared, so the body gets
+        # a plane of its own where the one picked stands. It is nameless while
+        # the body is just a body; becoming a part turns it into that part's XY
+        # (see promote_sketch_plane), which is why nothing is created up front.
+        plane = new_workplane_empty(context, wp_orig.matrix_world.copy())
+        body.matrix_basis = plane.matrix_world.copy()
+        plane.parent = body
+        plane.matrix_parent_inverse = Matrix.Identity(4)
+        plane.matrix_basis = Matrix.Identity(4)
+        free_transform(body)
     else:
-        sketch_obj.parent = wp_orig
-        sketch_obj.slvs_workplane = wp_orig
-        fix_transform(sketch_obj)
-        join_part(root, wp_orig)
+        # The plane is already part of something (a face of a body, or that
+        # part's own datum), so it stays where it is and the new body hangs from
+        # it. Re-parenting the plane instead would take the part's datum away.
+        plane = wp_orig
+        if part_root_of(plane) is None:
+            # A plane picked on a body that has just become a part: it has to
+            # join, or nothing in this chain reaches the part.
+            join_part(root, plane)
+        body.parent = plane
+        body.matrix_parent_inverse = Matrix.Identity(4)
+        body.matrix_basis = Matrix.Identity(4)
+        fix_transform(body)
+
+    sketch_obj.parent = plane
+    sketch_obj.slvs_workplane = plane
+    sketch_obj.matrix_parent_inverse = Matrix.Identity(4)
+    sketch_obj.matrix_basis = Matrix.Identity(4)
+    fix_transform(sketch_obj)
+    fix_transform(plane)
+
+    from ..utilities.body import name_after_body
+
+    name_after_body(body, sketch_obj, plane if starts_a_part else None)
+    hide_sketch_curves(sketch_obj)
 
     sketch = Sketch(sketch_obj)
 
@@ -99,6 +132,13 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     assert origin is not None, "Failed to create origin point"
 
     return sketch
+
+
+def _is_shared_datum(context: Context, wp_empty) -> bool:
+    """Whether ``wp_empty`` is one of the scene's datums, shared by everything."""
+    from ..utilities.face_anchor import is_origin_workplane
+
+    return is_origin_workplane(context.scene, wp_empty)
 
 
 def create_sketch_on_workplane(context: Context, wp_empty, operator: Operator):
@@ -163,10 +203,13 @@ def _owns_workplane(context: Context, sketch_obj, wp) -> bool:
     an object the user parented) counts as a use.
     """
     from ..utilities.face_anchor import is_origin_workplane
+    from ..utilities.part import PART_PLANE_KEY
 
     return (
         wp is not None
         and not is_origin_workplane(context.scene, wp)
+        # A base plane is a datum of its part: it stays whatever sits on it.
+        and PART_PLANE_KEY not in wp
         and all(c == sketch_obj for c in wp.children)
     )
 

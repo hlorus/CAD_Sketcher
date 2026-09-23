@@ -131,7 +131,13 @@ def boolean_cutters(obj):
         group = getattr(m, "node_group", None)
         if m.type != "NODES" or group is None or group.name != BOOLEAN_NODE_GROUP:
             continue
-        cutter = get_modifier_input(m, boolean_input_ids(group)["Cutter"])
+        # A linked group keeps the interface it was built with, so the socket
+        # may not be there at all; reading it is not worth an exception in a
+        # handler-driven path.
+        cutter_id = boolean_input_ids(group).get("Cutter")
+        if cutter_id is None:
+            continue
+        cutter = get_modifier_input(m, cutter_id)
         if cutter is not None:
             cutters.append(cutter)
     return cutters
@@ -191,8 +197,47 @@ def apply_boolean(
     set_boolean_operation(mod, ids["Operation"], operation)
     set_modifier_input(mod, ids["Self Intersection"], self_intersection)
     set_modifier_input(mod, ids["Hole Tolerant"], hole_tolerant)
-    set_boolean_solver(mod, ids[SOLVER_SOCKET], solver or default_boolean_solver())
+    set_boolean_solver(mod, ids[SOLVER_SOCKET], _solver_for(body, cutter, solver))
     return mod
+
+
+def _solver_for(body, cutter, solver=None):
+    """The boolean solver to use, honouring the choice unless it would delete.
+
+    Manifold is the fast solver, but it drops an operand that is not a closed
+    volume: cutting a flat profile with it leaves nothing at all instead of a
+    profile with a hole. Exact handles that, so an open operand forces it. The
+    modifier keeps the solver as an input, so it can still be changed by hand.
+    """
+    from ..utilities.boolean_targets import is_closed_solid
+
+    chosen = solver or default_boolean_solver()
+    if chosen != "Manifold":
+        return chosen
+
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    if all(is_closed_solid(obj, depsgraph) for obj in (body, cutter)):
+        return chosen
+    return "Exact"
+
+
+def select_result(context, cutter):
+    """Leave the thing the tool just made selected.
+
+    What that is depends on where the solid went: a cut joins the part it cuts,
+    and the part is what now shows the result, so that is what to hold on to. A
+    standalone solid is its own result. Never the cutter itself, which a cut
+    hides -- the user would be left holding something they cannot see.
+    """
+    from ..utilities.part import part_root_of
+
+    result = part_root_of(cutter) or cutter
+    if result.name not in context.view_layer.objects:
+        return
+    for obj in context.selected_objects:
+        obj.select_set(False)
+    result.select_set(True)
+    context.view_layer.objects.active = result
 
 
 class BooleanTargetItem(PropertyGroup):
@@ -253,13 +298,22 @@ class BooleanFromToolMixin:
         cutter = cutter.original
 
         from ..model.sketch_ref import Sketch
+
+        # The tool works on the body; its sketch is what carries provenance (what
+        # it was drawn on), so resolve back to it.
+        from ..utilities.body import is_body, sketch_of
         from ..utilities.boolean_targets import (
             default_operation,
             detect_targets,
             sketch_source_body,
         )
 
-        sketch = Sketch(cutter) if cutter.type == "CURVES" else None
+        if cutter.type == "CURVES":
+            sketch = Sketch(cutter)
+        elif is_body(cutter) and sketch_of(cutter) is not None:
+            sketch = Sketch(sketch_of(cutter))
+        else:
+            sketch = None
 
         auto = context.scene.sketcher.use_auto_boolean
         if not self.boolean_detected and not auto:
@@ -306,12 +360,15 @@ class BooleanFromToolMixin:
         enabled_bodies = self._apply_boolean_targets(cutter)
 
         # Making a sketch solid is what settles which part it belongs to: a cut
-        # joins the part it cuts, a standalone solid roots one. A mesh cutter is
-        # left alone -- a part with its own history stays a part.
+        # joins the part it cuts, a standalone solid roots one. A mesh cutter that
+        # is not a sketch's body is left alone: a part with its own history stays
+        # a part.
         if sketch is not None:
             from ..utilities.part import settle_membership
 
-            settle_membership(cutter, enabled_bodies)
+            # Passing the context lets a part being born take its base planes
+            # here, which is what the joining body's own plane merges onto.
+            settle_membership(cutter, enabled_bodies, context)
 
         from ..utilities.part import update_cutter_display
 
@@ -322,6 +379,7 @@ class BooleanFromToolMixin:
         from ..utilities.collections import sync_part_collections
 
         sync_part_collections(context.scene)
+        select_result(context, cutter)
 
     def _apply_boolean_targets(self, cutter):
         """Apply this cutter's booleans. Returns the bodies it feeds, in order."""
@@ -382,8 +440,22 @@ BASE_STATES = (
 
 
 def is_2d_profile(obj):
-    """A sketch or curve object — a valid 2D profile to extrude (not a 3D mesh)."""
-    return obj is not None and obj.type in {"CURVE", "CURVES"}
+    """Something a solid can be made from: a curve, or a sketch's body.
+
+    A sketch is picked, but the stack goes on the mesh its geometry is realised
+    on (see utilities.body): a Curves object cannot hold a stack that outputs
+    mesh, since Blender then refuses to apply it (issue #723).
+    """
+    from ..utilities.body import is_body
+
+    return obj is not None and (obj.type == "CURVE" or is_body(obj))
+
+
+def solid_target(obj):
+    """The object a solid feature belongs on: a picked sketch means its body."""
+    from ..utilities.body import body_of
+
+    return body_of(obj) or obj
 
 
 class NodeOperator(Operator3d):
@@ -598,7 +670,7 @@ class NodeOperator(Operator3d):
             self.previous_modifier = self._modifier_name()
 
     def main(self, context):
-        ob = self.resolved_object()
+        ob = solid_target(self.resolved_object())
         if not self.is_valid_target(ob):
             self.report({"WARNING"}, self.invalid_target_msg)
             return False
@@ -1269,7 +1341,7 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
 
         body = self.resolved_object()
         if body is not None and is_sketch_object(cutter):
-            settle_membership(cutter, [body.original])
+            settle_membership(cutter, [body.original], context)
             sync_part_collections(context.scene)
 
     def set_props(self):

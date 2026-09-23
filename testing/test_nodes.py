@@ -406,19 +406,26 @@ class TestNodeTools(BgsTestCase):
         return ob
 
     def test_extrude_target_gate(self):
-        # Extrude accepts sketches/curves (2D profiles) but not 3D meshes.
+        # Extrude accepts curves and a sketch's body, but not a plain mesh: the
+        # stack lives on the body, since a Curves object cannot hold one that
+        # outputs mesh (issue #723).
+        from ..utilities.body import BODY_SKETCH_KEY
+
         mesh_ob = self._link("mesh", bpy.data.meshes.new("m"))
         curve_ob = self._link("curve", bpy.data.curves.new("c", "CURVE"))
         curves_ob = self._link("curves", bpy.data.hair_curves.new("cv"))
+        body_ob = self._link("body", bpy.data.meshes.new("b"))
+        body_ob[BODY_SKETCH_KEY] = curves_ob
 
         self.assertFalse(is_2d_profile(mesh_ob))
         self.assertTrue(is_2d_profile(curve_ob))
-        self.assertTrue(is_2d_profile(curves_ob))
+        self.assertTrue(is_2d_profile(body_ob))
         self.assertFalse(is_2d_profile(None))
 
         # is_valid_target ignores self, so unbound calls are fine.
         self.assertFalse(View3D_OT_node_extrude.is_valid_target(None, mesh_ob))
         self.assertTrue(View3D_OT_node_extrude.is_valid_target(None, curve_ob))
+        self.assertTrue(View3D_OT_node_extrude.is_valid_target(None, body_ob))
         # Array takes any geometry object, but never an empty (a workplane).
         self.assertTrue(View3D_OT_node_array_linear.is_valid_target(None, mesh_ob))
         self.assertTrue(View3D_OT_node_array_linear.is_valid_target(None, curves_ob))
@@ -500,3 +507,29 @@ class TestNodeTools(BgsTestCase):
         set_modifier_input(mod, ids["Use Total Distance"], True)
         x_total = self._extent(self._eval_mesh(ob), "x")
         self.assertLess(x_total, x_spacing - 2.0)
+
+
+class TestBooleanCandidates(BgsTestCase):
+    """What a body may cut: not the sketch it is made from, nor other sources."""
+
+    def test_a_sketch_with_a_body_is_not_a_target(self):
+        from ..utilities.body import BODY_SKETCH_KEY
+        from ..utilities.boolean_targets import candidate_bodies
+
+        sketch = bpy.data.objects.new("src", bpy.data.hair_curves.new("src"))
+        self.scene.collection.objects.link(sketch)
+        body = bpy.data.objects.new("body", bpy.data.meshes.new("body"))
+        self.scene.collection.objects.link(body)
+        body[BODY_SKETCH_KEY] = sketch
+        sketch.slvs_body = body
+
+        other = bpy.data.objects.new("other", bpy.data.meshes.new("other"))
+        self.scene.collection.objects.link(other)
+        self.context.view_layer.update()
+
+        candidates = candidate_bodies(self.context, other)
+        self.assertIn(body, candidates)
+        self.assertNotIn(sketch, candidates, "source is not a target")
+
+        # And a body never cuts its own sketch.
+        self.assertNotIn(sketch, candidate_bodies(self.context, body))

@@ -27,7 +27,14 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 23
+CONVERT_VERSION = 24
+
+# Input naming the sketch a body is built from. A body is a mesh object with no
+# geometry of its own: the sketch's curves are pulled in here, so one modifier
+# reads the source and meshes it (see utilities/body.py). Left unset the group
+# converts the geometry it is handed, which is how a sketch's own modifier ran
+# before bodies existed.
+SKETCH_INPUT = "Sketch"
 
 # Input exposing how finely arcs and circles are tessellated.
 ANGULAR_RESOLUTION_INPUT = "Angular Resolution"
@@ -454,6 +461,26 @@ def _restore_modifier_inputs(node_group, saved) -> None:
                 pass
 
 
+def _source_geometry(nodes, links, gi):
+    """The curves to convert: the sketch named by ``Sketch``, plus our own.
+
+    Read in the modifier object's own space, so a body whose transform matches
+    its sketch holds the geometry planar locally and correct in the world.
+    Realized, so an instanced source still resolves to real data downstream.
+    """
+    info = nodes.new("GeometryNodeObjectInfo")
+    info.transform_space = "RELATIVE"
+    links.new(gi.outputs[SKETCH_INPUT], info.inputs["Object"])
+
+    realize = nodes.new("GeometryNodeRealizeInstances")
+    links.new(info.outputs["Geometry"], realize.inputs["Geometry"])
+
+    join = nodes.new("GeometryNodeJoinGeometry")
+    links.new(gi.outputs["Geometry"], join.inputs["Geometry"])
+    links.new(realize.outputs["Geometry"], join.inputs["Geometry"])
+    return join.outputs["Geometry"]
+
+
 def build_convert_node_group(
     name: str = CONVERT_NODE_GROUP, attribute_definitions=None
 ):
@@ -484,6 +511,10 @@ def build_convert_node_group(
     iface = ng.interface
     iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
     iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    sketch = iface.new_socket(
+        SKETCH_INPUT, in_out="INPUT", socket_type="NodeSocketObject"
+    )
+    sketch.description = "Sketch whose curves this body is built from"
     fill = iface.new_socket("Fill", in_out="INPUT", socket_type="NodeSocketBool")
     fill.default_value = True
     resolution = iface.new_socket(
@@ -514,7 +545,7 @@ def build_convert_node_group(
 
     delete = nodes.new("GeometryNodeDeleteGeometry")
     delete.domain = "CURVE"
-    links.new(gi.outputs["Geometry"], delete.inputs["Geometry"])
+    links.new(_source_geometry(nodes, links, gi), delete.inputs["Geometry"])
     links.new(drop.outputs["Boolean"], delete.inputs["Selection"])
 
     to_mesh = nodes.new("GeometryNodeCurveToMesh")

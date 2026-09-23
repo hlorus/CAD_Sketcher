@@ -732,12 +732,16 @@ def ensure_sketch_curve_object(sketch):
 
         link_to_scene_root(ob, scene)
 
-        _ensure_convert_modifier(ob)
-
         # Stamp sketch custom properties
         from ..model.sketch_ref import stamp_sketch_props
 
         stamp_sketch_props(ob)
+
+        # Legacy shape: this bootstrap runs from solver and draw paths, where new
+        # objects must not appear (creating one here crashes Blender), so such a
+        # sketch keeps carrying the convert modifier itself until the file is
+        # updated and it gets a body of its own.
+        _ensure_convert_modifier(ob)
 
     assert sketch.target_object is not None, "target_object should exist after ensure"
     assert sketch.target_object.data is not None, "target_object.data should exist"

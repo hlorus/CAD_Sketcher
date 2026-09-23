@@ -95,6 +95,7 @@ def main():
     solver = importlib.import_module(f"{TARGET}.curve_solver")
     extrude_nodes = importlib.import_module(f"{TARGET}.utilities.extrude_nodes")
     part = importlib.import_module(f"{TARGET}.utilities.part")
+    body_mod = importlib.import_module(f"{TARGET}.utilities.body")
     sketch_ref = importlib.import_module(f"{TARGET}.model.sketch_ref")
     workplane = importlib.import_module(f"{TARGET}.utilities.workplane")
 
@@ -179,7 +180,10 @@ def main():
             )
             bpy.ops.view3d.slvs_node_extrude(target_name=body.name, offset=1.0)
             _redraw()
-            assert part.is_part_root(body), "a standalone solid must root a part"
+            # The part is rooted in the mesh the sketch is realised on.
+            base_body = body_mod.body_of(body)
+            assert base_body is not None, "a sketch must have a body"
+            assert part.is_part_root(base_body), "a standalone solid must root a part"
 
             # A second solid cutting it must become a feature of the first part
             # and hide itself. The target list is stubbed rather than detected:
@@ -198,16 +202,19 @@ def main():
                 f"{TARGET}.utilities.boolean_targets"
             )
             detect = boolean_targets.detect_targets
-            boolean_targets.detect_targets = lambda *a, **k: [body]
+            boolean_targets.detect_targets = lambda *a, **k: [base_body]
             try:
                 bpy.ops.view3d.slvs_node_extrude(target_name=cutter.name, offset=2.0)
             finally:
                 boolean_targets.detect_targets = detect
             _redraw()
-            assert part.part_root_of(cutter) == body, (
-                f"cutter joined {part.part_root_of(cutter)}, expected {body.name}"
+            assert part.part_root_of(cutter) == base_body, (
+                f"cutter joined {part.part_root_of(cutter)}, expected {base_body.name}"
             )
-            assert not cutter.visible_get(), "a cutter doing its job must be hidden"
+            cutter_body = body_mod.body_of(cutter)
+            assert not cutter_body.visible_get(), (
+                "a cutter doing its job must be hidden"
+            )
 
         @_check("sketch activated and drawn")
         def _():

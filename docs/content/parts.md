@@ -1,9 +1,12 @@
 # Parts and Assemblies
 
 A **part** is one thing you can move: a body together with the sketches and
-workplanes that define it. An **assembly** is a group of parts you can move as a
-whole. Both are just object parenting, so the outliner shows the real structure
-and you edit it there.
+workplanes that define it. The body is a real mesh object, and each sketch stays
+pure source whose geometry is realised on it, which is why a part exports,
+applies and edits like any other mesh.
+
+An **assembly** is a group of parts you can move as a whole. Both are just object
+parenting, so the outliner shows the real structure and you edit it there.
 
 ## In the outliner
 
@@ -14,30 +17,38 @@ each part, and objects nest under the object that carries them.
     - **Origin** &mdash; the shared XY / XZ / YZ datum planes
     - **Bracket** &mdash; an assembly collection
         - **Plate** &mdash; a part collection
-            - **Plate** &mdash; the part's body (sketch + extrude)
-                - **Plate XY**, **Plate XZ**, **Plate YZ** &mdash; the part's own base planes
+            - **Plate** &mdash; the part's body: a mesh, carrying the features
+                - **Plate XY** &mdash; the plane its sketch was drawn on, now the part's XY
+                    - **Plate Sketch** &mdash; the source the body is built from
+                - **Plate XZ**, **Plate YZ** &mdash; made when the picker first offered them
                 - **Workplane** &mdash; on a face of Plate
-                    - **Hole** &mdash; a cutter sketch, hidden while it cuts
+                    - **Plate.001** &mdash; a cutter, with its own sketch beneath it
         - **Pin** &mdash; a second part in the same assembly
-    - **Sketch** &mdash; global: drawn on a datum, not yet solid
+    - **Body** &mdash; global: drawn on a datum, not yet solid
+        - **Body Workplane** &mdash; its own plane, nameless until it becomes a part
 
-Read the nesting, not the collections: **`Hole` is part of `Plate` because it
-hangs under it**, through the workplane it sits on. The collections follow that
+A new body is called **Body**, or takes the name of the part it joins, and its
+plane and sketch follow the name it has: rename the body and they rename with
+it.
+
+Read the nesting, not the collections: **`Plate.001` is part of `Plate` because
+it hangs under it**, through the workplane it sits on. The collections follow that
 structure, they do not define it. Moving `Plate` moves everything beneath it;
 moving `Bracket` moves both parts.
 
-This is also why parenting is how you change membership: drag `Sketch` onto
+This is also why parenting is how you change membership: drag `Body` onto
 `Plate` and it becomes one of its features.
 
 ## Moving a part
 
-Leave the sketch (parts are moved in Object Mode), select the part's body and
-press `G` or `R`. Its sketches, workplanes and cutters follow. Scale is locked:
+Leave the sketch (parts are moved in Object Mode), select the part's body, the
+mesh, and press `G` or `R`. Its sketches, workplanes and cutters follow. Scale is
+locked:
 the solver treats a sketch's plane as a rigid frame, so a scaled part would draw
 and solve at different sizes.
 
-The object you grab is the part's first sketch, which is also its body once
-extruded, so you are moving the geometry you see rather than a helper object.
+The object you grab is the body, so you are moving the geometry you see rather
+than a helper object. The sketches that shape it are pinned within it.
 
 ## What belongs to what
 
@@ -48,8 +59,9 @@ is settled when the sketch becomes solid:
 |---|---|
 | Sketch on a body's face or on a part's workplane | Joins that part right away |
 | Sketch on a global XY/XZ/YZ plane | Stays **global**: no part, free to move |
-| Extrude or revolve with nothing to cut | The sketch roots a part of its own |
+| Extrude or revolve with nothing to cut | Its body roots a part of its own |
 | Extrude or revolve that cuts an existing body | Joins that body's part, as a cut feature |
+| Editing what a body is made of | Edit its sketch; the body follows |
 | A cut reaching bodies in several parts | Belongs to no part; if those parts share an assembly it becomes a feature of the assembly |
 
 A cut has to travel with the body it cuts, which is why it joins that part: were
@@ -65,10 +77,19 @@ to an existing part.
 
 ## Part workplanes
 
-Select a part and the Add Sketch tool offers that part's own XY, XZ and YZ planes,
-drawn smaller, *in place of* the scene's. Use them when a part has been moved or
-rotated and you want to sketch in its frame rather than the world's. Deselect to
-get the scene's planes back, which is also how you start a new part.
+A sketch that is not in a part sits on a plane of its own, where you drew it.
+When it becomes solid, that same plane becomes the new part's **XY**: a part's XY
+is always the plane its first sketch was drawn on, and XZ and YZ appear the first
+time the picker offers them.
+
+Select a part and the Add Sketch tool shows its planes, drawn smaller, *in place
+of* the scene's, so a part that has been moved or rotated is sketched in its frame
+rather than the world's. Deselect to get the scene's planes back, which is also
+how you start a new part.
+
+Sketching on a face makes a workplane for that face, and you can sketch on any
+empty you place yourself. Those are the only other planes: nothing creates a
+plane per sketch.
 
 ## Changing membership by hand
 

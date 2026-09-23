@@ -35,6 +35,11 @@ class View3D_OT_slvs_delete_sketch(Operator):
         if is_part_root(ob):
             rehome_children(ob)
 
+        # The body only exists to realise this sketch.
+        from ..utilities.body import remove_body
+
+        remove_body(ob)
+
         # Remove the object (handler cleans up orphan constraints)
         bpy.data.objects.remove(ob)
 

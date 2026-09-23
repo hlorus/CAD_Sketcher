@@ -57,6 +57,16 @@ objects in `model/curve_ref.py`:
 An accessor is just `(sketch, curve_id)`; it resolves live data on each access,
 so it stays valid across re-indexing as long as the `curve_id` exists.
 
+### Sketch and body
+
+A sketch object carries no modifiers: it is the source. Its geometry is realised
+on a **body**, a mesh object whose stack starts with the `CAD Sketcher Convert`
+group reading the sketch through an `Object Info` node in RELATIVE space, then
+extrude/revolve/boolean. `utilities/body.py` owns the link (`slvs_body` on the
+sketch, `slvs:body_of` on the body), creation (`ensure_body`) and the conversion
+of older files (`migrate_bodies`). The body is also the part root, so it is what
+the user selects and moves.
+
 ### Workplanes as empties
 
 A workplane can be any Blender Object: its `matrix_world` is the workplane
