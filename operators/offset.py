@@ -241,6 +241,12 @@ class View3D_OT_slvs_add_offset(Operator, Operator2d):
             i_end = (i_start + 1) % len(points)
             p1 = points[i_start]
             p2 = points[i_end]
+            if directions[i]:
+                # The walk runs through this segment from its end to its start.
+                # An arc sweeps counter-clockwise from the first point it is
+                # given to the second, so handing them over in walk order would
+                # build the rest of the circle instead of the arc.
+                p1, p2 = p2, p1
             new_seg = topo.create_like(seg, p1, p2, construction=use_construction)
             if new_seg:
                 ignore_hover(new_seg.curve_id)

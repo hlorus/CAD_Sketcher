@@ -116,3 +116,49 @@ class TestOffsetGeometry(Sketch2dTestCase):
 
         arc = self._new(op, ArcRef)[0]
         self.assertAlmostEqual(math.degrees(arc.angle), 90.0, places=3)
+
+    def _arc_drawn_against_the_path(self):
+        """Line, shallow arc, line, where the arc was drawn the other way round.
+
+        Its stored sweep runs from the far corner back to the near one, so the
+        walk goes through it from end to start.
+        """
+        a = self.add_point((-6.0, -4.0))
+        b = self.add_point((-2.0, 0.0))
+        c = self.add_point((2.0, 0.0))
+        d = self.add_point((6.0, -2.0))
+        first = self.add_line(a, b)
+        arc = self.add_arc(self.add_point((0.0, -4.0)), c, b)
+        last = self.add_line(c, d)
+        self.assertAlmostEqual(math.degrees(arc.angle), 53.13, places=1)
+        return first, arc, last
+
+    def test_an_arc_drawn_against_the_path_keeps_its_sweep(self):
+        """It used to come back as the rest of the circle: 306 degrees of a
+        53 degree arc, which is the reported near-full circle."""
+        first, arc, _last = self._arc_drawn_against_the_path()
+
+        op = self._offset(first, 0.5)
+
+        new = self._new(op, ArcRef)[0]
+        # Not exactly the source sweep: the corners are where the offset lines
+        # cross, which shifts the ends a little. Nowhere near the complement.
+        self.assertLess(abs(math.degrees(new.angle - arc.angle)), 5.0)
+        self.assertAlmostEqual(new.radius, arc.radius + 0.5, places=5)
+
+    def test_the_sweep_holds_whichever_segment_is_picked(self):
+        _first, arc, last = self._arc_drawn_against_the_path()
+
+        op = self._offset(last, 0.5)
+
+        new = self._new(op, ArcRef)[0]
+        self.assertLess(abs(math.degrees(new.angle - arc.angle)), 5.0)
+
+    def test_picking_the_arc_itself_keeps_its_sweep(self):
+        _first, arc, _last = self._arc_drawn_against_the_path()
+
+        op = self._offset(arc, 0.5)
+
+        new = self._new(op, ArcRef)[0]
+        self.assertLess(abs(math.degrees(new.angle - arc.angle)), 5.0)
+        self.assertAlmostEqual(new.radius, arc.radius - 0.5, places=5)
