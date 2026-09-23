@@ -201,6 +201,9 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
             description="Pick or place ending point.",
             pointer="p2",
             types=types_point_2d,
+            state_func="get_endpoint_pos",
+            # Follow the cursor, so the assumed arc is live while it is placed.
+            interactive=True,
         ),
         state_from_args(
             "Through",
@@ -226,10 +229,116 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
             return None
         return Vector(pos[:2])
 
+    # Sagitta as a fraction of the chord, for the arc shown before the cursor has
+    # set off in a direction: (1 - cos45) / (2 sin45), a 90 degree arc.
+    _ASSUMED_BULGE = 0.2071
+    # How far the cursor has to leave the start point, as a fraction of the view
+    # distance, before its direction is taken as the arc's tangent there.
+    _TANGENT_COMMIT = 0.02
+    # Direction the cursor set off in, the arc's tangent at the start point.
+    _start_dir = None
+
+    def get_endpoint_pos(self, context: Context, coords):
+        """Place the endpoint and note the direction the cursor set off in.
+
+        That direction is the arc's tangent at the start point, so while the
+        endpoint is placed the radius follows the cursor and the arc curves the
+        other way once the cursor crosses the tangent. Coming back to the start
+        point drops it again, to aim anew.
+        """
+        pos = self.state_func(context, coords)
+        p1 = self.get_point(context, 0)
+        if pos is None or p1 is None or not p1.valid:
+            return pos
+        delta = Vector(pos[:2]) - p1.co
+        region_3d = getattr(context, "region_data", None)
+        threshold = getattr(region_3d, "view_distance", 1.0) * self._TANGENT_COMMIT
+        if delta.length > threshold:
+            if self._start_dir is None:
+                self._start_dir = delta.normalized()
+        else:
+            self._start_dir = None
+        return pos
+
+    def _assumed_through(self, p1, p2):
+        """Where the arc passes through until the user shapes it.
+
+        The endpoint is then placed against a real arc rather than against two
+        loose points. Once the cursor has set off in a direction, that direction
+        is the tangent at the start point and the arc follows the endpoint from
+        there; until then a 90 degree arc stands in.
+        """
+        p1, p2 = Vector(p1), Vector(p2)
+        chord = p2 - p1
+        if not chord.length:
+            return None
+        tangent = self._start_dir
+        if tangent is None:
+            return (p1 + p2) / 2 + Vector((-chord.y, chord.x)) * self._ASSUMED_BULGE
+
+        # The circle through p1 tangent to `tangent` and through p2: its center
+        # sits on the tangent's normal at p1, at the signed radius below.
+        normal = Vector((-tangent.y, tangent.x))
+        denominator = 2 * chord.dot(normal)
+        if abs(denominator) < 1e-9:
+            return None  # the endpoint is on the tangent: a straight line
+        radius = chord.length_squared / denominator
+        center = p1 + normal * radius
+
+        # A positive radius puts the center left of the tangent, so travel along
+        # the tangent runs counter-clockwise. Take the point halfway along that
+        # sweep, which also describes an arc of more than half a turn.
+        start_angle = math.atan2(*(p1 - center).yx)
+        end_angle = math.atan2(*(p2 - center).yx)
+        direction = 1.0 if radius > 0 else -1.0
+        sweep = (end_angle - start_angle) * direction % (2 * math.pi)
+        half = start_angle + direction * sweep / 2
+        return center + Vector((math.cos(half), math.sin(half))) * abs(radius)
+
+    def _points(self, context: Context):
+        """The start and end points, or None while the endpoint is not placed."""
+        p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
+        if p1 is None or p2 is None or not p1.valid or not p2.valid:
+            return None
+        return p1, p2
+
+    def _through_value(self, context: Context):
+        """The through point in use: the assumed one until the state is reached."""
+        if self.state_index >= 2:
+            return Vector(self.through)
+        points = self._points(context)
+        if points is None:
+            return None
+        return self._assumed_through(points[0].co, points[1].co)
+
+    def set_state(self, context: Context, index: int):
+        if index == 1:
+            # A preview runs only once every state has a value (check_props), so
+            # mark the shaping state's property as set while the endpoint is
+            # still moving. _through_value ignores it until that state is active.
+            try:
+                self.through = tuple(self.through)
+            except (AttributeError, TypeError):
+                pass  # a non-registered twin (tests) has no RNA props
+        elif index == 2:
+            # Take over the arc already on screen instead of jumping to the
+            # property's stale value until the first move shapes it.
+            assumed = self._through_value(context)
+            if assumed is not None:
+                try:
+                    self.through = assumed
+                except (AttributeError, TypeError):
+                    pass
+        super().set_state(context, index)
+
     def _arc_geometry(self, context: Context):
         """``(start, end, center, reversed)`` of the arc, or None while undefined."""
-        p1, p2 = self.get_point(context, 0), self.get_point(context, 1)
-        result = arc_through_points(p1.co, p2.co, Vector(self.through))
+        points = self._points(context)
+        through = self._through_value(context)
+        if points is None or through is None:
+            return None
+        p1, p2 = points
+        result = arc_through_points(p1.co, p2.co, through)
         if result is None:
             return None
         center, reverse = result
@@ -257,6 +366,9 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
         target = getattr(self, "target", None)
         center = getattr(self, "_center", None)
         if target is None or not target.valid or center is None or not center.valid:
+            return False
+        # While the endpoint is still being placed it moves with the cursor too.
+        if self.state_index < 2 and not self.update_preview_point(context):
             return False
         geometry = self._arc_geometry(context)
         if geometry is None:

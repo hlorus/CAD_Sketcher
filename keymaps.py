@@ -119,7 +119,9 @@ SKETCH_TOOL_KEYS = (
     (WorkSpaceTools.AddPoint2D, Operators.AddPoint2D, "P"),
     (WorkSpaceTools.AddLine2D, Operators.AddLine2D, "L"),
     (WorkSpaceTools.AddCircle2D, Operators.AddCircle2D, "C"),
-    (WorkSpaceTools.AddArc2D, Operators.AddArc2D, "A"),
+    # Names the arc group's leading tool; the key starts whichever member of the
+    # group is active (see View3D_OT_invoke_tool).
+    (WorkSpaceTools.AddArc3Point2D, Operators.AddArc3Point2D, "A"),
     (WorkSpaceTools.AddRectangle, Operators.AddRectangle, "R"),
     (WorkSpaceTools.Trim, Operators.Trim, "Y"),
     (WorkSpaceTools.Bevel, Operators.Bevel, "B"),

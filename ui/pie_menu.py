@@ -98,7 +98,9 @@ class VIEW3D_MT_slvs_pie(Menu):
 
         slot = pie.row()
         slot.enabled = sketch_active
-        _invoke_tool(slot, "Arc", WorkSpaceTools.AddArc2D, Operators.AddArc2D)
+        _invoke_tool(
+            slot, "Arc", WorkSpaceTools.AddArc3Point2D, Operators.AddArc3Point2D
+        )
 
         # South-West: context-sensitive sketch entry/exit plus sketch switching.
         slot = pie.row()
