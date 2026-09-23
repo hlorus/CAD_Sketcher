@@ -573,12 +573,19 @@ def iter_axis_candidates(context):
 
 
 def axis_endpoints(plane, index, context=None):
-    """World start and end of one of ``plane``'s axes."""
+    """World ends of one of ``plane``'s axes, reaching both ways from it.
+
+    An axis is a line, not a ray: it is drawn to both sides of the frame and a
+    revolve does not care which end was picked, so the same two ends serve the
+    drawing and the hit test. Halves that disagree is how the negative side came
+    to be drawn but not pickable.
+    """
     matrix = plane.matrix_world
     origin = matrix.translation.copy()
     direction = matrix.to_3x3().col[index].normalized()
     reach = wp_display_half_size(context) if context else 1.0
-    return origin, origin + direction * reach * AXIS_LENGTH_FACTOR
+    span = direction * reach * AXIS_LENGTH_FACTOR
+    return origin - span, origin + span
 
 
 def axis_label(plane, index) -> str:

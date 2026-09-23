@@ -63,7 +63,8 @@ class TestRevolveAxis(BgsTestCase):
             axis_label(*axis_by_pick_id(self.context, AXIS_ID_Z)), "Origin Z"
         )
 
-        # They point along the world axes, from the world origin.
+        # They run along the world axes, through the world origin, reaching the
+        # same distance either side of it.
         for index, expected in enumerate(
             (Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1)))
         ):
@@ -71,7 +72,7 @@ class TestRevolveAxis(BgsTestCase):
                 self.context, (AXIS_ID_X, AXIS_ID_Y, AXIS_ID_Z)[index]
             )
             start, end = axis_endpoints(plane, index)
-            self.assertEqual(start, Vector((0, 0, 0)))
+            self.assertAlmostEqual(((start + end) / 2.0).length, 0.0, places=5)
             self.assertAlmostEqual(
                 (end - start).normalized().dot(expected), 1.0, places=5
             )
@@ -91,8 +92,9 @@ class TestRevolveAxis(BgsTestCase):
         self.assertEqual(axis_label(plane, index), f"{body.name} X")
 
         start, end = axis_endpoints(plane, index)
-        # Its own frame: rooted at the part, turned with it.
-        self.assertAlmostEqual((start - Vector((3.0, 0.0, 0.0))).length, 0.0, places=5)
+        # Its own frame: centred on the part, turned with it.
+        middle = (start + end) / 2.0
+        self.assertAlmostEqual((middle - Vector((3.0, 0.0, 0.0))).length, 0.0, places=5)
         self.assertAlmostEqual(
             (end - start).normalized().dot(Vector((0, 1, 0))), 1.0, places=5
         )
@@ -107,8 +109,9 @@ class TestRevolveAxis(BgsTestCase):
         body.matrix_basis = Matrix.Translation(Vector((0.0, 5.0, 0.0)))
         self.context.view_layer.update()
 
-        start, _end = axis_endpoints(plane, index)
-        self.assertAlmostEqual((start - Vector((0.0, 5.0, 0.0))).length, 0.0, places=5)
+        start, end = axis_endpoints(plane, index)
+        middle = (start + end) / 2.0
+        self.assertAlmostEqual((middle - Vector((0.0, 5.0, 0.0))).length, 0.0, places=5)
 
     def test_the_operator_resolves_a_plane_pointer_to_that_axis(self):
         # What a pick stores is the plane empty plus which direction it is; the
@@ -205,3 +208,18 @@ class TestRevolveAxis(BgsTestCase):
         finally:
             global_data.axis_picker = False
             global_data.hover_axis = None
+
+    def test_the_negative_half_picks_too(self):
+        # Reported: the axes draw both ways from the frame but only highlighted
+        # and picked on the positive side, because the hit test ran on a ray.
+        from ..utilities.workplane import _distance_to_segment
+
+        plane, index = axis_by_pick_id(self.context, AXIS_ID_X)
+        start, end = axis_endpoints(plane, index, self.context)
+        middle = (start + end) / 2.0
+
+        # A point a little way along each half lies on the tested segment.
+        for point in (middle + (end - middle) * 0.5, middle + (start - middle) * 0.5):
+            self.assertAlmostEqual(
+                _distance_to_segment(point.xy, start.xy, end.xy), 0.0, places=4
+            )

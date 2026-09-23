@@ -399,17 +399,13 @@ def draw_axis_candidates():
 
     scale = preferences.get_scale()
     for plane, index, pick_id in iter_axis_candidates(context):
+        # The same two ends the hit test uses, so what is drawn is what picks.
         start, end = axis_endpoints(plane, index, context)
         hovered = global_data.hover_axis == pick_id
         base = AXIS_COLOR[pick_id]
         lift = 0.5 if hovered else 0.0
         color = tuple(c + (1.0 - c) * lift for c in base) + (1.0,)
-        # Both ways from the origin: an axis is a line, not a ray, and the
-        # revolve does not care which end was clicked.
-        mirrored = start - (end - start)
-        _draw_lines_hover(
-            [mirrored[:], end[:]], color, scale, width=3 if hovered else 2
-        )
+        _draw_lines_hover([start[:], end[:]], color, scale, width=3 if hovered else 2)
 
 
 # Viewport draw handlers, keyed by their global_data attribute. Order matches
