@@ -26,3 +26,37 @@ class VIEW3D_T_slvs_add_rectangle(GenericStateTool, WorkSpaceTool):
         layout.prop(
             context.scene.sketcher, "use_snap_project", text="Live Project Snaps"
         )
+
+
+class VIEW3D_T_slvs_add_rectangle_center(GenericStateTool, WorkSpaceTool):
+    bl_space_type = "VIEW_3D"
+    bl_context_mode = "OBJECT"
+    bl_idname = WorkSpaceTools.AddRectangleCenter
+    bl_label = "Add Center Rectangle"
+    bl_description = "Add a rectangle from its center and one corner"
+    bl_operator = Operators.AddRectangleCenter
+    bl_icon = "ops.gpencil.primitive_box"
+    bl_widget = GizmoGroups.Preselection
+    bl_keymap = (
+        *tool_generic,
+        *operator_access(Operators.AddRectangleCenter),
+    )
+
+    draw_settings = VIEW3D_T_slvs_add_rectangle.draw_settings
+
+
+class VIEW3D_T_slvs_add_rectangle_3point(GenericStateTool, WorkSpaceTool):
+    bl_space_type = "VIEW_3D"
+    bl_context_mode = "OBJECT"
+    bl_idname = WorkSpaceTools.AddRectangle3Point
+    bl_label = "Add 3-Point Rectangle"
+    bl_description = "Add a rectangle from one edge and its width, at any angle"
+    bl_operator = Operators.AddRectangle3Point
+    bl_icon = "ops.gpencil.primitive_box"
+    bl_widget = GizmoGroups.Preselection
+    bl_keymap = (
+        *tool_generic,
+        *operator_access(Operators.AddRectangle3Point),
+    )
+
+    draw_settings = VIEW3D_T_slvs_add_rectangle.draw_settings

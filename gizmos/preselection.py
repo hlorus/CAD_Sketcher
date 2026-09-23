@@ -16,6 +16,8 @@ _SNAP_TOOLS = frozenset(
         WorkSpaceTools.AddRectangle,
         WorkSpaceTools.AddCircle2D,
         WorkSpaceTools.AddArc2D,
+        WorkSpaceTools.AddRectangleCenter,
+        WorkSpaceTools.AddRectangle3Point,
         WorkSpaceTools.AddArc3Point2D,
     )
 )
