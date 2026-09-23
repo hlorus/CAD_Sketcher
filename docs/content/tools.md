@@ -89,9 +89,9 @@ drops it, and each pick is its own undo step. The picks are stored on the object
 Fillet modifier: Amount sets the width, and Segments the roundness (1, the
 default, gives a flat fillet).
 
-While the Fillet tool is active the object shows without its fillet, so a click
-always lands on the geometry the fillet reads and the picked edges stay
-recognisable; switching to any other tool shows the rounded result.
+While the Fillet tool is active, filleted objects show without their fillet, so a
+click always lands on the geometry the fillet reads and the picked edges keep
+their numbering; switching to any other tool shows the rounded result.
 
 |Key|Modifier|Action|
 |:---:|---|---|

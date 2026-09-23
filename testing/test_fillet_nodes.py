@@ -439,6 +439,34 @@ class TestFilletRun(TestCase):
         self.assertTrue(calls["reset"])
         self.assertEqual(calls["state"], 0, "picking starts over on the first state")
 
+    def test_every_filleted_object_is_shown_unrounded(self):
+        """Not just the active one: the object under the cursor is often not the
+        selected one, and a visible rounded edge renumbers the elements, which
+        would make every pick after the first land somewhere else."""
+        from unittest import mock
+
+        from ..operators import fillet
+
+        bpy.ops.mesh.primitive_cube_add(size=2)
+        first = bpy.context.active_object
+        bpy.ops.mesh.primitive_cube_add(size=2, location=(4, 0, 0))
+        second = bpy.context.active_object
+        try:
+            mods = [fillet.add_fillet_modifier(ob) for ob in (first, second)]
+            bpy.context.view_layer.objects.active = second  # the other one is not
+
+            with mock.patch.object(fillet, "fillet_tool_active", return_value=True):
+                fillet.sync_fillet_visibility(bpy.context)
+            self.assertFalse(any(m.show_viewport for m in mods), "all shown unrounded")
+
+            with mock.patch.object(fillet, "fillet_tool_active", return_value=False):
+                fillet.sync_fillet_visibility(bpy.context)
+            self.assertTrue(all(m.show_viewport for m in mods), "all restored")
+        finally:
+            fillet.restore_fillets(bpy.context)
+            for ob in (first, second):
+                bpy.data.objects.remove(ob, do_unlink=True)
+
     def test_the_session_lasts_as_long_as_the_tool(self):
         """The fillet is hidden while its tool is active (so clicks land on the
         geometry the node tree indexes) and shown again for any other tool."""

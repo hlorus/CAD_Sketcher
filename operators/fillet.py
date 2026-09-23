@@ -82,7 +82,7 @@ def picked_edge_points(context: Context, ob, picks, domain: str) -> list:
 
 def hide_fillet(context: Context, ob) -> None:
     """Show ``ob`` without its fillet, and remember to put it back."""
-    modifier = fillet_modifier(ob)
+    modifier = fillet_modifier(ob) if ob is not None else None
     if modifier is None or not modifier.show_viewport:
         return
     modifier.show_viewport = False
@@ -119,23 +119,29 @@ def fillet_tool_active(context: Context) -> bool:
 
 
 def sync_fillet_visibility(context: Context) -> None:
-    """Hide the fillet exactly while its tool is active, else show it again.
+    """Hide every fillet while the tool is active, else show them again.
 
-    The picking session lasts as long as the tool: the object shows the geometry
-    the fillet reads (so a click lands on the element the node tree indexes), and
-    picking up any other tool brings the rounded result back. Blender has no
-    tool-activated callback, so a timer keeps the two in step; this also repairs
-    the hidden state an undo step recorded mid-session.
+    The picking session lasts as long as the tool: objects show the geometry their
+    fillet reads, so a click lands on the element the node tree indexes. It covers
+    every filleted object, not just the active one -- the object under the cursor
+    is often not the selected one, and a visible rounded edge would renumber the
+    elements, making each pick after the first land somewhere else.
+
+    Blender has no tool-activated callback, so a timer keeps the two in step; this
+    also repairs the hidden state an undo step recorded mid-session.
     """
-    if fillet_tool_active(context):
-        ob = fillet_target(getattr(context, "object", None))
-        if ob is not None:
-            hide_fillet(context, ob)
-    elif _hidden:
-        restore_fillets(context)
+    if not fillet_tool_active(context):
+        if _hidden:
+            restore_fillets(context)
+        return
+
+    view_layer = getattr(context, "view_layer", None)
+    objects = view_layer.objects if view_layer else bpy.data.objects
+    for ob in objects:
+        hide_fillet(context, ob)
 
 
-_TIMER_INTERVAL = 0.2
+_TIMER_INTERVAL = 0.1
 
 
 def _sync_timer():
@@ -187,6 +193,9 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
 
     def init(self, context: Context, event: Event):
         build_fillet_node_group()
+        # The timer syncs visibility a few times a second; do it now too, so a
+        # click that comes in before the next tick still picks on base geometry.
+        sync_fillet_visibility(context)
         return True
 
     def _picked(self):
