@@ -149,6 +149,27 @@ def _sync_timer():
     return _TIMER_INTERVAL
 
 
+def picked_overlay_points(context: Context) -> list:
+    """World endpoints of every filleted object's picks, for the overlay.
+
+    Every object, not just the active one: the object being picked is often not
+    the selected one, and the picks are the tool's main feedback.
+    """
+    from ..utilities.fillet_nodes import get_domain, get_picks
+
+    view_layer = getattr(context, "view_layer", None)
+    objects = view_layer.objects if view_layer else bpy.data.objects
+    points = []
+    for ob in objects:
+        modifier = fillet_modifier(ob)
+        if modifier is None:
+            continue
+        points.extend(
+            picked_edge_points(context, ob, get_picks(modifier), get_domain(modifier))
+        )
+    return points
+
+
 class View3D_OT_slvs_fillet_select(Operator, Operator3d):
     """Click the edges to round; click a rounded edge again to drop it"""
 

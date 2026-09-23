@@ -627,5 +627,25 @@ class TestFilletConfirm(TestCase):
         self.assertFalse(op._should_return_to_tool(False, False))
 
 
+class TestFilletOverlay(TestCase):
+    def test_picks_of_any_filleted_object_are_drawn(self):
+        """Not only the active one: the object being picked is often not selected,
+        and the picked edges are the tool's main feedback."""
+        from ..operators.fillet import add_fillet_modifier, picked_overlay_points
+        from ..utilities.fillet_nodes import set_picks
+
+        bpy.ops.mesh.primitive_cube_add(size=2)
+        picked = bpy.context.active_object
+        bpy.ops.mesh.primitive_cube_add(size=2, location=(4, 0, 0))
+        other = bpy.context.active_object  # the active one carries no picks
+        try:
+            set_picks(add_fillet_modifier(picked), [0, 1], "EDGE")
+            points = picked_overlay_points(bpy.context)
+            self.assertEqual(len(points), 4)
+        finally:
+            for ob in (picked, other):
+                bpy.data.objects.remove(ob, do_unlink=True)
+
+
 if __name__ == "__main__":
     unittest.main()

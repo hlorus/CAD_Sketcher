@@ -262,18 +262,13 @@ def _draw_text_block(plane_mat, lines, dims, gap, size, scale, x, y, align):
 def draw_fillet_picks():
     """POST_VIEW: the edges the Fillet tool rounds, while that tool is active."""
     from .declarations import WorkSpaceTools
-    from .operators.fillet import fillet_modifier, picked_edge_points
-    from .utilities.fillet_nodes import get_domain, get_picks
+    from .operators.fillet import picked_overlay_points
 
     context = bpy.context
     tool = context.workspace.tools.from_space_view3d_mode(context.mode)
-    if tool is None or tool.idname != WorkSpaceTools.Fillet:
+    if tool is None or tool.idname != WorkSpaceTools.Fillet or context.region is None:
         return
-    ob = context.object
-    modifier = fillet_modifier(ob) if ob else None
-    if modifier is None or context.region is None:
-        return
-    points = picked_edge_points(context, ob, get_picks(modifier), get_domain(modifier))
+    points = picked_overlay_points(context)
     if not points:
         return
     col = (*get_prefs().theme_settings.entity.selected[:3], 1.0)
