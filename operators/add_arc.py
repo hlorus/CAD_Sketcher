@@ -201,6 +201,7 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
             description="Pick or place ending point.",
             pointer="p2",
             types=types_point_2d,
+            state_func="get_endpoint_pos",
             # Follow the cursor, so the assumed arc is live while it is placed.
             interactive=True,
         ),
@@ -228,23 +229,71 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
             return None
         return Vector(pos[:2])
 
-    # Sagitta as a fraction of the chord for the arc shown before it is shaped:
-    # (1 - cos45) / (2 sin45), a 90 degree arc.
+    # Sagitta as a fraction of the chord, for the arc shown before the cursor has
+    # set off in a direction: (1 - cos45) / (2 sin45), a 90 degree arc.
     _ASSUMED_BULGE = 0.2071
+    # How far the cursor has to leave the start point, as a fraction of the view
+    # distance, before its direction is taken as the arc's tangent there.
+    _TANGENT_COMMIT = 0.02
+    # Direction the cursor set off in, the arc's tangent at the start point.
+    _start_dir = None
+
+    def get_endpoint_pos(self, context: Context, coords):
+        """Place the endpoint and note the direction the cursor set off in.
+
+        That direction is the arc's tangent at the start point, so while the
+        endpoint is placed the radius follows the cursor and the arc curves the
+        other way once the cursor crosses the tangent. Coming back to the start
+        point drops it again, to aim anew.
+        """
+        pos = self.state_func(context, coords)
+        p1 = self.get_point(context, 0)
+        if pos is None or p1 is None or not p1.valid:
+            return pos
+        delta = Vector(pos[:2]) - p1.co
+        region_3d = getattr(context, "region_data", None)
+        threshold = getattr(region_3d, "view_distance", 1.0) * self._TANGENT_COMMIT
+        if delta.length > threshold:
+            if self._start_dir is None:
+                self._start_dir = delta.normalized()
+        else:
+            self._start_dir = None
+        return pos
 
     def _assumed_through(self, p1, p2):
         """Where the arc passes through until the user shapes it.
 
         The endpoint is then placed against a real arc rather than against two
-        loose points. A 90 degree arc bulging to the left of start -> end reads
-        as an arc at a glance and is short to bend either way afterwards.
+        loose points. Once the cursor has set off in a direction, that direction
+        is the tangent at the start point and the arc follows the endpoint from
+        there; until then a 90 degree arc stands in.
         """
-        chord = Vector(p2) - Vector(p1)
+        p1, p2 = Vector(p1), Vector(p2)
+        chord = p2 - p1
         if not chord.length:
             return None
-        return (Vector(p1) + Vector(p2)) / 2 + Vector(
-            (-chord.y, chord.x)
-        ) * self._ASSUMED_BULGE
+        tangent = self._start_dir
+        if tangent is None:
+            return (p1 + p2) / 2 + Vector((-chord.y, chord.x)) * self._ASSUMED_BULGE
+
+        # The circle through p1 tangent to `tangent` and through p2: its center
+        # sits on the tangent's normal at p1, at the signed radius below.
+        normal = Vector((-tangent.y, tangent.x))
+        denominator = 2 * chord.dot(normal)
+        if abs(denominator) < 1e-9:
+            return None  # the endpoint is on the tangent: a straight line
+        radius = chord.length_squared / denominator
+        center = p1 + normal * radius
+
+        # A positive radius puts the center left of the tangent, so travel along
+        # the tangent runs counter-clockwise. Take the point halfway along that
+        # sweep, which also describes an arc of more than half a turn.
+        start_angle = math.atan2(*(p1 - center).yx)
+        end_angle = math.atan2(*(p2 - center).yx)
+        direction = 1.0 if radius > 0 else -1.0
+        sweep = (end_angle - start_angle) * direction % (2 * math.pi)
+        half = start_angle + direction * sweep / 2
+        return center + Vector((math.cos(half), math.sin(half))) * abs(radius)
 
     def _points(self, context: Context):
         """The start and end points, or None while the endpoint is not placed."""

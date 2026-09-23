@@ -236,6 +236,36 @@ class TestCreateOperators(Sketch2dTestCase):
         self.assertLess(mid.y, 0.0)
         self.assertAlmostEqual(math.degrees(arc.angle), 90.0, places=1)
 
+    def test_three_point_arc_follows_the_direction_it_set_off_in(self):
+        """That direction is the tangent at the start point: the radius follows
+        the endpoint, and crossing the tangent curves the arc the other way."""
+        from mathutils import Vector
+
+        from ..operators.add_arc import View3D_OT_slvs_add_arc3pt2d
+        from ..utilities.geometry import arc_through_points
+
+        op = self._harness(View3D_OT_slvs_add_arc3pt2d).op
+        op._start_dir = Vector((1.0, 0.0))
+        start = Vector((0.0, 0.0))
+
+        def arc(end):
+            end = Vector(end)
+            center, _reverse = arc_through_points(
+                start, end, op._assumed_through(start, end)
+            )
+            return center, (center - start).length
+
+        center, radius = arc((1.0, 1.0))
+        self.assertAlmostEqual(radius, 1.0, places=5)
+        self.assertGreater(center.y, 0.0)  # curves the way the cursor went
+
+        flipped, flipped_radius = arc((1.0, -1.0))
+        self.assertAlmostEqual(flipped_radius, 1.0, places=5)
+        self.assertLess(flipped.y, 0.0)  # across the tangent: the other way
+
+        _far_center, far_radius = arc((4.0, 1.0))
+        self.assertGreater(far_radius, radius)  # a farther endpoint, a wider arc
+
     def test_three_point_arc_on_chord_creates_nothing(self):
         from ..operators.add_arc import View3D_OT_slvs_add_arc3pt2d
 
