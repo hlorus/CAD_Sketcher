@@ -947,3 +947,24 @@ class TestPartRoot(BgsTestCase):
         settle_membership(second.target_object, [base])
 
         self.assertEqual(second.target_object.slvs_workplane, own)
+
+    def test_a_new_part_gets_its_base_planes_at_once(self):
+        # They are what you sketch on next, so they exist as soon as the part
+        # does rather than the first time a picker asks for them.
+        from ..utilities.body import body_of
+        from ..utilities.part import PART_PLANE_KEY, existing_part_plane
+
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        body = body_of(sketch.target_object)
+        plane = sketch.target_object.slvs_workplane
+        # Only its own plane while it is just a body.
+        self.assertEqual([c for c in body.children if PART_PLANE_KEY in c], [])
+
+        self.context.view_layer.objects.active = body
+        body.select_set(True)
+        bpy.ops.view3d.slvs_make_part()
+
+        for axis in ("XY", "XZ", "YZ"):
+            self.assertIsNotNone(existing_part_plane(body, axis), axis)
+        # The one it was drawn on is the XY, not a fourth plane.
+        self.assertEqual(existing_part_plane(body, "XY"), plane)
