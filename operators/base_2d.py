@@ -22,6 +22,19 @@ class Operator2d(GenericEntityOp):
     def poll(cls, context: Context):
         return context.scene.sketcher.active_sketch_object is not None
 
+    def chain_scope(self, context: Context) -> str:
+        """A chain point is only carried on from within the same sketch."""
+        obj = context.scene.sketcher.active_sketch_object
+        return obj.name if obj else ""
+
+    def chain_point_valid(self, context: Context) -> bool:
+        """Whether the point a chain was carried on from is still there."""
+        try:
+            point = self.get_point(context, 0)
+        except (KeyError, AttributeError, RuntimeError):
+            return False
+        return point is not None and getattr(point, "valid", False)
+
     # A 2D draw operator only ever modifies the active sketch's curve data and
     # constraints -- not the entity system (structural workplane/normal/origin
     # entities). The base snapshot re-serialized and restored the whole scene

@@ -192,7 +192,14 @@ class TestRunningToolHandsOver(Sketch2dTestCase):
         op._last_coords = Vector((0, 0))
         op._axis_lock = None
         self.ended = []
-        op._end = lambda context, succeede, **kw: self.ended.append(succeede)
+
+        def end(context, succeede, **kw):
+            self.ended.append(succeede)
+            # What the real _end reports: a chain that committed segments counts
+            # as finished, anything else as cancelled.
+            return {"FINISHED"} if op._chain_committed else {"CANCELLED"}
+
+        op._end = end
         actions = {"C": switch.SWITCH, "K": switch.FORWARD, "Z": switch.CANCEL}
         op.key_action = lambda context, event: actions.get(event.type, switch.BLOCK)
         op.evaluate_state = lambda *args: {"RUNNING_MODAL"}
@@ -208,6 +215,17 @@ class TestRunningToolHandsOver(Sketch2dTestCase):
         op = self._op()
         self.assertEqual(
             op.modal(self.context, self._key("C")), {"CANCELLED", "PASS_THROUGH"}
+        )
+        self.assertEqual(self.ended, [False])
+
+    def test_switching_away_from_a_chain_keeps_it_finished(self):
+        # Only the segment in progress is dropped; the segments the chain already
+        # committed stand, so the operator is finished and keeps its redo panel.
+        op = self._op()
+        op._chain_committed = True
+
+        self.assertEqual(
+            op.modal(self.context, self._key("C")), {"FINISHED", "PASS_THROUGH"}
         )
         self.assertEqual(self.ended, [False])
 

@@ -3,6 +3,7 @@ from bpy.props import BoolProperty, StringProperty
 from bpy.types import Context, Event, Operator
 
 from .constants import Operators
+from .utilities import continuation
 
 
 class View3D_OT_invoke_tool(Operator):
@@ -115,4 +116,7 @@ class View3D_OT_invoke_tool(Operator):
         if op.poll():
             op("INVOKE_DEFAULT", **options)
 
+        # Whatever the started operator didn't take up is stale: a chain point is
+        # offered to the run this keypress starts, not to a later one.
+        continuation.clear()
         return {"FINISHED"}

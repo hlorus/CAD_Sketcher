@@ -49,6 +49,21 @@ While running an operation the statusbar will display that information for the c
 
 ![!Tooltip Statusbar](images/tooltip_statusbar.png)
 
+### Continuous Drawing
+The line and arc tools keep drawing: once a segment is placed the next one starts
+from its end point, sharing that point rather than putting a second one on top of
+it. The run ends when the segment's end lands on existing geometry (which is how a
+loop is closed), or with Esc.
+
+Reaching for another of those tools mid-run carries on from where the chain got
+to: drawing lines and pressing the arc tool's shortcut starts the arc at the last
+line's end point, and the same the other way round. What the chain already drew
+stays; only the segment in progress is dropped.
+
+Tools whose first click is not a start point (the center-based arc, circles) begin
+from scratch as usual. The behaviour can be turned off per tool with the
+"Continuous Draw" checkbox in the tool header.
+
 ### Immediate Execution
 Most tools support immediate execution which will invoke the tools operations when switching to it and a valid
 selection is given.
