@@ -82,6 +82,22 @@ def hide_fillet(context: Context, ob) -> None:
     context.view_layer.update()
 
 
+def show_fillet(context: Context, ob) -> None:
+    """Make sure ``ob``'s fillet is visible again.
+
+    A pick's undo step was recorded while the fillet was hidden for picking, so a
+    redo brings that hidden state back; ending a run always shows it again.
+    """
+    modifier = fillet_modifier(ob) if ob else None
+    if modifier is None or modifier.show_viewport:
+        return
+    modifier.show_viewport = True
+    _hidden.pop((ob.name, modifier.name), None)
+    ob.update_tag()
+    if context.view_layer:
+        context.view_layer.update()
+
+
 def restore_fillets(context: Context) -> None:
     """Undo :func:`hide_fillet` for every object it touched."""
     for ob_name, mod_name in list(_hidden):
@@ -149,6 +165,9 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
     # One invocation keeps picking: every click rounds another edge, and the run
     # ends with Esc/right-click like the other tools.
     repeat_states = True
+    # Set while the redo panel re-runs the operator: a pick is then re-applied
+    # rather than toggled, so adjusting Amount doesn't undo the pick itself.
+    _redoing = False
     # Object whose fillet is being edited, so a redo re-finds the modifier.
     target_name: StringProperty(options={"HIDDEN"})
 
@@ -167,6 +186,10 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
         # node tools): don't advertise the placeholder the entity base returns.
         return None
 
+    def execute(self, context: Context):
+        self._redoing = True
+        return super().execute(context)
+
     def init(self, context: Context, event: Event):
         build_fillet_node_group()
         # Show the geometry the fillet reads while picking, so a click lands on
@@ -182,6 +205,7 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
         # run is over, so the next click still picks on the same geometry.
         if not self._run_continues:
             restore_fillets(context)
+            show_fillet(context, self._target(context))
 
     def _picked(self):
         """``(object, edge index)`` of the current pick, or ``(None, -1)``.
@@ -217,9 +241,9 @@ class View3D_OT_slvs_fillet_select(Operator, Operator3d):
             )
 
         picks = get_picks(modifier)
-        if index in picks:
+        if index in picks and not self._redoing:
             picks.remove(index)
-        else:
+        elif index not in picks:
             picks.append(index)
         if picks:
             set_picks(modifier, picks, get_domain(modifier))

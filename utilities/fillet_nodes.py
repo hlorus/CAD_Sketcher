@@ -322,11 +322,16 @@ def set_picks(modifier, picks, domain: str = "EDGE"):
 
     group = modifier.node_group
     if group is None or group.get(OWNER_KEY) != owner:
-        group = build_fillet_node_group().copy()
-        group.name = f"{FILLET_NODE_GROUP} {owner}"
-        group[OWNER_KEY] = owner
-        # A copy carries the shared group's version; force the rebuild below.
-        group["cad_fillet_version"] = -1
+        # Reuse this owner's group if it is still around (re-picking, or a redo
+        # that re-created the modifier), so copies don't pile up.
+        name = f"{FILLET_NODE_GROUP} {owner}"
+        group = bpy.data.node_groups.get(name)
+        if group is None or group.get(OWNER_KEY) != owner:
+            group = build_fillet_node_group().copy()
+            group.name = name
+            group[OWNER_KEY] = owner
+            # A copy carries the shared group's version; force the rebuild below.
+            group["cad_fillet_version"] = -1
 
     group = build_fillet_node_group(group.name, picks)
     group[DOMAIN_KEY] = domain

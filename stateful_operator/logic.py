@@ -1228,6 +1228,10 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """
         self._end(context, True, keep_stateful_running=True)
         bpy.ops.ed.undo_push(message=self.bl_label)
+        # What this step committed stands even when the run is ended with Esc, and
+        # the redo panel has to adjust that step (see _end / do_continuous_draw).
+        self._chain_committed = True
+        self._committed_props = self._capture_props()
         self._reset_op()
         self._capture_baseline(context)
         self.set_state(context, 0)

@@ -467,13 +467,85 @@ class TestFilletRun(TestCase):
             self.assertFalse(modifier.show_viewport)
 
             op = fillet.View3D_OT_slvs_fillet_select
-            op.fini(SimpleNamespace(_run_continues=True), bpy.context, True)
+            mid_run = SimpleNamespace(_run_continues=True, _target=lambda ctx: ob)
+            op.fini(mid_run, bpy.context, True)
             self.assertFalse(modifier.show_viewport, "stays hidden between picks")
 
-            op.fini(SimpleNamespace(_run_continues=False), bpy.context, True)
+            run_end = SimpleNamespace(_run_continues=False, _target=lambda ctx: ob)
+            op.fini(run_end, bpy.context, True)
             self.assertTrue(modifier.show_viewport, "restored when the run ends")
         finally:
             fillet.restore_fillets(bpy.context)
+            bpy.data.objects.remove(ob, do_unlink=True)
+
+
+class TestFilletRedo(TestCase):
+    """The redo panel adjusts the last pick instead of undoing it."""
+
+    def _op(self, ob, index):
+        from ..operators.fillet import View3D_OT_slvs_fillet_select
+        from .utils import make_operator_double
+
+        op = make_operator_double(View3D_OT_slvs_fillet_select)()
+        op.amount = 0.2
+        op.target_name = ob.name
+        op._picked = lambda: (ob, index)
+        return op
+
+    def test_redo_keeps_the_pick_and_applies_the_amount(self):
+        from ..operators.fillet import add_fillet_modifier, fillet_modifier
+        from ..operators.modifiers import get_modifier_input
+        from ..utilities.fillet_nodes import fillet_input_ids, get_picks, set_picks
+
+        bpy.ops.mesh.primitive_cube_add(size=2)
+        ob = bpy.context.active_object
+        try:
+            modifier = add_fillet_modifier(ob, 0.1)
+            set_picks(modifier, [3], "EDGE")
+
+            op = self._op(ob, 3)
+            op._redoing = True
+            op.main(bpy.context)
+
+            modifier = fillet_modifier(ob)
+            self.assertEqual(get_picks(modifier), [3], "a redo must not toggle it off")
+            ids = fillet_input_ids(modifier.node_group)
+            self.assertAlmostEqual(
+                get_modifier_input(modifier, ids["Amount"]), 0.2, places=5
+            )
+        finally:
+            bpy.data.objects.remove(ob, do_unlink=True)
+
+    def test_interactive_click_toggles_the_pick_off(self):
+        from ..operators.fillet import add_fillet_modifier, fillet_modifier
+        from ..utilities.fillet_nodes import set_picks
+
+        bpy.ops.mesh.primitive_cube_add(size=2)
+        ob = bpy.context.active_object
+        try:
+            modifier = add_fillet_modifier(ob, 0.1)
+            set_picks(modifier, [3], "EDGE")
+
+            op = self._op(ob, 3)
+            op.main(bpy.context)
+            self.assertIsNone(
+                fillet_modifier(ob), "the last pick dropped, so no fillet"
+            )
+        finally:
+            bpy.data.objects.remove(ob, do_unlink=True)
+
+    def test_a_picked_object_reuses_its_group(self):
+        from ..operators.fillet import add_fillet_modifier
+        from ..utilities.fillet_nodes import set_picks
+
+        bpy.ops.mesh.primitive_cube_add(size=2)
+        ob = bpy.context.active_object
+        try:
+            modifier = add_fillet_modifier(ob, 0.1)
+            first = set_picks(modifier, [1], "EDGE").name
+            second = set_picks(modifier, [1, 2], "EDGE").name
+            self.assertEqual(first, second, "picking again must not copy the group")
+        finally:
             bpy.data.objects.remove(ob, do_unlink=True)
 
 
