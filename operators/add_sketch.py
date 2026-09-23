@@ -2,7 +2,7 @@ import logging
 
 import bpy
 from bpy.types import Context, Event, Operator
-from mathutils import Matrix
+from mathutils import Euler, Matrix
 
 from ..declarations import Operators, WorkSpaceTools
 from ..model.curve_ref import PointRef
@@ -83,30 +83,23 @@ def build_sketch_on_workplane(context: Context, wp_empty):
 
     # Every sketch is realised on a body, and the body is what carries the
     # transform: the sketch always sits on a workplane, and that workplane hangs
-    # under the body. A sketch drawn on a shared datum gets a plane of its own
-    # there, since the scene's datums belong to no part.
+    # under the body.
     starts_a_part = root is None or _is_shared_datum(context, wp_orig)
     body = ensure_body(
         context, sketch_obj, default_body_name(None if starts_a_part else root)
     )
-    plane = (
-        new_workplane_empty(context, wp_orig.matrix_world.copy())
-        if starts_a_part
-        else wp_orig
-    )
 
     if starts_a_part:
-        # Nothing to hang from: the body anchors the part and the plane rides on
-        # it, so body, plane and sketch all share one world matrix.
-        body.matrix_basis = plane.matrix_world.copy()
-        plane.parent = body
-        plane.matrix_parent_inverse = Matrix.Identity(4)
-        plane.matrix_basis = Matrix.Identity(4)
+        # Nothing to hang from: the scene's datums are shared, so the body gets
+        # datums of its own and the sketch sits on the one it was drawn on. A
+        # copy of the datum would be a second plane in the same place.
+        plane = _own_base_plane(context, body, wp_orig)
         free_transform(body)
     else:
         # The plane is already part of something (a face of a body, or that
         # part's own datum), so it stays where it is and the new body hangs from
         # it. Re-parenting the plane instead would take the part's datum away.
+        plane = wp_orig
         if part_root_of(plane) is None:
             # A plane picked on a body that has just become a part: it has to
             # join, or nothing in this chain reaches the part.
@@ -125,7 +118,7 @@ def build_sketch_on_workplane(context: Context, wp_empty):
 
     from ..utilities.body import name_after_body
 
-    name_after_body(body, sketch_obj, plane if starts_a_part else None)
+    name_after_body(body, sketch_obj)
     hide_sketch_curves(sketch_obj)
 
     sketch = Sketch(sketch_obj)
@@ -134,6 +127,40 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     assert origin is not None, "Failed to create origin point"
 
     return sketch
+
+
+def _own_base_plane(context: Context, body, wp_empty):
+    """Place ``body`` so one of its own base planes lands on ``wp_empty``.
+
+    The body's frame is the plane it was drawn on with that plane's own rotation
+    taken out, so its XY/XZ/YZ come out where the world's datums are (or, for a
+    plane that is not a datum, its XY lands on that plane). The sketch then sits
+    on a real datum of the part instead of a private copy.
+    """
+    from ..utilities.part import PART_PLANE_AXES, ensure_part_planes
+
+    axis = _datum_axis(context, wp_empty) or "XY"
+    euler = dict(PART_PLANE_AXES)[axis]
+    frame = Euler(euler).to_matrix().to_4x4()
+    body.matrix_basis = wp_empty.matrix_world @ frame.inverted()
+
+    planes = dict(
+        zip((a for a, _e in PART_PLANE_AXES), ensure_part_planes(context, body))
+    )
+    return planes[axis]
+
+
+def _datum_axis(context: Context, wp_empty):
+    """Which of the scene's datums ``wp_empty`` is, or None."""
+    sketcher = context.scene.sketcher
+    for datum, axis in (
+        (sketcher.wp_xy, "XY"),
+        (sketcher.wp_xz, "XZ"),
+        (sketcher.wp_yz, "YZ"),
+    ):
+        if datum is not None and datum == wp_empty:
+            return axis
+    return None
 
 
 def _is_shared_datum(context: Context, wp_empty) -> bool:
@@ -205,10 +232,13 @@ def _owns_workplane(context: Context, sketch_obj, wp) -> bool:
     an object the user parented) counts as a use.
     """
     from ..utilities.face_anchor import is_origin_workplane
+    from ..utilities.part import PART_PLANE_KEY
 
     return (
         wp is not None
         and not is_origin_workplane(context.scene, wp)
+        # A base plane is a datum of its part: it stays whatever sits on it.
+        and PART_PLANE_KEY not in wp
         and all(c == sketch_obj for c in wp.children)
     )
 

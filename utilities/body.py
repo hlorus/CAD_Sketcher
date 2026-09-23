@@ -99,18 +99,24 @@ def _new_body(
 
 
 def name_after_body(body: bpy.types.Object, sketch_obj, plane=None) -> None:
-    """Name a body's sketch (and its own plane) after the body.
+    """Name a body's sketch, base planes and mesh after the body.
 
     The body is the thing the user grabs, so the outliner reads as one named
-    thing with its source under it: rename the body and the rest follows. Only a
-    plane the part owns is renamed: one it was drawn on belongs to something
-    else.
+    thing with its source under it: rename the body and the rest follows. A
+    ``plane`` is renamed only when the body owns it; one the sketch was drawn on
+    belongs to something else.
     """
+    from .part import PART_PLANE_AXES, existing_part_plane
+
     body.data.name = body.name
     sketch_obj.name = f"{body.name} Sketch"
     sketch_obj.data.name = sketch_obj.name
     if plane is not None:
         plane.name = f"{body.name} Workplane"
+    for axis, _euler in PART_PLANE_AXES:
+        base = existing_part_plane(body, axis)
+        if base is not None:
+            base.name = f"{body.name} {axis}"
 
 
 def remove_body(sketch_obj: bpy.types.Object) -> None:

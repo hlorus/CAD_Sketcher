@@ -73,7 +73,9 @@ class TestPartRoot(BgsTestCase):
 
         self.assertEqual(obj.name, f"{body.name} Sketch")
         self.assertEqual(obj.data.name, obj.name)
-        self.assertEqual(obj.slvs_workplane.name, f"{body.name} Workplane")
+        # It sits on one of the body's own base planes, not on a copy of the
+        # datum it was drawn on.
+        self.assertEqual(obj.slvs_workplane.name, f"{body.name} XY")
 
     def test_a_body_joining_a_part_takes_its_name(self):
         # It is a feature of that part, not a "Body" of its own: Blender numbers
@@ -105,11 +107,11 @@ class TestPartRoot(BgsTestCase):
         body = body_of(obj)
 
         body.name = "Latch"
-        name_after_body(body, obj, obj.slvs_workplane)
+        name_after_body(body, obj)
 
         self.assertEqual(body.data.name, "Latch")
         self.assertEqual(obj.name, "Latch Sketch")
-        self.assertEqual(obj.slvs_workplane.name, "Latch Workplane")
+        self.assertEqual(obj.slvs_workplane.name, "Latch XY")
 
     def test_a_sketch_joining_a_part_leaves_its_plane_named(self):
         # The plane belongs to whatever the sketch was drawn on, so it keeps the
@@ -866,3 +868,46 @@ class TestPartRoot(BgsTestCase):
         self.assertEqual(len(lines), 2)
         self.assertTrue("".join(lines).endswith("…"))
         self.assertLessEqual(sum(len(line) for line in lines), 22)
+
+    def test_a_new_part_sketches_on_its_own_datum_not_a_copy(self):
+        # The scene's datums are shared, so a new part needs one of its own. It
+        # gets its base planes, rather than a private copy of what was picked.
+        from ..utilities.body import body_of
+        from ..utilities.part import PART_PLANE_KEY
+
+        for datum, axis in (
+            (self.context.scene.sketcher.wp_xy, "XY"),
+            (self.context.scene.sketcher.wp_xz, "XZ"),
+            (self.context.scene.sketcher.wp_yz, "YZ"),
+        ):
+            sketch = build_sketch_on_workplane(self.context, datum)
+            obj = sketch.target_object
+            body = body_of(obj)
+            plane = obj.slvs_workplane
+
+            self.assertEqual(plane.get(PART_PLANE_KEY), axis)
+            self.assertEqual(plane.parent, body)
+            # Drawn where it was picked: the plane lands on the datum (to
+            # float32, since it is composed through the body's frame).
+            for got, want in zip(sketch.plane_matrix, datum.matrix_world):
+                for a, b in zip(got, want):
+                    self.assertAlmostEqual(a, b, places=5)
+            # Its three base planes, and nothing else.
+            planes = [c for c in body.children if PART_PLANE_KEY in c]
+            self.assertEqual(len(body.children), 3)
+            self.assertEqual(len(planes), 3)
+
+    def test_a_plane_the_user_made_is_not_copied_either(self):
+        from ..utilities.part import PART_PLANE_KEY
+
+        empty = bpy.data.objects.new("My Plane", None)
+        self.scene.collection.objects.link(empty)
+        empty.matrix_world = Matrix.Translation(Vector((0.0, 0.0, 2.0)))
+
+        sketch = build_sketch_on_workplane(self.context, empty)
+
+        # The body's own XY lands on it, so the sketch has a datum of its own
+        # without taking the user's empty into the part.
+        self.assertEqual(sketch.target_object.slvs_workplane.get(PART_PLANE_KEY), "XY")
+        self.assertEqual(sketch.plane_matrix.translation, Vector((0.0, 0.0, 2.0)))
+        self.assertIsNone(empty.parent)

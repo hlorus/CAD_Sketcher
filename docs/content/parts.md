@@ -18,9 +18,8 @@ each part, and objects nest under the object that carries them.
     - **Bracket** &mdash; an assembly collection
         - **Plate** &mdash; a part collection
             - **Plate** &mdash; the part's body: a mesh, carrying the features
-                - **Plate Workplane** &mdash; the plane its sketch sits on
-                    - **Plate Sketch** &mdash; the source the body is built from
-                - **Plate XY**, **Plate XZ**, **Plate YZ** &mdash; the part's own base planes
+                - **Plate XY**, **Plate XZ**, **Plate YZ** &mdash; the part's own planes
+                    - **Plate Sketch** &mdash; on Plate XY: the source the body is built from
                 - **Workplane** &mdash; on a face of Plate
                     - **Plate.001** &mdash; a cutter, with its own sketch beneath it
         - **Pin** &mdash; a second part in the same assembly
@@ -76,10 +75,16 @@ to an existing part.
 
 ## Part workplanes
 
-Select a part and the Add Sketch tool offers that part's own XY, XZ and YZ planes,
-drawn smaller, *in place of* the scene's. Use them when a part has been moved or
-rotated and you want to sketch in its frame rather than the world's. Deselect to
-get the scene's planes back, which is also how you start a new part.
+Every body has its own XY, XZ and YZ planes, and a sketch sits on one of them:
+drawing on the scene's XY gives you a part whose own XY lands there. Select a
+part and the Add Sketch tool offers its planes, drawn smaller, *in place of* the
+scene's, so a part that has been moved or rotated is sketched in its frame rather
+than the world's. Deselect to get the scene's planes back, which is also how you
+start a new part.
+
+Sketching on a face makes a workplane for that face, and you can sketch on any
+empty you place yourself. Those are the only other planes: nothing creates a
+plane per sketch.
 
 ## Changing membership by hand
 
