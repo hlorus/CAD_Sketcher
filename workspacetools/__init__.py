@@ -39,17 +39,18 @@ add(
     separator=False,
     group=False,
 )
-# Both arc tools share one toolbar button with a flyout.
+# Both arc tools share one toolbar button with a flyout, the 3-point arc leading:
+# it draws from the cursor's own direction, so it needs no center to start from.
 add(
-    VIEW3D_T_slvs_add_arc2d,
+    VIEW3D_T_slvs_add_arc3pt2d,
     visibility=ToolGroup.SKETCH_2D,
     separator=False,
     group=True,
 )
 add(
-    VIEW3D_T_slvs_add_arc3pt2d,
+    VIEW3D_T_slvs_add_arc2d,
     visibility=ToolGroup.SKETCH_2D,
-    after={WorkSpaceTools.AddArc2D.value},
+    after={WorkSpaceTools.AddArc3Point2D.value},
 )
 add(
     VIEW3D_T_slvs_add_rectangle,
