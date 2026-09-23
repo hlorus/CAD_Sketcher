@@ -63,6 +63,12 @@ class VIEW3D_OT_slvs_migrate_legacy(Operator):
 
         bodies = migrate_bodies(context, context.scene)
 
+        # A boolean saved with the Manifold solver deletes a target that is not a
+        # closed volume rather than cutting it; put those back on Exact.
+        from ..utilities.boolean_nodes import repair_solver_choice
+
+        solvers = repair_solver_choice(context.scene)
+
         adopted = migrate_parts(context.scene)
         # The per-sketch collections older files were saved with are dissolved
         # here rather than on load, so opening a file leaves its outliner alone.
@@ -72,7 +78,7 @@ class VIEW3D_OT_slvs_migrate_legacy(Operator):
 
         # One result, in the user's terms: which steps ran is an implementation
         # detail, and the log carries the detail if anyone needs it.
-        if migrated or bodies or adopted or dissolved:
+        if migrated or bodies or adopted or dissolved or solvers:
             self.report({"INFO"}, "File updated")
         else:
             self.report({"INFO"}, "File is already up to date")

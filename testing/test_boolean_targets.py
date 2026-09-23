@@ -278,3 +278,73 @@ class TestBooleanTargets(BgsTestCase):
             )
         finally:
             sketcher.use_auto_boolean = True
+
+
+class TestSolverRepair(BgsTestCase):
+    def _flat(self, name):
+        me = self.data.meshes.new(name)
+        me.from_pydata(
+            [(-2.0, -2.0, 0.0), (2.0, -2.0, 0.0), (2.0, 2.0, 0.0), (-2.0, 2.0, 0.0)],
+            [],
+            [(0, 1, 2, 3)],
+        )
+        me.update()
+        ob = self.data.objects.new(name, me)
+        self.scene.collection.objects.link(ob)
+        self.context.view_layer.update()
+        return ob
+
+    def _cube(self, name):
+        import bmesh
+
+        me = self.data.meshes.new(name)
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me)
+        bm.free()
+        ob = self.data.objects.new(name, me)
+        self.scene.collection.objects.link(ob)
+        self.context.view_layer.update()
+        return ob
+
+    def test_update_puts_a_destructive_boolean_back_on_exact(self):
+        # A file saved with Manifold selected holds a boolean whose result is
+        # empty: the solver drops the flat target instead of cutting it.
+        from ..operators.modifiers import (
+            apply_boolean,
+            boolean_input_ids,
+            get_boolean_solver,
+            set_boolean_solver,
+        )
+        from ..utilities.boolean_nodes import SOLVER_SOCKET, repair_solver_choice
+
+        flat = self._flat("Panel")
+        cutter = self._cube("Pin")
+        mod = apply_boolean(flat, cutter)
+        ids = boolean_input_ids(mod.node_group)
+        set_boolean_solver(mod, ids[SOLVER_SOCKET], "Manifold")  # as the file has it
+
+        self.assertTrue(repair_solver_choice(self.scene))
+        self.assertEqual(get_boolean_solver(mod, ids[SOLVER_SOCKET]), "Exact")
+        # Nothing left to do on a second pass.
+        self.assertFalse(repair_solver_choice(self.scene))
+
+    def test_a_solid_boolean_keeps_the_fast_solver(self):
+        from ..operators.modifiers import (
+            apply_boolean,
+            boolean_input_ids,
+            get_boolean_solver,
+            set_boolean_solver,
+        )
+        from ..utilities.boolean_nodes import SOLVER_SOCKET, repair_solver_choice
+
+        target = self._cube("Block")
+        cutter = self._cube("Drill")
+        cutter.location = (1.0, 1.0, 1.0)
+        self.context.view_layer.update()
+        mod = apply_boolean(target, cutter)
+        ids = boolean_input_ids(mod.node_group)
+        set_boolean_solver(mod, ids[SOLVER_SOCKET], "Manifold")
+
+        self.assertFalse(repair_solver_choice(self.scene))
+        self.assertEqual(get_boolean_solver(mod, ids[SOLVER_SOCKET]), "Manifold")
