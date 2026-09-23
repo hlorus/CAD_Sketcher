@@ -8,9 +8,16 @@ optional: a release with no matching entry just uses GitHub's auto-generated
 notes and shows no "What's new" (e.g. a packaging-only patch).
 
 ## 0.32.0
-This release makes large sketches much faster to draw in and edit, adds control over curve resolution and the boolean solver, and refines drawing, bevel and constraint display.
+This release introduces parts and assemblies, makes a sketch's result a real mesh you can move, apply and export, adds new drawing tools, and makes large sketches much faster to draw in and edit.
 
 New
+- Parts and assemblies: a part is the geometry a sketch makes together with the sketches and workplanes that define it, and you can move it freely, group parts into assemblies, and duplicate or instance either; the outliner shows the structure
+- A sketch's result is a real mesh object: apply the modifiers, export it, or edit it with any mesh tool, and add your own modifiers on top
+- Each part has its own XY, XZ and YZ workplanes, offered in place of the scene's while the part is selected
+- Revolve can turn geometry around a part's own axis, not only around a picked edge
+- 3-point arc tool, and center and 3-point rectangle tools
+- Re-pick a constraint's entities, or a drawing tool's points, from the redo panel
+- A tool's shortcut works while another tool is running
 - Curve resolution: set how finely arcs and circles are meshed, per sketch and as a preference for new sketches
 - Boolean solver choice: switch a boolean between Exact and the much faster Manifold solver, with a preference for the default
 - Linear Array can take a second direction to build grids of copies
@@ -20,6 +27,11 @@ New
 - Drawing tools accept press, drag and release, e.g. drag out a line or a circle's radius
 
 Improved
+- Renaming a part renames its sketch, workplanes and mesh with it
+- Points lying on a line are hovered before the line, so they can be picked without cycling
+- An arc is previewed while you place its last point
+- Drawing by dragging needs a deliberate drag, so a click no longer starts one
+- Sketches linked from another file are left to the file that owns them
 - Much faster hovering, dragging and drawing in large sketches, and faster redraws with many constraints
 - Geometry in under-constrained sketches no longer drifts slightly on every solve
 - Constraint icons on the same element or overlapping on screen are grouped into one icon with a count; hover it to expand
@@ -29,10 +41,17 @@ Improved
 - A tool's redo panel shows picked elements by name instead of an internal id
 
 Fixed
+- A sketch's result can be applied as a modifier again, so it reaches exporters, `to_mesh` and mesh tools
+- Cutting a flat profile with a solid deleted it instead of making a hole; existing files are repaired by Update File
+- Moving a circle's center no longer changes its radius
+- Dimension values stay with their sketch
+- A midpoint constraint is marked once instead of twice
 - Duplicated workplanes no longer snap back onto the face of the original; affected files are repaired on load
 - A cutter sketch anchored to the face it cuts no longer shifts its workplane
 - Clicking to bevel selected corners no longer adds an extra point
 - Linear Array could be added to a workplane empty
+
+Files made with an earlier version keep working; use **Update File** in the Sketcher panel to bring them into the new structure.
 
 ## 0.31.0
 This release adds a unified Dimension tool, native 3D sketches, nondestructive Boolean modeling and custom sketch attributes, organizes a project's objects into clean collections, and refines the Extrude, Revolve and Projection tools.
