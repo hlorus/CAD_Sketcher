@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 _FONT_ID = 0
 # Label height as a fraction of the origin plane's drawn side length.
 _LABEL_HEIGHT_FACTOR = 0.22
+# A plane named after an object says what it is, not what it is called, so its
+# name is drawn smaller than an axis label and over two lines if it is long.
+_NAME_HEIGHT_FACTOR = 0.10
+# Space between those lines, as a fraction of one line's height.
+_LABEL_LINE_GAP = 0.2
 # Inset of the label from the plane's outer corner, as a fraction of its side.
 _LABEL_CORNER_MARGIN = 0.08
 
@@ -227,7 +232,9 @@ def draw_origin_labels():
     from .declarations import GizmoGroups
     from .drawing import selection
     from .utilities.workplane import (
+        is_base_plane,
         iter_wp_empties,
+        label_lines,
         workplane_color,
         workplane_label,
         wp_plane_bounds,
@@ -255,7 +262,9 @@ def draw_origin_labels():
 
         min_x, min_y, max_x, max_y = wp_plane_bounds(context, pick_id)
         side = max_x - min_x
-        target_h = side * _LABEL_HEIGHT_FACTOR
+        base = is_base_plane(pick_id)
+        lines = [label] if base else label_lines(label)
+        target_h = side * (_LABEL_HEIGHT_FACTOR if base else _NAME_HEIGHT_FACTOR)
 
         plane_mat = wp_obj.matrix_world
         up_world = plane_mat.to_3x3().col[1].normalized()
@@ -269,9 +278,13 @@ def draw_origin_labels():
             continue
         blf.size(_FONT_ID, max(8, min(round((s1 - s0).length), 256)))
 
-        w, h = blf.dimensions(_FONT_ID, label)
-        if h <= 0.0:
+        dims = [blf.dimensions(_FONT_ID, line) for line in lines]
+        line_h = max(h for _w, h in dims)
+        if line_h <= 0.0:
             continue
+        gap = line_h * _LABEL_LINE_GAP
+        w = max(_w for _w, _h in dims)
+        h = line_h * len(lines) + gap * (len(lines) - 1)
 
         # Anchor the text box's outer corner a margin in from the plane's outer
         # corner, so it reads as a corner label rather than filling the plane.
@@ -279,7 +292,7 @@ def draw_origin_labels():
 
         # Fit by width as well as height: a longer label (an origin plane says so)
         # would otherwise keep its glyph height and run off the plane's edge.
-        scale = target_h / h
+        scale = target_h / line_h
         usable = side - 2.0 * margin
         if w > 0.0 and w * scale > usable:
             scale = usable / w
@@ -310,8 +323,12 @@ def draw_origin_labels():
 
         with gpu.matrix.push_pop():
             gpu.matrix.multiply_matrix(mat)
-            blf.position(_FONT_ID, 0.0, 0.0, 0.0)
-            blf.draw(_FONT_ID, label)
+            for i, (line, (line_w, _h)) in enumerate(zip(lines, dims)):
+                # Lines are centred in the box and stacked downwards from its top.
+                x = (w - line_w) / 2.0
+                y = h - line_h - i * (line_h + gap)
+                blf.position(_FONT_ID, x, y, 0.0)
+                blf.draw(_FONT_ID, line)
 
     gpu.state.depth_test_set("LESS_EQUAL")
     gpu.state.blend_set("NONE")

@@ -826,3 +826,43 @@ class TestPartRoot(BgsTestCase):
         offered = [plane for plane, _id in iter_wp_empties(self.context)]
         self.assertIn(mine_plane, offered)
         self.assertNotIn(other_plane, offered)
+
+    def test_a_body_that_is_not_a_part_yet_still_has_its_own_planes(self):
+        # It carries its own transform from the start, so a body that has been
+        # moved should be sketched on in its frame, solid or not.
+        from ..utilities.body import body_of
+        from ..utilities.part import ensure_part_planes, focused_frame
+        from ..utilities.workplane import iter_wp_empties
+
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        body = body_of(sketch.target_object)
+        body.matrix_basis.translation = Vector((4.0, 0.0, 0.0))
+        for ob in self.scene.objects:
+            ob.select_set(False)
+        self.context.view_layer.update()
+        body.select_set(True)
+        self.context.view_layer.objects.active = body
+
+        self.assertIsNone(part_root_of(body))
+        self.assertEqual(focused_frame(self.context), body)
+
+        ensure_part_planes(self.context, focused_frame(self.context))
+        offered = [plane for plane, _id in iter_wp_empties(self.context)]
+        for axis in ("XY", "XZ", "YZ"):
+            plane = next(p for p in offered if p.name == f"{body.name} {axis}")
+            self.assertEqual(plane.matrix_world.translation, Vector((4.0, 0.0, 0.0)))
+        # Its frame stands in for the world's, as a part's does.
+        self.assertNotIn(self.datum, offered)
+
+    def test_a_long_plane_name_is_split_and_cut(self):
+        from ..utilities.workplane import label_lines
+
+        # Broken at the space nearest the middle, so neither line dominates.
+        self.assertEqual(label_lines("Body Workplane"), ["Body", "Workplane"])
+        # One word: nothing to break at.
+        self.assertEqual(label_lines("Workplane"), ["Workplane"])
+        # Too long to read at any size the plane allows.
+        lines = label_lines("A very long name for one workplane indeed")
+        self.assertEqual(len(lines), 2)
+        self.assertTrue("".join(lines).endswith("…"))
+        self.assertLessEqual(sum(len(line) for line in lines), 22)

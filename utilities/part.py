@@ -613,8 +613,8 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
 
 
 def part_plane_objects(context) -> list:
-    """The base planes of the part in focus, or an empty list if there is none."""
-    root = focused_part(context)
+    """The base planes of whatever is in focus, or an empty list if nothing is."""
+    root = focused_frame(context)
     if root is None:
         return []
     return [
@@ -636,31 +636,56 @@ def strip_part_plane(obj: bpy.types.Object) -> None:
     obj.hide_set(False)
 
 
-def focused_part(context) -> Optional[bpy.types.Object]:
-    """The part the user is working on, or None.
+def focused_frame(context) -> Optional[bpy.types.Object]:
+    """The object whose own base planes to offer, or None for the world's.
 
-    Read from the active sketch first, then from the selection, so which part's
-    planes are offered is always something visible on screen rather than a mode
-    the user has to keep in mind.
-
-    Only *selected* objects count. Blender leaves an object active after it is
-    deselected, so consulting the active object alone would make focus stick:
-    clicking empty space would never get you back to the world planes.
+    The part in focus, and otherwise the body in focus: a body carries its own
+    transform from the moment it exists, so sketching on one that has been moved
+    should mean its frame whether or not it has been made solid yet. Membership
+    still settles later; this only decides which planes are on screen.
     """
+    root = focused_part(context)
+    if root is not None:
+        return root
+
+    from .body import body_of, is_body
+
+    for obj in _focus_candidates(context):
+        if is_body(obj):
+            return obj
+        body = body_of(obj)
+        if body is not None:
+            return body
+    return None
+
+
+def _focus_candidates(context):
+    """What the user is pointing at: the active sketch, then their selection."""
     from ..model.sketch_ref import get_active_sketch
 
     sketch = get_active_sketch(context)
     if sketch is not None:
-        root = part_root_of(sketch.target_object)
-        if root is not None:
-            return root
+        yield sketch.target_object
 
     selected = list(context.selected_objects)
     active = context.active_object
     if active is not None and active in selected:
         selected.insert(0, active)
+    yield from selected
 
-    for obj in selected:
+
+def focused_part(context) -> Optional[bpy.types.Object]:
+    """The part the user is working on, or None.
+
+    Read from the active sketch first, then from the selection, so what is in
+    focus is always something visible on screen rather than a mode the user has
+    to keep in mind.
+
+    Only *selected* objects count. Blender leaves an object active after it is
+    deselected, so consulting the active object alone would make focus stick:
+    clicking empty space would never get you back to the world planes.
+    """
+    for obj in _focus_candidates(context):
         root = part_root_of(obj)
         if root is not None:
             return root

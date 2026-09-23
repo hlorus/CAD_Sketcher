@@ -22,9 +22,9 @@ def _ensure_focused_part_planes(context: Context):
     Objects can only be added from operator context, so the pickers ask for them
     as they start rather than the draw code creating them on the fly.
     """
-    from ..utilities.part import ensure_part_planes, focused_part
+    from ..utilities.part import ensure_part_planes, focused_frame
 
-    root = focused_part(context)
+    root = focused_frame(context)
     if root is not None:
         ensure_part_planes(context, root)
 

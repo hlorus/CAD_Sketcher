@@ -59,6 +59,42 @@ ORIGIN_LABEL = {
 }
 
 
+# A name is the object's, so it can be anything: cut it rather than let it
+# shrink to a hairline trying to fit the plane.
+_LABEL_MAX_CHARS = 22
+
+
+def is_base_plane(pick_id) -> bool:
+    """Whether ``pick_id`` is one of the six base planes (world or part)."""
+    return pick_id in ORIGIN_LABEL
+
+
+def label_lines(label: str, max_lines: int = 2) -> list:
+    """Split a plane's label into at most ``max_lines`` lines to draw.
+
+    A name has to fit a square, so it breaks at the space nearest the middle
+    rather than running off the edge, and an over-long one is cut short: better
+    an ellipsis than a line of unreadable glyphs.
+    """
+    label = label.strip()
+    if len(label) > _LABEL_MAX_CHARS:
+        label = label[: _LABEL_MAX_CHARS - 1].rstrip() + "\u2026"
+
+    lines = [label]
+    for _ in range(max_lines - 1):
+        longest = max(lines, key=len)
+        if " " not in longest.strip():
+            break
+        middle = len(longest) // 2
+        spaces = [i for i, ch in enumerate(longest) if ch == " "]
+        at = min(spaces, key=lambda i: abs(i - middle))
+        lines[lines.index(longest) : lines.index(longest) + 1] = [
+            longest[:at].strip(),
+            longest[at + 1 :].strip(),
+        ]
+    return [line for line in lines if line]
+
+
 def workplane_color(pick_id) -> tuple:
     """The axis colour a plane's label is tinted with, grey for a plain one."""
     return ORIGIN_AXIS_COLOR.get(pick_id, _PLAIN)
@@ -128,13 +164,13 @@ def iter_wp_empties(context):
     empty gets a sequential id starting at ``_EMPTY_PICK_START``. Ordering is
     deterministic within a frame so draw and hit-test agree on ids.
     """
-    from .part import PART_PLANE_KEY, focused_part, part_plane_objects, part_root_of
+    from .part import PART_PLANE_KEY, focused_frame, part_plane_objects, part_root_of
 
     sketcher = context.scene.sketcher
     origin_names = set()
     show_origin = sketcher.show_origin
 
-    focus = focused_part(context)
+    focus = focused_frame(context)
     # The base planes of the part in focus, in the part's own frame: sketching on
     # a moved or rotated part otherwise only offers world-aligned planes.
     part_planes = part_plane_objects(context) if show_origin else []
