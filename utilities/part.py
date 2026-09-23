@@ -90,6 +90,33 @@ def mark_part_root(obj: bpy.types.Object) -> None:
     """Make ``obj`` the root of a part, owning the part's transform."""
     obj[PART_ROOT_KEY] = True
     free_transform(obj)
+    promote_sketch_plane(obj)
+
+
+def promote_sketch_plane(root: bpy.types.Object) -> None:
+    """Turn the plane a body was sketched on into the part's XY base plane.
+
+    A body that is not a part yet has one nameless workplane: the plane its
+    sketch sits on, which is also the body's own frame. Becoming a part is what
+    gives that frame a meaning, so the same empty becomes the part's XY rather
+    than a second plane appearing in the very same place. XZ and YZ are still
+    created when something asks for them.
+    """
+    from .workplane import is_managed_workplane
+
+    if existing_part_plane(root, "XY") is not None:
+        return
+    for child in root.children:
+        if PART_PLANE_KEY in child or not is_managed_workplane(child):
+            continue
+        # Only the plane that *is* the body's frame: one sitting somewhere else
+        # under the part is a plane of its own, not the part's base.
+        if child.matrix_basis != Matrix.Identity(4):
+            continue
+        child[PART_PLANE_KEY] = "XY"
+        child.name = f"{root.name} XY"
+        child.empty_display_size = 0.25
+        return
 
 
 def clear_part_root(obj: bpy.types.Object) -> None:
@@ -617,8 +644,8 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
 
 
 def part_plane_objects(context) -> list:
-    """The base planes of whatever is in focus, or an empty list if nothing is."""
-    root = focused_frame(context)
+    """The base planes of the part in focus, or an empty list if there is none."""
+    root = focused_part(context)
     if root is None:
         return []
     return [
@@ -638,29 +665,6 @@ def strip_part_plane(obj: bpy.types.Object) -> None:
         del obj[PART_PLANE_KEY]
     obj.hide_select = False
     obj.hide_set(False)
-
-
-def focused_frame(context) -> Optional[bpy.types.Object]:
-    """The object whose own base planes to offer, or None for the world's.
-
-    The part in focus, and otherwise the body in focus: a body carries its own
-    transform from the moment it exists, so sketching on one that has been moved
-    should mean its frame whether or not it has been made solid yet. Membership
-    still settles later; this only decides which planes are on screen.
-    """
-    root = focused_part(context)
-    if root is not None:
-        return root
-
-    from .body import body_of, is_body
-
-    for obj in _focus_candidates(context):
-        if is_body(obj):
-            return obj
-        body = body_of(obj)
-        if body is not None:
-            return body
-    return None
 
 
 def _focus_candidates(context):

@@ -73,9 +73,7 @@ class TestPartRoot(BgsTestCase):
 
         self.assertEqual(obj.name, f"{body.name} Sketch")
         self.assertEqual(obj.data.name, obj.name)
-        # It sits on one of the body's own base planes, not on a copy of the
-        # datum it was drawn on.
-        self.assertEqual(obj.slvs_workplane.name, f"{body.name} XY")
+        self.assertEqual(obj.slvs_workplane.name, f"{body.name} Workplane")
 
     def test_a_body_joining_a_part_takes_its_name(self):
         # It is a feature of that part, not a "Body" of its own: Blender numbers
@@ -107,11 +105,11 @@ class TestPartRoot(BgsTestCase):
         body = body_of(obj)
 
         body.name = "Latch"
-        name_after_body(body, obj)
+        name_after_body(body, obj, obj.slvs_workplane)
 
         self.assertEqual(body.data.name, "Latch")
         self.assertEqual(obj.name, "Latch Sketch")
-        self.assertEqual(obj.slvs_workplane.name, "Latch XY")
+        self.assertEqual(obj.slvs_workplane.name, "Latch Workplane")
 
     def test_a_sketch_joining_a_part_leaves_its_plane_named(self):
         # The plane belongs to whatever the sketch was drawn on, so it keeps the
@@ -829,32 +827,57 @@ class TestPartRoot(BgsTestCase):
         self.assertIn(mine_plane, offered)
         self.assertNotIn(other_plane, offered)
 
-    def test_a_body_that_is_not_a_part_yet_still_has_its_own_planes(self):
-        # It carries its own transform from the start, so a body that has been
-        # moved should be sketched on in its frame, solid or not.
+    def test_a_body_that_is_not_a_part_yet_has_one_nameless_plane(self):
+        # It is just a body: one plane, the one its sketch sits on, and no base
+        # planes until it means something to have them.
         from ..utilities.body import body_of
-        from ..utilities.part import ensure_part_planes, focused_frame
+        from ..utilities.part import PART_PLANE_KEY
         from ..utilities.workplane import iter_wp_empties
 
         sketch = build_sketch_on_workplane(self.context, self.datum)
-        body = body_of(sketch.target_object)
+        obj = sketch.target_object
+        body = body_of(obj)
+        plane = obj.slvs_workplane
+
+        self.assertEqual(list(body.children), [plane])
+        self.assertNotIn(PART_PLANE_KEY, plane)
+        self.assertEqual(plane.name, f"{body.name} Workplane")
+        # Moved or not, it is offered: a plane in no part is always on hand.
         body.matrix_basis.translation = Vector((4.0, 0.0, 0.0))
-        for ob in self.scene.objects:
-            ob.select_set(False)
         self.context.view_layer.update()
-        body.select_set(True)
-        self.context.view_layer.objects.active = body
+        self.assertIn(plane, [p for p, _id in iter_wp_empties(self.context)])
 
-        self.assertIsNone(part_root_of(body))
-        self.assertEqual(focused_frame(self.context), body)
+    def test_becoming_a_part_turns_that_plane_into_its_XY(self):
+        from ..utilities.body import body_of
+        from ..utilities.part import PART_PLANE_KEY, existing_part_plane
 
-        ensure_part_planes(self.context, focused_frame(self.context))
-        offered = [plane for plane, _id in iter_wp_empties(self.context)]
-        for axis in ("XY", "XZ", "YZ"):
-            plane = next(p for p in offered if p.name == f"{body.name} {axis}")
-            self.assertEqual(plane.matrix_world.translation, Vector((4.0, 0.0, 0.0)))
-        # Its frame stands in for the world's, as a part's does.
-        self.assertNotIn(self.datum, offered)
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+        obj = sketch.target_object
+        body = body_of(obj)
+        plane = obj.slvs_workplane
+
+        mark_part_root(body)
+
+        # The same empty, not a second one in the same place.
+        self.assertEqual(existing_part_plane(body, "XY"), plane)
+        self.assertEqual(plane.get(PART_PLANE_KEY), "XY")
+        self.assertEqual(plane.name, f"{body.name} XY")
+        self.assertEqual(list(body.children), [plane])
+        # And the sketch still sits on it.
+        self.assertEqual(obj.slvs_workplane, plane)
+
+    def test_a_plane_that_is_not_the_bodys_frame_is_left_alone(self):
+        # A plane somewhere else under the part stands for itself.
+        from ..utilities.part import PART_PLANE_KEY
+
+        cube = self._cube("bracket")
+        plane = create_face_workplane(self.context, cube, 0)
+        plane.parent = cube
+        plane.matrix_basis = Matrix.Translation(Vector((0.0, 0.0, 1.0)))
+
+        mark_part_root(cube)
+
+        self.assertNotIn(PART_PLANE_KEY, plane)
 
     def test_a_long_plane_name_is_split_and_cut(self):
         from ..utilities.workplane import label_lines
@@ -869,44 +892,15 @@ class TestPartRoot(BgsTestCase):
         self.assertTrue("".join(lines).endswith("…"))
         self.assertLessEqual(sum(len(line) for line in lines), 22)
 
-    def test_a_new_part_sketches_on_its_own_datum_not_a_copy(self):
-        # The scene's datums are shared, so a new part needs one of its own. It
-        # gets its base planes, rather than a private copy of what was picked.
-        from ..utilities.body import body_of
-        from ..utilities.part import PART_PLANE_KEY
-
-        for datum, axis in (
-            (self.context.scene.sketcher.wp_xy, "XY"),
-            (self.context.scene.sketcher.wp_xz, "XZ"),
-            (self.context.scene.sketcher.wp_yz, "YZ"),
-        ):
-            sketch = build_sketch_on_workplane(self.context, datum)
-            obj = sketch.target_object
-            body = body_of(obj)
-            plane = obj.slvs_workplane
-
-            self.assertEqual(plane.get(PART_PLANE_KEY), axis)
-            self.assertEqual(plane.parent, body)
-            # Drawn where it was picked: the plane lands on the datum (to
-            # float32, since it is composed through the body's frame).
-            for got, want in zip(sketch.plane_matrix, datum.matrix_world):
-                for a, b in zip(got, want):
-                    self.assertAlmostEqual(a, b, places=5)
-            # Just that one plane: a sketch does not need the other two, and
-            # the picker creates them when it offers this part's frame.
-            self.assertEqual([c for c in body.children], [plane])
-
-    def test_a_plane_the_user_made_is_not_copied_either(self):
-        from ..utilities.part import PART_PLANE_KEY
-
+    def test_a_plane_the_user_made_stays_outside_the_body(self):
         empty = bpy.data.objects.new("My Plane", None)
         self.scene.collection.objects.link(empty)
         empty.matrix_world = Matrix.Translation(Vector((0.0, 0.0, 2.0)))
 
         sketch = build_sketch_on_workplane(self.context, empty)
 
-        # The body's own XY lands on it, so the sketch has a datum of its own
-        # without taking the user's empty into the part.
-        self.assertEqual(sketch.target_object.slvs_workplane.get(PART_PLANE_KEY), "XY")
+        # The body gets its own plane where that one stands, rather than taking
+        # the user's empty into the part.
+        self.assertNotEqual(sketch.target_object.slvs_workplane, empty)
         self.assertEqual(sketch.plane_matrix.translation, Vector((0.0, 0.0, 2.0)))
         self.assertIsNone(empty.parent)

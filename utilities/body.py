@@ -106,12 +106,12 @@ def name_after_body(body: bpy.types.Object, sketch_obj, plane=None) -> None:
     ``plane`` is renamed only when the body owns it; one the sketch was drawn on
     belongs to something else.
     """
-    from .part import PART_PLANE_AXES, existing_part_plane
+    from .part import PART_PLANE_AXES, PART_PLANE_KEY, existing_part_plane
 
     body.data.name = body.name
     sketch_obj.name = f"{body.name} Sketch"
     sketch_obj.data.name = sketch_obj.name
-    if plane is not None:
+    if plane is not None and PART_PLANE_KEY not in plane:
         plane.name = f"{body.name} Workplane"
     for axis, _euler in PART_PLANE_AXES:
         base = existing_part_plane(body, axis)

@@ -2,7 +2,7 @@ import logging
 
 import bpy
 from bpy.types import Context, Event, Operator
-from mathutils import Euler, Matrix
+from mathutils import Matrix
 
 from ..declarations import Operators, WorkSpaceTools
 from ..model.curve_ref import PointRef
@@ -22,9 +22,9 @@ def _ensure_focused_part_planes(context: Context):
     Objects can only be added from operator context, so the pickers ask for them
     as they start rather than the draw code creating them on the fly.
     """
-    from ..utilities.part import ensure_part_planes, focused_frame
+    from ..utilities.part import ensure_part_planes, focused_part
 
-    root = focused_frame(context)
+    root = focused_part(context)
     if root is not None:
         ensure_part_planes(context, root)
 
@@ -91,9 +91,14 @@ def build_sketch_on_workplane(context: Context, wp_empty):
 
     if starts_a_part:
         # Nothing to hang from: the scene's datums are shared, so the body gets
-        # datums of its own and the sketch sits on the one it was drawn on. A
-        # copy of the datum would be a second plane in the same place.
-        plane = _own_base_plane(context, body, wp_orig)
+        # a plane of its own where the one picked stands. It is nameless while
+        # the body is just a body; becoming a part turns it into that part's XY
+        # (see promote_sketch_plane), which is why nothing is created up front.
+        plane = new_workplane_empty(context, wp_orig.matrix_world.copy())
+        body.matrix_basis = plane.matrix_world.copy()
+        plane.parent = body
+        plane.matrix_parent_inverse = Matrix.Identity(4)
+        plane.matrix_basis = Matrix.Identity(4)
         free_transform(body)
     else:
         # The plane is already part of something (a face of a body, or that
@@ -118,7 +123,7 @@ def build_sketch_on_workplane(context: Context, wp_empty):
 
     from ..utilities.body import name_after_body
 
-    name_after_body(body, sketch_obj)
+    name_after_body(body, sketch_obj, plane if starts_a_part else None)
     hide_sketch_curves(sketch_obj)
 
     sketch = Sketch(sketch_obj)
@@ -127,38 +132,6 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     assert origin is not None, "Failed to create origin point"
 
     return sketch
-
-
-def _own_base_plane(context: Context, body, wp_empty):
-    """Place ``body`` so one of its own base planes lands on ``wp_empty``.
-
-    The body's frame is the plane it was drawn on with that plane's own rotation
-    taken out, so its XY/XZ/YZ come out where the world's datums are (or, for a
-    plane that is not a datum, its XY lands on that plane). The sketch then sits
-    on a real datum of the part instead of a private copy.
-    """
-    from ..utilities.part import PART_PLANE_AXES, ensure_part_plane
-
-    axis = _datum_axis(context, wp_empty) or "XY"
-    frame = Euler(dict(PART_PLANE_AXES)[axis]).to_matrix().to_4x4()
-    body.matrix_basis = wp_empty.matrix_world @ frame.inverted()
-
-    # Only the plane the sketch sits on: the other two appear when the picker
-    # offers this part's frame.
-    return ensure_part_plane(context, body, axis)
-
-
-def _datum_axis(context: Context, wp_empty):
-    """Which of the scene's datums ``wp_empty`` is, or None."""
-    sketcher = context.scene.sketcher
-    for datum, axis in (
-        (sketcher.wp_xy, "XY"),
-        (sketcher.wp_xz, "XZ"),
-        (sketcher.wp_yz, "YZ"),
-    ):
-        if datum is not None and datum == wp_empty:
-            return axis
-    return None
 
 
 def _is_shared_datum(context: Context, wp_empty) -> bool:

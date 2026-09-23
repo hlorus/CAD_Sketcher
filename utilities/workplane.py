@@ -164,13 +164,13 @@ def iter_wp_empties(context):
     empty gets a sequential id starting at ``_EMPTY_PICK_START``. Ordering is
     deterministic within a frame so draw and hit-test agree on ids.
     """
-    from .part import PART_PLANE_KEY, focused_frame, part_plane_objects, part_root_of
+    from .part import PART_PLANE_KEY, focused_part, part_plane_objects, part_root_of
 
     sketcher = context.scene.sketcher
     origin_names = set()
     show_origin = sketcher.show_origin
 
-    focus = focused_frame(context)
+    focus = focused_part(context)
     # The base planes of the part in focus, in the part's own frame: sketching on
     # a moved or rotated part otherwise only offers world-aligned planes.
     part_planes = part_plane_objects(context) if show_origin else []
