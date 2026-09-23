@@ -76,7 +76,10 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     stamp_sketch_props(sketch_obj)
 
     # Resolve the plane and the part before activate, so align_view sees both.
-    wp_orig = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
+    # The picker hands over a name, so this is already an original: nothing to
+    # follow, which matters here of all places -- objects were created a moment
+    # ago, and that is when following an id's pointers takes Blender down.
+    wp_orig = wp_empty
     root = _part_for_workplane(context, wp_orig)
     from ..utilities.body import default_body_name, ensure_body
     from ..utilities.part import fix_transform, free_transform, join_part, part_root_of

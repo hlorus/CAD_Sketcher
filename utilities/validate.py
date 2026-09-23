@@ -366,7 +366,10 @@ def _owned_sketches(scene):
         data = getattr(sketch.target_object, "data", None)
         if data is None or not is_owned(data):
             continue
-        key = data.original.as_pointer()
+        # By name: the sketches come from the scene, so this data is already an
+        # original, and following ``.original`` from a depsgraph handler is what
+        # crashes Blender on an id that is still being built.
+        key = data.name
         if key in seen:
             continue
         seen.add(key)

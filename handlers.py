@@ -74,12 +74,14 @@ def on_load_post(*args):
     from .utilities.curve_data import reset_merge_cache
     from .utilities.part import reset_cache as reset_part_cache
     from .utilities.validate import repair_constraint_values, reset_cache
+    from .utilities.workplane import reset_workplane_id_map
 
     reset_cache()
     reset_part_cache()
     reset_collection_cache()
     reset_merge_cache()
     reset_data_owner_cache()
+    reset_workplane_id_map()
     overlay.invalidate()
     constraint_icons.invalidate()
     selection.clear()
@@ -229,10 +231,21 @@ def on_undo_redo(scene, *args):
     The sketch-mode flag and its registered tool set are Python state that
     Blender's undo cannot revert, while ``active_sketch_object`` is undo-tracked.
     Undoing sketch creation nulls the pointer but leaves sketch mode on -- a dead
-    end where you can neither add nor leave a sketch. Re-sync them here.
+    end where you can neither add nor leave a sketch. Re-sync them here, and drop
+    the caches that hold datablocks rather than names.
     """
+    from .drawing import selection
+    from .model.base_constraint import reset_data_owner_cache
     from .model.sketch_ref import get_active_sketch
+    from .utilities.workplane import reset_workplane_id_map
     from .workspacetools.manager import sync_sketch_mode
+
+    # Undo and redo free and reallocate datablocks, so anything holding an
+    # Object or an RNA struct across passes can be left pointing at memory that
+    # is no longer what it was. Names and ids survive; references do not.
+    reset_data_owner_cache()
+    reset_workplane_id_map()
+    selection.highlight_constraint = None
 
     sketch = get_active_sketch(bpy.context)
     sync_sketch_mode(

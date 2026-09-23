@@ -568,12 +568,15 @@ def install_id_caches(curve_data, captured):
 
 
 def _get_original_data(sketch):
-    """Get the original (non-evaluated) Curves data for a sketch."""
+    """The original (non-evaluated) Curves data for a sketch.
+
+    A sketch's object comes from the scene, so it is already an original; there
+    is nothing to follow, and following ``.original`` from a depsgraph handler
+    is what crashes Blender on an id that is still being built.
+    """
     obj = sketch.target_object
     if not obj or not obj.data:
         return None
-    if hasattr(obj, "original") and obj.original and obj.original.data:
-        return obj.original.data
     return obj.data
 
 
