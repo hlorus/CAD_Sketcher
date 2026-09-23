@@ -168,7 +168,7 @@ class TestPreviewInPlace(Sketch2dTestCase):
             in_place_moves=5,
         )
 
-    def test_three_point_arc(self):
+    def test_endpoint_arc(self):
         from ..operators.add_arc import View3D_OT_slvs_add_arc3pt2d
 
         guide = self.guide.curve_id
@@ -176,17 +176,17 @@ class TestPreviewInPlace(Sketch2dTestCase):
             View3D_OT_slvs_add_arc3pt2d,
             [
                 ("click", (0.0, 0.0), ""),
-                ("click", (4.0, 0.0), ""),
-                ("move", (2.0, 1.0), ""),
-                ("move", (2.0, 3.0), ""),
-                # Past the start: the sweep grows beyond a half circle.
-                ("move", (-1.0, 1.0), ""),
-                # Across the chord: the arc flips to the other side.
+                # The first move sets off the direction the arc leaves in.
+                ("move", (3.0, 1.0), ""),
+                ("move", (3.5, 1.5), ""),
+                ("move", (4.0, 2.0), ""),
+                ("move", (4.5, 2.2), ""),
+                ("move", (5.0, 2.5), ""),
+                # Back across where it set off: the arc curves the other way.
                 ("move", (2.0, -1.0), ""),
-                ("move", (5.0, -2.0), ""),
                 ("move", (0.0, -3.0), guide),
             ],
-            in_place_moves=4,
+            in_place_moves=2,
         )
 
     def _snaps(self):

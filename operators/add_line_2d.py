@@ -14,7 +14,7 @@ from ..stateful_operator.utilities.register import register_stateops_factory
 from ..utilities.constants import HALF_TURN, QUARTER_TURN
 from .base_2d import Operator2d, ReplaceableOutputOp
 from .constants import types_point_2d
-from .placement import placement_of
+from .placement import ChainDraw
 from .utilities import ignore_hover
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ def _alignment(vec: Vector) -> Optional[str]:
     return None
 
 
-class View3D_OT_slvs_add_line2d(Operator, ReplaceableOutputOp, Operator2d):
+class View3D_OT_slvs_add_line2d(Operator, ChainDraw, ReplaceableOutputOp, Operator2d):
     """Add a line to the active sketch"""
 
     bl_idname = Operators.AddLine2D
@@ -128,16 +128,6 @@ class View3D_OT_slvs_add_line2d(Operator, ReplaceableOutputOp, Operator2d):
             )
 
         ignore_hover(line_cid)
-        return True
-
-    def continue_draw(self):
-        last_state = self._state_data[1]
-        if last_state["is_existing_entity"]:
-            return False
-
-        # also not when last state has coincident constraint
-        if placement_of(last_state).coincident:
-            return False
         return True
 
     def fini(self, context: Context, succeede: bool):

@@ -187,35 +187,39 @@ class TestCreateOperators(Sketch2dTestCase):
         self.assertAlmostEqual(arc.ct.co.x, 0.0)
         self.assertAlmostEqual(arc.ct.co.y, 0.0)
 
-    def _three_point_arc(self, through):
+    def _endpoint_arc(self, start, end, set_off):
+        """Two clicks: the direction the cursor set off in shapes the arc."""
         from ..operators.add_arc import View3D_OT_slvs_add_arc3pt2d
 
         h = self._harness(View3D_OT_slvs_add_arc3pt2d)
-        h.place_point((1.0, 0.0))  # start
-        h.place_point((-1.0, 0.0))  # end
-        h.set_value(through)
-        self.assertTrue(h.finish())
-        return h.op.target
+        h.place_point(start)
+        # What a mouse-move over that direction leaves behind (get_endpoint_pos).
+        h.op._start_dir = Vector(set_off).normalized()
+        h.place_point(end)
+        return h
 
-    def test_three_point_arc_passes_through_point(self):
-        arc = self._three_point_arc((0.0, 1.0))
+    def test_endpoint_arc_curves_the_way_it_set_off(self):
+        h = self._endpoint_arc((0.0, 0.0), (2.0, 0.0), (0.0, 1.0))
+        self.assertTrue(h.finish())
+
+        arc = h.op.target
         self.assertIsInstance(arc, ArcRef)
-        self.assertAlmostEqual(arc.ct.co.x, 0.0, places=5)
+        # Tangent up at the start and ending 2 along X: a half circle over the top.
+        self.assertAlmostEqual(arc.ct.co.x, 1.0, places=5)
         self.assertAlmostEqual(arc.ct.co.y, 0.0, places=5)
         self.assertAlmostEqual(arc.radius, 1.0, places=5)
-        # Counter-clockwise from (1, 0) over the top to (-1, 0).
-        self.assertAlmostEqual(arc.start.co.x, 1.0)
-        self.assertAlmostEqual(arc.angle, math.pi, places=5)
+        self.assertAlmostEqual(math.degrees(arc.angle), 180.0, places=1)
+        self.assertGreater(arc.point_on_curve(arc.angle / 2).y, 0.0)
 
-    def test_three_point_arc_bulges_toward_through_point(self):
-        arc = self._three_point_arc((0.5, -3.0))
-        center, radius = arc.ct.co, arc.radius
-        self.assertAlmostEqual((Vector((0.5, -3.0)) - center).length, radius, 5)
-        # Below the chord, so the arc runs from (-1, 0) around the bottom.
-        self.assertAlmostEqual(arc.start.co.x, -1.0)
-        self.assertGreater(arc.angle, math.pi)
-        mid = arc.point_on_curve(arc.angle / 2)
-        self.assertLess(mid.y, 0.0)
+    def test_the_endpoint_arcs_shape_is_kept_for_a_replay(self):
+        # Nothing is clicked for the shape, so it is stored instead: a re-pick or
+        # a redo-panel change rebuilds the same arc (see _through_value).
+        h = self._endpoint_arc((0.0, 0.0), (2.0, 0.0), (0.0, 1.0))
+        self.assertTrue(h.finish())
+
+        through = Vector(h.op.through)
+        self.assertAlmostEqual(through.x, 1.0, places=5)
+        self.assertAlmostEqual(through.y, 1.0, places=5)
 
     def test_three_point_arc_is_assumed_while_the_endpoint_is_placed(self):
         """An arc is shown as soon as there are two points, so the endpoint is
@@ -266,11 +270,10 @@ class TestCreateOperators(Sketch2dTestCase):
         _far_center, far_radius = arc((4.0, 1.0))
         self.assertGreater(far_radius, radius)  # a farther endpoint, a wider arc
 
-    def test_three_point_arc_on_chord_creates_nothing(self):
-        from ..operators.add_arc import View3D_OT_slvs_add_arc3pt2d
+    def test_an_endpoint_on_the_tangent_creates_nothing(self):
+        # Straight on from where it set off: that is a line, not an arc.
+        h = self._endpoint_arc((0.0, 0.0), (2.0, 0.0), (1.0, 0.0))
 
-        h = self._harness(View3D_OT_slvs_add_arc3pt2d)
-        h.place_point((1.0, 0.0)).place_point((-1.0, 0.0)).set_value((0.2, 0.0))
         self.assertFalse(h.finish())
         self.assertFalse(hasattr(h.op, "target"))
 

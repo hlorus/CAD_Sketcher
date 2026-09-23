@@ -1,7 +1,7 @@
 import logging
 import math
 
-from bpy.props import FloatVectorProperty
+from bpy.props import BoolProperty, FloatVectorProperty
 from bpy.types import Context, Event, Operator
 from mathutils import Vector
 
@@ -15,7 +15,7 @@ from ..utilities.math import pol2cart
 from ..utilities.view import get_blender_snap_info, get_pos_2d, get_wp_matrix
 from .base_2d import Operator2d, ReplaceableOutputOp
 from .constants import types_point_2d
-from .placement import placement_of
+from .placement import ChainDraw, placement_of
 from .utilities import ignore_hover
 
 logger = logging.getLogger(__name__)
@@ -165,12 +165,14 @@ class View3D_OT_slvs_add_arc2d(Operator, ReplaceableOutputOp, Operator2d):
             self.solve_state(context, self.sketch)
 
 
-class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
-    """Add an arc through a start point, an end point and a point on the arc"""
+class View3D_OT_slvs_add_arc3pt2d(Operator, ChainDraw, Operator2d):
+    """Add an arc from a start point to an end point, curving the way you set off"""
 
     bl_idname = Operators.AddArc3Point2D
-    bl_label = "Add 3-Point Arc"
+    bl_label = "Add Endpoint Arc"
     bl_options = {"REGISTER", "UNDO"}
+
+    continuous_draw: BoolProperty(name="Continuous Draw", default=True)
 
     @classmethod
     def poll(cls, context: Context):
@@ -202,32 +204,10 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
             pointer="p2",
             types=types_point_2d,
             state_func="get_endpoint_pos",
-            # Follow the cursor, so the assumed arc is live while it is placed.
+            # Follow the cursor, so the arc is live while the endpoint is placed.
             interactive=True,
-        ),
-        state_from_args(
-            "Through",
-            description="Move to shape the arc, click to confirm.",
-            property="through",
-            state_func="get_through_pos",
-            interactive=True,
-            allow_prefill=False,
         ),
     )
-
-    def get_through_pos(self, context: Context, coords):
-        """The workplane position under the mouse, if it bends the arc."""
-        wp = self._get_wp()
-        self._snap = get_blender_snap_info(context, coords)
-        pos = get_pos_2d(context, wp, coords, respect_snapping=True)
-        if pos is None:
-            return None
-        p1 = self.get_point(context, 0).co
-        p2 = self.get_point(context, 1).co
-        # On the chord no arc exists: keep the last valid shape.
-        if arc_through_points(p1, p2, pos) is None:
-            return None
-        return Vector(pos[:2])
 
     # Sagitta as a fraction of the chord, for the arc shown before the cursor has
     # set off in a direction: (1 - cos45) / (2 sin45), a 90 degree arc.
@@ -237,6 +217,12 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
     _TANGENT_COMMIT = 0.02
     # Direction the cursor set off in, the arc's tangent at the start point.
     _start_dir = None
+
+    def _reset_op(self):
+        super()._reset_op()
+        # The next segment of a chain aims anew: its own direction decides which
+        # way it curves, not the one the segment before set off in.
+        self._start_dir = None
 
     def get_endpoint_pos(self, context: Context, coords):
         """Place the endpoint and note the direction the cursor set off in.
@@ -302,34 +288,33 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
             return None
         return p1, p2
 
+    # True while the operator is rebuilt from its properties (a redo-panel
+    # change or a re-pick) rather than drawn: the shape then comes from the
+    # stored through point instead of being worked out from the cursor again.
+    _replaying = False
+
+    def _reapply(self, context: Context):
+        self._replaying = True
+        try:
+            return super()._reapply(context)
+        finally:
+            self._replaying = False
+
     def _through_value(self, context: Context):
-        """The through point in use: the assumed one until the state is reached."""
-        if self.state_index >= 2:
+        """The point the arc passes through: worked out live, or the stored one.
+
+        While drawing, the shape follows from the start point, the direction the
+        cursor set off in and the endpoint, so there is nothing left to click.
+        The result is kept in ``through`` (see _arc_geometry), which is what a
+        redo-panel change or a re-pick then rebuilds from -- and what can be
+        typed in there to reshape the arc afterwards.
+        """
+        if self._replaying:
             return Vector(self.through)
         points = self._points(context)
         if points is None:
             return None
         return self._assumed_through(points[0].co, points[1].co)
-
-    def set_state(self, context: Context, index: int):
-        if index == 1:
-            # A preview runs only once every state has a value (check_props), so
-            # mark the shaping state's property as set while the endpoint is
-            # still moving. _through_value ignores it until that state is active.
-            try:
-                self.through = tuple(self.through)
-            except (AttributeError, TypeError):
-                pass  # a non-registered twin (tests) has no RNA props
-        elif index == 2:
-            # Take over the arc already on screen instead of jumping to the
-            # property's stale value until the first move shapes it.
-            assumed = self._through_value(context)
-            if assumed is not None:
-                try:
-                    self.through = assumed
-                except (AttributeError, TypeError):
-                    pass
-        super().set_state(context, index)
 
     def _arc_geometry(self, context: Context):
         """``(start, end, center, reversed)`` of the arc, or None while undefined."""
@@ -337,6 +322,12 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
         through = self._through_value(context)
         if points is None or through is None:
             return None
+        if not self._replaying:
+            # Keep the shape for a later replay (see _through_value).
+            try:
+                self.through = through
+            except (AttributeError, TypeError):
+                pass  # a non-registered twin (tests) has no RNA props
         p1, p2 = points
         result = arc_through_points(p1.co, p2.co, through)
         if result is None:
@@ -367,20 +358,29 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, Operator2d):
         center = getattr(self, "_center", None)
         if target is None or not target.valid or center is None or not center.valid:
             return False
-        # While the endpoint is still being placed it moves with the cursor too.
-        if self.state_index < 2 and not self.update_preview_point(context):
+        # The endpoint moves with the cursor while it is being placed.
+        if not self.update_preview_point(context):
             return False
         geometry = self._arc_geometry(context)
         if geometry is None:
             return False
+        # Which way round the arc runs is decided when it is created, and moving
+        # the endpoint can turn it the other way: the preview structure is read
+        # before that move, so it cannot see the flip coming. Ask for a rebuild.
+        if geometry[3] != self._built_reversed:
+            return False
         center.co = geometry[2]
         return True
+
+    # Which way round the arc the preview was built with (see update_preview).
+    _built_reversed = None
 
     def main(self, context: Context):
         geometry = self._arc_geometry(context)
         if geometry is None:
             return False
-        start, end, co, _reverse = geometry
+        start, end, co, reverse = geometry
+        self._built_reversed = reverse
         sketch = self.sketch
         construction = context.scene.sketcher.use_construction
 
