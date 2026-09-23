@@ -78,16 +78,17 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     # Resolve the plane and the part before activate, so align_view sees both.
     wp_orig = wp_empty.original if hasattr(wp_empty, "original") else wp_empty
     root = _part_for_workplane(context, wp_orig)
-    from ..utilities.body import ensure_body
+    from ..utilities.body import default_body_name, ensure_body
     from ..utilities.part import fix_transform, free_transform, join_part, part_root_of
 
     # Every sketch is realised on a body, and the body is what carries the
     # transform: the sketch always sits on a workplane, and that workplane hangs
     # under the body. A sketch drawn on a shared datum gets a plane of its own
     # there, since the scene's datums belong to no part.
-    body = ensure_body(context, sketch_obj)
-
     starts_a_part = root is None or _is_shared_datum(context, wp_orig)
+    body = ensure_body(
+        context, sketch_obj, default_body_name(None if starts_a_part else root)
+    )
     plane = (
         new_workplane_empty(context, wp_orig.matrix_world.copy())
         if starts_a_part

@@ -75,6 +75,28 @@ class TestPartRoot(BgsTestCase):
         self.assertEqual(obj.data.name, obj.name)
         self.assertEqual(obj.slvs_workplane.name, f"{body.name} Plane")
 
+    def test_a_body_joining_a_part_takes_its_name(self):
+        # It is a feature of that part, not a "Body" of its own: Blender numbers
+        # it, so a "Bracket" gains "Bracket.001".
+        cube = self._cube("Bracket")
+        mark_part_root(cube)
+        plane = create_face_workplane(self.context, cube, 0)
+
+        sketch = build_sketch_on_workplane(self.context, plane)
+
+        from ..utilities.body import body_of
+
+        self.assertTrue(body_of(sketch.target_object).name.startswith("Bracket."))
+
+    def test_a_new_part_is_just_a_body(self):
+        # Nothing it belongs to yet, and not every sketch becomes a part, so the
+        # name says what it is rather than claiming more.
+        from ..utilities.body import body_of
+
+        sketch = build_sketch_on_workplane(self.context, self.datum)
+
+        self.assertTrue(body_of(sketch.target_object).name.startswith("Body"))
+
     def test_renaming_the_part_is_all_it_takes(self):
         from ..utilities.body import body_of, name_after_body
 

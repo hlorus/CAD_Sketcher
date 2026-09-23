@@ -18,20 +18,24 @@ each part, and objects nest under the object that carries them.
     - **Bracket** &mdash; an assembly collection
         - **Plate** &mdash; a part collection
             - **Plate** &mdash; the part's body: a mesh, carrying the features
-                - **Workplane** &mdash; the plane its sketch sits on
-                    - **Plate Profile** &mdash; the sketch the body is made from
+                - **Plate Plane** &mdash; the plane its sketch sits on
+                    - **Plate Sketch** &mdash; the source the body is built from
                 - **Plate XY**, **Plate XZ**, **Plate YZ** &mdash; the part's own base planes
                 - **Workplane** &mdash; on a face of Plate
-                    - **Hole** &mdash; a cutter sketch, and its own body
+                    - **Plate.001** &mdash; a cutter, with its own sketch beneath it
         - **Pin** &mdash; a second part in the same assembly
-    - **Sketch** &mdash; global: drawn on a datum, not yet solid
+    - **Body** &mdash; global: drawn on a datum, not yet solid
 
-Read the nesting, not the collections: **`Hole` is part of `Plate` because it
-hangs under it**, through the workplane it sits on. The collections follow that
+A new body is called **Body**, or takes the name of the part it joins, and its
+plane and sketch follow the name it has: rename the body and they rename with
+it.
+
+Read the nesting, not the collections: **`Plate.001` is part of `Plate` because
+it hangs under it**, through the workplane it sits on. The collections follow that
 structure, they do not define it. Moving `Plate` moves everything beneath it;
 moving `Bracket` moves both parts.
 
-This is also why parenting is how you change membership: drag `Sketch` onto
+This is also why parenting is how you change membership: drag `Body` onto
 `Plate` and it becomes one of its features.
 
 ## Moving a part

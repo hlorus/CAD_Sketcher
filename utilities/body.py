@@ -43,7 +43,9 @@ def sketch_of(body: Optional[bpy.types.Object]) -> Optional[bpy.types.Object]:
     return sketch if isinstance(sketch, bpy.types.Object) else None
 
 
-def ensure_body(context, sketch_obj: bpy.types.Object) -> bpy.types.Object:
+def ensure_body(
+    context, sketch_obj: bpy.types.Object, name: str = ""
+) -> bpy.types.Object:
     """Get or create the body that realises ``sketch_obj``.
 
     Created with the sketch rather than when it first becomes solid, so the part
@@ -57,15 +59,31 @@ def ensure_body(context, sketch_obj: bpy.types.Object) -> bpy.types.Object:
     existing = body_of(sketch_obj)
     if existing is not None:
         return existing
-    return _new_body(context, sketch_obj)
+    return _new_body(context, sketch_obj, name)
 
 
-def _new_body(context, sketch_obj: bpy.types.Object) -> bpy.types.Object:
+def default_body_name(root: Optional[bpy.types.Object] = None) -> str:
+    """What to call a new body: after the part it joins, else just "Body".
+
+    Not everything a sketch makes is a part -- a body can be a feature of one, a
+    cutter, or nothing solid yet -- so "Body" says what it is without claiming
+    more. A body joining a part takes the part's name, which Blender numbers, so
+    "Bracket" gains "Bracket.001" rather than an unrelated "Body.007".
+    """
+    if root is not None and root.name:
+        return root.name
+    return "Body"
+
+
+def _new_body(
+    context, sketch_obj: bpy.types.Object, name: str = ""
+) -> bpy.types.Object:
     """A bare body bound to ``sketch_obj``: linked, placed, reading the sketch."""
     from .collections import link_to_scene_root
     from .curve_data import _ensure_convert_modifier
 
-    body = bpy.data.objects.new("Part", bpy.data.meshes.new("Part"))
+    name = name or default_body_name()
+    body = bpy.data.objects.new(name, bpy.data.meshes.new(name))
     body.data.name = body.name  # or the two number themselves apart
     body[BODY_SKETCH_KEY] = sketch_obj
     sketch_obj.slvs_body = body
@@ -83,10 +101,10 @@ def _new_body(context, sketch_obj: bpy.types.Object) -> bpy.types.Object:
 def name_after_body(body: bpy.types.Object, sketch_obj, plane=None) -> None:
     """Name a body's sketch (and its own plane) after the body.
 
-    The body is the part as far as the user is concerned, so the outliner reads
-    as one thing with its source under it instead of three objects called
-    "Part". Only a plane the part owns is renamed: one it was drawn on belongs
-    to something else.
+    The body is the thing the user grabs, so the outliner reads as one named
+    thing with its source under it: rename the body and the rest follows. Only a
+    plane the part owns is renamed: one it was drawn on belongs to something
+    else.
     """
     body.data.name = body.name
     sketch_obj.name = f"{body.name} Sketch"
