@@ -200,9 +200,9 @@ class Sketch2dTestCase(BgsTestCase):
         self.entities.ensure_origin_elements(self.context)
         wp = self.entities.origin_plane_XY
         entity_sketch = self.entities.add_sketch(wp)
-        from ..utilities.curve_data import ensure_sketch_curve_object
+        from ..utilities.curve_data import create_sketch_curve_object
 
-        ensure_sketch_curve_object(entity_sketch)
+        create_sketch_curve_object(self.context, entity_sketch)
         # Wrap as Sketch accessor
         from ..model.sketch_ref import Sketch, stamp_sketch_props
 

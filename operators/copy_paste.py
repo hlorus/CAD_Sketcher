@@ -219,12 +219,12 @@ class View3D_OT_slvs_paste(Operator):
 
         from ..utilities.curve_data import (
             _allocate_curve_id,
-            ensure_sketch_curve_object,
             ensure_standard_attributes,
             set_attribute,
+            sketch_curve_data,
         )
 
-        curve_data = ensure_sketch_curve_object(sketch)
+        curve_data = sketch_curve_data(sketch)
         if not curve_data:
             return {"CANCELLED"}
 

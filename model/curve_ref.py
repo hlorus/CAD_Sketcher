@@ -283,10 +283,10 @@ class CurveRef:
 
 
 def _ensure_curve_data(sketch):
-    """Ensure sketch has a curve object, return curve_data."""
-    from ..utilities.curve_data import ensure_sketch_curve_object
+    """The sketch's curve data. Reads; never creates (see sketch_curve_data)."""
+    from ..utilities.curve_data import sketch_curve_data
 
-    return ensure_sketch_curve_object(sketch)
+    return sketch_curve_data(sketch)
 
 
 def _allocate(sketch):

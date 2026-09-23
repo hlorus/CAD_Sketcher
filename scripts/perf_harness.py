@@ -81,7 +81,7 @@ def _new_sketch():
     ents = ctx.scene.sketcher.entities
     ents.ensure_origin_elements(ctx)
     esk = ents.add_sketch(ents.origin_plane_XY)
-    cd.ensure_sketch_curve_object(esk)
+    cd.create_sketch_curve_object(ctx, esk)
     sr.stamp_sketch_props(esk.target_object)
     return sr.Sketch(esk.target_object)
 
