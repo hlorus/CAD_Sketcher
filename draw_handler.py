@@ -22,6 +22,9 @@ _LABEL_HEIGHT_FACTOR = 0.22
 # A plane that is not a base plane is a lesser thing to pick, so its name is
 # drawn smaller.
 _NAME_HEIGHT_FACTOR = 0.10
+# Extra inset from the edge the name ends at, in corner margins: right-aligned
+# text otherwise runs up against that edge. The top keeps the plain margin.
+_NAME_INSET = 2.5
 # Space between those lines, as a fraction of one line's height.
 _LABEL_LINE_GAP = 0.2
 # Inset of the label from the plane's outer corner, as a fraction of its side.
@@ -269,9 +272,9 @@ def draw_origin_labels():
     respects ``show_origin``.
 
     A base plane says the axis, large and in the middle where the eye lands, and
-    whose plane it is in the top-left corner, left-aligned so the text runs into
-    the rectangle rather than up against an edge. A plane that has only a name
-    shows it in that same corner. The glyph raster is
+    whose plane it is in its outer corner, inset so the name sits inside the
+    rectangle instead of over its edge. A plane that has only a name shows it in
+    that same corner. The glyph raster is
     sized to the on-screen height so it stays crisp instead of being magnified,
     the text is mirrored when seen from behind so it never reads backwards, and
     it skips the depth test so it stays legible over geometry.
@@ -369,11 +372,10 @@ def draw_origin_labels():
                 scale = (side * _NAME_HEIGHT_FACTOR) / line_h
                 if width > 0.0 and width * scale > usable:
                     scale = usable / width
-                # Top left, growing inwards: left-aligned text starts at the
-                # margin and runs away from that edge, so it cannot end up
-                # against one. Seen from behind, the plane's own +X side is the
-                # one on the viewer's left.
-                x = min_x + margin if sx > 0 else max_x - margin
+                # In the outer corner, held off the edge the text ends at.
+                # Seen from behind the outer side is the plane's own -X one.
+                inset = margin * _NAME_INSET
+                x = max_x - inset if sx > 0 else min_x + inset
                 _draw_text_block(
                     plane_mat,
                     name_lines,
@@ -384,7 +386,7 @@ def draw_origin_labels():
                     sx,
                     x,
                     max_y - margin - height * scale,
-                    "left",
+                    "right",
                 )
 
     gpu.state.depth_test_set("LESS_EQUAL")
