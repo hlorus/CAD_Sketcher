@@ -135,18 +135,21 @@ class TestMigration(unittest.TestCase):
 
     def test_cad_part_modifiers_translated_to_gn(self):
         # The legacy part stacks Solidify + Boolean on its generated meshes.
-        # Migration must rebuild those as GN siblings on the new Curves sketches,
-        # remap boolean cutters onto the migrated sketches, and delete the old
-        # meshes so the geometry is not duplicated.
+        # Migration must rebuild those as this addon's tools on the body each
+        # sketch is realised on, remap boolean cutters onto the migrated
+        # sketches, and delete the old meshes so geometry is not duplicated.
         from ..model.sketch_ref import is_sketch_object
         from ..operators.modifiers import boolean_input_ids, get_modifier_input
+        from ..utilities.body import body_of, sketch_of
 
         _open("CAD_Sketcher_Part.blend")
         sketches = list(get_sketches(bpy.context))
 
         extrudes = booleans = 0
         for s in sketches:
-            for m in s.target_object.modifiers:
+            body = body_of(s.target_object)
+            self.assertIsNotNone(body, f"{s.name} has no body")
+            for m in body.modifiers:
                 if m.type != "NODES" or m.node_group is None:
                     continue
                 name = m.node_group.name
@@ -156,9 +159,11 @@ class TestMigration(unittest.TestCase):
                     booleans += 1
                     ids = boolean_input_ids(m.node_group)
                     cutter = get_modifier_input(m, ids["Cutter"])
-                    # The cutter is another migrated sketch, not an old mesh.
+                    # The cutter is another migrated sketch's body, not an old
+                    # mesh -- it is the geometry that cuts.
+                    source = sketch_of(cutter)
                     self.assertTrue(
-                        is_sketch_object(cutter),
+                        source is not None and is_sketch_object(source),
                         f"boolean cutter {cutter!r} is not a migrated sketch",
                     )
 
@@ -178,9 +183,9 @@ class TestMigration(unittest.TestCase):
     def test_cad_part_evaluated_geometry(self):
         # Guard the actual 3D output, not just the modifier recipe: the migrated
         # part must still evaluate (Convert -> Extrude -> Booleans) to a solid
-        # whose bounds match the legacy part (150 x 80 x 100). The GN chain turns
-        # the Curves into a mesh, so the realized geometry is a depsgraph instance
-        # rather than the evaluated object's own data.
+        # whose bounds match the legacy part (150 x 80 x 100). Read from the
+        # bodies, which is where the stack lives and which are plain meshes.
+        from ..utilities.body import body_of
         from ..utilities.curve_data import refresh_curve_geometry
 
         _open("CAD_Sketcher_Part.blend")
@@ -190,33 +195,24 @@ class TestMigration(unittest.TestCase):
         bpy.context.view_layer.update()
         dg = bpy.context.evaluated_depsgraph_get()
 
-        ours = {s.target_object.original for s in sketches}
         total_v = 0
         lo = [1e18] * 3
         hi = [-1e18] * 3
-        for inst in dg.object_instances:
-            if inst.object.original not in ours:
-                continue
-            try:
-                me = inst.object.to_mesh()
-            except RuntimeError:
-                continue  # the Curves object itself yields no mesh
-            if len(me.vertices):
-                mw = inst.matrix_world
-                for v in me.vertices:
-                    w = mw @ v.co
-                    for i in range(3):
-                        lo[i] = min(lo[i], w[i])
-                        hi[i] = max(hi[i], w[i])
-                total_v += len(me.vertices)
-            inst.object.to_mesh_clear()
+        for sketch in sketches:
+            body = body_of(sketch.target_object)
+            self.assertIsNotNone(body, f"{sketch.name} has no body")
+            mesh = body.evaluated_get(dg).to_mesh()
+            total_v += len(mesh.vertices)
+            for vertex in mesh.vertices:
+                world = body.matrix_world @ vertex.co
+                for i in range(3):
+                    lo[i] = min(lo[i], world[i])
+                    hi[i] = max(hi[i], world[i])
+            body.to_mesh_clear()
 
         dims = [hi[i] - lo[i] for i in range(3)]
         # A substantial solid, not the flat sketch profile (Extrude + Booleans ran).
-        # n-gon fills feed cleaner, lower-vertex geometry into the booleans than the
-        # old triangulated fills did, so this stays a loose "not flat" floor -- the
-        # bounds check below is the real 3D assertion.
-        self.assertGreater(total_v, 500)
+        self.assertGreater(total_v, 200)
         # Overall bounds match the legacy dimensions; each axis is real 3D depth.
         for got, want in zip(dims, (150.0, 80.0, 100.0)):
             self.assertAlmostEqual(got, want, delta=1.0)

@@ -187,85 +187,6 @@ def _add_gn_modifier(obj, name, build):
     return modifier
 
 
-def _translate_weld(mod, old_mesh, obj):
-    """Weld -> Merge by Distance (collapse vertices within a threshold)."""
-    distance = float(getattr(mod, "merge_threshold", 0.001))
-
-    def build(nodes, links, geo):
-        merge = nodes.new("GeometryNodeMergeByDistance")
-        links.new(geo, merge.inputs["Geometry"])
-        merge.inputs["Distance"].default_value = distance
-        return merge.outputs["Geometry"]
-
-    _add_gn_modifier(obj, "CAD_Sketcher Weld", build)
-    return True
-
-
-def _translate_subsurf(mod, old_mesh, obj):
-    """Subdivision Surface -> the Subdivision Surface node (viewport levels)."""
-    levels = int(getattr(mod, "levels", 1))
-
-    def build(nodes, links, geo):
-        sub = nodes.new("GeometryNodeSubdivisionSurface")
-        links.new(geo, sub.inputs["Mesh"])
-        sub.inputs["Level"].default_value = levels
-        return sub.outputs["Mesh"]
-
-    _add_gn_modifier(obj, "CAD_Sketcher Subdivision", build)
-    return True
-
-
-def _translate_triangulate(mod, old_mesh, obj):
-    """Triangulate -> the Triangulate node (default methods)."""
-
-    def build(nodes, links, geo):
-        tri = nodes.new("GeometryNodeTriangulate")
-        links.new(geo, tri.inputs["Mesh"])
-        return tri.outputs["Mesh"]
-
-    _add_gn_modifier(obj, "CAD_Sketcher Triangulate", build)
-    return True
-
-
-def _translate_mirror(mod, old_mesh, obj):
-    """Mirror -> a per-axis GN construction (scale -1, flip faces, join, merge).
-
-    Only the axis mirror (across the object's local origin) is handled; a mirror
-    across a separate ``mirror_object`` has no clean equivalent, so it is skipped.
-    """
-    if getattr(mod, "mirror_object", None) is not None:
-        return False
-    axes = [i for i in range(3) if mod.use_axis[i]]
-    if not axes:
-        return False
-    do_merge = bool(getattr(mod, "use_mirror_merge", True))
-    threshold = float(getattr(mod, "merge_threshold", 0.001))
-
-    def build(nodes, links, geo):
-        current = geo
-        for axis in axes:
-            scale = [1.0, 1.0, 1.0]
-            scale[axis] = -1.0
-            xf = nodes.new("GeometryNodeTransform")
-            links.new(current, xf.inputs["Geometry"])
-            xf.inputs["Scale"].default_value = tuple(scale)
-            flip = nodes.new("GeometryNodeFlipFaces")
-            links.new(xf.outputs["Geometry"], flip.inputs["Mesh"])
-            join = nodes.new("GeometryNodeJoinGeometry")
-            links.new(current, join.inputs["Geometry"])
-            links.new(flip.outputs["Mesh"], join.inputs["Geometry"])
-            current = join.outputs["Geometry"]
-        if do_merge:
-            merge = nodes.new("GeometryNodeMergeByDistance")
-            links.new(current, merge.inputs["Geometry"])
-            merge.inputs["Distance"].default_value = threshold
-            current = merge.outputs["Geometry"]
-        return current
-
-    _add_gn_modifier(obj, "CAD_Sketcher Mirror", build)
-    return True
-
-
 def _translate_solidify(mod, old_mesh, obj):
     """Solidify gives a profile thickness -- the same as the Extrude tool."""
     from ..operators.modifiers import set_modifier_input
@@ -286,15 +207,20 @@ def _translate_solidify(mod, old_mesh, obj):
 def _translate_boolean(mod, old_mesh, obj, cutter_map=None):
     """Boolean -> the CAD Sketcher Boolean node group, reading the same cutter.
 
-    ``cutter_map`` maps a legacy generated mesh to the new Curves sketch that
-    replaced it. If the cutter was itself a migrated sketch's output, point the
-    new boolean at that sketch instead of the orphaned (soon removed) old mesh.
+    ``cutter_map`` maps a legacy generated mesh to the new sketch that replaced
+    it. If the cutter was itself a migrated sketch's output, point the new
+    boolean at the body that sketch is realised on -- the geometry that cuts --
+    rather than the orphaned (soon removed) old mesh.
     """
     cutter = mod.object
     if cutter is None:
         return False
     if cutter_map is not None:
-        cutter = cutter_map.get(cutter, cutter)
+        mapped = cutter_map.get(cutter)
+        if mapped is not None:
+            from .body import ensure_body
+
+            cutter = ensure_body(bpy.context, mapped)
     from ..operators.modifiers import (
         boolean_input_ids,
         set_boolean_operation,
@@ -371,20 +297,28 @@ def _translate_screw(mod, old_mesh, obj):
     return True
 
 
+# Modifiers that stand for one of this addon's parametric tools: the sketch
+# drives them, so they are rebuilt as that tool rather than carried over.
 _MODIFIER_TRANSLATORS = {
     "SOLIDIFY": _translate_solidify,
     "BOOLEAN": _translate_boolean,
     "ARRAY": _translate_array,
     "SCREW": _translate_screw,
-    "WELD": _translate_weld,
-    "SUBSURF": _translate_subsurf,
-    "TRIANGULATE": _translate_triangulate,
-    "MIRROR": _translate_mirror,
 }
+
+# Everything else Blender can still do itself. The result is a mesh body now, so
+# these keep working as the ordinary modifiers they are -- and the user can add
+# another from Blender's own menu, which a rebuilt-in-nodes lookalike left them
+# unable to do (issue #740).
+_KEEP_NATIVE = {"MIRROR", "WELD", "SUBSURF", "TRIANGULATE", "BEVEL", "DECIMATE"}
 
 
 def _migrate_modifiers(old_mesh, sketch, summary, cutter_map=None):
-    """Rebuild ``old_mesh``'s modifier stack as GN siblings on ``sketch``.
+    """Carry ``old_mesh``'s modifier stack over to ``sketch``.
+
+    A modifier that stands for one of this addon's tools is rebuilt as that tool
+    (an Array becomes Linear Array, and so on); anything else is copied as it is,
+    since the result is a mesh body and Blender's own modifiers run on it.
 
     Isolated per modifier: a failed or unsupported one is skipped and recorded,
     never aborting the rest of the migration. ``cutter_map`` (old mesh -> new
@@ -393,16 +327,31 @@ def _migrate_modifiers(old_mesh, sketch, summary, cutter_map=None):
     obj = sketch.target_object
     if obj is None:
         return
+
+    # The stack goes on the body, not on the sketch: a Curves object takes only
+    # Geometry Nodes modifiers, which is why these used to be rebuilt as nodes.
+    # migrate_bodies does the rest of the move (hierarchy, names, references).
+    from .body import ensure_body
+
+    target = ensure_body(bpy.context, obj)
+
     for mod in list(old_mesh.modifiers):
         try:
+            if mod.type in _KEEP_NATIVE:
+                from ..operators.modifiers import copy_modifier
+
+                copy_modifier(mod, target)
+                summary["modifiers"] += 1
+                continue
+
             translator = _MODIFIER_TRANSLATORS.get(mod.type)
             if translator is None:
                 summary["modifiers_skipped"].append(f"{old_mesh.name}: {mod.type}")
                 continue
             if mod.type == "BOOLEAN":
-                ok = translator(mod, old_mesh, obj, cutter_map)
+                ok = translator(mod, old_mesh, target, cutter_map)
             else:
-                ok = translator(mod, old_mesh, obj)
+                ok = translator(mod, old_mesh, target)
             if ok:
                 summary["modifiers"] += 1
             else:
@@ -484,8 +433,17 @@ def migrate_scene(context):
 
     # Translate modifier stacks only after every old->new link is known, so a
     # boolean cutting with another sketch's output can be remapped correctly.
-    for old_mesh, sketch in pending_modifiers:
-        _migrate_modifiers(old_mesh, sketch, summary, cutter_map=mesh_to_sketch_obj)
+    # Names are handed over in steps here (the body takes the sketch's), so hold
+    # off the pass that derives them until the conversion has finished.
+    from .. import global_data
+
+    was_migrating = global_data.migrating_bodies
+    global_data.migrating_bodies = True
+    try:
+        for old_mesh, sketch in pending_modifiers:
+            _migrate_modifiers(old_mesh, sketch, summary, cutter_map=mesh_to_sketch_obj)
+    finally:
+        global_data.migrating_bodies = was_migrating
 
     _remove_legacy_meshes(mesh_to_sketch_obj.keys(), summary)
 

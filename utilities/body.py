@@ -20,6 +20,10 @@ from mathutils import Matrix
 # The body's link back to the sketch it reads, so each can find the other without
 # searching every modifier in the file.
 BODY_SKETCH_KEY = "slvs:body_of"
+# Set once a body has been put where the sketch used to stand. A body can exist
+# before that: the file update builds one to carry an old stack, since a Curves
+# object holds only Geometry Nodes modifiers.
+BODY_PLACED_KEY = "slvs:body_placed"
 
 
 def is_body(obj: Optional[bpy.types.Object]) -> bool:
@@ -91,7 +95,11 @@ def _new_body(
 
     # The convert group reads the sketch in the body's local space, so matching
     # the transforms keeps the geometry planar locally and correct in the world.
-    body.matrix_basis = sketch_obj.matrix_world.copy()
+    # Composed from the parent chain rather than read back: ``matrix_world`` is
+    # evaluated state, and a sketch parented a moment ago still reads identity.
+    from .part import world_matrix_of
+
+    body.matrix_basis = world_matrix_of(sketch_obj)
 
     _ensure_convert_modifier(body)
     bind_body_to_sketch(body, sketch_obj)
@@ -203,32 +211,14 @@ def bind_body_to_sketch(body: bpy.types.Object, sketch_obj: bpy.types.Object) ->
 
 
 def _copy_modifier(source, body: bpy.types.Object):
-    """Recreate one Geometry Nodes modifier on ``body``, settings and all.
+    """Recreate one of a legacy sketch's modifiers on its body.
 
-    Values are read and written through the group's interface rather than the
-    modifier's raw properties, which are not always accessible as IDProperties.
+    Any type, not only Geometry Nodes: a file can carry a modifier the user
+    added themselves, and an older one carries what the file update translated.
     """
-    from ..operators.modifiers import get_modifier_input, set_modifier_input
+    from ..operators.modifiers import copy_modifier
 
-    group = source.node_group
-    copy = body.modifiers.new(source.name, "NODES")
-    copy.node_group = group
-    if group is None:
-        return copy
-
-    for socket in group.interface.items_tree:
-        if getattr(socket, "in_out", "") != "INPUT":
-            continue
-        if getattr(socket, "socket_type", "") == "NodeSocketGeometry":
-            continue  # carries no value: it is what the stack is fed
-        try:
-            value = get_modifier_input(source, socket.identifier)
-        except (AttributeError, KeyError):
-            continue
-        if value is None:
-            continue
-        set_modifier_input(copy, socket.identifier, value)
-    return copy
+    return copy_modifier(source, body)
 
 
 def _redirect_to_body(scene, sketch_obj: bpy.types.Object, body: bpy.types.Object):
@@ -333,7 +323,9 @@ def migrate_bodies(context, scene) -> bool:
     keeps only its curves, and everything that referred to the sketch's geometry
     is pointed at the body instead.
 
-    Idempotent: a sketch that already has a body is left alone.
+    Idempotent: a sketch whose body has been put in place is left alone. A body
+    that exists but has not been placed is one the file update built to carry an
+    old modifier stack; it still needs its place here.
     """
     from .. import global_data
 
@@ -354,10 +346,13 @@ def _migrate_bodies(context, scene) -> bool:
     changed = False
     for sketch in list(get_sketches(scene)):
         sketch_obj = sketch.target_object
-        if not is_editable(sketch_obj) or body_of(sketch_obj) is not None:
+        if not is_editable(sketch_obj):
             continue
-
-        body = _new_body(context, sketch_obj)
+        body = body_of(sketch_obj)
+        if body is not None and body.get(BODY_PLACED_KEY):
+            continue
+        if body is None:
+            body = _new_body(context, sketch_obj)
         # The sketch's own convert modifier carries the settings the file was
         # drawn with, so it replaces the fresh one the body was given.
         for modifier in list(body.modifiers):
@@ -369,6 +364,7 @@ def _migrate_bodies(context, scene) -> bool:
 
         _redirect_to_body(scene, sketch_obj, body)
         _rehome_onto_body(context, sketch_obj, body)
+        body[BODY_PLACED_KEY] = True
         # What the user sees is the body now; the curves would only double it.
         hide_sketch_curves(sketch_obj)
         changed = True

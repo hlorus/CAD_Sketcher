@@ -1,9 +1,10 @@
-"""Translating a legacy mesh modifier stack to GN siblings on a new sketch.
+"""Carrying a legacy mesh modifier stack over to a new sketch.
 
 Drives the per-modifier translators and the ``_migrate_modifiers`` driver
-directly (setting up a full legacy scene is heavy). Verifies that translatable
-modifiers become the addon's node tools with mapped parameters, and that
-unsupported modifiers are skipped and recorded.
+directly (setting up a full legacy scene is heavy). Verifies that a modifier
+standing for one of this addon's tools becomes that tool with mapped
+parameters, that a plain mesh modifier is kept as itself, and that anything
+else is skipped and recorded.
 """
 
 from ..operators.modifiers import boolean_input_ids, get_modifier_input
@@ -25,13 +26,19 @@ class TestMigrateModifiers(Sketch2dTestCase):
         self.scene.collection.objects.link(obj)
         return obj
 
+    def _target(self):
+        """Where a migrated stack lands: the body the sketch is realised on."""
+        from ..utilities.body import body_of
+
+        return body_of(self.sketch.target_object)
+
     def _run(self, old_mesh):
         summary = {"modifiers": 0, "modifiers_skipped": []}
         _migrate_modifiers(old_mesh, self.sketch, summary)
         return summary
 
     def _sketch_mods(self):
-        return [m for m in self.sketch.target_object.modifiers if m.type == "NODES"]
+        return [m for m in self._target().modifiers if m.type == "NODES"]
 
     def test_solidify_becomes_extrude(self):
         old = self._old_mesh()
@@ -123,80 +130,101 @@ class TestMigrateModifiers(Sketch2dTestCase):
             get_modifier_input(rev, ids["Angular Resolution"]), math.pi / 12, places=4
         )
 
-    def _sketch_group_named(self, name):
-        return next((m for m in self._sketch_mods() if m.node_group.name == name), None)
-
-    def test_weld_becomes_merge_by_distance(self):
+    def test_weld_is_kept_as_it_is(self):
         old = self._old_mesh()
-        w = old.modifiers.new("w", "WELD")
-        w.merge_threshold = 0.05
-        summary = self._run(old)
-        self.assertEqual(summary["modifiers"], 1)
-        mod = self._sketch_group_named("CAD_Sketcher Weld")
-        self.assertIsNotNone(mod)
-        merge = next(n for n in mod.node_group.nodes if n.type == "MERGE_BY_DISTANCE")
-        self.assertAlmostEqual(merge.inputs["Distance"].default_value, 0.05, places=5)
+        old.modifiers.new("w", "WELD").merge_threshold = 0.05
 
-    def test_subsurf_becomes_subdivision(self):
+        summary = self._run(old)
+
+        self.assertEqual(summary["modifiers"], 1)
+        kept = self._target().modifiers["w"]
+        self.assertEqual(kept.type, "WELD")
+        self.assertAlmostEqual(kept.merge_threshold, 0.05, places=5)
+
+    def test_subsurf_is_kept_as_it_is(self):
         old = self._old_mesh()
         old.modifiers.new("s", "SUBSURF").levels = 3
-        summary = self._run(old)
-        self.assertEqual(summary["modifiers"], 1)
-        mod = self._sketch_group_named("CAD_Sketcher Subdivision")
-        self.assertIsNotNone(mod)
-        sub = next(n for n in mod.node_group.nodes if n.type == "SUBDIVISION_SURFACE")
-        self.assertEqual(int(sub.inputs["Level"].default_value), 3)
 
-    def test_triangulate_translates(self):
+        summary = self._run(old)
+
+        self.assertEqual(summary["modifiers"], 1)
+        kept = self._target().modifiers["s"]
+        self.assertEqual(kept.type, "SUBSURF")
+        self.assertEqual(kept.levels, 3)
+
+    def test_triangulate_is_kept_as_it_is(self):
         old = self._old_mesh()
         old.modifiers.new("t", "TRIANGULATE")
-        summary = self._run(old)
-        self.assertEqual(summary["modifiers"], 1)
-        self.assertIsNotNone(self._sketch_group_named("CAD_Sketcher Triangulate"))
 
-    def test_mirror_axis_translates(self):
+        summary = self._run(old)
+
+        self.assertEqual(summary["modifiers"], 1)
+        self.assertEqual(self._target().modifiers["t"].type, "TRIANGULATE")
+
+    def test_mirror_is_kept_as_it_is(self):
+        # Rebuilt in nodes it could not be made again from scratch, since there
+        # is no Mirror tool and none is wanted: it is Blender's own modifier on
+        # what is now a mesh (issue #740).
         old = self._old_mesh()
         mi = old.modifiers.new("mi", "MIRROR")
-        mi.use_axis = (True, False, False)
-        summary = self._run(old)
-        self.assertEqual(summary["modifiers"], 1)
-        mod = self._sketch_group_named("CAD_Sketcher Mirror")
-        self.assertIsNotNone(mod)
-        # The construction includes a transform (scale -1) and a flip-faces.
-        types = {n.type for n in mod.node_group.nodes}
-        self.assertIn("TRANSFORM_GEOMETRY", types)
-        self.assertIn("FLIP_FACES", types)
+        mi.use_axis = (True, False, True)
+        mi.merge_threshold = 0.01
 
-    def test_mirror_object_is_skipped(self):
+        summary = self._run(old)
+
+        self.assertEqual(summary["modifiers"], 1)
+        kept = self._target().modifiers["mi"]
+        self.assertEqual(kept.type, "MIRROR")
+        self.assertEqual(tuple(kept.use_axis), (True, False, True))
+        self.assertAlmostEqual(kept.merge_threshold, 0.01, places=5)
+
+    def test_a_mirror_about_another_object_is_kept_too(self):
+        # It was skipped for having no clean node equivalent; as itself it needs
+        # none, and the pivot comes with it.
         old = self._old_mesh()
         pivot = self._old_mesh()
         mi = old.modifiers.new("mi", "MIRROR")
         mi.mirror_object = pivot
-        summary = self._run(old)
-        self.assertEqual(summary["modifiers"], 0)
-        self.assertEqual(len(summary["modifiers_skipped"]), 1)
 
-    def test_bevel_is_skipped_with_record(self):
-        # Bevel has no GN equivalent; it must be skipped and recorded.
-        old = self._old_mesh()
-        old.modifiers.new("bev", "BEVEL")
         summary = self._run(old)
+
+        self.assertEqual(summary["modifiers"], 1)
+        self.assertEqual(self._target().modifiers["mi"].mirror_object, pivot)
+
+    def test_a_bevel_is_kept_instead_of_being_dropped(self):
+        old = self._old_mesh()
+        old.modifiers.new("b", "BEVEL").width = 0.25
+
+        summary = self._run(old)
+
+        self.assertEqual(summary["modifiers"], 1)
+        self.assertEqual(summary["modifiers_skipped"], [])
+        self.assertAlmostEqual(self._target().modifiers["b"].width, 0.25, places=5)
+
+    def test_a_modifier_with_no_answer_is_still_skipped(self):
+        # Cloth is neither one of this addon's tools nor a plain mesh modifier
+        # to carry over.
+        old = self._old_mesh()
+        old.modifiers.new("cloth", "CLOTH")
+
+        summary = self._run(old)
+
         self.assertEqual(summary["modifiers"], 0)
         self.assertEqual(len(summary["modifiers_skipped"]), 1)
-        self.assertIn("BEVEL", summary["modifiers_skipped"][0])
+        self.assertIn("CLOTH", summary["modifiers_skipped"][0])
 
     def test_stack_order_and_mixed(self):
-        # A mixed stack: solidify + boolean translate, bevel is skipped, order
+        # A mixed stack: solidify + boolean translate, cloth is skipped, order
         # preserved among the translated ones.
         old = self._old_mesh()
         cutter = self._old_mesh()
         old.modifiers.new("s", "SOLIDIFY").thickness = 0.1
-        old.modifiers.new("bev", "BEVEL")
+        old.modifiers.new("cloth", "CLOTH")
         old.modifiers.new("b", "BOOLEAN").object = cutter
         summary = self._run(old)
         self.assertEqual(summary["modifiers"], 2)
         self.assertEqual(len(summary["modifiers_skipped"]), 1)
-        groups = [m.node_group.name for m in self._sketch_mods()]
+        groups = [m.node_group.name for m in self._sketch_mods() if m.node_group]
         self.assertLess(
             groups.index("CAD Sketcher Extrude"),
             groups.index("CAD Sketcher Boolean"),
