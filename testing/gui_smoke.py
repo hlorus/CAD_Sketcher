@@ -354,6 +354,58 @@ def main():
             set_active_sketch(context, None)
             _redraw()
 
+        @_check("snapping looks past the sketch being drawn in")
+        def _():
+            # Needs the real ray_cast, which only has geometry to hit with a
+            # window: the sketch's own body is a visible mesh sitting exactly
+            # where the cursor is drawing, so without skipping it every move
+            # lands on a snap target of its own shape (#591).
+            from bpy_extras.view3d_utils import location_3d_to_region_2d
+            from mathutils import Vector as _V
+
+            view_utils = importlib.import_module(f"{TARGET}.utilities.view")
+
+            # A filled square, so the body is a surface the ray can actually hit.
+            sketch = build_sketch_on_workplane(context, context.scene.sketcher.wp_xy)
+            corners = ((-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0))
+            points = [curve_ref.PointRef.create(sketch, co) for co in corners]
+            for i in range(4):
+                curve_ref.LineRef.create(sketch, points[i], points[(i + 1) % 4])
+            solver.solve_system(context, sketch=sketch)
+            curve_data.refresh_curve_geometry(sketch)
+            sketch_obj = sketch.target_object
+            sketch_ref.set_active_sketch(context, sketch_obj)
+            body = body_mod.body_of(sketch_obj)
+            assert body is not None, "a sketch is realised on a body"
+            context.view_layer.update()
+            _redraw()
+
+            skipped = view_utils.snap_skipped_objects(context)
+            assert sketch_obj in skipped and body in skipped, (
+                f"snapping must look past the sketch and its body: {skipped}"
+            )
+
+            # Aim at the body's own surface and ask for a snap: there must be none.
+            evaluated = body.evaluated_get(context.evaluated_depsgraph_get())
+            mesh = evaluated.to_mesh()
+            assert len(mesh.polygons), "the body must have a surface to aim at"
+            target = body.matrix_world @ mesh.polygons[0].center.copy()
+            evaluated.to_mesh_clear()
+
+            context.scene.tool_settings.use_snap = True
+            view = _view3d_context()
+            coords = location_3d_to_region_2d(
+                view["region"], view["space_data"].region_3d, target
+            )
+            assert coords is not None, "the body must be in view"
+            with bpy.context.temp_override(**view):
+                snap = view_utils.get_blender_snap_info(bpy.context, _V(coords))
+            context.scene.tool_settings.use_snap = False
+            sketch_ref.set_active_sketch(context, None)
+            _redraw()
+
+            assert snap is None, f"snapped to the sketch being drawn: {snap}"
+
         @_check("a chain carries on into the tool that is switched to")
         def _():
             # The handover goes through the keymap: the running tool offers its

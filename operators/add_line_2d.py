@@ -46,6 +46,9 @@ class View3D_OT_slvs_add_line2d(Operator, ChainDraw, ReplaceableOutputOp, Operat
 
     continuous_draw: BoolProperty(name="Continuous Draw", default=True)
 
+    # Whether the joint inference added anything, so fini knows to solve for it.
+    has_joints = False
+
     states = (
         state_from_args(
             l2d_state1_doc[0],
@@ -72,7 +75,7 @@ class View3D_OT_slvs_add_line2d(Operator, ChainDraw, ReplaceableOutputOp, Operat
     preview_in_place = True
 
     def preview_structure(self, context: Context):
-        """Also rebuild when the inferred alignment changes, so it shows live."""
+        """Also rebuild when an inferred constraint changes, so it shows live."""
         structure = super().preview_structure(context)
         if structure is None or self.state_index != 1:
             return structure
@@ -84,7 +87,16 @@ class View3D_OT_slvs_add_line2d(Operator, ChainDraw, ReplaceableOutputOp, Operat
             end = [float(np.float32(c)) for c in getattr(self, self.get_property()[0])]
         if start is None or not start.valid:
             return None
-        return structure, _alignment(Vector(end[:2]) - start.co)
+        along = Vector(end[:2]) - start.co
+        return structure, _alignment(along), self._joint_key(context, start, along)
+
+    def _joint_key(self, context: Context, start, along: Vector):
+        """What the segment being dragged would be constrained by at its ends."""
+        end = self.get_point(context, 1)
+        joints = [(start.curve_id, along, False)]
+        if end is not None and end.valid:
+            joints.append((end.curve_id, -along, False))
+        return self.joint_relation_key(context, joints)
 
     def update_preview(self, context: Context) -> bool:
         """Drag the line's endpoint instead of recreating the line."""
@@ -127,6 +139,10 @@ class View3D_OT_slvs_add_line2d(Operator, ChainDraw, ReplaceableOutputOp, Operat
                 self.add_auto_constraint(context, add, curve_id_1=line_cid)
             )
 
+        # How it meets what it joins: square or in line with the segment before
+        # it, tangent to an arc it leaves.
+        self.has_joints = bool(self.add_joint_constraints(context, self.target))
+
         ignore_hover(line_cid)
         return True
 
@@ -135,7 +151,9 @@ class View3D_OT_slvs_add_line2d(Operator, ChainDraw, ReplaceableOutputOp, Operat
             logger.debug("Add: {}".format(self.target))
 
         if succeede:
-            if self.has_coincident() or self.has_alignment:
+            # Only a trial solve ran while drawing (it never writes positions), so
+            # whatever was inferred is applied here.
+            if self.has_coincident() or self.has_alignment or self.has_joints:
                 solve_system(context, sketch=self.sketch)
 
 

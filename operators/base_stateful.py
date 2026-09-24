@@ -121,6 +121,65 @@ class GenericEntityOp(StatefulOperator):
         solve_system(context, sketch=self.sketch, write=False)
         return None
 
+    def add_joint_constraints(self, context: Context, ref):
+        """Constrain how ``ref`` meets what it joins, where the joint says so.
+
+        Tangent where a curve carries on smoothly, parallel or perpendicular
+        between two lines (see operators.inference). Each is offered to
+        add_auto_constraint, so one is kept only while it solves and constrains;
+        they are offered in turn because whichever lands first takes the degree of
+        freedom the next one would have.
+        """
+        if ref is None or not getattr(self, "sketch", None):
+            return []
+        if not self.use_auto_constraints(context):
+            return []
+
+        from .inference import joint_relations, ordered_for, relation_adders
+
+        adders = relation_adders(self.sketch.constraints)
+        added = []
+        for relation, other in joint_relations(self.sketch, ref):
+            first, second = ordered_for(relation, ref, other)
+            constraint = self.add_auto_constraint(
+                context, adders[relation], curve_id_1=first, curve_id_2=second
+            )
+            if constraint is not None:
+                added.append(constraint)
+        return added
+
+    def joint_relation_key(self, context: Context, joints):
+        """What a segment about to be drawn at ``joints`` would be constrained by.
+
+        Part of a tool's preview structure, so the preview is rebuilt when the
+        relations change: the constraint is then added while the segment is still
+        being placed, which is when it is worth seeing. Empty when nothing would
+        be inferred anyway.
+        """
+        if not getattr(self, "sketch", None) or not self.use_auto_constraints(context):
+            return ()
+
+        from .inference import relations_for_joints
+
+        # The segment on screen is the one being asked about: it is in the sketch
+        # already (the preview created it), and it is recreated under a new id on
+        # every rebuild, so leaving it in would make the key differ every time and
+        # no preview could ever be updated in place.
+        target = getattr(self, "target", None)
+        exclude = (
+            (target.curve_id,)
+            if target is not None and getattr(target, "valid", False)
+            else ()
+        )
+        return tuple(
+            sorted(
+                (relation, other.curve_id)
+                for relation, other in relations_for_joints(
+                    self.sketch, joints, exclude=exclude
+                )
+            )
+        )
+
     def pick_element(self, context, coords):
         retval = super().pick_element(context, coords)
         if retval is not None:

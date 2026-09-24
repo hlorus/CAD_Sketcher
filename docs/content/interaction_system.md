@@ -129,7 +129,19 @@ you automatically, so you don't have to place them by hand:
 - **Auto axis alignment** — a segment drawn close to horizontal or vertical gets
   a **Horizontal** / **Vertical** constraint.
 - **Auto coincident** — a new point placed on an existing point gets a
-  **Coincident** constraint.
+  **Coincident** constraint; placed on a line, arc or circle it gets a coincidence
+  onto that curve, and on the midpoint of a snapped edge a **Midpoint**
+  constraint.
+- **Auto joints** — how a new segment meets the one it starts from or ends on:
+  an arc carrying on smoothly from a line or another arc gets a **Tangent**
+  constraint, and two lines meeting square or carrying straight on get
+  **Perpendicular** / **Parallel**. Without these a chain of segments is
+  connected but free to pivot, so it looks right only until something moves.
+
+A constraint is only kept when it leaves the sketch solvable *and* actually takes
+a degree of freedom away, so nothing inferred can over-constrain a sketch: where
+the relation already follows from what is there (a square corner between a
+horizontal and a vertical line, say) no extra constraint is added.
 
 This is controlled by the **Auto Constraints** toggle in the tool settings bar
 (top of the viewport) of the sketch tools — *Line*, *Rectangle*, *Circle*,

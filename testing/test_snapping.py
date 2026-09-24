@@ -17,6 +17,7 @@ from unittest import TestCase
 from mathutils import Matrix, Vector
 
 from ..utilities import view
+from .utils import Sketch2dTestCase
 
 
 class TestSnappingApiPresent(TestCase):
@@ -44,6 +45,7 @@ class TestSnappingApiPresent(TestCase):
     def test_snap_bypass_short_circuits(self):
         """global_data.snap_bypass (Shift held) skips snapping before any ray_cast."""
         import bpy
+
         from .. import global_data
 
         original = global_data.snap_bypass
@@ -141,3 +143,32 @@ class TestSnapElements(TestCase):
     def test_accepts_single_string_value(self):
         ts = _FakeToolSettings(base="VERTEX")
         self.assertEqual(view._snap_elements(ts), {"VERTEX"})
+
+
+class TestSnapSkipsTheSketchBeingDrawn(Sketch2dTestCase):
+    """The geometry you are drawing must not capture the cursor (#591).
+
+    A sketch is a Curves object that its own mesh *body* realises, and the body is
+    the visible half: snapping has to look past both, or every mouse move lands on
+    a snap target from the shape being drawn.
+    """
+
+    def test_both_the_sketch_and_its_body_are_skipped(self):
+        from ..utilities.body import ensure_body
+        from ..utilities.view import snap_skipped_objects
+
+        sketch_obj = self.sketch.target_object
+        body = ensure_body(self.context, sketch_obj)
+
+        skipped = snap_skipped_objects(self.context)
+
+        self.assertIn(sketch_obj, skipped)
+        self.assertIn(body, skipped)
+
+    def test_nothing_is_skipped_outside_a_sketch(self):
+        from ..model.sketch_ref import set_active_sketch
+        from ..utilities.view import snap_skipped_objects
+
+        set_active_sketch(self.context, None)
+
+        self.assertEqual(snap_skipped_objects(self.context), set())
