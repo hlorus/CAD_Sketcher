@@ -75,3 +75,34 @@ class TestNamePropagation(BgsTestCase):
         touched.updates = (_Update(body),)
         self.assertTrue(rename_after_bodies(self.scene, touched))
         self.assertEqual(sketch_obj.name, f"{body.name} Sketch")
+
+    def test_a_linked_plane_keeps_the_name_its_own_file_gave_it(self):
+        """The pass renames what hangs under a body, but a linked or overridden
+        datablock's name is read-only: assigning it raises, and the name is not
+        the add-on's to give anyway."""
+        import os
+        import tempfile
+
+        import bpy
+
+        sketch_obj, body = self._part("Hinge")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "lib.blend")
+            source = bpy.data.objects.new("Foreign", None)
+            self.scene.collection.objects.link(source)
+            bpy.data.libraries.write(path, {source})
+            bpy.data.objects.remove(source)
+
+            with bpy.data.libraries.load(path, link=True) as (_src, dst):
+                dst.objects = ["Foreign"]
+            linked = bpy.data.objects["Foreign"]
+            self.addCleanup(bpy.data.batch_remove, [linked, linked.library])
+            self.assertFalse(linked.is_editable)
+
+            sketch_obj.slvs_workplane = linked
+            body.name = "Pivot"
+            rename_after_bodies(self.scene)
+
+        self.assertEqual(linked.name, "Foreign")
+        self.assertEqual(sketch_obj.name, "Pivot Sketch", "the rest still follows")

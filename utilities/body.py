@@ -135,8 +135,15 @@ def _rename(datablock, name: str) -> bool:
     Assigning a name that is taken makes Blender append ``.001``, so a pass that
     reassigns the name it just set would walk a body's sketch up the numbers on
     every depsgraph update.
+
+    A name that isn't ours to give is left alone: linked and overridden data
+    belongs to the file it came from, and its ``name`` is read-only. A part can
+    hold such a datablock while the body itself is local (a linked workplane, or
+    a local object on linked mesh data), so this is checked per datablock.
     """
     if datablock is None or datablock.name == name:
+        return False
+    if not datablock.is_editable:
         return False
     datablock.name = name
     return True
