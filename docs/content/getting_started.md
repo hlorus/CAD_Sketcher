@@ -28,15 +28,21 @@ sketch's origin point, click it and move the mouse away, click again to confirm.
 
 Switch back to the [Selection Tool](user_interface.md#select-tool), by pressing ESC.
 Make sure nothing is selected by pressing ESC again or by clicking into empty space
-while the selection tool is active. Now select the circle and click the button
-in the sidebar to add a diameter constraint.
+while the selection tool is active. Now select the circle and click the diameter
+button in the sidebar's "Constraints" section to add a diameter constraint (the
+buttons show as icons by default, hover one for its name).
 
-## Convert
-![!Convert Type](images/convert_type.png){align=left style="display:inline-block; width:30%; height:200px; object-fit:cover;"}
+## The Result
 ![!Converted Circle](images/converted_circle.png){align=right style="display:inline-block; width:calc(70% - 2em); height:200px; object-fit:cover;"}
 
-<p style="display:inline-block;">While the sketch is still active, select a convert method from the sidebar, then
-exit the sketch.</p>
+<p style="display:inline-block;">The geometry you draw is realised on the sketch's
+<b>body</b>, a normal mesh object that follows the sketch as you edit it. Exit the
+sketch to see it on its own.</p>
+
+The body carries a **CAD Sketcher Convert** modifier, where **Fill** decides
+whether closed shapes are surfaced and **Angular Resolution** how finely arcs and
+circles are meshed. Everything you add later, an extrude or a boolean, stacks on
+top of it, see [integration](integration.md).
 
 ## Edit and Update
 ![!Set Diameter](images/set_diameter.png){align=left style="display:inline-block; width:calc(50% - 1em); height:200px; object-fit:cover;"}

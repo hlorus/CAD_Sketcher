@@ -15,8 +15,9 @@ Select a body and its modifiers are in the Properties editor as usual:
     - **Fill** &mdash; surface closed shapes, rather than leaving just edges.
     - **Angular Resolution** &mdash; the largest angle per edge when arcs and
       circles are meshed. The default comes from the add-on preferences.
-- **Extrude**, **Revolve**, **Boolean**, **Array** &mdash; added by the tools, in
-  the order you applied them, and reorderable like any modifier.
+- **Extrude**, **Revolve**, **Boolean**, **Array** &mdash; added by the
+  [modeling tools](modeling.md), in the order you applied them, and reorderable
+  like any modifier.
 
 Construction geometry and degenerate segments are dropped during the conversion,
 so they never reach the mesh.

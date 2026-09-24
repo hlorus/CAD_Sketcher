@@ -11,6 +11,7 @@ nav:
     - user_interface.md
     - tools.md
     - parts.md
+    - modeling.md
     - entities.md
     - constraints.md
     - solver.md
