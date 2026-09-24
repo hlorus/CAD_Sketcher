@@ -127,6 +127,10 @@ class View3D_OT_slvs_add_line2d(Operator, ChainDraw, ReplaceableOutputOp, Operat
                 self.add_auto_constraint(context, add, curve_id_1=line_cid)
             )
 
+        # How it meets what it joins: square or in line with the segment before
+        # it, tangent to an arc it leaves.
+        self.add_joint_constraints(context, self.target)
+
         ignore_hover(line_cid)
         return True
 

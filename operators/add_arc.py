@@ -156,6 +156,8 @@ class View3D_OT_slvs_add_arc2d(Operator, ReplaceableOutputOp, Operator2d):
         start, end = (p2, p1) if invert else (p1, p2)
 
         self.target = ArcRef.create(sketch, ct, start, end, construction=construction)
+        # Tangent where it carries on from a segment it starts at or ends on.
+        self.add_joint_constraints(context, self.target)
         ignore_hover(self.target.curve_id)
         return True
 
@@ -387,6 +389,8 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, ChainDraw, Operator2d):
         ct = PointRef.create(sketch, co, construction=construction)
         self.target = ArcRef.create(sketch, ct, start, end, construction=construction)
         self._center = ct
+        # Tangent where it carries on from a segment it starts at or ends on.
+        self.add_joint_constraints(context, self.target)
         ignore_hover(ct.curve_id)
         ignore_hover(self.target.curve_id)
         return True

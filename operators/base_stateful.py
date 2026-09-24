@@ -121,6 +121,29 @@ class GenericEntityOp(StatefulOperator):
         solve_system(context, sketch=self.sketch, write=False)
         return None
 
+    def add_joint_constraints(self, context: Context, ref):
+        """Constrain how ``ref`` meets what it joins, where the joint says so.
+
+        Tangent where a curve carries on smoothly, parallel or perpendicular
+        between two lines (see operators.inference). Each is offered to
+        add_auto_constraint, so one is kept only while it solves and constrains;
+        they are offered in turn because whichever lands first takes the degree of
+        freedom the next one would have.
+        """
+        if ref is None or not getattr(self, "sketch", None):
+            return
+        if not self.use_auto_constraints(context):
+            return
+
+        from .inference import joint_relations, ordered_for, relation_adders
+
+        adders = relation_adders(self.sketch.constraints)
+        for relation, other in joint_relations(self.sketch, ref):
+            first, second = ordered_for(relation, ref, other)
+            self.add_auto_constraint(
+                context, adders[relation], curve_id_1=first, curve_id_2=second
+            )
+
     def pick_element(self, context, coords):
         retval = super().pick_element(context, coords)
         if retval is not None:
