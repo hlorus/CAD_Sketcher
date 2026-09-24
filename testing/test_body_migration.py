@@ -138,3 +138,40 @@ class TestBodyMigration(Sketch2dTestCase):
 
         self.assertTrue(migrate_bodies(self.context, self.scene))
         self.assertIsNotNone(body_of(obj))
+
+
+class TestBodyMigrationVisibility(Sketch2dTestCase):
+    """A sketch the user had hidden must not come back as a visible body."""
+
+    def _legacy_hidden_sketch(self):
+        obj = self.sketch.target_object
+        for modifier in list(obj.modifiers):
+            obj.modifiers.remove(modifier)
+        from ..utilities.curve_data import _ensure_convert_modifier
+
+        _ensure_convert_modifier(obj)
+        obj.slvs_body = None
+        obj.slvs_workplane = None
+        obj.parent = None
+        return obj
+
+    def test_a_hidden_sketch_migrates_to_a_hidden_body(self):
+        obj = self._legacy_hidden_sketch()
+        obj.hide_set(True)
+        obj.hide_render = True
+
+        migrate_bodies(self.context, self.scene)
+
+        body = body_of(obj)
+        self.assertTrue(body.hide_get())
+        self.assertTrue(body.hide_render)
+
+    def test_a_visible_sketch_migrates_to_a_visible_body(self):
+        obj = self._legacy_hidden_sketch()
+
+        migrate_bodies(self.context, self.scene)
+
+        body = body_of(obj)
+        self.assertFalse(body.hide_get())
+        self.assertFalse(body.hide_viewport)
+        self.assertFalse(body.hide_render)

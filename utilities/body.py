@@ -255,6 +255,21 @@ def _redirect_to_body(scene, sketch_obj: bpy.types.Object, body: bpy.types.Objec
                 set_modifier_input(modifier, cutter_id, body)
 
 
+def _inherit_visibility(sketch_obj: bpy.types.Object, body: bpy.types.Object) -> None:
+    """Give the body the visibility its sketch object had before the split.
+
+    In old files the sketch object carried the modifiers, so hiding it hid the
+    result. The body is that result now, and a part the user had put away has to
+    stay away: created visible it pops back into the scene on update.
+    """
+    body.hide_viewport = sketch_obj.hide_viewport
+    body.hide_render = sketch_obj.hide_render
+    try:
+        body.hide_set(sketch_obj.hide_get())
+    except RuntimeError:
+        pass  # one of them is not in this view layer
+
+
 def _rehome_onto_body(context, sketch_obj: bpy.types.Object, body: bpy.types.Object):
     """Put the body where the sketch used to sit in the hierarchy.
 
@@ -365,6 +380,7 @@ def _migrate_bodies(context, scene) -> bool:
         _redirect_to_body(scene, sketch_obj, body)
         _rehome_onto_body(context, sketch_obj, body)
         body[BODY_PLACED_KEY] = True
+        _inherit_visibility(sketch_obj, body)
         # What the user sees is the body now; the curves would only double it.
         hide_sketch_curves(sketch_obj)
         changed = True
