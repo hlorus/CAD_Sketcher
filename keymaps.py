@@ -158,6 +158,14 @@ NODE_TOOL_KEYS = (
 )
 
 
+def node_tool_rows() -> tuple:
+    """``(tool, operator, key, global key, is group key)`` per node tool."""
+    return tuple(
+        (tool, operator, key, global_key, GROUP in rest)
+        for tool, operator, key, global_key, *rest in NODE_TOOL_KEYS
+    )
+
+
 def tool_keys(table) -> tuple:
     """Tool keymap items starting each tool of ``table`` by its key."""
     return tuple(
@@ -373,7 +381,7 @@ def register():
 
         # Switch to a tool, then invoke its operator. Inside a sketch the tool
         # isn't available and the key passes on (Ctrl+Shift+A leaves the sketch).
-        for tool, operator, _key, key in NODE_TOOL_KEYS:
+        for tool, operator, _key, key, _group in node_tool_rows():
             kmi = km.keymap_items.new(
                 StatefulOps.InvokeTool.value, key, "PRESS", ctrl=True, shift=True
             )

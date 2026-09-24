@@ -168,7 +168,11 @@ class TestShortcutTable(TestCase):
             self.assertEqual(len(keys), len(set(keys)), keys)
 
     def test_global_keys(self):
-        keys = [row[3] for row in self.keymaps.NODE_TOOL_KEYS]
+        # Through the same reader register() uses: a row gaining a marker must not
+        # change what that loop unpacks.
+        rows = self.keymaps.node_tool_rows()
+        self.assertEqual(len(rows), len(self.keymaps.NODE_TOOL_KEYS))
+        keys = [global_key for _t, _o, _k, global_key, _g in rows]
         self.assertEqual(len(keys), len(set(keys)), keys)
         # Ctrl+Shift+S saves as, Ctrl+Shift+O opens recent files.
         self.assertFalse(set(keys) & {"S", "O"})
