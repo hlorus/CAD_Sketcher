@@ -21,7 +21,30 @@ from .utilities import ignore_hover
 logger = logging.getLogger(__name__)
 
 
-class View3D_OT_slvs_add_arc2d(Operator, ReplaceableOutputOp, Operator2d):
+class ArcJoints:
+    """Shared by both arc tools: the tangencies the arc's ends would pick up.
+
+    Part of the preview structure, so the constraint is added while the arc is
+    still being placed rather than only once it is confirmed.
+    """
+
+    def arc_joint_key(self, context: Context, center, start, end):
+        joints = []
+        center = getattr(center, "co", center)
+        if center is None:
+            return ()
+        for point in (start, end):
+            if point is None or not getattr(point, "valid", False):
+                continue
+            radial = point.co - center
+            if radial.length < 1e-9:
+                continue
+            # An arc runs square to its radius, which is all a joint needs.
+            joints.append((point.curve_id, Vector((-radial.y, radial.x)), True))
+        return self.joint_relation_key(context, joints)
+
+
+class View3D_OT_slvs_add_arc2d(Operator, ArcJoints, ReplaceableOutputOp, Operator2d):
     """Add an arc to the active sketch"""
 
     bl_idname = Operators.AddArc2D
@@ -130,11 +153,16 @@ class View3D_OT_slvs_add_arc2d(Operator, ReplaceableOutputOp, Operator2d):
     preview_in_place = True
 
     def preview_structure(self, context: Context):
-        """Also rebuild when the sweep direction flips (start and end swap)."""
+        """Also rebuild when the sweep flips or an inferred tangency changes."""
         structure = super().preview_structure(context)
         if structure is None:
             return None
-        return structure, getattr(self, "_arc_invert", False)
+        ct, p1, p2 = (self.get_point(context, i) for i in range(3))
+        return (
+            structure,
+            getattr(self, "_arc_invert", False),
+            self.arc_joint_key(context, ct, p1, p2),
+        )
 
     def update_preview(self, context: Context) -> bool:
         """Drag the arc's endpoint instead of recreating the arc."""
@@ -167,7 +195,7 @@ class View3D_OT_slvs_add_arc2d(Operator, ReplaceableOutputOp, Operator2d):
             self.solve_state(context, self.sketch)
 
 
-class View3D_OT_slvs_add_arc3pt2d(Operator, ChainDraw, Operator2d):
+class View3D_OT_slvs_add_arc3pt2d(Operator, ChainDraw, ArcJoints, Operator2d):
     """Add an arc from a start point to an end point, curving the way you set off"""
 
     bl_idname = Operators.AddArc3Point2D
@@ -345,14 +373,15 @@ class View3D_OT_slvs_add_arc3pt2d(Operator, ChainDraw, Operator2d):
     preview_in_place = True
 
     def preview_structure(self, context: Context):
-        """Also rebuild when the arc flips to the other side of its chord."""
+        """Also rebuild when the arc flips over, or an inferred tangency changes."""
         structure = super().preview_structure(context)
         if structure is None:
             return None
         geometry = self._arc_geometry(context)
         if geometry is None:
             return None
-        return structure, geometry[3]
+        start, end, center, reverse = geometry
+        return structure, reverse, self.arc_joint_key(context, center, start, end)
 
     def update_preview(self, context: Context) -> bool:
         """Move the arc's center instead of recreating the arc."""

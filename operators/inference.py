@@ -12,7 +12,7 @@ degree of freedom away, so nothing here can over-constrain a sketch.
 """
 
 import math
-from typing import Iterator, Optional, Tuple
+from typing import Iterable, Iterator, Optional, Tuple
 
 from ..model.curve_ref import ArcRef, CircleRef, CurveRef
 from ..utilities.topology import SketchTopology
@@ -32,6 +32,19 @@ def _is_curved(ref: CurveRef) -> bool:
     return isinstance(ref, (ArcRef, CircleRef))
 
 
+def _relation(curved: bool, other: CurveRef, alignment: float) -> Optional[str]:
+    """The constraint this much alignment at a joint suggests, or None."""
+    curved = curved or _is_curved(other)
+    if alignment >= _ALIGNED:
+        # A curve carrying on smoothly is a tangency; two lines running the same
+        # way are parallel (sharing a point, that makes them collinear).
+        return TANGENT if curved else PARALLEL
+    if alignment <= _SQUARE and not curved:
+        # Perpendicular is a line-to-line constraint; a curve has none.
+        return PERPENDICULAR
+    return None
+
+
 def relation_for(ref: CurveRef, other: CurveRef, alignment: float) -> Optional[str]:
     """The constraint an ``alignment`` between two segments suggests, or None.
 
@@ -39,14 +52,7 @@ def relation_for(ref: CurveRef, other: CurveRef, alignment: float) -> Optional[s
     shared point, so it says how aligned they are without caring which way along
     either of them that is.
     """
-    if alignment >= _ALIGNED:
-        # A curve carrying on smoothly is a tangency; two lines running the same
-        # way are parallel (sharing a point, that makes them collinear).
-        return TANGENT if _is_curved(ref) or _is_curved(other) else PARALLEL
-    if alignment <= _SQUARE and not (_is_curved(ref) or _is_curved(other)):
-        # Perpendicular is a line-to-line constraint; a curve has none.
-        return PERPENDICULAR
-    return None
+    return _relation(_is_curved(ref), other, alignment)
 
 
 def ordered_for(relation: str, ref: CurveRef, other: CurveRef) -> Tuple[str, str]:
@@ -62,36 +68,56 @@ def ordered_for(relation: str, ref: CurveRef, other: CurveRef) -> Tuple[str, str
     return ref.curve_id, other.curve_id
 
 
-def joint_relations(sketch, ref: CurveRef) -> Iterator[Tuple[str, CurveRef]]:
-    """What the joints of ``ref`` suggest, as ``(relation, other segment)``.
+def relations_for_joints(
+    sketch, joints, exclude: Iterable[str] = ()
+) -> Iterator[Tuple[str, CurveRef]]:
+    """What a segment meeting the sketch at ``joints`` would be constrained by.
 
-    Only segments that share a point with ``ref`` are considered: a joint is what
-    makes the relation obvious, and it is what the user just drew.
+    A joint is ``(point id, direction away from it, whether the segment curves
+    there)``, which is all the relation depends on -- so this answers for a
+    segment that does not exist yet as well as for one that does, and the preview
+    and the commit see the same thing.
     """
-    if ref is None or not ref.valid or not sketch:
+    if not sketch:
         return
     topology = SketchTopology(sketch)
+    skip = {str(curve_id) for curve_id in exclude}
     seen = set()
-    for point in topology.connection_points(ref):
-        point_id = point.curve_id
-        direction = topology.direction_at_point(ref, point_id)
-        if direction.length < 1e-9:
+    for point_id, direction, curved in joints:
+        if point_id in skip or direction is None or direction.length < 1e-9:
             continue
+        direction = direction.normalized()
         for other, _end in topology.get_connected_segments(point_id):
-            if other.curve_id == ref.curve_id or not other.valid:
+            if other.curve_id in skip or not other.valid:
                 continue
             other_direction = topology.direction_at_point(other, point_id)
             if other_direction.length < 1e-9:
                 continue
-            relation = relation_for(
-                ref,
-                other,
-                abs(direction.normalized().dot(other_direction.normalized())),
-            )
+            alignment = abs(direction.dot(other_direction.normalized()))
+            relation = _relation(curved, other, alignment)
             if relation is None or (relation, other.curve_id) in seen:
                 continue
             seen.add((relation, other.curve_id))
             yield relation, other
+
+
+def joints_of(sketch, ref: CurveRef):
+    """The joints of an existing segment, for ``relations_for_joints``."""
+    if ref is None or not ref.valid or not sketch:
+        return []
+    topology = SketchTopology(sketch)
+    curved = _is_curved(ref)
+    return [
+        (point.curve_id, topology.direction_at_point(ref, point.curve_id), curved)
+        for point in topology.connection_points(ref)
+    ]
+
+
+def joint_relations(sketch, ref: CurveRef) -> Iterator[Tuple[str, CurveRef]]:
+    """What the joints of ``ref`` suggest, as ``(relation, other segment)``."""
+    yield from relations_for_joints(
+        sketch, joints_of(sketch, ref), exclude=(ref.curve_id,) if ref else ()
+    )
 
 
 def relation_adders(constraints) -> dict:

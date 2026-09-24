@@ -20,6 +20,7 @@ from ..operators.inference import (
     ordered_for,
     relation_for,
 )
+from .live_harness import LiveOpHarness
 from .utils import OpHarness, Sketch2dTestCase
 
 
@@ -215,3 +216,68 @@ class TestInferredJointConstraints(Sketch2dTestCase):
         kinds = self._kinds()
         self.assertIn("VERTICAL", kinds)
         self.assertIn(PERPENDICULAR, kinds)
+
+
+class TestInferredWhileDrawing(Sketch2dTestCase):
+    """The constraint appears while the segment is still being dragged.
+
+    That is the point of inferring it: seeing the relation land is what tells you
+    the corner is square before you commit to it. Solving stays deferred, so
+    nothing already drawn moves until the segment is confirmed.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.context.scene.sketcher.auto_axis_constraints = True
+        # A free line running into the origin at an angle, so neither an axis
+        # alignment nor anything else already fixes the corner.
+        self.tail = self.add_point(_polar(1.0, 210.0))
+        self.joint = self.add_point((0.0, 0.0))
+        self.first = self.add_line(self.tail, self.joint)
+
+    def _kinds(self):
+        return [c.type for c in self.sketch.constraints.all]
+
+    def _drag_square(self):
+        """Click the joint, then drag out square to the first line."""
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+
+        harness = LiveOpHarness(View3D_OT_slvs_add_line2d, self.sketch, self.context)
+        harness.click((0.0, 0.0), hover=self.joint.curve_id)
+        harness.move(_polar(1.0, 120.0))
+        return harness
+
+    def test_the_constraint_is_there_before_the_segment_is_confirmed(self):
+        harness = self._drag_square()
+        try:
+            self.assertIn(PERPENDICULAR, self._kinds())
+        finally:
+            harness.cancel()
+
+    def test_it_goes_away_again_when_the_corner_is_not_square(self):
+        harness = self._drag_square()
+        try:
+            harness.move(_polar(1.0, 75.0))
+            self.assertNotIn(PERPENDICULAR, self._kinds())
+        finally:
+            harness.cancel()
+
+    def test_nothing_already_drawn_moves_while_dragging(self):
+        # The trial solve never writes positions: the first line stays exactly
+        # where it was until the new segment is confirmed.
+        before = self.tail.co.copy()
+        harness = self._drag_square()
+        try:
+            self.assertEqual(self.tail.co, before)
+        finally:
+            harness.cancel()
+
+    def test_confirming_solves_for_it(self):
+        harness = self._drag_square()
+        harness.click(_polar(1.0, 120.0))
+
+        # Exactly square now, which only a solve can deliver.
+        second = harness.op.target
+        first = (self.joint.co - self.tail.co).normalized()
+        along = (second.p2.co - second.p1.co).normalized()
+        self.assertAlmostEqual(first.dot(along), 0.0, places=5)
