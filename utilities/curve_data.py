@@ -707,47 +707,58 @@ def _get_convert_node_group():
     return build_convert_node_group()
 
 
-def ensure_sketch_curve_object(sketch):
-    """Ensure a sketch has a native curve object, creating one if needed."""
-    assert sketch is not None, "ensure_sketch_curve_object: sketch is None"
+def sketch_curve_data(sketch):
+    """A sketch's curve data, or None when it has no curve object.
+
+    A plain read: this is reached from solving and drawing, where creating
+    objects is not allowed (Blender falls over if a new object with a bound node
+    group appears mid-solve). Sketches are built by the Add Sketch tool, and an
+    older file's entity sketches by the file update, so by the time geometry is
+    added the object is there.
+    """
+    assert sketch is not None, "sketch_curve_data: sketch is None"
+
+    obj = sketch.target_object
+    if obj is None:
+        logger.warning("sketch_curve_data: '%s' has no curve object", sketch.name)
+        return None
+    return obj.data
+
+
+def create_sketch_curve_object(context, sketch):
+    """Build the curve object an entity sketch is missing.
+
+    For the paths that legitimately make a sketch outside the Add Sketch tool:
+    harnesses that drive the model directly, and tests. Never from solving or
+    drawing -- see :func:`sketch_curve_data`.
+
+    Builds the pre-split shape, with the stack on the sketch itself: giving it a
+    body here is what a file update does, with the whole scene in hand.
+    """
+    assert sketch is not None, "create_sketch_curve_object: sketch is None"
 
     wp_obj = sketch.workplane_object
     if not wp_obj and hasattr(sketch, "wp") and not sketch.wp:
-        logger.warning("ensure_sketch_curve_object: no workplane empty or entity")
+        logger.warning("create_sketch_curve_object: no workplane empty or entity")
         return None
 
-    if not sketch.target_object:
-        curve = bpy.data.hair_curves.new(sketch.name)
-        assert curve is not None, "Failed to create hair_curves data"
-
-        ob = bpy.data.objects.new(sketch.name, curve)
-        assert ob is not None, "Failed to create object for curve data"
-        sketch.target_object = ob
-
-        if wp_obj:
-            ob.matrix_world = wp_obj.matrix_world
-        elif hasattr(sketch, "wp") and sketch.wp:
-            ob.matrix_world = sketch.wp.matrix_basis
-
-        scene = bpy.context.scene
-        assert scene is not None, "No active scene"
+    if sketch.target_object is None:
+        from ..model.sketch_ref import stamp_sketch_props
         from .collections import link_to_scene_root
 
-        link_to_scene_root(ob, scene)
+        curve = bpy.data.hair_curves.new(sketch.name)
+        obj = bpy.data.objects.new(sketch.name, curve)
+        sketch.target_object = obj
 
-        # Stamp sketch custom properties
-        from ..model.sketch_ref import stamp_sketch_props
+        if wp_obj:
+            obj.matrix_world = wp_obj.matrix_world
+        elif hasattr(sketch, "wp") and sketch.wp:
+            obj.matrix_world = sketch.wp.matrix_basis
 
-        stamp_sketch_props(ob)
+        link_to_scene_root(obj, context.scene)
+        stamp_sketch_props(obj)
+        _ensure_convert_modifier(obj)
 
-        # Legacy shape: this bootstrap runs from solver and draw paths, where new
-        # objects must not appear (creating one here crashes Blender), so such a
-        # sketch keeps carrying the convert modifier itself until the file is
-        # updated and it gets a body of its own.
-        _ensure_convert_modifier(ob)
-
-    assert sketch.target_object is not None, "target_object should exist after ensure"
-    assert sketch.target_object.data is not None, "target_object.data should exist"
     return sketch.target_object.data
 
 

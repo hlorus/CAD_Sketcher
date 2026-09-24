@@ -7,17 +7,17 @@ native solver builds tangency as a perpendicular between the line and the
 radius line (center -> tangent point), which is stable on every workplane.
 """
 
-from .utils import BgsTestCase
-from ..model import sketch_ref as sr
 from ..model import curve_ref as cr
+from ..model import sketch_ref as sr
 from ..utilities import curve_data as cd_mod
+from .utils import BgsTestCase
 
 
 class TestTangentWorkplanes(BgsTestCase):
     def _sketch_on(self, plane_attr):
         self.entities.ensure_origin_elements(self.context)
         entity_sketch = self.entities.add_sketch(getattr(self.entities, plane_attr))
-        cd_mod.ensure_sketch_curve_object(entity_sketch)
+        cd_mod.create_sketch_curve_object(self.context, entity_sketch)
         sr.stamp_sketch_props(entity_sketch.target_object)
         sketch = sr.Sketch(entity_sketch.target_object)
         sr.set_active_sketch(self.context, entity_sketch.target_object)
@@ -48,11 +48,17 @@ class TestTangentWorkplanes(BgsTestCase):
             sc = sketch.constraints
             c1 = cr.PointRef.create(sketch, (0, 0), fixed=True)
             arc1 = cr.ArcRef.create(
-                sketch, c1, cr.PointRef.create(sketch, (2, 0)), cr.PointRef.create(sketch, (0, 2))
+                sketch,
+                c1,
+                cr.PointRef.create(sketch, (2, 0)),
+                cr.PointRef.create(sketch, (0, 2)),
             )
             c2 = cr.PointRef.create(sketch, (5, 0))
             arc2 = cr.ArcRef.create(
-                sketch, c2, cr.PointRef.create(sketch, (7, 0)), cr.PointRef.create(sketch, (5, 2))
+                sketch,
+                c2,
+                cr.PointRef.create(sketch, (7, 0)),
+                cr.PointRef.create(sketch, (5, 2)),
             )
             sc.add_tangent(curve_id_1=arc1.curve_id, curve_id_2=arc2.curve_id)
             self.assertTrue(sketch.solve(self.context), plane)
