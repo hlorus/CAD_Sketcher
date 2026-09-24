@@ -8,7 +8,7 @@ optional: a release with no matching entry just uses GitHub's auto-generated
 notes and shows no "What's new" (e.g. a packaging-only patch).
 
 ## 0.32.0
-This release introduces parts and assemblies, makes a sketch's result a real mesh you can move, apply and export, adds new drawing tools, and makes large sketches much faster to draw in and edit.
+This release introduces parts and assemblies, makes a sketch's result a real mesh you can move, apply and export, adds new drawing and array tools, and makes large sketches much faster to draw in and edit.
 
 New
 - Parts and assemblies: a part is the geometry a sketch makes together with the sketches and workplanes that define it, and you can move it freely, group parts into assemblies, and duplicate or instance either; the outliner shows the structure
@@ -17,9 +17,10 @@ New
 - Revolve can turn geometry around a part's own axis, not only around a picked edge
 - 3-point arc tool, and center and 3-point rectangle tools
 - Re-pick a constraint's entities, or a drawing tool's points, from the redo panel
-- A tool's shortcut works while another tool is running
+- Tool and constraint shortcuts work while another tool is running, as do undo and the construction-mode toggle
 - Curve resolution: set how finely arcs and circles are meshed, per sketch and as a preference for new sketches
 - Boolean solver choice: switch a boolean between Exact and the much faster Manifold solver, with a preference for the default
+- Circular Array tool: pick what to copy and an axis (a mesh edge, a sketch line or one of a part's own axes), then drag out the count; copies are spread over a total angle or placed that angle apart, and can turn with the pattern or keep their orientation
 - Linear Array can take a second direction to build grids of copies
 - Change Sketch Workplane: move a sketch onto another workplane, a mesh face or an origin plane, and see in the sketch panel which face a workplane is anchored to
 - Option to stop new Extrude and Revolve solids from automatically booleaning into overlapping bodies
@@ -39,6 +40,12 @@ Improved
 - Bevel: the radius follows the cursor and is clamped to what fits, the corner is kept when a constraint uses it, and tangent joints are no longer beveled
 - Entities and constraints lists show type icons
 - A tool's redo panel shows picked elements by name instead of an internal id
+- Both array tools share one toolbar button, and Linear Array follows an axis, edge or sketch line under the cursor while dragging, so a row can be laid on an existing direction
+- Offset geometry stays tied to what it came from: editing the source moves the offset with it, its segments keep one common distance, and that distance can be typed exactly
+- A tool group's shortcut starts the tool its toolbar button shows, the one last used
+- Distance, Angle and Diameter are now the Dimension tool with a preset kind, so every dimension behaves the same; their shortcuts and menu entries are unchanged
+- Number entry only reads a letter as a unit once a digit has been typed, and `thou`, `foot`, `meters` and `degrees` can be typed
+- Tool shortcut hints show remapped keys
 
 Fixed
 - A sketch's result can be applied as a modifier again, so it reaches exporters, `to_mesh` and mesh tools
@@ -50,6 +57,8 @@ Fixed
 - A cutter sketch anchored to the face it cuts no longer shifts its workplane
 - Clicking to bevel selected corners no longer adds an extra point
 - Linear Array could be added to a workplane empty
+- Blender could crash while drawing on a sketch that projects geometry
+- The Dimension tool's redo panel crashed Blender; it now adjusts the value, alignment, flip, radius and supplementary angle
 
 Files made with an earlier version keep working; use **Update File** in the Sketcher panel to bring them into the new structure.
 
