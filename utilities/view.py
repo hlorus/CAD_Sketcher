@@ -486,6 +486,23 @@ def curve_segment_under_cursor(context: Context, coords, threshold_px):
     return best[1], best[2]
 
 
+def snap_skipped_objects(context: Context) -> set:
+    """Objects snapping must look straight past: the sketch being drawn in.
+
+    Its own geometry would otherwise capture the cursor (issue #591), which means
+    both the sketch itself and the body its geometry is realised on -- the body is
+    the visible half, so leaving it out is the same bug again.
+    """
+    from ..model.sketch_ref import get_active_sketch
+    from .body import body_of
+
+    active = get_active_sketch(context)
+    sketch_obj = active.target_object if active else None
+    if sketch_obj is None:
+        return set()
+    return {obj for obj in (sketch_obj, body_of(sketch_obj)) if obj is not None}
+
+
 def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
     from .. import global_data
 
@@ -505,13 +522,7 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
     origin, view_vector = get_picking_origin_dir(context, coords)
     depsgraph = context.evaluated_depsgraph_get()
 
-    # Don't snap to the sketch being drawn in: its own generated geometry would
-    # otherwise capture the cursor (issue #591). Skip past it and keep looking for
-    # real reference geometry behind it.
-    from ..model.sketch_ref import get_active_sketch
-
-    active = get_active_sketch(context)
-    active_obj = active.target_object if active else None
+    skipped = snap_skipped_objects(context)
 
     ray_origin = Vector(origin)
     ob = None
@@ -534,8 +545,7 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
         # Skip the sketch being drawn in (#591) and any hidden object -- ray_cast
         # hits geometry regardless of viewport visibility, so without this you
         # could snap to an invisible mesh. Advance past and keep looking behind.
-        is_active = active_obj is not None and hit_ob.original == active_obj
-        if not is_active and hit_ob.visible_get():
+        if hit_ob.original not in skipped and hit_ob.visible_get():
             ob, face_index = hit_ob, hit_face
             break
         ray_origin = Vector(location) + view_vector * 1e-4
