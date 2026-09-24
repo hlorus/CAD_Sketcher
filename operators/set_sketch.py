@@ -11,7 +11,7 @@ class View3D_OT_slvs_set_active_sketch(Operator):
     """Set the active sketch"""
 
     bl_idname = Operators.SetActiveSketch
-    bl_label = "Set active Sketch"
+    bl_label = "Set Active Sketch"
     bl_options = {"UNDO"}
 
     sketch_name: StringProperty(

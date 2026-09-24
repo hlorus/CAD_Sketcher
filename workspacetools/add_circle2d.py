@@ -10,7 +10,8 @@ class VIEW3D_T_slvs_add_circle2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddCircle2D
-    bl_label = "Add 2D Circle"
+    bl_label = "Circle"
+    bl_description = "Add a circle from its center and its radius"
     bl_operator = Operators.AddCircle2D
     bl_icon = "ops.gpencil.primitive_circle"
     bl_widget = GizmoGroups.Preselection

@@ -32,7 +32,7 @@ class View3D_OT_slvs_tweak(Operator):
     """Tweak the hovered element"""
 
     bl_idname = Operators.Tweak
-    bl_label = "Tweak Solvespace Entities"
+    bl_label = "Tweak Entity"
     bl_options = {"UNDO"}
 
     # Current geometry snap target for the marker (dict from get_blender_snap_info

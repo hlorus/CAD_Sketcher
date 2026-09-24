@@ -86,7 +86,7 @@ class View3D_OT_slvs_select_invert(Operator):
     """Invert entities selection"""
 
     bl_idname = Operators.SelectInvert
-    bl_label = "Invert entities selection"
+    bl_label = "Invert Selection"
 
     def execute(self, context: Context):
         select_invert(context)
@@ -95,10 +95,10 @@ class View3D_OT_slvs_select_invert(Operator):
 
 
 class View3D_OT_slvs_select_extend(Operator):
-    """Select neighbour entities"""
+    """Extend the selection to the entities next to it"""
 
     bl_idname = Operators.SelectExtend
-    bl_label = "Select neighbour entities"
+    bl_label = "Extend Selection"
 
     def execute(self, context: Context):
         select_extend(context)
@@ -107,10 +107,10 @@ class View3D_OT_slvs_select_extend(Operator):
 
 
 class View3D_OT_slvs_select_extend_all(Operator):
-    """Select neighbour entities"""
+    """Extend the selection to the whole connected chain"""
 
     bl_idname = Operators.SelectExtendAll
-    bl_label = "Select neighbour entities"
+    bl_label = "Select Chain"
 
     def execute(self, context: Context):
         while select_extend(context):

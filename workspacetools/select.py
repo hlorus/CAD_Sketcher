@@ -8,8 +8,8 @@ class VIEW3D_T_slvs_select(WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.Select
-    bl_label = "Solvespace Select"
-    bl_description = "Select Solvespace Entities"
+    bl_label = "Select"
+    bl_description = "Select and tweak sketch entities"
     bl_icon = "ops.generic.select"
     bl_widget = GizmoGroups.Preselection
     bl_keymap = tool_select

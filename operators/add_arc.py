@@ -25,7 +25,7 @@ class View3D_OT_slvs_add_arc2d(Operator, ReplaceableOutputOp, Operator2d):
     """Add an arc to the active sketch"""
 
     bl_idname = Operators.AddArc2D
-    bl_label = "Add Solvespace 2D Arc"
+    bl_label = "Add Center Arc"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod

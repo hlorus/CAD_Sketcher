@@ -11,6 +11,7 @@ class VIEW3D_T_slvs_project_geometry(GenericStateTool, WorkSpaceTool):
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.ProjectGeometry
     bl_label = "Project Geometry"
+    bl_description = "Bring a picked vertex, edge or face into the active sketch"
     bl_operator = Operators.ProjectGeometry
     bl_icon = "ops.mesh.knife_tool"
     # Hover feedback for the picked mesh vertex/edge/face is driven by the

@@ -71,7 +71,7 @@ class View3D_OT_slvs_add_rectangle(Operator, ReplaceableOutputOp, Operator2d):
     """Add a rectangle to the active sketch"""
 
     bl_idname = Operators.AddRectangle
-    bl_label = "Add Rectangle"
+    bl_label = "Add Corner Rectangle"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod

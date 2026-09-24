@@ -11,6 +11,7 @@ class VIEW3D_T_slvs_trim(GenericStateTool, WorkSpaceTool):
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.Trim
     bl_label = "Trim"
+    bl_description = "Cut a segment back to where it crosses another"
     bl_operator = Operators.Trim
     bl_icon = "ops.gpencil.stroke_trim"
     bl_widget = GizmoGroups.Preselection

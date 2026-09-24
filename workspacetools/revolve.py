@@ -11,6 +11,7 @@ class VIEW3D_T_slvs_node_revolve(GenericStateTool, WorkSpaceTool):
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.Revolve
     bl_label = "Revolve"
+    bl_description = "Sweep the selected profile around a picked axis"
     bl_operator = Operators.NodeRevolve
     bl_icon = "ops.mesh.spin"
     bl_widget = GizmoGroups.ObjectHover

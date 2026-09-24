@@ -12,6 +12,7 @@ class VIEW3D_T_slvs_bevel(GenericStateTool, WorkSpaceTool):
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.Bevel
     bl_label = "Bevel"
+    bl_description = "Round off the corner between two segments with an arc"
     bl_operator = Operators.Bevel
     bl_icon = get_icon("ops.bgs.bevel")
     bl_widget = GizmoGroups.Preselection

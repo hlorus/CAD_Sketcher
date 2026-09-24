@@ -20,7 +20,7 @@ the "Leave Sketch" button.
 ## Add some Geometry
 ![!Add Circle](images/add_circle.png){style="width:100%; height:200px; object-fit:cover;"}
 
-While a sketch is active switch to the "Add Circle" Workspacetool. Now hover the
+While a sketch is active switch to the "Circle" Workspacetool. Now hover the
 sketch's origin point, click it and move the mouse away, click again to confirm.
 
 ## Add Constraints

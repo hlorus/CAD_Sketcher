@@ -22,7 +22,7 @@ class View3D_OT_slvs_add_circle2d(Operator, ReplaceableOutputOp, Operator2d):
     """Add a circle to the active sketch"""
 
     bl_idname = Operators.AddCircle2D
-    bl_label = "Add Solvespace 2D Circle"
+    bl_label = "Add Circle"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod

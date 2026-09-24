@@ -13,7 +13,7 @@ class View3D_OT_slvs_context_menu(Operator, HighlightElement):
     """Show element's settings"""
 
     bl_idname = Operators.ContextMenu
-    bl_label = "Solvespace Context Menu"
+    bl_label = "Sketcher Context Menu"
 
     type: StringProperty(name="Type", options={"SKIP_SAVE"})
     index: IntProperty(name="Index", default=-1, options={"SKIP_SAVE"})

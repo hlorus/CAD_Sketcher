@@ -11,6 +11,7 @@ class VIEW3D_T_slvs_node_extrude(GenericStateTool, WorkSpaceTool):
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.Extrude
     bl_label = "Extrude"
+    bl_description = "Give the selected profile depth, as a live modifier"
     bl_operator = Operators.NodeExtrude
     bl_icon = "ops.mesh.extrude_region_move"
     bl_widget = GizmoGroups.ObjectHover

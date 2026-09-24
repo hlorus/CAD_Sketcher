@@ -195,7 +195,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
     """Add a tangential arc between the two segments of selected points"""
 
     bl_idname = Operators.Bevel
-    bl_label = "Sketch Bevel"
+    bl_label = "Bevel"
     bl_options = {"REGISTER", "UNDO"}
 
     radius: FloatProperty(name="Radius", subtype="DISTANCE", unit="LENGTH")

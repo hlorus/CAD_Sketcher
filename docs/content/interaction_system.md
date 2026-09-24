@@ -5,7 +5,7 @@ selection matters. As the existing system of selection isn't ideal in this conte
 
 Most tools in the extension are implemented as stateful tools. In this context a state represents one target like a selection or a value. When running a tool you will iterate through these states until all states have valid input.
 
-Let's take the "Add Circle" tool as an example. Since a circle is represented by its center and radius the tool will have two states. One to define the center element and one to set the radius.
+Let's take the "Circle" tool as an example. Since a circle is represented by its center and radius the tool will have two states. One to define the center element and one to set the radius.
 
 ### State Types
 
@@ -115,7 +115,7 @@ you automatically, so you don't have to place them by hand:
   **Coincident** constraint.
 
 This is controlled by the **Auto Constraints** toggle in the tool settings bar
-(top of the viewport) of the sketch tools — *Add Line*, *Rectangle*, *Circle*,
+(top of the viewport) of the sketch tools — *Line*, *Rectangle*, *Circle*,
 *Arc* and *Point*. It's enabled by default.
 
 Hold **Shift** while placing or confirming a point to skip the auto constraints
