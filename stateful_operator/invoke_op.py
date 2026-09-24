@@ -6,6 +6,12 @@ from .constants import Operators
 from .utilities import continuation
 
 
+def _id(value, fallback):
+    """Tool and operator ids are str-enum members on this side."""
+    value = getattr(value, "value", value)
+    return str(value) if value else str(fallback)
+
+
 class View3D_OT_invoke_tool(Operator):
     bl_idname = Operators.InvokeTool
     bl_label = "Invoke Tool"
@@ -44,20 +50,34 @@ class View3D_OT_invoke_tool(Operator):
             from bl_ui.space_toolsystem_common import ToolSelectPanelHelper
 
             cls = ToolSelectPanelHelper._tool_class_from_space_type("VIEW_3D")
-            item, _index, _group = cls._tool_get_by_id_active_with_group(
+            item, _index, group = cls._tool_get_by_id_active_with_group(
                 context, str(self.tool_name)
             )
         except Exception:
-            item = None
-
-        def _id(value, fallback):
-            # Tool and operator ids are str-enum members on this side.
-            value = getattr(value, "value", value)
-            return str(value) if value else str(fallback)
+            item, group = None, None
 
         if getattr(item, "idname", None) is None:
             return str(self.tool_name), str(self.operator)
-        return _id(item.idname, self.tool_name), _id(item.operator, self.operator)
+        tool = _id(item.idname, self.tool_name)
+        operator = _id(item.operator, self.operator)
+        return self._chain_member(group, tool, operator)
+
+    @staticmethod
+    def _chain_member(group, tool: str, operator: str):
+        """Swap in a group member that can carry on a chain, if one is needed.
+
+        The member the toolbar shows is the one the key starts -- but while a
+        chain is waiting to be carried on, a member that cannot take it would end
+        the run instead. The key then starts the member that can, e.g. the
+        endpoint arc rather than the center-based one.
+        """
+        if not continuation.pending() or continuation.accepts(operator):
+            return tool, operator
+        for member in group or ():
+            member_operator = _id(getattr(member, "operator", None), "")
+            if member_operator and continuation.accepts(member_operator):
+                return _id(getattr(member, "idname", None), tool), member_operator
+        return tool, operator
 
     def execute(self, context: Context):
         tool_name, operator = self._group_active(context)

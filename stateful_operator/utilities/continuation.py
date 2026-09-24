@@ -46,3 +46,21 @@ def clear() -> None:
 def pending() -> bool:
     """Whether an offer is standing (for tests and debugging)."""
     return _offer is not None
+
+
+# Operator ids that can start from a chain point, noted as they are registered.
+_accepting: set = set()
+
+
+def register_accepting(idname) -> None:
+    """Note an operator whose first state can carry on from a chain."""
+    _accepting.add(str(getattr(idname, "value", idname)))
+
+
+def unregister_accepting(idname) -> None:
+    _accepting.discard(str(getattr(idname, "value", idname)))
+
+
+def accepts(idname) -> bool:
+    """Whether that operator can carry on from a chain point."""
+    return str(getattr(idname, "value", idname)) in _accepting

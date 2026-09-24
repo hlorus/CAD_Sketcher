@@ -61,8 +61,11 @@ line's end point, and the same the other way round. What the chain already drew
 stays; only the segment in progress is dropped.
 
 Tools whose first click is not a start point (the center-based arc, circles) begin
-from scratch as usual. The behaviour can be turned off per tool with the
-"Continuous Draw" checkbox in the tool header.
+from scratch as usual. Where such a tool shares a toolbar button with one that can
+carry on, the shortcut starts the one that can while a chain is waiting: pressing
+the arc shortcut mid-run gives the endpoint arc even when the toolbar shows the
+center-based one. The behaviour can be turned off per tool with the "Continuous
+Draw" checkbox in the tool header.
 
 ### Immediate Execution
 Most tools support immediate execution which will invoke the tools operations when switching to it and a valid

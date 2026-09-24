@@ -22,12 +22,12 @@ class TestGroupToolShortcut(BgsTestCase):
         op.operator = Operators.AddArc2D.value
         return op
 
-    def _with_group_active(self, item):
+    def _with_group_active(self, item, group=None):
         """Stand in for the toolbar's group-active lookup."""
         cls = ToolSelectPanelHelper._tool_class_from_space_type("VIEW_3D")
         original = cls._tool_get_by_id_active_with_group
         cls._tool_get_by_id_active_with_group = classmethod(
-            lambda _cls, _context, _idname: (item, 0, None)
+            lambda _cls, _context, _idname: (item, 0, group)
         )
         self.addCleanup(setattr, cls, "_tool_get_by_id_active_with_group", original)
 
@@ -39,6 +39,32 @@ class TestGroupToolShortcut(BgsTestCase):
 
         self.assertEqual(tool, WorkSpaceTools.AddArc3Point2D.value)
         self.assertEqual(operator, Operators.AddArc3Point2D.value)
+
+    def test_a_chain_starts_the_member_that_can_carry_it_on(self):
+        # The center-based arc is what the toolbar shows, but it starts from a
+        # center: it would end the chain rather than continue it.
+        from ..stateful_operator.utilities import continuation
+
+        continuation.publish(["abc"], None, "Sketch")
+        self.addCleanup(continuation.clear)
+        center = _Item(WorkSpaceTools.AddArc2D, Operators.AddArc2D)
+        endpoint = _Item(WorkSpaceTools.AddArc3Point2D, Operators.AddArc3Point2D)
+        self._with_group_active(center, group=[center, endpoint])
+
+        tool, operator = self._invoke_op()._group_active(self.context)
+
+        self.assertEqual(tool, WorkSpaceTools.AddArc3Point2D.value)
+        self.assertEqual(operator, Operators.AddArc3Point2D.value)
+
+    def test_without_a_chain_the_shown_member_still_wins(self):
+        center = _Item(WorkSpaceTools.AddArc2D, Operators.AddArc2D)
+        endpoint = _Item(WorkSpaceTools.AddArc3Point2D, Operators.AddArc3Point2D)
+        self._with_group_active(center, group=[center, endpoint])
+
+        tool, operator = self._invoke_op()._group_active(self.context)
+
+        self.assertEqual(tool, WorkSpaceTools.AddArc2D.value)
+        self.assertEqual(operator, Operators.AddArc2D.value)
 
     def test_falls_back_to_the_tool_the_key_names(self):
         """Not in a group, or a toolbar that can't answer: use the key's tool."""
