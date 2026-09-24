@@ -29,6 +29,38 @@ from ..utilities.view import get_picking_origin_dir, get_placement_pos
 from .base_3d import Operator3d
 
 
+def copy_modifier(source, target):
+    """Recreate ``source`` on ``target``, of whatever type, settings and all.
+
+    Blender's own copy goes through an operator and a selection, which is no use
+    from a migration pass. A Geometry Nodes modifier keeps its group and the
+    values of its inputs; any other keeps its own properties.
+    """
+    copy = target.modifiers.new(source.name, source.type)
+    for prop in source.bl_rna.properties:
+        if prop.is_readonly or prop.identifier in {"name", "type"}:
+            continue
+        try:
+            setattr(copy, prop.identifier, getattr(source, prop.identifier))
+        except (AttributeError, TypeError):
+            continue  # a property this modifier does not really own
+
+    group = getattr(source, "node_group", None)
+    if source.type == "NODES" and group is not None:
+        for socket in group.interface.items_tree:
+            if getattr(socket, "in_out", "") != "INPUT":
+                continue
+            if getattr(socket, "socket_type", "") == "NodeSocketGeometry":
+                continue  # carries no value: it is what the stack is fed
+            try:
+                value = get_modifier_input(source, socket.identifier)
+            except (AttributeError, KeyError):
+                continue
+            if value is not None:
+                set_modifier_input(copy, socket.identifier, value)
+    return copy
+
+
 def set_modifier_input(modifier, identifier, value):
     """Set a Geometry-Nodes modifier input by socket identifier.
 
