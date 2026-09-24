@@ -20,6 +20,14 @@ class View3D_OT_invoke_tool(Operator):
 
     # TODO: get the operator from tool attribute (tool.bl_operator)?
     operator: StringProperty(name="Operator ID")
+    group: BoolProperty(
+        name="Group Key",
+        description=(
+            "Start whichever member of the tool's toolbar group is shown, rather "
+            "than the tool named here"
+        ),
+        default=False,
+    )
     fallthrough: BoolProperty(
         name="Fall Through",
         description=(
@@ -37,13 +45,16 @@ class View3D_OT_invoke_tool(Operator):
         return self.execute(context)
 
     def _group_active(self, context: Context):
-        """The tool the toolbar currently shows for this tool's group.
+        """The tool to start: the one named, or the group's if this is a group key.
 
-        Tools that share one toolbar button (a flyout group) share one shortcut,
-        and the key starts whichever member the toolbar shows -- the last one
-        used -- just as clicking that button would. Outside a group, or when the
-        group can't be resolved, this is the tool the key names.
+        A group key stands for a toolbar button several tools share and starts
+        whichever of them the toolbar shows -- the last one used -- just as
+        clicking that button would. Every other key names one tool and starts
+        exactly that, even when it shares a button with others.
         """
+        if not self.group:
+            return str(self.tool_name), str(self.operator)
+
         # Blender's own item_from_id_active_with_group() wrapper mis-unpacks this
         # helper and hands back the index, so call the helper directly.
         try:
@@ -57,13 +68,6 @@ class View3D_OT_invoke_tool(Operator):
             item, group = None, None
 
         if getattr(item, "idname", None) is None:
-            return str(self.tool_name), str(self.operator)
-
-        members = [m for m in (group or ()) if getattr(m, "idname", None)]
-        if members and _id(members[0].idname, "") != str(self.tool_name):
-            # The key names one member of the group rather than the group itself
-            # (the group's own key names its leading tool): start that member,
-            # whatever the toolbar happens to show.
             return str(self.tool_name), str(self.operator)
 
         tool = _id(item.idname, self.tool_name)

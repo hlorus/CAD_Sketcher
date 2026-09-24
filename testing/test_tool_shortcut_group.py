@@ -1,7 +1,9 @@
-"""A tool key starts whichever member of its toolbar group is active.
+"""What a tool key starts when several tools share one toolbar button.
 
-The two arc tools share one toolbar button, so "A" has to start the one the
-toolbar shows (the last one used), not always the group's first tool.
+A key marked as a group key (the rectangle variants, the arrays) starts whichever
+member the toolbar shows, the last one used, as clicking that button would. Every
+other key names one tool and starts that one, even where it shares a button: the
+two arcs share a button but have a key each.
 """
 
 from collections import namedtuple
@@ -16,10 +18,11 @@ _Item = namedtuple("_Item", "idname operator")
 
 
 class TestGroupToolShortcut(BgsTestCase):
-    def _invoke_op(self):
+    def _invoke_op(self, group=True):
         op = make_operator_double(View3D_OT_invoke_tool)()
         op.tool_name = WorkSpaceTools.AddArc2D.value
         op.operator = Operators.AddArc2D.value
+        op.group = group
         return op
 
     def _with_group_active(self, item, group=None):
@@ -56,20 +59,30 @@ class TestGroupToolShortcut(BgsTestCase):
         self.assertEqual(tool, WorkSpaceTools.AddArc3Point2D.value)
         self.assertEqual(operator, Operators.AddArc3Point2D.value)
 
-    def test_a_key_that_names_one_member_starts_that_member(self):
+    def test_a_key_that_names_one_tool_starts_that_tool(self):
         # Shift+A is the center-based arc's own key: it must not be redirected to
         # whichever arc the toolbar shows.
-        op = make_operator_double(View3D_OT_invoke_tool)()
-        op.tool_name = WorkSpaceTools.AddArc2D.value
-        op.operator = Operators.AddArc2D.value
         endpoint = _Item(WorkSpaceTools.AddArc3Point2D, Operators.AddArc3Point2D)
         center = _Item(WorkSpaceTools.AddArc2D, Operators.AddArc2D)
         self._with_group_active(endpoint, group=[endpoint, center])
 
-        tool, operator = op._group_active(self.context)
+        tool, operator = self._invoke_op(group=False)._group_active(self.context)
 
         self.assertEqual(tool, WorkSpaceTools.AddArc2D.value)
         self.assertEqual(operator, Operators.AddArc2D.value)
+
+    def test_the_tables_say_which_keys_are_group_keys(self):
+        # The arcs have a key each; the rectangle variants and the arrays share one.
+        from .. import keymaps
+
+        def keyed(table):
+            return {row[0]: keymaps.GROUP in row[3:] for row in table}
+
+        sketch = keyed(keymaps.SKETCH_TOOL_KEYS)
+        self.assertFalse(sketch[WorkSpaceTools.AddArc3Point2D])
+        self.assertFalse(sketch[WorkSpaceTools.AddArc2D])
+        self.assertTrue(sketch[WorkSpaceTools.AddRectangle])
+        self.assertTrue(keyed(keymaps.NODE_TOOL_KEYS)[WorkSpaceTools.ArrayLinear])
 
     def test_without_a_chain_the_shown_member_still_wins(self):
         center = _Item(WorkSpaceTools.AddArc2D, Operators.AddArc2D)

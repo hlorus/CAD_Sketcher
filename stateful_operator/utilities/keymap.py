@@ -122,12 +122,17 @@ def key_event(key: str) -> dict:
     return event
 
 
-def tool_invoke_kmi(button: str, tool: str, operator: str):
-    return (
-        Operators.InvokeTool,
-        key_event(button),
-        {"properties": [("tool_name", tool), ("operator", operator)]},
-    )
+def tool_invoke_kmi(button: str, tool: str, operator: str, group: bool = False):
+    """A keymap item starting ``tool``.
+
+    With ``group``, the key stands for the whole toolbar group ``tool`` leads and
+    starts whichever member the toolbar shows; without it the key names that one
+    tool (see View3D_OT_invoke_tool).
+    """
+    properties = [("tool_name", tool), ("operator", operator)]
+    if group:
+        properties.append(("group", True))
+    return (Operators.InvokeTool, key_event(button), {"properties": properties})
 
 
 def is_numeric_input(event: Event):
