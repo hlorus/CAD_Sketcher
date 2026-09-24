@@ -1,17 +1,17 @@
-from bpy.utils import register_classes_factory
-from ..model.sketch_ref import get_active_constraints
 from bpy.props import EnumProperty
-from bpy.types import Operator, Context
+from bpy.types import Context, Operator
+from bpy.utils import register_classes_factory
 
-from ..utilities.highlighting import HighlightElement
 from ..declarations import Operators, VisibilityTypes
+from ..model.sketch_ref import get_active_constraints
+from ..utilities.highlighting import HighlightElement
 
 
 class View3D_OT_slvs_set_all_constraints_visibility(Operator, HighlightElement):
     """Set all constraints' visibility"""
 
     bl_idname = Operators.SetAllConstraintsVisibility
-    bl_label = "Set all constraints' visibility"
+    bl_label = "Set Constraints Visibility"
     bl_description = "Set all constraints' visibility"
     bl_options = {"UNDO"}
 

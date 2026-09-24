@@ -38,7 +38,7 @@ class View3D_OT_slvs_add_line2d(Operator, ChainDraw, ReplaceableOutputOp, Operat
     """Add a line to the active sketch"""
 
     bl_idname = Operators.AddLine2D
-    bl_label = "Add Solvespace 2D Line"
+    bl_label = "Add Line"
     bl_options = {"REGISTER", "UNDO"}
 
     l2d_state1_doc = ("Startpoint", "Pick or place line's starting Point.")

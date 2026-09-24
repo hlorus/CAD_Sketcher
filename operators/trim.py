@@ -20,7 +20,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
     """Trim segment to its closest intersections"""
 
     bl_idname = Operators.Trim
-    bl_label = "Trim Segment"
+    bl_label = "Trim"
     # No redo panel: the only input is the segment the trim removes, so there is
     # nothing left to show or adjust afterwards.
     bl_options = {"UNDO"}

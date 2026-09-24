@@ -101,3 +101,16 @@ class TestGroupToolShortcut(BgsTestCase):
 
         self.assertEqual(tool, WorkSpaceTools.AddArc2D.value)
         self.assertEqual(operator, Operators.AddArc2D.value)
+
+    def test_a_global_key_is_a_group_key_where_its_tool_key_is(self):
+        """Ctrl+Shift+D starts the array the toolbar shows, like plain D does."""
+        from .. import keymaps
+
+        globals_by_tool = {
+            tool: (key, group)
+            for tool, _operator, _tool_key, key, group in keymaps.node_tool_rows()
+        }
+
+        self.assertEqual(len(globals_by_tool), len(keymaps.NODE_TOOL_KEYS))
+        self.assertEqual(globals_by_tool[WorkSpaceTools.ArrayLinear], ("D", True))
+        self.assertEqual(globals_by_tool[WorkSpaceTools.Extrude], ("E", False))

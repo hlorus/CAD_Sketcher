@@ -19,7 +19,7 @@ class View3D_OT_slvs_add_point2d(Operator, ReplaceableOutputOp, Operator2d):
     """Add a point to the active sketch"""
 
     bl_idname = Operators.AddPoint2D
-    bl_label = "Add Solvespace 2D Point"
+    bl_label = "Add Point"
     bl_options = {"REGISTER", "UNDO"}
 
     p2d_state1_doc = ("Coordinates", "Set point's coordinates on the sketch.")

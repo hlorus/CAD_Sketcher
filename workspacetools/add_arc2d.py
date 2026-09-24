@@ -10,7 +10,8 @@ class VIEW3D_T_slvs_add_arc2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddArc2D
-    bl_label = "Add 2D Arc"
+    bl_label = "Center Arc"
+    bl_description = "Add an arc from its center and its two end points"
     bl_operator = Operators.AddArc2D
     bl_icon = "ops.gpencil.primitive_arc"
     bl_widget = GizmoGroups.Preselection
@@ -32,7 +33,7 @@ class VIEW3D_T_slvs_add_arc3pt2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddArc3Point2D
-    bl_label = "Add Endpoint Arc"
+    bl_label = "Endpoint Arc"
     bl_description = (
         "Add an arc from its start and end points, curving the way you set off"
     )

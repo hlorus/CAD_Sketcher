@@ -10,7 +10,8 @@ class VIEW3D_T_slvs_add_line2d(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddLine2D
-    bl_label = "Add 2D Line"
+    bl_label = "Line"
+    bl_description = "Add a line from its start to its end point"
     bl_operator = Operators.AddLine2D
     bl_icon = "ops.gpencil.primitive_line"
     bl_widget = GizmoGroups.Preselection

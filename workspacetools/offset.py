@@ -11,7 +11,8 @@ class VIEW3D_T_slvs_offset(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.Offset
-    bl_label = "Offset Entities"
+    bl_label = "Offset"
+    bl_description = "Add a parallel copy of a segment or a whole chain"
     bl_operator = Operators.Offset
     bl_icon = get_icon("ops.bgs.offset")
     bl_widget = GizmoGroups.Preselection

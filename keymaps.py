@@ -381,12 +381,13 @@ def register():
 
         # Switch to a tool, then invoke its operator. Inside a sketch the tool
         # isn't available and the key passes on (Ctrl+Shift+A leaves the sketch).
-        for tool, operator, _key, key, _group in node_tool_rows():
+        for tool, operator, _key, key, group in node_tool_rows():
             kmi = km.keymap_items.new(
                 StatefulOps.InvokeTool.value, key, "PRESS", ctrl=True, shift=True
             )
             kmi.properties.tool_name = tool.value
             kmi.properties.operator = operator.value
+            kmi.properties.group = group
             kmi.properties.fallthrough = True
             addon_keymaps.append((km, kmi))
 

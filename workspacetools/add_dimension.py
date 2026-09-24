@@ -11,6 +11,7 @@ class VIEW3D_T_slvs_add_dimension(GenericStateTool, WorkSpaceTool):
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddDimension
     bl_label = "Dimension"
+    bl_description = "Measure what you pick and hold it at that value"
     bl_operator = Operators.AddDimension
     bl_icon = "ops.view3d.ruler"
     bl_widget = GizmoGroups.Preselection

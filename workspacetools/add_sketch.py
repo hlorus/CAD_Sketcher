@@ -11,6 +11,7 @@ class VIEW3D_T_slvs_add_sketch(GenericStateTool, WorkSpaceTool):
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddSketch
     bl_label = "Add Sketch"
+    bl_description = "Add a sketch on a workplane, a mesh face or an origin plane"
     bl_operator = Operators.AddSketch
     bl_icon = "ops.mesh.primitive_grid_add_gizmo"
     bl_widget = GizmoGroups.Workplane

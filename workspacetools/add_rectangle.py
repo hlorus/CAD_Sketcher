@@ -10,7 +10,8 @@ class VIEW3D_T_slvs_add_rectangle(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddRectangle
-    bl_label = "Add Rectangle"
+    bl_label = "Corner Rectangle"
+    bl_description = "Add a rectangle from two opposite corners"
     bl_operator = Operators.AddRectangle
     bl_icon = "ops.gpencil.primitive_box"
     bl_widget = GizmoGroups.Preselection
@@ -32,7 +33,7 @@ class VIEW3D_T_slvs_add_rectangle_center(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddRectangleCenter
-    bl_label = "Add Center Rectangle"
+    bl_label = "Center Rectangle"
     bl_description = "Add a rectangle from its center and one corner"
     bl_operator = Operators.AddRectangleCenter
     bl_icon = "ops.gpencil.primitive_box"
@@ -49,7 +50,7 @@ class VIEW3D_T_slvs_add_rectangle_3point(GenericStateTool, WorkSpaceTool):
     bl_space_type = "VIEW_3D"
     bl_context_mode = "OBJECT"
     bl_idname = WorkSpaceTools.AddRectangle3Point
-    bl_label = "Add 3-Point Rectangle"
+    bl_label = "3-Point Rectangle"
     bl_description = "Add a rectangle from one edge and its width, at any angle"
     bl_operator = Operators.AddRectangle3Point
     bl_icon = "ops.gpencil.primitive_box"
