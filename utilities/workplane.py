@@ -130,6 +130,15 @@ WP_ORIGIN_GAP_FRACTION = 0.1
 WP_ID_MAP = {}
 
 
+def reset_workplane_id_map():
+    """Forget the cached origin-plane empties (on file load, undo and redo).
+
+    It holds Objects rather than names, and undo frees and reallocates
+    datablocks, so an entry from before can point at something else entirely.
+    """
+    WP_ID_MAP.clear()
+
+
 def get_workplane_empty_by_id(wp_id):
     """Look up a workplane empty by its picking ID."""
     return WP_ID_MAP.get(wp_id)

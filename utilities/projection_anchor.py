@@ -201,12 +201,10 @@ def _resolve_curve_point(curve_data, vertex_id, fallback_index, last_co):
 
 
 def _source_changed(source, changed):
+    """Whether this update touched ``source``. Names, see the handler body."""
     if changed is None:
         return True
-    if source in changed or source.data in changed:
-        return True
-    original = getattr(source, "original", None)
-    return original is not None and original in changed
+    return source.name in changed or source.data.name in changed
 
 
 def _set_last_source_co(sketch, curve_id, last_co):
@@ -225,9 +223,13 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
         return 0
 
     sketch_changed = (
-        force or changed is None or owner in changed or owner.data in changed
+        force or changed is None or owner.name in changed or owner.data.name in changed
     )
-    if owner.parent is not None and changed is not None and owner.parent in changed:
+    if (
+        owner.parent is not None
+        and changed is not None
+        and owner.parent.name in changed
+    ):
         sketch_changed = True
 
     updates = {}
@@ -267,8 +269,9 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
             source_co = Vector(vertex.co)
             world = eval_ob.matrix_world @ source_co
         else:
+            # ``source`` is a pointer property, so already an original.
             source_co = _resolve_curve_point(
-                source.original.data, vertex_id, fallback_index, last_co
+                source.data, vertex_id, fallback_index, last_co
             )
             if source_co is None:
                 continue
@@ -296,12 +299,18 @@ def update_projected_geometry(context, depsgraph):
     if _updating:
         return
 
+    # What this update touched, by name. Matching an evaluated id to its
+    # original means reading ``id.original``, and following that pointer crashes
+    # Blender when the update list holds an id that is still being built -- which
+    # an update right after creating objects does, so drawing a sketch could take
+    # the whole session down. A name collision across id types at worst
+    # reprojects something that did not need it.
     changed = set()
     for update in depsgraph.updates:
-        changed.add(update.id)
-        original = getattr(update.id, "original", None)
-        if original is not None:
-            changed.add(original)
+        try:
+            changed.add(update.id.name)
+        except (AttributeError, ReferenceError):
+            continue
 
     from .. import global_data
     from ..model.sketch_ref import get_sketches
