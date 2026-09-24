@@ -6,7 +6,7 @@ rather than remembered (see utilities.body.rename_after_bodies).
 """
 
 from ..operators.add_sketch import build_sketch_on_workplane
-from ..utilities.body import body_of, rename_after_bodies
+from ..utilities.body import body_of, name_after_body, rename_after_bodies
 from ..utilities.part import ensure_part_planes, existing_part_plane, mark_part_root
 from ..utilities.workplane import ensure_origin_workplane_empties
 from .utils import BgsTestCase
@@ -106,3 +106,22 @@ class TestNamePropagation(BgsTestCase):
 
         self.assertEqual(linked.name, "Foreign")
         self.assertEqual(sketch_obj.name, "Pivot Sketch", "the rest still follows")
+
+    def test_an_evaluated_plane_is_left_to_the_depsgraph(self):
+        """A plane can reach the pass as an evaluated copy rather than the
+        original. Its name is read-only too, so the pass must not try."""
+        import bpy
+
+        sketch_obj, body = self._part("Lever")
+        # A plane the body owns, so the pass would name it after the body.
+        plane = bpy.data.objects.new("Free Plane", None)
+        self.scene.collection.objects.link(plane)
+        self.addCleanup(bpy.data.objects.remove, plane)
+        evaluated = plane.evaluated_get(self.context.evaluated_depsgraph_get())
+        self.assertTrue(evaluated.is_runtime_data)
+
+        body.name = "Crank"
+        name_after_body(body, sketch_obj, evaluated)
+
+        self.assertEqual(plane.name, "Free Plane", "the depsgraph owns that name")
+        self.assertEqual(sketch_obj.name, "Crank Sketch", "the rest still follows")
