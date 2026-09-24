@@ -85,6 +85,8 @@ Available while any of the extension's tools is active.
 
 ### Global Shortcuts
 Available in Object Mode regardless of the active tool, also while a tool is running.
+The object-level tools these start are covered in
+[modeling tools](modeling.md).
 
 |Key|Modifier|Action|
 |:---:|---|---|
@@ -167,7 +169,28 @@ while picking geometry inside a drawing or constraint tool.
 
 ::: CAD_Sketcher.operators.add_rectangle.View3D_OT_slvs_add_rectangle
 
+::: CAD_Sketcher.operators.add_rectangle.View3D_OT_slvs_add_rectangle_center
+
+::: CAD_Sketcher.operators.add_rectangle.View3D_OT_slvs_add_rectangle_3point
+
 ::: CAD_Sketcher.operators.trim.View3D_OT_slvs_trim
+
+::: CAD_Sketcher.operators.bevel.View3D_OT_slvs_bevel
+
+The radius follows the cursor and is clamped to what still fits between the
+neighbouring segments. Type a value to set it exactly; a typed radius is held by a
+radius dimension on the new arc, which the redo panel can turn off again (or on,
+for a dragged one).
+
+::: CAD_Sketcher.operators.offset.View3D_OT_slvs_add_offset
+
+An offset stays tied to what it came from: each offset line is kept parallel to
+its source, arcs and circles share the source's center, and the segments of a path
+are held at one common distance, so editing the source moves the offset with it.
+Type a value to set that distance exactly; as with the bevel, a typed distance is
+held by a dimension the redo panel can toggle.
+
+::: CAD_Sketcher.operators.add_dimension.VIEW3D_OT_slvs_add_dimension
 
 ::: CAD_Sketcher.operators.project_geometry.VIEW3D_OT_slvs_project_geometry
 
@@ -185,3 +208,5 @@ active sketch is anchored to.
 ::: CAD_Sketcher.operators.workplane_anchor.View3D_OT_slvs_make_workplane_free
 
 ::: CAD_Sketcher.operators.workplane_anchor.View3D_OT_slvs_reattach_workplane
+
+::: CAD_Sketcher.operators.workplane_anchor.View3D_OT_slvs_change_sketch_workplane

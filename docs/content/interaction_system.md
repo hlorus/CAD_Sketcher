@@ -84,24 +84,41 @@ To** elements) rather than a separate setting.
 Enable the **Snap** toggle and pick one or more snap elements; the extension
 reacts to:
 
-- **Vertex** — mesh vertices and sketch points
-- **Edge** — the closest point along a mesh edge or sketch segment
-- **Edge Center** — the midpoint of an edge or segment
-- **Face Center** — the center of a mesh face, or the centroid of a closed
+- **Vertex** &mdash; mesh vertices and sketch points
+- **Edge** &mdash; the closest point along a mesh edge or sketch segment
+- **Edge Center** &mdash; the midpoint of an edge or segment
+- **Face Center** &mdash; the center of a mesh face, or the centroid of a closed
   sketch shape (a circle or a shape drawn as a single closed curve)
 
 Only the object directly under the cursor is considered, which keeps snapping
 responsive even in dense scenes. Snapping works both for other objects (meshes)
 and for other CAD Sketcher sketches.
 
-> **Static snap:** the snapped location is captured when the point is placed. It
-> does *not* create a constraint and does *not* track the target afterwards, so
-> moving the snapped geometry later will not move the sketch point.
+### Live Project Snaps
+
+Snapping onto geometry outside the sketch normally keeps the reference: the
+element you snapped to is projected into the sketch, and the placed point is
+constrained to that projection, so editing or moving the source updates the
+sketch afterwards. This is the **Live Project Snaps** toggle in the tool settings
+bar of the drawing tools, on by default.
+
+What the link looks like follows the snap element:
+
+- **Vertex** &mdash; the vertex is projected as a point and the placed point coincides with it
+- **Edge** &mdash; the edge is projected as a line and the point is kept on that line, free to slide along it
+- **Edge Center** &mdash; the edge is projected and a midpoint constraint keeps the point centered
+
+Other snap types, and geometry that can't be traced back to a source element,
+place a static point as before.
+
+Turn the toggle off to get a plain static snap everywhere: the location is
+captured when the point is placed, with no projection and no constraint, so the
+point stays where it is when the source moves.
 
 Hold **Shift** while placing or tweaking a point to temporarily bypass snapping.
 
 > Face-center snapping to a shape built from several separate lines (rather than
-> one closed curve) is not supported — that region only exists in the generated
+> one closed curve) is not supported &mdash; that region only exists in the generated
 > mesh, which can't be inspected while sketching.
 
 ## Auto Constraints

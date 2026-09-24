@@ -52,19 +52,9 @@ CAD Sketcher heavily depends on the [solvespace python module](https://pypi.org/
 
 > **Python version compatibility:** the bundled solver provides wheels for Python **3.11, 3.12 and 3.13** — the versions embedded in official [blender.org](https://www.blender.org/download/) builds. If Blender reports something like *"This Python version (3.14) isn't compatible with (3.11)"* on install, it's running a **newer system Python** (common with distribution-packaged Blender on rolling distros such as Arch/CachyOS). Fix it by using an official build from [blender.org](https://www.blender.org/download/) — the **5.2 LTS** is a safe choice — instead of your distribution's package. Python 3.14 is not yet supported (waiting on an upstream `slvs` release).
 
-Once the 3D View CAD Sketcher plugin is installed check its preferences for the "Solver Module" tab to see if the module is already available, otherwise follow one of the guides below.
-
-=== "Blender 5.0 Extension"
-    - If you install CAD Sketcher as a Blender Extension you can skip this step
-
-=== "Install from PIP"
-    - Press "Install from PIP"
-    - Wait for the process to finish
-
-=== "Install from local file"
-    - Download the appropriate *.whl file [here](https://pypi.org/project/slvs/#files) (make sure the python version matches the one from your blender installation)
-    - Choose the file in the filepath selector
-    - Press "Install from local File"
+The module is bundled with the extension, so there is nothing to install by hand:
+if CAD Sketcher enables without an error it is there. Only a Python version the
+bundled wheels don't cover (see above) prevents it from loading.
 
 ### Extra step on Mac OS:
 Due to an ongoing Blender bug, Mac OS users with Metal need to change their GPU Backend to OpenGL: Edit > Preferences > System > GPU Backend > Select "OpenGL". Remember to restart Blender after this.
