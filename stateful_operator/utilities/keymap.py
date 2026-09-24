@@ -114,10 +114,18 @@ def operator_access(operator: str):
     )
 
 
+def key_event(key: str) -> dict:
+    """A keymap item's event for a key like ``"A"`` or ``"shift+A"``."""
+    *modifiers, button = key.split("+")
+    event = {"type": button, "value": "PRESS"}
+    event.update({modifier: True for modifier in modifiers})
+    return event
+
+
 def tool_invoke_kmi(button: str, tool: str, operator: str):
     return (
         Operators.InvokeTool,
-        {"type": button, "value": "PRESS"},
+        key_event(button),
         {"properties": [("tool_name", tool), ("operator", operator)]},
     )
 

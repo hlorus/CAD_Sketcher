@@ -52,7 +52,7 @@ constraint_access = (
     ),
     (
         Operators.AddParallel,
-        {"type": "A", "value": "PRESS", "shift": True},
+        {"type": "P", "value": "PRESS", "shift": True},
         {
             "properties": [
                 ("wait_for_input", True),
@@ -61,7 +61,8 @@ constraint_access = (
     ),
     (
         Operators.AddPerpendicular,
-        {"type": "P", "value": "PRESS", "shift": True},
+        # An L is a right angle; P names Parallel above.
+        {"type": "L", "value": "PRESS", "shift": True},
         {
             "properties": [
                 ("wait_for_input", True),
@@ -122,6 +123,9 @@ SKETCH_TOOL_KEYS = (
     # Names the arc group's leading tool; the key starts whichever member of the
     # group is active (see View3D_OT_invoke_tool).
     (WorkSpaceTools.AddArc3Point2D, Operators.AddArc3Point2D, "A"),
+    # The center-based arc on its own key: the group's key leads to the endpoint
+    # arc whenever a chain is waiting to be carried on.
+    (WorkSpaceTools.AddArc2D, Operators.AddArc2D, "shift+A"),
     (WorkSpaceTools.AddRectangle, Operators.AddRectangle, "R"),
     (WorkSpaceTools.Trim, Operators.Trim, "Y"),
     (WorkSpaceTools.Bevel, Operators.Bevel, "B"),

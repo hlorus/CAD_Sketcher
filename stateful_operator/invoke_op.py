@@ -58,6 +58,14 @@ class View3D_OT_invoke_tool(Operator):
 
         if getattr(item, "idname", None) is None:
             return str(self.tool_name), str(self.operator)
+
+        members = [m for m in (group or ()) if getattr(m, "idname", None)]
+        if members and _id(members[0].idname, "") != str(self.tool_name):
+            # The key names one member of the group rather than the group itself
+            # (the group's own key names its leading tool): start that member,
+            # whatever the toolbar happens to show.
+            return str(self.tool_name), str(self.operator)
+
         tool = _id(item.idname, self.tool_name)
         operator = _id(item.operator, self.operator)
         return self._chain_member(group, tool, operator)

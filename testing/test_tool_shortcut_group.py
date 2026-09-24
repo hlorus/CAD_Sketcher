@@ -56,6 +56,21 @@ class TestGroupToolShortcut(BgsTestCase):
         self.assertEqual(tool, WorkSpaceTools.AddArc3Point2D.value)
         self.assertEqual(operator, Operators.AddArc3Point2D.value)
 
+    def test_a_key_that_names_one_member_starts_that_member(self):
+        # Shift+A is the center-based arc's own key: it must not be redirected to
+        # whichever arc the toolbar shows.
+        op = make_operator_double(View3D_OT_invoke_tool)()
+        op.tool_name = WorkSpaceTools.AddArc2D.value
+        op.operator = Operators.AddArc2D.value
+        endpoint = _Item(WorkSpaceTools.AddArc3Point2D, Operators.AddArc3Point2D)
+        center = _Item(WorkSpaceTools.AddArc2D, Operators.AddArc2D)
+        self._with_group_active(endpoint, group=[endpoint, center])
+
+        tool, operator = op._group_active(self.context)
+
+        self.assertEqual(tool, WorkSpaceTools.AddArc2D.value)
+        self.assertEqual(operator, Operators.AddArc2D.value)
+
     def test_without_a_chain_the_shown_member_still_wins(self):
         center = _Item(WorkSpaceTools.AddArc2D, Operators.AddArc2D)
         endpoint = _Item(WorkSpaceTools.AddArc3Point2D, Operators.AddArc3Point2D)

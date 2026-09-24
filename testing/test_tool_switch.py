@@ -174,10 +174,23 @@ class TestShortcutTable(TestCase):
         self.assertFalse(set(keys) & {"S", "O"})
 
     def test_tool_access_built_from_table(self):
+        # Including the modifiers a key may carry, e.g. "shift+A".
+        from ..stateful_operator.utilities.keymap import key_event
+
         km = self.keymaps
         invokes = [item for item in km.tool_access if item[0] == StatefulOps.InvokeTool]
-        keys = [item[1]["type"] for item in invokes]
-        self.assertEqual(keys, [row[2] for row in km.SKETCH_TOOL_KEYS])
+        self.assertEqual(
+            [item[1] for item in invokes],
+            [key_event(row[2]) for row in km.SKETCH_TOOL_KEYS],
+        )
+
+    def test_a_modified_tool_key_keeps_its_modifier(self):
+        # The center-based arc sits on Shift+A, so plain A stays the arc group's.
+        from ..stateful_operator.utilities.keymap import key_event
+
+        self.assertEqual(
+            key_event("shift+A"), {"type": "A", "value": "PRESS", "shift": True}
+        )
 
 
 class TestRunningToolHandsOver(Sketch2dTestCase):
