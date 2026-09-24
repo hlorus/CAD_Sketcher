@@ -3,6 +3,13 @@ from bpy.props import BoolProperty, StringProperty
 from bpy.types import Context, Event, Operator
 
 from .constants import Operators
+from .utilities import continuation
+
+
+def _id(value, fallback):
+    """Tool and operator ids are str-enum members on this side."""
+    value = getattr(value, "value", value)
+    return str(value) if value else str(fallback)
 
 
 class View3D_OT_invoke_tool(Operator):
@@ -13,6 +20,14 @@ class View3D_OT_invoke_tool(Operator):
 
     # TODO: get the operator from tool attribute (tool.bl_operator)?
     operator: StringProperty(name="Operator ID")
+    group: BoolProperty(
+        name="Group Key",
+        description=(
+            "Start whichever member of the tool's toolbar group is shown, rather "
+            "than the tool named here"
+        ),
+        default=False,
+    )
     fallthrough: BoolProperty(
         name="Fall Through",
         description=(
@@ -30,33 +45,51 @@ class View3D_OT_invoke_tool(Operator):
         return self.execute(context)
 
     def _group_active(self, context: Context):
-        """The tool the toolbar currently shows for this tool's group.
+        """The tool to start: the one named, or the group's if this is a group key.
 
-        Tools that share one toolbar button (a flyout group) share one shortcut,
-        and the key starts whichever member the toolbar shows -- the last one
-        used -- just as clicking that button would. Outside a group, or when the
-        group can't be resolved, this is the tool the key names.
+        A group key stands for a toolbar button several tools share and starts
+        whichever of them the toolbar shows -- the last one used -- just as
+        clicking that button would. Every other key names one tool and starts
+        exactly that, even when it shares a button with others.
         """
+        if not self.group:
+            return str(self.tool_name), str(self.operator)
+
         # Blender's own item_from_id_active_with_group() wrapper mis-unpacks this
         # helper and hands back the index, so call the helper directly.
         try:
             from bl_ui.space_toolsystem_common import ToolSelectPanelHelper
 
             cls = ToolSelectPanelHelper._tool_class_from_space_type("VIEW_3D")
-            item, _index, _group = cls._tool_get_by_id_active_with_group(
+            item, _index, group = cls._tool_get_by_id_active_with_group(
                 context, str(self.tool_name)
             )
         except Exception:
-            item = None
-
-        def _id(value, fallback):
-            # Tool and operator ids are str-enum members on this side.
-            value = getattr(value, "value", value)
-            return str(value) if value else str(fallback)
+            item, group = None, None
 
         if getattr(item, "idname", None) is None:
             return str(self.tool_name), str(self.operator)
-        return _id(item.idname, self.tool_name), _id(item.operator, self.operator)
+
+        tool = _id(item.idname, self.tool_name)
+        operator = _id(item.operator, self.operator)
+        return self._chain_member(group, tool, operator)
+
+    @staticmethod
+    def _chain_member(group, tool: str, operator: str):
+        """Swap in a group member that can carry on a chain, if one is needed.
+
+        The member the toolbar shows is the one the key starts -- but while a
+        chain is waiting to be carried on, a member that cannot take it would end
+        the run instead. The key then starts the member that can, e.g. the
+        endpoint arc rather than the center-based one.
+        """
+        if not continuation.pending() or continuation.accepts(operator):
+            return tool, operator
+        for member in group or ():
+            member_operator = _id(getattr(member, "operator", None), "")
+            if member_operator and continuation.accepts(member_operator):
+                return _id(getattr(member, "idname", None), tool), member_operator
+        return tool, operator
 
     def execute(self, context: Context):
         tool_name, operator = self._group_active(context)
@@ -115,4 +148,7 @@ class View3D_OT_invoke_tool(Operator):
         if op.poll():
             op("INVOKE_DEFAULT", **options)
 
+        # Whatever the started operator didn't take up is stale: a chain point is
+        # offered to the run this keypress starts, not to a later one.
+        continuation.clear()
         return {"FINISHED"}

@@ -168,16 +168,33 @@ class TestShortcutTable(TestCase):
             self.assertEqual(len(keys), len(set(keys)), keys)
 
     def test_global_keys(self):
-        keys = [row[3] for row in self.keymaps.NODE_TOOL_KEYS]
+        # Through the same reader register() uses: a row gaining a marker must not
+        # change what that loop unpacks.
+        rows = self.keymaps.node_tool_rows()
+        self.assertEqual(len(rows), len(self.keymaps.NODE_TOOL_KEYS))
+        keys = [global_key for _t, _o, _k, global_key, _g in rows]
         self.assertEqual(len(keys), len(set(keys)), keys)
         # Ctrl+Shift+S saves as, Ctrl+Shift+O opens recent files.
         self.assertFalse(set(keys) & {"S", "O"})
 
     def test_tool_access_built_from_table(self):
+        # Including the modifiers a key may carry, e.g. "shift+A".
+        from ..stateful_operator.utilities.keymap import key_event
+
         km = self.keymaps
         invokes = [item for item in km.tool_access if item[0] == StatefulOps.InvokeTool]
-        keys = [item[1]["type"] for item in invokes]
-        self.assertEqual(keys, [row[2] for row in km.SKETCH_TOOL_KEYS])
+        self.assertEqual(
+            [item[1] for item in invokes],
+            [key_event(row[2]) for row in km.SKETCH_TOOL_KEYS],
+        )
+
+    def test_a_modified_tool_key_keeps_its_modifier(self):
+        # The center-based arc sits on Shift+A, so plain A stays the arc group's.
+        from ..stateful_operator.utilities.keymap import key_event
+
+        self.assertEqual(
+            key_event("shift+A"), {"type": "A", "value": "PRESS", "shift": True}
+        )
 
 
 class TestRunningToolHandsOver(Sketch2dTestCase):
@@ -192,7 +209,14 @@ class TestRunningToolHandsOver(Sketch2dTestCase):
         op._last_coords = Vector((0, 0))
         op._axis_lock = None
         self.ended = []
-        op._end = lambda context, succeede, **kw: self.ended.append(succeede)
+
+        def end(context, succeede, **kw):
+            self.ended.append(succeede)
+            # What the real _end reports: a chain that committed segments counts
+            # as finished, anything else as cancelled.
+            return {"FINISHED"} if op._chain_committed else {"CANCELLED"}
+
+        op._end = end
         actions = {"C": switch.SWITCH, "K": switch.FORWARD, "Z": switch.CANCEL}
         op.key_action = lambda context, event: actions.get(event.type, switch.BLOCK)
         op.evaluate_state = lambda *args: {"RUNNING_MODAL"}
@@ -208,6 +232,17 @@ class TestRunningToolHandsOver(Sketch2dTestCase):
         op = self._op()
         self.assertEqual(
             op.modal(self.context, self._key("C")), {"CANCELLED", "PASS_THROUGH"}
+        )
+        self.assertEqual(self.ended, [False])
+
+    def test_switching_away_from_a_chain_keeps_it_finished(self):
+        # Only the segment in progress is dropped; the segments the chain already
+        # committed stand, so the operator is finished and keeps its redo panel.
+        op = self._op()
+        op._chain_committed = True
+
+        self.assertEqual(
+            op.modal(self.context, self._key("C")), {"FINISHED", "PASS_THROUGH"}
         )
         self.assertEqual(self.ended, [False])
 

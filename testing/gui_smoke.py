@@ -354,6 +354,50 @@ def main():
             set_active_sketch(context, None)
             _redraw()
 
+        @_check("a chain carries on into the tool that is switched to")
+        def _():
+            # The handover goes through the keymap: the running tool offers its
+            # last point and the tool the key starts picks it up while invoking.
+            # Only an invoke with a real window gets that far.
+            from unittest import mock
+
+            add_arc = importlib.import_module(f"{TARGET}.operators.add_arc")
+            continuation = importlib.import_module(
+                f"{TARGET}.stateful_operator.utilities.continuation"
+            )
+            declarations = importlib.import_module(f"{TARGET}.declarations")
+            arc_cls = add_arc.View3D_OT_slvs_add_arc3pt2d
+
+            sketch_ref.set_active_sketch(context, globals()["sketch_obj"])
+            sketch = sketch_ref.get_active_sketch(context)
+            end = curve_ref.PointRef.create(sketch, (2.0, 2.0))
+            curve_data.refresh_curve_geometry(sketch)
+            continuation.publish(
+                [end.curve_id], curve_ref.PointRef, sketch.target_object.name
+            )
+
+            seeded = []
+            original = arc_cls._seed_from_chain
+
+            def recording(op, ctx):
+                took = original(op, ctx)
+                seeded.append(took)
+                return took
+
+            with mock.patch.object(arc_cls, "_seed_from_chain", recording):
+                with bpy.context.temp_override(**_view3d_context()):
+                    bpy.ops.view3d.invoke_tool(
+                        tool_name=declarations.WorkSpaceTools.AddArc3Point2D.value,
+                        operator=declarations.Operators.AddArc3Point2D.value,
+                    )
+                    bpy.ops.wm.tool_set_by_id(name="builtin.select_box")
+            _redraw()
+
+            assert seeded == [True], f"the arc did not carry on: {seeded}"
+            assert not continuation.pending(), "the offer must not outlive the switch"
+            sketch_ref.set_active_sketch(context, None)
+            _redraw()
+
     if _FAILURES:
         print(f"SMOKE FAILED: {', '.join(_FAILURES)}", file=sys.stderr)
         sys.exit(1)

@@ -75,3 +75,29 @@ def placement_of(state_data: dict) -> PointPlacement:
     if placement is None:
         placement = state_data[_KEY] = PointPlacement()
     return placement
+
+
+class ChainDraw:
+    """Chaining rules shared by the tools that draw a run of segments.
+
+    The next segment starts where this one ended, so the chain only carries on
+    while that end is a point of its own: landing on existing geometry (a pick,
+    or a coincident placement) closes the run, which is how a loop is finished.
+    Mixed into the line and arc tools; see ``StatefulOperatorLogic.accepts_chain``
+    for the other half, picking a chain up from another tool.
+    """
+
+    accepts_chain = True
+
+    def continue_draw(self) -> bool:
+        last = self._state_data[self._last_pointer_index()]
+        if last.get("is_existing_entity"):
+            return False
+        return not placement_of(last).coincident
+
+    def _last_pointer_index(self) -> int:
+        states = self.get_states()
+        for i in reversed(range(len(states))):
+            if states[i].pointer:
+                return i
+        return 0

@@ -9,6 +9,7 @@ from mathutils import Vector
 
 from .. import global_data
 from .state_machine import _StateMachineMixin
+from .utilities import continuation
 from .utilities.description import state_desc, stateful_op_desc
 from .utilities.generic import to_list
 from .utilities.keymap import get_key_map_desc, is_numeric_input, is_unit_input
@@ -77,6 +78,12 @@ class StatefulOperatorLogic(_StateMachineMixin):
     # That segment's properties, so the redo panel adjusts it and not the
     # segment the chain was in the middle of when it ended.
     _committed_props = None
+    # This operator's first state can carry on from the point another tool's
+    # chain reached, so switching tools mid-chain keeps drawing the same run of
+    # geometry (see _seed_from_chain). Only for operators whose first state is a
+    # pointer the chain's last one fits, e.g. a line or an arc starting where
+    # the previous segment ended.
+    accepts_chain = False
 
     # -------------------------------------------------------------------------
     # Snapshot / undo hooks (override in subclasses)
@@ -380,7 +387,12 @@ class StatefulOperatorLogic(_StateMachineMixin):
             retval = {"RUNNING_MODAL"}
             go_modal = True
 
-            if is_numeric_input(event):
+            if self._seed_from_chain(context):
+                # Standing at the second state already, with the chain's point
+                # behind it: wait for input like any other tool start.
+                pass
+
+            elif is_numeric_input(event):
                 if self.init_numeric(True):
                     self._numeric.evaluate_event(event)
                     self.evaluate_state(context, event, False)
@@ -725,8 +737,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
         # element like Esc does, and passes the key on so the keymap starts it.
         # A toggle shortcut passes on while this tool keeps running.
         if action == SWITCH:
-            self._end(context, False)
-            return {"CANCELLED", "PASS_THROUGH"}
+            self._offer_chain(context)
+            # Keep whatever verdict ending reached -- a chain that committed
+            # segments is a finished operator and keeps its redo panel -- and
+            # pass the key on so the keymap starts the other tool.
+            return (self._end(context, False) or {"CANCELLED"}) | {"PASS_THROUGH"}
         if action == FORWARD:
             return {"PASS_THROUGH"}
 
@@ -1208,6 +1223,75 @@ class StatefulOperatorLogic(_StateMachineMixin):
         self._state_snapshot = None
         self._preview_key = None
 
+    def chain_scope(self, context: Context) -> str:
+        """Where this operator draws, so a chain point stays where it belongs.
+
+        Handed over with the chain point and compared before it is taken up (see
+        utilities.continuation). Default: one nameless scope.
+        """
+        return ""
+
+    def chain_point_valid(self, context: Context) -> bool:
+        """Whether the seeded first state actually resolves to something."""
+        return True
+
+    def _seed_chain_point(self, context: Context, values, kind):
+        """Make ``values`` the first state's value and stand at the next state.
+
+        How a chain carries on: the point the previous segment ended at is the
+        point the new one starts from, the same entity rather than a second one
+        on top of it, so the two are really connected.
+        """
+        data = self.get_state_data(0)
+        data["is_existing_entity"] = True
+        if kind:
+            data["type"] = kind
+        self.set_state_pointer(values, index=0, implicit=True)
+        self.set_state(context, 1)
+
+    def _offer_chain(self, context: Context):
+        """Hand the chain's last point to whichever tool starts next.
+
+        Only from a chain that has committed something: the segment in progress
+        is rolled back when this run ends, so the points it placed itself do not
+        survive to be carried on from.
+        """
+        if not self._chain_committed:
+            return
+        data = self._state_data.get(0, {})
+        if not data.get("is_existing_entity", False):
+            return
+        values = to_list(self.get_state_pointer(index=0, implicit=True))
+        if not values:
+            return
+        continuation.publish(values, data.get("type"), self.chain_scope(context))
+
+    def _seed_from_chain(self, context: Context) -> bool:
+        """Carry on from the point the tool switched away from had reached.
+
+        The offer is consumed whether or not it is taken up, so it never leaks
+        into a run that has nothing to do with that chain.
+        """
+        offer = continuation.take(self.chain_scope(context))
+        if offer is None or not self.accepts_chain:
+            return False
+
+        values, kind = offer
+        states = self.get_states()
+        if len(states) < 2 or not states[0].pointer:
+            return False
+
+        # Whether the point fits is not decided by the state's declared types --
+        # a pick stores the type it resolved to, which is not one of them -- but
+        # by whether it resolves at all, below.
+        self._seed_chain_point(context, values, kind)
+        if not self.chain_point_valid(context):
+            # Gone since it was offered (an undo, say): start from scratch.
+            self._reset_op()
+            self.set_state(context, 0)
+            return False
+        return True
+
     def _take_last_state_pointer(self):
         """Return (last_index, implicit_values, type_metadata) for the last pointer state."""
         for i, s in reversed(list(enumerate(self.get_states()))):
@@ -1240,12 +1324,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         self._capture_baseline(context)
 
         # Re-inject the saved endpoint as the seed for the new segment
-        data = self.get_state_data(0)
-        data["is_existing_entity"] = True
-        if last_type:
-            data["type"] = last_type
-        self.set_state_pointer(values, index=0, implicit=True)
-        self.set_state(context, 1)
+        self._seed_chain_point(context, values, last_type)
         self._state_snapshot = self.create_snapshot(context)
 
     # -------------------------------------------------------------------------

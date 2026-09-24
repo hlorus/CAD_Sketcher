@@ -114,12 +114,25 @@ def operator_access(operator: str):
     )
 
 
-def tool_invoke_kmi(button: str, tool: str, operator: str):
-    return (
-        Operators.InvokeTool,
-        {"type": button, "value": "PRESS"},
-        {"properties": [("tool_name", tool), ("operator", operator)]},
-    )
+def key_event(key: str) -> dict:
+    """A keymap item's event for a key like ``"A"`` or ``"shift+A"``."""
+    *modifiers, button = key.split("+")
+    event = {"type": button, "value": "PRESS"}
+    event.update({modifier: True for modifier in modifiers})
+    return event
+
+
+def tool_invoke_kmi(button: str, tool: str, operator: str, group: bool = False):
+    """A keymap item starting ``tool``.
+
+    With ``group``, the key stands for the whole toolbar group ``tool`` leads and
+    starts whichever member the toolbar shows; without it the key names that one
+    tool (see View3D_OT_invoke_tool).
+    """
+    properties = [("tool_name", tool), ("operator", operator)]
+    if group:
+        properties.append(("group", True))
+    return (Operators.InvokeTool, key_event(button), {"properties": properties})
 
 
 def is_numeric_input(event: Event):

@@ -52,7 +52,7 @@ constraint_access = (
     ),
     (
         Operators.AddParallel,
-        {"type": "A", "value": "PRESS", "shift": True},
+        {"type": "P", "value": "PRESS", "shift": True},
         {
             "properties": [
                 ("wait_for_input", True),
@@ -61,7 +61,8 @@ constraint_access = (
     ),
     (
         Operators.AddPerpendicular,
-        {"type": "P", "value": "PRESS", "shift": True},
+        # An L is a right angle; P names Parallel above.
+        {"type": "L", "value": "PRESS", "shift": True},
         {
             "properties": [
                 ("wait_for_input", True),
@@ -113,16 +114,23 @@ constraint_access = (
     ),
 )
 
-# Tool shortcuts: (tool, operator, key). The key starts the tool from any other
-# CAD Sketcher tool, also while one is running.
+# Marks a key that stands for a whole toolbar group instead of the one tool it
+# names: it starts whichever member the toolbar shows (see View3D_OT_invoke_tool).
+# Used where a group has more members than there are keys to spare.
+GROUP = "group"
+
+# Tool shortcuts: (tool, operator, key[, GROUP]). The key starts the tool from any
+# other CAD Sketcher tool, also while one is running.
 SKETCH_TOOL_KEYS = (
     (WorkSpaceTools.AddPoint2D, Operators.AddPoint2D, "P"),
     (WorkSpaceTools.AddLine2D, Operators.AddLine2D, "L"),
     (WorkSpaceTools.AddCircle2D, Operators.AddCircle2D, "C"),
-    # Names the arc group's leading tool; the key starts whichever member of the
-    # group is active (see View3D_OT_invoke_tool).
+    # The two arcs share a toolbar button but have a key each, so either is
+    # always one press away.
     (WorkSpaceTools.AddArc3Point2D, Operators.AddArc3Point2D, "A"),
-    (WorkSpaceTools.AddRectangle, Operators.AddRectangle, "R"),
+    (WorkSpaceTools.AddArc2D, Operators.AddArc2D, "shift+A"),
+    # Three rectangle variants on one key: it starts the one the toolbar shows.
+    (WorkSpaceTools.AddRectangle, Operators.AddRectangle, "R", GROUP),
     (WorkSpaceTools.Trim, Operators.Trim, "Y"),
     (WorkSpaceTools.Bevel, Operators.Bevel, "B"),
     (WorkSpaceTools.Offset, Operators.Offset, "O"),
@@ -138,21 +146,32 @@ SKETCH_3D_TOOL_KEYS = (
     (WorkSpaceTools.AddLine3D, Operators.AddLine3D, "L"),
 )
 
-# Object tools also get a global Ctrl+Shift key: (tool, operator, key, global key).
+# Object tools also get a global Ctrl+Shift key:
+# (tool, operator, key, global key[, GROUP]).
 NODE_TOOL_KEYS = (
     (WorkSpaceTools.Extrude, Operators.NodeExtrude, "E", "E"),
     (WorkSpaceTools.Revolve, Operators.NodeRevolve, "R", "R"),
-    # Names the array group's leading tool; the key starts whichever member of
-    # the group is active (see View3D_OT_invoke_tool).
-    (WorkSpaceTools.ArrayLinear, Operators.NodeArrayLinear, "D", "D"),
+    # Both arrays share a toolbar button: the key starts the one it shows.
+    (WorkSpaceTools.ArrayLinear, Operators.NodeArrayLinear, "D", "D", GROUP),
     # Ctrl+Shift+S saves as, so Add Sketch uses Ctrl+Shift+A.
     (WorkSpaceTools.AddSketch, Operators.AddSketch, "S", "A"),
 )
 
 
+def node_tool_rows() -> tuple:
+    """``(tool, operator, key, global key, is group key)`` per node tool."""
+    return tuple(
+        (tool, operator, key, global_key, GROUP in rest)
+        for tool, operator, key, global_key, *rest in NODE_TOOL_KEYS
+    )
+
+
 def tool_keys(table) -> tuple:
     """Tool keymap items starting each tool of ``table`` by its key."""
-    return tuple(tool_invoke_kmi(key, tool, op) for tool, op, key, *_ in table)
+    return tuple(
+        tool_invoke_kmi(key, tool, op, group=GROUP in rest)
+        for tool, op, key, *rest in table
+    )
 
 
 tool_access = (
@@ -362,7 +381,7 @@ def register():
 
         # Switch to a tool, then invoke its operator. Inside a sketch the tool
         # isn't available and the key passes on (Ctrl+Shift+A leaves the sketch).
-        for tool, operator, _key, key in NODE_TOOL_KEYS:
+        for tool, operator, _key, key, _group in node_tool_rows():
             kmi = km.keymap_items.new(
                 StatefulOps.InvokeTool.value, key, "PRESS", ctrl=True, shift=True
             )

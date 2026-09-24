@@ -32,8 +32,9 @@ While typing a number, letters are read as units (e.g. `5cm`) instead.
 |P|-   |Invoke Tool: Add Point 2D|
 |L|-   |Invoke Tool: Add Line 2D|
 |C|-   |Invoke Tool: Add Circle|
-|A|-   |Invoke Tool: Add Arc|
-|R|-   |Invoke Tool: Add Rectangle|
+|A|-   |Invoke Tool: Add Endpoint Arc|
+|A|Shift   |Invoke Tool: Add Arc (center based)|
+|R|-   |Invoke Tool: Add Rectangle (the variant the toolbar shows)|
 |Y|-   |Invoke Tool: Trim|
 |B|-   |Invoke Tool: Bevel|
 |O|-   |Invoke Tool: Offset|
@@ -62,8 +63,8 @@ infer the kind from what you pick.
 |V|Shift   |Vertical|
 |H|Shift   |Horizontal|
 |E|Shift   |Equal|
-|A|Shift   |Parallel|
-|P|Shift   |Perpendicular|
+|P|Shift   |Parallel|
+|L|Shift   |Perpendicular|
 |T|Shift   |Tangent|
 |M|Shift   |Midpoint|
 |R|Shift   |Ratio|
