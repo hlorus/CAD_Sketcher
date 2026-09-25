@@ -136,7 +136,7 @@ _group_signatures = {}
 class ConstraintGenericGGT:
     bl_space_type = "VIEW_3D"
     bl_region_type = "WINDOW"
-    bl_options = {"PERSISTENT", "SCALE", "3D"}
+    bl_options = {"PERSISTENT", "SCALE", "3D", "SHOW_MODAL_ALL"}
 
     def setup(self, context):
         from ..model.sketch_ref import get_active_sketch

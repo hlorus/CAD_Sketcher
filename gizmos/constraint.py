@@ -37,7 +37,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
     bl_label = "Constraint Gizmo Group"
     bl_space_type = "VIEW_3D"
     bl_region_type = "WINDOW"
-    bl_options = {"PERSISTENT", "SCALE"}
+    bl_options = {"PERSISTENT", "SCALE", "SHOW_MODAL_ALL"}
 
     @classmethod
     def poll(cls, context):
@@ -81,6 +81,7 @@ class VIEW3D_GGT_slvs_constraint(GizmoGroup):
             gz = self.gizmos.new(VIEW3D_GT_slvs_constraint_value.bl_idname)
             gz.type = constraint_type
             gz.index = index
+            gz.use_draw_modal = True
 
             props = gz.target_set_operator(Operators.TweakConstraintValuePos)
             props.type = constraint_type
