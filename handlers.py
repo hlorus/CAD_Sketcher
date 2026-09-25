@@ -86,6 +86,15 @@ def on_load_post(*args):
     constraint_icons.invalidate()
     selection.clear()
 
+    # A file with no path was never saved, so it is this session's and current by
+    # definition. Any version its scenes carry came from the startup file, which
+    # a user saves once and keeps: without this, every File > New from a startup
+    # file saved by an older build claims to need updating.
+    if not bpy.data.filepath:
+        from .versioning import write_addon_version
+
+        write_addon_version(bpy.context)
+
     # Restore dimension values whose scene property was lost with the file they
     # were linked or appended from, or by an earlier uid change.
     scene = bpy.context.scene

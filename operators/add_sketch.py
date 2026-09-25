@@ -124,7 +124,10 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     fix_transform(sketch_obj)
     fix_transform(plane)
 
-    from ..utilities.body import name_after_body
+    from ..utilities.body import BODY_PLACED_KEY, name_after_body
+
+    # Built in its place, so the file update has nothing left to do for it.
+    body[BODY_PLACED_KEY] = True
 
     name_after_body(body, sketch_obj, plane if starts_a_part else None)
     hide_sketch_curves(sketch_obj)

@@ -219,3 +219,33 @@ class TestPartMigration(Sketch2dTestCase):
 
         bpy.ops.view3d.slvs_migrate_legacy()
         self.assertTrue(is_part_root(body_of(obj)))
+
+
+class TestAnUnsavedFileIsCurrent(Sketch2dTestCase):
+    """A file with no path on disk was never saved, so nothing in it is old.
+
+    Blender's File > New loads the user's own startup file, and that file was
+    saved once and kept: it carries whatever add-on version was current the day
+    it was saved. Read at face value, every new file claimed to be from that
+    version and offered to update itself.
+    """
+
+    def test_load_post_stamps_the_current_version(self):
+        from .. import get_addon_version_tuple
+        from ..handlers import on_load_post
+
+        self.assertEqual(bpy.data.filepath, "", "the test file is never saved")
+        self.scene.sketcher.version = (0, 31, 0)
+
+        on_load_post()
+
+        self.assertEqual(tuple(self.scene.sketcher.version), get_addon_version_tuple())
+
+    def test_a_new_file_is_not_offered_the_update(self):
+        from ..handlers import on_load_post
+        from ..utilities.part import needs_part_migration
+
+        self.scene.sketcher.version = (0, 31, 0)
+        on_load_post()
+
+        self.assertFalse(needs_part_migration(self.scene))
