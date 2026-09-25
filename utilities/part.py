@@ -566,10 +566,10 @@ def reconcile_groups(scene: bpy.types.Scene) -> bool:
     """Follow what the user did to the hierarchy, and repair broken groups.
 
     Membership *is* the parent chain, so parenting a sketch into a part (Ctrl+P,
-    or a drag in the outliner) is how it joins one, and unparenting it is how it
-    leaves. Nothing about that is written to the file; this pass compares the
-    chain with what it saw last time, pins what joined, releases what left, and
-    remembers the shape for next time.
+    or a Shift-drag in the outliner) is how it joins one, and unparenting it is
+    how it leaves. Nothing about that is written to the file; this pass compares
+    the chain with what it saw last time, pins what joined, releases what left,
+    and remembers the shape for next time.
 
     The repair half handles a root deleted with Blender's own Delete, which never
     reaches the sketch delete operator: Blender drops the parent but keeps each
