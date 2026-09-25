@@ -12,6 +12,7 @@ import bpy
 
 from ..utilities.collections import (
     dissolve_legacy_sketch_collections,
+    homes,
     origin_collection,
     sync_part_collections,
 )
@@ -40,6 +41,26 @@ class TestManagedCollection(Sketch2dTestCase):
 
     def _child_names(self, coll):
         return {c.name for c in coll.children}
+
+    def test_where_each_object_lives_is_read_from_the_tree(self):
+        # The sync asks this of the whole scene at once, because asking one
+        # object costs a search of every collection in the file.
+        scene = self.context.scene
+        ob = self.sketch.target_object
+        mark_part_root(ob)
+        sync_part_collections(scene)
+
+        spare = bpy.data.collections.new("spare")
+        scene.collection.children.link(spare)
+        spare.objects.link(ob)  # linked twice, which the sync has to undo
+
+        found = homes(scene)
+        for obj in scene.objects:
+            self.assertEqual(
+                sorted(found.get(obj.name, [])),
+                sorted(c.name for c in obj.users_collection),
+                obj.name,
+            )
 
     def test_a_sketch_in_no_part_sits_at_the_scene_level(self):
         ob = self.sketch.target_object

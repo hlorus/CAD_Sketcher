@@ -515,15 +515,51 @@ def _same_plane(a: Matrix, b: Matrix, tolerance: float = 1e-5) -> bool:
     )
 
 
-def _members_of(root: bpy.types.Object) -> set:
-    """Names of everything in ``root``'s group, at any depth.
+def survey_groups(scene: bpy.types.Scene) -> tuple:
+    """Who roots a group, and what each one holds, in one pass over the scene.
 
-    Linked and overridden children are left out: they belong to the file they
-    came from, so nothing here may pin, move or re-home them.
+    Returns ``(objects, roots, members)``: every editable object by name, then
+    two dicts keyed by kind -- ``roots[PART]`` maps a name to the object, and
+    ``members[PART]`` maps a root's name to the names of everything in it, at
+    any depth. Names index the members, because that is what survives the file
+    being reloaded under a stale reference; the objects come back with them
+    because looking one up by name costs a scan of the whole scene.
+
+    Asked of every object rather than of every root: ``children_recursive``
+    walks a whole subtree per root and asks RNA for it each time, while one walk
+    up the parent chain answers for both levels at once. Linked and overridden
+    objects are left out entirely: they belong to the file they came from, so
+    nothing here may pin, move or re-home them.
     """
     from .collections import is_editable
 
-    return {child.name for child in root.children_recursive if is_editable(child)}
+    objects = {}
+    roots = {PART: {}, ASSEMBLY: {}}
+    members = {PART: {}, ASSEMBLY: {}}
+
+    for obj in scene.objects:
+        if not is_editable(obj):
+            continue
+        objects[obj.name] = obj
+        kind = group_kind(obj)
+        if kind is not None:
+            roots[kind][obj.name] = obj
+
+        # From the parent up, so a root is never a member of itself while a part
+        # root inside an assembly still is a member of that assembly. One group
+        # of each kind holds it: the nearest one.
+        current = obj.parent
+        seen = set()
+        holding = set()
+        while current is not None and current.name not in seen and len(holding) < 2:
+            seen.add(current.name)
+            at = group_kind(current)
+            if at is not None and at not in holding:
+                holding.add(at)
+                members[at].setdefault(current.name, set()).add(obj.name)
+            current = current.parent
+
+    return objects, roots, members
 
 
 def reconcile_groups(scene: bpy.types.Scene) -> bool:
@@ -542,24 +578,30 @@ def reconcile_groups(scene: bpy.types.Scene) -> bool:
     is then handed on (see :func:`_reclaim`).
 
     Parts and the assemblies they sit in are the same shape one level apart, so
-    one pass settles both.
+    one survey of the scene settles both.
 
     Returns True if anything changed.
     """
-    changed = _reconcile(scene, PART)
-    return _reconcile(scene, ASSEMBLY) or changed
+    objects, roots, members = survey_groups(scene)
+
+    changed = _reconcile(scene, objects, PART, roots[PART], members[PART])
+    if _reconcile(scene, objects, ASSEMBLY, roots[ASSEMBLY], members[ASSEMBLY]):
+        changed = True
+
+    # Record the state this pass settled on, not the one it was handed, so the
+    # next pass is skipped rather than reacting to this one's own writes. A pass
+    # that changed nothing settled on what it was handed, and the scene is not
+    # worth walking again to hear that.
+    if changed:
+        _objects, roots, members = survey_groups(scene)
+    _remember(roots, members)
+    return changed
 
 
-def _reconcile(scene: bpy.types.Scene, kind: str) -> bool:
+def _reconcile(
+    scene: bpy.types.Scene, objects: dict, kind: str, roots: dict, members: dict
+) -> bool:
     """Settle one level of the hierarchy. True if anything changed."""
-    from .collections import is_editable
-
-    roots = {
-        obj.name: obj
-        for obj in scene.objects
-        if group_kind(obj) == kind and is_editable(obj)
-    }
-    members = {name: _members_of(root) for name, root in roots.items()}
     remembered = _last_members[kind]
 
     changed = False
@@ -570,12 +612,12 @@ def _reconcile(scene: bpy.types.Scene, kind: str) -> bool:
         # What each part holds now: pin what we manage (a feature does not move
         # on its own), and note what joined since the last pass -- a mesh joining
         # writes nothing at all, but its cutter display still has to follow.
-        changed = _pin_members(scene, members, remembered, touched)
+        changed = _pin_members(objects, members, remembered, touched)
 
     # What has left a group since the last pass, by whichever route.
     for root_name, previous in remembered.items():
         for name in previous - members.get(root_name, set()):
-            obj = scene.objects.get(name)
+            obj = objects.get(name)
             if obj is None or group_root_of(obj, kind) is not None:
                 continue  # gone, or simply moved to another group
 
@@ -598,18 +640,17 @@ def _reconcile(scene: bpy.types.Scene, kind: str) -> bool:
             touched.extend(stranded)
         changed = True
 
-    _remember(kind, roots)
     _refresh_cutter_display(scene, touched)
     return changed
 
 
-def _pin_members(scene, members, remembered, touched) -> bool:
+def _pin_members(objects, members, remembered, touched) -> bool:
     """Hold every member of a part in place, and collect what has just joined."""
     changed = False
     for root_name, names in members.items():
         joined = names - remembered.get(root_name, set())
         for name in names:
-            obj = scene.objects.get(name)
+            obj = objects.get(name)
             if obj is None or group_kind(obj) is not None:
                 continue  # a group of its own owns its transform
             if name in joined:
@@ -658,20 +699,18 @@ def _reclaim(kind: str, stranded) -> bool:
     return True
 
 
-def _remember(kind: str, roots) -> None:
-    """Record the settled state, not the one we were handed.
+def _remember(roots: dict, members: dict) -> None:
+    """Hold on to the shape of the scene, for the next pass to diff against."""
+    for kind in (PART, ASSEMBLY):
+        remembered = _last_members[kind]
+        matrices = _last_root_matrices[kind]
 
-    The next pass is then skipped rather than reacting to this one's own writes.
-    """
-    members = _last_members[kind]
-    matrices = _last_root_matrices[kind]
-
-    members.clear()
-    for name, root in roots.items():
-        matrices[name] = world_matrix_of(root)
-        members[name] = _members_of(root)
-    for name in [n for n in matrices if n not in roots]:
-        del matrices[name]
+        remembered.clear()
+        remembered.update(members[kind])
+        for name, root in roots[kind].items():
+            matrices[name] = world_matrix_of(root)
+        for name in [n for n in matrices if n not in roots[kind]]:
+            del matrices[name]
 
 
 def _refresh_cutter_display(scene: bpy.types.Scene, touched) -> None:
