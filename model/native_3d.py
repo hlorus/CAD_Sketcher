@@ -184,6 +184,9 @@ def create_3d_sketch(context, name="3D Sketch", matrix=None):
 
     obj.parent = origin
     obj.slvs_workplane = origin
+    # The origin carries this sketch the way a body carries a 2D one: one
+    # pointer answers "what moves when this moves" for either kind.
+    obj.slvs_body = origin
     obj.matrix_parent_inverse = Matrix.Identity(4)
     obj.matrix_basis = Matrix.Identity(4)
     obj.lock_location = (True, True, True)

@@ -168,17 +168,17 @@ class Sketch:
             return
 
         obj = self._obj
-        parent = obj.parent
-        remove_origin = bool(
-            self.is_3d and parent and parent.get("is_3d_sketch_origin", False)
-        )
 
-        from ..utilities.body import remove_body
+        from ..utilities.body import carrier_of, is_body, remove_body
 
+        # Whatever places the sketch goes with it: a 2D sketch's body, or the
+        # origin Empty a free-3D one hangs from.
+        carrier = carrier_of(obj)
         remove_body(obj)
         bpy.data.objects.remove(obj)
-        if remove_origin and parent.name in bpy.data.objects:
-            bpy.data.objects.remove(parent)
+        if carrier is not None and not is_body(carrier):
+            if carrier.name in bpy.data.objects:
+                bpy.data.objects.remove(carrier)
 
     # -- Identity --
 

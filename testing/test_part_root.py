@@ -645,6 +645,32 @@ class TestPartRoot(BgsTestCase):
         self.assertEqual(tuple(obj.lock_location), (True, True, True))
         self.assertEqual(tuple(origin.lock_location), (False, False, False))
 
+    def test_every_sketch_points_at_what_carries_it(self):
+        # One pointer for both kinds of sketch: the 2D one's mesh body and the
+        # free-3D one's origin Empty are read the same way.
+        from ..model.native_3d import create_3d_sketch
+        from ..utilities.body import body_of, carrier_of
+
+        flat = build_sketch_on_workplane(self.context, self.datum).target_object
+        self.assertEqual(carrier_of(flat), body_of(flat))
+
+        free = create_3d_sketch(self.context).target_object
+        self.assertEqual(carrier_of(free), free.parent)
+        # Only a mesh can carry the feature stack, so this one has no body.
+        self.assertIsNone(body_of(free))
+
+    def test_an_older_free_3d_sketch_still_finds_its_origin(self):
+        # Files written before the pointer covered 3D sketches: the origin is
+        # the parent and says so itself.
+        from ..model.native_3d import create_3d_sketch
+        from ..utilities.part import transform_owner
+
+        obj = create_3d_sketch(self.context).target_object
+        origin = obj.parent
+        obj.slvs_body = None
+
+        self.assertEqual(transform_owner(obj), origin)
+
     def test_a_free_3d_sketch_joins_a_part_by_its_origin(self):
         from ..model.native_3d import create_3d_sketch
 

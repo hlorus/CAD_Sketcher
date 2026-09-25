@@ -31,11 +31,37 @@ def is_body(obj: Optional[bpy.types.Object]) -> bool:
     return bool(obj is not None and obj.type == "MESH" and BODY_SKETCH_KEY in obj)
 
 
-def body_of(sketch_obj: Optional[bpy.types.Object]) -> Optional[bpy.types.Object]:
-    """The body that realises ``sketch_obj``, or None if it has none yet."""
+def carrier_of(sketch_obj: Optional[bpy.types.Object]) -> Optional[bpy.types.Object]:
+    """The object that places ``sketch_obj``, whatever kind of sketch it is.
+
+    A sketch never carries its own transform: a 2D one is realised on a mesh
+    body, a free-3D one hangs from an origin Empty. Both are ``slvs_body``, so
+    everything that asks "what moves when this part moves" has one question to
+    ask rather than a special case per kind of sketch.
+    """
     if sketch_obj is None:
         return None
-    body = sketch_obj.slvs_body
+    carrier = sketch_obj.slvs_body
+    if isinstance(carrier, bpy.types.Object):
+        return carrier
+
+    # Free-3D sketches from before the pointer covered them: the origin is the
+    # parent, and says so itself.
+    from ..model.native_3d import SKETCH_3D_ORIGIN_TAG
+
+    parent = sketch_obj.parent
+    if parent is not None and parent.get(SKETCH_3D_ORIGIN_TAG, False):
+        return parent
+    return None
+
+
+def body_of(sketch_obj: Optional[bpy.types.Object]) -> Optional[bpy.types.Object]:
+    """The mesh body that realises ``sketch_obj``, or None if it has none.
+
+    Narrower than :func:`carrier_of`: only a mesh can carry the feature stack,
+    be cut by a boolean, or be exported.
+    """
+    body = carrier_of(sketch_obj)
     return body if is_body(body) else None
 
 

@@ -314,22 +314,13 @@ def transform_owner(obj: bpy.types.Object) -> bpy.types.Object:
     A sketch never owns its own: it sits on a workplane, and that workplane hangs
     under the body its geometry is realised on, so the body is what a part is
     rooted in and what an assembly carries. Rooting the sketch instead would
-    leave two movable things disagreeing about where the part is.
-
-    A free-3D sketch is placed by an origin Empty, which plays the same role.
+    leave two movable things disagreeing about where the part is. A free-3D
+    sketch is placed by an origin Empty, which plays the same role, so both are
+    the sketch's carrier and anything else is its own owner.
     """
-    from .body import body_of
+    from .body import carrier_of
 
-    parent = obj.parent
-    if (
-        parent is not None
-        and obj.get("is_3d_sketch")
-        and parent.get("is_3d_sketch_origin", False)
-    ):
-        return parent
-
-    body = body_of(obj)
-    return body if body is not None else obj
+    return carrier_of(obj) or obj
 
 
 def promote_to_root(obj: bpy.types.Object) -> None:
