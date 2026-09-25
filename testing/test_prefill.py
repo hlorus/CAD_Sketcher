@@ -183,6 +183,27 @@ class TestSelectionPrefill(Sketch2dTestCase):
         return super().tearDown()
 
 
+# Directories the build leaves out of the extension (see the manifest's
+# ``paths_exclude_pattern``). Nothing in them is ever imported as a submodule of
+# the add-on: they hold standalone scripts run with ``blender --python``, which
+# cannot use a relative import and so name the installed add-on outright. Naming
+# them here rather than relying on their absence keeps the scan's scope the same
+# whether it runs against an installed build or a source checkout, which is what
+# a developer runs.
+_NOT_PART_OF_THE_ADDON = frozenset(
+    {"testing", "scripts", "experiments", "docs", "site", "notes", "lib"}
+)
+
+
+def _addon_modules(root: Path):
+    """Every ``.py`` that ships as a submodule of the add-on, relative to root."""
+    for path in sorted(root.rglob("*.py")):
+        relative = path.relative_to(root)
+        if _NOT_PART_OF_THE_ADDON.intersection(relative.parts[:-1]):
+            continue
+        yield relative
+
+
 class TestNoHardcodedExtensionNamespace(TestCase):
     """Imports must be relative; a hardcoded ``bl_ext.<repo>.CAD_Sketcher`` path
     resolves only in the dev install and raises ModuleNotFoundError in every other
@@ -195,17 +216,29 @@ class TestNoHardcodedExtensionNamespace(TestCase):
         root = Path(__file__).resolve().parent.parent
         pattern = re.compile(r"\bbl_ext\.\w+\.CAD_Sketcher\b")
         offenders = []
-        for path in root.rglob("*.py"):
-            if path.parent.name == "testing":
-                continue
-            for lineno, line in enumerate(path.read_text().splitlines(), 1):
+        for relative in _addon_modules(root):
+            text = (root / relative).read_text()
+            for lineno, line in enumerate(text.splitlines(), 1):
                 code = line.split("#", 1)[0]
                 if pattern.search(code):
-                    offenders.append(
-                        f"{path.relative_to(root)}:{lineno}: {line.strip()}"
-                    )
+                    offenders.append(f"{relative}:{lineno}: {line.strip()}")
         self.assertFalse(
             offenders,
             "Hardcoded extension namespace in import(s) — use relative imports:\n"
             + "\n".join(offenders),
         )
+
+    def test_the_scan_reaches_the_runtime_packages(self):
+        """The check is only worth what it looks at, so say what that is.
+
+        It runs against the *installed* add-on, where the build has already
+        dropped the dev directories, so an over-broad scope goes unnoticed on CI
+        and only shows up as a false positive in a source checkout. Asserting
+        both ends keeps the two the same.
+        """
+        root = Path(__file__).resolve().parent.parent
+        scanned = {relative.parts[0] for relative in _addon_modules(root)}
+
+        for package in ("operators", "model", "utilities", "stateful_operator"):
+            self.assertIn(package, scanned, f"{package} must be checked")
+        self.assertFalse(_NOT_PART_OF_THE_ADDON.intersection(scanned))
