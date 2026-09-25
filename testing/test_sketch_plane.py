@@ -13,7 +13,7 @@ from ..model.sketch_ref import set_active_sketch
 from ..operators.add_sketch import set_sketch_workplane
 from ..utilities.validate import _backfill_workplane_pointer
 from ..utilities.workplane import get_workplane_origin_normal
-from .utils import Sketch2dTestCase
+from .utils import BgsTestCase, Sketch2dTestCase
 
 
 class TestSketchPlane(Sketch2dTestCase):
@@ -98,3 +98,81 @@ class TestSketchPlane(Sketch2dTestCase):
         obj.slvs_workplane = other
         _backfill_workplane_pointer(self.sketch)
         self.assertEqual(obj.slvs_workplane, other)
+
+
+class TestSketchOnAnEvaluatedPlane(BgsTestCase):
+    """A sketch must be built against the original plane, never the evaluated one.
+
+    A pointer state stores its object by name but resolves it back through the
+    depsgraph, so the Add Sketch tool hands the picked workplane over evaluated.
+    Parenting to runtime data, or pointing at it, holds for the session and is
+    silently dropped when the file is written: the sketch reopens with no parent
+    and no workplane, standing at the world origin while the plane it was drawn
+    on is left orphaned. A face-anchored plane then follows its mesh face with
+    nothing attached to it (issue: mesh edits stopped moving the sketch).
+    """
+
+    def _cube(self):
+        import bmesh
+
+        me = bpy.data.meshes.new("block")
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new("block", me)
+        self.scene.collection.objects.link(ob)
+        self.addCleanup(bpy.data.objects.remove, ob)
+        return ob, next(p.index for p in me.polygons if p.normal.z > 0.9)
+
+    def _sketch_on_evaluated_face_plane(self):
+        from ..operators.add_sketch import (
+            build_sketch_on_workplane,
+            create_face_workplane,
+        )
+        from ..utilities.body import body_of
+
+        source, face = self._cube()
+        plane = create_face_workplane(self.context, source, face)
+        self.addCleanup(bpy.data.objects.remove, plane)
+
+        depsgraph = self.context.evaluated_depsgraph_get()
+        depsgraph.update()
+        evaluated = plane.evaluated_get(depsgraph)
+        self.assertTrue(evaluated.is_runtime_data, "the depsgraph owns this copy")
+
+        sketch = build_sketch_on_workplane(self.context, evaluated)
+        obj = sketch.target_object
+        self.addCleanup(bpy.data.objects.remove, body_of(obj))
+        self.addCleanup(bpy.data.objects.remove, obj)
+        return obj, plane, source
+
+    def test_the_sketch_stands_on_the_original_plane(self):
+        obj, plane, _source = self._sketch_on_evaluated_face_plane()
+
+        # Everything that has to survive a save must name the original.
+        self.assertIs(obj.slvs_workplane, plane)
+        self.assertIs(obj.parent, plane)
+        self.assertFalse(obj.slvs_workplane.is_runtime_data)
+        self.assertFalse(obj.parent.is_runtime_data)
+
+    def test_the_plane_joins_the_part_it_was_picked_on(self):
+        _obj, plane, source = self._sketch_on_evaluated_face_plane()
+
+        # The plane's own parenting is dropped just as silently, which is what
+        # leaves the anchored plane orphaned in a reopened file.
+        self.assertIs(plane.parent, source)
+        self.assertFalse(plane.is_runtime_data)
+
+    def test_the_plane_can_still_be_renamed_after_the_body(self):
+        # rename_after_bodies renames a body's plane on every depsgraph update;
+        # an evaluated one is read-only and raised there on every single update.
+        from ..utilities.body import body_of, name_after_body
+
+        obj, _plane, _source = self._sketch_on_evaluated_face_plane()
+        body = body_of(obj)
+        body.name = "Latch"
+
+        self.assertTrue(name_after_body(body, obj, obj.slvs_workplane))
+        # Read the body's name back: Blender numbers one another object holds.
+        self.assertEqual(obj.slvs_workplane.name, f"{body.name} Workplane")
