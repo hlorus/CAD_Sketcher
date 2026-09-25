@@ -1,0 +1,1211 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../tools/">
+      
+      
+        <link rel="next" href="../modeling/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Parts and Assemblies - CAD Sketcher</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#parts-and-assemblies" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="CAD Sketcher" class="md-header__button md-logo" aria-label="CAD Sketcher" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            CAD Sketcher
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Parts and Assemblies
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="CAD Sketcher" class="md-nav__button md-logo" aria-label="CAD Sketcher" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    CAD Sketcher
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_interface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parts and Assemblies
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parts and Assemblies
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#in-the-outliner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the outliner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#moving-a-part" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moving a part
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-belongs-to-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What belongs to what
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#making-a-part-by-hand" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Making a part by hand
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-workplanes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part workplanes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#changing-membership-by-hand" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changing membership by hand
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assemblies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assemblies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#copying-and-reusing-a-part" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Copying and reusing a part
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#editing-a-parts-sketches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing a part's sketches
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cutter-display" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cutter display
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#older-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Older files
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#collections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Collections
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../modeling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modeling Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../entities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Entities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../constraints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Constraints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../solver/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Solver
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../integration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Integration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interaction_system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interaction system
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../code_docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#in-the-outliner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the outliner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#moving-a-part" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Moving a part
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-belongs-to-what" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What belongs to what
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#making-a-part-by-hand" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Making a part by hand
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#part-workplanes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Part workplanes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#changing-membership-by-hand" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changing membership by hand
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assemblies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assemblies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#copying-and-reusing-a-part" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Copying and reusing a part
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#editing-a-parts-sketches" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editing a part's sketches
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cutter-display" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cutter display
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#older-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Older files
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#collections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Collections
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="parts-and-assemblies">Parts and Assemblies</h1>
+<p>A <strong>part</strong> is one thing you can move: a body together with the sketches and
+workplanes that define it. The body is a real mesh object, and each sketch stays
+pure source whose geometry is realised on it, which is why a part exports,
+applies and edits like any other mesh.</p>
+<p>An <strong>assembly</strong> is a group of parts you can move as a whole. Both are just object
+parenting, so the outliner shows the real structure and you edit it there.</p>
+<h2 id="in-the-outliner">In the outliner</h2>
+<p>The outliner is where parts live. It shows two things at once: collections group
+each part, and objects nest under the object that carries them.</p>
+<ul>
+<li><strong>Scene Collection</strong><ul>
+<li><strong>Origin</strong> &mdash; the shared XY / XZ / YZ datum planes</li>
+<li><strong>Bracket</strong> &mdash; an assembly collection<ul>
+<li><strong>Plate</strong> &mdash; a part collection<ul>
+<li><strong>Plate</strong> &mdash; the part's body: a mesh, carrying the features<ul>
+<li><strong>Plate XY</strong> &mdash; the plane its sketch was drawn on, now the part's XY<ul>
+<li><strong>Plate Sketch</strong> &mdash; the source the body is built from</li>
+</ul>
+</li>
+<li><strong>Plate XZ</strong>, <strong>Plate YZ</strong> &mdash; made when the picker first offered them</li>
+<li><strong>Workplane</strong> &mdash; on a face of Plate<ul>
+<li><strong>Plate.001</strong> &mdash; a cutter, with its own sketch beneath it</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>Pin</strong> &mdash; a second part in the same assembly</li>
+</ul>
+</li>
+<li><strong>Body</strong> &mdash; global: drawn on a datum, not yet solid<ul>
+<li><strong>Body Workplane</strong> &mdash; its own plane, nameless until it becomes a part</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p>A new body is called <strong>Body</strong>, or takes the name of the part it joins, and its
+plane and sketch follow the name it has: rename the body and they rename with
+it.</p>
+<p>Read the nesting, not the collections: <strong><code>Plate.001</code> is part of <code>Plate</code> because
+it hangs under it</strong>, through the workplane it sits on. The collections follow that
+structure, they do not define it. Moving <code>Plate</code> moves everything beneath it;
+moving <code>Bracket</code> moves both parts.</p>
+<p>This is also why parenting is how you change membership: <code>Shift</code>-drag <code>Body</code>
+onto <code>Plate</code> and it becomes one of its features. A plain drag only moves an
+object between collections, which changes nothing.</p>
+<h2 id="moving-a-part">Moving a part</h2>
+<p>Leave the sketch (parts are moved in Object Mode), select the part's body, the
+mesh, and press <code>G</code> or <code>R</code>. Its sketches, workplanes and cutters follow. Scale is
+locked:
+the solver treats a sketch's plane as a rigid frame, so a scaled part would draw
+and solve at different sizes.</p>
+<p>The object you grab is the body, so you are moving the geometry you see rather
+than a helper object. The sketches that shape it are pinned within it.</p>
+<h2 id="what-belongs-to-what">What belongs to what</h2>
+<p>Membership is never a mode you switch. It follows from what you drew on, and it
+is settled when the sketch becomes solid:</p>
+<table>
+<thead>
+<tr>
+<th>You do this</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sketch on a body's face or on a part's workplane</td>
+<td>Joins that part right away</td>
+</tr>
+<tr>
+<td>Sketch on a global XY/XZ/YZ plane</td>
+<td>Stays <strong>global</strong>: no part, free to move</td>
+</tr>
+<tr>
+<td>Extrude or revolve with nothing to cut</td>
+<td>Its body roots a part of its own</td>
+</tr>
+<tr>
+<td>Extrude or revolve that cuts an existing body</td>
+<td>Joins that body's part, as a cut feature</td>
+</tr>
+<tr>
+<td>Editing what a body is made of</td>
+<td>Edit its sketch; the body follows</td>
+</tr>
+<tr>
+<td>A cut reaching bodies in several parts</td>
+<td>Belongs to no part; if those parts share an assembly it becomes a feature of the assembly</td>
+</tr>
+</tbody>
+</table>
+<p>A cut has to travel with the body it cuts, which is why it joins that part: were
+it left behind, moving the body would silently change the result.</p>
+<h2 id="making-a-part-by-hand">Making a part by hand</h2>
+<p>Parts normally appear on their own, but imported geometry never passes through a
+sketch tool. Select it and use <strong>Make Part</strong> in the Tools panel: the active
+object roots the part and anything else selected joins it. With a part already
+active it simply takes the rest of the selection in, which is how you add a body
+to an existing part.</p>
+<h2 id="part-workplanes">Part workplanes</h2>
+<p>A sketch that is not in a part sits on a plane of its own, where you drew it.
+When it becomes solid, that same plane becomes the new part's <strong>XY</strong>: a part's XY
+is always the plane its first sketch was drawn on, and XZ and YZ appear the first
+time the picker offers them.</p>
+<p>Select a part and the Add Sketch tool shows its planes, drawn smaller, <em>in place
+of</em> the scene's, so a part that has been moved or rotated is sketched in its frame
+rather than the world's. Deselect to get the scene's planes back, which is also
+how you start a new part.</p>
+<p>Sketching on a face makes a workplane for that face, and you can sketch on any
+empty you place yourself. Those are the only other planes: nothing creates a
+plane per sketch.</p>
+<h2 id="changing-membership-by-hand">Changing membership by hand</h2>
+<p>Parenting <strong>is</strong> membership, so the override is Blender's own gesture: <code>Ctrl+P</code>
+in the viewport, or <code>Shift</code>-drag in the outliner (a plain drag there moves an
+object between collections instead, which decides nothing).</p>
+<ul>
+<li>Parent a sketch onto a part's body to make it a feature of that part.</li>
+<li>Unparent it (<code>Alt+P</code>) to make it global again.</li>
+<li>Parent a part onto an assembly root to put it in that assembly.</li>
+</ul>
+<p>A sketch that becomes a feature is pinned in place; one that leaves a part is
+free to move again. Objects you made yourself keep their freedom either way.</p>
+<p>Deleting a part's body does not scatter the rest: its workplanes and sketches
+keep their place and the next sketch in the part takes over as its body. The same
+applies to an assembly, whose parts simply stand on their own again.</p>
+<h2 id="assemblies">Assemblies</h2>
+<p>Select the parts you want to group and use <strong>Add Assembly</strong> in the Tools panel
+(shown when no sketch is active). With nothing selected it creates an empty
+assembly at the 3D cursor, to be filled by dragging parts into it. Parts stay individually movable inside an assembly, and assemblies can
+contain assemblies.</p>
+<h2 id="copying-and-reusing-a-part">Copying and reusing a part</h2>
+<p><strong>Duplicate Part</strong> makes an independent copy of the whole part, with the
+workplanes, sketches and cutters that shape it. It is on <code>Shift+D</code> while the
+selection belongs to a part; everything else still gets Blender's own duplicate,
+which copies only what you selected, so a body duplicated that way would arrive
+without its cutters. Turn both shortcuts off in the add-on preferences if you
+would rather keep <code>Shift+D</code> and <code>Alt+D</code> as they were.</p>
+<p><strong>Instance Part</strong> places another copy of the same part: at the 3D cursor from the
+panel, or on the original and ready to move on <code>Alt+D</code>. Select an assembly
+instead and it places a copy of the whole assembly, which is how one sub-assembly
+ends up in several places. There is still only one part: each placement renders it, so editing the
+part updates every copy at once, and a copy costs almost nothing.</p>
+<p>Placements are not edited where they stand, because they hold no geometry of
+their own: to change anything, edit the part itself. A placement joins whatever
+assembly the part is in, and it is not a part itself, so it never collects
+sketches of its own.</p>
+<h2 id="editing-a-parts-sketches">Editing a part's sketches</h2>
+<p>Right-click a part in the viewport and <strong>Edit Sketch</strong> opens the sketch that made
+it. When the part holds several sketches you get them as a menu, body first: that
+is also the way to a cutter, which cannot be clicked while it is hidden.</p>
+<p>The sketch list in the Sketcher panel shows the same sketches, scoped to the part
+you have selected.</p>
+<h2 id="cutter-display">Cutter display</h2>
+<p>A cutter tells you what it is doing:</p>
+<ul>
+<li><strong>Hidden</strong> while it is cutting a body in its own part (its solid would sit over
+  the result). Activate it from the sketch list to edit it.</li>
+<li><strong>Wireframe</strong> when it cuts across parts, or when it means to cut but currently
+  reaches nothing.</li>
+<li><strong>Shaded</strong> when it has no boolean at all: then it is simply a body.</li>
+</ul>
+<h2 id="older-files">Older files</h2>
+<p>Sketches saved before parts existed keep working, but cannot be moved as parts
+until the file is updated. Run <strong>Update File</strong> (search for it with <code>F3</code>), or take
+the offer the Sketcher panel makes when the file was saved by an older version: a sketch drawn on a body joins that body's part, and
+one that has been made solid roots a part of its own. It is never done
+automatically on file open, since it restructures the file.</p>
+<h2 id="collections">Collections</h2>
+<p>Collections are created and maintained for you, one per part and one per
+assembly, and anything belonging to no part sits at the scene level. Never
+<strong>exclude</strong> one from the view layer: excluding stops evaluation, which drops the
+sketch fill. Hide objects instead.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
