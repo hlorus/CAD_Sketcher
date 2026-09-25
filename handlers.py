@@ -135,47 +135,53 @@ def on_depsgraph_update(scene, depsgraph):
         if reconcile_linked_duplicates(scene):
             global_data.needs_solve = True
 
-        # A part root deleted with Blender's own Delete never reaches our delete
-        # operator; put its members back on their feet and hand the part on.
-        from .utilities.part import reconcile_parts
+        # Everything below is about objects: parenting, deletion, renaming, a
+        # part being moved. Each pass walks the scene, so they are skipped
+        # wholesale on an update that touched no object at all (a curve edit, a
+        # modifier input, a dimension value), which is most of them.
+        if depsgraph.id_type_updated("OBJECT"):
+            # A part root deleted with Blender's own Delete never reaches our
+            # delete operator; put its members back on their feet and hand the
+            # part on. Assemblies are the same one level up: a deleted assembly
+            # root must not drag its parts out of place.
+            from .utilities.part import reconcile_groups
 
-        if reconcile_parts(scene):
-            global_data.needs_solve = True
+            if reconcile_groups(scene):
+                global_data.needs_solve = True
 
-        # Same one level up: an assembly root deleted outside our operators must
-        # not drag its parts out of place.
-        from .utilities.part import reconcile_assemblies
+            # A body renamed in the outliner is how a part is named; carry that
+            # through to what is named after it. Scoped to what this update
+            # touched, so it is a couple of string compares unless something was
+            # renamed.
+            from .utilities.body import rename_after_bodies
 
-        reconcile_assemblies(scene)
+            try:
+                rename_after_bodies(scene, depsgraph)
+            except Exception:
+                logger.exception("Could not follow a body rename")
 
-        # A body renamed in the outliner is how a part is named; carry that
-        # through to what is named after it. Scoped to what this update touched,
-        # so it is a couple of string compares unless something was renamed.
-        from .utilities.body import rename_after_bodies
+            # Undo/redo can flatten the origin workplane empties to identity
+            # (they then stack into a mushy overlap, #571); re-assert their
+            # transforms. Only rewrites when drifted, so this settles in one
+            # pass.
+            from .utilities.workplane import repair_origin_workplanes
 
-        try:
-            rename_after_bodies(scene, depsgraph)
-        except Exception:
-            logger.exception("Could not follow a body rename")
+            repair_origin_workplanes(bpy.context)
 
-        # Undo/redo can flatten the origin workplane empties to identity (they
-        # then stack into a mushy overlap, #571); re-assert their transforms.
-        # Only rewrites when drifted, so this settles in one pass.
-        from .utilities.workplane import repair_origin_workplanes
+        # The collection layout follows the object hierarchy, and also has to
+        # repair what the user did to the collections themselves.
+        if depsgraph.id_type_updated("OBJECT") or depsgraph.id_type_updated(
+            "COLLECTION"
+        ):
+            from .utilities.collections import sync_part_collections
 
-        repair_origin_workplanes(bpy.context)
-
-        # Keep the collection layout in step with the hierarchy (parts, and the
-        # assemblies they sit in). Derived, so it settles in one pass.
-        from .utilities.collections import sync_part_collections
-
-        # A file can hold data this addon must not restructure (linked, or
-        # overridden). The passes skip it, but a handler that raises breaks every
-        # handler after it, so never let this one out.
-        try:
-            sync_part_collections(scene)
-        except Exception:
-            logger.exception("Could not sync part collections")
+            # A file can hold data this addon must not restructure (linked, or
+            # overridden). The passes skip it, but a handler that raises breaks
+            # every handler after it, so never let this one out.
+            try:
+                sync_part_collections(scene)
+            except Exception:
+                logger.exception("Could not sync part collections")
 
     if depsgraph.id_type_updated("SCENE"):
         global_data.needs_solve = True
@@ -241,11 +247,13 @@ def on_undo_redo(scene, *args):
     Blender's undo cannot revert, while ``active_sketch_object`` is undo-tracked.
     Undoing sketch creation nulls the pointer but leaves sketch mode on -- a dead
     end where you can neither add nor leave a sketch. Re-sync them here, and drop
-    the caches that hold datablocks rather than names.
+    the caches that describe the file as it was a moment ago.
     """
     from .drawing import selection
     from .model.base_constraint import reset_data_owner_cache
     from .model.sketch_ref import get_active_sketch
+    from .utilities.collections import reset_cache as reset_collection_cache
+    from .utilities.part import reset_cache as reset_part_cache
     from .utilities.workplane import reset_workplane_id_map
     from .workspacetools.manager import sync_sketch_mode
 
@@ -255,6 +263,14 @@ def on_undo_redo(scene, *args):
     reset_data_owner_cache()
     reset_workplane_id_map()
     selection.highlight_constraint = None
+
+    # What the reconcile pass saw last time describes a file undo has just
+    # replaced. Diffing against it reads the restored hierarchy as a part that
+    # has come apart: members are "put back" by a transform undo already
+    # removed, and a survivor is handed a part that no longer exists. The file
+    # is authoritative after an undo, so the pass starts from it.
+    reset_part_cache()
+    reset_collection_cache()
 
     sketch = get_active_sketch(bpy.context)
     sync_sketch_mode(

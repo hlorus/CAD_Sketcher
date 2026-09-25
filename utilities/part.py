@@ -9,6 +9,10 @@ fixed local transform, which is what "a feature is fixed within its part" means.
 The root owns the part's transform; members do not. A root therefore has no
 parent and its plane is its own frame (see ``Sketch.plane_matrix``), while a
 member keeps its workplane empty as both parent and plane.
+
+An assembly is the same arrangement one level out: a root that owns a transform,
+with parts parented under it. Both are *groups* here, told apart by the kind
+stamped on the root, so one upward walk and one reconcile pass serve both.
 """
 
 import logging
@@ -20,13 +24,20 @@ from mathutils import Euler, Matrix
 
 logger = logging.getLogger(__name__)
 
-# Stamped on the object that roots a part.
-PART_ROOT_KEY = "slvs:part_root"
+# A part and an assembly are the same thing one level apart: a root that owns a
+# transform, and everything parented under it. They differ in what they are
+# rooted in (a part in its geometry, an assembly in an Empty, since it has none
+# of its own) and in what becomes of them when that root goes, so they are one
+# concept with a kind rather than two parallel ones.
+PART = "PART"
+ASSEMBLY = "ASSEMBLY"
 
-# Stamped on the Empty that roots an assembly: a group of parts with a transform
-# of its own. An assembly has no geometry, so an Empty is the right carrier, and
-# joints will later act on exactly this transform.
-ASSEMBLY_ROOT_KEY = "slvs:assembly_root"
+# Stamped on the object that roots a group, naming which kind it roots.
+GROUP_ROOT_KEY = "slvs:group_root"
+
+# The two marks this was split across before. Read so a file written by an
+# earlier build keeps its parts; the next mark writes the current key.
+_LEGACY_ROOT_KEYS = {"slvs:part_root": PART, "slvs:assembly_root": ASSEMBLY}
 
 # Stamped on a workplane empty that is one of a part's own base planes, with the
 # axis pair it stands for, so a second sketch on the same part plane reuses it.
@@ -46,25 +57,65 @@ PART_PLANE_AXES = (
 # what a deleted root takes with it. Blender leaves its children holding only a
 # local matrix, so without the remembered frame the part would collapse toward the
 # origin, and without the remembered members there would be nothing to collect.
-_last_root_matrices = {}
-_last_members = {}
-
-# Same, for assembly roots.
-_last_assembly_matrices = {}
-_last_assembly_members = {}
+_last_root_matrices = {PART: {}, ASSEMBLY: {}}
+_last_members = {PART: {}, ASSEMBLY: {}}
 
 
 def reset_cache():
     """Drop what the last pass saw (e.g. on file load); it is rebuilt at once."""
-    _last_root_matrices.clear()
-    _last_members.clear()
-    _last_assembly_matrices.clear()
-    _last_assembly_members.clear()
+    for kind in (PART, ASSEMBLY):
+        _last_root_matrices[kind].clear()
+        _last_members[kind].clear()
+
+
+def group_kind(obj: Optional[bpy.types.Object]) -> Optional[str]:
+    """Which kind of group ``obj`` roots, or None if it roots none."""
+    if obj is None:
+        return None
+    kind = obj.get(GROUP_ROOT_KEY)
+    if kind in (PART, ASSEMBLY):
+        return kind
+    for key, legacy in _LEGACY_ROOT_KEYS.items():
+        if obj.get(key, False):
+            return legacy
+    return None
+
+
+def group_root_of(
+    obj: Optional[bpy.types.Object], kind: Optional[str] = None
+) -> Optional[bpy.types.Object]:
+    """The root of the group ``obj`` belongs to, or None if it is in none.
+
+    Walks up the parent chain, ``obj`` itself included, so it answers for a
+    body, a workplane empty, or a sketch on one of those workplanes alike. With
+    a ``kind`` it answers for that level only, so a member of a part inside an
+    assembly can be asked for either.
+    """
+    seen = set()
+    current = obj
+    while current is not None and current.name not in seen:
+        found = group_kind(current)
+        if found is not None and kind in (None, found):
+            return current
+        seen.add(current.name)
+        current = current.parent
+    return None
+
+
+def mark_group_root(obj: bpy.types.Object, kind: str) -> None:
+    """Make ``obj`` the root of a group of ``kind``, owning its transform."""
+    obj[GROUP_ROOT_KEY] = kind
+    for key in _LEGACY_ROOT_KEYS:
+        if key in obj:
+            del obj[key]
+    free_transform(obj)
+    if kind == PART:
+        promote_sketch_plane(obj)
 
 
 def is_part_root(obj: Optional[bpy.types.Object]) -> bool:
     """Whether ``obj`` roots a part (owns a part's transform)."""
-    return bool(obj is not None and obj.get(PART_ROOT_KEY, False))
+    return group_kind(obj) == PART
 
 
 def free_transform(obj: bpy.types.Object) -> None:
@@ -88,9 +139,7 @@ def fix_transform(obj: bpy.types.Object) -> None:
 
 def mark_part_root(obj: bpy.types.Object) -> None:
     """Make ``obj`` the root of a part, owning the part's transform."""
-    obj[PART_ROOT_KEY] = True
-    free_transform(obj)
-    promote_sketch_plane(obj)
+    mark_group_root(obj, PART)
 
 
 def promote_sketch_plane(root: bpy.types.Object) -> None:
@@ -120,37 +169,30 @@ def promote_sketch_plane(root: bpy.types.Object) -> None:
 
 
 def clear_part_root(obj: bpy.types.Object) -> None:
-    """Drop the part-root mark, e.g. when the object joins another part."""
-    if PART_ROOT_KEY in obj:
-        del obj[PART_ROOT_KEY]
+    """Drop the root mark, e.g. when the object joins another group."""
+    for key in (GROUP_ROOT_KEY, *_LEGACY_ROOT_KEYS):
+        if key in obj:
+            del obj[key]
 
 
 def is_assembly_root(obj: Optional[bpy.types.Object]) -> bool:
     """Whether ``obj`` roots an assembly (owns a group of parts)."""
-    return bool(obj is not None and obj.get(ASSEMBLY_ROOT_KEY, False))
+    return group_kind(obj) == ASSEMBLY
 
 
 def mark_assembly_root(obj: bpy.types.Object) -> None:
     """Make ``obj`` the root of an assembly: free to move, scale still locked."""
-    obj[ASSEMBLY_ROOT_KEY] = True
-    free_transform(obj)
+    mark_group_root(obj, ASSEMBLY)
 
 
 def assembly_root_of(obj: Optional[bpy.types.Object]) -> Optional[bpy.types.Object]:
     """The assembly ``obj`` sits in, or None.
 
-    The same upward walk as :func:`part_root_of` with a different marker, so an
-    assembly is simply the next level of the one hierarchy rather than a parallel
-    concept: parts parent under it, sub-assemblies under those.
+    The same upward walk as :func:`part_root_of` one level out, so an assembly is
+    simply the next level of the one hierarchy rather than a parallel concept:
+    parts parent under it, sub-assemblies under those.
     """
-    seen = set()
-    current = obj
-    while current is not None and current.name not in seen:
-        if is_assembly_root(current):
-            return current
-        seen.add(current.name)
-        current = current.parent
-    return None
+    return group_root_of(obj, ASSEMBLY)
 
 
 def create_assembly(context, name: str = "Assembly") -> bpy.types.Object:
@@ -182,19 +224,8 @@ def join_assembly(assembly: bpy.types.Object, obj: bpy.types.Object) -> None:
 
 
 def part_root_of(obj: Optional[bpy.types.Object]) -> Optional[bpy.types.Object]:
-    """The root of the part ``obj`` belongs to, or None if it is in no part.
-
-    Walks up the parent chain, ``obj`` itself included, so it answers for a
-    body, a workplane empty, or a sketch on one of those workplanes alike.
-    """
-    seen = set()
-    current = obj
-    while current is not None and current.name not in seen:
-        if is_part_root(current):
-            return current
-        seen.add(current.name)
-        current = current.parent
-    return None
+    """The root of the part ``obj`` belongs to, or None if it is in no part."""
+    return group_root_of(obj, PART)
 
 
 def world_matrix_of(obj: bpy.types.Object) -> Matrix:
@@ -314,22 +345,13 @@ def transform_owner(obj: bpy.types.Object) -> bpy.types.Object:
     A sketch never owns its own: it sits on a workplane, and that workplane hangs
     under the body its geometry is realised on, so the body is what a part is
     rooted in and what an assembly carries. Rooting the sketch instead would
-    leave two movable things disagreeing about where the part is.
-
-    A free-3D sketch is placed by an origin Empty, which plays the same role.
+    leave two movable things disagreeing about where the part is. A free-3D
+    sketch is placed by an origin Empty, which plays the same role, so both are
+    the sketch's carrier and anything else is its own owner.
     """
-    from .body import body_of
+    from .body import carrier_of
 
-    parent = obj.parent
-    if (
-        parent is not None
-        and obj.get("is_3d_sketch")
-        and parent.get("is_3d_sketch_origin", False)
-    ):
-        return parent
-
-    body = body_of(obj)
-    return body if body is not None else obj
+    return carrier_of(obj) or obj
 
 
 def promote_to_root(obj: bpy.types.Object) -> None:
@@ -493,19 +515,55 @@ def _same_plane(a: Matrix, b: Matrix, tolerance: float = 1e-5) -> bool:
     )
 
 
-def _members_of(root: bpy.types.Object) -> set:
-    """Names of everything in ``root``'s group, at any depth.
+def survey_groups(scene: bpy.types.Scene) -> tuple:
+    """Who roots a group, and what each one holds, in one pass over the scene.
 
-    Linked and overridden children are left out: they belong to the file they
-    came from, so nothing here may pin, move or re-home them.
+    Returns ``(objects, roots, members)``: every editable object by name, then
+    two dicts keyed by kind -- ``roots[PART]`` maps a name to the object, and
+    ``members[PART]`` maps a root's name to the names of everything in it, at
+    any depth. Names index the members, because that is what survives the file
+    being reloaded under a stale reference; the objects come back with them
+    because looking one up by name costs a scan of the whole scene.
+
+    Asked of every object rather than of every root: ``children_recursive``
+    walks a whole subtree per root and asks RNA for it each time, while one walk
+    up the parent chain answers for both levels at once. Linked and overridden
+    objects are left out entirely: they belong to the file they came from, so
+    nothing here may pin, move or re-home them.
     """
     from .collections import is_editable
 
-    return {child.name for child in root.children_recursive if is_editable(child)}
+    objects = {}
+    roots = {PART: {}, ASSEMBLY: {}}
+    members = {PART: {}, ASSEMBLY: {}}
+
+    for obj in scene.objects:
+        if not is_editable(obj):
+            continue
+        objects[obj.name] = obj
+        kind = group_kind(obj)
+        if kind is not None:
+            roots[kind][obj.name] = obj
+
+        # From the parent up, so a root is never a member of itself while a part
+        # root inside an assembly still is a member of that assembly. One group
+        # of each kind holds it: the nearest one.
+        current = obj.parent
+        seen = set()
+        holding = set()
+        while current is not None and current.name not in seen and len(holding) < 2:
+            seen.add(current.name)
+            at = group_kind(current)
+            if at is not None and at not in holding:
+                holding.add(at)
+                members[at].setdefault(current.name, set()).add(obj.name)
+            current = current.parent
+
+    return objects, roots, members
 
 
-def reconcile_parts(scene: bpy.types.Scene) -> bool:
-    """Follow what the user did to the hierarchy, and repair broken parts.
+def reconcile_groups(scene: bpy.types.Scene) -> bool:
+    """Follow what the user did to the hierarchy, and repair broken groups.
 
     Membership *is* the parent chain, so parenting a sketch into a part (Ctrl+P,
     or a drag in the outliner) is how it joins one, and unparenting it is how it
@@ -515,33 +573,86 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
 
     The repair half handles a root deleted with Blender's own Delete, which never
     reaches the sketch delete operator: Blender drops the parent but keeps each
-    child's *local* transform, so the part's workplanes and sketches would jump by
-    the part's transform. They are put back using the root's remembered frame and
-    the part is handed to the next sketch in it, the same succession a deliberate
-    delete follows.
+    child's *local* transform, so the group's members would jump by its
+    transform. They are put back using the root's remembered frame, and the group
+    is then handed on (see :func:`_reclaim`).
+
+    Parts and the assemblies they sit in are the same shape one level apart, so
+    one survey of the scene settles both.
 
     Returns True if anything changed.
     """
-    from .collections import is_editable
+    objects, roots, members = survey_groups(scene)
 
-    roots = {
-        obj.name: obj for obj in scene.objects if is_part_root(obj) and is_editable(obj)
-    }
-    members = {name: _members_of(root) for name, root in roots.items()}
+    changed = _reconcile(scene, objects, PART, roots[PART], members[PART])
+    if _reconcile(scene, objects, ASSEMBLY, roots[ASSEMBLY], members[ASSEMBLY]):
+        changed = True
+
+    # Record the state this pass settled on, not the one it was handed, so the
+    # next pass is skipped rather than reacting to this one's own writes. A pass
+    # that changed nothing settled on what it was handed, and the scene is not
+    # worth walking again to hear that.
+    if changed:
+        _objects, roots, members = survey_groups(scene)
+    _remember(roots, members)
+    return changed
+
+
+def _reconcile(
+    scene: bpy.types.Scene, objects: dict, kind: str, roots: dict, members: dict
+) -> bool:
+    """Settle one level of the hierarchy. True if anything changed."""
+    remembered = _last_members[kind]
 
     changed = False
     touched = []
     orphans = {}
 
-    # What each part holds now: pin what we manage (a feature does not move on
-    # its own), and note what joined since the last pass -- a mesh joining writes
-    # nothing at all, but its cutter display still has to follow.
-    for root_name, names in members.items():
-        joined = names - _last_members.get(root_name, set())
-        for name in names:
-            obj = scene.objects.get(name)
-            if obj is None or is_part_root(obj):
+    if kind == PART:
+        # What each part holds now: pin what we manage (a feature does not move
+        # on its own), and note what joined since the last pass -- a mesh joining
+        # writes nothing at all, but its cutter display still has to follow.
+        changed = _pin_members(objects, members, remembered, touched)
+
+    # What has left a group since the last pass, by whichever route.
+    for root_name, previous in remembered.items():
+        for name in previous - members.get(root_name, set()):
+            obj = objects.get(name)
+            if obj is None or group_root_of(obj, kind) is not None:
+                continue  # gone, or simply moved to another group
+
+            if root_name in roots:
+                # Taken out of a group whose root is still there: on its own now.
+                if kind == PART:
+                    _release(obj, touched)
+                changed = True
                 continue
+
+            orphans.setdefault(root_name, []).append(obj)
+
+    for root_name, stranded in orphans.items():
+        root_matrix = _last_root_matrices[kind].get(root_name)
+        if root_matrix is not None:
+            for member in stranded:
+                if member.parent is None:
+                    _restore_world(member, root_matrix)
+        if _reclaim(kind, stranded):
+            touched.extend(stranded)
+        changed = True
+
+    _refresh_cutter_display(scene, touched)
+    return changed
+
+
+def _pin_members(objects, members, remembered, touched) -> bool:
+    """Hold every member of a part in place, and collect what has just joined."""
+    changed = False
+    for root_name, names in members.items():
+        joined = names - remembered.get(root_name, set())
+        for name in names:
+            obj = objects.get(name)
+            if obj is None or group_kind(obj) is not None:
+                continue  # a group of its own owns its transform
             if name in joined:
                 touched.append(obj)
                 changed = True
@@ -550,101 +661,56 @@ def reconcile_parts(scene: bpy.types.Scene) -> bool:
                 if obj not in touched:
                     touched.append(obj)
                 changed = True
-
-    # What has left a part since the last pass, by whichever route.
-    for root_name, previous in _last_members.items():
-        for name in previous - members.get(root_name, set()):
-            obj = scene.objects.get(name)
-            if obj is None or part_root_of(obj) is not None:
-                continue  # gone, or simply moved to another part
-
-            if root_name in roots:
-                # Taken out of a part whose root is still there: on its own now.
-                if PART_PLANE_KEY in obj:
-                    strip_part_plane(obj)
-                if _is_managed_member(obj):
-                    free_transform(obj)
-                touched.append(obj)
-                changed = True
-                continue
-
-            orphans.setdefault(root_name, []).append(obj)
-
-    for root_name, stranded in orphans.items():
-        root_matrix = _last_root_matrices.get(root_name)
-        if root_matrix is not None:
-            for member in stranded:
-                if member.parent is None:
-                    _restore_world(member, root_matrix)
-
-        successor = _successor(stranded)
-        if successor is not None:
-            # Lift the successor clear of whatever placed it before it can take
-            # members on: leaving it parented to one would close a parent cycle.
-            _bake_world_transform(successor)
-            _promote(successor)
-            for member in stranded:
-                if member != successor and member.parent is None:
-                    if PART_PLANE_KEY in member:
-                        strip_part_plane(member)
-                    join_part(successor, member)
-            touched.extend(stranded)
-        changed = True
-
-    _last_members.clear()
-    for name, root in roots.items():
-        _last_root_matrices[name] = world_matrix_of(root)
-        _last_members[name] = _members_of(root)
-    for name in [n for n in _last_root_matrices if n not in roots]:
-        del _last_root_matrices[name]
-
-    _refresh_cutter_display(scene, touched)
     return changed
 
 
-def reconcile_assemblies(scene: bpy.types.Scene) -> bool:
-    """Follow what the user did to assemblies, and take apart broken ones.
+def _release(obj: bpy.types.Object, touched) -> None:
+    """Let go of a member that has left its part: it stands on its own now."""
+    if PART_PLANE_KEY in obj:
+        strip_part_plane(obj)
+    if _is_managed_member(obj):
+        free_transform(obj)
+    touched.append(obj)
 
-    The part-level pass one level up: parenting a part under an assembly root is
-    how it joins, unparenting is how it leaves, and an assembly root deleted
-    outside our operators would otherwise leave its parts holding only a local
-    transform, so they jump by the assembly's transform. Unlike a part there is no
-    successor to promote: an assembly is a container, so its parts simply stand on
-    their own again.
 
-    Returns True if anything changed.
+def _reclaim(kind: str, stranded) -> bool:
+    """Hand a group whose root has gone to whatever is left of it.
+
+    A part is anchored in geometry, so the body left in it takes over and the
+    rest re-join that, the same succession a deliberate delete follows. An
+    assembly is only a container: its parts simply stand on their own again.
     """
-    changed = False
-    from .collections import is_editable
+    if kind != PART:
+        return False
 
-    assemblies = {
-        obj.name: obj
-        for obj in scene.objects
-        if is_assembly_root(obj) and is_editable(obj)
-    }
-    members = {name: _members_of(root) for name, root in assemblies.items()}
+    successor = _successor(stranded)
+    if successor is None:
+        return False
 
-    for assembly_name, previous in _last_assembly_members.items():
-        for name in previous - members.get(assembly_name, set()):
-            obj = scene.objects.get(name)
-            if obj is None or assembly_root_of(obj) is not None:
-                continue
+    # Lift the successor clear of whatever placed it before it can take members
+    # on: leaving it parented to one would close a parent cycle.
+    _bake_world_transform(successor)
+    _promote(successor)
+    for member in stranded:
+        if member != successor and member.parent is None:
+            if PART_PLANE_KEY in member:
+                strip_part_plane(member)
+            join_part(successor, member)
+    return True
 
-            if assembly_name not in assemblies and obj.parent is None:
-                # The assembly is gone: put the part back where it was standing.
-                matrix = _last_assembly_matrices.get(assembly_name)
-                if matrix is not None:
-                    _restore_world(obj, matrix)
-            changed = True
 
-    _last_assembly_members.clear()
-    for name, root in assemblies.items():
-        _last_assembly_matrices[name] = world_matrix_of(root)
-        _last_assembly_members[name] = members[name]
-    for name in [n for n in _last_assembly_matrices if n not in assemblies]:
-        del _last_assembly_matrices[name]
+def _remember(roots: dict, members: dict) -> None:
+    """Hold on to the shape of the scene, for the next pass to diff against."""
+    for kind in (PART, ASSEMBLY):
+        remembered = _last_members[kind]
+        matrices = _last_root_matrices[kind]
 
-    return changed
+        remembered.clear()
+        remembered.update(members[kind])
+        for name, root in roots[kind].items():
+            matrices[name] = world_matrix_of(root)
+        for name in [n for n in matrices if n not in roots[kind]]:
+            del matrices[name]
 
 
 def _refresh_cutter_display(scene: bpy.types.Scene, touched) -> None:

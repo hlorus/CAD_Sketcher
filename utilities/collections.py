@@ -44,17 +44,36 @@ def reset_cache():
     _last_signature.clear()
 
 
-def _hierarchy_signature(scene):
+def homes(scene) -> dict:
+    """Which collections hold each object, from one walk of the tree.
+
+    ``Object.users_collection`` searches every collection in the file, so asking
+    it once per object costs objects times collections -- and this addon creates
+    a collection per part, so both grow together. The tree holds the same answer
+    and is walked once.
+    """
+    found = {}
+    stack = [scene.collection]
+    while stack:
+        coll = stack.pop()
+        for obj in coll.objects:
+            found.setdefault(obj.name, []).append(coll.name)
+        stack.extend(coll.children)
+    return found
+
+
+def _hierarchy_signature(scene, home=None):
     """What the collection layout depends on: parenting, roles, and placement."""
-    from .part import ASSEMBLY_ROOT_KEY, PART_ROOT_KEY
+    from .part import group_kind
+
+    home = homes(scene) if home is None else home
 
     return tuple(
         (
             obj.name,
             obj.parent.name if obj.parent else "",
-            bool(obj.get(PART_ROOT_KEY, False)),
-            bool(obj.get(ASSEMBLY_ROOT_KEY, False)),
-            obj.users_collection[0].name if obj.users_collection else "",
+            group_kind(obj) or "",
+            tuple(home.get(obj.name, ())),
         )
         for obj in scene.objects
     )
@@ -141,9 +160,12 @@ def _marked_collections(root, marker):
     return found
 
 
-def _link_into(obj, coll):
+def _link_into(obj, coll, home=None):
     """Put ``obj`` in ``coll`` and nowhere else. True if that changed anything."""
-    if len(obj.users_collection) == 1 and obj.users_collection[0] == coll:
+    if home is not None:
+        if home.get(obj.name) == [coll.name]:
+            return False
+    elif len(obj.users_collection) == 1 and obj.users_collection[0] == coll:
         return False
     if not is_editable(obj) or not is_editable(coll):
         return False
@@ -262,9 +284,10 @@ def sync_part_collections(scene) -> bool:
     taking it out returns it to the scene level. Collections that end up empty are
     removed. Returns True if anything changed.
     """
-    from .part import assembly_root_of, is_assembly_root, is_part_root
+    from .part import ASSEMBLY, PART, assembly_root_of, survey_groups
 
-    signature = _hierarchy_signature(scene)
+    home = homes(scene)
+    signature = _hierarchy_signature(scene, home)
     if _last_signature.get(scene.name) == signature:
         return False
 
@@ -276,42 +299,44 @@ def sync_part_collections(scene) -> bool:
     created = []
     claimed = set()
     owned = {}
-    for obj in scene.objects:
-        if not is_editable(obj):
-            continue
-        if is_assembly_root(obj):
-            coll = assembly_collection(obj, scene, created, claimed)
-            claimed.add(coll.name)
-            for member in (obj, *obj.children_recursive):
-                # Parts inside keep their own collection; only loose members of
-                # the assembly itself live directly in it.
-                if not is_part_root(member) and assembly_root_of(member) is obj:
-                    owned.setdefault(member.name, coll)
+    _objects, roots, members = survey_groups(scene)
 
-    for obj in scene.objects:
-        if not is_part_root(obj) or not is_editable(obj):
-            continue
-        coll = part_collection(obj, scene, created, claimed)
+    for name, assembly in roots[ASSEMBLY].items():
+        coll = assembly_collection(assembly, scene, created, claimed)
         claimed.add(coll.name)
-        assembly = assembly_root_of(obj)
+        owned.setdefault(name, coll)
+        for member in members[ASSEMBLY].get(name, ()):
+            # Parts inside keep their own collection; only loose members of the
+            # assembly itself live directly in it.
+            if member not in roots[PART]:
+                owned.setdefault(member, coll)
+
+    for name, root in roots[PART].items():
+        coll = part_collection(root, scene, created, claimed)
+        claimed.add(coll.name)
+        assembly = assembly_root_of(root)
         if assembly is not None:
             if _reparent_collection(coll, assembly_collection(assembly, scene)):
                 changed = True
-        for member in (obj, *obj.children_recursive):
-            owned[member.name] = coll
+        owned[name] = coll
+        for member in members[PART].get(name, ()):
+            owned[member] = coll
 
     for obj in scene.objects:
         if not is_editable(obj):
             continue
         target = owned.get(obj.name)
         if target is not None:
-            if _link_into(obj, target):
+            if _link_into(obj, target, home):
                 changed = True
             continue
         # Not in a part or assembly: belongs at the scene level, unless the user
         # (or the origin collection) put it somewhere deliberate.
-        for coll in obj.users_collection:
-            if coll.get(_PART_MARKER) or coll.get(_ASSEMBLY_MARKER):
+        for coll_name in home.get(obj.name, ()):
+            coll = bpy.data.collections.get(coll_name)
+            if coll is not None and (
+                coll.get(_PART_MARKER) or coll.get(_ASSEMBLY_MARKER)
+            ):
                 link_to_scene_root(obj, scene)
                 changed = True
                 break
