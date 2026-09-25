@@ -11,12 +11,11 @@ from mathutils import Matrix, Vector
 
 from ..operators.add_sketch import build_sketch_on_workplane, create_face_workplane
 from ..utilities.part import (
-    PART_ROOT_KEY,
     is_part_root,
     join_part,
     mark_part_root,
     part_root_of,
-    reconcile_parts,
+    reconcile_groups,
     rehome_children,
     settle_membership,
     world_matrix_of,
@@ -313,7 +312,7 @@ class TestPartRoot(BgsTestCase):
         # Alt+D: a second object sharing the same curve data, props and all.
         copy = root.copy()
         self.scene.collection.objects.link(copy)
-        self.assertTrue(copy[PART_ROOT_KEY])
+        self.assertTrue(is_part_root(copy))
 
         self.assertTrue(reconcile_linked_duplicates(self.scene))
         self.assertFalse(is_part_root(copy))
@@ -337,11 +336,11 @@ class TestPartRoot(BgsTestCase):
 
         # The part is assembled, then moved as a whole.
         root.matrix_basis = Matrix.Translation(Vector((0.0, 0.0, 6.0)))
-        reconcile_parts(self.scene)  # remembers the part's frame
+        reconcile_groups(self.scene)  # remembers the part's frame
         placed_at = member.plane_matrix.translation.copy()
 
         bpy.data.objects.remove(root)
-        self.assertTrue(reconcile_parts(self.scene))
+        self.assertTrue(reconcile_groups(self.scene))
 
         self.assertTrue(is_part_root(body_of(member_obj)))
         self.assertEqual(member.plane_matrix.translation, placed_at)
@@ -355,9 +354,9 @@ class TestPartRoot(BgsTestCase):
         join_part(sketch.target_object, wp)
 
         # The first pass notices the new member; nothing changes after that.
-        self.assertTrue(reconcile_parts(self.scene))
-        self.assertFalse(reconcile_parts(self.scene))
-        self.assertFalse(reconcile_parts(self.scene))
+        self.assertTrue(reconcile_groups(self.scene))
+        self.assertFalse(reconcile_groups(self.scene))
+        self.assertFalse(reconcile_groups(self.scene))
 
     def test_moving_a_part_carries_its_solved_geometry(self):
         from ..utilities.body import body_of
@@ -512,9 +511,9 @@ class TestPartRoot(BgsTestCase):
         plane = ensure_part_planes(self.context, root)[0]
         member = build_sketch_on_workplane(self.context, plane)
 
-        reconcile_parts(self.scene)
+        reconcile_groups(self.scene)
         bpy.data.objects.remove(root)
-        self.assertTrue(reconcile_parts(self.scene))
+        self.assertTrue(reconcile_groups(self.scene))
 
         # It no longer stands for a frame it is not in; it stays where it was,
         # and the part is handed to the member's body.
@@ -576,13 +575,13 @@ class TestPartRoot(BgsTestCase):
         # What Ctrl+P / an outliner drag does, nothing more.
         obj.parent = body
 
-        self.assertTrue(reconcile_parts(self.scene))
+        self.assertTrue(reconcile_groups(self.scene))
         self.assertEqual(part_root_of(obj), body)
         # It is a feature now, so it no longer moves on its own.
         self.assertEqual(tuple(obj.lock_location), (True, True, True))
 
         # Nothing further to do on the next pass.
-        self.assertFalse(reconcile_parts(self.scene))
+        self.assertFalse(reconcile_groups(self.scene))
 
     def test_unparenting_releases_a_member(self):
         body = self._cube("host")
@@ -590,15 +589,15 @@ class TestPartRoot(BgsTestCase):
         sketch = build_sketch_on_workplane(self.context, self.datum)
         obj = sketch.target_object
         join_part(body, obj)
-        reconcile_parts(self.scene)
+        reconcile_groups(self.scene)
 
         obj.parent = None
 
-        self.assertTrue(reconcile_parts(self.scene))
+        self.assertTrue(reconcile_groups(self.scene))
         self.assertIsNone(part_root_of(obj))
         # Free to move again, as a global sketch is.
         self.assertEqual(tuple(obj.lock_location), (False, False, False))
-        self.assertFalse(reconcile_parts(self.scene))
+        self.assertFalse(reconcile_groups(self.scene))
 
     def test_moving_a_sketch_between_parts_follows_the_parent(self):
         first = self._cube("part_a")
@@ -608,10 +607,10 @@ class TestPartRoot(BgsTestCase):
         sketch = build_sketch_on_workplane(self.context, self.datum)
         obj = sketch.target_object
         join_part(first, obj)
-        reconcile_parts(self.scene)
+        reconcile_groups(self.scene)
 
         obj.parent = second
-        reconcile_parts(self.scene)
+        reconcile_groups(self.scene)
         self.assertEqual(part_root_of(obj), second)
 
     def test_a_users_own_object_keeps_its_transform_freedom(self):
@@ -621,7 +620,7 @@ class TestPartRoot(BgsTestCase):
         mesh = self._cube("theirs", location=(0.0, 2.0, 0.0))
 
         mesh.parent = body
-        self.assertTrue(reconcile_parts(self.scene))
+        self.assertTrue(reconcile_groups(self.scene))
         self.assertEqual(part_root_of(mesh), body)
         self.assertEqual(tuple(mesh.lock_location), (False, False, False))
 
@@ -644,6 +643,30 @@ class TestPartRoot(BgsTestCase):
         # The sketch stays pinned to its origin; the Empty is the handle.
         self.assertEqual(tuple(obj.lock_location), (True, True, True))
         self.assertEqual(tuple(origin.lock_location), (False, False, False))
+
+    def test_a_part_marked_by_an_earlier_build_is_still_a_part(self):
+        # Parts and assemblies were two marks before they were one concept with
+        # a kind; a file written then must not lose its groups.
+        from ..utilities.part import GROUP_ROOT_KEY, is_assembly_root
+
+        part = self._cube("legacy part")
+        part["slvs:part_root"] = True
+        assembly = bpy.data.objects.new("legacy assembly", None)
+        self.scene.collection.objects.link(assembly)
+        assembly["slvs:assembly_root"] = True
+        part.parent = assembly
+
+        self.assertTrue(is_part_root(part))
+        self.assertTrue(is_assembly_root(assembly))
+        self.assertEqual(part_root_of(part), part)
+        from ..utilities.part import assembly_root_of
+
+        self.assertEqual(assembly_root_of(part), assembly)
+
+        # Marking it again writes the current key, and only that one.
+        mark_part_root(part)
+        self.assertNotIn("slvs:part_root", part)
+        self.assertIn(GROUP_ROOT_KEY, part)
 
     def test_every_sketch_points_at_what_carries_it(self):
         # One pointer for both kinds of sketch: the 2D one's mesh body and the

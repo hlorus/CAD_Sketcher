@@ -46,14 +46,13 @@ def reset_cache():
 
 def _hierarchy_signature(scene):
     """What the collection layout depends on: parenting, roles, and placement."""
-    from .part import ASSEMBLY_ROOT_KEY, PART_ROOT_KEY
+    from .part import group_kind
 
     return tuple(
         (
             obj.name,
             obj.parent.name if obj.parent else "",
-            bool(obj.get(PART_ROOT_KEY, False)),
-            bool(obj.get(ASSEMBLY_ROOT_KEY, False)),
+            group_kind(obj) or "",
             obj.users_collection[0].name if obj.users_collection else "",
         )
         for obj in scene.objects

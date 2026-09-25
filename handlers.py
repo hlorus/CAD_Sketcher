@@ -144,11 +144,10 @@ def on_depsgraph_update(scene, depsgraph):
             # delete operator; put its members back on their feet and hand the
             # part on. Assemblies are the same one level up: a deleted assembly
             # root must not drag its parts out of place.
-            from .utilities.part import reconcile_assemblies, reconcile_parts
+            from .utilities.part import reconcile_groups
 
-            if reconcile_parts(scene):
+            if reconcile_groups(scene):
                 global_data.needs_solve = True
-            reconcile_assemblies(scene)
 
             # A body renamed in the outliner is how a part is named; carry that
             # through to what is named after it. Scoped to what this update

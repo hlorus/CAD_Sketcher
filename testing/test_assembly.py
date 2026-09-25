@@ -111,17 +111,17 @@ class TestAssembly(BgsTestCase):
         self.assertIsNotNone(assembly_root_of(part))
 
     def test_deleting_an_assembly_root_leaves_its_parts_in_place(self):
-        from ..utilities.part import reconcile_assemblies
+        from ..utilities.part import reconcile_groups
 
         part = self._part("part", location=(2.0, 0.0, 0.0))
         assembly = create_assembly(self.context)
         join_assembly(assembly, part)
         assembly.matrix_basis = Matrix.Translation(Vector((0.0, 0.0, 6.0)))
-        reconcile_assemblies(self.scene)  # remembers the assembly's frame
+        reconcile_groups(self.scene)  # remembers the assembly's frame
         placed_at = world_matrix_of(part).translation.copy()
 
         bpy.data.objects.remove(assembly)
-        self.assertTrue(reconcile_assemblies(self.scene))
+        self.assertTrue(reconcile_groups(self.scene))
 
         self.assertIsNone(assembly_root_of(part))
         self.assertEqual(world_matrix_of(part).translation, placed_at)
@@ -130,27 +130,27 @@ class TestAssembly(BgsTestCase):
         self.assertEqual(tuple(part.lock_location), (False, False, False))
 
     def test_leaving_an_assembly_is_followed(self):
-        from ..utilities.part import reconcile_assemblies
+        from ..utilities.part import reconcile_groups
 
         part = self._part("part")
         assembly = create_assembly(self.context)
         join_assembly(assembly, part)
-        reconcile_assemblies(self.scene)
+        reconcile_groups(self.scene)
 
         part.parent = None
-        self.assertTrue(reconcile_assemblies(self.scene))
+        self.assertTrue(reconcile_groups(self.scene))
         self.assertIsNone(assembly_root_of(part))
-        self.assertFalse(reconcile_assemblies(self.scene))
+        self.assertFalse(reconcile_groups(self.scene))
 
     def test_parenting_into_an_assembly_is_adopted(self):
-        from ..utilities.part import reconcile_assemblies
+        from ..utilities.part import reconcile_groups
 
         part = self._part("part")
         assembly = create_assembly(self.context)
-        reconcile_assemblies(self.scene)
+        reconcile_groups(self.scene)
 
         part.parent = assembly  # a plain outliner drag
-        reconcile_assemblies(self.scene)
+        reconcile_groups(self.scene)
         self.assertEqual(assembly_root_of(part), assembly)
 
     def test_an_assembly_can_start_empty(self):

@@ -18,7 +18,7 @@ from ..utilities.part import (
     is_part_root,
     join_part,
     mark_part_root,
-    reconcile_parts,
+    reconcile_groups,
     reset_cache,
 )
 from .utils import BgsTestCase
@@ -74,7 +74,7 @@ class TestPartUndo(BgsTestCase):
 
         join_part(root, member)
         self.context.view_layer.update()
-        reconcile_parts(self.scene)
+        reconcile_groups(self.scene)
         return root, member
 
     def _undo_the_part(self, root, member, stood_at):
@@ -95,7 +95,7 @@ class TestPartUndo(BgsTestCase):
         self._undo_the_part(root, member, stood_at)
 
         on_undo_redo(self.scene)
-        reconcile_parts(self.scene)
+        reconcile_groups(self.scene)
         self.context.view_layer.update()
 
         # Repairing it would add the vanished root's transform a second time,
@@ -107,7 +107,7 @@ class TestPartUndo(BgsTestCase):
         self._undo_the_part(root, member, Vector((0.0, 4.0, 0.0)))
 
         on_undo_redo(self.scene)
-        reconcile_parts(self.scene)
+        reconcile_groups(self.scene)
 
         self.assertFalse(
             is_part_root(member),
@@ -120,7 +120,7 @@ class TestPartUndo(BgsTestCase):
         root, member = self._part_with_a_member()
         root.matrix_basis = Matrix.Translation(Vector((0.0, 0.0, 9.0)))
         self.context.view_layer.update()
-        reconcile_parts(self.scene)
+        reconcile_groups(self.scene)
         placed_at = member.matrix_world.translation.copy()
 
         # Blender's own Delete drops the parent and keeps the child's local
@@ -128,7 +128,7 @@ class TestPartUndo(BgsTestCase):
         bpy.data.objects.remove(root)
         self.context.view_layer.update()
 
-        reconcile_parts(self.scene)
+        reconcile_groups(self.scene)
         self.context.view_layer.update()
 
         self.assertEqual(member.matrix_world.translation, placed_at)
@@ -145,7 +145,7 @@ class TestPartUndo(BgsTestCase):
         plane.lock_location = (False, False, False)
 
         on_undo_redo(self.scene)
-        reconcile_parts(self.scene)
+        reconcile_groups(self.scene)
 
         self.assertTrue(all(plane.lock_location))
         self.assertTrue(is_part_root(root))

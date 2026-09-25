@@ -81,7 +81,7 @@ class TestCutterDisplay(BgsTestCase):
 
     def test_joining_a_part_hides_a_cutter_without_the_extrude_running(self):
         from ..operators.modifiers import apply_boolean
-        from ..utilities.part import reconcile_parts
+        from ..utilities.part import reconcile_groups
 
         body = self._cube("body")
         mark_part_root(body)
@@ -92,11 +92,11 @@ class TestCutterDisplay(BgsTestCase):
 
         # The user parents it into the part (Ctrl+P / outliner drag).
         cutter.parent = body
-        self.assertTrue(reconcile_parts(self.scene))
+        self.assertTrue(reconcile_groups(self.scene))
         self.assertFalse(cutter.visible_get())
 
     def test_a_plain_sketch_is_not_unhidden_by_the_reconcile(self):
-        from ..utilities.part import reconcile_parts
+        from ..utilities.part import reconcile_groups
 
         body = self._cube("body")
         mark_part_root(body)
@@ -104,7 +104,7 @@ class TestCutterDisplay(BgsTestCase):
         other.hide_set(True)
 
         other.parent = body
-        reconcile_parts(self.scene)
+        reconcile_groups(self.scene)
         # It feeds no body, so its display is none of our business.
         self.assertFalse(other.visible_get())
 

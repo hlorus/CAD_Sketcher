@@ -313,9 +313,9 @@ def _rehome_onto_body(context, sketch_obj: bpy.types.Object, body: bpy.types.Obj
     with the body hanging from that plane as a new sketch's would.
     """
     from ..operators.add_sketch import new_workplane_empty
-    from .part import PART_ROOT_KEY, clear_part_root, fix_transform, mark_part_root
+    from .part import clear_part_root, fix_transform, is_part_root, mark_part_root
 
-    was_root = bool(sketch_obj.get(PART_ROOT_KEY, False))
+    was_root = is_part_root(sketch_obj)
     children = list(sketch_obj.children)
     plane = sketch_obj.slvs_workplane
 
