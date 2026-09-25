@@ -19,6 +19,15 @@ Run it against an isolated Blender config holding a v0.31.1 build::
 with ``BLENDER_USER_RESOURCES`` pointing at a throwaway directory for all three
 (see CLAUDE.md), so the real config never sees the old version.
 
+Use the **oldest Blender the manifest supports** (``blender_version_min``) as the
+``blender`` above, not whatever is installed locally. Blender only reads
+backwards: a fixture saved by a newer one loads in the oldest with "written by
+newer Blender binary, expect loss of data", and any node whose ``bl_idname``
+changed since comes back as ``NodeUndefined``. An undefined node passes nothing
+through, so the whole stack evaluates to zero vertices and the geometry test
+fails on the oldest CI leg alone, with nothing to say it was the file's age.
+A portable build from https://download.blender.org/release/ is enough.
+
 What the part exercises, and why each piece is in it:
 
 - an extruded rectangle, the ordinary case: stack on the sketch object,
