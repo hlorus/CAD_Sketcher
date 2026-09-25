@@ -15,7 +15,7 @@ from ..utilities.body import body_of, is_body, migrate_bodies, sketch_of
 from ..utilities.curve_data import CONVERT_MODIFIER_NAME
 from ..utilities.face_anchor import KEY_SOURCE
 from ..utilities.part import is_part_root, mark_part_root, part_root_of
-from .utils import Sketch2dTestCase
+from .utils import BgsTestCase, Sketch2dTestCase
 
 
 class TestBodyMigration(Sketch2dTestCase):
@@ -175,3 +175,70 @@ class TestBodyMigrationVisibility(Sketch2dTestCase):
         self.assertFalse(body.hide_get())
         self.assertFalse(body.hide_viewport)
         self.assertFalse(body.hide_render)
+
+
+class TestUpdateLeavesACurrentFileAlone(BgsTestCase):
+    """Running the file update on a file that needs nothing must change nothing.
+
+    The button is meant to be safe to press at any time, so a sketch built by
+    this version has to be recognised as already split. It used not to be: only
+    the update itself stamped the "body is in place" flag, so every run redid
+    the whole rehome and renamed the body after the sketch, which then grew a
+    "Sketch Sketch" on the next press.
+    """
+
+    def _current_sketch(self):
+        """A sketch built the way this version builds one, on a face."""
+        from ..operators.add_sketch import (
+            build_sketch_on_workplane,
+            create_face_workplane,
+        )
+
+        me = bpy.data.meshes.new("plate")
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me)
+        bm.free()
+        source = bpy.data.objects.new("plate", me)
+        self.scene.collection.objects.link(source)
+        self.addCleanup(bpy.data.objects.remove, source)
+        top = next(p.index for p in me.polygons if p.normal.z > 0.9)
+
+        wp = create_face_workplane(self.context, source, top)
+        self.addCleanup(bpy.data.objects.remove, wp)
+        sketch = build_sketch_on_workplane(self.context, wp)
+        obj = sketch.target_object
+        self.addCleanup(bpy.data.objects.remove, body_of(obj))
+        self.addCleanup(bpy.data.objects.remove, obj)
+        return obj
+
+    def test_a_freshly_built_sketch_needs_no_migration(self):
+        self._current_sketch()
+        self.assertFalse(migrate_bodies(self.context, self.scene))
+
+    def test_names_survive_repeated_updates(self):
+        obj = self._current_sketch()
+        body = body_of(obj)
+        names = (body.name, obj.name, obj.slvs_workplane.name)
+
+        for _ in range(3):
+            migrate_bodies(self.context, self.scene)
+
+        self.assertEqual((body.name, obj.name, obj.slvs_workplane.name), names)
+
+    def test_a_body_saved_before_the_flag_is_left_alone(self):
+        """Files written by this version before the flag existed heal in place.
+
+        Nothing is there to move -- the sketch carries no stack -- so the pass
+        recognises the split and marks it rather than redoing it.
+        """
+        from ..utilities.body import BODY_PLACED_KEY
+
+        obj = self._current_sketch()
+        body = body_of(obj)
+        del body[BODY_PLACED_KEY]
+        plane = obj.slvs_workplane
+
+        self.assertFalse(migrate_bodies(self.context, self.scene))
+        self.assertTrue(body[BODY_PLACED_KEY])
+        self.assertEqual(obj.slvs_workplane, plane)

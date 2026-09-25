@@ -375,6 +375,14 @@ def _migrate_bodies(context, scene) -> bool:
         body = body_of(sketch_obj)
         if body is not None and body.get(BODY_PLACED_KEY):
             continue
+        if body is not None and not sketch_obj.modifiers:
+            # The split this pass performs has already happened: the stack lives
+            # on the body and the sketch is pure curves. Files written before the
+            # flag was stamped at creation reach here once; marking them keeps
+            # running the update on a current file the no-op it claims to be
+            # (unmarked, it renamed the body after the sketch on every run).
+            body[BODY_PLACED_KEY] = True
+            continue
         if body is None:
             body = _new_body(context, sketch_obj)
         # The sketch's own convert modifier carries the settings the file was
