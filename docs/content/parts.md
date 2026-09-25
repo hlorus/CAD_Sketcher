@@ -36,8 +36,9 @@ it hangs under it**, through the workplane it sits on. The collections follow th
 structure, they do not define it. Moving `Plate` moves everything beneath it;
 moving `Bracket` moves both parts.
 
-This is also why parenting is how you change membership: drag `Body` onto
-`Plate` and it becomes one of its features.
+This is also why parenting is how you change membership: `Shift`-drag `Body`
+onto `Plate` and it becomes one of its features. A plain drag only moves an
+object between collections, which changes nothing.
 
 ## Moving a part
 
@@ -94,10 +95,11 @@ plane per sketch.
 ## Changing membership by hand
 
 Parenting **is** membership, so the override is Blender's own gesture: `Ctrl+P`
-in the viewport, or a drag in the outliner.
+in the viewport, or `Shift`-drag in the outliner (a plain drag there moves an
+object between collections instead, which decides nothing).
 
 - Parent a sketch onto a part's body to make it a feature of that part.
-- Unparent it to make it global again.
+- Unparent it (`Alt+P`) to make it global again.
 - Parent a part onto an assembly root to put it in that assembly.
 
 A sketch that becomes a feature is pinned in place; one that leaves a part is
