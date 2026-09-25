@@ -15,7 +15,10 @@ New
 - A sketch's result is a real mesh object: apply the modifiers, export it, or edit it with any mesh tool, and add your own modifiers on top
 - Each part has its own XY, XZ and YZ workplanes, offered in place of the scene's while the part is selected
 - Revolve can turn geometry around a part's own axis, not only around a picked edge
-- 3-point arc tool, and center and 3-point rectangle tools
+- Endpoint Arc tool: click the start, set off in the direction the arc should leave it, and the endpoint sets the radius, so there is no third point to place
+- Center and 3-point rectangle tools
+- Drawing carries on across tools: press the arc shortcut while drawing lines and the arc starts at the point the chain reached, and the same the other way round
+- Corners and joints are constrained as they are drawn: tangent where a curve carries on smoothly, perpendicular or parallel between two lines
 - Re-pick a constraint's entities, or a drawing tool's points, from the redo panel
 - Tool and constraint shortcuts work while another tool is running, as do undo and the construction-mode toggle
 - Curve resolution: set how finely arcs and circles are meshed, per sketch and as a preference for new sketches
@@ -33,16 +36,18 @@ Improved
 - An arc is previewed while you place its last point
 - Drawing by dragging needs a deliberate drag, so a click no longer starts one
 - Sketches linked from another file are left to the file that owns them
-- Much faster hovering, dragging and drawing in large sketches, and faster redraws with many constraints
+- Much faster hovering, dragging and drawing in large sketches, faster redraws with many constraints, and far less work per scene update in files with many objects
 - Geometry in under-constrained sketches no longer drifts slightly on every solve
+- Updating an older file keeps its Mirror, Weld, Subdivision, Triangulate, Bevel and Decimate modifiers as Blender's own, so they can be changed and re-added like any other
 - Constraint icons on the same element or overlapping on screen are grouped into one icon with a count; hover it to expand
 - Brighter constraint colors, sharper icons and a light theme preset for light viewports
 - Bevel: the radius follows the cursor and is clamped to what fits, the corner is kept when a constraint uses it, and tangent joints are no longer beveled
 - Entities and constraints lists show type icons
 - A tool's redo panel shows picked elements by name instead of an internal id
+- Tools are named after what they draw (Point, Line, Circle, Center Arc, Endpoint Arc and the three rectangles), each with a tooltip saying how the shape is built, and no name in the interface mentions the solver
 - Both array tools share one toolbar button, and Linear Array follows an axis, edge or sketch line under the cursor while dragging, so a row can be laid on an existing direction
 - Offset geometry stays tied to what it came from: editing the source moves the offset with it, its segments keep one common distance, and that distance can be typed exactly
-- A tool group's shortcut starts the tool its toolbar button shows, the one last used
+- A tool group's shortcut starts the tool its toolbar button shows, the one last used, and Ctrl+Shift+D likewise starts whichever array the toolbar shows
 - Distance, Angle and Diameter are now the Dimension tool with a preset kind, so every dimension behaves the same; their shortcuts and menu entries are unchanged
 - Number entry only reads a letter as a unit once a digit has been typed, and `thou`, `foot`, `meters` and `degrees` can be typed
 - Tool shortcut hints show remapped keys
@@ -59,6 +64,12 @@ Fixed
 - Linear Array could be added to a workplane empty
 - Blender could crash while drawing on a sketch that projects geometry
 - The Dimension tool's redo panel crashed Blender; it now adjusts the value, alignment, flip, radius and supplementary angle
+- Dragging a dimension's label no longer hides every other constraint for the length of the drag
+- Sketches hidden before a file update stay hidden after it
+- A sketch drawn on a mesh face lost its workplane on reload and stood at the world origin
+- Update File is now offered only to files that need it, and no longer grows another "Sketch" onto a body's name each time it is pressed
+- A part holding a linked or overridden datablock made every scene update fail while renaming
+- Undoing the creation of a part could shift the objects it held
 
 Files made with an earlier version keep working; use **Update File** in the Sketcher panel to bring them into the new structure.
 
