@@ -248,11 +248,13 @@ def on_undo_redo(scene, *args):
     Blender's undo cannot revert, while ``active_sketch_object`` is undo-tracked.
     Undoing sketch creation nulls the pointer but leaves sketch mode on -- a dead
     end where you can neither add nor leave a sketch. Re-sync them here, and drop
-    the caches that hold datablocks rather than names.
+    the caches that describe the file as it was a moment ago.
     """
     from .drawing import selection
     from .model.base_constraint import reset_data_owner_cache
     from .model.sketch_ref import get_active_sketch
+    from .utilities.collections import reset_cache as reset_collection_cache
+    from .utilities.part import reset_cache as reset_part_cache
     from .utilities.workplane import reset_workplane_id_map
     from .workspacetools.manager import sync_sketch_mode
 
@@ -262,6 +264,14 @@ def on_undo_redo(scene, *args):
     reset_data_owner_cache()
     reset_workplane_id_map()
     selection.highlight_constraint = None
+
+    # What the reconcile pass saw last time describes a file undo has just
+    # replaced. Diffing against it reads the restored hierarchy as a part that
+    # has come apart: members are "put back" by a transform undo already
+    # removed, and a survivor is handed a part that no longer exists. The file
+    # is authoritative after an undo, so the pass starts from it.
+    reset_part_cache()
+    reset_collection_cache()
 
     sketch = get_active_sketch(bpy.context)
     sync_sketch_mode(
