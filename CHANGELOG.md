@@ -7,6 +7,11 @@ the manifest version) with a short summary for anything user-facing. It is
 optional: a release with no matching entry just uses GitHub's auto-generated
 notes and shows no "What's new" (e.g. a packaging-only patch).
 
+## 0.32.1
+Fixed
+- Adding a coincident or midpoint constraint no longer crashes Blender
+- Constraint labels and icons draw in the viewport you are working in, instead of in a single view of a quad view
+
 ## 0.32.0
 This release introduces parts and assemblies, makes a sketch's result a real mesh you can move, apply and export, adds new drawing and array tools, and makes large sketches much faster to draw in and edit.
 
