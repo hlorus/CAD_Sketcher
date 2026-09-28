@@ -556,6 +556,23 @@ class TestConstraintIconProjection(Sketch2dTestCase):
                     )
 
 
+class _FakeRegionView3D:
+    """Stands in for a RegionView3D: the icon cache keys on its pointer only."""
+
+    def __init__(self, pointer: int):
+        self._pointer = pointer
+
+    def as_pointer(self) -> int:
+        return self._pointer
+
+
+class _FakeRegionContext:
+    """Enough of a context to stand in for one 3D region being drawn/picked."""
+
+    def __init__(self, pointer: int):
+        self.region_data = _FakeRegionView3D(pointer)
+
+
 class TestConstraintIconGroups(TestCase):
     """Icons on one element (or close together) share an icon until expanded."""
 
@@ -566,14 +583,14 @@ class TestConstraintIconGroups(TestCase):
 
         self.icons = constraint_icons
         saved_cache = dict(constraint_icons._icon_cache)
-        saved_hover = dict(constraint_icons._hover)
-        constraint_icons._hover["group"] = None
+        saved_regions = dict(constraint_icons._region_cache)
+        constraint_icons._region_cache.clear()
 
         def restore():
             constraint_icons._icon_cache.clear()
             constraint_icons._icon_cache.update(saved_cache)
-            constraint_icons._hover.clear()
-            constraint_icons._hover.update(saved_hover)
+            constraint_icons._region_cache.clear()
+            constraint_icons._region_cache.update(saved_regions)
 
         self.addCleanup(restore)
         red, grey = (1, 0, 0, 1), (0.5, 0.5, 0.5, 1)
@@ -590,7 +607,7 @@ class TestConstraintIconGroups(TestCase):
             [(100.0, 100.0), (110.0, 100.0), (400.0, 300.0), (106.0, 104.0)]
         )
 
-    def arrange(self, mode, expanded=frozenset()):
+    def arrange(self, mode, expanded=frozenset(), hover=None):
         uvs = {e[2]: (0, 0, 1, 1) for e in self.entries}
         uvs.update({name: (0, 0, 1, 1) for name in self.icons._BADGE_CELLS})
         self.prepared = self.icons._prepare(self.entries, uvs)
@@ -602,6 +619,7 @@ class TestConstraintIconGroups(TestCase):
             self.SIZE,
             mode,
             frozenset(expanded),
+            hover,
         )
 
     def cells(self, quads):
@@ -700,22 +718,24 @@ class TestConstraintIconGroups(TestCase):
             selection.hover, selection.selected[:] = saved[0], saved[1]
 
     def test_hover_expands_and_collapses(self):
+        ctx = _FakeRegionContext(1)
+        entry = self.icons._region_entry(ctx)
         _quads, hits = self.arrange("ELEMENT")
-        self.icons._icon_cache["hits"] = hits
+        entry["hits"] = hits
 
-        part, changed = self.icons.pick((96.0, 96.0))
+        part, changed = self.icons.pick(ctx, (96.0, 96.0))
         self.assertEqual((part, changed), (None, True))
-        self.assertEqual(self.icons._hover["group"], "A")
+        self.assertEqual(entry["hover"], "A")
 
-        quads, hits = self.arrange("ELEMENT")
-        self.icons._icon_cache["hits"] = hits
+        quads, hits = self.arrange("ELEMENT", hover=entry["hover"])
+        entry["hits"] = hits
         self.assertNotIn("BADGE", self.cells(quads))
         # Its icons are pickable and moving onto them keeps it open.
-        self.assertEqual(self.icons.pick((110.0, 100.0)), (1, False))
-        self.assertEqual(self.icons._hover["group"], "A")
+        self.assertEqual(self.icons.pick(ctx, (110.0, 100.0)), (1, False))
+        self.assertEqual(entry["hover"], "A")
         # Away from it: closes.
-        self.assertEqual(self.icons.pick((250.0, 250.0)), (None, True))
-        self.assertIsNone(self.icons._hover["group"])
+        self.assertEqual(self.icons.pick(ctx, (250.0, 250.0)), (None, True))
+        self.assertIsNone(entry["hover"])
 
     def test_badge_cells(self):
         from ..icon_manager import badge_cells

@@ -18,7 +18,7 @@ from ..utilities import preferences
 from ..utilities.bpy import bpyEnum
 from ..utilities.math import range_2pi
 from ..utilities.solver import update_system_cb
-from ..utilities.view import location_3d_to_region_2d
+from ..utilities.view import get_2d_coords
 from .arc import SlvsArc
 from .base_constraint import DimensionalConstraint
 from .categories import CURVE, LINE, POINT, POINT2D
@@ -535,8 +535,6 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
 
     def value_placement(self, context, basis=None):
         """location to display the constraint value"""
-        region = context.region
-        rv3d = context.space_data.region_3d
         ui_scale = context.preferences.system.ui_scale
 
         offset = ui_scale * self.draw_offset
@@ -544,7 +542,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         if basis is None:
             basis = self.matrix_basis()
         coords = basis @ Vector((outset, offset, 0))
-        return location_3d_to_region_2d(region, rv3d, coords)
+        return get_2d_coords(context, coords)
 
 
 slvs_entity_pointer(SlvsDistance, "entity1")
