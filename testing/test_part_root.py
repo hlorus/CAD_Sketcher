@@ -923,7 +923,8 @@ class TestPartRoot(BgsTestCase):
         self.assertTrue("".join(lines).endswith("…"))
         self.assertLessEqual(sum(len(line) for line in lines), 22)
 
-    def test_a_plane_the_user_made_stays_outside_the_body(self):
+    def test_a_plane_the_user_made_roots_the_part(self):
+        """#758: a sketch drawn on your own object follows that object."""
         empty = bpy.data.objects.new("My Plane", None)
         self.scene.collection.objects.link(empty)
         # Place it through matrix_basis, with the view layer caught up first:
@@ -935,11 +936,24 @@ class TestPartRoot(BgsTestCase):
 
         sketch = build_sketch_on_workplane(self.context, empty)
 
-        # The body gets its own plane where that one stands, rather than taking
-        # the user's empty into the part.
-        self.assertNotEqual(sketch.target_object.slvs_workplane, empty)
+        # The empty is the frame the user meant, so it roots the part rather
+        # than being copied into a plane of the body's own.
+        self.assertEqual(sketch.target_object.slvs_workplane, empty)
         self.assertEqual(sketch.plane_matrix.translation, Vector((0.0, 0.0, 2.0)))
+        self.assertTrue(is_part_root(empty))
         self.assertIsNone(empty.parent)
+        # A root owns the part's transform, so it is not pinned like a member.
+        self.assertFalse(any(empty.lock_location))
+        # Their object, their name: only planes this addon made are relabelled.
+        from ..utilities.body import body_of, name_after_body
+
+        name_after_body(body_of(sketch.target_object), sketch.target_object, empty)
+        self.assertEqual(empty.name, "My Plane")
+
+        # And the sketch goes where it goes.
+        empty.matrix_basis = Matrix.Translation(Vector((1.0, 2.0, 3.0)))
+        self.context.view_layer.update()
+        self.assertEqual(sketch.plane_matrix.translation, Vector((1.0, 2.0, 3.0)))
 
     def test_joining_drops_a_plane_the_part_already_has(self):
         # Reported: a second sketch drawn on the scene's XY, to cut the part made
