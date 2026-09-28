@@ -98,24 +98,6 @@ class View3D_OT_slvs_mcp_copy_url(Operator):
         return {"FINISHED"}
 
 
-class View3D_OT_slvs_mcp_new_token(Operator):
-    """Replace the access token, so any URL handed out before stops working"""
-
-    bl_idname = Operators.McpNewToken
-    bl_label = "New Access Token"
-    bl_options = {"REGISTER"}
-
-    def execute(self, context: Context):
-        token = server.new_token()
-        # A running endpoint keeps serving the old token until it is rebound.
-        if server.is_running():
-            port = server.get_server().port
-            server.stop_server()
-            server.start_server(port=port, token=token)
-        self.report({"INFO"}, "New token; reconnect your agent with the new URL")
-        return {"FINISHED"}
-
-
 class View3D_OT_slvs_mcp_preferences(Operator):
     """Open CAD Sketcher's preferences, where the agent settings live"""
 
@@ -154,7 +136,6 @@ register, unregister = register_classes_factory(
         View3D_OT_slvs_mcp_start,
         View3D_OT_slvs_mcp_stop,
         View3D_OT_slvs_mcp_copy_url,
-        View3D_OT_slvs_mcp_new_token,
         View3D_OT_slvs_mcp_clear_activity,
         View3D_OT_slvs_mcp_preferences,
     )

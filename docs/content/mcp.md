@@ -36,9 +36,10 @@ stays connected. Blender's **Allow Online Access** preference must be on.
 Tick **Start on launch** and the endpoint is served from the moment Blender
 opens, with nothing to press at all.
 
-The URL carries an access token, kept in the add-on's own user folder. **New
-Access Token** replaces it, which makes any URL you handed out before stop
-working; reconnect the agent afterwards.
+The URL carries an access token, kept in the add-on's own user folder. If you
+ever need to withdraw it (you pasted the URL somewhere public, say), delete
+`mcp_token.txt` from that folder: the next start mints a new one, and the old
+URL stops working.
 
 ## What the agent can do
 

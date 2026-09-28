@@ -74,7 +74,7 @@ def read_token() -> str:
     Kept rather than rotated on every start: a token that changes each session
     means re-registering the endpoint with the agent each session, which is the
     one bit of this that a user has to do by hand. A stable URL is set up once.
-    ``new_token`` rotates it when the user wants the old one to stop working.
+    Deleting the file is how a user withdraws it; the next start mints another.
     """
     path = _token_file()
     try:

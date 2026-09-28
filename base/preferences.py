@@ -13,7 +13,6 @@ from bpy.props import (
 from bpy.types import AddonPreferences, Menu, Panel
 
 from .. import units
-from ..declarations import Operators
 from ..utilities.boolean_nodes import SOLVER_ITEMS
 from ..utilities.register import get_name, get_path
 from ..utilities.view import update_cb
@@ -277,11 +276,6 @@ class Preferences(AddonPreferences):
         col.prop(self, "mcp_port")
         col.prop(self, "mcp_client")
         col.prop(self, "mcp_auto_start")
-        row = box.row()
-        row.operator(
-            Operators.McpNewToken, text="New Access Token", icon="FILE_REFRESH"
-        )
-
         box = layout.box()
         box.label(text="Advanced")
         col = box.column(align=True)

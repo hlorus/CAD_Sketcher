@@ -641,12 +641,6 @@ class TestMcpToken(Sketch2dTestCase):
         # A new server picks up the stored one rather than minting its own.
         self.assertEqual(server.MCPServer(port=0).token, first)
 
-    def test_a_new_token_replaces_the_old_one(self):
-        first = server.read_token()
-        second = server.new_token()
-        self.assertNotEqual(first, second)
-        self.assertEqual(server.read_token(), second)
-
     def test_the_stored_token_is_not_world_readable(self):
         import stat
 
