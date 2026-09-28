@@ -1,6 +1,6 @@
 """Regression coverage for Blender 5.0-safe native 3D curve types (#607)."""
 
-from .utils import BgsTestCase
+from .utils import BgsTestCase, Sketch2dTestCase
 
 
 class TestNative3DCurveTypes(BgsTestCase):
@@ -72,3 +72,43 @@ class TestNative3DCurveTypes(BgsTestCase):
             for actual, expected in zip(positions, before_positions):
                 for actual_axis, expected_axis in zip(actual, expected):
                     self.assertAlmostEqual(actual_axis, expected_axis, places=6)
+
+
+class TestSketchPointCurveTypes(Sketch2dTestCase):
+    """A standalone sketch point must share its segments' spline type.
+
+    Blender crashes evaluating a one-point curve whose type differs from the rest
+    of the datablock, which is what a loose point next to a line used to be (it is
+    met when adding a coincident or midpoint constraint, both of which start from
+    such a point).
+    """
+
+    def _curve_type(self, ref):
+        from ..utilities.curve_data import get_curve_data
+
+        curve_data, curve_idx, _curve = get_curve_data(self.sketch, ref.curve_id)
+        self.assertIsNotNone(curve_data)
+        attr = curve_data.attributes.get("curve_type")
+        self.assertIsNotNone(attr)
+        return attr.data[curve_idx].value
+
+    def test_loose_point_matches_the_segments_type(self):
+        line = self.add_line(self.add_point((0.0, 0.0)), self.add_point((4.0, 0.0)))
+        loose = self.add_point((1.0, 1.5))
+
+        self.assertEqual(self._curve_type(loose), self._curve_type(line))
+
+    def test_refresh_heals_a_mistyped_point_curve(self):
+        """A point saved by a build that left it CATMULL_ROM is retyped."""
+        from ..utilities.curve_data import get_curve_data, refresh_curve_geometry
+
+        line = self.add_line(self.add_point((0.0, 0.0)), self.add_point((4.0, 0.0)))
+        loose = self.add_point((1.0, 1.5))
+
+        curve_data, curve_idx, _curve = get_curve_data(self.sketch, loose.curve_id)
+        curve_data.set_types(type="CATMULL_ROM", indices=[curve_idx])
+        self.assertEqual(self._curve_type(loose), 0)
+
+        refresh_curve_geometry(self.sketch)
+
+        self.assertEqual(self._curve_type(loose), self._curve_type(line))
