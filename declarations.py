@@ -73,6 +73,7 @@ class Operators(str, Enum):
     DeleteConstraint = "view3d.slvs_delete_constraint"
     DeleteEntity = "view3d.slvs_delete_entity"
     DeleteSketch = "view3d.slvs_delete_sketch"
+    McpClearActivity = "view3d.slvs_mcp_clear_activity"
     McpCopyUrl = "view3d.slvs_mcp_copy_url"
     McpNewToken = "view3d.slvs_mcp_new_token"
     McpStart = "view3d.slvs_mcp_start"

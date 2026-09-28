@@ -59,6 +59,12 @@ work with a render. You should not have to explain any of that yourself.
 Everything else stays yours. The agent cannot run arbitrary code, reach your
 files, or touch anything in Blender outside CAD Sketcher's sketches.
 
+## Watching what it does
+
+The panel lists the agent's recent calls: what it touched, what it added, and
+anything it was refused. An agent works in another window, so this is what makes
+its work legible without switching to it.
+
 ## While it is running
 
 - Keep working in Blender as usual. A request that arrives while you are drawing

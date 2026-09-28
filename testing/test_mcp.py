@@ -10,7 +10,8 @@ import json
 import urllib.error
 import urllib.request
 
-from ..mcp import describe, handlers, server, tools
+from ..mcp import activity, describe, handlers, server, tools
+from ..mcp.handlers import ToolError
 from ..mcp.ops import OpError, apply_ops
 from .utils import Sketch2dTestCase
 
@@ -262,6 +263,70 @@ class TestMcpCreateSketch(Sketch2dTestCase):
         self.assertIn("Plate", created["sketch"])
         scene = describe.scene_data(self.context)
         self.assertEqual(scene["active_sketch"], created["sketch"])
+
+
+class TestMcpActivity(Sketch2dTestCase):
+    """The log the sidebar shows, so the agent's work is visible in Blender."""
+
+    def setUp(self):
+        super().setUp()
+        activity.clear()
+
+    def test_a_call_is_logged_with_what_it_did(self):
+        handlers.edit_sketch(
+            self.context,
+            {
+                "sketch": self.sketch.name,
+                "ops": [{"op": "point", "name": "a", "co": [0.0, 0.0]}],
+            },
+        )
+        # The log is written by the dispatcher, so drive it the way a call does.
+        entries = activity.entries()
+        self.assertEqual(entries, [], "handlers alone should not log")
+
+        activity.note_result("edit_sketch", describe.sketch_data(self.sketch), None)
+        entry = activity.entries()[-1]
+        self.assertEqual(entry.tool, "edit_sketch")
+        self.assertTrue(entry.ok)
+        self.assertIn(self.sketch.name, entry.detail)
+
+    def test_a_failure_is_logged_as_one(self):
+        activity.note_result("edit_sketch", None, ToolError("no such sketch 'Nope'"))
+        entry = activity.entries()[-1]
+        self.assertFalse(entry.ok)
+        self.assertIn("Nope", entry.detail)
+
+    def test_the_log_keeps_only_the_recent_ones(self):
+        for i in range(activity.LIMIT + 5):
+            activity.note_result(f"tool_{i}", {}, None)
+        entries = activity.entries()
+        self.assertEqual(len(entries), activity.LIMIT)
+        self.assertEqual(entries[-1].tool, f"tool_{activity.LIMIT + 4}")
+
+    def test_an_edit_summary_says_what_was_added(self):
+        result = {
+            "sketch": "Plate",
+            "applied": {"entities_added": 4, "constraints_added": 2},
+        }
+        detail = activity.summarise("edit_sketch", result)
+        self.assertIn("+4 entities", detail)
+        self.assertIn("+2 constraints", detail)
+
+    def test_a_fully_defined_sketch_says_so(self):
+        detail = activity.summarise(
+            "solve_sketch", {"sketch": "Plate", "dof": 0, "fully_defined": True}
+        )
+        self.assertIn("fully defined", detail)
+
+    def test_a_render_is_summarised_without_its_bytes(self):
+        detail = activity.summarise("render_sketch", (b"\x89PNG" * 500, "image/png"))
+        self.assertEqual(detail, "rendered")
+
+    def test_clearing_empties_the_log(self):
+        activity.note_result("describe_scene", {}, None)
+        self.assertTrue(activity.entries())
+        activity.clear()
+        self.assertEqual(activity.entries(), [])
 
 
 class TestMcpToolSchemas(Sketch2dTestCase):

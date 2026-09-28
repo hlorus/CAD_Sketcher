@@ -116,11 +116,27 @@ class View3D_OT_slvs_mcp_new_token(Operator):
         return {"FINISHED"}
 
 
+class View3D_OT_slvs_mcp_clear_activity(Operator):
+    """Clear the list of recent agent activity"""
+
+    bl_idname = Operators.McpClearActivity
+    bl_label = "Clear Activity"
+
+    def execute(self, context: Context):
+        from . import activity
+
+        activity.clear()
+        if context.area:
+            context.area.tag_redraw()
+        return {"FINISHED"}
+
+
 register, unregister = register_classes_factory(
     (
         View3D_OT_slvs_mcp_start,
         View3D_OT_slvs_mcp_stop,
         View3D_OT_slvs_mcp_copy_url,
         View3D_OT_slvs_mcp_new_token,
+        View3D_OT_slvs_mcp_clear_activity,
     )
 )

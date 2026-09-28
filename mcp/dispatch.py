@@ -16,6 +16,8 @@ from typing import Any, Dict, Optional
 
 import bpy
 
+from . import activity
+
 logger = logging.getLogger(__name__)
 
 # How long a worker waits for the main thread. Every tool here is a bounded piece
@@ -38,17 +40,23 @@ def call_tool(name: Optional[str], arguments: Dict[str, Any]) -> Dict[str, Any]:
         known = ", ".join(sorted(tools.BY_NAME))
         return _text_error(f"Unknown tool {name!r}. Available: {known}.")
 
-    if not _lock.acquire(timeout=QUEUE_TIMEOUT):
-        return _text_error(
-            "Another MCP call is still running in Blender. Retry in a moment."
-        )
+    activity.begin()
     try:
-        return _run_on_main_thread(tool["handler"], arguments)
+        if not _lock.acquire(timeout=QUEUE_TIMEOUT):
+            return _text_error(
+                "Another MCP call is still running in Blender. Retry in a moment."
+            )
+        try:
+            return _run_on_main_thread(name, tool["handler"], arguments)
+        finally:
+            _lock.release()
     finally:
-        _lock.release()
+        activity.end()
 
 
-def _run_on_main_thread(handler, arguments: Dict[str, Any]) -> Dict[str, Any]:
+def _run_on_main_thread(
+    name: str, handler, arguments: Dict[str, Any]
+) -> Dict[str, Any]:
     """Post ``handler`` to the main thread and wait for what it returns."""
     done = threading.Event()
     outcome: Dict[str, Any] = {}
@@ -59,6 +67,9 @@ def _run_on_main_thread(handler, arguments: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as e:  # noqa: BLE001 - reported to the agent, not raised
             outcome["error"] = e
         finally:
+            # Logged here, on the main thread, where the sidebar reads it.
+            activity.note_result(name, outcome.get("result"), outcome.get("error"))
+            _tag_redraw()
             done.set()
         return None  # unregister the timer
 
@@ -74,6 +85,18 @@ def _run_on_main_thread(handler, arguments: Dict[str, Any]) -> Dict[str, Any]:
     if "error" in outcome:
         return _tool_error(outcome["error"])
     return _result(outcome.get("result"))
+
+
+def _tag_redraw() -> None:
+    """Redraw the sidebar, so a read-only call still shows up in the log.
+
+    An edit redraws anyway through the scene change; a call that only reads
+    would otherwise leave the panel stale until the user moved the mouse.
+    """
+    for window in getattr(bpy.context.window_manager, "windows", ()):
+        for area in window.screen.areas:
+            if area.type == "VIEW_3D":
+                area.tag_redraw()
 
 
 def _result(value: Any) -> Dict[str, Any]:

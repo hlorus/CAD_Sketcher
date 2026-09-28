@@ -7,7 +7,7 @@ from bpy.utils import register_classes_factory
 from ..declarations import Operators, Panels
 from ..ui.panels import VIEW3D_PT_sketcher_base
 from ..utilities.preferences import get_prefs
-from . import server
+from . import activity, server
 
 
 def _hint(client_format: str) -> str:
@@ -60,12 +60,45 @@ class VIEW3D_PT_sketcher_mcp(VIEW3D_PT_sketcher_base):
         column.label(text=_hint(prefs.mcp_client))
         column.label(text="Once only; the address keeps.")
 
+        _draw_activity(layout)
+
         column = layout.column(align=True)
         column.scale_y = 0.8
         column.label(text="Anyone with the URL can edit", icon="INFO")
         layout.operator(
             Operators.McpNewToken, text="New Access Token", icon="FILE_REFRESH"
         )
+
+
+def _draw_activity(layout) -> None:
+    """The agent's recent calls, so its work is visible without leaving Blender."""
+    entries = activity.entries()
+    box = layout.box()
+
+    header = box.row(align=True)
+    header.label(text="Activity")
+    if activity.busy():
+        header.label(text="working", icon="SORTTIME")
+    elif entries:
+        header.operator(Operators.McpClearActivity, text="", icon="TRASH", emboss=False)
+
+    if not entries:
+        column = box.column()
+        column.scale_y = 0.8
+        column.label(text="Nothing yet")
+        return
+
+    column = box.column(align=True)
+    column.scale_y = 0.8
+    # Newest first: what just happened is what the user is looking for.
+    for entry in reversed(entries):
+        row = column.row(align=True)
+        row.label(text="", icon="CHECKMARK" if entry.ok else "ERROR")
+        row.label(text=f"{entry.clock}  {entry.tool}")
+        if entry.detail:
+            detail = column.row(align=True)
+            detail.active = False
+            detail.label(text=f"        {entry.detail}")
 
 
 register, unregister = register_classes_factory((VIEW3D_PT_sketcher_mcp,))
