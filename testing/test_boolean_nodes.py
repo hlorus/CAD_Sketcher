@@ -293,6 +293,51 @@ class TestBooleanNodeGroup(BgsTestCase):
         self.assertEqual(result, {"FINISHED"})
         return body
 
+    def test_a_cutter_in_the_part_it_cuts_is_hidden(self):
+        # The same cut used to look different depending on which tool made it:
+        # this one always wireframed, while the extrude boolean hid a cutter
+        # that was feeding a part.
+        from ..utilities.part import join_part, mark_part_root
+
+        cutter = self._solid_cutter()
+        bpy.ops.mesh.primitive_cube_add(size=2.0)
+        body = self.context.active_object
+        body.name = "boolean_body"
+        mark_part_root(body)
+        join_part(body, cutter)
+        try:
+            result = bpy.ops.view3d.slvs_node_boolean(
+                "EXEC_DEFAULT",
+                target_name=body.name,
+                cutter_name=cutter.name,
+                operation="Difference",
+                cutter_display="AUTO",
+            )
+            self.assertEqual(result, {"FINISHED"})
+            self.assertTrue(cutter.hide_viewport, "a part's own cutter is hidden")
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+
+    def test_a_cutter_belonging_to_no_part_stays_findable(self):
+        # Nothing owns it, so hiding it would leave no handle on the cut.
+        cutter = self._solid_cutter()
+        body = self._apply_via_operator(cutter, "AUTO")
+        try:
+            self.assertFalse(cutter.hide_viewport)
+            self.assertEqual(cutter.display_type, "WIRE")
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+
+    def test_an_explicit_display_choice_still_shows_the_cutter(self):
+        cutter = self._solid_cutter()
+        cutter.hide_viewport = True
+        body = self._apply_via_operator(cutter, "SOLID")
+        try:
+            self.assertEqual(cutter.display_type, "SOLID")
+            self.assertFalse(cutter.hide_viewport, "an explicit choice unhides it")
+        finally:
+            bpy.data.objects.remove(body, do_unlink=True)
+
     def test_operator_wireframes_cutter_by_default(self):
         # display_type is set immediately (a draw-only property, no depsgraph
         # rebuild), so the wireframe applies without a crash.

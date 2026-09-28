@@ -1543,16 +1543,23 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         default="Exact",
     )
 
-    # A solid cutter would hide the boolean result, so switch its viewport
-    # display (wireframe by default, like Bool Tool). display_type is a draw-only
-    # property, so setting it is cheap and does not rebuild the depsgraph.
+    # A solid cutter would hide the boolean result, so its viewport display is
+    # switched once the cut is made. display_type is a draw-only property, so
+    # setting it is cheap and does not rebuild the depsgraph.
     cutter_display: bpy.props.EnumProperty(
         name="Cutter Display",
         items=(
+            (
+                "AUTO",
+                "Automatic",
+                "Hide the cutter once it is cutting a part, as the Extrude and "
+                "Revolve booleans do, and show it as wireframe where it would "
+                "otherwise be lost",
+            ),
             ("WIRE", "Wire", "Show the cutter as wireframe so the result is visible"),
             ("SOLID", "Solid", "Leave the cutter shaded solid"),
         ),
-        default="WIRE",
+        default="AUTO",
     )
 
     # Persist the picked cutter so the redo panel can re-apply and edit it (the
@@ -1683,19 +1690,29 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         cutter = getattr(self, "_cutter", None)
         if not succeed or cutter is None:
             return
-        cutter.display_type = self.cutter_display
 
         # A cut belongs to what it cuts, however it was made: the same rule the
         # extrude and revolve tools apply. Only sketch cutters, so a body with a
         # history of its own stays a part rather than being absorbed.
         from ..model.sketch_ref import is_sketch_object
         from ..utilities.collections import sync_part_collections
-        from ..utilities.part import settle_membership
+        from ..utilities.part import settle_membership, update_cutter_display
 
         body = self.resolved_object()
+        bodies = [body.original] if body is not None else []
         if body is not None and is_sketch_object(cutter):
-            settle_membership(cutter, [body.original], context)
+            settle_membership(cutter, bodies, context)
             sync_part_collections(context.scene)
+
+        # Display last: the rule reads which part the cutter ended up in, so it
+        # has to run after membership is settled. This tool used to always leave
+        # the cutter as wireframe, which made the same cut look different
+        # depending on whether it came from here or from Extrude.
+        if self.cutter_display == "AUTO":
+            update_cutter_display(cutter, bodies, True)
+        else:
+            cutter.hide_viewport = False
+            cutter.display_type = self.cutter_display
 
     def set_props(self):
         m = self.modifier
