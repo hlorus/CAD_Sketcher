@@ -12,7 +12,7 @@ from ..utilities.constants import HALF_TURN, QUARTER_TURN
 from ..utilities.geometry import get_line_intersection, line_abc_form
 from ..utilities.math import pol2cart, range_2pi
 from ..utilities.solver import update_system_cb
-from ..utilities.view import location_3d_to_region_2d
+from ..utilities.view import get_2d_coords
 from .base_constraint import DimensionalConstraint
 from .line_2d import SlvsLine2D
 from .utilities import slvs_entity_pointer
@@ -187,8 +187,6 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
 
     def value_placement(self, context, basis=None):
         """location to display the constraint value"""
-        region = context.region
-        rv3d = context.space_data.region_3d
         ui_scale = context.preferences.system.ui_scale
 
         offset = ui_scale * self.draw_offset
@@ -197,7 +195,7 @@ class SlvsAngle(DimensionalConstraint, PropertyGroup):
         if basis is None:
             basis = self.matrix_basis()
         coords = basis @ Vector((co[0], co[1], 0))
-        return location_3d_to_region_2d(region, rv3d, coords)
+        return get_2d_coords(context, coords)
 
 
 slvs_entity_pointer(SlvsAngle, "entity1")

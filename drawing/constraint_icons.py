@@ -16,6 +16,8 @@ icon with a count badge. A group fans out into its individual icons while the
 cursor is over it, or while its geometry is hovered.
 """
 
+from typing import Optional
+
 import gpu
 import numpy as np
 from gpu_extras.batch import batch_for_shader
@@ -120,11 +122,9 @@ def _screen_centers(context, positions, stack):
     return centers, visible, size
 
 
-# The last icon batch and the key it was built for. Every icon's position and
-# color is a function of the key, so an unchanged key reuses the batch.
+# The layout of the icons: everything that doesn't depend on the view, so it is
+# shared by every region drawing this sketch.
 _icon_cache = {
-    "key": None,
-    "batch": None,
     "layout_key": None,
     "entries": None,
     # Elements that have icons on them.
@@ -132,12 +132,50 @@ _icon_cache = {
     # Per-icon arrays of the layout (see _prepare), and the atlas UVs they're for.
     "prepared": None,
     "prepared_uvs": None,
-    # What was drawn, for picking (see _arrange).
-    "hits": None,
 }
 
-# The group the cursor is over, kept expanded while the cursor stays on it.
-_hover = {"group": None}
+# Per 3D region: the last icon batch, the key it was built for, what was drawn
+# (for picking) and the group the cursor is over there. A quad view draws the same
+# sketch four times from four views in one redraw, so a single batch/hit layout
+# would be overwritten by whichever region drew last -- the icons would then only
+# be clickable in that one view (issue #438). Keyed by RegionView3D pointer.
+_region_cache = {}
+
+# Bumped once per region draw, to retire the entries of regions that are gone
+# (a closed quad view, a closed area) instead of keeping their batches alive.
+_draws = 0
+# How many region draws an entry may go untouched before it is dropped, once
+# there are more than a quad view's worth. Every live region is touched once per
+# redraw, so the bound scales with how many are cached: several viewports, each
+# in quad view, must not retire each other.
+_STALE_AFTER = 16
+
+
+def _region_entry(context) -> Optional[dict]:
+    """The cache entry of the region being drawn, or None outside one."""
+    rv3d = context.region_data
+    if rv3d is None:
+        return None
+    global _draws
+    _draws += 1
+    entry = _region_cache.get(rv3d.as_pointer())
+    if entry is None:
+        entry = _region_cache[rv3d.as_pointer()] = {
+            "key": None,
+            "batch": None,
+            "hits": None,
+            # The group the cursor is over, kept expanded while it stays on it.
+            "hover": None,
+            "seen": _draws,
+        }
+    entry["seen"] = _draws
+    if len(_region_cache) > 4:
+        stale = max(_STALE_AFTER, 2 * len(_region_cache))
+        for ptr in [
+            ptr for ptr, e in _region_cache.items() if _draws - e["seen"] > stale
+        ]:
+            del _region_cache[ptr]
+    return entry
 
 
 def _layout_key(context, sketch):
@@ -226,16 +264,13 @@ def _icon_key(context, sketch, atlas, uvs):
 def invalidate():
     """Drop the cached icon batch (e.g. on file load)."""
     _icon_cache.update(
-        key=None,
-        batch=None,
         layout_key=None,
         entries=None,
         anchors=None,
         prepared=None,
         prepared_uvs=None,
-        hits=None,
     )
-    _hover["group"] = None
+    _region_cache.clear()
 
 
 def targets():
@@ -244,16 +279,23 @@ def targets():
     return tuple((e[TYPE], e[INDEX]) for e in entries)
 
 
-def pick(location):
+def pick(context, location):
     """The icon under a region location, updating which group is expanded.
+
+    Answered from what the *cursor's own* region drew, so picking works in every
+    view of a quad view and not just the one that drew last.
 
     Returns ``(part, changed)``: the index into ``targets()`` of the individual
     icon under the cursor (None over a group or empty space), and whether the
     expanded group changed, so the caller can redraw.
     """
-    hits = _icon_cache["hits"]
+    rv3d = context.region_data
+    entry = _region_cache.get(rv3d.as_pointer()) if rv3d else None
+    if entry is None:
+        return None, False
+    hits = entry["hits"]
     if not hits:
-        return None, _set_hover(None)
+        return None, _set_hover(entry, None)
     point = np.asarray(location[:2], dtype=np.float64)
     radius = hits["radius"]
 
@@ -267,7 +309,9 @@ def pick(location):
         return None, False
 
     group = _nearest(hits["group_centers"], point, radius)
-    return None, _set_hover(hits["group_keys"][group] if group is not None else None)
+    return None, _set_hover(
+        entry, hits["group_keys"][group] if group is not None else None
+    )
 
 
 def _nearest(centers, point, radius):
@@ -278,9 +322,9 @@ def _nearest(centers, point, radius):
     return nearest if d2[nearest] < radius * radius else None
 
 
-def _set_hover(group):
-    changed = _hover["group"] != group
-    _hover["group"] = group
+def _set_hover(entry, group):
+    changed = entry["hover"] != group
+    entry["hover"] = group
     return changed
 
 
@@ -310,6 +354,10 @@ def draw():
     if atlas is None or not uvs:
         return
 
+    entry = _region_entry(context)
+    if entry is None:
+        return
+
     shader = Shaders.atlas_icon_2d()
     layout_key = _layout_key(context, sketch)
     if _icon_cache["layout_key"] != layout_key:
@@ -333,15 +381,21 @@ def draw():
         _view_key(context, atlas, uvs),
         mode,
         expanded,
-        _hover["group"],
+        entry["hover"],
     )
-    if _icon_cache["key"] == key:
-        batch = _icon_cache["batch"]
+    if entry["key"] == key:
+        batch = entry["batch"]
     else:
         batch, hits = _build_batch(
-            context, _icon_cache["prepared"], shader, uvs, mode, expanded
+            context,
+            _icon_cache["prepared"],
+            shader,
+            uvs,
+            mode,
+            expanded,
+            entry["hover"],
         )
-        _icon_cache.update(hits=hits, key=key, batch=batch)
+        entry.update(hits=hits, key=key, batch=batch)
 
     if batch is None:
         return
@@ -349,7 +403,7 @@ def draw():
     shader.bind()
     shader.uniform_sampler("image", atlas)
     batch.draw(shader)
-    _draw_counts(_icon_cache["hits"])
+    _draw_counts(entry["hits"])
     gpu.state.blend_set("NONE")
 
 
@@ -395,14 +449,14 @@ def _prepare(entries, uvs):
     }
 
 
-def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
+def _arrange(prepared, centers, visible, size, stack_step, mode, expanded, hover):
     """Which quads to draw and what can be picked, after grouping the icons.
 
     ``centers``/``visible`` are the stacked screen positions of the prepared
     icons. Icons group by the element they sit on; with ``mode`` ``NEARBY``
     elements whose first icons are about an icon apart on screen merge too. A group
     draws as one icon with a count badge unless it has a single icon, grouping is
-    ``OFF``, one of its elements is in ``expanded``, or it is the hovered group.
+    ``OFF``, one of its elements is in ``expanded``, or it is ``hover``'s group.
     An open group of several elements lays its icons out in one row from the
     group's position, since those elements' own icons would overlap.
 
@@ -450,8 +504,8 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded):
         if e is not None and cluster_of[e] >= 0:
             open_clusters[cluster_of[e]] = True
     hovered = -1
-    if _hover["group"] is not None:
-        e = index.get(_hover["group"])
+    if hover is not None:
+        e = index.get(hover)
         if e is not None and cluster_of[e] >= 0:
             hovered = cluster_of[e]
             open_clusters[hovered] = True
@@ -627,7 +681,9 @@ def _draw_counts(hits):
         draw(font_id, label)
 
 
-def _build_batch(context, prepared, shader, uvs, mode="OFF", expanded=frozenset()):
+def _build_batch(
+    context, prepared, shader, uvs, mode="OFF", expanded=frozenset(), hover=None
+):
     """The icon batch, and what was drawn for picking (see ``_arrange``)."""
     if not len(prepared["entries"]):
         return None, None
@@ -637,7 +693,9 @@ def _build_batch(context, prepared, shader, uvs, mode="OFF", expanded=frozenset(
     if not visible.any():
         return None, None
     stack_step = size * context.preferences.system.ui_scale
-    quads, hits = _arrange(prepared, centers, visible, size, stack_step, mode, expanded)
+    quads, hits = _arrange(
+        prepared, centers, visible, size, stack_step, mode, expanded, hover
+    )
 
     corner = np.array(
         ((-1, -1), (1, -1), (1, 1), (-1, -1), (1, 1), (-1, 1)), dtype=np.float64

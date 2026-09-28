@@ -627,9 +627,19 @@ def get_pos_2d(
     return Vector(pos[:-1])
 
 
-def get_2d_coords(context, pos: Vector) -> Vector:
+def get_2d_coords(context: Context, pos: Vector) -> Optional[Vector]:
+    """Project a world position to pixels in the region being drawn.
+
+    Deliberately ``context.region_data`` and not ``space_data.region_3d``: in a
+    quad view the space's own view is only one of the four regions, so projecting
+    through it puts overlays where that one view would have them in all four
+    (issue #438). Returns None when there is no 3D region, or the position is
+    behind the view.
+    """
     region = context.region
-    rv3d = context.space_data.region_3d
+    rv3d = context.region_data
+    if region is None or rv3d is None:
+        return None
     return location_3d_to_region_2d(region, rv3d, pos)
 
 

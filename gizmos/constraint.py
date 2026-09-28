@@ -175,7 +175,7 @@ class VIEW3D_GT_slvs_constraint(Gizmo):
         # Don't intercept hover/picking while a stateful operator is running.
         if global_data.stateful_op_running:
             return -1
-        part, changed = constraint_icons.pick(location)
+        part, changed = constraint_icons.pick(context, location)
         if changed and context.area:
             # A group opened or closed under the cursor.
             context.area.tag_redraw()

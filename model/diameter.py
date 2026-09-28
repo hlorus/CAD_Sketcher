@@ -10,7 +10,7 @@ from ..curve_solver import Solver
 from ..global_data import WpReq
 from ..utilities.math import pol2cart
 from ..utilities.solver import update_system_cb
-from ..utilities.view import location_3d_to_region_2d
+from ..utilities.view import get_2d_coords
 from .base_constraint import DimensionalConstraint
 from .categories import CURVE
 from .utilities import slvs_entity_pointer
@@ -126,14 +126,12 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
 
     def value_placement(self, context, basis=None):
         """location to display the constraint value"""
-        region = context.region
-        rv3d = context.space_data.region_3d
         offset = self.draw_offset
         coords = pol2cart(offset, self.leader_angle)
         if basis is None:
             basis = self.matrix_basis()
         coords2 = basis @ Vector((coords[0], coords[1], 0.0))
-        return location_3d_to_region_2d(region, rv3d, coords2)
+        return get_2d_coords(context, coords2)
 
 
 slvs_entity_pointer(SlvsDiameter, "entity1")
