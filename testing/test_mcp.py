@@ -89,6 +89,53 @@ class TestMcpTools(Sketch2dTestCase):
         distance = next(c for c in result["constraints"] if c["type"] == "DISTANCE")
         self.assertAlmostEqual(distance["value"], 7.0, places=4)
 
+    def test_a_distance_to_a_line_keeps_the_side_it_was_placed_on(self):
+        # Distance to a line is signed, and the side is settled while measuring.
+        # A value given up front used to skip that and mirror the point through
+        # the line: holes placed inside a part came out beyond its edge.
+        result = self._edit(
+            [
+                {"op": "point", "name": "a", "co": [0.0, 0.0], "fixed": True},
+                {"op": "point", "name": "b", "co": [0.0, 10.0]},
+                {"op": "line", "name": "edge", "p1": "a", "p2": "b"},
+                {"op": "constrain", "type": "vertical", "refs": ["edge"]},
+                {"op": "point", "name": "inside", "co": [3.0, 5.0]},
+                {
+                    "op": "constrain",
+                    "type": "distance",
+                    "refs": ["inside", "edge"],
+                    "value": 4.0,
+                },
+            ]
+        )
+        point = next(e for e in result["entities"] if e["name"] == "inside")
+        self.assertAlmostEqual(abs(point["co"][0]), 4.0, places=4)
+        self.assertGreater(
+            point["co"][0], 0.0, f"placed at x=+3 but solved to {point['co']}"
+        )
+
+    def test_a_distance_to_a_line_keeps_a_negative_side_too(self):
+        result = self._edit(
+            [
+                {"op": "point", "name": "a", "co": [0.0, 0.0], "fixed": True},
+                {"op": "point", "name": "b", "co": [0.0, 10.0]},
+                {"op": "line", "name": "edge", "p1": "a", "p2": "b"},
+                {"op": "constrain", "type": "vertical", "refs": ["edge"]},
+                {"op": "point", "name": "outside", "co": [-3.0, 5.0]},
+                {
+                    "op": "constrain",
+                    "type": "distance",
+                    "refs": ["outside", "edge"],
+                    "value": 4.0,
+                },
+            ]
+        )
+        point = next(e for e in result["entities"] if e["name"] == "outside")
+        self.assertAlmostEqual(abs(point["co"][0]), 4.0, places=4)
+        self.assertLess(
+            point["co"][0], 0.0, f"placed at x=-3 but solved to {point['co']}"
+        )
+
     def test_constraints_reduce_the_degrees_of_freedom(self):
         loose = self._edit(
             [

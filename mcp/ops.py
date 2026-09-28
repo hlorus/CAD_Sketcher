@@ -345,13 +345,14 @@ def _op_constrain(sketch, resolver, op):
     value = op.get("value")
 
     if constraint_type in VALUED:
-        if value is None:
-            # No value given: measure the geometry, as the interactive tool does.
-            constraint = getattr(sketch.constraints, adder)(init=True, **ids)
-        else:
-            constraint = getattr(sketch.constraints, adder)(
-                init=False, value=_num(value), **ids
-            )
+        # Always measure first, then override the number. A distance to a line
+        # is signed, and the side is only worked out while measuring: given a
+        # value up front the constraint keeps the default side instead, and the
+        # solver mirrors the point through the line. The interactive tools never
+        # meet this because picking measures before anything is typed.
+        constraint = getattr(sketch.constraints, adder)(init=True, **ids)
+        if value is not None:
+            constraint.assign_settings(value=_num(value))
     else:
         if value is not None:
             raise OpError(f"{constraint_type} takes no value")
