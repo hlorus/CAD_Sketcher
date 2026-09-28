@@ -10,7 +10,7 @@ import json
 import urllib.error
 import urllib.request
 
-from ..mcp import activity, describe, handlers, server, tools
+from ..mcp import activity, describe, handlers, render, server, tools
 from ..mcp.handlers import ToolError
 from ..mcp.ops import OpError, apply_ops
 from .utils import Sketch2dTestCase
@@ -374,6 +374,56 @@ class TestMcpActivity(Sketch2dTestCase):
         self.assertTrue(activity.entries())
         activity.clear()
         self.assertEqual(activity.entries(), [])
+
+
+class TestMcpRenderBounds(Sketch2dTestCase):
+    """What the render frames. Every sketch owns an origin point at (0, 0), and
+    counting it would stretch the frame back there, shrinking work placed away
+    from it."""
+
+    def _origin(self):
+        return self.add_point((0.0, 0.0), fixed=True, is_origin=True)
+
+    def test_the_origin_does_not_drag_the_frame(self):
+        self._origin()
+        for co in ((1.0, 1.0), (1.0, 2.0), (2.0, 2.0), (2.0, 1.0)):
+            self.add_point(co)
+
+        center, half = render._bounds(self.sketch)
+        self.assertAlmostEqual(center.x, 1.5, places=5)
+        self.assertAlmostEqual(center.y, 1.5, places=5)
+        # The square is 1 across, so the half-extent is 0.5 plus the margin.
+        self.assertAlmostEqual(half, 0.5 * render._MARGIN, places=5)
+
+    def test_a_sketch_with_only_its_origin_still_frames_something(self):
+        self._origin()
+        center, half = render._bounds(self.sketch)
+        self.assertEqual(tuple(center), (0.0, 0.0))
+        self.assertEqual(half, render._EMPTY_EXTENT)
+
+    def test_an_empty_sketch_frames_something(self):
+        center, half = render._bounds(self.sketch)
+        self.assertEqual(tuple(center), (0.0, 0.0))
+        self.assertEqual(half, render._EMPTY_EXTENT)
+
+    def test_a_circle_is_framed_by_its_rim_not_its_centre(self):
+        self._origin()
+        center_point = self.add_point((5.0, 5.0))
+        self.add_circle(center_point, 2.0)
+
+        center, half = render._bounds(self.sketch)
+        self.assertAlmostEqual(center.x, 5.0, places=5)
+        # Rim to rim is 4 across, so 2 plus the margin.
+        self.assertAlmostEqual(half, 2.0 * render._MARGIN, places=5)
+
+    def test_geometry_at_the_origin_is_still_framed(self):
+        self._origin()
+        for co in ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0)):
+            self.add_point(co)
+
+        center, half = render._bounds(self.sketch)
+        self.assertAlmostEqual(center.x, 0.5, places=5)
+        self.assertAlmostEqual(half, 0.5 * render._MARGIN, places=5)
 
 
 class TestMcpFirstRun(Sketch2dTestCase):

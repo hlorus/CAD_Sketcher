@@ -8,7 +8,7 @@ pass like any other viewport draw, so constraints and dimensions come out too.
 
 import os
 import tempfile
-from typing import Tuple
+from typing import List, Tuple
 
 import bpy
 import gpu
@@ -31,31 +31,29 @@ class RenderUnavailable(Exception):
 
 
 def _bounds(sketch: Sketch) -> Tuple[Vector, float]:
-    """The centre and half-extent of a sketch's geometry, in sketch-local space."""
+    """The centre and half-extent of a sketch's geometry, in sketch-local space.
+
+    The origin point is skipped unless it is all there is: every sketch has one
+    at (0, 0), and counting it stretches the frame back to the origin, so work
+    placed away from it renders small and off to one side.
+    """
     curve_data = sketch.target_object.data
     lo = Vector((float("inf"), float("inf")))
     hi = Vector((float("-inf"), float("-inf")))
 
-    for curve_id in read_curve_id_list(curve_data):
-        if not curve_id:
-            continue
-        ref = curve_ref(sketch, curve_id)
-        if ref.is_point():
-            points = [ref.co]
-        elif ref.is_circle() or ref.is_arc():
-            center = ref.ct.co if ref.ct else Vector((0, 0))
-            radius = ref.radius
-            points = [
-                center + Vector((radius, radius)),
-                center - Vector((radius, radius)),
-            ]
-        else:
-            # A segment's extent is its endpoints, and those are point curves in
-            # this same sketch, so they are measured on their own pass.
-            continue
-        for point in points:
-            lo.x, lo.y = min(lo.x, point.x), min(lo.y, point.y)
-            hi.x, hi.y = max(hi.x, point.x), max(hi.y, point.y)
+    for skip_origin in (True, False):
+        for curve_id in read_curve_id_list(curve_data):
+            if not curve_id:
+                continue
+            ref = curve_ref(sketch, curve_id)
+            if skip_origin and ref.is_origin:
+                continue
+            for point in _extent_points(ref):
+                lo.x, lo.y = min(lo.x, point.x), min(lo.y, point.y)
+                hi.x, hi.y = max(hi.x, point.x), max(hi.y, point.y)
+        # A sketch holding nothing but its origin still has to frame something.
+        if lo.x != float("inf"):
+            break
 
     if lo.x == float("inf"):
         return Vector((0.0, 0.0)), _EMPTY_EXTENT
@@ -65,6 +63,22 @@ def _bounds(sketch: Sketch) -> Tuple[Vector, float]:
     # Only a sketch with no extent at all falls back; a floor above that would
     # zoom out past small work, which is most of it in metres.
     return center, half if half > 1e-6 else _EMPTY_EXTENT
+
+
+def _extent_points(ref) -> List[Vector]:
+    """The local points that bound one entity."""
+    if ref.is_point():
+        return [ref.co]
+    if ref.is_circle() or ref.is_arc():
+        center = ref.ct.co if ref.ct else Vector((0, 0))
+        radius = ref.radius
+        return [
+            center + Vector((radius, radius)),
+            center - Vector((radius, radius)),
+        ]
+    # A segment's extent is its endpoints, and those are point curves in this
+    # same sketch, so they are measured on their own pass.
+    return []
 
 
 def _ortho_projection(half_extent: float, near: float, far: float) -> Matrix:
