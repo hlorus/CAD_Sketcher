@@ -8,6 +8,7 @@ pass like any other viewport draw, so constraints and dimensions come out too.
 
 import os
 import tempfile
+from contextlib import contextmanager
 from typing import List, Tuple
 
 import bpy
@@ -131,12 +132,16 @@ VIEW_DIRECTIONS = {
 }
 
 
-def objects_png(context, objects: List, view: str, size: int) -> bytes:
+def objects_png(context, objects: List, view: str, size: int, only=None) -> bytes:
     """PNG bytes of ``objects`` from a named direction, framed on all of them.
 
     Unlike a sketch, a solid has no plane of its own to look square-on to, so
     the view is named in world terms and the framing comes from the world-space
     bounds of everything being shown.
+
+    ``only`` restricts what is *drawn* as well as what is framed. The offscreen
+    pass renders the whole view layer, so anything left out has to be hidden
+    for the duration, which is why this is opt-in rather than always on.
     """
     direction = VIEW_DIRECTIONS.get(view)
     if direction is None:
@@ -152,7 +157,39 @@ def objects_png(context, objects: List, view: str, size: int) -> bytes:
     rotation = (eye - center).to_track_quat("Z", "Y").to_matrix().to_4x4()
     frame = rotation.copy()
     frame.translation = eye
-    return _draw(context, frame.inverted(), half_extent, distance, size)
+
+    with _only_showing(context, only):
+        return _draw(context, frame.inverted(), half_extent, distance, size)
+
+
+@contextmanager
+def _only_showing(context, keep):
+    """Hide everything but ``keep`` for the draw, then put it all back.
+
+    ``draw_view3d`` has no way to render a subset, so the rest of the scene is
+    hidden around the call. Restored in a finally, because leaving a user's
+    objects hidden would be far worse than a wrong picture.
+    """
+    if keep is None:
+        yield
+        return
+
+    keep_names = {obj.name for obj in keep}
+    hidden = [
+        obj
+        for obj in context.scene.objects
+        if obj.name not in keep_names and not obj.hide_viewport
+    ]
+    for obj in hidden:
+        obj.hide_viewport = True
+    context.view_layer.update()
+    try:
+        yield
+    finally:
+        for obj in hidden:
+            if obj.name in bpy.data.objects:
+                obj.hide_viewport = False
+        context.view_layer.update()
 
 
 def _world_bounds(context, objects: List) -> Tuple[Vector, float]:

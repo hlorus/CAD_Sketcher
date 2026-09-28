@@ -370,7 +370,14 @@ def render_part(context, params: Dict[str, Any]) -> Result:
 
     size = max(256, min(2048, int(params.get("size") or 800)))
     try:
-        png = render.objects_png(context, visible, params.get("view") or "iso", size)
+        png = render.objects_png(
+            context,
+            visible,
+            params.get("view") or "iso",
+            size,
+            # Naming a part means showing that part, not the rest of the scene.
+            only=visible if name else None,
+        )
     except render.RenderUnavailable as e:
         raise ToolError(str(e)) from e
     return png, "image/png"
