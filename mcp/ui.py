@@ -10,6 +10,16 @@ from ..utilities.preferences import get_prefs
 from . import server
 
 
+def _hint(client_format: str) -> str:
+    """Where the copied text is meant to go."""
+    return {
+        "URL": "Paste where the client asks",
+        "CLAUDE_CODE": "Paste in a terminal",
+        "JSON": "Paste into the client's config",
+        "VSCODE": "Paste into mcp.json",
+    }.get(client_format, "Paste where the client asks")
+
+
 class VIEW3D_PT_sketcher_mcp(VIEW3D_PT_sketcher_base):
     """Serve an MCP endpoint for an AI agent"""
 
@@ -41,14 +51,14 @@ class VIEW3D_PT_sketcher_mcp(VIEW3D_PT_sketcher_base):
 
         box = layout.box()
         box.label(text="Connect an agent")
+        box.prop(prefs, "mcp_client", text="")
         box.operator(
-            Operators.McpCopyUrl, text="Copy Claude Code Command", icon="COPYDOWN"
-        ).url_only = False
-        box.operator(Operators.McpCopyUrl, text="Copy URL Only").url_only = True
+            Operators.McpCopyUrl, text="Copy Address", icon="COPYDOWN"
+        ).client_format = prefs.mcp_client
         column = box.column(align=True)
         column.scale_y = 0.8
-        column.label(text="Paste the command in a terminal,")
-        column.label(text="once. The URL stays the same.")
+        column.label(text=_hint(prefs.mcp_client))
+        column.label(text="Once only; the address keeps.")
 
         column = layout.column(align=True)
         column.scale_y = 0.8

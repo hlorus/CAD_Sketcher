@@ -6,7 +6,7 @@ from bpy.utils import register_classes_factory
 
 from ..declarations import Operators
 from ..utilities.preferences import get_prefs
-from . import server
+from . import clients, server
 
 
 def start(operator: Operator, context: Context) -> bool:
@@ -74,15 +74,16 @@ class View3D_OT_slvs_mcp_stop(Operator):
 
 
 class View3D_OT_slvs_mcp_copy_url(Operator):
-    """Copy the command that connects Claude Code to this endpoint"""
+    """Copy this endpoint's address, in the form your MCP client wants"""
 
     bl_idname = Operators.McpCopyUrl
-    bl_label = "Copy Connect Command"
+    bl_label = "Copy Address"
 
-    url_only: bpy.props.BoolProperty(
-        name="URL Only",
-        description="Copy just the URL, for a client configured with a plain address",
-        default=False,
+    client_format: bpy.props.EnumProperty(
+        name="For",
+        description="Which client to shape the address for",
+        items=clients.FORMAT_ITEMS,
+        default="URL",
         options={"SKIP_SAVE"},
     )
 
@@ -92,9 +93,7 @@ class View3D_OT_slvs_mcp_copy_url(Operator):
 
     def execute(self, context: Context):
         running = server.get_server()
-        context.window_manager.clipboard = (
-            running.url if self.url_only else running.connect_command
-        )
+        context.window_manager.clipboard = running.connect_snippet(self.client_format)
         self.report({"INFO"}, "Copied to the clipboard")
         return {"FINISHED"}
 

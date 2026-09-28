@@ -30,6 +30,13 @@ log_levels = [
 logger = logging.getLogger(__name__)
 
 
+def _mcp_client_items():
+    """Enum items for the MCP client formats, kept with the formats themselves."""
+    from ..mcp.clients import FORMAT_ITEMS
+
+    return [(ident, label, desc) for ident, label, desc in FORMAT_ITEMS]
+
+
 def on_logging_level_update(self, context):
     level = self.logging_level
     logger.info("setting log level: {}".format(level))
@@ -184,6 +191,15 @@ class Preferences(AddonPreferences):
         min=1024,
         max=65535,
     )
+    mcp_client: EnumProperty(
+        name="MCP Client",
+        description=(
+            "Which AI client to shape the endpoint's address for when copying it. "
+            "Any MCP client can use the plain URL"
+        ),
+        items=_mcp_client_items(),
+        default="URL",
+    )
     mcp_auto_start: BoolProperty(
         name="Start MCP Server on Launch",
         description=(
@@ -258,6 +274,7 @@ class Preferences(AddonPreferences):
         box.label(text="Advanced")
         col = box.column(align=True)
         col.prop(self, "mcp_port")
+        col.prop(self, "mcp_client")
         col.prop(self, "mcp_auto_start")
         col.prop(self, "show_whats_new")
         col.prop(self, "show_debug_settings")

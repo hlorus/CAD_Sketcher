@@ -8,12 +8,23 @@ It is off until you start it, and it listens only on your own machine.
 
 ## Connecting
 
+CAD Sketcher speaks MCP over its standard HTTP transport, so **any MCP client
+can connect**: all it needs is the endpoint's address.
+
 1. Open the **Sketcher** sidebar in the 3D viewport (press <kbd>N</kbd>) and
    expand **AI Agent (MCP)**.
 2. Press **Start Server**.
-3. Press **Copy Claude Code Command** and paste it into a terminal. For an
-   editor that takes a JSON config instead, use **Copy URL Only** and add a
-   server with that `url`.
+3. Choose your client from the dropdown and press **Copy Address**. Leave it on
+   **URL** if your client just asks for a server address, which most do.
+
+The dropdown only changes the shape of what is copied:
+
+| Choice | What you get |
+| --- | --- |
+| URL | The address on its own |
+| Claude Code | A `claude mcp add` command to run in a terminal |
+| Cursor / Claude / Windsurf | An `mcpServers` entry for the client's JSON config |
+| VS Code | A `servers` entry for `mcp.json` |
 
 You only do this once. The address stays the same between sessions, so the agent
 stays connected. Blender's **Allow Online Access** preference must be on.

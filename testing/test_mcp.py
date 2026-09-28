@@ -415,9 +415,36 @@ class TestMcpTransport(Sketch2dTestCase):
         self.assertIn(self.server.token, self.server.url)
         self.assertTrue(self.server.url.startswith("http://127.0.0.1:"))
 
-    def test_the_connect_command_carries_the_url(self):
-        self.assertIn(self.server.url, self.server.connect_command)
-        self.assertIn("--transport http", self.server.connect_command)
+    def test_every_client_format_carries_the_url(self):
+        from ..mcp import clients
+
+        for client_format, _label, _desc in clients.FORMAT_ITEMS:
+            snippet = self.server.connect_snippet(client_format)
+            self.assertIn(self.server.url, snippet, client_format)
+
+    def test_the_plain_url_is_the_default_and_carries_nothing_else(self):
+        # The transport is standard, so the bare address is what works
+        # everywhere; anything client-shaped is a convenience on top.
+        self.assertEqual(self.server.connect_snippet(), self.server.url)
+        self.assertEqual(self.server.connect_snippet("URL"), self.server.url)
+
+    def test_the_json_formats_parse_as_the_client_expects(self):
+        import json
+
+        from ..mcp import clients
+
+        entry = json.loads(clients.mcp_servers_json(self.server.url))
+        self.assertEqual(entry["mcpServers"]["cad-sketcher"]["url"], self.server.url)
+
+        # VS Code keys on `servers` and insists the transport is named.
+        entry = json.loads(clients.vscode_json(self.server.url))
+        self.assertEqual(entry["servers"]["cad-sketcher"]["type"], "http")
+        self.assertEqual(entry["servers"]["cad-sketcher"]["url"], self.server.url)
+
+    def test_an_unknown_format_falls_back_to_the_url(self):
+        from ..mcp import clients
+
+        self.assertEqual(clients.snippet(self.server.url, "nonsense"), self.server.url)
 
 
 class TestMcpToken(Sketch2dTestCase):

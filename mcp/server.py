@@ -122,10 +122,11 @@ class MCPServer:
         """The URL to give an MCP client."""
         return f"http://{HOST}:{self.port}/mcp/{self.token}"
 
-    @property
-    def connect_command(self) -> str:
-        """The one line that registers this endpoint with Claude Code."""
-        return f'claude mcp add --transport http cad-sketcher "{self.url}"'
+    def connect_snippet(self, client_format: str = "URL") -> str:
+        """What to hand a client so it can reach this endpoint."""
+        from . import clients
+
+        return clients.snippet(self.url, client_format)
 
     @property
     def running(self) -> bool:
