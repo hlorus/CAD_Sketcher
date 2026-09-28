@@ -59,7 +59,7 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
 
         # Remove constraints referencing this segment
         for data_coll, indices in _get_constraint_indices_for_curve_id(
-            segment.curve_id, context
+            sketch, segment.curve_id
         ):
             for i in reversed(indices):
                 data_coll.remove(i)

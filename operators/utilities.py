@@ -187,7 +187,10 @@ def switch_sketch_mode(
     if to_sketch_mode:
         enter_sketch_mode(is_3d=is_3d)
         tool = context.workspace.tools.from_space_view3d_mode(context.mode)
-        if tool.widget != GizmoGroups.Preselection:
+        # No tool resolves when the sketch is activated from outside a viewport
+        # (a script, or the MCP endpoint): there is then nothing to keep, so set
+        # ours rather than reading a tool that isn't there.
+        if tool is None or tool.widget != GizmoGroups.Preselection:
             bpy.ops.wm.tool_set_by_id(name=WorkSpaceTools.Select)
         return True
 

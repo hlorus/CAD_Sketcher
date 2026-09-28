@@ -417,7 +417,7 @@ class View3D_OT_slvs_bevel(Operator, Operator2d):
             sc.add_tangent(curve_id_1=arc.curve_id, curve_id_2=l1.curve_id)
             sc.add_tangent(curve_id_1=arc.curve_id, curve_id_2=l2.curve_id)
 
-            if not _get_constraint_indices_for_curve_id(point.curve_id, context):
+            if not _get_constraint_indices_for_curve_id(sketch, point.curve_id):
                 # Nothing refers to the corner any more: drop it.
                 unused_corners.append(point.curve_id)
                 continue

@@ -339,36 +339,9 @@ class StatefulOperator(StatefulOperatorLogic):
     @staticmethod
     def _matches_types(element, types):
         """Check if element matches accepted types (supports both entities and CurveRefs)."""
-        if type(element) in types:
-            return True
+        from ..model.identifiers import matches_types
 
-        # Map CurveRef types to legacy entity types
-        from ..model.curve_ref import (
-            ArcRef,
-            CircleRef,
-            CurveRef,
-            LineRef,
-            PointRef,
-        )
-
-        if not isinstance(element, CurveRef):
-            return False
-
-        from ..model.types import (
-            SlvsArc,
-            SlvsCircle,
-            SlvsLine2D,
-            SlvsPoint2D,
-        )
-
-        _map = {
-            PointRef: SlvsPoint2D,
-            LineRef: SlvsLine2D,
-            ArcRef: SlvsArc,
-            CircleRef: SlvsCircle,
-        }
-        mapped = _map.get(type(element))
-        return mapped in types if mapped else False
+        return matches_types(element, types)
 
     # True -> expose an eyedropper next to picked pointer states in the redo
     # panel that re-enters this op to edit just that state (edit_state re-entry).

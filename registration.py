@@ -10,6 +10,7 @@ modules = [
     "workspacetools",
     "ui",
     "ui.pie_menu",
+    "mcp",
     "draw_handler",
 ]
 

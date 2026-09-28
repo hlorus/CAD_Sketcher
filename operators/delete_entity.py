@@ -1,16 +1,16 @@
 import logging
 
-from bpy.utils import register_classes_factory
 from bpy.props import StringProperty
-from bpy.types import Operator, Context
+from bpy.types import Context, Operator
+from bpy.utils import register_classes_factory
 
+from ..curve_solver import solve_system
+from ..declarations import Operators
 from ..drawing import selection
 from ..model.sketch_ref import get_active_sketch
-from ..utilities.view import refresh
 from ..utilities.curve_data import remove_native_curve_by_id
-from ..declarations import Operators
-from ..curve_solver import solve_system
 from ..utilities.highlighting import HighlightElement
+from ..utilities.view import refresh
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +52,9 @@ def _is_origin_curve(sketch, curve_id):
     return bool(attr.data[idx].value) if attr else False
 
 
-def _get_constraint_indices_for_curve_id(curve_id, context):
-    """Find constraints that reference a curve_id."""
-    from ..model.sketch_ref import get_active_constraints
-    constraints = get_active_constraints(context)
+def _get_constraint_indices_for_curve_id(sketch, curve_id):
+    """Find constraints of ``sketch`` that reference a curve_id."""
+    constraints = sketch.constraints if sketch else None
     if not constraints:
         return []
     ret_list = []
@@ -72,6 +71,26 @@ def _get_constraint_indices_for_curve_id(curve_id, context):
         if indices:
             ret_list.append((data_coll, indices))
     return ret_list
+
+
+def delete_curve(sketch, curve_id: str) -> None:
+    """Delete one curve from ``sketch``, with what depends on it.
+
+    Curves built on the curve go first (a line cannot outlive its endpoint), then
+    the constraints that reference any of them, so nothing is left pointing at
+    geometry that is gone. The sketch origin is permanent and ignored.
+    """
+    if _is_origin_curve(sketch, curve_id):
+        return
+
+    for dep_cid in _get_dependent_curve_ids(sketch, curve_id):
+        delete_curve(sketch, dep_cid)
+
+    for data_coll, indices in _get_constraint_indices_for_curve_id(sketch, curve_id):
+        for i in reversed(indices):
+            data_coll.remove(i)
+
+    remove_native_curve_by_id(sketch, curve_id)
 
 
 class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
@@ -107,7 +126,7 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
             return {"CANCELLED"}
 
         for cid in to_delete:
-            self._delete_curve(context, sketch, cid)
+            delete_curve(sketch, cid)
 
         selection.selected.clear()
         selection.hover = ""
@@ -115,23 +134,6 @@ class View3D_OT_slvs_delete_entity(Operator, HighlightElement):
         solve_system(context, sketch=sketch)
         refresh(context)
         return {"FINISHED"}
-
-    def _delete_curve(self, context, sketch, curve_id):
-        # The sketch origin is a permanent fixture — silently ignore it,
-        # whether selected directly or reached via a cascade.
-        if _is_origin_curve(sketch, curve_id):
-            return
-
-        deps = _get_dependent_curve_ids(sketch, curve_id)
-        if deps:
-            for dep_cid in deps:
-                self._delete_curve(context, sketch, dep_cid)
-
-        for data_coll, indices in _get_constraint_indices_for_curve_id(curve_id, context):
-            for i in reversed(indices):
-                data_coll.remove(i)
-
-        remove_native_curve_by_id(sketch, curve_id)
 
 
 register, unregister = register_classes_factory((View3D_OT_slvs_delete_entity,))

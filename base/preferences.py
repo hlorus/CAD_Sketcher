@@ -174,6 +174,16 @@ class Preferences(AddonPreferences):
         description="Show a summary of the changes after CAD Sketcher is updated",
         default=True,
     )
+    mcp_port: IntProperty(
+        name="MCP Port",
+        description=(
+            "Loopback port the MCP endpoint listens on, for an AI agent to drive "
+            "CAD Sketcher. Start it from the Sketcher sidebar"
+        ),
+        default=9877,
+        min=1024,
+        max=65535,
+    )
 
     def draw(self, context):
         layout = self.layout
@@ -239,6 +249,7 @@ class Preferences(AddonPreferences):
         box = layout.box()
         box.label(text="Advanced")
         col = box.column(align=True)
+        col.prop(self, "mcp_port")
         col.prop(self, "show_whats_new")
         col.prop(self, "show_debug_settings")
         col.prop(self, "logging_level")

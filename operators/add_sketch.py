@@ -135,10 +135,24 @@ def build_sketch_on_workplane(context: Context, wp_empty):
 
     sketch = Sketch(sketch_obj)
 
-    origin = PointRef.create(sketch, (0.0, 0.0), fixed=True, is_origin=True)
-    assert origin is not None, "Failed to create origin point"
+    # The self-heal restores a missing origin too, and it can run against the
+    # half-built sketch (a depsgraph update between linking the object and
+    # getting here, which a scripted or timer-driven create leaves room for).
+    # Minting a second one then leaves the sketch with two, so only make one if
+    # the sketch still has none.
+    if not _has_origin(sketch_obj.data):
+        origin = PointRef.create(sketch, (0.0, 0.0), fixed=True, is_origin=True)
+        assert origin is not None, "Failed to create origin point"
 
     return sketch
+
+
+def _has_origin(curve_data) -> bool:
+    """Whether a sketch's curve data already carries its origin point."""
+    origin_attr = curve_data.attributes.get("is_origin") if curve_data else None
+    if origin_attr is None:
+        return False
+    return any(entry.value for entry in origin_attr.data)
 
 
 def _is_shared_datum(context: Context, wp_empty) -> bool:

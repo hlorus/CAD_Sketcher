@@ -33,6 +33,11 @@ wheels = [
   "./wheels/slvs-3.2-cp313-cp313-win_amd64.whl",
 ]
 
+[permissions]
+# Serves a loopback MCP endpoint so an AI agent can drive sketches. Nothing
+# listens until the user starts it from the Sketcher sidebar.
+network = "Serve a local endpoint for an AI agent to drive sketches"
+
 [build]
 # Ship only the runtime add-on. Everything below is dev tooling, docs, tests,
 # or local build cruft that must not end up in the released extension.
