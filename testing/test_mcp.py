@@ -350,6 +350,40 @@ class TestMcpTransport(Sketch2dTestCase):
         self.assertIn("tools", body["result"]["capabilities"])
         self.assertEqual(body["result"]["serverInfo"]["name"], "cad-sketcher")
 
+    def test_every_result_carries_a_result_type(self):
+        # The modern revision puts resultType on every result, and a client
+        # rejects the whole response without it: no tools reach the agent.
+        # tools/call is covered by the failing-call test below, which answers
+        # without the main-thread hop that a background Blender never runs.
+        for method, params in (
+            ("server/discover", {}),
+            ("tools/list", {}),
+            ("ping", {}),
+        ):
+            _, body = self._post(
+                {"jsonrpc": "2.0", "id": 20, "method": method, "params": params}
+            )
+            self.assertEqual(body["result"].get("resultType"), "complete", method)
+
+    def test_a_failed_tool_call_still_carries_a_result_type(self):
+        _, body = self._post(
+            {
+                "jsonrpc": "2.0",
+                "id": 21,
+                "method": "tools/call",
+                "params": {"name": "no_such_tool", "arguments": {}},
+            }
+        )
+        self.assertEqual(body["result"]["resultType"], "complete")
+        self.assertTrue(body["result"]["isError"])
+
+    def test_the_legacy_handshake_has_no_result_type(self):
+        # initialize predates the field; a legacy client should not meet it.
+        _, body = self._post(
+            {"jsonrpc": "2.0", "id": 22, "method": "initialize", "params": {}}
+        )
+        self.assertNotIn("resultType", body["result"])
+
     def test_tools_list_returns_the_tools(self):
         _, body = self._post({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         names = {tool["name"] for tool in body["result"]["tools"]}

@@ -210,6 +210,14 @@ class _RequestHandler(BaseHTTPRequestHandler):
             )
             return
 
+        # Every result of the modern revision carries this, tool calls included,
+        # and a client rejects the whole response without it. Stamped in one
+        # place so no method can be added that forgets. A legacy `initialize`
+        # predates the field, and a handler that sets its own (an
+        # input_required, say) keeps it.
+        if method != "initialize" and isinstance(result, dict):
+            result.setdefault("resultType", "complete")
+
         self._send_json(200, {"jsonrpc": "2.0", "id": body.get("id"), "result": result})
 
     def do_GET(self) -> None:
