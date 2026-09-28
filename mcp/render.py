@@ -107,15 +107,89 @@ def _view_matrix(sketch: Sketch, center: Vector, distance: float) -> Matrix:
 
 def sketch_png(context, sketch: Sketch, size: int) -> bytes:
     """PNG bytes of ``sketch`` seen square-on, framed on its geometry."""
+    center, half_extent = _bounds(sketch)
+    distance = max(half_extent * 4.0, 1.0)
+    return _draw(
+        context,
+        _view_matrix(sketch, center, distance),
+        half_extent,
+        distance,
+        size,
+    )
+
+
+# Where each named view looks from, as a direction in world space. The camera
+# is placed along it and pointed back at the part.
+VIEW_DIRECTIONS = {
+    "front": Vector((0.0, -1.0, 0.0)),
+    "back": Vector((0.0, 1.0, 0.0)),
+    "right": Vector((1.0, 0.0, 0.0)),
+    "left": Vector((-1.0, 0.0, 0.0)),
+    "top": Vector((0.0, 0.0, 1.0)),
+    "bottom": Vector((0.0, 0.0, -1.0)),
+    "iso": Vector((1.0, -1.0, 0.8)),
+}
+
+
+def objects_png(context, objects: List, view: str, size: int) -> bytes:
+    """PNG bytes of ``objects`` from a named direction, framed on all of them.
+
+    Unlike a sketch, a solid has no plane of its own to look square-on to, so
+    the view is named in world terms and the framing comes from the world-space
+    bounds of everything being shown.
+    """
+    direction = VIEW_DIRECTIONS.get(view)
+    if direction is None:
+        raise RenderUnavailable(
+            f"view must be one of {', '.join(sorted(VIEW_DIRECTIONS))}, got {view!r}"
+        )
+
+    center, half_extent = _world_bounds(context, objects)
+    distance = max(half_extent * 4.0, 1.0)
+    eye = center + direction.normalized() * distance
+    # Blender's cameras look down -Z, so build the frame from the look vector
+    # and let track_to work out the roll.
+    rotation = (eye - center).to_track_quat("Z", "Y").to_matrix().to_4x4()
+    frame = rotation.copy()
+    frame.translation = eye
+    return _draw(context, frame.inverted(), half_extent, distance, size)
+
+
+def _world_bounds(context, objects: List) -> Tuple[Vector, float]:
+    """Centre and half-extent of the evaluated geometry, in world space."""
+    depsgraph = context.evaluated_depsgraph_get()
+    lo = Vector((float("inf"),) * 3)
+    hi = Vector((float("-inf"),) * 3)
+
+    for obj in objects:
+        evaluated = obj.evaluated_get(depsgraph)
+        # bound_box is in local space, so each corner needs the world matrix.
+        for corner in evaluated.bound_box:
+            world = evaluated.matrix_world @ Vector(corner)
+            for axis in range(3):
+                lo[axis] = min(lo[axis], world[axis])
+                hi[axis] = max(hi[axis], world[axis])
+
+    if lo.x == float("inf"):
+        return Vector((0.0, 0.0, 0.0)), _EMPTY_EXTENT
+
+    center = (lo + hi) / 2
+    half = max(hi - lo) / 2 * _MARGIN
+    return center, half if half > 1e-6 else _EMPTY_EXTENT
+
+
+def _draw(
+    context, view_matrix: Matrix, half_extent: float, distance: float, size: int
+) -> bytes:
+    """Draw the viewport offscreen from one camera, and encode it."""
     space_data, region = _viewport(context)
 
     # What the picture shows is the evaluated geometry, so an edit made in the
     # same breath has to reach the depsgraph before it can be looked at.
     context.view_layer.update()
 
-    center, half_extent = _bounds(sketch)
-    distance = max(half_extent * 4.0, 1.0)
-    view_matrix = _view_matrix(sketch, center, distance)
+    # Far enough back to keep the whole part between the clip planes from any
+    # direction, not just the one the extent was measured along.
     projection = _ortho_projection(half_extent, 0.01, distance * 4.0)
 
     offscreen = gpu.types.GPUOffScreen(size, size)
@@ -135,7 +209,7 @@ def sketch_png(context, sketch: Sketch, size: int) -> bytes:
             )
             buffer.dimensions = size * size * 4
     except (RuntimeError, SystemError) as e:
-        raise RenderUnavailable(f"Blender could not render the sketch: {e}") from e
+        raise RenderUnavailable(f"Blender could not render it: {e}") from e
     finally:
         offscreen.free()
 

@@ -36,8 +36,10 @@ Blender session the user is watching. Work the way a CAD user does:
    when describe_sketch reports dof 0, which means nothing is left floating.
    Aim for that, and say so when a sketch is still under-defined.
 5. Fix or otherwise tie down one point, or the whole sketch can slide.
-6. Look at your work with render_sketch. Coordinates and dof rarely reveal that
-   a shape came out inside out or mirrored, and the picture does.
+6. Look at your work. render_sketch shows one sketch square-on; render_part
+   shows the solids from any side, which is the only way to check depth.
+   Coordinates and dof rarely reveal that a shape came out inside out or
+   mirrored, and a picture does.
 7. If the solver reports failed constraints, two of them contradict. Remove or
    change one rather than piling more on.
 8. A drawing becomes a part through extrude or revolve, then boolean and array.
@@ -46,7 +48,10 @@ Blender session the user is watching. Work the way a CAD user does:
 9. A solid stands on its own unless you pass a boolean. Passing one consumes it
    into the body it touches and hides it, which looks like the solid vanished,
    so use it deliberately and say what you did.
-10. The user is in Blender with you. Every edit is one step in their undo
+10. Nothing here changes what the user is doing unless you ask it to. Every
+   tool works by name, so you never need to enter a sketch; set_active_sketch
+   is there for when they ask to be taken somewhere.
+11. The user is in Blender with you. Every edit is one step in their undo
    history, and destructive tools are worth asking about before you use them.\
 """
 
@@ -350,6 +355,52 @@ FEATURE_TOOLS: List[Dict[str, Any]] = [
         "handler": handlers.boolean,
     },
     {
+        "name": "render_part",
+        "title": "Look at the solids",
+        "description": (
+            "A PNG of the solids from a named direction. render_sketch only "
+            "shows one sketch square-on to its own plane, which says nothing "
+            "about how tall a part is, so use this to check a shape that has "
+            "any depth to it."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "part": {
+                    "type": "string",
+                    "description": (
+                        "Show only this part or body, and what belongs to it. "
+                        "Omit to show everything solid in the scene."
+                    ),
+                },
+                "view": {
+                    "type": "string",
+                    "enum": [
+                        "iso",
+                        "front",
+                        "back",
+                        "left",
+                        "right",
+                        "top",
+                        "bottom",
+                    ],
+                    "description": (
+                        "Where to look from. Default iso, which shows depth; "
+                        "the straight-on views are for checking one dimension."
+                    ),
+                },
+                "size": {
+                    "type": "integer",
+                    "minimum": 256,
+                    "maximum": 2048,
+                    "description": "Image size in pixels, square. Default 800.",
+                },
+            },
+        },
+        "annotations": {"readOnlyHint": True},
+        "handler": handlers.render_part,
+    },
+    {
         "name": "make_part",
         "title": "Make a part",
         "description": (
@@ -462,6 +513,14 @@ TOOLS: List[Dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "Name for the new sketch."},
+                "activate": {
+                    "type": "boolean",
+                    "description": (
+                        "Also enter the sketch. Default false: entering "
+                        "switches the user's tool and can move their view, "
+                        "and nothing here needs it to build."
+                    ),
+                },
                 "plane": {
                     "type": "string",
                     "enum": ["XY", "XZ", "YZ"],
@@ -470,6 +529,26 @@ TOOLS: List[Dict[str, Any]] = [
             },
         },
         "handler": handlers.create_sketch,
+    },
+    {
+        "name": "set_active_sketch",
+        "title": "Enter or leave a sketch",
+        "description": (
+            "Enter a sketch, or leave sketch mode when no name is given. The "
+            "other tools all take a name, so this is only about what the user "
+            "is looking at: sketch mode switches their tools and fades "
+            "everything else. Leave it when you are done."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "sketch": {
+                    "type": "string",
+                    "description": "Sketch to enter. Omit to leave sketch mode.",
+                }
+            },
+        },
+        "handler": handlers.set_active_sketch,
     },
     {
         "name": "delete_sketch",

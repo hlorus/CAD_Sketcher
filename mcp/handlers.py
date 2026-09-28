@@ -11,7 +11,8 @@ from typing import Any, Dict, Optional, Tuple, Union
 import bpy
 
 from ..curve_solver import solve_system
-from ..model.sketch_ref import Sketch, get_sketches, set_active_sketch
+from ..model.sketch_ref import Sketch, get_sketches
+from ..model.sketch_ref import set_active_sketch as _set_active_pointer
 from ..utilities.curve_data import refresh_curve_geometry
 from . import describe, render
 from .ops import OpError, apply_ops
@@ -149,7 +150,11 @@ def create_sketch(context, params: Dict[str, Any]) -> Result:
         body.name = name
         name_after_body(body, sketch.target_object, sketch.target_object.slvs_workplane)
 
-    _activate(context, sketch)
+    # Off by default: entering a sketch switches the user's tool, fades
+    # everything else, and can swing their viewport onto the plane. The
+    # other tools all work by name, so none of that is needed to build.
+    if params.get("activate", False):
+        _activate(context, sketch)
     _redraw()
 
     return describe.sketch_data(sketch)
@@ -229,7 +234,7 @@ def _activate(context, sketch: Optional[Sketch]) -> None:
     except RuntimeError:
         # No viewport to activate into (background mode): the pointer is what
         # the rest of the add-on reads, so set it directly.
-        set_active_sketch(context, sketch)
+        _set_active_pointer(context, sketch)
 
 
 def _redraw() -> None:
@@ -318,3 +323,51 @@ def make_part(context, params: Dict[str, Any]) -> Result:
     from . import features
 
     return _feature(context, params, features.make_part, "make_part")
+
+
+def render_part(context, params: Dict[str, Any]) -> Result:
+    """Render the solids from a named direction, so the agent can see the part."""
+    from . import features, render
+
+    name = params.get("part")
+    if name:
+        target = features.find_target(context, name)
+        from ..utilities.part import part_root_of
+
+        root = part_root_of(target) or target
+        # A part is a group, so show everything in it, not just the one body.
+        objects = [
+            obj
+            for obj in features.solid_objects(context)
+            if (part_root_of(obj) or obj) == root
+        ]
+        objects = objects or [target]
+    else:
+        objects = features.solid_objects(context)
+
+    visible = [obj for obj in objects if not obj.hide_viewport]
+    if not visible:
+        raise ToolError(
+            "There is nothing solid to look at. Extrude or revolve a sketch "
+            "first; describe_scene lists what exists."
+        )
+
+    size = max(256, min(2048, int(params.get("size") or 800)))
+    try:
+        png = render.objects_png(context, visible, params.get("view") or "iso", size)
+    except render.RenderUnavailable as e:
+        raise ToolError(str(e)) from e
+    return png, "image/png"
+
+
+def set_active_sketch(context, params: Dict[str, Any]) -> Result:
+    """Enter a sketch, or leave sketch mode when given no name."""
+    _guard_writes(context)
+    name = params.get("sketch")
+    sketch = _sketch(context, {"sketch": name}) if name else None
+    _activate(context, sketch)
+    _redraw()
+    return {
+        "active_sketch": sketch.name if sketch is not None else None,
+        "in_sketch_mode": sketch is not None,
+    }

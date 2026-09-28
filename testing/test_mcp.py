@@ -305,11 +305,11 @@ class TestMcpCreateSketch(Sketch2dTestCase):
         origins = [e for e in created["entities"] if e.get("origin")]
         self.assertEqual(len(origins), 1, created["entities"])
 
-    def test_a_new_sketch_is_named_and_active(self):
+    def test_a_new_sketch_is_named_and_listed(self):
         created = handlers.create_sketch(self.context, {"name": "Plate", "plane": "XZ"})
         self.assertIn("Plate", created["sketch"])
         scene = describe.scene_data(self.context)
-        self.assertEqual(scene["active_sketch"], created["sketch"])
+        self.assertIn(created["sketch"], [s["name"] for s in scene["sketches"]])
 
 
 class TestMcpActivity(Sketch2dTestCase):
@@ -506,6 +506,121 @@ class TestMcpFeatures(Sketch2dTestCase):
         result = handlers.make_part(self.context, {"target": body["name"]})
         self.assertTrue(result.get("is_part_root"))
         self.assertEqual({o.name for o in self.context.selected_objects}, before)
+
+
+class TestMcpSketchMode(Sketch2dTestCase):
+    """Who decides whether the user is left sitting in sketch mode."""
+
+    def _active(self):
+        return describe.scene_data(self.context)["active_sketch"]
+
+    def test_creating_a_sketch_leaves_the_user_where_they_were(self):
+        # Entering switches their tool, fades other objects and can swing the
+        # viewport onto the plane. Building needs none of that.
+        before = self._active()
+        handlers.create_sketch(self.context, {"name": "Quiet"})
+        self.assertEqual(self._active(), before)
+
+    def test_a_sketch_can_be_entered_on_request(self):
+        created = handlers.create_sketch(
+            self.context, {"name": "Entered", "activate": True}
+        )
+        self.assertEqual(self._active(), created["sketch"])
+
+    def test_leaving_takes_no_name(self):
+        handlers.create_sketch(self.context, {"name": "Somewhere", "activate": True})
+        result = handlers.set_active_sketch(self.context, {})
+        self.assertIsNone(result["active_sketch"])
+        self.assertFalse(result["in_sketch_mode"])
+        self.assertIsNone(self._active())
+
+    def test_entering_by_name_goes_there(self):
+        first = handlers.create_sketch(self.context, {"name": "First"})["sketch"]
+        handlers.create_sketch(self.context, {"name": "Second", "activate": True})
+        result = handlers.set_active_sketch(self.context, {"sketch": first})
+        self.assertEqual(result["active_sketch"], first)
+        self.assertEqual(self._active(), first)
+
+    def test_entering_a_sketch_that_is_not_there_is_refused(self):
+        with self.assertRaises(ToolError) as caught:
+            handlers.set_active_sketch(self.context, {"sketch": "Nope"})
+        self.assertIn("Nope", str(caught.exception))
+
+    def test_building_a_solid_does_not_move_the_user(self):
+        # A user sitting in their own sketch must not be thrown out of it
+        # because the agent built something elsewhere.
+        sketch = handlers.create_sketch(
+            self.context, {"name": "Slab", "activate": True}
+        )["sketch"]
+        handlers.edit_sketch(
+            self.context,
+            {
+                "sketch": sketch,
+                "ops": [
+                    {"op": "point", "name": "a", "co": [0, 0], "fixed": True},
+                    {"op": "point", "name": "b", "co": [0.05, 0.001]},
+                    {"op": "point", "name": "c", "co": [0.05, 0.05]},
+                    {"op": "point", "name": "d", "co": [0.001, 0.05]},
+                    {"op": "line", "name": "s1", "p1": "a", "p2": "b"},
+                    {"op": "line", "name": "s2", "p1": "b", "p2": "c"},
+                    {"op": "line", "name": "s3", "p1": "c", "p2": "d"},
+                    {"op": "line", "name": "s4", "p1": "d", "p2": "a"},
+                    {"op": "constrain", "type": "horizontal", "refs": ["s1"]},
+                    {"op": "constrain", "type": "vertical", "refs": ["s2"]},
+                ],
+            },
+        )
+        self.assertEqual(self._active(), sketch, "still sketching at this point")
+
+        handlers.extrude(self.context, {"sketch": sketch, "distance": 0.01})
+        self.assertEqual(self._active(), sketch, "the extrude moved the user")
+
+
+class TestMcpRenderPart(Sketch2dTestCase):
+    """Framing and view selection for the solid render.
+
+    The draw itself needs a GPU and a viewport, so what is checked here is the
+    camera it would use, not the pixels.
+    """
+
+    def test_every_named_view_looks_from_a_different_side(self):
+        directions = render.VIEW_DIRECTIONS
+        self.assertIn("iso", directions)
+        seen = {tuple(round(c, 6) for c in v.normalized()) for v in directions.values()}
+        self.assertEqual(len(seen), len(directions), "two views look the same way")
+
+    def test_opposite_views_are_opposite(self):
+        directions = render.VIEW_DIRECTIONS
+        for a, b in (("front", "back"), ("left", "right"), ("top", "bottom")):
+            self.assertAlmostEqual((directions[a] + directions[b]).length, 0.0)
+
+    def test_the_bounds_cover_every_object_shown(self):
+        import bpy
+
+        one = bpy.data.objects.new("one", bpy.data.meshes.new("one"))
+        two = bpy.data.objects.new("two", bpy.data.meshes.new("two"))
+        self.scene.collection.objects.link(one)
+        self.scene.collection.objects.link(two)
+        one.location = (0.0, 0.0, 0.0)
+        two.location = (4.0, 0.0, 0.0)
+        try:
+            center, half = render._world_bounds(self.context, [one, two])
+            # Two empty meshes are points, so the centre sits between them.
+            self.assertAlmostEqual(center.x, 2.0, places=4)
+            self.assertGreater(half, 0.0)
+        finally:
+            bpy.data.objects.remove(one, do_unlink=True)
+            bpy.data.objects.remove(two, do_unlink=True)
+
+    def test_nothing_solid_is_a_readable_refusal(self):
+        with self.assertRaises(ToolError) as caught:
+            handlers.render_part(self.context, {})
+        self.assertIn("nothing solid", str(caught.exception))
+
+    def test_an_unknown_view_is_refused(self):
+        with self.assertRaises(render.RenderUnavailable) as caught:
+            render.objects_png(self.context, [], "sideways", 256)
+        self.assertIn("sideways", str(caught.exception))
 
 
 class TestMcpRenderBounds(Sketch2dTestCase):
