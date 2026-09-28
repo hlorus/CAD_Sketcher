@@ -34,25 +34,34 @@ def _part_for_workplane(context: Context, wp_empty):
 
     Sketching on a mesh face means "add a feature to that thing", so the face's
     object becomes a part (if it is not already in one) and the sketch joins it.
-    A sketch on a base datum plane belongs to no existing part, so it starts one
-    of its own and there is nothing to return.
+    An object the user brought along (an Empty they placed, say) is read the same
+    way: it is the frame they mean, so it roots the part and the sketch follows
+    it wherever it goes. A sketch on a base datum plane belongs to no existing
+    part, so it starts one of its own and there is nothing to return.
     """
     from ..utilities.face_anchor import KEY_SOURCE
     from ..utilities.part import mark_part_root, part_root_of
+    from ..utilities.workplane import is_managed_workplane
 
     root = part_root_of(wp_empty)
     if root is not None:
         return root
 
     source = wp_empty.get(KEY_SOURCE)
-    if not isinstance(source, bpy.types.Object):
+    if isinstance(source, bpy.types.Object):
+        root = part_root_of(source)
+        if root is None:
+            root = source
+            mark_part_root(root)
+        return root
+
+    # The scene's datums are shared by everything, and a plane of ours that is
+    # in no part has nothing to anchor, so both keep minting a plane of their own.
+    if _is_shared_datum(context, wp_empty) or is_managed_workplane(wp_empty):
         return None
 
-    root = part_root_of(source)
-    if root is None:
-        root = source
-        mark_part_root(root)
-    return root
+    mark_part_root(wp_empty)
+    return wp_empty
 
 
 def build_sketch_on_workplane(context: Context, wp_empty):
@@ -83,7 +92,13 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     wp_orig = getattr(wp_empty, "original", wp_empty)
     root = _part_for_workplane(context, wp_orig)
     from ..utilities.body import default_body_name, ensure_body
-    from ..utilities.part import fix_transform, free_transform, join_part, part_root_of
+    from ..utilities.part import (
+        fix_transform,
+        free_transform,
+        is_part_root,
+        join_part,
+        part_root_of,
+    )
 
     # Every sketch is realised on a body, and the body is what carries the
     # transform: the sketch always sits on a workplane, and that workplane hangs
@@ -123,7 +138,12 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     sketch_obj.matrix_parent_inverse = Matrix.Identity(4)
     sketch_obj.matrix_basis = Matrix.Identity(4)
     fix_transform(sketch_obj)
-    fix_transform(plane)
+    # A plane that roots the part owns the part's transform, so it stays free to
+    # move; only one sitting inside a part is pinned to it.
+    if is_part_root(plane):
+        free_transform(plane)
+    else:
+        fix_transform(plane)
 
     from ..utilities.body import BODY_PLACED_KEY, name_after_body
 

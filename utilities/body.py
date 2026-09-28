@@ -138,15 +138,21 @@ def name_after_body(body: bpy.types.Object, sketch_obj, plane=None) -> bool:
     The body is the thing the user grabs, so the outliner reads as one named
     thing with its source under it: rename the body and the rest follows. A
     ``plane`` is renamed only when the body owns it; one the sketch was drawn on
-    belongs to something else. Returns whether anything was actually renamed.
+    belongs to something else, and an object the user brought along keeps the
+    name they gave it. Returns whether anything was actually renamed.
     """
     from .part import PART_PLANE_AXES, PART_PLANE_KEY, existing_part_plane
+    from .workplane import is_managed_workplane
 
     changed = _rename(body.data, body.name)
     if sketch_obj is not None:
         changed |= _rename(sketch_obj, f"{body.name} Sketch")
         changed |= _rename(sketch_obj.data, sketch_obj.name)
-    if plane is not None and PART_PLANE_KEY not in plane:
+    if (
+        plane is not None
+        and PART_PLANE_KEY not in plane
+        and is_managed_workplane(plane)
+    ):
         changed |= _rename(plane, f"{body.name} Workplane")
     for axis, _euler in PART_PLANE_AXES:
         base = existing_part_plane(body, axis)

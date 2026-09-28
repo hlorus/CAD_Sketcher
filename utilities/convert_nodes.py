@@ -27,7 +27,7 @@ SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 24
+CONVERT_VERSION = 25
 
 # Input naming the sketch a body is built from. A body is a mesh object with no
 # geometry of its own: the sketch's curves are pulled in here, so one modifier
@@ -467,6 +467,10 @@ def _source_geometry(nodes, links, gi):
     Read in the modifier object's own space, so a body whose transform matches
     its sketch holds the geometry planar locally and correct in the world.
     Realized, so an instanced source still resolves to real data downstream.
+
+    Returns the joined geometry and the Object Info node, whose Location and
+    Rotation give the sketch's own frame within the body (see
+    :func:`_into_sketch_plane`).
     """
     info = nodes.new("GeometryNodeObjectInfo")
     info.transform_space = "RELATIVE"
@@ -478,7 +482,49 @@ def _source_geometry(nodes, links, gi):
     join = nodes.new("GeometryNodeJoinGeometry")
     links.new(gi.outputs["Geometry"], join.inputs["Geometry"])
     links.new(realize.outputs["Geometry"], join.inputs["Geometry"])
-    return join.outputs["Geometry"]
+    return join.outputs["Geometry"], info
+
+
+def _into_sketch_plane(nodes, links, geometry, info):
+    """Bring ``geometry`` into the sketch's frame, where its plane is XY.
+
+    Fill Curve projects onto the XY plane of whatever space it is given: it
+    zeroes Z and flattens a tilted curve. A body normally stands exactly where
+    its sketch does, so that plane is already XY and the projection is a no-op,
+    but a workplane moved within its body offsets (or tilts) the curves and the
+    fill would then land squashed against the body's XY instead of on the
+    sketch's plane. Filling in the sketch's own frame keeps it on that plane
+    wherever the plane stands. With no sketch named, the frame is the identity
+    and this is a round trip that changes nothing.
+    """
+    negate = nodes.new("ShaderNodeVectorMath")
+    negate.operation = "SCALE"
+    links.new(info.outputs["Location"], negate.inputs[0])
+    negate.inputs["Scale"].default_value = -1.0
+
+    move = nodes.new("GeometryNodeTransform")
+    links.new(geometry, move.inputs["Geometry"])
+    links.new(negate.outputs["Vector"], move.inputs["Translation"])
+
+    invert = nodes.new("FunctionNodeInvertRotation")
+    links.new(info.outputs["Rotation"], invert.inputs["Rotation"])
+
+    unrotate = nodes.new("GeometryNodeTransform")
+    links.new(move.outputs["Geometry"], unrotate.inputs["Geometry"])
+    links.new(invert.outputs["Rotation"], unrotate.inputs["Rotation"])
+    return unrotate.outputs["Geometry"]
+
+
+def _out_of_sketch_plane(nodes, links, geometry, info):
+    """Put ``geometry`` back where :func:`_into_sketch_plane` took it from."""
+    rotate = nodes.new("GeometryNodeTransform")
+    links.new(geometry, rotate.inputs["Geometry"])
+    links.new(info.outputs["Rotation"], rotate.inputs["Rotation"])
+
+    move = nodes.new("GeometryNodeTransform")
+    links.new(rotate.outputs["Geometry"], move.inputs["Geometry"])
+    links.new(info.outputs["Location"], move.inputs["Translation"])
+    return move.outputs["Geometry"]
 
 
 def build_convert_node_group(
@@ -543,9 +589,10 @@ def build_convert_node_group(
     links.new(construction.outputs["Attribute"], drop.inputs[0])
     links.new(degenerate.outputs["Result"], drop.inputs[1])
 
+    source, sketch_info = _source_geometry(nodes, links, gi)
     delete = nodes.new("GeometryNodeDeleteGeometry")
     delete.domain = "CURVE"
-    links.new(_source_geometry(nodes, links, gi), delete.inputs["Geometry"])
+    links.new(source, delete.inputs["Geometry"])
     links.new(drop.outputs["Boolean"], delete.inputs["Selection"])
 
     to_mesh = nodes.new("GeometryNodeCurveToMesh")
@@ -610,13 +657,15 @@ def build_convert_node_group(
         fill_curve.inputs["Mode"].default_value = "N-gons"
     except Exception:
         pass
-    normalized = _normalize_winding(nodes, links, to_curve.outputs["Curve"])
+    # Winding is a shoelace sum about Z, so it is read in the same flat frame the
+    # fill runs in rather than against the body's XY.
+    flat = _into_sketch_plane(nodes, links, to_curve.outputs["Curve"], sketch_info)
+    normalized = _normalize_winding(nodes, links, flat)
     links.new(normalized, fill_curve.inputs["Curve"])
+    placed = _out_of_sketch_plane(nodes, links, fill_curve.outputs["Mesh"], sketch_info)
     # Fill Curve drops named attributes; re-establish them on the filled mesh from
     # the pre-fill welded mesh by nearest element (POINT and per-segment EDGE).
-    filled = _transfer_attributes_after_fill(
-        nodes, links, fill_curve.outputs["Mesh"], pre_fill, specs
-    )
+    filled = _transfer_attributes_after_fill(nodes, links, placed, pre_fill, specs)
 
     switch = nodes.new("GeometryNodeSwitch")
     switch.input_type = "GEOMETRY"

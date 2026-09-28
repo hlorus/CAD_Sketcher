@@ -5,6 +5,8 @@ from unittest import TestCase
 
 import bpy
 
+from .utils import BgsTestCase
+
 
 class TestGeneratedIds(TestCase):
     def test_active_conversion_path_emits_stable_ids(self):
@@ -346,3 +348,74 @@ class TestFillWinding(TestCase):
                     bpy.data.objects.remove(d, do_unlink=True)
                 else:
                     bpy.data.node_groups.remove(d)
+
+
+class TestSketchPlaneOffset(BgsTestCase):
+    """#758: a body follows its workplane on every axis, not just X and Y.
+
+    The fill runs in the sketch's own frame, so a workplane moved within its body
+    carries the realised geometry with it. Filling in the body's frame instead
+    let Fill Curve's projection onto XY silently drop the offset along the
+    plane's normal (and flatten a tilted plane), which read as "the sketch does
+    not follow Z".
+    """
+
+    def _body_on_moved_plane(self, location, rotation=(0.0, 0.0, 0.0)):
+        """A filled circle on a base-plane sketch, with the plane moved after."""
+        from mathutils import Vector
+
+        from ..curve_solver import solve_system
+        from ..model.curve_ref import CircleRef, PointRef
+        from ..operators.add_sketch import build_sketch_on_workplane
+        from ..utilities.body import body_of
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        context = self.context
+        ensure_origin_workplane_empties(context)
+        sketch = build_sketch_on_workplane(context, context.scene.sketcher.wp_xy)
+        centre = PointRef.create(sketch, Vector((0.0, 0.0)))
+        CircleRef.create(sketch, centre, 0.5)
+        solve_system(context, sketch=sketch)
+
+        sketch_obj = sketch.target_object
+        body = body_of(sketch_obj)
+        plane = sketch_obj.slvs_workplane
+        self.assertIsNotNone(body)
+        self.assertIsNotNone(plane)
+
+        # A plane is pinned within its body; the user in #758 moved it anyway.
+        plane.lock_location = (False, False, False)
+        plane.lock_rotation = (False, False, False)
+        plane.location = location
+        plane.rotation_euler = rotation
+        context.view_layer.update()
+
+        evaluated = body.evaluated_get(context.evaluated_depsgraph_get())
+        return sketch, body, plane, evaluated
+
+    def test_body_follows_the_plane_along_its_normal(self):
+        _sketch, _body, _plane, evaluated = self._body_on_moved_plane((5.0, 5.0, 5.0))
+        zs = {round(v.co.z, 4) for v in evaluated.data.vertices}
+        self.assertEqual(zs, {5.0}, "the fill dropped the plane's Z offset")
+        xs = [round(v.co.x, 1) for v in evaluated.data.vertices]
+        self.assertLessEqual(max(xs), 5.5)
+        self.assertGreaterEqual(min(xs), 4.5)
+        self.assertEqual(len(evaluated.data.polygons), 1, "the circle is filled")
+
+    def test_a_tilted_plane_is_not_flattened(self):
+        import math
+
+        from mathutils import Vector
+
+        _sketch, _body, plane, evaluated = self._body_on_moved_plane(
+            (0.0, 0.0, 0.0), (math.radians(45.0), 0.0, 0.0)
+        )
+        normal = plane.matrix_world.to_quaternion() @ Vector((0.0, 0.0, 1.0))
+        for vertex in evaluated.data.vertices:
+            self.assertAlmostEqual(
+                vertex.co.dot(normal), 0.0, places=4, msg="fill left the plane"
+            )
+        # Squashing onto XY would cost the circle its radius across the tilt.
+        radii = [vertex.co.length for vertex in evaluated.data.vertices]
+        self.assertAlmostEqual(max(radii), 0.5, places=3)
+        self.assertAlmostEqual(min(radii), 0.5, places=3)
