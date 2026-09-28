@@ -40,7 +40,13 @@ Blender session the user is watching. Work the way a CAD user does:
    a shape came out inside out or mirrored, and the picture does.
 7. If the solver reports failed constraints, two of them contradict. Remove or
    change one rather than piling more on.
-8. The user is in Blender with you. Every edit is one step in their undo
+8. A drawing becomes a part through extrude or revolve, then boolean and array.
+   Those act on a sketch or on the body a sketch made; describe_scene lists
+   both. Build the profile fully defined first, because the solid follows it.
+9. A solid stands on its own unless you pass a boolean. Passing one consumes it
+   into the body it touches and hides it, which looks like the solid vanished,
+   so use it deliberately and say what you did.
+10. The user is in Blender with you. Every edit is one step in their undo
    history, and destructive tools are worth asking about before you use them.\
 """
 
@@ -162,6 +168,209 @@ _EDIT_OPS_SCHEMA = {
         },
     },
 }
+
+_TARGET = {
+    "type": "string",
+    "description": (
+        "The sketch or body to act on, by name. Naming a sketch acts on the "
+        "body that realises it. describe_scene lists both."
+    ),
+}
+
+_BOOLEAN = {
+    "type": "string",
+    "enum": ["none", "difference", "union", "intersect"],
+    "description": (
+        "What the new solid does to the bodies it touches. Default none: it "
+        "stands on its own. Anything else consumes it into those bodies and "
+        "hides it, so say what you did when you use one."
+    ),
+}
+
+FEATURE_TOOLS: List[Dict[str, Any]] = [
+    {
+        "name": "extrude",
+        "title": "Extrude a sketch",
+        "description": (
+            "Give a sketch thickness, making a solid. The profile has to be "
+            "closed. This is what turns a drawing into a part."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "required": ["sketch", "distance"],
+            "properties": {
+                "sketch": _TARGET,
+                "distance": {
+                    "type": "number",
+                    "description": "How far to extrude, in Blender units.",
+                },
+                "mirror": {
+                    "type": "boolean",
+                    "description": (
+                        "Grow both ways from the sketch plane, so the solid is "
+                        "centred on it, rather than only one way."
+                    ),
+                },
+                "asymmetry_distance": {
+                    "type": "number",
+                    "description": "Extrude this far the other way as well.",
+                },
+                "boolean": _BOOLEAN,
+            },
+        },
+        "handler": handlers.extrude,
+    },
+    {
+        "name": "revolve",
+        "title": "Revolve a sketch",
+        "description": "Sweep a sketch around an axis to make a solid of revolution.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["sketch", "angle"],
+            "properties": {
+                "sketch": _TARGET,
+                "angle": {
+                    "type": "number",
+                    "description": "How far to sweep, in radians. A full turn is 2*pi.",
+                },
+                "flip": {"type": "boolean", "description": "Sweep the other way."},
+                "axis_origin": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "description": "A point on the axis, in world space.",
+                },
+                "axis_direction": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "description": "Which way the axis runs, in world space.",
+                },
+                "boolean": _BOOLEAN,
+            },
+        },
+        "handler": handlers.revolve,
+    },
+    {
+        "name": "array",
+        "title": "Repeat a solid",
+        "description": "Repeat a solid in a row, or around an axis.",
+        "inputSchema": {
+            "type": "object",
+            "required": ["target", "count"],
+            "properties": {
+                "target": _TARGET,
+                "mode": {
+                    "type": "string",
+                    "enum": ["linear", "circular"],
+                    "description": "A row, or around an axis. Default linear.",
+                },
+                "count": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "description": "How many copies in total, the original included.",
+                },
+                "offset": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "description": "linear: the step between copies, as [x, y, z].",
+                },
+                "offset_is_total": {
+                    "type": "boolean",
+                    "description": (
+                        "linear: read offset as the distance across the whole "
+                        "array rather than between neighbours."
+                    ),
+                },
+                "angle": {
+                    "type": "number",
+                    "description": "circular: how far round, in radians. Default a full turn.",
+                },
+                "angle_is_total": {
+                    "type": "boolean",
+                    "description": (
+                        "circular: read angle as the whole sweep rather than "
+                        "the step. Default true."
+                    ),
+                },
+                "axis_origin": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "description": "circular: a point on the axis.",
+                },
+                "axis_direction": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "description": "circular: which way the axis runs.",
+                },
+                "merge": {
+                    "type": "boolean",
+                    "description": "Weld the copies where they touch.",
+                },
+            },
+        },
+        "handler": handlers.array,
+    },
+    {
+        "name": "boolean",
+        "title": "Boolean two solids",
+        "description": (
+            "Cut one solid with another, merge them, or keep the overlap. The "
+            "cutter is consumed into the target and hidden."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "required": ["target", "cutter"],
+            "properties": {
+                "target": {**_TARGET, "description": "The body that is changed."},
+                "cutter": {**_TARGET, "description": "The body doing the cutting."},
+                "operation": {
+                    "type": "string",
+                    "enum": ["difference", "union", "intersect"],
+                    "description": "Default difference.",
+                },
+                "self_intersection": {
+                    "type": "boolean",
+                    "description": "Handle geometry that crosses itself. Slower.",
+                },
+                "hole_tolerant": {
+                    "type": "boolean",
+                    "description": "Cope with a profile that is not watertight.",
+                },
+            },
+        },
+        "handler": handlers.boolean,
+    },
+    {
+        "name": "make_part",
+        "title": "Make a part",
+        "description": (
+            "Make a body, and anything named with it, into one part: it then "
+            "moves, instances and is placed in an assembly as a single thing."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "required": ["target"],
+            "properties": {
+                "target": {**_TARGET, "description": "The body the part is rooted in."},
+                "members": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Other bodies to join into the part.",
+                },
+            },
+        },
+        "handler": handlers.make_part,
+    },
+]
 
 TOOLS: List[Dict[str, Any]] = [
     {
@@ -299,6 +508,8 @@ TOOLS: List[Dict[str, Any]] = [
         "handler": handlers.solve_sketch,
     },
 ]
+
+TOOLS += FEATURE_TOOLS
 
 BY_NAME = {tool["name"]: tool for tool in TOOLS}
 

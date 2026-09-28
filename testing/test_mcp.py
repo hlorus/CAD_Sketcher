@@ -376,6 +376,138 @@ class TestMcpActivity(Sketch2dTestCase):
         self.assertEqual(activity.entries(), [])
 
 
+class TestMcpFeatures(Sketch2dTestCase):
+    """Turning sketches into solids through the feature tools."""
+
+    def _plate(self, name="Plate", size=0.05):
+        sketch = handlers.create_sketch(self.context, {"name": name, "plane": "XY"})
+        target = sketch["sketch"]
+        handlers.edit_sketch(
+            self.context,
+            {
+                "sketch": target,
+                "ops": [
+                    {"op": "point", "name": "a", "co": [0, 0], "fixed": True},
+                    {"op": "point", "name": "b", "co": [size, 0.001]},
+                    {"op": "point", "name": "c", "co": [size, size]},
+                    {"op": "point", "name": "d", "co": [0.001, size]},
+                    {"op": "line", "name": "s1", "p1": "a", "p2": "b"},
+                    {"op": "line", "name": "s2", "p1": "b", "p2": "c"},
+                    {"op": "line", "name": "s3", "p1": "c", "p2": "d"},
+                    {"op": "line", "name": "s4", "p1": "d", "p2": "a"},
+                    {"op": "constrain", "type": "horizontal", "refs": ["s1"]},
+                    {"op": "constrain", "type": "horizontal", "refs": ["s3"]},
+                    {"op": "constrain", "type": "vertical", "refs": ["s2"]},
+                    {"op": "constrain", "type": "vertical", "refs": ["s4"]},
+                    {
+                        "op": "constrain",
+                        "type": "distance",
+                        "refs": ["a", "b"],
+                        "value": size,
+                    },
+                    {
+                        "op": "constrain",
+                        "type": "distance",
+                        "refs": ["a", "d"],
+                        "value": size,
+                    },
+                ],
+            },
+        )
+        return target
+
+    def test_an_extrude_builds_a_solid_on_the_sketch(self):
+        sketch = self._plate()
+        body = handlers.extrude(self.context, {"sketch": sketch, "distance": 0.01})
+        self.assertEqual(body["from_sketch"], sketch)
+        self.assertTrue(any("Extrude" in f for f in body["features"]), body["features"])
+        self.assertTrue(body["visible"])
+
+    def test_a_solid_with_no_boolean_stays_its_own_visible_body(self):
+        # The tool re-decides an "undecided" operation from what the solid
+        # overlaps whenever the file's Auto Boolean is on, which used to
+        # overrule the choice made here and hide the result as a cutter.
+        self.context.scene.sketcher.use_auto_boolean = True
+        first = self._plate("One")
+        handlers.extrude(self.context, {"sketch": first, "distance": 0.01})
+        second = self._plate("Two")
+        body = handlers.extrude(
+            self.context, {"sketch": second, "distance": 0.01, "boolean": "none"}
+        )
+        self.assertTrue(body["visible"], "a boolean of none must leave it standing")
+
+    def test_an_explicit_boolean_adds_one_to_the_target(self):
+        plate = self._plate("Base")
+        base = handlers.extrude(self.context, {"sketch": plate, "distance": 0.01})
+        pin = self._plate("Pin", size=0.01)
+        cutter = handlers.extrude(self.context, {"sketch": pin, "distance": 0.02})
+
+        result = handlers.boolean(
+            self.context,
+            {
+                "target": base["name"],
+                "cutter": cutter["name"],
+                "operation": "difference",
+            },
+        )
+        self.assertTrue(
+            any("Boolean" in f for f in result["features"]), result["features"]
+        )
+
+    def test_a_sketch_name_resolves_to_its_body(self):
+        from ..mcp import features
+
+        sketch = self._plate()
+        body = handlers.extrude(self.context, {"sketch": sketch, "distance": 0.01})
+        # Naming either the sketch or the body reaches the same object.
+        self.assertEqual(
+            features.find_target(self.context, sketch).name,
+            features.find_target(self.context, body["name"]).name,
+        )
+
+    def test_an_unknown_target_says_what_is_there(self):
+        with self.assertRaises(ToolError) as caught:
+            handlers.extrude(self.context, {"sketch": "Nope", "distance": 0.01})
+        self.assertIn("Nope", str(caught.exception))
+
+    def test_a_zero_distance_is_refused(self):
+        sketch = self._plate()
+        with self.assertRaises(ToolError):
+            handlers.extrude(self.context, {"sketch": sketch, "distance": 0})
+
+    def test_an_unknown_boolean_is_refused(self):
+        sketch = self._plate()
+        with self.assertRaises(ToolError) as caught:
+            handlers.extrude(
+                self.context, {"sketch": sketch, "distance": 0.01, "boolean": "carve"}
+            )
+        self.assertIn("carve", str(caught.exception))
+
+    def test_a_solid_cannot_be_booleaned_with_itself(self):
+        sketch = self._plate()
+        body = handlers.extrude(self.context, {"sketch": sketch, "distance": 0.01})
+        with self.assertRaises(ToolError) as caught:
+            handlers.boolean(
+                self.context, {"target": body["name"], "cutter": body["name"]}
+            )
+        self.assertIn("itself", str(caught.exception))
+
+    def test_the_scene_lists_bodies_so_a_target_can_be_named(self):
+        sketch = self._plate()
+        body = handlers.extrude(self.context, {"sketch": sketch, "distance": 0.01})
+        scene = describe.scene_data(self.context)
+        self.assertIn(body["name"], [b["name"] for b in scene["bodies"]])
+
+    def test_make_part_leaves_the_selection_alone(self):
+        sketch = self._plate()
+        body = handlers.extrude(self.context, {"sketch": sketch, "distance": 0.01})
+        before = {o.name for o in self.context.selected_objects}
+
+        result = handlers.make_part(self.context, {"target": body["name"]})
+        self.assertTrue(result.get("is_part_root"))
+        self.assertEqual({o.name for o in self.context.selected_objects}, before)
+
+
 class TestMcpRenderBounds(Sketch2dTestCase):
     """What the render frames. Every sketch owns an origin point at (0, 0), and
     counting it would stretch the frame back there, shrinking work placed away

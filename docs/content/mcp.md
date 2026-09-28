@@ -52,6 +52,11 @@ URL stops working.
 | `edit_sketch` | Adds, constrains, renames and deletes, then solves |
 | `delete_sketch` | Deletes a sketch and the geometry built from it |
 | `solve_sketch` | Re-runs the solver and reports the state |
+| `extrude` | Gives a sketch thickness, making a solid |
+| `revolve` | Sweeps a sketch around an axis |
+| `array` | Repeats a solid, in a row or around an axis |
+| `boolean` | Cuts one solid with another, or merges them |
+| `make_part` | Makes bodies into one part |
 
 `edit_sketch` takes a whole list of edits at once. The agent builds a shape in
 one step rather than one call per line, and the result is a single entry in your
@@ -61,8 +66,13 @@ The server also tells the agent how to work here: units, constraining rather
 than placing by eye, aiming for a fully defined sketch, and checking its own
 work with a render. You should not have to explain any of that yourself.
 
+A new solid stands on its own unless the agent asks for a boolean. The tools
+do not inherit Auto Boolean: an agent cannot see what it just absorbed, and a
+solid that merges into its neighbour and is then hidden looks like it vanished.
+
 Everything else stays yours. The agent cannot run arbitrary code, reach your
-files, or touch anything in Blender outside CAD Sketcher's sketches.
+files, or touch anything in Blender outside CAD Sketcher's sketches and the
+solids made from them.
 
 ## Watching what it does
 

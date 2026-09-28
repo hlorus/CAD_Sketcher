@@ -46,13 +46,22 @@ def _guard_writes(context) -> None:
         )
 
 
-def _undo_push(message: str) -> None:
-    """Make the edit one step in the user's undo stack."""
+def _undo_push(message: str) -> bool:
+    """Make the edit one step in the user's undo stack.
+
+    Returns whether a step was actually pushed, which is what makes rolling
+    back safe: ``ed.undo`` walks the *global* stack, so undoing when nothing was
+    pushed takes back whatever the user did last instead.
+    """
+    if bpy.app.background:
+        # No undo stack without a window: pushing does nothing and undoing
+        # would roll the file back past state this session is holding on to.
+        return False
     try:
         bpy.ops.ed.undo_push(message=message)
     except RuntimeError:
-        # No undo stack in background mode; the edit itself still applied.
-        pass
+        return False
+    return True
 
 
 # -- Read --------------------------------------------------------------------
@@ -88,12 +97,12 @@ def edit_sketch(context, params: Dict[str, Any]) -> Result:
     sketch = _sketch(context, params)
 
     # Undo before the edit, so the user's Ctrl-Z lands on the state they had.
-    _undo_push(f"MCP edit {sketch.name}")
+    pushed = _undo_push(f"MCP edit {sketch.name}")
 
     try:
         entities, constraints = apply_ops(sketch, params.get("ops"))
     except OpError as e:
-        _undo_and_restore(context)
+        _undo_and_restore(context, pushed)
         raise ToolError(str(e)) from e
 
     solved = solve_system(context, sketch=sketch)
@@ -178,13 +187,20 @@ def solve_sketch(context, params: Dict[str, Any]) -> Result:
 # -- Blender plumbing --------------------------------------------------------
 
 
-def _undo_and_restore(context) -> None:
+def _undo_and_restore(context, pushed: bool) -> None:
     """Take back the ops that ran before the failing one.
 
     An op list can only be fully checked as it is applied, since later ops name
     geometry earlier ops create. So a rejected list is undone rather than
     prevented, which is what makes the call all-or-nothing from outside.
+
+    Only ever after our own push landed. ``ed.undo`` steps the whole file back,
+    not just this call, so undoing without a matching push reverts the user's
+    previous action, and where the step does not exist at all it can take the
+    scene with it.
     """
+    if not pushed:
+        return
     override = view3d_override(context)
     try:
         if override is not None:
@@ -245,3 +261,60 @@ def view3d_override(context) -> Optional[Dict[str, Any]]:
                         "space_data": area.spaces.active,
                     }
     return None
+
+
+# -- Features ----------------------------------------------------------------
+
+
+def _feature(context, params: Dict[str, Any], build, label: str) -> Result:
+    """Run one feature builder, then report the body it acted on."""
+    _guard_writes(context)
+    from . import features
+
+    pushed = _undo_push(f"MCP {label}")
+    try:
+        target = build(context, params)
+    except features.FeatureError as e:
+        _undo_and_restore(context, pushed)
+        raise ToolError(str(e)) from e
+
+    context.view_layer.update()
+    _redraw()
+    result = features.body_data(target)
+    result["did"] = label
+    return result
+
+
+def extrude(context, params: Dict[str, Any]) -> Result:
+    """Give a sketch thickness."""
+    from . import features
+
+    return _feature(context, params, features.extrude, "extrude")
+
+
+def revolve(context, params: Dict[str, Any]) -> Result:
+    """Sweep a sketch around an axis."""
+    from . import features
+
+    return _feature(context, params, features.revolve, "revolve")
+
+
+def array(context, params: Dict[str, Any]) -> Result:
+    """Repeat a solid."""
+    from . import features
+
+    return _feature(context, params, features.array, "array")
+
+
+def boolean(context, params: Dict[str, Any]) -> Result:
+    """Cut or merge one solid with another."""
+    from . import features
+
+    return _feature(context, params, features.boolean, "boolean")
+
+
+def make_part(context, params: Dict[str, Any]) -> Result:
+    """Make a body (and anything named with it) into one part."""
+    from . import features
+
+    return _feature(context, params, features.make_part, "make_part")

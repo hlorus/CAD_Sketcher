@@ -159,8 +159,13 @@ def scene_data(context) -> Dict[str, Any]:
             }
         )
 
+    from . import features
+
+    bodies = [features.body_data(obj) for obj in features.solid_objects(context)]
+
     return {
         "sketches": sketches,
+        "bodies": bodies,
         "active_sketch": active.name if active else None,
         "units": {
             "system": units.system,
