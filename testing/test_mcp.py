@@ -323,6 +323,25 @@ class TestMcpTransport(Sketch2dTestCase):
             return e.code, json.loads(e.read() or b"{}")
         self.fail("expected the request to be refused")
 
+    def test_discover_reports_versions_and_instructions(self):
+        # The 2026-07-28 revision requires every server to answer this.
+        status, body = self._post(
+            {"jsonrpc": "2.0", "id": 10, "method": "server/discover", "params": {}}
+        )
+        self.assertEqual(status, 200)
+        result = body["result"]
+        self.assertIn(server.PROTOCOL_VERSION, result["supportedVersions"])
+        self.assertIn("tools", result["capabilities"])
+        self.assertIn("describe_scene", result["instructions"])
+        info = result["_meta"]["io.modelcontextprotocol/serverInfo"]
+        self.assertEqual(info["name"], "cad-sketcher")
+
+    def test_initialize_carries_the_instructions_too(self):
+        _, body = self._post(
+            {"jsonrpc": "2.0", "id": 11, "method": "initialize", "params": {}}
+        )
+        self.assertIn("edit_sketch", body["result"]["instructions"])
+
     def test_initialize_reports_the_tools_capability(self):
         status, body = self._post(
             {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
@@ -395,3 +414,31 @@ class TestMcpTransport(Sketch2dTestCase):
     def test_the_url_carries_the_token(self):
         self.assertIn(self.server.token, self.server.url)
         self.assertTrue(self.server.url.startswith("http://127.0.0.1:"))
+
+    def test_the_connect_command_carries_the_url(self):
+        self.assertIn(self.server.url, self.server.connect_command)
+        self.assertIn("--transport http", self.server.connect_command)
+
+
+class TestMcpToken(Sketch2dTestCase):
+    """The token is remembered, so an agent is registered once, not per session."""
+
+    def test_the_token_survives_a_restart(self):
+        first = server.read_token()
+        self.assertTrue(first)
+        self.assertEqual(server.read_token(), first)
+        # A new server picks up the stored one rather than minting its own.
+        self.assertEqual(server.MCPServer(port=0).token, first)
+
+    def test_a_new_token_replaces_the_old_one(self):
+        first = server.read_token()
+        second = server.new_token()
+        self.assertNotEqual(first, second)
+        self.assertEqual(server.read_token(), second)
+
+    def test_the_stored_token_is_not_world_readable(self):
+        import stat
+
+        server.new_token()
+        mode = server._token_file().stat().st_mode
+        self.assertFalse(mode & (stat.S_IRGRP | stat.S_IROTH), oct(mode))

@@ -74,6 +74,7 @@ class Operators(str, Enum):
     DeleteEntity = "view3d.slvs_delete_entity"
     DeleteSketch = "view3d.slvs_delete_sketch"
     McpCopyUrl = "view3d.slvs_mcp_copy_url"
+    McpNewToken = "view3d.slvs_mcp_new_token"
     McpStart = "view3d.slvs_mcp_start"
     McpStop = "view3d.slvs_mcp_stop"
     MergePoints = "view3d.slvs_merge_points"

@@ -184,6 +184,14 @@ class Preferences(AddonPreferences):
         min=1024,
         max=65535,
     )
+    mcp_auto_start: BoolProperty(
+        name="Start MCP Server on Launch",
+        description=(
+            "Serve the MCP endpoint as soon as Blender starts, so a connected "
+            "agent can reach it without starting it by hand each session"
+        ),
+        default=False,
+    )
 
     def draw(self, context):
         layout = self.layout
@@ -250,6 +258,7 @@ class Preferences(AddonPreferences):
         box.label(text="Advanced")
         col = box.column(align=True)
         col.prop(self, "mcp_port")
+        col.prop(self, "mcp_auto_start")
         col.prop(self, "show_whats_new")
         col.prop(self, "show_debug_settings")
         col.prop(self, "logging_level")

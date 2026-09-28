@@ -16,6 +16,34 @@ from .ops import ADDERS, VALUED, accepted_kinds
 
 SERVER_NAME = "cad-sketcher"
 
+# Handed to the model on discovery. Parametric CAD has conventions an agent will
+# not guess (constrain rather than place, metres rather than millimetres, one
+# call rather than twenty), and a wrong guess makes a sketch that looks right and
+# falls apart the moment a dimension changes.
+INSTRUCTIONS = """\
+These tools drive CAD Sketcher, a parametric constraint-based sketcher, inside a
+Blender session the user is watching. Work the way a CAD user does:
+
+1. Call describe_scene first. It says which sketches exist, which is active, and
+   what a length means in this file.
+2. Lengths are Blender units, where 1.0 is one metre by default. A 50 mm hole is
+   0.05, not 50. Angles are radians.
+3. Build a shape in one edit_sketch call, not one call per line. The ops run in
+   order, a name given to one op can be used by later ops in the same list, and
+   a point can be written inline as [x, y] wherever a point is expected.
+4. Place geometry roughly, then constrain it. Coordinates are a starting guess
+   the solver moves; constraints are what holds the shape. A sketch is finished
+   when describe_sketch reports dof 0, which means nothing is left floating.
+   Aim for that, and say so when a sketch is still under-defined.
+5. Fix or otherwise tie down one point, or the whole sketch can slide.
+6. Look at your work with render_sketch. Coordinates and dof rarely reveal that
+   a shape came out inside out or mirrored, and the picture does.
+7. If the solver reports failed constraints, two of them contradict. Remove or
+   change one rather than piling more on.
+8. The user is in Blender with you. Every edit is one step in their undo
+   history, and destructive tools are worth asking about before you use them.\
+"""
+
 
 def _constraint_help() -> str:
     """One line per constraint type, saying what it takes."""

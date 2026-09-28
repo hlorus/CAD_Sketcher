@@ -1,4 +1,4 @@
-"""Start and stop the MCP endpoint, and copy its URL."""
+"""Start and stop the MCP endpoint, and hand its URL to a client."""
 
 import bpy
 from bpy.types import Context, Operator
@@ -7,6 +7,40 @@ from bpy.utils import register_classes_factory
 from ..declarations import Operators
 from ..utilities.preferences import get_prefs
 from . import server
+
+
+def start(operator: Operator, context: Context) -> bool:
+    """Start the endpoint, reporting why through ``operator`` if it cannot."""
+    if bpy.app.background:
+        # Tool calls are run from a timer, and a background Blender has no loop
+        # to fire one, so the endpoint would accept and never answer.
+        operator.report(
+            {"ERROR"}, "The MCP endpoint needs a Blender window, not --background."
+        )
+        return False
+
+    if not bpy.app.online_access:
+        operator.report(
+            {"ERROR"},
+            "Blender's online access is off. Enable it in "
+            "Preferences > System > Network to serve the MCP endpoint.",
+        )
+        return False
+
+    port = get_prefs().mcp_port
+    taken, reason = server.address_in_use(port)
+    if taken:
+        operator.report({"ERROR"}, f"Port {port} is not available: {reason}")
+        return False
+
+    try:
+        running = server.start_server(port=port)
+    except (OSError, RuntimeError) as e:
+        operator.report({"ERROR"}, f"Could not start the MCP endpoint: {e}")
+        return False
+
+    operator.report({"INFO"}, f"MCP endpoint listening on port {running.port}")
+    return True
 
 
 class View3D_OT_slvs_mcp_start(Operator):
@@ -20,36 +54,7 @@ class View3D_OT_slvs_mcp_start(Operator):
         return not server.is_running()
 
     def execute(self, context: Context):
-        if bpy.app.background:
-            # Tool calls are run from a timer, and a background Blender has no
-            # loop to fire one, so the endpoint would accept and never answer.
-            self.report(
-                {"ERROR"}, "The MCP endpoint needs a Blender window, not --background."
-            )
-            return {"CANCELLED"}
-
-        if not bpy.app.online_access:
-            self.report(
-                {"ERROR"},
-                "Blender's online access is off. Enable it in "
-                "Preferences > System > Network to serve the MCP endpoint.",
-            )
-            return {"CANCELLED"}
-
-        port = get_prefs().mcp_port
-        taken, reason = server.address_in_use(port)
-        if taken:
-            self.report({"ERROR"}, f"Port {port} is not available: {reason}")
-            return {"CANCELLED"}
-
-        try:
-            running = server.start_server(port=port)
-        except (OSError, RuntimeError) as e:
-            self.report({"ERROR"}, f"Could not start the MCP endpoint: {e}")
-            return {"CANCELLED"}
-
-        self.report({"INFO"}, f"MCP endpoint listening on port {running.port}")
-        return {"FINISHED"}
+        return {"FINISHED"} if start(self, context) else {"CANCELLED"}
 
 
 class View3D_OT_slvs_mcp_stop(Operator):
@@ -69,10 +74,17 @@ class View3D_OT_slvs_mcp_stop(Operator):
 
 
 class View3D_OT_slvs_mcp_copy_url(Operator):
-    """Copy the endpoint URL, including its access token, to the clipboard"""
+    """Copy the command that connects Claude Code to this endpoint"""
 
     bl_idname = Operators.McpCopyUrl
-    bl_label = "Copy MCP URL"
+    bl_label = "Copy Connect Command"
+
+    url_only: bpy.props.BoolProperty(
+        name="URL Only",
+        description="Copy just the URL, for a client configured with a plain address",
+        default=False,
+        options={"SKIP_SAVE"},
+    )
 
     @classmethod
     def poll(cls, context: Context) -> bool:
@@ -80,8 +92,28 @@ class View3D_OT_slvs_mcp_copy_url(Operator):
 
     def execute(self, context: Context):
         running = server.get_server()
-        context.window_manager.clipboard = running.url
-        self.report({"INFO"}, "Endpoint URL copied")
+        context.window_manager.clipboard = (
+            running.url if self.url_only else running.connect_command
+        )
+        self.report({"INFO"}, "Copied to the clipboard")
+        return {"FINISHED"}
+
+
+class View3D_OT_slvs_mcp_new_token(Operator):
+    """Replace the access token, so any URL handed out before stops working"""
+
+    bl_idname = Operators.McpNewToken
+    bl_label = "New Access Token"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context: Context):
+        token = server.new_token()
+        # A running endpoint keeps serving the old token until it is rebound.
+        if server.is_running():
+            port = server.get_server().port
+            server.stop_server()
+            server.start_server(port=port, token=token)
+        self.report({"INFO"}, "New token; reconnect your agent with the new URL")
         return {"FINISHED"}
 
 
@@ -90,5 +122,6 @@ register, unregister = register_classes_factory(
         View3D_OT_slvs_mcp_start,
         View3D_OT_slvs_mcp_stop,
         View3D_OT_slvs_mcp_copy_url,
+        View3D_OT_slvs_mcp_new_token,
     )
 )

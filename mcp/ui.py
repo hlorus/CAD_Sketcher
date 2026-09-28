@@ -20,7 +20,6 @@ class VIEW3D_PT_sketcher_mcp(VIEW3D_PT_sketcher_base):
     def draw(self, context: Context) -> None:
         layout = self.layout
         prefs = get_prefs()
-        running = server.get_server()
 
         if not bpy.app.online_access:
             column = layout.column()
@@ -28,24 +27,35 @@ class VIEW3D_PT_sketcher_mcp(VIEW3D_PT_sketcher_base):
             column.label(text="Enable it in Preferences > System")
             return
 
-        if running is not None and running.running:
-            layout.operator(Operators.McpStop, text="Stop Server", icon="PAUSE")
-            layout.label(text=f"Listening on port {running.port}", icon="CHECKMARK")
-
-            box = layout.box()
-            box.label(text="Connect an agent")
-            box.operator(Operators.McpCopyUrl, text="Copy URL", icon="COPYDOWN")
-            column = box.column(align=True)
-            column.scale_y = 0.8
-            column.label(text="Then, in a terminal:")
-            column.label(text="claude mcp add --transport http")
-            column.label(text="  cad-sketcher <paste URL>")
-            layout.label(text="Anyone with the URL can edit", icon="INFO")
+        running = server.get_server()
+        if running is None or not running.running:
+            layout.operator(Operators.McpStart, text="Start Server", icon="PLAY")
+            layout.label(text="Not running", icon="RADIOBUT_OFF")
+            column = layout.column(align=True)
+            column.prop(prefs, "mcp_port")
+            column.prop(prefs, "mcp_auto_start", text="Start on launch")
             return
 
-        layout.prop(prefs, "mcp_port")
-        layout.operator(Operators.McpStart, text="Start Server", icon="PLAY")
-        layout.label(text="Not running", icon="RADIOBUT_OFF")
+        layout.operator(Operators.McpStop, text="Stop Server", icon="PAUSE")
+        layout.label(text=f"Listening on port {running.port}", icon="CHECKMARK")
+
+        box = layout.box()
+        box.label(text="Connect an agent")
+        box.operator(
+            Operators.McpCopyUrl, text="Copy Claude Code Command", icon="COPYDOWN"
+        ).url_only = False
+        box.operator(Operators.McpCopyUrl, text="Copy URL Only").url_only = True
+        column = box.column(align=True)
+        column.scale_y = 0.8
+        column.label(text="Paste the command in a terminal,")
+        column.label(text="once. The URL stays the same.")
+
+        column = layout.column(align=True)
+        column.scale_y = 0.8
+        column.label(text="Anyone with the URL can edit", icon="INFO")
+        layout.operator(
+            Operators.McpNewToken, text="New Access Token", icon="FILE_REFRESH"
+        )
 
 
 register, unregister = register_classes_factory((VIEW3D_PT_sketcher_mcp,))

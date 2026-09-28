@@ -22,9 +22,13 @@ interleave writes.
 import json
 import logging
 import secrets
+import stat
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+
+import bpy
 
 from . import dispatch
 
@@ -51,6 +55,48 @@ HEADER_MISMATCH = -32020
 _server: Optional["MCPServer"] = None
 
 
+# -- The access token -------------------------------------------------------
+
+
+def _token_file() -> Path:
+    from ..utilities.register import get_name
+
+    directory = Path(bpy.utils.extension_path_user(get_name(), path="", create=True))
+    return directory / "mcp_token.txt"
+
+
+def read_token() -> str:
+    """The stored access token, minting and saving one the first time.
+
+    Kept rather than rotated on every start: a token that changes each session
+    means re-registering the endpoint with the agent each session, which is the
+    one bit of this that a user has to do by hand. A stable URL is set up once.
+    ``new_token`` rotates it when the user wants the old one to stop working.
+    """
+    path = _token_file()
+    try:
+        token = path.read_text(encoding="utf-8").strip()
+        if token:
+            return token
+    except OSError:
+        pass
+    return new_token()
+
+
+def new_token() -> str:
+    """Mint a fresh token, invalidating any URL already handed out."""
+    token = secrets.token_urlsafe(16)
+    path = _token_file()
+    try:
+        path.write_text(token, encoding="utf-8")
+        # It is a credential: keep it out of other accounts on this machine.
+        path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    except OSError as e:
+        # Still usable for this session, just not remembered.
+        logger.warning("Could not store the MCP token: %s", e)
+    return token
+
+
 class ProtocolError(Exception):
     """A malformed request, answered with an HTTP status and a JSON-RPC error."""
 
@@ -65,9 +111,9 @@ class ProtocolError(Exception):
 class MCPServer:
     """A running endpoint, and the token its URL carries."""
 
-    def __init__(self, port: int = DEFAULT_PORT):
+    def __init__(self, port: int = DEFAULT_PORT, token: Optional[str] = None):
         self.port = int(port)
-        self.token = secrets.token_urlsafe(16)
+        self.token = token if token is not None else read_token()
         self._httpd: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
 
@@ -75,6 +121,11 @@ class MCPServer:
     def url(self) -> str:
         """The URL to give an MCP client."""
         return f"http://{HOST}:{self.port}/mcp/{self.token}"
+
+    @property
+    def connect_command(self) -> str:
+        """The one line that registers this endpoint with Claude Code."""
+        return f'claude mcp add --transport http cad-sketcher "{self.url}"'
 
     @property
     def running(self) -> bool:
@@ -254,6 +305,8 @@ class _RequestHandler(BaseHTTPRequestHandler):
     def _handle(self, method: str, body: Dict[str, Any]) -> Dict[str, Any]:
         params = body.get("params") if isinstance(body.get("params"), dict) else {}
 
+        if method == "server/discover":
+            return self._discover()
         if method == "initialize":
             return self._initialize(params)
         if method == "ping":
@@ -267,20 +320,29 @@ class _RequestHandler(BaseHTTPRequestHandler):
 
         raise ProtocolError(404, METHOD_NOT_FOUND, f"Unknown method {method!r}.")
 
+    def _discover(self) -> Dict[str, Any]:
+        """Report identity, versions and how to use this server well."""
+        from . import tools
+
+        return {
+            "resultType": "complete",
+            "supportedVersions": list(SUPPORTED_VERSIONS),
+            "capabilities": {"tools": {}},
+            "instructions": tools.INSTRUCTIONS,
+            "_meta": {"io.modelcontextprotocol/serverInfo": _server_info()},
+        }
+
     def _initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Answer the handshake older clients still open with."""
+        from . import tools
+
         asked = params.get("protocolVersion")
         version = asked if asked in SUPPORTED_VERSIONS else PROTOCOL_VERSION
-        from .. import get_addon_version
-
         return {
             "protocolVersion": version,
             "capabilities": {"tools": {}},
-            "serverInfo": {
-                "name": "cad-sketcher",
-                "title": "CAD Sketcher",
-                "version": get_addon_version(),
-            },
+            "instructions": tools.INSTRUCTIONS,
+            "serverInfo": _server_info(),
         }
 
     # -- Responses --
@@ -305,6 +367,17 @@ class _RequestHandler(BaseHTTPRequestHandler):
         )
 
 
+def _server_info() -> Dict[str, Any]:
+    """Identity for display and logging on the client side."""
+    from .. import get_addon_version
+
+    return {
+        "name": "cad-sketcher",
+        "title": "CAD Sketcher",
+        "version": get_addon_version(),
+    }
+
+
 def _error_body(
     request_id: Any, code: int, message: str, data: Any = None
 ) -> Dict[str, Any]:
@@ -326,14 +399,14 @@ def is_running() -> bool:
     return _server is not None and _server.running
 
 
-def start_server(port: int = DEFAULT_PORT) -> MCPServer:
+def start_server(port: int = DEFAULT_PORT, token: Optional[str] = None) -> MCPServer:
     """Start the endpoint on ``port``, replacing one already running."""
     global _server
     if _server is not None and _server.running:
         if _server.port == int(port):
             return _server
         _server.stop()
-    server = MCPServer(port=port)
+    server = MCPServer(port=port, token=token)
     server.start()
     _server = server
     return server

@@ -10,18 +10,20 @@ It is off until you start it, and it listens only on your own machine.
 
 1. Open the **Sketcher** sidebar in the 3D viewport (press <kbd>N</kbd>) and
    expand **AI Agent (MCP)**.
-2. Press **Start Server**, then **Copy URL**.
-3. Give the URL to your agent. For Claude Code:
+2. Press **Start Server**.
+3. Press **Copy Claude Code Command** and paste it into a terminal. For an
+   editor that takes a JSON config instead, use **Copy URL Only** and add a
+   server with that `url`.
 
-    ```sh
-    claude mcp add --transport http cad-sketcher <paste the URL>
-    ```
+You only do this once. The address stays the same between sessions, so the agent
+stays connected. Blender's **Allow Online Access** preference must be on.
 
-    For an editor that takes a JSON config, add a server with that `url`.
+Tick **Start on launch** and the endpoint is served from the moment Blender
+opens, with nothing to press at all.
 
-The URL contains an access token that is new every time you start the server, so
-starting it again means reconnecting the agent. Blender's **Allow Online Access**
-preference must be on.
+The URL carries an access token, kept in the add-on's own user folder. **New
+Access Token** replaces it, which makes any URL you handed out before stop
+working; reconnect the agent afterwards.
 
 ## What the agent can do
 
@@ -38,6 +40,10 @@ preference must be on.
 `edit_sketch` takes a whole list of edits at once. The agent builds a shape in
 one step rather than one call per line, and the result is a single entry in your
 undo history, so <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes back the whole thing.
+
+The server also tells the agent how to work here: units, constraining rather
+than placing by eye, aiming for a fully defined sketch, and checking its own
+work with a render. You should not have to explain any of that yourself.
 
 Everything else stays yours. The agent cannot run arbitrary code, reach your
 files, or touch anything in Blender outside CAD Sketcher's sketches.
