@@ -509,6 +509,10 @@ class PointRef(CurveRef):
 
         cid = _allocate(sketch)
         curve_data.add_curves([1])
+        # add_curves() leaves the new curve CATMULL_ROM, and Blender crashes
+        # evaluating a one-point curve whose spline type differs from the
+        # segments around it. Match them, as the segment constructors do.
+        curve_data.set_types(type="BEZIER", indices=[len(curve_data.curves) - 1])
         _ensure_attrs(curve_data, len(curve_data.curves) - 1)
 
         curve_idx = len(curve_data.curves) - 1

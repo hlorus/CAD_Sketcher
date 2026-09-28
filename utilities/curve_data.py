@@ -42,6 +42,10 @@ def ensure_attribute(attributes, name, type, domain):
 
 UUID_FIELDS = ("curve_id", "start_point_id", "end_point_id", "center_point_id")
 
+# Blender's built-in curve_type values, and the set_types() names for them.
+CURVE_TYPE_BEZIER = 2
+CURVE_TYPE_NAMES = {0: "CATMULL_ROM", 1: "POLY", 2: "BEZIER", 3: "NURBS"}
+
 SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
@@ -1367,6 +1371,44 @@ def rebuild_segments(sketch, point_ids=None):
         compute_merge_ids(sketch)
 
 
+def normalize_point_curve_types(curve_data) -> None:
+    """Give every single-point curve the spline type its segments use.
+
+    A standalone sketch point is a curve of one point, and Blender crashes
+    outright evaluating one whose spline type differs from the rest of the
+    datablock: a point added to a sketch that already holds a segment brought the
+    whole session down (adding a coincident or midpoint constraint is when a user
+    meets that, since both start from a loose point). A one-point curve has
+    nothing to interpolate, so its type is free to follow the segments': BEZIER in
+    a normal sketch, POLY in a native 3D one.
+    """
+    curves = curve_data.curves
+    n_curves = len(curves)
+    if n_curves == 0:
+        return
+
+    type_attr = curve_data.attributes.get("curve_type")
+    if type_attr is None:
+        return
+
+    lengths = np.empty(n_curves, dtype=np.int32)
+    curves.foreach_get("points_length", lengths)
+    types = np.empty(n_curves, dtype=np.int32)
+    type_attr.data.foreach_get("value", types)
+
+    single = np.flatnonzero(lengths < 2)
+    segments = np.flatnonzero(lengths >= 2)
+    if not len(single):
+        return
+
+    # Whatever the segments are; BEZIER is what a sketch built by the 2D tools
+    # uses, and the fallback when a sketch holds nothing but points.
+    wanted = int(types[segments[0]]) if len(segments) else CURVE_TYPE_BEZIER
+    stale = [int(i) for i in single if types[i] != wanted]
+    if stale:
+        curve_data.set_types(type=CURVE_TYPE_NAMES[wanted], indices=stale)
+
+
 def refresh_curve_geometry(sketch):
     """Force GN modifier re-evaluation by doing a topology rebuild."""
     if not sketch or not sketch.target_object or not sketch.target_object.data:
@@ -1442,5 +1484,10 @@ def refresh_curve_geometry(sketch):
             attr.data.foreach_set("vector", info["data"])
         else:
             attr.data.foreach_set("value", info["data"])
+
+    # The restore above puts the saved curve_type back, which is what keeps a
+    # native 3D sketch's POLY curves linear -- and what carries a single-point
+    # curve's type over from whenever it was added.
+    normalize_point_curve_types(curve_data)
 
     invalidate_curve_id_cache(sketch)
