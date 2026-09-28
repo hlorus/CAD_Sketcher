@@ -17,6 +17,10 @@ can connect**: all it needs is the endpoint's address.
 3. Choose your client from the dropdown and press **Copy Address**. Leave it on
    **URL** if your client just asks for a server address, which most do.
 
+That box is only shown until something connects. After that the panel is just a
+status line and what the agent has been doing; the settings live in the add-on
+preferences, which the cog in the panel opens.
+
 The dropdown only changes the shape of what is copied:
 
 | Choice | What you get |

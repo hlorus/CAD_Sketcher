@@ -376,6 +376,44 @@ class TestMcpActivity(Sketch2dTestCase):
         self.assertEqual(activity.entries(), [])
 
 
+class TestMcpFirstRun(Sketch2dTestCase):
+    """The sidebar offers setup only until something has actually connected."""
+
+    def setUp(self):
+        super().setUp()
+        self._seen = server._seen_file()
+        self._had = self._seen.exists()
+        if self._had:
+            self._seen.unlink()
+        server._client_seen = None
+
+    def tearDown(self):
+        self._seen.unlink(missing_ok=True)
+        if self._had:
+            self._seen.write_text("1", encoding="utf-8")
+        server._client_seen = None
+        super().tearDown()
+
+    def test_a_fresh_install_has_not_connected(self):
+        self.assertFalse(server.client_ever_connected())
+
+    def test_a_request_records_the_connection(self):
+        server.note_client_connected()
+        self.assertTrue(server.client_ever_connected())
+        self.assertTrue(self._seen.exists())
+
+    def test_the_connection_is_remembered_across_restarts(self):
+        server.note_client_connected()
+        # A fresh Blender reads it back off disk rather than from memory.
+        server._client_seen = None
+        self.assertTrue(server.client_ever_connected())
+
+    def test_recording_twice_is_harmless(self):
+        server.note_client_connected()
+        server.note_client_connected()
+        self.assertTrue(server.client_ever_connected())
+
+
 class TestMcpToolSchemas(Sketch2dTestCase):
     def test_every_tool_has_a_schema_and_a_handler(self):
         for tool in tools.TOOLS:

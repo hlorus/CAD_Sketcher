@@ -54,6 +54,9 @@ HEADER_MISMATCH = -32020
 
 _server: Optional["MCPServer"] = None
 
+# None until read off disk; then whether a client has ever connected.
+_client_seen: Optional[bool] = None
+
 
 # -- The access token -------------------------------------------------------
 
@@ -81,6 +84,49 @@ def read_token() -> str:
     except OSError:
         pass
     return new_token()
+
+
+def _seen_file() -> Path:
+    from ..utilities.register import get_name
+
+    directory = Path(bpy.utils.extension_path_user(get_name(), path="", create=True))
+    return directory / "mcp_client_seen.txt"
+
+
+def client_ever_connected() -> bool:
+    """Whether an MCP client has ever reached this endpoint.
+
+    What tells the sidebar to stop offering setup: once something has connected,
+    the address is registered somewhere and the panel is just a status line.
+    """
+    global _client_seen
+    if _client_seen is None:
+        _client_seen = _seen_file().exists()
+    return _client_seen
+
+
+def note_client_connected() -> None:
+    """Remember that a client has connected. Called from an HTTP worker thread."""
+    global _client_seen
+    if client_ever_connected():
+        return
+    _client_seen = True
+    try:
+        _seen_file().write_text("1", encoding="utf-8")
+    except OSError as e:
+        logger.warning("Could not record the first MCP connection: %s", e)
+    # The panel swaps its setup box for a status line, so it has to redraw.
+    # Registering a timer is the thread-safe way to reach the main thread.
+    bpy.app.timers.register(_redraw_sidebar, first_interval=0.0)
+
+
+def _redraw_sidebar():
+    """Tag the 3D views for redraw. Runs on the main thread, via a timer."""
+    for window in getattr(bpy.context.window_manager, "windows", ()):
+        for area in window.screen.areas:
+            if area.type == "VIEW_3D":
+                area.tag_redraw()
+    return None
 
 
 def new_token() -> str:
@@ -313,6 +359,8 @@ class _RequestHandler(BaseHTTPRequestHandler):
 
     def _handle(self, method: str, body: Dict[str, Any]) -> Dict[str, Any]:
         params = body.get("params") if isinstance(body.get("params"), dict) else {}
+
+        note_client_connected()
 
         if method == "server/discover":
             return self._discover()

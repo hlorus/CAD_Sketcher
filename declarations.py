@@ -76,6 +76,7 @@ class Operators(str, Enum):
     McpClearActivity = "view3d.slvs_mcp_clear_activity"
     McpCopyUrl = "view3d.slvs_mcp_copy_url"
     McpNewToken = "view3d.slvs_mcp_new_token"
+    McpPreferences = "view3d.slvs_mcp_preferences"
     McpStart = "view3d.slvs_mcp_start"
     McpStop = "view3d.slvs_mcp_stop"
     MergePoints = "view3d.slvs_merge_points"

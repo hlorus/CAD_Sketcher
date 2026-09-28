@@ -116,6 +116,24 @@ class View3D_OT_slvs_mcp_new_token(Operator):
         return {"FINISHED"}
 
 
+class View3D_OT_slvs_mcp_preferences(Operator):
+    """Open CAD Sketcher's preferences, where the agent settings live"""
+
+    bl_idname = Operators.McpPreferences
+    bl_label = "Agent Settings"
+
+    def execute(self, context: Context):
+        from ..utilities.register import get_name
+
+        try:
+            # Opens Preferences on Add-ons with this add-on expanded.
+            bpy.ops.preferences.addon_show(module=get_name())
+        except (RuntimeError, TypeError):
+            # Fall back to plain Preferences rather than doing nothing.
+            bpy.ops.screen.userpref_show()
+        return {"FINISHED"}
+
+
 class View3D_OT_slvs_mcp_clear_activity(Operator):
     """Clear the list of recent agent activity"""
 
@@ -138,5 +156,6 @@ register, unregister = register_classes_factory(
         View3D_OT_slvs_mcp_copy_url,
         View3D_OT_slvs_mcp_new_token,
         View3D_OT_slvs_mcp_clear_activity,
+        View3D_OT_slvs_mcp_preferences,
     )
 )
