@@ -245,14 +245,20 @@ FEATURE_TOOLS: List[Dict[str, Any]] = [
                     "items": {"type": "number"},
                     "minItems": 3,
                     "maxItems": 3,
-                    "description": "A point on the axis, in world space.",
+                    "description": (
+                        "A point on the axis, in world space. Defaults to the "
+                        "world origin when only a direction is given."
+                    ),
                 },
                 "axis_direction": {
                     "type": "array",
                     "items": {"type": "number"},
                     "minItems": 3,
                     "maxItems": 3,
-                    "description": "Which way the axis runs, in world space.",
+                    "description": (
+                        "Which way the axis runs, in world space, e.g. [0, 0, 1] "
+                        "for the vertical axis."
+                    ),
                 },
                 "boolean": _BOOLEAN,
             },
@@ -308,14 +314,14 @@ FEATURE_TOOLS: List[Dict[str, Any]] = [
                     "items": {"type": "number"},
                     "minItems": 3,
                     "maxItems": 3,
-                    "description": "circular: a point on the axis.",
+                    "description": "circular: a point on the axis, in world space.",
                 },
                 "axis_direction": {
                     "type": "array",
                     "items": {"type": "number"},
                     "minItems": 3,
                     "maxItems": 3,
-                    "description": "circular: which way the axis runs.",
+                    "description": "circular: which way the axis runs, in world space.",
                 },
                 "merge": {
                     "type": "boolean",

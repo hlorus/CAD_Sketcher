@@ -465,6 +465,67 @@ class TestMcpFeatures(Sketch2dTestCase):
             features.find_target(self.context, body["name"]).name,
         )
 
+    def test_a_revolve_axis_is_read_in_world_space(self):
+        # The operators store the axis in the object's own space, so a world
+        # axis has to be converted. Passed through raw, "about world Z" became
+        # "about the sketch normal" and swept the profile flat in its own plane.
+        import math
+
+        sketch = handlers.create_sketch(
+            self.context, {"name": "Profile", "plane": "XZ", "activate": False}
+        )["sketch"]
+        handlers.edit_sketch(
+            self.context,
+            {
+                "sketch": sketch,
+                "ops": [
+                    {"op": "point", "name": "a", "co": [0.04, 0], "fixed": True},
+                    {"op": "point", "name": "b", "co": [0.2, 0.001]},
+                    {"op": "point", "name": "c", "co": [0.2, 0.1]},
+                    {"op": "point", "name": "d", "co": [0.041, 0.1]},
+                    {"op": "line", "name": "s1", "p1": "a", "p2": "b"},
+                    {"op": "line", "name": "s2", "p1": "b", "p2": "c"},
+                    {"op": "line", "name": "s3", "p1": "c", "p2": "d"},
+                    {"op": "line", "name": "s4", "p1": "d", "p2": "a"},
+                    {"op": "constrain", "type": "horizontal", "refs": ["s1"]},
+                    {"op": "constrain", "type": "vertical", "refs": ["s2"]},
+                ],
+            },
+        )
+        body = handlers.revolve(
+            self.context,
+            {
+                "sketch": sketch,
+                "angle": 2 * math.pi,
+                "axis_origin": [0, 0, 0],
+                "axis_direction": [0, 0, 1],
+            },
+        )
+
+        import bpy
+
+        self.context.view_layer.update()
+        obj = bpy.data.objects[body["name"]]
+        evaluated = obj.evaluated_get(self.context.evaluated_depsgraph_get())
+        spans = [
+            max(c[axis] for c in evaluated.bound_box)
+            - min(c[axis] for c in evaluated.bound_box)
+            for axis in range(3)
+        ]
+        # Sweeping about Z gives width in both X and Y; the broken axis left it
+        # flat in Y, with everything still in the sketch's own plane.
+        self.assertGreater(spans[1], 0.1, f"revolve came out flat: spans {spans}")
+        self.assertAlmostEqual(spans[0], spans[1], places=3)
+
+    def test_an_axis_origin_without_a_direction_is_refused(self):
+        sketch = self._plate()
+        with self.assertRaises(ToolError) as caught:
+            handlers.revolve(
+                self.context,
+                {"sketch": sketch, "angle": 1.0, "axis_origin": [0, 0, 0]},
+            )
+        self.assertIn("axis_direction", str(caught.exception))
+
     def test_an_unknown_target_says_what_is_there(self):
         with self.assertRaises(ToolError) as caught:
             handlers.extrude(self.context, {"sketch": "Nope", "distance": 0.01})

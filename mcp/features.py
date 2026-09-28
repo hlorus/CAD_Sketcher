@@ -15,6 +15,7 @@ defaulting to leaving the solid alone.
 from typing import Any, Dict, List, Optional
 
 import bpy
+from mathutils import Vector
 
 from ..utilities.body import body_of, is_body, sketch_of
 from ..utilities.part import is_part_root, part_root_of
@@ -166,10 +167,9 @@ def revolve(context, params: Dict[str, Any]) -> bpy.types.Object:
         # which would silently overrule what was asked for here.
         "boolean_detected": True,
     }
-    if params.get("axis_origin") is not None:
-        props["axis_origin"] = _vector(params["axis_origin"], "axis_origin")
-    if params.get("axis_direction") is not None:
-        props["axis_direction"] = _vector(params["axis_direction"], "axis_direction")
+    origin, direction = _axis_params(target, params)
+    if direction is not None:
+        props["axis_origin"], props["axis_direction"] = origin, direction
 
     _ensure_node_group("revolve")
     _run(bpy.ops.view3d.slvs_node_revolve, **props)
@@ -205,12 +205,9 @@ def array(context, params: Dict[str, Any]) -> bpy.types.Object:
             "use_total_angle": bool(params.get("angle_is_total", True)),
             "merge": bool(params.get("merge", False)),
         }
-        if params.get("axis_origin") is not None:
-            props["axis_origin"] = _vector(params["axis_origin"], "axis_origin")
-        if params.get("axis_direction") is not None:
-            props["axis_direction"] = _vector(
-                params["axis_direction"], "axis_direction"
-            )
+        origin, direction = _axis_params(target, params)
+        if direction is not None:
+            props["axis_origin"], props["axis_direction"] = origin, direction
         _ensure_node_group("array_circular")
         _run(bpy.ops.view3d.slvs_node_array_circular, **props)
     else:
@@ -272,6 +269,42 @@ def make_part(context, params: Dict[str, Any]) -> bpy.types.Object:
         if previous_active is not None and previous_active.name in bpy.data.objects:
             view_layer.objects.active = previous_active
     return root
+
+
+def _axis_params(target, params: Dict[str, Any]):
+    """The object-space axis for a world-space one in ``params``, or (None, None).
+
+    An axis is a pair: giving a direction without an origin means the world
+    origin, which is what "about the Z axis" nearly always means.
+    """
+    direction = params.get("axis_direction")
+    origin = params.get("axis_origin")
+    if direction is None and origin is None:
+        return None, None
+    if direction is None:
+        raise FeatureError("axis_origin needs an axis_direction to go with it")
+    return _axis_in_object_space(
+        target,
+        _vector(origin, "axis_origin") if origin is not None else [0.0, 0.0, 0.0],
+        _vector(direction, "axis_direction"),
+    )
+
+
+def _axis_in_object_space(target, origin: Any, direction: Any):
+    """Convert a world-space axis into the target's own space.
+
+    The operators store and read the axis in object space (see
+    ``resolve_axis``), which is what a viewport pick resolves to. An agent has
+    only world coordinates to reason with, since that is what describe_scene
+    reports, so the conversion happens here rather than being got wrong there.
+    """
+    inverse = target.matrix_world.inverted()
+    local_origin = inverse @ Vector(origin)
+    # A direction is not a position: rotate and scale it, do not translate it.
+    local_direction = inverse.to_3x3() @ Vector(direction)
+    if local_direction.length < 1e-9:
+        raise FeatureError("axis_direction must not be zero length")
+    return list(local_origin), list(local_direction.normalized())
 
 
 def _vector(value: Any, what: str) -> List[float]:
