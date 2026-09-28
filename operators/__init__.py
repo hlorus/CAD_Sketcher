@@ -32,6 +32,7 @@ modules = [
     "project_geometry",
     "set_sketch",
     "delete_entity",
+    "delete_part",
     "delete_sketch",
     "delete_constraint",
     "constraint_visibility",

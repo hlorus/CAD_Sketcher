@@ -36,17 +36,27 @@ def draw_object_context_menu(self, context: Context):
 
     if len(sketches) > 1:
         layout.menu(declarations.Menus.PartSketches.value, text="Edit Sketch")
-        layout.separator()
-        return
-
-    row = layout.row()
-    props = row.operator(declarations.Operators.SetActiveSketch, text="Edit Sketch")
-    target = sketches[0] if sketches else (ob if ob and is_sketch_object(ob) else None)
-    if target is not None:
-        row.enabled = True
-        props.sketch_name = target.name
     else:
-        row.enabled = False
+        row = layout.row()
+        props = row.operator(declarations.Operators.SetActiveSketch, text="Edit Sketch")
+        target = (
+            sketches[0] if sketches else (ob if ob and is_sketch_object(ob) else None)
+        )
+        if target is not None:
+            row.enabled = True
+            props.sketch_name = target.name
+        else:
+            row.enabled = False
+
+    # Blender's own Delete takes the clicked object only, which on a part means
+    # the body without its cutters, and the part lives on re-rooted in them.
+    if root is not None:
+        row = layout.row()
+        row.alert = True
+        row.operator(
+            declarations.Operators.DeletePart, text="Delete Part", icon="X"
+        ).part_name = root.name
+
     layout.separator()
 
 
