@@ -68,7 +68,7 @@ The server also tells the agent how to work here: units, constraining rather
 than placing by eye, aiming for a fully defined sketch, and checking its own
 work with a render. You should not have to explain any of that yourself.
 
-The agent does not move you around: it works on sketches and bodies by name, so nothing it does changes your active sketch, your tool or your view unless you ask it to.
+Sketch work ends in the sketch, part work does not. Asking for a profile leaves you in it, ready to carry on; asking for a part takes you back out once the solid is made. A sketch you are working in yourself is never closed behind you because the agent built something else.
 
 A new solid stands on its own unless the agent asks for a boolean. The tools
 do not inherit Auto Boolean: an agent cannot see what it just absorbed, and a

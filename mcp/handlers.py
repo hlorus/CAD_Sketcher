@@ -150,10 +150,9 @@ def create_sketch(context, params: Dict[str, Any]) -> Result:
         body.name = name
         name_after_body(body, sketch.target_object, sketch.target_object.slvs_workplane)
 
-    # Off by default: entering a sketch switches the user's tool, fades
-    # everything else, and can swing their viewport onto the plane. The
-    # other tools all work by name, so none of that is needed to build.
-    if params.get("activate", False):
+    # Drawing a sketch is sketch work, so go there, as a person doing this
+    # would. A feature built from it later takes the user back out again.
+    if params.get("activate", True):
         _activate(context, sketch)
     _redraw()
 
@@ -274,7 +273,10 @@ def view3d_override(context) -> Optional[Dict[str, Any]]:
 def _feature(context, params: Dict[str, Any], build, label: str) -> Result:
     """Run one feature builder, then report the body it acted on."""
     _guard_writes(context)
+    from ..model.sketch_ref import get_active_sketch
     from . import features
+
+    was_in = get_active_sketch(context)
 
     pushed = _undo_push(f"MCP {label}")
     try:
@@ -283,11 +285,25 @@ def _feature(context, params: Dict[str, Any], build, label: str) -> Result:
         _undo_and_restore(context, pushed)
         raise ToolError(str(e)) from e
 
+    # Going on to build from the sketch the user is sitting in means they have
+    # moved past it, so bring them out. Working on any other sketch leaves them
+    # where they are: an agent must not empty a sketch somebody else is using.
+    if was_in is not None and _consumed(target, was_in):
+        _activate(context, None)
+
     context.view_layer.update()
     _redraw()
     result = features.body_data(target)
     result["did"] = label
     return result
+
+
+def _consumed(target, active: Sketch) -> bool:
+    """Whether this feature was built from the sketch the user is in."""
+    from ..utilities.body import sketch_of
+
+    source = sketch_of(target)
+    return source is not None and source == active.target_object
 
 
 def extrude(context, params: Dict[str, Any]) -> Result:

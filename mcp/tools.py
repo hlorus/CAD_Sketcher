@@ -48,9 +48,10 @@ Blender session the user is watching. Work the way a CAD user does:
 9. A solid stands on its own unless you pass a boolean. Passing one consumes it
    into the body it touches and hides it, which looks like the solid vanished,
    so use it deliberately and say what you did.
-10. Nothing here changes what the user is doing unless you ask it to. Every
-   tool works by name, so you never need to enter a sketch; set_active_sketch
-   is there for when they ask to be taken somewhere.
+10. Sketch work should end in the sketch, part work should not. Drawing one
+   enters it, and building a solid from the sketch the user is in takes them
+   back out; working on any other sketch leaves them alone. Pass
+   activate: false, or call set_active_sketch, when you want it otherwise.
 11. The user is in Blender with you. Every edit is one step in their undo
    history, and destructive tools are worth asking about before you use them.\
 """
@@ -516,9 +517,10 @@ TOOLS: List[Dict[str, Any]] = [
                 "activate": {
                     "type": "boolean",
                     "description": (
-                        "Also enter the sketch. Default false: entering "
-                        "switches the user's tool and can move their view, "
-                        "and nothing here needs it to build."
+                        "Enter the new sketch, which is what a person "
+                        "drawing one would see. Default true. Pass false "
+                        "when the sketch is a step towards a solid rather "
+                        "than the thing the user asked for."
                     ),
                 },
                 "plane": {

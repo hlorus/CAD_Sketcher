@@ -514,18 +514,15 @@ class TestMcpSketchMode(Sketch2dTestCase):
     def _active(self):
         return describe.scene_data(self.context)["active_sketch"]
 
-    def test_creating_a_sketch_leaves_the_user_where_they_were(self):
-        # Entering switches their tool, fades other objects and can swing the
-        # viewport onto the plane. Building needs none of that.
-        before = self._active()
-        handlers.create_sketch(self.context, {"name": "Quiet"})
-        self.assertEqual(self._active(), before)
-
-    def test_a_sketch_can_be_entered_on_request(self):
-        created = handlers.create_sketch(
-            self.context, {"name": "Entered", "activate": True}
-        )
+    def test_drawing_a_sketch_ends_in_that_sketch(self):
+        created = handlers.create_sketch(self.context, {"name": "Entered"})
         self.assertEqual(self._active(), created["sketch"])
+
+    def test_a_sketch_can_be_made_without_going_there(self):
+        # For a sketch that is a step towards a solid, not the point of the job.
+        before = self._active()
+        handlers.create_sketch(self.context, {"name": "Quiet", "activate": False})
+        self.assertEqual(self._active(), before)
 
     def test_leaving_takes_no_name(self):
         handlers.create_sketch(self.context, {"name": "Somewhere", "activate": True})
@@ -546,12 +543,9 @@ class TestMcpSketchMode(Sketch2dTestCase):
             handlers.set_active_sketch(self.context, {"sketch": "Nope"})
         self.assertIn("Nope", str(caught.exception))
 
-    def test_building_a_solid_does_not_move_the_user(self):
-        # A user sitting in their own sketch must not be thrown out of it
-        # because the agent built something elsewhere.
-        sketch = handlers.create_sketch(
-            self.context, {"name": "Slab", "activate": True}
-        )["sketch"]
+    def test_building_from_the_sketch_you_are_in_brings_you_out(self):
+        # Going on to make a solid from it means the sketching is done.
+        sketch = handlers.create_sketch(self.context, {"name": "Slab"})["sketch"]
         handlers.edit_sketch(
             self.context,
             {
@@ -573,7 +567,41 @@ class TestMcpSketchMode(Sketch2dTestCase):
         self.assertEqual(self._active(), sketch, "still sketching at this point")
 
         handlers.extrude(self.context, {"sketch": sketch, "distance": 0.01})
-        self.assertEqual(self._active(), sketch, "the extrude moved the user")
+        self.assertIsNone(self._active(), "the solid ends the sketching")
+
+    def test_building_from_another_sketch_leaves_you_where_you_are(self):
+        # A user sitting in their own sketch must not be thrown out of it
+        # because the agent built something elsewhere.
+        other = self._slab("Elsewhere")
+        mine = handlers.create_sketch(self.context, {"name": "Mine"})["sketch"]
+        self.assertEqual(self._active(), mine)
+
+        handlers.extrude(self.context, {"sketch": other, "distance": 0.01})
+        self.assertEqual(self._active(), mine, "the agent moved the user")
+
+    def _slab(self, name):
+        sketch = handlers.create_sketch(
+            self.context, {"name": name, "activate": False}
+        )["sketch"]
+        handlers.edit_sketch(
+            self.context,
+            {
+                "sketch": sketch,
+                "ops": [
+                    {"op": "point", "name": "a", "co": [0, 0], "fixed": True},
+                    {"op": "point", "name": "b", "co": [0.05, 0.001]},
+                    {"op": "point", "name": "c", "co": [0.05, 0.05]},
+                    {"op": "point", "name": "d", "co": [0.001, 0.05]},
+                    {"op": "line", "name": "s1", "p1": "a", "p2": "b"},
+                    {"op": "line", "name": "s2", "p1": "b", "p2": "c"},
+                    {"op": "line", "name": "s3", "p1": "c", "p2": "d"},
+                    {"op": "line", "name": "s4", "p1": "d", "p2": "a"},
+                    {"op": "constrain", "type": "horizontal", "refs": ["s1"]},
+                    {"op": "constrain", "type": "vertical", "refs": ["s2"]},
+                ],
+            },
+        )
+        return sketch
 
 
 class TestMcpRenderPart(Sketch2dTestCase):
