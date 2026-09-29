@@ -517,21 +517,18 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         self.draw_offset = pos[1] / ui_scale
         self.draw_outset = pos[0] / ui_scale
 
-    def draw_props(self, layout, include_value: bool = True):
-        sub = super().draw_props(layout, include_value=include_value)
+    def draw_settings(self, layout):
+        super().draw_settings(layout)
 
         if self.use_flipping():
-            sub.prop(self, "flip")
+            layout.prop(self, "flip")
 
-        sub.label(text="Alignment:")
-        row = sub.row()
+        row = layout.row()
         row.enabled = self.use_align()
-        row.prop(self, "align", text="")
+        row.prop(self, "align")
 
         if preferences.is_experimental():
-            sub.prop(self, "draw_offset")
-
-        return sub
+            layout.prop(self, "draw_offset")
 
     def value_placement(self, context, basis=None):
         """location to display the constraint value"""
