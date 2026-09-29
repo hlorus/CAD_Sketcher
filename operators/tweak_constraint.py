@@ -192,7 +192,10 @@ class View3D_OT_slvs_edit_constraint_value(Operator):
         # The field draws a scene property, which has to exist before the dialog
         # is laid out; nothing has needed it until the dimension is opened.
         context.scene.sketcher.create_constraint_value_endpoint(constr)
-        return context.window_manager.invoke_props_dialog(self, width=220)
+        # A popup rather than a props dialog: every field writes through as it
+        # is edited, so an OK button would confirm what already happened and a
+        # Cancel would not undo it.
+        return context.window_manager.invoke_popup(self, width=220)
 
     def draw(self, context: Context):
         constr = self._constraint(context)
@@ -216,8 +219,8 @@ class View3D_OT_slvs_edit_constraint_value(Operator):
         op.index = constr.index()
 
     def execute(self, context: Context):
-        # Every field writes through as it is edited (the value endpoint drives
-        # the constraint), so confirming the dialog has nothing left to apply.
+        # Never reached through the popup, which closes on its own; here so the
+        # operator can still be called directly.
         return {"FINISHED"}
 
 
