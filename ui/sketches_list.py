@@ -110,21 +110,43 @@ def list_scope(context):
 def in_scope(obj, scope, root) -> bool:
     """Whether ``obj`` belongs in the list as it is currently scoped.
 
-    A part lists its features and not itself: the part is drawn above the list,
-    where its name and its own controls belong. The wider scopes list *parts*
-    rather than their insides, since a file's worth of features interleaved by
-    name says nothing about what belongs to what.
+    A part lists what it is made of, base feature first. The wider scopes list
+    *parts* rather than their insides, since a file's worth of features
+    interleaved by name says nothing about what belongs to what.
     """
     from ..utilities.part import assembly_root_of, is_part_root, part_root_of
 
     if scope == PART:
-        return obj != root and part_root_of(obj) == root
+        # The root included: it is the base feature, the one the part was built
+        # from, and it leads the list (see ``base_first``).
+        return part_root_of(obj) == root
 
     if scope == ASSEMBLY:
         return is_part_root(obj) and assembly_root_of(obj) == root
 
     # Global: every part, and anything loose that has not joined one yet.
     return is_part_root(obj) or part_root_of(obj) is None
+
+
+def base_first(objects, root):
+    """A draw order putting the part's base feature at the top.
+
+    ``scene.objects`` is kept sorted by name, which would file the part's own
+    body wherever its name happens to fall -- a cut listed above the thing it
+    cuts. The base is what everything else was built on, so it leads and the rest
+    keep their names' order behind it.
+
+    Blender reads this as "the item at index i moves to position order[i]", so it
+    has to be a permutation of every item, filtered-out ones included.
+    """
+    ranked = sorted(
+        range(len(objects)),
+        key=lambda i: (objects[i] != root, objects[i].name),
+    )
+    order = [0] * len(objects)
+    for position, index in enumerate(ranked):
+        order[index] = position
+    return order
 
 
 def is_feature_row(obj) -> bool:
@@ -237,9 +259,12 @@ class VIEW3D_UL_sketches(UIList):
             ).feature_name = body.name
             return
         if body is not None and is_part_root(body):
-            row.operator(
-                Operators.DeletePart, text="", icon="X", emboss=False
-            ).part_name = body.name
+            # The base feature cannot go on its own: the part is built on it, and
+            # removing it would only hand the part to whatever was left. Deleting
+            # the whole part is a deliberate act, and lives in the header's menu.
+            spent = row.row(align=True)
+            spent.enabled = False
+            spent.label(text="", icon="X")
             return
         if sketch is not None:
             row.operator(
@@ -274,4 +299,4 @@ class VIEW3D_UL_sketches(UIList):
             if not (is_feature_row(obj) and in_scope(obj, scope, root)):
                 flags[i] &= ~self.bitflag_filter_item
 
-        return flags, []
+        return flags, base_first(objects, root) if scope == PART else []

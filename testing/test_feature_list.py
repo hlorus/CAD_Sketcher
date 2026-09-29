@@ -103,7 +103,7 @@ class TestFeatureRows(BgsTestCase):
 
         self.assertIn(bare.name, _Filter().shown(self.context))
 
-    def test_a_selected_part_lists_its_features_only(self):
+    def test_a_selected_part_lists_its_features(self):
         root, _sketch, body = self._part_with_feature()
 
         bpy.ops.object.select_all(action="DESELECT")
@@ -112,7 +112,7 @@ class TestFeatureRows(BgsTestCase):
 
         shown = _Filter().shown(self.context)
         self.assertIn(body.name, shown, "the cutter is a row of its own")
-        self.assertNotIn(root.name, shown, "the part is drawn above the list")
+        self.assertIn(root.name, shown, "the base feature leads the list")
 
     def test_a_loose_mesh_earns_no_row(self):
         """The list is the part's contents, not every mesh in the file."""

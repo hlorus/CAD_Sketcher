@@ -68,19 +68,31 @@ class TestListScope(BgsTestCase):
             obj.select_set(True)
         self.context.view_layer.objects.active = obj
 
-    def test_a_part_lists_its_features_and_not_itself(self):
+    def test_a_part_lists_what_it_is_made_of(self):
         self._select(self.a)
 
         self.assertEqual(list_scope(self.context), (PART, self.a))
         shown = _Filter().shown(self.context)
-        self.assertEqual(shown, {self.a_cut.name})
+        self.assertEqual(shown, {self.a.name, self.a_cut.name})
+
+    def test_the_base_feature_leads_the_list(self):
+        """Its name would otherwise file it wherever the alphabet puts it."""
+        from ..ui.sketches_list import base_first
+
+        self.a.name = "zzz_base"  # sorts last by name
+        self._select(self.a)
+
+        objects = list(self.scene.objects)
+        order = base_first(objects, self.a)
+        self.assertEqual(order[objects.index(self.a)], 0)
+        self.assertEqual(sorted(order), list(range(len(objects))), "not a permutation")
 
     def test_a_feature_keeps_the_part_in_scope(self):
         """Clicking a cutter must not empty the list it was listed in."""
         self._select(self.a_cut)
 
         self.assertEqual(list_scope(self.context), (PART, self.a))
-        self.assertEqual(_Filter().shown(self.context), {self.a_cut.name})
+        self.assertEqual(_Filter().shown(self.context), {self.a.name, self.a_cut.name})
 
     def test_an_assembly_lists_its_parts(self):
         self._select(self.assembly)
@@ -214,8 +226,8 @@ class TestLeavingASketch(BgsTestCase):
         self.assertEqual([o.name for o in self.context.selected_objects], [root.name])
         self.assertEqual(list_scope(self.context), (PART, root))
 
-    def test_the_base_sketch_is_reachable_though_it_has_no_row(self):
-        """It is drawn in the header instead: its body is the part."""
+    def test_the_base_feature_has_a_row_of_its_own(self):
+        """Its body is the part's root, and it is the first thing listed."""
         from ..utilities.body import sketch_of
 
         root, base, _feature, cutter = self._part_with_cut()
@@ -225,6 +237,5 @@ class TestLeavingASketch(BgsTestCase):
         self.context.view_layer.objects.active = root
 
         shown = _Filter().shown(self.context)
-        self.assertEqual(shown, {cutter.name})
-        self.assertNotIn(base.target_object.name, shown)
-        self.assertEqual(sketch_of(root), base.target_object, "the header's way in")
+        self.assertEqual(shown, {root.name, cutter.name})
+        self.assertEqual(sketch_of(root), base.target_object, "the row's way in")
