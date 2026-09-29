@@ -77,7 +77,8 @@ class VIEW3D_MT_slvs_part_sketches(Menu):
 
     def draw(self, context: Context):
         from ...model.sketch_ref import is_sketch_object
-        from ...ui.sketches_list import _cutting_sketches
+        from ...ui.sketches_list import cutting_bodies
+        from ...utilities.body import body_of
         from ...utilities.part import part_root_of
 
         obj = context.active_object
@@ -86,13 +87,13 @@ class VIEW3D_MT_slvs_part_sketches(Menu):
             return
 
         layout = self.layout
-        cutting = _cutting_sketches(context.scene)
+        # The list is keyed on bodies; this menu lists the sketches behind them,
+        # so each is traced to its body to say whether it is cutting.
+        cutting = cutting_bodies(context.scene)
         for sketch_obj in part_sketches(context, root):
-            icon = (
-                "MOD_BOOLEAN"
-                if sketch_obj.name in cutting
-                else "OUTLINER_DATA_GP_LAYER"
-            )
+            body = body_of(sketch_obj)
+            marks = {sketch_obj.name} | ({body.name} if body is not None else set())
+            icon = "MOD_BOOLEAN" if marks & cutting else "OUTLINER_DATA_GP_LAYER"
             layout.operator(
                 declarations.Operators.SetActiveSketch,
                 text=sketch_obj.name,

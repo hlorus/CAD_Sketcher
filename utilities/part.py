@@ -43,6 +43,11 @@ _LEGACY_ROOT_KEYS = {"slvs:part_root": PART, "slvs:assembly_root": ASSEMBLY}
 # axis pair it stands for, so a second sketch on the same part plane reuses it.
 PART_PLANE_KEY = "slvs:part_plane"
 
+# Set on a cutter the user asked to see anyway. Stored rather than left as a bare
+# ``hide_viewport`` flip, because the display rules are re-applied whenever
+# membership changes and would otherwise hide it again behind their back.
+SHOW_CUTTER_KEY = "slvs:show_cutter"
+
 # A part's base planes, in its root's frame. Same orientations as the scene's
 # origin planes, so "the part's XY" means what the user expects.
 PART_PLANE_AXES = (
@@ -880,6 +885,13 @@ def update_cutter_display(cutter: bpy.types.Object, bodies, cuts: bool) -> None:
         return  # not ours to hide: it belongs to the file it came from
 
     if cuts and bodies and part_root_of(cutter) is not None:
+        if cutter.get(SHOW_CUTTER_KEY, False):
+            # Asked for by hand, so it outranks the rule. Drawn as a wireframe
+            # rather than a solid: the point is to find and grab the cutter, not
+            # to put its volume back over the result it just cut.
+            cutter.hide_viewport = False
+            cutter.display_type = "WIRE"
+            return
         cutter.display_type = "TEXTURED"
         cutter.hide_viewport = True
         return
@@ -887,6 +899,12 @@ def update_cutter_display(cutter: bpy.types.Object, bodies, cuts: bool) -> None:
     cutter.hide_viewport = False
     cutter.hide_set(False)
     cutter.display_type = "WIRE" if cuts else "TEXTURED"
+
+
+def refresh_cutter(scene: bpy.types.Scene, cutter: bpy.types.Object) -> None:
+    """Re-apply the display rules to one cutter, reading what it currently feeds."""
+    bodies = _bodies_by_cutter(scene).get(cutter.name)
+    update_cutter_display(cutter, bodies or [], bool(bodies))
 
 
 def _bodies_by_cutter(scene: bpy.types.Scene) -> dict:
