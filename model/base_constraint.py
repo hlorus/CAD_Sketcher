@@ -504,36 +504,21 @@ class DimensionalConstraint(GenericConstraint):
         if not key:
             return False
 
-        # Split by hand rather than through use_property_split, which wraps the
-        # field in a layout of its own that activate_init cannot be set on: the
-        # request would then land on whatever the caller draws next. The factor
-        # is Blender's own, so the label lines up with split rows around it.
-        split = layout.split(factor=0.4)
-        label = split.column()
-        label.alignment = "RIGHT"
-        label.label(text="Value")
-
-        field = split.column()
-        field.use_property_split = False
-        field.enabled = not self.is_reference
-        field.activate_init = layout.activate_init
-        field.prop(scene, f'["{key}"]', text="")
+        col = layout.column()
+        col.enabled = not self.is_reference
+        # The column is only here to grey the field out on a reference
+        # dimension; carry the caller's activate_init through it, or asking for
+        # focus on the dialog would land on whatever it draws next instead.
+        col.activate_init = layout.activate_init
+        col.prop(scene, f'["{key}"]', text="Value")
         return True
-
-    def draw_settings(self, layout: UILayout) -> None:
-        """Draw what is specific to this kind of dimension.
-
-        The edit dialog lays its own fields out (label column, no separators),
-        so it takes the per-type extras through here rather than through the
-        menu-shaped :func:`draw_props`.
-        """
-        if hasattr(self, "setting"):
-            layout.prop(self, "setting")
 
     def draw_props(self, layout: UILayout, include_value: bool = True):
         sub = GenericConstraint.draw_props(self, layout)
         sub.prop(self, "is_reference")
         if include_value:
             self.draw_value(sub)
-        self.draw_settings(sub)
+        if hasattr(self, "setting"):
+            row = sub.row()
+            row.prop(self, "setting")
         return sub

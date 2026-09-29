@@ -195,33 +195,21 @@ class View3D_OT_slvs_edit_constraint_value(Operator):
         # A popup rather than a props dialog: every field writes through as it
         # is edited, so an OK button would confirm what already happened and a
         # Cancel would not undo it.
-        return context.window_manager.invoke_popup(self, width=270)
+        return context.window_manager.invoke_popup(self, width=180)
 
     def draw(self, context: Context):
         constr = self._constraint(context)
         if constr is None:
             return
 
-        layout = self.layout
-        # One label column for every row, rather than the menu's mix of bare
-        # fields and standalone labels.
-        layout.use_property_split = True
-        layout.use_property_decorate = False
-
         # The value goes first and opens focused, so the number can be typed
         # straight away. That focus is why a dimension gets a popup of its own:
-        # the activation step never runs for a popup_menu.
+        # the activation step never runs for a popup_menu. Everything below is
+        # the constraint's usual menu, unchanged.
+        layout = self.layout
         layout.activate_init = True
         constr.draw_value(layout)
-        layout.prop(constr, "name")
-
-        constr.draw_settings(layout)
-
-        layout.separator()
-        layout.prop(constr, "visible")
-        layout.prop(constr, "is_reference")
-        if constr.failed:
-            layout.label(text="Could not be solved", icon="ERROR")
+        constr.draw_props(layout, include_value=False)
 
         layout.separator()
         row = layout.row()
