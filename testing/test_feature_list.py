@@ -10,10 +10,13 @@ import bpy
 
 from ..operators.modifiers import apply_boolean
 from ..ui.sketches_list import (
+    CUTTER,
+    SKETCH,
     VIEW3D_UL_sketches,
     cutting_bodies,
     is_feature_row,
     row_parts,
+    row_visibility,
 )
 from ..utilities.part import (
     SHOW_CUTTER_KEY,
@@ -116,6 +119,37 @@ class TestFeatureRows(BgsTestCase):
     def test_a_loose_mesh_earns_no_row(self):
         """The list is the part's contents, not every mesh in the file."""
         self.assertFalse(is_feature_row(self._cube("fl_loose")))
+
+    def test_the_eye_shows_the_cutter_on_a_cutting_row(self):
+        """One slot: the cutter is what there is to show or hide here."""
+        _root, _sketch, body = self._part_with_feature()
+
+        kind, target = row_visibility(body, cutting_bodies(self.scene))
+
+        self.assertEqual(kind, CUTTER)
+        self.assertEqual(target, body)
+
+    def test_the_eye_shows_the_profile_on_every_other_row(self):
+        """A row that is not cutting has only its own curves to offer."""
+        _root, sketch, _body = self._part_with_feature()
+
+        # The sketch is listed through its body, but asked directly it answers
+        # for the profile: nothing is hiding it.
+        self.assertEqual(
+            row_visibility(sketch, cutting_bodies(self.scene)), (SKETCH, sketch)
+        )
+
+    def test_the_parts_own_body_has_no_eye(self):
+        """It is the part, not a feature: nothing cuts it and it has no profile."""
+        root, _sketch, _body = self._part_with_feature()
+
+        self.assertEqual(row_visibility(root, cutting_bodies(self.scene)), (None, None))
+
+    def test_a_row_with_neither_offers_no_eye(self):
+        bare = self._cube("fl_eyeless")
+        mark_part_root(bare)
+
+        self.assertEqual(row_visibility(bare, set()), (None, None))
 
     def test_a_cutting_body_is_recognised(self):
         root, _sketch, body = self._part_with_feature()

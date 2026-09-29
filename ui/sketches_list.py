@@ -37,6 +37,30 @@ def row_parts(obj):
     return obj, None
 
 
+# What a row's eye acts on.
+CUTTER = "CUTTER"
+SKETCH = "SKETCH"
+
+
+def row_visibility(obj, cutting):
+    """(kind, object) the row's eye toggles, or (None, None) if it has nothing to.
+
+    One slot, because the two meanings never apply at once: a body that is
+    cutting is hidden by the display rules, so its solid is the thing to show or
+    hide; any other row has only its profile to offer. ``cutting`` is the set
+    from :func:`cutting_bodies`.
+    """
+    body, sketch = row_parts(obj)
+    # The cutter is the body, or the sketch itself in a file from before bodies
+    # existed, which carried the stack on the sketch.
+    cutter = body or sketch
+    if cutter is not None and cutter.name in cutting:
+        return CUTTER, cutter
+    if sketch is not None:
+        return SKETCH, sketch
+    return None, None
+
+
 def is_feature_row(obj) -> bool:
     """Whether ``obj`` earns a row of its own.
 
@@ -83,35 +107,31 @@ class VIEW3D_UL_sketches(UIList):
             body, sketch = row_parts(obj)
             row = layout.row(align=True)
 
-            if sketch is not None:
-                # Visibility toggle (eye): the sketch's own curves, which are
-                # hidden from the moment it is created. Not the body, which
-                # carries the features and looks nothing like the profile.
-                row.operator(
-                    Operators.SetSketchVisibility,
-                    text="",
-                    icon="HIDE_ON" if sketch.hide_viewport else "HIDE_OFF",
-                    emboss=False,
-                ).sketch_name = sketch.name
-            else:
-                # A body with no sketch (an imported mesh made a part by hand):
-                # there is no profile to show or hide.
-                row.label(text="", icon="MESH_DATA")
-
-            # The cutter is the body, or the sketch itself in a file from before
-            # bodies existed, which carried the stack on the sketch.
-            cutter = body or sketch
-            if cutter is not None and cutter.name in getattr(self, "_cutting", ()):
+            kind, target = row_visibility(obj, getattr(self, "_cutting", ()))
+            if kind == CUTTER:
                 # A cutter is hidden while it cuts, so its solid has no other
-                # control anywhere: without this the body looks deleted.
+                # control anywhere: without this the body looks deleted. Shown as
+                # a wireframe, which is what there is to show once its volume has
+                # been merged into the result.
                 row.operator(
                     Operators.SetCutterVisibility,
                     text="",
-                    icon="RESTRICT_VIEW_ON"
-                    if cutter.hide_viewport
-                    else "RESTRICT_VIEW_OFF",
+                    icon="HIDE_ON" if target.hide_viewport else "HIDE_OFF",
                     emboss=False,
-                ).body_name = cutter.name
+                ).body_name = target.name
+            elif kind == SKETCH:
+                # Nothing is cutting here, so the eye means the profile: the
+                # sketch's own curves, hidden from the moment it is created.
+                row.operator(
+                    Operators.SetSketchVisibility,
+                    text="",
+                    icon="HIDE_ON" if target.hide_viewport else "HIDE_OFF",
+                    emboss=False,
+                ).sketch_name = target.name
+            else:
+                # An imported mesh made a part by hand: no profile, and nothing
+                # hiding it, so there is nothing for the eye to say.
+                row.label(text="", icon="MESH_DATA")
 
             # Editable name -- expands to fill, pushing the icons below to the
             # right edge of the row (standard Blender UIList layout). The body's
