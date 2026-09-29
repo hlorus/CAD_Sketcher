@@ -261,20 +261,18 @@ class GenericConstraint:
             layout.label(text="Failed", icon="ERROR")
 
         # Info block
-        layout.separator()
         if is_experimental:
+            layout.separator()
             sub = layout.column()
             sub.scale_y = 0.8
             sub.label(text="Dependencies:")
             for e in self.dependencies():
                 sub.label(text=str(e))
 
-        # General props
+        # General props. One gap here and none after: what a subclass adds
+        # belongs with these rather than floating below a second separator.
         layout.separator()
         layout.prop(self, "visible")
-
-        # Specific props
-        layout.separator()
 
         return layout
 

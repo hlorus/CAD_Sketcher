@@ -211,10 +211,10 @@ class View3D_OT_slvs_edit_constraint_value(Operator):
         constr.draw_value(layout)
         constr.draw_props(layout, include_value=False)
 
+        # One gap before the destructive entry, so it is not landed on by
+        # accident while reaching for the settings above it.
         layout.separator()
-        row = layout.row()
-        row.alert = True
-        op = row.operator(Operators.DeleteConstraint, text="Delete", icon="X")
+        op = layout.operator(Operators.DeleteConstraint, text="Delete", icon="X")
         op.type = constr.type
         op.index = constr.index()
 
