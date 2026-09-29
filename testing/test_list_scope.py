@@ -150,3 +150,81 @@ class TestPartVisibility(BgsTestCase):
         bpy.ops.view3d.slvs_set_part_visibility(part_name=root.name)
 
         self.assertTrue(cutter.hide_viewport, "the display rules were overwritten")
+
+
+class TestLeavingASketch(BgsTestCase):
+    """What stays selected, and so which part the sidebar then shows."""
+
+    def setUp(self):
+        super().setUp()
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        ensure_origin_workplane_empties(self.context)
+        self.datum = self.context.scene.sketcher.wp_xy
+
+    def _part_with_cut(self):
+        from ..operators.add_sketch import build_sketch_on_workplane
+        from ..operators.modifiers import apply_boolean
+        from ..utilities.body import body_of
+        from ..utilities.part import (
+            promote_to_root,
+            settle_membership,
+            update_cutter_display,
+        )
+
+        base = build_sketch_on_workplane(self.context, self.datum)
+        root = body_of(base.target_object)
+        promote_to_root(root)
+        mark_part_root(root)
+
+        feature = build_sketch_on_workplane(self.context, self.datum)
+        cutter = body_of(feature.target_object)
+        settle_membership(feature.target_object, [root], self.context)
+        apply_boolean(root, cutter, "Difference")
+        update_cutter_display(cutter, [root], True)
+        return root, base, feature, cutter
+
+    def test_a_hidden_cutter_cannot_be_selected(self):
+        """The reason the part has to stand in for it."""
+        _root, _base, _feature, cutter = self._part_with_cut()
+
+        bpy.ops.object.select_all(action="DESELECT")
+        cutter.select_set(True)
+
+        self.assertTrue(cutter.hide_viewport)
+        self.assertEqual(list(self.context.selected_objects), [])
+
+    def test_leaving_a_cut_selects_its_part(self):
+        from ..operators.utilities import select_result_ob
+
+        root, _base, feature, _cutter = self._part_with_cut()
+
+        select_result_ob(self.context, feature)
+
+        self.assertEqual([o.name for o in self.context.selected_objects], [root.name])
+        self.assertEqual(list_scope(self.context), (PART, root))
+
+    def test_leaving_the_base_sketch_selects_the_part_itself(self):
+        from ..operators.utilities import select_result_ob
+
+        root, base, _feature, _cutter = self._part_with_cut()
+
+        select_result_ob(self.context, base)
+
+        self.assertEqual([o.name for o in self.context.selected_objects], [root.name])
+        self.assertEqual(list_scope(self.context), (PART, root))
+
+    def test_the_base_sketch_is_reachable_though_it_has_no_row(self):
+        """It is drawn in the header instead: its body is the part."""
+        from ..utilities.body import sketch_of
+
+        root, base, _feature, cutter = self._part_with_cut()
+
+        bpy.ops.object.select_all(action="DESELECT")
+        root.select_set(True)
+        self.context.view_layer.objects.active = root
+
+        shown = _Filter().shown(self.context)
+        self.assertEqual(shown, {cutter.name})
+        self.assertNotIn(base.target_object.name, shown)
+        self.assertEqual(sketch_of(root), base.target_object, "the header's way in")

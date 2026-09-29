@@ -70,6 +70,26 @@ def _draw_list_header(context, layout) -> None:
         row.label(text="", icon="OUTLINER_OB_GROUP_INSTANCE")
 
     row.prop(root, "name", text="", emboss=False)
+
+    if scope == PART:
+        # The part's own sketch has no row of its own: its body *is* the part, and
+        # the part is drawn here rather than in the list. So its state and the way
+        # into it live here too, or the base feature would be unreachable.
+        from ...model.sketch_ref import Sketch
+        from ...utilities.body import sketch_of
+
+        base = sketch_of(root)
+        if base is not None and base.get("solver_state", "OKAY") != "OKAY":
+            row.label(text="", icon=Sketch(base).get_solver_state().icon)
+        enter = row.row(align=True)
+        enter.enabled = base is not None
+        enter.operator(
+            declarations.Operators.SetActiveSketch,
+            text="",
+            icon="OUTLINER_DATA_GP_LAYER",
+            emboss=False,
+        ).sketch_name = base.name if base is not None else ""
+
     # Everything that acts on this part, from the same menu the context menus
     # and the sidebar draw.
     row.menu(declarations.Menus.Part.value, text="", icon="DOWNARROW_HLT")
