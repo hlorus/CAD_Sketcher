@@ -161,10 +161,72 @@ class View3D_OT_slvs_tweak_constraint_value_pos(Operator):
             context.area.tag_redraw()
 
     def execute(self, context: Context):
-        bpy.ops.view3d.slvs_context_menu(type=self.type, index=self.index)
+        bpy.ops.view3d.slvs_edit_constraint_value(
+            "INVOKE_DEFAULT", type=self.type, index=self.index
+        )
+        return {"FINISHED"}
+
+
+class View3D_OT_slvs_edit_constraint_value(Operator):
+    """Edit a dimension, with its value ready to type into"""
+
+    bl_idname = Operators.EditConstraintValue
+    bl_label = "Edit Dimension"
+    bl_options = {"UNDO"}
+
+    type: StringProperty(name="Type", options={"SKIP_SAVE"})
+    index: IntProperty(name="Index", default=-1, options={"SKIP_SAVE"})
+
+    def _constraint(self, context: Context):
+        constraints = get_active_constraints(context)
+        if not constraints:
+            return None
+        return constraints.get_from_type_index(self.type, self.index)
+
+    def invoke(self, context: Context, event: Event):
+        constr = self._constraint(context)
+        if constr is None or not hasattr(constr, "value"):
+            # Nothing to type into, so the generic menu is still the right thing.
+            return bpy.ops.view3d.slvs_context_menu(type=self.type, index=self.index)
+
+        # The field draws a scene property, which has to exist before the dialog
+        # is laid out; nothing has needed it until the dimension is opened.
+        context.scene.sketcher.create_constraint_value_endpoint(constr)
+        # A popup rather than a props dialog: every field writes through as it
+        # is edited, so an OK button would confirm what already happened and a
+        # Cancel would not undo it.
+        return context.window_manager.invoke_popup(self, width=180)
+
+    def draw(self, context: Context):
+        constr = self._constraint(context)
+        if constr is None:
+            return
+
+        # The value goes first and opens focused, so the number can be typed
+        # straight away. That focus is why a dimension gets a popup of its own:
+        # the activation step never runs for a popup_menu. Everything below is
+        # the constraint's usual menu, unchanged.
+        layout = self.layout
+        layout.activate_init = True
+        constr.draw_value(layout)
+        constr.draw_props(layout, include_value=False)
+
+        # One gap before the destructive entry, so it is not landed on by
+        # accident while reaching for the settings above it.
+        layout.separator()
+        op = layout.operator(Operators.DeleteConstraint, text="Delete", icon="X")
+        op.type = constr.type
+        op.index = constr.index()
+
+    def execute(self, context: Context):
+        # Never reached through the popup, which closes on its own; here so the
+        # operator can still be called directly.
         return {"FINISHED"}
 
 
 register, unregister = register_classes_factory(
-    (View3D_OT_slvs_tweak_constraint_value_pos,)
+    (
+        View3D_OT_slvs_tweak_constraint_value_pos,
+        View3D_OT_slvs_edit_constraint_value,
+    )
 )

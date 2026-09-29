@@ -517,8 +517,8 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         self.draw_offset = pos[1] / ui_scale
         self.draw_outset = pos[0] / ui_scale
 
-    def draw_props(self, layout):
-        sub = super().draw_props(layout)
+    def draw_props(self, layout, include_value: bool = True):
+        sub = super().draw_props(layout, include_value=include_value)
 
         if self.use_flipping():
             sub.prop(self, "flip")

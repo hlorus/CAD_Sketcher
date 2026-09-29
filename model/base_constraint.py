@@ -261,20 +261,18 @@ class GenericConstraint:
             layout.label(text="Failed", icon="ERROR")
 
         # Info block
-        layout.separator()
         if is_experimental:
+            layout.separator()
             sub = layout.column()
             sub.scale_y = 0.8
             sub.label(text="Dependencies:")
             for e in self.dependencies():
                 sub.label(text=str(e))
 
-        # General props
+        # General props. One gap here and none after: what a subclass adds
+        # belongs with these rather than floating below a second separator.
         layout.separator()
         layout.prop(self, "visible")
-
-        # Specific props
-        layout.separator()
 
         return layout
 
@@ -484,21 +482,40 @@ class DimensionalConstraint(GenericConstraint):
             return []
         return self.create_slvs_data(solvesys, **kwargs)
 
-    def draw_props(self, layout: UILayout):
+    def draw_value(self, layout: UILayout) -> bool:
+        """Draw the dimension's number. True when there was one to draw.
+
+        Split out of :func:`draw_props` so a caller can put it first: the value
+        is what a dimension is usually opened for, and a popup activates
+        whichever field is drawn first (see the edit dialog).
+        """
+        if not hasattr(self, "value"):
+            return False
+
+        import bpy
+
+        scene = bpy.context.scene
+        uid = getattr(self, "constraint_uid", "")
+        if not scene or not uid:
+            return False
+        key = scene.sketcher.get_constraint_value_endpoint(self)
+        if not key:
+            return False
+
+        col = layout.column()
+        col.enabled = not self.is_reference
+        # The column is only here to grey the field out on a reference
+        # dimension; carry the caller's activate_init through it, or asking for
+        # focus on the dialog would land on whatever it draws next instead.
+        col.activate_init = layout.activate_init
+        col.prop(scene, f'["{key}"]', text="Value")
+        return True
+
+    def draw_props(self, layout: UILayout, include_value: bool = True):
         sub = GenericConstraint.draw_props(self, layout)
         sub.prop(self, "is_reference")
-        if hasattr(self, "value"):
-            col = sub.column()
-            col.enabled = not self.is_reference
-            import bpy
-
-            scene = bpy.context.scene
-            uid = getattr(self, "constraint_uid", "")
-            key = None
-            if scene and uid:
-                key = scene.sketcher.get_constraint_value_endpoint(self)
-            if key:
-                col.prop(scene, f'["{key}"]', text="Value")
+        if include_value:
+            self.draw_value(sub)
         if hasattr(self, "setting"):
             row = sub.row()
             row.prop(self, "setting")
