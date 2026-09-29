@@ -1,6 +1,6 @@
 from bpy.types import Context, Menu, UILayout
 
-from ...model.sketch_ref import get_active_sketch, get_sketches
+from ...model.sketch_ref import get_active_sketch
 from ...stateful_operator.constants import Operators as StatefulOps
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
@@ -264,9 +264,13 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             _draw_workplane(context, layout, sketch)
 
         else:
-            # Sketch list — a scrollable UIList over scene.objects, filtered to
-            # sketch objects (see VIEW3D_UL_sketches.filter_items).
-            if any(True for _ in get_sketches(context)):
+            # Feature list — a scrollable UIList over scene.objects, filtered to
+            # the bodies worth listing (see VIEW3D_UL_sketches.filter_items).
+            # Gated on the rows the list would draw, not on a sketch existing: a
+            # part built from imported geometry has bodies and no sketch at all.
+            from ...ui.sketches_list import is_feature_row
+
+            if any(is_feature_row(obj) for obj in context.scene.objects):
                 from ...utilities.part import focused_part
 
                 root = focused_part(context)

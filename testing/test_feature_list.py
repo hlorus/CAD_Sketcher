@@ -183,3 +183,35 @@ class TestCutterVisibility(BgsTestCase):
         self.assertTrue(cutter.hide_viewport)
         update_cutter_display(cutter, [root], True)
         self.assertTrue(cutter.hide_viewport)
+
+
+class TestListIsDrawnWithoutSketches(BgsTestCase):
+    """The panel's gate has to match what the list would actually show."""
+
+    def _cube(self, name):
+        me = bpy.data.meshes.new(name)
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new(name, me)
+        self.scene.collection.objects.link(ob)
+        return ob
+
+    def _has_rows(self):
+        return any(is_feature_row(obj) for obj in self.scene.objects)
+
+    def test_a_part_of_imported_geometry_still_draws_the_list(self):
+        """It has bodies and no sketch, so the old sketch gate hid its rows."""
+        from ..model.sketch_ref import get_sketches
+
+        bare = self._cube("gl_bare")
+        mark_part_root(bare)
+
+        self.assertFalse(any(True for _ in get_sketches(self.context)))
+        self.assertTrue(self._has_rows())
+
+    def test_an_empty_scene_draws_nothing(self):
+        for obj in list(self.scene.objects):
+            bpy.data.objects.remove(obj)
+        self.assertFalse(self._has_rows())
