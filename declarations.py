@@ -101,6 +101,7 @@ class Operators(str, Enum):
     SelectExtend = "view3d.slvs_select_extend"
     SetActiveSketch = "view3d.slvs_set_active_sketch"
     SetCutterVisibility = "view3d.slvs_set_cutter_visibility"
+    SetPartVisibility = "view3d.slvs_set_part_visibility"
     SetSketchVisibility = "view3d.slvs_set_sketch_visibility"
     SetAllConstraintsVisibility = "view3d.slvs_set_all_constraints_visibility"
     ShowSolverState = "view3d.slvs_show_solver_state"

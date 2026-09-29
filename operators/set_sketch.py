@@ -113,10 +113,58 @@ class View3D_OT_slvs_set_cutter_visibility(Operator):
         return {"FINISHED"}
 
 
+class View3D_OT_slvs_set_part_visibility(Operator):
+    """Show or hide a whole part in the viewport
+
+    Everything in it, not just the object clicked: Blender does not cascade an
+    object's visibility to its children, so hiding the root alone would leave the
+    part's features floating where it used to be.
+
+    Uses the eye (``hide_set``) rather than ``hide_viewport``, which is the flag
+    the cutter display rules own -- hiding a part must not look to them like a
+    cutter that should come back.
+    """
+
+    bl_idname = Operators.SetPartVisibility
+    bl_label = "Toggle Part Visibility"
+    bl_options = {"UNDO"}
+
+    part_name: StringProperty(name="Part Name", default="")
+
+    @classmethod
+    def description(cls, context, properties):
+        ob = bpy.data.objects.get(properties.part_name)
+        if ob and ob.hide_get():
+            return "Show this part in the viewport"
+        return "Hide this part in the viewport"
+
+    def execute(self, context: Context):
+        from ..utilities.collections import is_editable
+
+        root = bpy.data.objects.get(self.part_name)
+        if not root:
+            return {"CANCELLED"}
+
+        hide = not root.hide_get()
+        for obj in (root, *root.children_recursive):
+            if not is_editable(obj):
+                continue
+            try:
+                obj.hide_set(hide)
+            except RuntimeError:
+                # Not in the view layer (an excluded collection): nothing to hide.
+                continue
+
+        if context.area:
+            context.area.tag_redraw()
+        return {"FINISHED"}
+
+
 register, unregister = register_classes_factory(
     (
         View3D_OT_slvs_set_active_sketch,
         View3D_OT_slvs_set_cutter_visibility,
+        View3D_OT_slvs_set_part_visibility,
         View3D_OT_slvs_set_sketch_visibility,
     )
 )

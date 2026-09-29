@@ -42,6 +42,41 @@ def _anchor_name(wp) -> str:
     return source.name
 
 
+def _draw_list_header(context, layout) -> None:
+    """Say what the list below is showing, and act on it.
+
+    A part is drawn here rather than as a row of its own: it owns the list, so
+    its name, its visibility and its own verbs belong above the features, not
+    interleaved with them where its delete would sit in the same column as a
+    feature's and take the whole part instead.
+    """
+    from ...ui.sketches_list import ASSEMBLY, GLOBAL, PART, list_scope
+
+    scope, root = list_scope(context)
+
+    if scope == GLOBAL:
+        layout.label(text="All Parts", icon="OUTLINER_COLLECTION")
+        return
+
+    row = layout.row(align=True)
+    if scope == PART:
+        row.operator(
+            declarations.Operators.SetPartVisibility,
+            text="",
+            icon="HIDE_ON" if root.hide_get() else "HIDE_OFF",
+            emboss=False,
+        ).part_name = root.name
+    else:
+        row.label(text="", icon="OUTLINER_OB_GROUP_INSTANCE")
+
+    row.prop(root, "name", text="", emboss=False)
+    # Everything that acts on this part, from the same menu the context menus
+    # and the sidebar draw.
+    row.menu(declarations.Menus.Part.value, text="", icon="DOWNARROW_HLT")
+    if scope == ASSEMBLY:
+        layout.label(text="Parts in this assembly")
+
+
 def part_sketches(context, root):
     """The sketches of the part rooted at ``root``, the root's own first.
 
@@ -271,14 +306,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             from ...ui.sketches_list import is_feature_row
 
             if any(is_feature_row(obj) for obj in context.scene.objects):
-                from ...utilities.part import focused_part
-
-                root = focused_part(context)
-                if root is not None:
-                    # The list is scoped to this part; say so, or the selection
-                    # silently deciding what you can see would be baffling.
-                    row = layout.row()
-                    row.label(text=root.name, icon="OUTLINER_OB_MESH")
+                _draw_list_header(context, layout)
                 layout.template_list(
                     "VIEW3D_UL_sketches",
                     "",

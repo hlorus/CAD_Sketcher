@@ -95,17 +95,15 @@ class TestFeatureRows(BgsTestCase):
         bare = self._cube("fl_bare")
         mark_part_root(bare)
         self.assertEqual(row_parts(bare), (bare, None), "it is the row's body half")
-        host_sketch = self._cube("fl_unrelated", location=(9.0, 0.0, 0.0))
 
+        # Listed among the parts. Selected, it *owns* the list instead, and is
+        # drawn above it -- see test_list_scope.
         bpy.ops.object.select_all(action="DESELECT")
-        bare.select_set(True)
-        self.context.view_layer.objects.active = bare
+        self.context.view_layer.objects.active = None
 
-        shown = _Filter().shown(self.context)
-        self.assertIn(bare.name, shown)
-        self.assertNotIn(host_sketch.name, shown, "another part is not listed")
+        self.assertIn(bare.name, _Filter().shown(self.context))
 
-    def test_the_feature_body_is_listed_with_its_part(self):
+    def test_a_selected_part_lists_its_features_only(self):
         root, _sketch, body = self._part_with_feature()
 
         bpy.ops.object.select_all(action="DESELECT")
@@ -113,8 +111,8 @@ class TestFeatureRows(BgsTestCase):
         self.context.view_layer.objects.active = root
 
         shown = _Filter().shown(self.context)
-        self.assertIn(root.name, shown)
         self.assertIn(body.name, shown, "the cutter is a row of its own")
+        self.assertNotIn(root.name, shown, "the part is drawn above the list")
 
     def test_a_loose_mesh_earns_no_row(self):
         """The list is the part's contents, not every mesh in the file."""

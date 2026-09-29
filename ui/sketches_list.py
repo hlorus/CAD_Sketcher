@@ -79,6 +79,54 @@ def row_visibility(obj, cutting):
     return None, None
 
 
+# What the list is showing.
+PART = "PART"
+ASSEMBLY = "ASSEMBLY"
+GLOBAL = "GLOBAL"
+
+
+def list_scope(context):
+    """(scope, root) the list is showing: one part, one assembly, or the file.
+
+    A part in focus is the narrowest answer and wins, so selecting a part inside
+    an assembly lists that part rather than its neighbours. An assembly is only
+    reached by selecting the assembly itself, and with neither the list falls
+    back to the file: every part in it, plus anything not in one.
+    """
+    from ..utilities.part import assembly_root_of, focused_part
+
+    root = focused_part(context)
+    if root is not None:
+        return PART, root
+
+    obj = context.active_object
+    assembly = assembly_root_of(obj) if obj is not None and obj.select_get() else None
+    if assembly is not None:
+        return ASSEMBLY, assembly
+
+    return GLOBAL, None
+
+
+def in_scope(obj, scope, root) -> bool:
+    """Whether ``obj`` belongs in the list as it is currently scoped.
+
+    A part lists its features and not itself: the part is drawn above the list,
+    where its name and its own controls belong. The wider scopes list *parts*
+    rather than their insides, since a file's worth of features interleaved by
+    name says nothing about what belongs to what.
+    """
+    from ..utilities.part import assembly_root_of, is_part_root, part_root_of
+
+    if scope == PART:
+        return obj != root and part_root_of(obj) == root
+
+    if scope == ASSEMBLY:
+        return is_part_root(obj) and assembly_root_of(obj) == root
+
+    # Global: every part, and anything loose that has not joined one yet.
+    return is_part_root(obj) or part_root_of(obj) is None
+
+
 def is_feature_row(obj) -> bool:
     """Whether ``obj`` earns a row of its own.
 
@@ -209,8 +257,6 @@ class VIEW3D_UL_sketches(UIList):
         Runs once per draw, so it is also where the row-level lookups are
         gathered (which bodies are currently cutting something).
         """
-        from ..utilities.part import focused_part, part_root_of
-
         objects = getattr(data, propname)
         helper = bpy.types.UI_UL_list
 
@@ -222,12 +268,10 @@ class VIEW3D_UL_sketches(UIList):
             flags = [self.bitflag_filter_item] * len(objects)
 
         _cutting_cache[context.scene.name] = cutting_bodies(context.scene)
-        root = focused_part(context)
+        scope, root = list_scope(context)
 
         for i, obj in enumerate(objects):
-            if not is_feature_row(obj):
-                flags[i] &= ~self.bitflag_filter_item
-            elif root is not None and part_root_of(obj) != root:
+            if not (is_feature_row(obj) and in_scope(obj, scope, root)):
                 flags[i] &= ~self.bitflag_filter_item
 
         return flags, []
