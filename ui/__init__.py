@@ -48,16 +48,53 @@ def draw_object_context_menu(self, context: Context):
         else:
             row.enabled = False
 
-    # Blender's own Delete takes the clicked object only, which on a part means
-    # the body without its cutters, and the part lives on re-rooted in them.
-    if root is not None:
+    draw_delete_entries(layout, ob, root)
+    layout.separator()
+
+
+def draw_delete_entries(layout, ob, root) -> None:
+    """Offer to delete whatever the clicked object belongs to.
+
+    Blender's own Delete takes that object alone, which here leaves the rest of
+    what it was part of behind. Which units are offered follows what was clicked:
+    a feature can be taken off its part, a part out of the file, and an assembly
+    is only ever deleted from its own root.
+    """
+    from ..operators.delete_part import feature_root
+    from ..utilities.part import assembly_root_of, is_assembly_root
+
+    if is_assembly_root(ob):
         row = layout.row()
         row.alert = True
         row.operator(
-            declarations.Operators.DeletePart, text="Delete Part", icon="X"
-        ).part_name = root.name
+            declarations.Operators.DeleteAssembly, text="Delete Assembly", icon="X"
+        ).assembly_name = ob.name
+        return
 
-    layout.separator()
+    if root is None:
+        return
+
+    feature = feature_root(ob)
+    if feature is not None:
+        row = layout.row()
+        row.alert = True
+        row.operator(
+            declarations.Operators.DeleteFeature, text="Delete Feature", icon="X"
+        ).feature_name = feature.name
+
+    row = layout.row()
+    row.alert = True
+    row.operator(
+        declarations.Operators.DeletePart, text="Delete Part", icon="X"
+    ).part_name = root.name
+
+    assembly = assembly_root_of(root)
+    if assembly is not None:
+        row = layout.row()
+        row.alert = True
+        row.operator(
+            declarations.Operators.DeleteAssembly, text="Delete Assembly", icon="X"
+        ).assembly_name = assembly.name
 
 
 def draw_add_sketch_in_add_menu(self, context: Context):
