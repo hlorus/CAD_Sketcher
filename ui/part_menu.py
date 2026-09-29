@@ -1,9 +1,13 @@
-"""The Part menu: everything that manages a part, an assembly or a feature.
+"""The Part menu: every verb that acts on a part, an assembly or a feature.
 
 One menu class, drawn wherever parts are handled -- the viewport context menu,
-the outliner's, and the Object menu -- so the entries cannot drift apart. The
-outliner matters most: a cutter is hidden while it cuts, so the outliner is the
-only place it can be reached at all.
+the outliner's, the Object menu, and the sidebar -- so there is one definition
+and the entries cannot drift apart. The outliner matters most: a cutter is
+hidden while it cuts, so the outliner is the only place it can be reached.
+
+Rows stay put and grey out rather than disappearing, so the menu does not
+reshuffle between clicks. The deletes are the exception: they name what they
+take, and a part with no assembly has no assembly to delete.
 """
 
 from typing import Optional
@@ -11,6 +15,9 @@ from typing import Optional
 from bpy.types import Context, Menu, Object
 
 from ..declarations import Menus, Operators
+
+# What a part can be built out of: a mesh body, or a sketch's curves.
+_PART_MATERIAL = {"MESH", "CURVES", "CURVE", "SURFACE", "FONT"}
 
 
 def part_context(context: Context):
@@ -24,12 +31,27 @@ def part_context(context: Context):
 
 
 def has_part_entries(context: Context) -> bool:
-    """Whether anything in this menu applies, so it is hidden for plain objects."""
-    _obj, root, assembly = part_context(context)
-    return root is not None or assembly is not None
+    """Whether the menu has anything to say about the active object.
+
+    Gates the menus this addon appends itself to, so nothing is added to the
+    context menu of an object that has nothing to do with parts. The sidebar
+    draws the menu unconditionally: that is where an assembly is started, and
+    one can be started with nothing selected at all.
+    """
+    from ..operators.make_part import can_root_a_part
+
+    obj, root, assembly = part_context(context)
+    if obj is None:
+        return False
+    if root is not None or assembly is not None:
+        return True
+    # Make Part takes anything that is not an Empty, but offering it on a camera
+    # or a light is just noise in their context menu: only the kinds a part is
+    # ever built from earn the entry.
+    return obj.type in _PART_MATERIAL and can_root_a_part(obj)
 
 
-def _leave_label(obj: Optional[Object], root, assembly) -> str:
+def _leave_label(obj: Optional[Object], root) -> str:
     """A part member leaves its part; a part itself leaves its assembly."""
     if root is not None and root != obj:
         return "Remove from Part"
@@ -37,31 +59,63 @@ def _leave_label(obj: Optional[Object], root, assembly) -> str:
 
 
 class VIEW3D_MT_slvs_part(Menu):
-    """Manage the part, feature or assembly the active object belongs to."""
+    """Make, copy, take apart or delete a part, an assembly or a feature."""
 
     bl_label = "Part"
     bl_idname = Menus.Part
 
     @classmethod
     def poll(cls, context: Context):
-        return has_part_entries(context)
+        # Always available: Add Assembly works with nothing selected, which is
+        # how an empty assembly is started. What is *gated* is each row.
+        return True
 
     def draw(self, context: Context):
         from ..operators.delete_part import feature_root
+        from ..operators.make_part import can_root_a_part
+        from ..utilities.part import instanceable_root, part_root_of
 
         layout = self.layout
         obj, root, assembly = part_context(context)
-        if obj is None:
-            return
 
-        layout.operator(
-            Operators.RemoveFromPart, text=_leave_label(obj, root, assembly)
-        ).object_name = obj.name
+        row = layout.row()
+        row.enabled = can_root_a_part(obj)
+        row.operator(Operators.MakePart, icon="OUTLINER_OB_MESH")
+        layout.operator(Operators.AddAssembly, icon="OUTLINER_OB_GROUP_INSTANCE")
+
+        layout.separator()
+
+        selected = context.selected_objects
+        row = layout.row()
+        row.enabled = any(part_root_of(o) is not None for o in selected)
+        row.operator(Operators.DuplicatePart, icon="DUPLICATE")
+        row = layout.row()
+        row.enabled = any(instanceable_root(o) is not None for o in selected)
+        row.operator(Operators.InstancePart, icon="LINKED")
+
+        layout.separator()
+
+        in_group = root is not None or assembly is not None
+        row = layout.row()
+        row.enabled = in_group
+        row.operator(
+            Operators.RemoveFromPart, text=_leave_label(obj, root)
+        ).object_name = obj.name if obj else ""
 
         target = root if root is not None else assembly
-        if target is not None:
-            text = "Dissolve Assembly" if target == assembly else "Dissolve Part"
-            layout.operator(Operators.DissolvePart, text=text).part_name = target.name
+        row = layout.row()
+        row.enabled = target is not None
+        text = (
+            "Dissolve Assembly"
+            if target is not None and target == assembly
+            else ("Dissolve Part")
+        )
+        row.operator(Operators.DissolvePart, text=text).part_name = (
+            target.name if target is not None else ""
+        )
+
+        if not in_group:
+            return
 
         layout.separator()
 
