@@ -348,3 +348,224 @@ class TestSolverRepair(BgsTestCase):
 
         self.assertFalse(repair_solver_choice(self.scene))
         self.assertEqual(get_boolean_solver(mod, ids[SOLVER_SOCKET]), "Manifold")
+
+
+class TestDetectionNarrowing(BgsTestCase):
+    """Bounds gate the expensive work, and the bulk read has to agree with it.
+
+    Detection used to mesh and BVH every body in the scene before testing whether
+    any of them were near the cutter, which is what an extrude paid for on every
+    mouse move. Now the bounds decide first, so these check that narrowing keeps
+    the same answers.
+    """
+
+    def _box(self, name, center, half=1.0):
+        cx, cy, cz = center
+        verts = [
+            (cx + sx * half, cy + sy * half, cz + sz * half)
+            for sx in (-1, 1)
+            for sy in (-1, 1)
+            for sz in (-1, 1)
+        ]
+        me = self.data.meshes.new(name)
+        me.from_pydata(verts, [], _CUBE_FACES)
+        me.update()
+        ob = self.data.objects.new(name, me)
+        self.scene.collection.objects.link(ob)
+        self.context.view_layer.update()
+        return ob
+
+    def test_bounds_cover_the_object(self):
+        from ..utilities.boolean_targets import _world_bounds_map
+
+        box = self._box("nb_box", (5.0, 0.0, 0.0), half=2.0)
+        depsgraph = self.context.evaluated_depsgraph_get()
+
+        lo, hi = _world_bounds_map(depsgraph, [box])[box]
+
+        self.assertAlmostEqual(lo.x, 3.0, places=5)
+        self.assertAlmostEqual(hi.x, 7.0, places=5)
+        self.assertAlmostEqual(lo.z, -2.0, places=5)
+
+    def test_a_body_out_of_reach_is_never_built(self):
+        """The whole point: no meshing, no BVH for something nowhere near."""
+        from ..utilities import boolean_targets
+
+        cutter = self._box("nb_cutter", (0.0, 0.0, 0.0))
+        # Offset on every axis, so the surfaces cross rather than sharing edges:
+        # two boxes with identical y/z extents only touch, and an exact touch is
+        # not an overlap.
+        near = self._box("nb_near", (1.0, 1.0, 1.0))
+        far = self._box("nb_far", (50.0, 0.0, 0.0))
+        depsgraph = self.context.evaluated_depsgraph_get()
+
+        built = []
+        real = boolean_targets._world_geometry_map
+
+        def spy(dg, wanted, closed_only=False):
+            built.extend(wanted)
+            return real(dg, wanted, closed_only)
+
+        boolean_targets._world_geometry_map = spy
+        try:
+            hits = boolean_targets.overlapping_bodies(cutter, [near, far], depsgraph)
+        finally:
+            boolean_targets._world_geometry_map = real
+
+        self.assertEqual(hits, [near])
+        self.assertIn(near, built)
+        self.assertNotIn(far, built, "a body out of reach was meshed anyway")
+
+    def test_mixed_ngons_survive_the_bulk_read(self):
+        """Faces of differing sizes take the fallback path, not the reshape."""
+        from ..utilities.boolean_targets import _world_geometry_map
+
+        # A square pyramid: four triangles and one quad base.
+        verts = [
+            (-1.0, -1.0, 0.0),
+            (1.0, -1.0, 0.0),
+            (1.0, 1.0, 0.0),
+            (-1.0, 1.0, 0.0),
+            (0.0, 0.0, 2.0),
+        ]
+        faces = [(0, 3, 2, 1), (0, 1, 4), (1, 2, 4), (2, 3, 4), (3, 0, 4)]
+        me = self.data.meshes.new("nb_pyramid")
+        me.from_pydata(verts, [], faces)
+        me.update()
+        ob = self.data.objects.new("nb_pyramid", me)
+        self.scene.collection.objects.link(ob)
+        self.context.view_layer.update()
+
+        geo = _world_geometry_map(self.context.evaluated_depsgraph_get(), [ob])
+
+        self.assertIn(ob, geo)
+        _bvh, lo, hi = geo[ob]
+        self.assertAlmostEqual(lo.z, 0.0, places=5)
+        self.assertAlmostEqual(hi.z, 2.0, places=5)
+
+    def test_a_pyramid_is_still_a_closed_solid(self):
+        """The mixed-size path feeds ``_is_closed`` too."""
+        from ..utilities.boolean_targets import is_closed_solid
+
+        verts = [
+            (-1.0, -1.0, 0.0),
+            (1.0, -1.0, 0.0),
+            (1.0, 1.0, 0.0),
+            (-1.0, 1.0, 0.0),
+            (0.0, 0.0, 2.0),
+        ]
+        faces = [(0, 3, 2, 1), (0, 1, 4), (1, 2, 4), (2, 3, 4), (3, 0, 4)]
+        me = self.data.meshes.new("nb_closed")
+        me.from_pydata(verts, [], faces)
+        me.update()
+        ob = self.data.objects.new("nb_closed", me)
+        self.scene.collection.objects.link(ob)
+        self.context.view_layer.update()
+
+        self.assertTrue(is_closed_solid(ob, self.context.evaluated_depsgraph_get()))
+
+
+class TestBooleanDefaults(BgsTestCase):
+    """The defaults an extrude pays for on every mouse move."""
+
+    def _box(self, name, center, half=1.0):
+        cx, cy, cz = center
+        verts = [
+            (cx + sx * half, cy + sy * half, cz + sz * half)
+            for sx in (-1, 1)
+            for sy in (-1, 1)
+            for sz in (-1, 1)
+        ]
+        me = self.data.meshes.new(name)
+        me.from_pydata(verts, [], _CUBE_FACES)
+        me.update()
+        ob = self.data.objects.new(name, me)
+        self.scene.collection.objects.link(ob)
+        self.context.view_layer.update()
+        return ob
+
+    def test_self_intersection_is_off_unless_asked_for(self):
+        """It multiplies the Exact solver's cost and is rarely what is needed."""
+        from ..operators.modifiers import (
+            apply_boolean,
+            boolean_input_ids,
+            get_modifier_input,
+        )
+
+        body = self._box("si_body", (0.0, 0.0, 0.0))
+        cutter = self._box("si_cutter", (1.0, 1.0, 1.0))
+
+        mod = apply_boolean(body, cutter, "Difference")
+
+        ids = boolean_input_ids(mod.node_group)
+        self.assertFalse(get_modifier_input(mod, ids["Self Intersection"]))
+
+    def test_the_socket_default_matches(self):
+        """A modifier that never had the input written reads the same thing."""
+        from ..operators.modifiers import boolean_input_ids
+        from ..utilities.boolean_nodes import build_boolean_node_group
+
+        ng = build_boolean_node_group()
+        ids = boolean_input_ids(ng)
+        socket = next(
+            s
+            for s in ng.interface.items_tree
+            if getattr(s, "identifier", None) == ids["Self Intersection"]
+        )
+        self.assertFalse(socket.default_value)
+
+    def test_manifold_is_the_default_but_yields_to_open_geometry(self):
+        """It is the fast solver; Exact still takes over where it has to."""
+        from ..operators.modifiers import _solver_for, default_boolean_solver
+
+        self.assertEqual(default_boolean_solver(), "Manifold")
+
+        body = self._box("ms_body", (0.0, 0.0, 0.0))
+        cutter = self._box("ms_cutter", (1.0, 1.0, 1.0))
+        depsgraph = self.context.evaluated_depsgraph_get()
+        self.assertEqual(_solver_for(body, cutter, depsgraph=depsgraph), "Manifold")
+
+        # A single open face is not a closed volume, so Manifold would drop it.
+        me = self.data.meshes.new("ms_flat")
+        me.from_pydata(
+            [(-1.0, -1.0, 0.0), (1.0, -1.0, 0.0), (1.0, 1.0, 0.0), (-1.0, 1.0, 0.0)],
+            [],
+            [(0, 1, 2, 3)],
+        )
+        me.update()
+        flat = self.data.objects.new("ms_flat", me)
+        self.scene.collection.objects.link(flat)
+        self.context.view_layer.update()
+
+        self.assertEqual(
+            _solver_for(flat, cutter, depsgraph=self.context.evaluated_depsgraph_get()),
+            "Exact",
+        )
+
+    def test_the_solver_check_reuses_the_evaluation_it_is_given(self):
+        """Taking a fresh one re-evaluates every boolean already on the body."""
+        from ..operators import modifiers
+
+        body = self._box("re_body", (0.0, 0.0, 0.0))
+        cutter = self._box("re_cutter", (1.0, 1.0, 1.0))
+        depsgraph = self.context.evaluated_depsgraph_get()
+
+        taken = []
+
+        class _Context:
+            def evaluated_depsgraph_get(self):
+                taken.append(True)
+                return depsgraph
+
+        class _Bpy:
+            context = _Context()
+
+        real_bpy = modifiers.bpy
+        modifiers.bpy = _Bpy()
+        try:
+            modifiers._solver_for(body, cutter, depsgraph=depsgraph)
+            self.assertEqual(taken, [], "it forced an evaluation it was handed")
+            modifiers._solver_for(body, cutter)
+            self.assertEqual(taken, [True], "without one it has to take its own")
+        finally:
+            modifiers.bpy = real_bpy
