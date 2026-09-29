@@ -145,13 +145,27 @@ def boolean_modifier_name(cutter):
     return f"CAD_Sketcher Boolean {cutter.name}"
 
 
+# Socket identifiers per node group, by name. Walking the interface is not free
+# and nothing about it changes while the group does not, yet this is asked once
+# per modifier per candidate body -- dozens of times in a single mouse move.
+_input_ids_cache = {}
+
+
 def boolean_input_ids(node_group):
     """Map ``{socket name: identifier}`` for the boolean group's inputs."""
-    return {
+    key = node_group.name
+    size = len(node_group.interface.items_tree)
+    cached = _input_ids_cache.get(key)
+    if cached is not None and cached[0] == size:
+        return cached[1]
+
+    ids = {
         s.name: s.identifier
         for s in node_group.interface.items_tree
         if getattr(s, "in_out", "") == "INPUT"
     }
+    _input_ids_cache[key] = (size, ids)
+    return ids
 
 
 def boolean_cutters(obj):

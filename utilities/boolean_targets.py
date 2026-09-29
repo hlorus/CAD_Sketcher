@@ -85,8 +85,13 @@ def _polygon_lists(loop_total, loops, base):
     if loop_total.size and bool((loop_total == loop_total[0]).all()):
         return indices.reshape(-1, int(loop_total[0])).tolist()
 
-    ends = np.cumsum(loop_total)
-    return [chunk.tolist() for chunk in np.split(indices, ends[:-1])]
+    # Mixed sizes, which is what a boolean's own output looks like. Convert once
+    # and slice the Python list: a numpy slice plus a ``tolist`` per face costs
+    # several times more than slicing a list that is already built.
+    flat = indices.tolist()
+    ends = np.cumsum(loop_total).tolist()
+    starts = [0] + ends[:-1]
+    return [flat[start:end] for start, end in zip(starts, ends)]
 
 
 def _world_geometry_map(depsgraph, wanted, closed_only=False):
