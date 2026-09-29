@@ -16,6 +16,11 @@ from .panels.sketch_select import (
     VIEW3D_PT_sketcher,
 )
 from .panels.tools import VIEW3D_PT_sketcher_tools
+from .part_menu import (
+    VIEW3D_MT_slvs_part,
+    draw_part_menu,
+    draw_part_menu_in_object_menu,
+)
 from .selected_menu import VIEW3D_MT_selected_menu
 from .sketches_list import VIEW3D_UL_sketches
 
@@ -48,53 +53,8 @@ def draw_object_context_menu(self, context: Context):
         else:
             row.enabled = False
 
-    draw_delete_entries(layout, ob, root)
+    draw_part_menu(self, context)
     layout.separator()
-
-
-def draw_delete_entries(layout, ob, root) -> None:
-    """Offer to delete whatever the clicked object belongs to.
-
-    Blender's own Delete takes that object alone, which here leaves the rest of
-    what it was part of behind. Which units are offered follows what was clicked:
-    a feature can be taken off its part, a part out of the file, and an assembly
-    is only ever deleted from its own root.
-    """
-    from ..operators.delete_part import feature_root
-    from ..utilities.part import assembly_root_of, is_assembly_root
-
-    if is_assembly_root(ob):
-        row = layout.row()
-        row.alert = True
-        row.operator(
-            declarations.Operators.DeleteAssembly, text="Delete Assembly", icon="X"
-        ).assembly_name = ob.name
-        return
-
-    if root is None:
-        return
-
-    feature = feature_root(ob)
-    if feature is not None:
-        row = layout.row()
-        row.alert = True
-        row.operator(
-            declarations.Operators.DeleteFeature, text="Delete Feature", icon="X"
-        ).feature_name = feature.name
-
-    row = layout.row()
-    row.alert = True
-    row.operator(
-        declarations.Operators.DeletePart, text="Delete Part", icon="X"
-    ).part_name = root.name
-
-    assembly = assembly_root_of(root)
-    if assembly is not None:
-        row = layout.row()
-        row.alert = True
-        row.operator(
-            declarations.Operators.DeleteAssembly, text="Delete Assembly", icon="X"
-        ).assembly_name = assembly.name
 
 
 def draw_add_sketch_in_add_menu(self, context: Context):
@@ -136,6 +96,7 @@ classes = [
     VIEW3D_MT_slvs_add_sketch,
     VIEW3D_MT_slvs_sketch_workplane,
     VIEW3D_MT_slvs_part_sketches,
+    VIEW3D_MT_slvs_part,
 ]
 
 
@@ -150,6 +111,10 @@ def register():
     bpy.types.VIEW3D_MT_object_context_menu.prepend(draw_object_context_menu)
     bpy.types.VIEW3D_MT_add.append(draw_add_sketch_in_add_menu)
     bpy.types.VIEW3D_HT_header.append(draw_sketch_header)
+    # A hidden cutter can only be reached from the outliner, and the header's
+    # Object menu is where a command is looked for when the click was missed.
+    bpy.types.OUTLINER_MT_object.append(draw_part_menu)
+    bpy.types.VIEW3D_MT_object.append(draw_part_menu_in_object_menu)
 
 
 def unregister():
@@ -163,3 +128,5 @@ def unregister():
     bpy.types.VIEW3D_HT_header.remove(draw_sketch_header)
     bpy.types.VIEW3D_MT_object_context_menu.remove(draw_object_context_menu)
     bpy.types.VIEW3D_MT_add.remove(draw_add_sketch_in_add_menu)
+    bpy.types.OUTLINER_MT_object.remove(draw_part_menu)
+    bpy.types.VIEW3D_MT_object.remove(draw_part_menu_in_object_menu)

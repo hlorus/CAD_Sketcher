@@ -257,7 +257,7 @@ def join_part(root: bpy.types.Object, obj: bpy.types.Object) -> None:
     obj.matrix_basis = world
 
 
-def _bake_world_transform(obj: bpy.types.Object) -> None:
+def bake_world_transform(obj: bpy.types.Object) -> None:
     """Unparent ``obj`` keeping its world transform (Blender's Keep Transform)."""
     world = world_matrix_of(obj)
     obj.parent = None
@@ -282,7 +282,7 @@ def rehome_children(root: bpy.types.Object) -> Optional[bpy.types.Object]:
     placements = {member.name: world_matrix_of(member) for member in members}
 
     for child in root.children:
-        _bake_world_transform(child)
+        bake_world_transform(child)
 
     successor = _successor(members)
     if successor is None:
@@ -689,7 +689,7 @@ def _reclaim(kind: str, stranded) -> bool:
 
     # Lift the successor clear of whatever placed it before it can take members
     # on: leaving it parented to one would close a parent cycle.
-    _bake_world_transform(successor)
+    bake_world_transform(successor)
     _promote(successor)
     for member in stranded:
         if member != successor and member.parent is None:
@@ -728,6 +728,23 @@ def _refresh_cutter_display(scene: bpy.types.Scene, touched) -> None:
         bodies = fed.get(obj.name)
         if bodies:
             update_cutter_display(obj, bodies, True)
+
+
+def accept_hierarchy(scene: bpy.types.Scene, touched=()) -> None:
+    """Take the hierarchy as it stands as intentional, not as damage to repair.
+
+    :func:`reconcile_groups` reads a group whose root is no longer a root as one
+    deleted behind its back, and puts the members back in the root's remembered
+    frame. An operator that takes a group apart on purpose has already placed
+    them, so it records the new shape here instead: the next pass then has
+    nothing to diff, rather than applying the root's transform a second time.
+
+    Cutters in ``touched`` get their display re-applied, which is the other half
+    the diffing pass would have done.
+    """
+    _objects, roots, members = survey_groups(scene)
+    _remember(roots, members)
+    _refresh_cutter_display(scene, list(touched))
 
 
 def ensure_part_plane(context, root: bpy.types.Object, axis: str):

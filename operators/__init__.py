@@ -33,6 +33,7 @@ modules = [
     "set_sketch",
     "delete_entity",
     "delete_part",
+    "leave_part",
     "delete_sketch",
     "delete_constraint",
     "constraint_visibility",
