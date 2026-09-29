@@ -4,6 +4,13 @@ from bpy.types import Context, PropertyGroup, UILayout, UIList
 from ..declarations import Operators
 from ..model.sketch_ref import Sketch, is_sketch_object
 
+# The cutting set for the draw in progress, keyed by scene name. Blender builds a
+# *different* UIList instance for ``filter_items`` and for ``draw_item``, so
+# anything stashed on ``self`` in one is gone in the other -- which is why the
+# cutting rows never showed what they were. Held here instead, refreshed by
+# ``filter_items``, which runs first in every draw pass.
+_cutting_cache = {}
+
 
 def cutting_bodies(scene) -> set:
     """Names of the bodies currently feeding a boolean, so cutting rows say so.
@@ -18,6 +25,17 @@ def cutting_bodies(scene) -> set:
         for cutter in boolean_cutters(body):
             cutting.add(cutter.name)
     return cutting
+
+
+def cutting_now(scene) -> set:
+    """What ``draw_item`` reads: the set the last filter pass left behind.
+
+    Computed here if a draw somehow reaches a row without filtering first, so a
+    row is never told that nothing is cutting.
+    """
+    if scene.name not in _cutting_cache:
+        _cutting_cache[scene.name] = cutting_bodies(scene)
+    return _cutting_cache[scene.name]
 
 
 def row_parts(obj):
@@ -107,7 +125,7 @@ class VIEW3D_UL_sketches(UIList):
             body, sketch = row_parts(obj)
             row = layout.row(align=True)
 
-            kind, target = row_visibility(obj, getattr(self, "_cutting", ()))
+            kind, target = row_visibility(obj, cutting_now(context.scene))
             if kind == CUTTER:
                 # A cutter is hidden while it cuts, so its solid has no other
                 # control anywhere: without this the body looks deleted. Shown as
@@ -203,7 +221,7 @@ class VIEW3D_UL_sketches(UIList):
         else:
             flags = [self.bitflag_filter_item] * len(objects)
 
-        self._cutting = cutting_bodies(context.scene)
+        _cutting_cache[context.scene.name] = cutting_bodies(context.scene)
         root = focused_part(context)
 
         for i, obj in enumerate(objects):

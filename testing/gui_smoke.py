@@ -450,6 +450,54 @@ def main():
             sketch_ref.set_active_sketch(context, None)
             _redraw()
 
+        @_check("the feature list's eye reaches the cutter")
+        def _():
+            # Only a real draw can catch this: Blender builds a different UIList
+            # instance for filter_items and for draw_item, so a cutting row that
+            # reads state stashed on ``self`` is told nothing is cutting and
+            # offers the wrong control (it silently did, for both of them).
+            import bmesh
+
+            # By the installed module path, like every other import here.
+            sketches_list = importlib.import_module(f"{TARGET}.ui.sketches_list")
+            modifiers = importlib.import_module(f"{TARGET}.operators.modifiers")
+            apply_boolean = modifiers.apply_boolean
+            join_part = part.join_part
+
+            def cube(name, location):
+                mesh = bpy.data.meshes.new(name)
+                bm = bmesh.new()
+                bmesh.ops.create_cube(bm, size=2.0)
+                bm.to_mesh(mesh)
+                bm.free()
+                obj = bpy.data.objects.new(name, mesh)
+                context.scene.collection.objects.link(obj)
+                obj.location = location
+                return obj
+
+            target = cube("smoke_body", (20.0, 0.0, 0.0))
+            mark_part_root(target)
+            cutter = cube("smoke_cutter", (20.9, 0.0, 0.0))
+            join_part(target, cutter)
+            apply_boolean(target, cutter, "Difference")
+
+            sketches_list._cutting_cache.clear()
+            with bpy.context.temp_override(**_view3d_context()):
+                bpy.ops.wm.call_panel(name="VIEW3D_PT_sketcher", keep_open=False)
+            _redraw()
+
+            # The draw itself must have left the set behind. Asked through
+            # cutting_now first, the miss would be filled in here and the bug
+            # would pass the test.
+            cutting = sketches_list._cutting_cache.get(context.scene.name)
+            assert cutting is not None, "the draw left the cutting set unset"
+            assert cutter.name in cutting, f"the draw left {cutting} behind"
+            kind, target_obj = sketches_list.row_visibility(cutter, cutting)
+            assert kind == sketches_list.CUTTER, (
+                f"the eye offers {kind}, not the cutter"
+            )
+            assert target_obj == cutter
+
     if _FAILURES:
         print(f"SMOKE FAILED: {', '.join(_FAILURES)}", file=sys.stderr)
         sys.exit(1)
