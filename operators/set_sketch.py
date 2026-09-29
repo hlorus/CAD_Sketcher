@@ -82,7 +82,9 @@ class View3D_OT_slvs_set_cutter_visibility(Operator):
 
     bl_idname = Operators.SetCutterVisibility
     bl_label = "Toggle Cutter Visibility"
-    bl_options = {"REGISTER", "UNDO"}
+    # Undoable but not REGISTER: the choice is stored on the cutter, so it belongs
+    # in the undo stack, while a redo panel for a one-click toggle is just noise.
+    bl_options = {"UNDO"}
 
     body_name: StringProperty(name="Body Name", default="")
 
