@@ -45,20 +45,20 @@ def _anchor_name(wp) -> str:
 def _draw_list_header(context, layout) -> None:
     """Say what the list below is showing, and act on it.
 
-    The part itself: its name, whether it is shown, and the verbs that act on the
-    whole of it. What it is *made of* stays in the list below, base feature
-    included -- so the delete that would take the whole part lives up here, and
-    never in the same column as one that takes a single feature.
+    Always the same row -- what it is, then the menu -- so the menu does not come
+    and go with the selection: it is where a part is made in the first place, and
+    where a hidden one is brought back.
+
+    The part itself lives here: its name, whether it is shown, and the verbs that
+    act on the whole of it. What it is *made of* stays in the list below, base
+    feature included, so the delete that would take the whole part is never in
+    the same column as one that takes a single feature.
     """
-    from ...ui.sketches_list import ASSEMBLY, GLOBAL, PART, list_scope
+    from ...ui.sketches_list import ASSEMBLY, PART, list_scope
 
     scope, root = list_scope(context)
-
-    if scope == GLOBAL:
-        layout.label(text="All Parts", icon="OUTLINER_COLLECTION")
-        return
-
     row = layout.row(align=True)
+
     if scope == PART:
         row.operator(
             declarations.Operators.SetPartVisibility,
@@ -66,14 +66,19 @@ def _draw_list_header(context, layout) -> None:
             icon="HIDE_ON" if root.hide_get() else "HIDE_OFF",
             emboss=False,
         ).part_name = root.name
-    else:
+        row.prop(root, "name", text="", emboss=False)
+    elif scope == ASSEMBLY:
         row.label(text="", icon="OUTLINER_OB_GROUP_INSTANCE")
+        row.prop(root, "name", text="", emboss=False)
+    else:
+        row.label(text="", icon="OUTLINER_COLLECTION")
+        row.label(text="All Parts")
 
-    row.prop(root, "name", text="", emboss=False)
-
-    # Everything that acts on this part, from the same menu the context menus
-    # and the sidebar draw.
+    # Everything that acts on this part, from the same menu the context menus and
+    # the sidebar draw. Present whatever the list is showing: with no part it is
+    # how one is made.
     row.menu(declarations.Menus.Part.value, text="", icon="DOWNARROW_HLT")
+
     if scope == ASSEMBLY:
         layout.label(text="Parts in this assembly")
 

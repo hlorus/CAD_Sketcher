@@ -239,3 +239,59 @@ class TestLeavingASketch(BgsTestCase):
         shown = _Filter().shown(self.context)
         self.assertEqual(shown, {root.name, cutter.name})
         self.assertEqual(sketch_of(root), base.target_object, "the row's way in")
+
+
+class TestHiddenPartStaysReachable(BgsTestCase):
+    """Hiding a part must not hide the only control that brings it back."""
+
+    def _cube(self, name, location=(0.0, 0.0, 0.0)):
+        me = bpy.data.meshes.new(name)
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new(name, me)
+        self.scene.collection.objects.link(ob)
+        ob.location = location
+        return ob
+
+    def _part(self, name):
+        root = self._cube(name)
+        mark_part_root(root)
+        member = self._cube(f"{name}_member", (1.0, 0.0, 0.0))
+        join_part(root, member)
+        sync_part_collections(self.scene)
+        bpy.ops.object.select_all(action="DESELECT")
+        root.select_set(True)
+        self.context.view_layer.objects.active = root
+        return root, member
+
+    def test_hiding_a_part_keeps_it_in_scope(self):
+        """Hiding deselects, so a selection-based scope would lose it here."""
+        root, _member = self._part("hp")
+        self.assertEqual(list_scope(self.context), (PART, root))
+
+        bpy.ops.view3d.slvs_set_part_visibility(part_name=root.name)
+
+        self.assertTrue(root.hide_get())
+        self.assertEqual(list(self.context.selected_objects), [])
+        self.assertEqual(
+            list_scope(self.context), (PART, root), "the part fell out of the panel"
+        )
+
+    def test_it_can_be_shown_again(self):
+        root, member = self._part("hp_back")
+        bpy.ops.view3d.slvs_set_part_visibility(part_name=root.name)
+
+        bpy.ops.view3d.slvs_set_part_visibility(part_name=root.name)
+
+        self.assertFalse(root.hide_get())
+        self.assertFalse(member.hide_get())
+
+    def test_deselecting_does_not_empty_the_list(self):
+        """The active object outlives a click beside the work."""
+        root, member = self._part("hp_keep")
+        bpy.ops.object.select_all(action="DESELECT")
+
+        self.assertEqual(list_scope(self.context), (PART, root))
+        self.assertEqual(_Filter().shown(self.context), {root.name, member.name})

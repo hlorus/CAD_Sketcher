@@ -88,19 +88,25 @@ GLOBAL = "GLOBAL"
 def list_scope(context):
     """(scope, root) the list is showing: one part, one assembly, or the file.
 
-    A part in focus is the narrowest answer and wins, so selecting a part inside
-    an assembly lists that part rather than its neighbours. An assembly is only
-    reached by selecting the assembly itself, and with neither the list falls
-    back to the file: every part in it, plus anything not in one.
-    """
-    from ..utilities.part import assembly_root_of, focused_part
+    Read from the *active* object rather than the selection, which is what
+    ``focused_part`` does for the workplane picker. Two reasons the list wants the
+    other rule: hiding a part deselects it but leaves it active, so a
+    selection-based list would drop the part at the moment you hid it and leave
+    no way to bring it back; and a list that empties every time you click beside
+    your work is more startling than useful.
 
-    root = focused_part(context)
+    A part is the narrowest answer and wins, so the active object inside an
+    assembly lists its part rather than the assembly's other parts. With neither
+    the list falls back to the file: every part in it, plus anything not in one.
+    """
+    from ..utilities.part import assembly_root_of, part_root_of
+
+    obj = context.active_object
+    root = part_root_of(obj)
     if root is not None:
         return PART, root
 
-    obj = context.active_object
-    assembly = assembly_root_of(obj) if obj is not None and obj.select_get() else None
+    assembly = assembly_root_of(obj)
     if assembly is not None:
         return ASSEMBLY, assembly
 
