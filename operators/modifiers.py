@@ -199,9 +199,10 @@ def apply_boolean(
     body,
     cutter,
     operation="Difference",
-    self_intersection=True,
+    self_intersection=False,
     hole_tolerant=False,
     solver=None,
+    depsgraph=None,
 ):
     """Add or update a nondestructive boolean of ``cutter`` on ``body``.
 
@@ -211,6 +212,11 @@ def apply_boolean(
     objects. The shared entry point for the Boolean tool and for the extrude /
     revolve tools that boolean their result directly. ``solver`` defaults to the
     Boolean Solver preference.
+
+    ``self_intersection`` is off by default: it costs about five times the
+    evaluation on the Exact solver and only matters for input that intersects
+    itself. Pass ``depsgraph`` to decide the solver against an evaluation the
+    caller already has, rather than forcing another one.
     """
     from ..utilities.boolean_nodes import build_boolean_node_group
 
@@ -229,17 +235,24 @@ def apply_boolean(
     set_boolean_operation(mod, ids["Operation"], operation)
     set_modifier_input(mod, ids["Self Intersection"], self_intersection)
     set_modifier_input(mod, ids["Hole Tolerant"], hole_tolerant)
-    set_boolean_solver(mod, ids[SOLVER_SOCKET], _solver_for(body, cutter, solver))
+    set_boolean_solver(
+        mod, ids[SOLVER_SOCKET], _solver_for(body, cutter, solver, depsgraph)
+    )
     return mod
 
 
-def _solver_for(body, cutter, solver=None):
+def _solver_for(body, cutter, solver=None, depsgraph=None):
     """The boolean solver to use, honouring the choice unless it would delete.
 
     Manifold is the fast solver, but it drops an operand that is not a closed
     volume: cutting a flat profile with it leaves nothing at all instead of a
     profile with a hole. Exact handles that, so an open operand forces it. The
     modifier keeps the solver as an input, so it can still be changed by hand.
+
+    ``evaluated_depsgraph_get`` re-evaluates the scene when anything has been
+    written since the last one, so a caller applying several booleans in a row
+    should pass the depsgraph it already took: the operands' shape is what is
+    being asked about, and that is not what those writes changed.
     """
     from ..utilities.boolean_targets import is_closed_solid
 
@@ -247,7 +260,8 @@ def _solver_for(body, cutter, solver=None):
     if chosen != "Manifold":
         return chosen
 
-    depsgraph = bpy.context.evaluated_depsgraph_get()
+    if depsgraph is None:
+        depsgraph = bpy.context.evaluated_depsgraph_get()
     if all(is_closed_solid(obj, depsgraph) for obj in (body, cutter)):
         return chosen
     return "Exact"
@@ -358,9 +372,16 @@ class BooleanFromToolMixin:
         # targets while the operation is still undecided too: what a solid reaches
         # is what decides whether it is a cut at all.
         undecided = not self.boolean_detected and auto
+        depsgraph = None
         if self.operation != "None" or undecided:
+            # One evaluation for the whole pass: detection needs the solid
+            # evaluated, and the per-target solver check asks about the same
+            # shapes. Taking a fresh depsgraph after the first target's modifier
+            # is written would re-evaluate every boolean on the body again --
+            # twice the work of a mouse move, and that work is the expensive part.
             context.view_layer.update()
-            targets = detect_targets(context, cutter, sketch)
+            depsgraph = context.evaluated_depsgraph_get()
+            targets = detect_targets(context, cutter, sketch, depsgraph)
         else:
             targets = []
 
@@ -389,7 +410,7 @@ class BooleanFromToolMixin:
             item.name = obj.name
             item.enabled = prev_enabled.get(obj.name, True)
 
-        enabled_bodies = self._apply_boolean_targets(cutter)
+        enabled_bodies = self._apply_boolean_targets(cutter, depsgraph)
 
         # Making a sketch solid is what settles which part it belongs to: a cut
         # joins the part it cuts, a standalone solid roots one. A mesh cutter that
@@ -413,7 +434,7 @@ class BooleanFromToolMixin:
         sync_part_collections(context.scene)
         select_result(context, cutter)
 
-    def _apply_boolean_targets(self, cutter):
+    def _apply_boolean_targets(self, cutter, depsgraph=None):
         """Apply this cutter's booleans. Returns the bodies it feeds, in order."""
         name = boolean_modifier_name(cutter)
         enabled_bodies = []
@@ -422,7 +443,7 @@ class BooleanFromToolMixin:
             if body is None:
                 continue
             if self.operation != "None" and item.enabled:
-                apply_boolean(body, cutter, self.operation)
+                apply_boolean(body, cutter, self.operation, depsgraph=depsgraph)
                 enabled_bodies.append(body)
         # Strip this cutter's boolean from every other body, so excluding a target,
         # setting the operation to None, or a shorter extrude no longer reaching a
@@ -1535,7 +1556,9 @@ class View3D_OT_node_boolean(Operator, NodeOperator):
         ),
         default="Difference",
     )
-    self_intersection: BoolProperty(name="Self Intersection", default=True)
+    # Off by default like every other boolean here: it multiplies the Exact
+    # solver's cost and only matters for input that intersects itself.
+    self_intersection: BoolProperty(name="Self Intersection", default=False)
     hole_tolerant: BoolProperty(name="Hole Tolerant", default=False)
     boolean_solver: bpy.props.EnumProperty(
         name="Boolean Solver",

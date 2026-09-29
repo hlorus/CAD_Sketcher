@@ -171,9 +171,12 @@ def build_boolean_node_group(name: str = BOOLEAN_NODE_GROUP):
     self_intersection = _ensure_socket(
         iface, "Self Intersection", "INPUT", "NodeSocketBool"
     )
-    # Robust default: sketch fills welded by identity can leave shared boundary
-    # points, so keep self-intersection handling on.
-    self_intersection.default_value = True
+    # Off by default: it makes the Exact solver roughly five times slower, which
+    # an extrude pays on every mouse move, and it only matters for input that
+    # intersects itself -- a sketch fill welded by identity can leave shared
+    # boundary points. Still an input, so it can be turned on per boolean when a
+    # result actually needs it.
+    self_intersection.default_value = False
     _ensure_socket(iface, "Hole Tolerant", "INPUT", "NodeSocketBool")
     _ensure_socket(iface, "Geometry", "OUTPUT", "NodeSocketGeometry")
     # Int index for the same reason as Operation.

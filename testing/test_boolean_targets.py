@@ -463,3 +463,109 @@ class TestDetectionNarrowing(BgsTestCase):
         self.context.view_layer.update()
 
         self.assertTrue(is_closed_solid(ob, self.context.evaluated_depsgraph_get()))
+
+
+class TestBooleanDefaults(BgsTestCase):
+    """The defaults an extrude pays for on every mouse move."""
+
+    def _box(self, name, center, half=1.0):
+        cx, cy, cz = center
+        verts = [
+            (cx + sx * half, cy + sy * half, cz + sz * half)
+            for sx in (-1, 1)
+            for sy in (-1, 1)
+            for sz in (-1, 1)
+        ]
+        me = self.data.meshes.new(name)
+        me.from_pydata(verts, [], _CUBE_FACES)
+        me.update()
+        ob = self.data.objects.new(name, me)
+        self.scene.collection.objects.link(ob)
+        self.context.view_layer.update()
+        return ob
+
+    def test_self_intersection_is_off_unless_asked_for(self):
+        """It multiplies the Exact solver's cost and is rarely what is needed."""
+        from ..operators.modifiers import (
+            apply_boolean,
+            boolean_input_ids,
+            get_modifier_input,
+        )
+
+        body = self._box("si_body", (0.0, 0.0, 0.0))
+        cutter = self._box("si_cutter", (1.0, 1.0, 1.0))
+
+        mod = apply_boolean(body, cutter, "Difference")
+
+        ids = boolean_input_ids(mod.node_group)
+        self.assertFalse(get_modifier_input(mod, ids["Self Intersection"]))
+
+    def test_the_socket_default_matches(self):
+        """A modifier that never had the input written reads the same thing."""
+        from ..operators.modifiers import boolean_input_ids
+        from ..utilities.boolean_nodes import build_boolean_node_group
+
+        ng = build_boolean_node_group()
+        ids = boolean_input_ids(ng)
+        socket = next(
+            s
+            for s in ng.interface.items_tree
+            if getattr(s, "identifier", None) == ids["Self Intersection"]
+        )
+        self.assertFalse(socket.default_value)
+
+    def test_manifold_is_the_default_but_yields_to_open_geometry(self):
+        """It is the fast solver; Exact still takes over where it has to."""
+        from ..operators.modifiers import _solver_for, default_boolean_solver
+
+        self.assertEqual(default_boolean_solver(), "Manifold")
+
+        body = self._box("ms_body", (0.0, 0.0, 0.0))
+        cutter = self._box("ms_cutter", (1.0, 1.0, 1.0))
+        depsgraph = self.context.evaluated_depsgraph_get()
+        self.assertEqual(_solver_for(body, cutter, depsgraph=depsgraph), "Manifold")
+
+        # A single open face is not a closed volume, so Manifold would drop it.
+        me = self.data.meshes.new("ms_flat")
+        me.from_pydata(
+            [(-1.0, -1.0, 0.0), (1.0, -1.0, 0.0), (1.0, 1.0, 0.0), (-1.0, 1.0, 0.0)],
+            [],
+            [(0, 1, 2, 3)],
+        )
+        me.update()
+        flat = self.data.objects.new("ms_flat", me)
+        self.scene.collection.objects.link(flat)
+        self.context.view_layer.update()
+
+        self.assertEqual(
+            _solver_for(flat, cutter, depsgraph=self.context.evaluated_depsgraph_get()),
+            "Exact",
+        )
+
+    def test_the_solver_check_reuses_the_evaluation_it_is_given(self):
+        """Taking a fresh one re-evaluates every boolean already on the body."""
+        from ..operators import modifiers
+
+        body = self._box("re_body", (0.0, 0.0, 0.0))
+        cutter = self._box("re_cutter", (1.0, 1.0, 1.0))
+        depsgraph = self.context.evaluated_depsgraph_get()
+
+        taken = []
+
+        class _Context:
+            def evaluated_depsgraph_get(self):
+                taken.append(True)
+                return depsgraph
+
+        class _Bpy:
+            context = _Context()
+
+        real_bpy = modifiers.bpy
+        modifiers.bpy = _Bpy()
+        try:
+            modifiers._solver_for(body, cutter, depsgraph=depsgraph)
+            self.assertEqual(taken, [], "it forced an evaluation it was handed")
+            modifiers._solver_for(body, cutter)
+            self.assertEqual(taken, [True], "without one it has to take its own")
+        finally:
+            modifiers.bpy = real_bpy

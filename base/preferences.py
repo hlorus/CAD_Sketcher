@@ -167,7 +167,10 @@ class Preferences(AddonPreferences):
             "CAD Sketcher Boolean modifier"
         ),
         items=SOLVER_ITEMS,
-        default="Exact",
+        # Manifold is around seven times faster, and an operand it cannot handle
+        # falls back to Exact on its own (see ``_solver_for``), so the slower
+        # solver is used where it is needed rather than everywhere.
+        default="Manifold",
     )
     show_whats_new: BoolProperty(
         name="Show What's New on Update",
