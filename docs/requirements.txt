@@ -8,7 +8,10 @@ mkdocstrings==0.25.2
 mkdocstrings-python==1.10.9
 mkdocs-autorefs==1.4.4
 griffe==2.1.0
-Pygments==2.20.0
+# Pygments 2.20 breaks pymdownx.superfences: it stops recognising fenced blocks
+# and silently leaves them alone, so Python-Markdown reads the backticks as an
+# inline code span and the language tag ends up inside the code (#763).
+Pygments==2.19.2
 pymdown-extensions==10.4
 markdown==3.3.7
 lightgallery==0.5

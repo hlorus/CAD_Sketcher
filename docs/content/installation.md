@@ -1,24 +1,38 @@
 ## Installation
-=== "Repository (recommended)"
-    Adding CAD Sketcher as a remote repository lets Blender install and **update** it in-app.
+=== "Blender Extensions (recommended)"
+    CAD Sketcher is published on Blender's own extensions platform, so Blender
+    installs it and offers updates without any setup.
+
+    - Open Blender and go to: Edit > Preferences > Get Extensions
+    - Search for "CAD Sketcher"
+    - Press "Install"
+
+    Every release lands there, and the listing is also browsable at
+    [extensions.blender.org](https://extensions.blender.org/add-ons/cad-sketcher/).
+
+=== "Latest builds"
+    A build is published for every commit, which is worth having if you want
+    fixes and new tools as they land rather than at the next release. Add it as
+    a remote repository and Blender updates it in-app like any other.
 
     - Open Blender and go to: Edit > Preferences > Get Extensions
     - Open the repositories drop-down (arrow in the top right corner) and choose "Add Remote Repository"
     - Paste the URL below, enable "Check for Updates on Startup" and confirm
 
         ``` sh
-        https://hlorus.github.io/CAD_Sketcher-extensions/stable/index.json
+        https://hlorus.github.io/CAD_Sketcher-extensions/latest/index.json
         ```
     - CAD Sketcher now appears in the extensions list, press "Install"
 
-    > For rolling per-commit builds use the `latest` channel instead:
-    > `https://hlorus.github.io/CAD_Sketcher-extensions/latest/index.json`
-    >
+    These builds are whatever was last committed, so they see far less testing
+    than a release. Keep a release install around if you are working on
+    something you care about.
+
     > To test builds that bundle **open pull requests** (not yet merged), see the
     > community-maintained [CAD_SketcherPR](https://github.com/falken10vdl/CAD_SketcherPR)
     > project (tracked in issue [#551](https://github.com/hlorus/CAD_Sketcher/issues/551)).
 === "Extension ZIP File"
-    - Download the [ZIP archive](https://github.com/hlorus/CAD_Sketcher/archive/refs/heads/main.zip) from github (ensure it's a ZIP Archive, on Mac you might have to repack as it gets unzipped automatically)
+    - Download the ZIP for your platform from the [latest release](https://github.com/hlorus/CAD_Sketcher/releases/latest)
     - Open Blender and go to: Edit > Preferences > Get Extensions > Extension Settings (Arrow in the top right corner) > Press "Install from Disk..." button
     - Browse to the location of the ZIP and select it, then press "Install from Disk"
 === "Legacy addon"
@@ -70,7 +84,15 @@ There are multiple reasons why the installation might fail. Try the following:
 
 ## Updating
 
+=== "Extensions"
+
+    Installed from the Blender extensions platform or from the latest-builds
+    repository, CAD Sketcher updates itself: Blender offers the new version
+    under Edit > Preferences > Get Extensions.
+
 === "Manual"
+
+    For a ZIP or legacy addon install:
 
     - Delete the old version from the addons/extensions list under Edit > Preferences > Add-ons/Get Extensions
     - Simply redo the installation steps with the latest addon version
