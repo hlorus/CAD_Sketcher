@@ -15,6 +15,7 @@ the user can override it.
 """
 
 import bpy
+import numpy as np
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
@@ -49,6 +50,45 @@ def _is_closed(polys) -> bool:
     return bool(used) and all(count == 2 for count in used.values())
 
 
+def _mesh_arrays(mesh, matrix):
+    """``(world verts, polygon index lists)`` for ``mesh``, read in bulk.
+
+    ``foreach_get`` fills a flat buffer in one call, where walking ``mesh.vertices``
+    and ``poly.vertices`` in Python pays RNA overhead per element -- which was the
+    single most expensive thing an extrude did on every mouse move.
+    """
+    count = len(mesh.vertices)
+    co = np.empty(count * 3, dtype=np.float64)
+    mesh.vertices.foreach_get("co", co)
+    co = co.reshape(count, 3)
+    # World space: mathutils composes as ``matrix @ v`` for column vectors, which
+    # for rows is ``v @ Mᵀ + t``.
+    basis = np.array(matrix.to_3x3()).T
+    world = co @ basis + np.array(matrix.translation)
+
+    loop_total = np.empty(len(mesh.polygons), dtype=np.int32)
+    mesh.polygons.foreach_get("loop_total", loop_total)
+    loops = np.empty(len(mesh.loops), dtype=np.int32)
+    mesh.loops.foreach_get("vertex_index", loops)
+
+    return world, loop_total, loops
+
+
+def _polygon_lists(loop_total, loops, base):
+    """Polygon index lists for ``BVHTree.FromPolygons``, offset by ``base``.
+
+    Loops are packed in polygon order, so a mesh whose faces all have the same
+    number of sides -- every mesh a boolean is likely to meet, quads or tris --
+    converts in a single reshape. Mixed n-gons fall back to slicing per face.
+    """
+    indices = loops + base
+    if loop_total.size and bool((loop_total == loop_total[0]).all()):
+        return indices.reshape(-1, int(loop_total[0])).tolist()
+
+    ends = np.cumsum(loop_total)
+    return [chunk.tolist() for chunk in np.split(indices, ends[:-1])]
+
+
 def _world_geometry_map(depsgraph, wanted, closed_only=False):
     """Map each object in ``wanted`` to ``(bvh, aabb_min, aabb_max)`` in world space.
 
@@ -58,11 +98,18 @@ def _world_geometry_map(depsgraph, wanted, closed_only=False):
     than on the evaluated object (``to_mesh``/``new_from_object`` raise "does not
     have geometry data" there). Objects yielding no faces (an unfilled profile)
     are simply absent from the map.
+
+    Building one of these is not cheap, so ``wanted`` should be as small as the
+    caller can make it -- see :func:`overlapping_bodies`, which narrows by bounds
+    first.
     """
     from ..stateful_operator.utilities.geometry import instance_origin
 
     wanted = set(wanted)
-    accum = {}  # origin object -> ([world verts], [poly index tuples])
+    if not wanted:
+        return {}
+
+    accum = {}  # origin object -> ([world vert arrays], [poly index lists])
     for inst in depsgraph.object_instances:
         ob = inst.object
         origin = instance_origin(inst)
@@ -76,25 +123,52 @@ def _world_geometry_map(depsgraph, wanted, closed_only=False):
             if mesh is not None:
                 ob.to_mesh_clear()
             continue
-        mw = inst.matrix_world
-        verts, polys = accum.setdefault(origin, ([], []))
-        base = len(verts)
-        verts.extend(mw @ v.co for v in mesh.vertices)
-        polys.extend(tuple(base + i for i in p.vertices) for p in mesh.polygons)
+
+        chunks, polys = accum.setdefault(origin, ([], []))
+        base = sum(len(c) for c in chunks)
+        world, loop_total, loops = _mesh_arrays(mesh, inst.matrix_world)
+        chunks.append(world)
+        polys.extend(_polygon_lists(loop_total, loops, base))
         ob.to_mesh_clear()
 
     result = {}
-    for obj, (verts, polys) in accum.items():
+    for obj, (chunks, polys) in accum.items():
         if closed_only and not _is_closed(polys):
             continue
-        lo = Vector(
-            (min(v.x for v in verts), min(v.y for v in verts), min(v.z for v in verts))
-        )
-        hi = Vector(
-            (max(v.x for v in verts), max(v.y for v in verts), max(v.z for v in verts))
-        )
-        result[obj] = (BVHTree.FromPolygons(verts, polys), lo, hi)
+        verts = np.concatenate(chunks) if len(chunks) > 1 else chunks[0]
+        lo = Vector(verts.min(axis=0))
+        hi = Vector(verts.max(axis=0))
+        result[obj] = (BVHTree.FromPolygons(verts.tolist(), polys), lo, hi)
     return result
+
+
+def _world_bounds_map(depsgraph, wanted):
+    """World-space AABB per object, from ``bound_box``: no meshing, no BVH.
+
+    The cheap half of :func:`_world_geometry_map`, for deciding which bodies are
+    worth the expensive half. An evaluated object's ``bound_box`` already covers
+    what its modifiers produce, and an object whose bounds are wrong or empty is
+    simply kept as a candidate, so narrowing this way can only drop bodies that
+    are provably nowhere near.
+    """
+    from ..stateful_operator.utilities.geometry import instance_origin
+
+    wanted = set(wanted)
+    bounds = {}
+    for inst in depsgraph.object_instances:
+        origin = instance_origin(inst)
+        if origin not in wanted:
+            continue
+        mw = inst.matrix_world
+        corners = [mw @ Vector(corner) for corner in inst.object.bound_box]
+        lo = Vector(map(min, zip(*corners)))
+        hi = Vector(map(max, zip(*corners)))
+        if origin in bounds:
+            was_lo, was_hi = bounds[origin]
+            lo = Vector(map(min, zip(lo, was_lo)))
+            hi = Vector(map(max, zip(hi, was_hi)))
+        bounds[origin] = (lo, hi)
+    return bounds
 
 
 def _aabb_overlap(a, b):
@@ -121,7 +195,23 @@ def overlapping_bodies(cutter, candidates, depsgraph, geo=None):
     the expensive check only runs on plausibly-touching bodies. Order preserved.
     """
     if geo is None:
-        geo = _world_geometry_map(depsgraph, [cutter, *candidates])
+        # The cutter always has to be built; the candidates are narrowed by their
+        # bounds first, so nothing far away is meshed or BVH'd at all. That test
+        # used to run *after* the whole scene had been built, which is most of
+        # what an extrude spent its time on while the mouse moved.
+        geo = _world_geometry_map(depsgraph, [cutter])
+        cutter_geo = geo.get(cutter)
+        if cutter_geo is None:
+            return []
+        _bvh, cutter_lo, cutter_hi = cutter_geo
+        bounds = _world_bounds_map(depsgraph, candidates)
+        near = [
+            obj
+            for obj in candidates
+            if obj not in bounds or _aabb_overlap((cutter_lo, cutter_hi), bounds[obj])
+        ]
+        geo.update(_world_geometry_map(depsgraph, near))
+
     cutter_geo = geo.get(cutter)
     if cutter_geo is None:
         return []
