@@ -25,7 +25,14 @@ def _points_coincident(p1, p2) -> bool:
 class Intersection:
     """An intersection point on the segment being trimmed."""
 
-    def __init__(self, co, source_cid="", is_endpoint=False, constraint_index=-1, constraint_type=""):
+    def __init__(
+        self,
+        co,
+        source_cid="",
+        is_endpoint=False,
+        constraint_index=-1,
+        constraint_type="",
+    ):
         self.co = Vector(co[:2])
         self.source_cid = source_cid  # curve_id of intersecting segment (0 if endpoint)
         self.is_endpoint = is_endpoint
@@ -42,7 +49,9 @@ class Intersection:
         return self._point_ref
 
     def __str__(self):
-        return f"Intersection(idx={self.index}, co={self.co}, endpoint={self.is_endpoint})"
+        return (
+            f"Intersection(idx={self.index}, co={self.co}, endpoint={self.is_endpoint})"
+        )
 
 
 class TrimSegment:
@@ -69,8 +78,12 @@ class TrimSegment:
 
     def add(self, co, source_cid="", constraint_index=-1, constraint_type=""):
         """Add an intersection point."""
-        intr = Intersection(co, source_cid, constraint_index=constraint_index,
-                            constraint_type=constraint_type)
+        intr = Intersection(
+            co,
+            source_cid,
+            constraint_index=constraint_index,
+            constraint_type=constraint_type,
+        )
         self._intersections.append(intr)
         return intr
 
@@ -82,6 +95,7 @@ class TrimSegment:
     def _parametric_t(self, co):
         """Get parametric position (0-1) of a point along the segment."""
         import math
+
         seg = self.segment
         if isinstance(seg, LineRef):
             p1, p2 = seg.p1.co, seg.p2.co
@@ -91,15 +105,20 @@ class TrimSegment:
             return (Vector(co[:2]) - p1).dot(line_vec) / line_vec.length_squared
         elif isinstance(seg, (ArcRef, CircleRef)):
             from ..utilities.math import range_2pi
+
             center = seg.ct.co
             if isinstance(seg, ArcRef) and seg.start:
                 start_co = seg.start.co
             else:
-                start_co = Vector(self.topo._sketch.target_object.data.points[
-                    self.topo._sketch.target_object.data.curves[0].points[0].index
-                ].position[:2])
+                start_co = Vector(
+                    self.topo._sketch.target_object.data.points[
+                        self.topo._sketch.target_object.data.curves[0].points[0].index
+                    ].position[:2]
+                )
             s_angle = math.atan2((start_co - center).y, (start_co - center).x)
-            p_angle = math.atan2((Vector(co[:2]) - center).y, (Vector(co[:2]) - center).x)
+            p_angle = math.atan2(
+                (Vector(co[:2]) - center).y, (Vector(co[:2]) - center).x
+            )
             total = seg.angle if isinstance(seg, ArcRef) else math.tau
             if total == 0:
                 return 0.0
@@ -206,8 +225,19 @@ class TrimSegment:
             referenced.add(get_uuid(cd, "end_point_id", i))
             referenced.add(get_uuid(cd, "center_point_id", i))
 
+        sc = sketch.constraints
         for cid in candidates:
             if cid not in referenced:
+                for data_coll in sc.get_lists():
+                    to_remove = []
+                    for j, c in enumerate(data_coll):
+                        if (
+                            getattr(c, "curve_id_1", "") == cid
+                            or getattr(c, "curve_id_2", "") == cid
+                        ):
+                            to_remove.append(j)
+                    for j in reversed(to_remove):
+                        data_coll.remove(j)
                 remove_native_curve_by_id(sketch, cid)
 
     def execute(self, context):
@@ -260,7 +290,7 @@ class TrimSegment:
             if new_seg:
                 new_segments.append(new_seg)
 
-        # Remove obsolete constraints
+        # Remove obsolete constraints at trim cut boundaries
         sc = sketch.constraints
         for intr in self.obsolete_intersections:
             if intr.constraint_index >= 0 and intr.constraint_type:
@@ -271,21 +301,120 @@ class TrimSegment:
                 except Exception:
                     pass
 
-        # Remove original segment if not reused
+        orig_cid = self.segment.curve_id
+        retained_seg = new_segments[0] if new_segments else None
+        new_cid = retained_seg.curve_id if retained_seg else None
+
+        if retained_seg is not None:
+            # 1. Orientation constraints (H/V, parallel, perpendicular, tangent, angle)
+            # Retained sub-segment keeps its orientation and position.
+            if not reused:
+                for name in (
+                    "horizontal",
+                    "vertical",
+                    "parallel",
+                    "perpendicular",
+                    "tangent",
+                    "angle",
+                ):
+                    coll = getattr(sc, name, None)
+                    if coll:
+                        for c in coll:
+                            if getattr(c, "curve_id_1", "") == orig_cid:
+                                c.curve_id_1 = new_cid
+                            if getattr(c, "curve_id_2", "") == orig_cid:
+                                c.curve_id_2 = new_cid
+
+                # 2. Diameter constraints (circle trimmed to arc retains its radius)
+                diam_coll = getattr(sc, "diameter", None)
+                if diam_coll:
+                    for c in diam_coll:
+                        if getattr(c, "curve_id_1", "") == orig_cid:
+                            c.curve_id_1 = new_cid
+
+            # 3. Distance / length constraints (both reused and newly created segments)
+            dist_coll = getattr(sc, "distance", None)
+            if dist_coll:
+                for c in dist_coll:
+                    c1 = getattr(c, "curve_id_1", "")
+                    c2 = getattr(c, "curve_id_2", "")
+
+                    # Line length constraint (single entity dimension on the trimmed segment)
+                    if c1 == orig_cid and not c2:
+                        if not reused:
+                            c.curve_id_1 = new_cid
+                        try:
+                            c.assign_init_props()
+                        except Exception:
+                            pass
+                    elif c2 == orig_cid and not c1:
+                        if not reused:
+                            c.curve_id_2 = new_cid
+                        try:
+                            c.assign_init_props()
+                        except Exception:
+                            pass
+
+                    # Point-to-line distance constraint (external point to trimmed line)
+                    elif (
+                        c2 == orig_cid
+                        and c1
+                        and c1 != orig_cid
+                        and c1 not in self._original_endpoint_cids
+                    ):
+                        if not reused:
+                            c.curve_id_2 = new_cid
+                    elif (
+                        c1 == orig_cid
+                        and c2
+                        and c2 != orig_cid
+                        and c2 not in self._original_endpoint_cids
+                    ):
+                        if not reused:
+                            c.curve_id_1 = new_cid
+
+                    # Distance between original endpoints of trimmed segment
+                    elif (
+                        c1 in self._original_endpoint_cids
+                        and c2 in self._original_endpoint_cids
+                    ):
+                        new_conn = topo.connection_points(retained_seg)
+                        if len(new_conn) >= 2:
+                            c.curve_id_1 = new_conn[0].curve_id
+                            c.curve_id_2 = new_conn[1].curve_id
+                            try:
+                                c.assign_init_props()
+                            except Exception:
+                                pass
+
         if not reused:
-            # Remove constraints referencing original segment
-            orig_cid = self.segment.curve_id
+            # Remove any remaining constraints referencing original segment that were not transferred
             for data_coll in sc.get_lists():
                 to_remove = []
                 for j, c in enumerate(data_coll):
-                    if getattr(c, "curve_id_1", "") == orig_cid:
-                        to_remove.append(j)
-                    elif getattr(c, "curve_id_2", "") == orig_cid:
+                    if (
+                        getattr(c, "curve_id_1", "") == orig_cid
+                        or getattr(c, "curve_id_2", "") == orig_cid
+                    ):
                         to_remove.append(j)
                 for j in reversed(to_remove):
                     data_coll.remove(j)
 
             self.segment.remove()
+        else:
+            # Reused segment: length changed, so drop length-equality constraints that are now invalid
+            for name in ("equal", "ratio", "symmetry"):
+                coll = getattr(sc, name, None)
+                if coll:
+                    to_remove = []
+                    for j, c in enumerate(coll):
+                        if (
+                            getattr(c, "curve_id_1", "") == orig_cid
+                            or getattr(c, "curve_id_2", "") == orig_cid
+                        ):
+                            to_remove.append(j)
+                    for j in reversed(to_remove):
+                        coll.remove(j)
 
         # Add coincident constraints between new points and intersecting segments
         for intr in relevant:
