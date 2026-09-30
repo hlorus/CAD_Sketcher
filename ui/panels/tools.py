@@ -124,14 +124,6 @@ class VIEW3D_PT_sketcher_tools(VIEW3D_PT_sketcher_base):
         col.operator(declarations.Operators.NodeArrayCircular)
         col.operator(declarations.Operators.NodeBoolean)
 
-        # Grouping and reusing parts acts on whole objects, so it belongs with the
-        # other object-level tools rather than inside a sketch. The verbs live in
-        # the Part menu, which is also on the object and outliner context menus:
-        # drawn here rather than copied, so the sidebar cannot fall out of step.
-        layout.separator()
-        layout.label(text="Parts:")
-        layout.menu(declarations.Menus.Part.value, icon="OUTLINER_OB_MESH")
-
     def draw(self, context: Context):
         # Mirror the workspace toolbar: sketch tools while a sketch is active,
         # node tools otherwise, instead of showing both at once.
