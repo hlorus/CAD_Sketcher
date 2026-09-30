@@ -74,6 +74,7 @@ class Operators(str, Enum):
     EditConstraintValue = "view3d.slvs_edit_constraint_value"
     DeleteEntity = "view3d.slvs_delete_entity"
     DeleteAssembly = "view3d.slvs_delete_assembly"
+    EditBodyMesh = "view3d.slvs_edit_body_mesh"
     DissolvePart = "view3d.slvs_dissolve_part"
     RemoveFromPart = "view3d.slvs_remove_from_part"
     DeleteFeature = "view3d.slvs_delete_feature"

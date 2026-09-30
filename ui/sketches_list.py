@@ -242,14 +242,27 @@ class VIEW3D_UL_sketches(UIList):
                 state = Sketch(sketch).get_solver_state()
                 row.label(text="", icon=state.icon)
 
-            enter = row.row(align=True)
-            enter.enabled = sketch is not None
-            enter.operator(
-                Operators.SetActiveSketch,
-                text="",
-                icon="OUTLINER_DATA_GP_LAYER",
-                emboss=False,
-            ).sketch_name = sketch.name if sketch is not None else ""
+            # Enter what the row actually is: its sketch, or -- for a mesh that
+            # was never drawn -- the mesh itself, in Blender's Edit Mode. The
+            # icon says which, so the button is never a dead end.
+            if sketch is not None:
+                row.operator(
+                    Operators.SetActiveSketch,
+                    text="",
+                    icon="OUTLINER_DATA_GP_LAYER",
+                    emboss=False,
+                ).sketch_name = sketch.name
+            elif body is not None and body.type == "MESH":
+                row.operator(
+                    Operators.EditBodyMesh,
+                    text="",
+                    icon="EDITMODE_HLT",
+                    emboss=False,
+                ).body_name = body.name
+            else:
+                spent = row.row(align=True)
+                spent.enabled = False
+                spent.label(text="", icon="OUTLINER_DATA_GP_LAYER")
 
             self._draw_delete(row, body, sketch)
 
@@ -269,12 +282,13 @@ class VIEW3D_UL_sketches(UIList):
             ).feature_name = body.name
             return
         if body is not None and is_part_root(body):
-            # The base feature cannot go on its own: the part is built on it, and
-            # removing it would only hand the part to whatever was left. Deleting
-            # the whole part is a deliberate act, and lives in the header's menu.
-            spent = row.row(align=True)
-            spent.enabled = False
-            spent.label(text="", icon="X")
+            # The base cannot go on its own -- the part is built on it, and
+            # removing it would only hand the part to whatever was left -- so the
+            # part goes with it. Same reach as the header's menu, which is where
+            # this also lives.
+            row.operator(
+                Operators.DeletePart, text="", icon="X", emboss=False
+            ).part_name = body.name
             return
         if sketch is not None:
             row.operator(

@@ -247,3 +247,85 @@ class TestListIsDrawnWithoutSketches(BgsTestCase):
         for obj in list(self.scene.objects):
             bpy.data.objects.remove(obj)
         self.assertFalse(self._has_rows())
+
+
+class TestPlainMeshPartRow(BgsTestCase):
+    """A part made by hand out of a mesh: no sketch, but not a dead row.
+
+    Both trailing controls used to be greyed out on it -- nothing to enter and
+    nothing to delete -- which said the row did nothing at all.
+    """
+
+    def _cube(self, name):
+        me = bpy.data.meshes.new(name)
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new(name, me)
+        self.scene.collection.objects.link(ob)
+        self.context.view_layer.update()
+        return ob
+
+    def test_the_mesh_can_be_edited(self):
+        from ..utilities.body import sketch_of
+
+        cube = self._cube("pm_cube")
+        mark_part_root(cube)
+        self.assertIsNone(sketch_of(cube), "nothing was drawn to enter")
+
+        self.assertEqual(
+            bpy.ops.view3d.slvs_edit_body_mesh(body_name=cube.name), {"FINISHED"}
+        )
+        self.assertEqual(cube.mode, "EDIT")
+
+        # And the same button leaves again.
+        self.assertEqual(
+            bpy.ops.view3d.slvs_edit_body_mesh(body_name=cube.name), {"FINISHED"}
+        )
+        self.assertEqual(cube.mode, "OBJECT")
+
+    def test_editing_makes_it_the_active_object(self):
+        """Edit Mode is entered on the active object, whatever was active before."""
+        cube = self._cube("pm_active")
+        mark_part_root(cube)
+        other = self._cube("pm_other")
+        self.context.view_layer.objects.active = other
+
+        bpy.ops.view3d.slvs_edit_body_mesh(body_name=cube.name)
+
+        self.assertEqual(self.context.view_layer.objects.active, cube)
+        bpy.ops.object.mode_set(mode="OBJECT")
+
+    def test_a_hidden_object_says_so_instead_of_failing(self):
+        cube = self._cube("pm_hidden")
+        mark_part_root(cube)
+        cube.hide_set(True)
+
+        self.assertEqual(
+            bpy.ops.view3d.slvs_edit_body_mesh(body_name=cube.name), {"CANCELLED"}
+        )
+        self.assertEqual(cube.mode, "OBJECT")
+        cube.hide_set(False)
+
+    def test_deleting_the_base_row_takes_the_part(self):
+        """It is what the part is built on, so it cannot go on its own."""
+        from ..operators.delete_part import feature_root
+        from ..utilities.collections import sync_part_collections
+
+        cube = self._cube("pm_del")
+        mark_part_root(cube)
+        member = self._cube("pm_del_member")
+        join_part(cube, member)
+        sync_part_collections(self.scene)
+        names = (cube.name, member.name)
+
+        # The row draws DeletePart because this is the part's own body.
+        self.assertIsNone(feature_root(cube))
+        self.context.view_layer.objects.active = cube
+        self.assertEqual(
+            bpy.ops.view3d.slvs_delete_part(part_name=cube.name), {"FINISHED"}
+        )
+
+        for name in names:
+            self.assertIsNone(bpy.data.objects.get(name))

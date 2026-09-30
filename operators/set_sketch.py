@@ -160,9 +160,58 @@ class View3D_OT_slvs_set_part_visibility(Operator):
         return {"FINISHED"}
 
 
+class View3D_OT_slvs_edit_body_mesh(Operator):
+    """Edit this object's mesh in Blender's Edit Mode
+
+    For a part member that was never drawn -- imported geometry, or a mesh made a
+    part by hand -- there is no sketch to enter, and its mesh *is* its geometry.
+    A body realised from a sketch is Geometry-Nodes output instead, so editing it
+    would change nothing; those rows enter their sketch.
+    """
+
+    bl_idname = Operators.EditBodyMesh
+    bl_label = "Edit Mesh"
+    bl_options = {"REGISTER", "UNDO"}
+
+    body_name: StringProperty(name="Body Name", default="")
+
+    @classmethod
+    def description(cls, context, properties):
+        ob = bpy.data.objects.get(properties.body_name)
+        if ob is not None and ob.mode == "EDIT":
+            return "Leave Edit Mode"
+        return "Edit this object's mesh in Edit Mode"
+
+    def execute(self, context: Context):
+        ob = bpy.data.objects.get(self.body_name)
+        if ob is None or ob.type != "MESH":
+            return {"CANCELLED"}
+
+        if ob.mode == "EDIT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+            return {"FINISHED"}
+
+        # Edit Mode is entered on the active object, and a hidden one cannot be
+        # made active at all -- say so rather than failing silently on the click.
+        if not ob.visible_get():
+            self.report({"WARNING"}, f"'{ob.name}' is hidden")
+            return {"CANCELLED"}
+
+        if context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+
+        for other in context.selected_objects:
+            other.select_set(False)
+        ob.select_set(True)
+        context.view_layer.objects.active = ob
+        bpy.ops.object.mode_set(mode="EDIT")
+        return {"FINISHED"}
+
+
 register, unregister = register_classes_factory(
     (
         View3D_OT_slvs_set_active_sketch,
+        View3D_OT_slvs_edit_body_mesh,
         View3D_OT_slvs_set_cutter_visibility,
         View3D_OT_slvs_set_part_visibility,
         View3D_OT_slvs_set_sketch_visibility,
