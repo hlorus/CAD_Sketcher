@@ -225,20 +225,24 @@ class TrimSegment:
             referenced.add(get_uuid(cd, "end_point_id", i))
             referenced.add(get_uuid(cd, "center_point_id", i))
 
+        orphan_cids = {cid for cid in candidates if cid not in referenced}
+        if not orphan_cids:
+            return
+
         sc = sketch.constraints
-        for cid in candidates:
-            if cid not in referenced:
-                for data_coll in sc.get_lists():
-                    to_remove = []
-                    for j, c in enumerate(data_coll):
-                        if (
-                            getattr(c, "curve_id_1", "") == cid
-                            or getattr(c, "curve_id_2", "") == cid
-                        ):
-                            to_remove.append(j)
-                    for j in reversed(to_remove):
-                        data_coll.remove(j)
-                remove_native_curve_by_id(sketch, cid)
+        for data_coll in sc.get_lists():
+            to_remove = []
+            for j, c in enumerate(data_coll):
+                if (
+                    getattr(c, "curve_id_1", "") in orphan_cids
+                    or getattr(c, "curve_id_2", "") in orphan_cids
+                ):
+                    to_remove.append(j)
+            for j in reversed(to_remove):
+                data_coll.remove(j)
+
+        for cid in orphan_cids:
+            remove_native_curve_by_id(sketch, cid)
 
     def execute(self, context):
         """Perform the trim operation."""
@@ -302,12 +306,56 @@ class TrimSegment:
                     pass
 
         orig_cid = self.segment.curve_id
+
+        # Snapshot orientation constraints on the original segment so all surviving pieces receive them
+        orig_horiz = any(
+            getattr(c, "curve_id_1", "") == orig_cid
+            or getattr(c, "curve_id_2", "") == orig_cid
+            for c in getattr(sc, "horizontal", ())
+        )
+        orig_vert = any(
+            getattr(c, "curve_id_1", "") == orig_cid
+            or getattr(c, "curve_id_2", "") == orig_cid
+            for c in getattr(sc, "vertical", ())
+        )
+        orig_parallel_others = [
+            getattr(c, "curve_id_2", "")
+            if getattr(c, "curve_id_1", "") == orig_cid
+            else getattr(c, "curve_id_1", "")
+            for c in getattr(sc, "parallel", ())
+            if orig_cid in (getattr(c, "curve_id_1", ""), getattr(c, "curve_id_2", ""))
+        ]
+        orig_perp_others = [
+            getattr(c, "curve_id_2", "")
+            if getattr(c, "curve_id_1", "") == orig_cid
+            else getattr(c, "curve_id_1", "")
+            for c in getattr(sc, "perpendicular", ())
+            if orig_cid in (getattr(c, "curve_id_1", ""), getattr(c, "curve_id_2", ""))
+        ]
+        orig_tangent_others = [
+            getattr(c, "curve_id_2", "")
+            if getattr(c, "curve_id_1", "") == orig_cid
+            else getattr(c, "curve_id_1", "")
+            for c in getattr(sc, "tangent", ())
+            if orig_cid in (getattr(c, "curve_id_1", ""), getattr(c, "curve_id_2", ""))
+        ]
+        orig_angle_others = [
+            (
+                getattr(c, "curve_id_2", "")
+                if getattr(c, "curve_id_1", "") == orig_cid
+                else getattr(c, "curve_id_1", ""),
+                getattr(c, "value", None),
+                getattr(c, "is_reference", False),
+            )
+            for c in getattr(sc, "angle", ())
+            if orig_cid in (getattr(c, "curve_id_1", ""), getattr(c, "curve_id_2", ""))
+        ]
+
         retained_seg = new_segments[0] if new_segments else None
         new_cid = retained_seg.curve_id if retained_seg else None
 
         if retained_seg is not None:
-            # 1. Orientation constraints (H/V, parallel, perpendicular, tangent, angle)
-            # Retained sub-segment keeps its orientation and position.
+            # 1. Orientation constraints on primary segment (H/V, parallel, perpendicular, tangent, angle)
             if not reused:
                 for name in (
                     "horizontal",
@@ -331,6 +379,33 @@ class TrimSegment:
                     for c in diam_coll:
                         if getattr(c, "curve_id_1", "") == orig_cid:
                             c.curve_id_1 = new_cid
+
+            # Propagate orientation constraints to any additional surviving pieces (e.g. cut out of middle)
+            for extra_seg in new_segments[1:]:
+                extra_cid = extra_seg.curve_id
+                if orig_horiz:
+                    sc.add_horizontal(curve_id_1=extra_cid)
+                if orig_vert:
+                    sc.add_vertical(curve_id_1=extra_cid)
+                for other in orig_parallel_others:
+                    if other:
+                        sc.add_parallel(curve_id_1=extra_cid, curve_id_2=other)
+                for other in orig_perp_others:
+                    if other:
+                        sc.add_perpendicular(curve_id_1=extra_cid, curve_id_2=other)
+                for other in orig_tangent_others:
+                    if other:
+                        sc.add_tangent(curve_id_1=extra_cid, curve_id_2=other)
+                for other, val, is_ref in orig_angle_others:
+                    if other:
+                        ac = sc.add_angle(curve_id_1=extra_cid, curve_id_2=other)
+                        if is_ref:
+                            ac.is_reference = True
+                        if val is not None:
+                            try:
+                                ac.set_value_force(val)
+                            except Exception:
+                                pass
 
             # 3. Distance / length constraints (both reused and newly created segments)
             dist_coll = getattr(sc, "distance", None)

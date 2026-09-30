@@ -164,10 +164,63 @@ class TestTrimLogic(Sketch2dTestCase):
         # Horizontal constraint should still exist
         self.assertEqual(len(sc.horizontal), 1)
         # Should reference the retained segment
-        from ..model.curve_ref import LineRef
+        from ..model.curve_ref import LineRef, curve_ref
+        from ..utilities.curve_data import read_uuid_list
 
-        line_cids = {c.curve_id for c in self.sketch.curves if isinstance(c, LineRef)}
+        cd = self.sketch.data
+        line_cids = {
+            cid
+            for cid in read_uuid_list(cd, "curve_id")
+            if isinstance(curve_ref(self.sketch, cid), LineRef)
+        }
         self.assertIn(sc.horizontal[0].curve_id_1, line_cids)
+
+    def test_trim_middle_preserves_orientation_for_both_survivors(self):
+        """Trimming middle of a line should propagate orientation constraints to all survivors."""
+        from ..utilities.trimming import TrimSegment
+
+        p1 = self.add_point((0, 0))
+        p2 = self.add_point((10, 0))
+        p3 = self.add_point((3, -3))
+        p4 = self.add_point((3, 3))
+        p5 = self.add_point((7, -3))
+        p6 = self.add_point((7, 3))
+
+        l1 = self.add_line(p1, p2)
+        l2 = self.add_line(p3, p4)
+        l3 = self.add_line(p5, p6)
+
+        sc = self.sketch.constraints
+        sc.add_horizontal(curve_id_1=l1.curve_id)
+
+        topo = self.sketch.topology
+        pts2 = topo.intersect(l1, l2)
+        pts3 = topo.intersect(l1, l3)
+
+        trim = TrimSegment(self.sketch, l1, Vector((5, 0)), topo)
+        for co in pts2:
+            trim.add(co, source_cid=l2.curve_id)
+        for co in pts3:
+            trim.add(co, source_cid=l3.curve_id)
+
+        self.assertTrue(trim.check())
+        import bpy
+
+        trim.execute(bpy.context)
+
+        # Both surviving sub-segments should be horizontal
+        self.assertEqual(len(sc.horizontal), 2)
+        from ..model.curve_ref import LineRef, curve_ref
+        from ..utilities.curve_data import read_uuid_list
+
+        cd = self.sketch.data
+        line_cids = {
+            cid
+            for cid in read_uuid_list(cd, "curve_id")
+            if isinstance(curve_ref(self.sketch, cid), LineRef)
+        }
+        self.assertIn(sc.horizontal[0].curve_id_1, line_cids)
+        self.assertIn(sc.horizontal[1].curve_id_1, line_cids)
 
     def test_trim_updates_line_distance(self):
         """Trim should update line length distance constraint to the new trimmed length."""
@@ -261,7 +314,13 @@ class TestTrimLogic(Sketch2dTestCase):
         trim.execute(bpy.context)
 
         self.assertEqual(len(sc.diameter), 1)
-        from ..model.curve_ref import ArcRef
+        from ..model.curve_ref import ArcRef, curve_ref
+        from ..utilities.curve_data import read_uuid_list
 
-        arc_cids = {c.curve_id for c in self.sketch.curves if isinstance(c, ArcRef)}
+        cd = self.sketch.data
+        arc_cids = {
+            cid
+            for cid in read_uuid_list(cd, "curve_id")
+            if isinstance(curve_ref(self.sketch, cid), ArcRef)
+        }
         self.assertIn(sc.diameter[0].curve_id_1, arc_cids)
