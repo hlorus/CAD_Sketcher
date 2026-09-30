@@ -498,6 +498,22 @@ def main():
             )
             assert target_obj == cutter
 
+        @_check("the sidebar draws with no part to show")
+        def _():
+            # The part row draws from the scope alone, and with nothing active
+            # that scope has no root. Only a real draw catches a header reaching
+            # into a part that is not there.
+            bpy.ops.object.select_all(action="DESELECT")
+            context.view_layer.objects.active = None
+            with bpy.context.temp_override(**_view3d_context()):
+                bpy.ops.wm.call_panel(name="VIEW3D_PT_sketcher", keep_open=False)
+            _redraw()
+
+            sketches_list = importlib.import_module(f"{TARGET}.ui.sketches_list")
+            scope, root = sketches_list.list_scope(context)
+            assert root is None, f"expected no root, got {root!r}"
+            assert scope == sketches_list.GLOBAL, scope
+
     if _FAILURES:
         print(f"SMOKE FAILED: {', '.join(_FAILURES)}", file=sys.stderr)
         sys.exit(1)

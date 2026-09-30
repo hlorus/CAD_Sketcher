@@ -305,6 +305,12 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             _draw_workplane(context, layout, sketch)
 
         else:
+            # The part row is drawn whether or not there is a list under it: it
+            # carries the menu, and that is where a part is made in the first
+            # place -- gating it on the parts that exist would leave a file with
+            # none no way to start one.
+            _draw_list_header(context, layout)
+
             # Feature list — a scrollable UIList over scene.objects, filtered to
             # the bodies worth listing (see VIEW3D_UL_sketches.filter_items).
             # Gated on the rows the list would draw, not on a sketch existing: a
@@ -312,7 +318,6 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             from ...ui.sketches_list import is_feature_row
 
             if any(is_feature_row(obj) for obj in context.scene.objects):
-                _draw_list_header(context, layout)
                 layout.template_list(
                     "VIEW3D_UL_sketches",
                     "",

@@ -295,3 +295,39 @@ class TestHiddenPartStaysReachable(BgsTestCase):
 
         self.assertEqual(list_scope(self.context), (PART, root))
         self.assertEqual(_Filter().shown(self.context), {root.name, member.name})
+
+
+class TestHeaderWithoutAList(BgsTestCase):
+    """The part row carries the menu, so it outlives the list under it.
+
+    Gating the row on the parts that exist left a file with none no way to make
+    one: Make Part and Add Assembly live in that menu.
+    """
+
+    def test_an_empty_scene_has_no_rows_but_a_scope_to_draw(self):
+        from ..ui.sketches_list import is_feature_row
+
+        for obj in list(self.scene.objects):
+            bpy.data.objects.remove(obj)
+
+        self.assertFalse(any(is_feature_row(obj) for obj in self.scene.objects))
+        # What the row renders from is still well defined, which is what lets it
+        # draw with nothing under it.
+        self.assertEqual(list_scope(self.context), (GLOBAL, None))
+
+    def test_a_plain_mesh_has_no_rows_either(self):
+        """Nothing here is ours yet, and the menu is how that changes."""
+        from ..ui.sketches_list import is_feature_row
+
+        me = bpy.data.meshes.new("hdr_plain")
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me)
+        bm.free()
+        plain = bpy.data.objects.new("hdr_plain", me)
+        self.scene.collection.objects.link(plain)
+        self.context.view_layer.objects.active = plain
+
+        self.assertFalse(is_feature_row(plain))
+        self.assertEqual(list_scope(self.context), (GLOBAL, None))
+        self.assertTrue(bpy.types.VIEW3D_MT_slvs_part.poll(self.context))
