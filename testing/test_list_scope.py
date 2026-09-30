@@ -297,6 +297,61 @@ class TestHiddenPartStaysReachable(BgsTestCase):
         self.assertEqual(_Filter().shown(self.context), {root.name, member.name})
 
 
+class TestScopeSurvivesHiding(BgsTestCase):
+    """Where the scope reads the active object from.
+
+    ``context.active_object`` is context state and goes to None the moment the
+    object is hidden; the view layer keeps the pointer. Reading the former left a
+    hidden part showing as "All Parts", with the toggle that unhides it gone. A
+    background run cannot reproduce that (there the two agree), so the rule is
+    pinned against a stub instead.
+    """
+
+    class _Objects:
+        def __init__(self, active):
+            self.active = active
+
+    class _ViewLayer:
+        def __init__(self, active):
+            self.objects = TestScopeSurvivesHiding._Objects(active)
+
+    class _Context:
+        """A context whose active object is hidden: visible to the view layer only."""
+
+        def __init__(self, active):
+            self.active_object = None
+            self.view_layer = TestScopeSurvivesHiding._ViewLayer(active)
+
+    def _cube(self, name):
+        me = bpy.data.meshes.new(name)
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new(name, me)
+        self.scene.collection.objects.link(ob)
+        return ob
+
+    def test_the_scope_is_read_from_the_view_layer(self):
+        root = self._cube("sv_root")
+        mark_part_root(root)
+
+        self.assertEqual(list_scope(self._Context(root)), (PART, root))
+
+    def test_an_assembly_survives_it_too(self):
+        from ..utilities.part import create_assembly, join_assembly
+
+        assembly = create_assembly(self.context, "sv_asm")
+        part = self._cube("sv_part")
+        mark_part_root(part)
+        join_assembly(assembly, part)
+
+        self.assertEqual(list_scope(self._Context(assembly)), (ASSEMBLY, assembly))
+
+    def test_nothing_active_is_still_the_whole_file(self):
+        self.assertEqual(list_scope(self._Context(None)), (GLOBAL, None))
+
+
 class TestHeaderWithoutAList(BgsTestCase):
     """The part row carries the menu, so it outlives the list under it.
 

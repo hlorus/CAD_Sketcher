@@ -90,10 +90,14 @@ def list_scope(context):
 
     Read from the *active* object rather than the selection, which is what
     ``focused_part`` does for the workplane picker. Two reasons the list wants the
-    other rule: hiding a part deselects it but leaves it active, so a
-    selection-based list would drop the part at the moment you hid it and leave
-    no way to bring it back; and a list that empties every time you click beside
-    your work is more startling than useful.
+    other rule: hiding a part deselects it, so a selection-based list would drop
+    the part at the moment you hid it and take the control that unhides it with
+    it; and a list that empties every time you click beside your work is more
+    startling than useful.
+
+    Through the view layer, not ``context.active_object``, which is context state
+    and goes to None as soon as the object is hidden -- the very case this is here
+    for. The view layer keeps the pointer.
 
     A part is the narrowest answer and wins, so the active object inside an
     assembly lists its part rather than the assembly's other parts. With neither
@@ -101,7 +105,7 @@ def list_scope(context):
     """
     from ..utilities.part import assembly_root_of, part_root_of
 
-    obj = context.active_object
+    obj = context.view_layer.objects.active
     root = part_root_of(obj)
     if root is not None:
         return PART, root

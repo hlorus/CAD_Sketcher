@@ -498,6 +498,49 @@ def main():
             )
             assert target_obj == cutter
 
+        @_check("a hidden part keeps the row that unhides it")
+        def _():
+            # The panel drawing over a hidden part, end to end. Which object the
+            # scope is read from is pinned by a unit test (a stub context is
+            # deterministic where the real one is not); this covers the draw and
+            # the round trip through the row's own toggle.
+            import bmesh
+
+            sketches_list = importlib.import_module(f"{TARGET}.ui.sketches_list")
+
+            mesh = bpy.data.meshes.new("smoke_hide")
+            bm = bmesh.new()
+            bmesh.ops.create_cube(bm, size=2.0)
+            bm.to_mesh(mesh)
+            bm.free()
+            root = bpy.data.objects.new("smoke_hide", mesh)
+            context.scene.collection.objects.link(root)
+            root.location = (40.0, 0.0, 0.0)
+            part.mark_part_root(root)
+
+            bpy.ops.object.select_all(action="DESELECT")
+            context.view_layer.objects.active = root
+            root.select_set(True)
+            _redraw()
+            assert sketches_list.list_scope(context) == (
+                sketches_list.PART,
+                root,
+            ), "the part was not in scope to begin with"
+
+            bpy.ops.view3d.slvs_set_part_visibility(part_name=root.name)
+            _redraw()
+
+            assert root.hide_get(), "the part did not hide"
+            scope, shown = sketches_list.list_scope(context)
+            assert (scope, shown) == (sketches_list.PART, root), (
+                f"a hidden part fell out of the panel: {scope}, {shown!r}"
+            )
+
+            # And the row's own toggle brings it back.
+            bpy.ops.view3d.slvs_set_part_visibility(part_name=shown.name)
+            _redraw()
+            assert not root.hide_get(), "it could not be unhidden from the row"
+
         @_check("the sidebar draws with no part to show")
         def _():
             # The part row draws from the scope alone, and with nothing active
