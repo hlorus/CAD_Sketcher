@@ -396,16 +396,11 @@ class TrimSegment:
                 for other in orig_tangent_others:
                     if other:
                         sc.add_tangent(curve_id_1=extra_cid, curve_id_2=other)
-                for other, val, is_ref in orig_angle_others:
-                    if other:
-                        ac = sc.add_angle(curve_id_1=extra_cid, curve_id_2=other)
-                        if is_ref:
-                            ac.is_reference = True
-                        if val is not None:
-                            try:
-                                ac.set_value_force(val)
-                            except Exception:
-                                pass
+                # For dimensional constraints (angle), keep the single dimensional constraint
+                # on the primary segment to avoid overlapping viewport labels, and constrain
+                # additional survivors geometrically with a parallel constraint instead.
+                if orig_angle_others and new_cid:
+                    sc.add_parallel(curve_id_1=extra_cid, curve_id_2=new_cid)
 
             # 3. Distance / length constraints (both reused and newly created segments)
             dist_coll = getattr(sc, "distance", None)

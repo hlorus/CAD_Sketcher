@@ -222,6 +222,48 @@ class TestTrimLogic(Sketch2dTestCase):
         self.assertIn(sc.horizontal[0].curve_id_1, line_cids)
         self.assertIn(sc.horizontal[1].curve_id_1, line_cids)
 
+    def test_trim_middle_angle_constrains_extra_segments_with_parallel(self):
+        """Trimming middle of an angled line should keep 1 angle constraint and constrain survivors with parallel."""
+        from ..utilities.trimming import TrimSegment
+
+        p1 = self.add_point((0, 0))
+        p2 = self.add_point((10, 10))
+        p_ref1 = self.add_point((0, 0))
+        p_ref2 = self.add_point((10, 0))
+
+        p3 = self.add_point((3, -3))
+        p4 = self.add_point((3, 9))
+        p5 = self.add_point((7, -3))
+        p6 = self.add_point((7, 9))
+
+        l1 = self.add_line(p1, p2)
+        l_ref = self.add_line(p_ref1, p_ref2)
+        l2 = self.add_line(p3, p4)
+        l3 = self.add_line(p5, p6)
+
+        sc = self.sketch.constraints
+        sc.add_angle(init=True, curve_id_1=l1.curve_id, curve_id_2=l_ref.curve_id)
+
+        topo = self.sketch.topology
+        pts2 = topo.intersect(l1, l2)
+        pts3 = topo.intersect(l1, l3)
+
+        trim = TrimSegment(self.sketch, l1, Vector((5, 5)), topo)
+        for co in pts2:
+            trim.add(co, source_cid=l2.curve_id)
+        for co in pts3:
+            trim.add(co, source_cid=l3.curve_id)
+
+        self.assertTrue(trim.check())
+        import bpy
+
+        trim.execute(bpy.context)
+
+        # Only one dimensional angle constraint should remain (no scene clutter)
+        self.assertEqual(len(sc.angle), 1)
+        # Additional surviving segment should be constrained with geometric parallel
+        self.assertEqual(len(sc.parallel), 1)
+
     def test_trim_updates_line_distance(self):
         """Trim should update line length distance constraint to the new trimmed length."""
         from ..utilities.trimming import TrimSegment
