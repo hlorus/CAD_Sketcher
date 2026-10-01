@@ -306,51 +306,6 @@ class TrimSegment:
                     pass
 
         orig_cid = self.segment.curve_id
-
-        # Snapshot orientation constraints on the original segment so all surviving pieces receive them
-        orig_horiz = any(
-            getattr(c, "curve_id_1", "") == orig_cid
-            or getattr(c, "curve_id_2", "") == orig_cid
-            for c in getattr(sc, "horizontal", ())
-        )
-        orig_vert = any(
-            getattr(c, "curve_id_1", "") == orig_cid
-            or getattr(c, "curve_id_2", "") == orig_cid
-            for c in getattr(sc, "vertical", ())
-        )
-        orig_parallel_others = [
-            getattr(c, "curve_id_2", "")
-            if getattr(c, "curve_id_1", "") == orig_cid
-            else getattr(c, "curve_id_1", "")
-            for c in getattr(sc, "parallel", ())
-            if orig_cid in (getattr(c, "curve_id_1", ""), getattr(c, "curve_id_2", ""))
-        ]
-        orig_perp_others = [
-            getattr(c, "curve_id_2", "")
-            if getattr(c, "curve_id_1", "") == orig_cid
-            else getattr(c, "curve_id_1", "")
-            for c in getattr(sc, "perpendicular", ())
-            if orig_cid in (getattr(c, "curve_id_1", ""), getattr(c, "curve_id_2", ""))
-        ]
-        orig_tangent_others = [
-            getattr(c, "curve_id_2", "")
-            if getattr(c, "curve_id_1", "") == orig_cid
-            else getattr(c, "curve_id_1", "")
-            for c in getattr(sc, "tangent", ())
-            if orig_cid in (getattr(c, "curve_id_1", ""), getattr(c, "curve_id_2", ""))
-        ]
-        orig_angle_others = [
-            (
-                getattr(c, "curve_id_2", "")
-                if getattr(c, "curve_id_1", "") == orig_cid
-                else getattr(c, "curve_id_1", ""),
-                getattr(c, "value", None),
-                getattr(c, "is_reference", False),
-            )
-            for c in getattr(sc, "angle", ())
-            if orig_cid in (getattr(c, "curve_id_1", ""), getattr(c, "curve_id_2", ""))
-        ]
-
         retained_seg = new_segments[0] if new_segments else None
         new_cid = retained_seg.curve_id if retained_seg else None
 
@@ -380,27 +335,40 @@ class TrimSegment:
                         if getattr(c, "curve_id_1", "") == orig_cid:
                             c.curve_id_1 = new_cid
 
-            # Propagate orientation constraints to any additional surviving pieces (e.g. cut out of middle)
+            # Constrain additional surviving sub-segments generically:
+            # - Line sub-segments end up collinear with the primary segment (parallel + point-on-line)
+            # - Arc/circle sub-segments end up concentric & equal radius with the primary segment
+            is_line = (
+                isinstance(self.segment, LineRef)
+                or getattr(self.segment, "is_line", lambda: False)()
+            )
+            is_curved = (
+                isinstance(self.segment, (ArcRef, CircleRef))
+                or getattr(self.segment, "is_arc", lambda: False)()
+                or getattr(self.segment, "is_circle", lambda: False)()
+            )
             for extra_seg in new_segments[1:]:
                 extra_cid = extra_seg.curve_id
-                if orig_horiz:
-                    sc.add_horizontal(curve_id_1=extra_cid)
-                if orig_vert:
-                    sc.add_vertical(curve_id_1=extra_cid)
-                for other in orig_parallel_others:
-                    if other:
-                        sc.add_parallel(curve_id_1=extra_cid, curve_id_2=other)
-                for other in orig_perp_others:
-                    if other:
-                        sc.add_perpendicular(curve_id_1=extra_cid, curve_id_2=other)
-                for other in orig_tangent_others:
-                    if other:
-                        sc.add_tangent(curve_id_1=extra_cid, curve_id_2=other)
-                # For dimensional constraints (angle), keep the single dimensional constraint
-                # on the primary segment to avoid overlapping viewport labels, and constrain
-                # additional survivors geometrically with a parallel constraint instead.
-                if orig_angle_others and new_cid:
+                if is_line:
                     sc.add_parallel(curve_id_1=extra_cid, curve_id_2=new_cid)
+                    p = getattr(extra_seg, "p1", None)
+                    if p and getattr(p, "curve_id", ""):
+                        sc.add_coincident(curve_id_1=p.curve_id, curve_id_2=new_cid)
+                elif is_curved:
+                    sc.add_equal(curve_id_1=extra_cid, curve_id_2=new_cid)
+                    extra_ct = getattr(extra_seg, "ct", None)
+                    retained_ct = getattr(retained_seg, "ct", None)
+                    if (
+                        extra_ct
+                        and retained_ct
+                        and getattr(extra_ct, "curve_id", "")
+                        and getattr(retained_ct, "curve_id", "")
+                        and extra_ct.curve_id != retained_ct.curve_id
+                    ):
+                        sc.add_coincident(
+                            curve_id_1=extra_ct.curve_id,
+                            curve_id_2=retained_ct.curve_id,
+                        )
 
             # 3. Distance / length constraints (both reused and newly created segments)
             dist_coll = getattr(sc, "distance", None)
