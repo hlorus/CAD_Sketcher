@@ -160,6 +160,40 @@ class View3D_OT_slvs_set_part_visibility(Operator):
         return {"FINISHED"}
 
 
+class View3D_OT_slvs_open_part(Operator):
+    """Show what this part is made of
+
+    A parts list has one row per part, and a part holds many sketches, so there
+    is no single sketch for such a row to open. Opening the part instead makes it
+    the one in focus: the list then lists its features, each of which has at most
+    one sketch of its own.
+    """
+
+    bl_idname = Operators.OpenPart
+    bl_label = "Open Part"
+    bl_options = {"REGISTER", "UNDO"}
+
+    part_name: StringProperty(name="Part Name", default="")
+
+    def execute(self, context: Context):
+        root = bpy.data.objects.get(self.part_name)
+        if root is None:
+            return {"CANCELLED"}
+
+        # The list reads the *active* object, which a hidden part keeps; being
+        # selected as well is what the user expects from clicking a row, and only
+        # a visible object can be.
+        for other in context.selected_objects:
+            other.select_set(False)
+        if root.visible_get():
+            root.select_set(True)
+        context.view_layer.objects.active = root
+
+        if context.area:
+            context.area.tag_redraw()
+        return {"FINISHED"}
+
+
 class View3D_OT_slvs_edit_body_mesh(Operator):
     """Edit this object's mesh in Blender's Edit Mode
 
@@ -211,6 +245,7 @@ class View3D_OT_slvs_edit_body_mesh(Operator):
 register, unregister = register_classes_factory(
     (
         View3D_OT_slvs_set_active_sketch,
+        View3D_OT_slvs_open_part,
         View3D_OT_slvs_edit_body_mesh,
         View3D_OT_slvs_set_cutter_visibility,
         View3D_OT_slvs_set_part_visibility,

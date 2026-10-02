@@ -253,10 +253,21 @@ class VIEW3D_UL_features(UIList):
                 state = Sketch(sketch).get_solver_state()
                 row.label(text="", icon=state.icon)
 
-            # Enter what the row actually is: its sketch, or -- for a mesh that
-            # was never drawn -- the mesh itself, in Blender's Edit Mode. The
-            # icon says which, so the button is never a dead end.
-            if sketch is not None:
+            # Enter what the row actually is. A row standing for a whole part
+            # (every row but the ones of the part in focus) holds many sketches,
+            # so there is nothing single to open: it opens the part instead, and
+            # the list descends into its features. The icon says which.
+            from ..utilities.part import is_part_root
+
+            scope, _root = list_scope(context)
+            if scope != PART and body is not None and is_part_root(body):
+                row.operator(
+                    Operators.OpenPart,
+                    text="",
+                    icon="DISCLOSURE_TRI_RIGHT",
+                    emboss=False,
+                ).part_name = body.name
+            elif sketch is not None:
                 row.operator(
                     Operators.SetActiveSketch,
                     text="",

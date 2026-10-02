@@ -75,6 +75,7 @@ class Operators(str, Enum):
     DeleteEntity = "view3d.slvs_delete_entity"
     DeleteAssembly = "view3d.slvs_delete_assembly"
     EditBodyMesh = "view3d.slvs_edit_body_mesh"
+    OpenPart = "view3d.slvs_open_part"
     DissolvePart = "view3d.slvs_dissolve_part"
     RemoveFromPart = "view3d.slvs_remove_from_part"
     DeleteFeature = "view3d.slvs_delete_feature"

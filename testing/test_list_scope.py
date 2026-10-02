@@ -386,3 +386,69 @@ class TestHeaderWithoutAList(BgsTestCase):
         self.assertFalse(is_feature_row(plain))
         self.assertEqual(list_scope(self.context), (GLOBAL, None))
         self.assertTrue(bpy.types.VIEW3D_MT_slvs_part.poll(self.context))
+
+
+class TestOpeningAPart(BgsTestCase):
+    """A row standing for a whole part opens the part, not one of its sketches."""
+
+    def _cube(self, name, location=(0.0, 0.0, 0.0)):
+        me = bpy.data.meshes.new(name)
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new(name, me)
+        self.scene.collection.objects.link(ob)
+        ob.location = location
+        return ob
+
+    def _part(self, name):
+        root = self._cube(name)
+        mark_part_root(root)
+        member = self._cube(f"{name}_member", (1.0, 0.0, 0.0))
+        join_part(root, member)
+        sync_part_collections(self.scene)
+        return root, member
+
+    def test_opening_a_part_puts_the_list_inside_it(self):
+        root, member = self._part("op")
+        bpy.ops.object.select_all(action="DESELECT")
+        self.context.view_layer.objects.active = None
+        self.assertEqual(list_scope(self.context), (GLOBAL, None))
+
+        self.assertEqual(
+            bpy.ops.view3d.slvs_open_part(part_name=root.name), {"FINISHED"}
+        )
+
+        self.assertEqual(list_scope(self.context), (PART, root))
+        self.assertEqual(_Filter().shown(self.context), {root.name, member.name})
+
+    def test_it_selects_what_it_opens(self):
+        root, _member = self._part("op_sel")
+        other = self._cube("op_other", (9.0, 0.0, 0.0))
+        bpy.ops.object.select_all(action="DESELECT")
+        other.select_set(True)
+
+        bpy.ops.view3d.slvs_open_part(part_name=root.name)
+
+        self.assertEqual([o.name for o in self.context.selected_objects], [root.name])
+
+    def test_a_hidden_part_can_still_be_opened(self):
+        """Only the selection needs the object visible; the scope does not."""
+        root, _member = self._part("op_hidden")
+        bpy.ops.view3d.slvs_set_part_visibility(part_name=root.name)
+        self.assertTrue(root.hide_get())
+        self.context.view_layer.objects.active = None
+
+        self.assertEqual(
+            bpy.ops.view3d.slvs_open_part(part_name=root.name), {"FINISHED"}
+        )
+
+        self.assertEqual(list_scope(self.context), (PART, root))
+        self.assertFalse(root.select_get(), "a hidden object cannot be selected")
+        bpy.ops.view3d.slvs_set_part_visibility(part_name=root.name)
+
+    def test_a_missing_part_is_a_no_op(self):
+        self.assertEqual(
+            bpy.ops.view3d.slvs_open_part(part_name="op_nothing"), {"CANCELLED"}
+        )
