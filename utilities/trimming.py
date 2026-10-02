@@ -309,6 +309,22 @@ class TrimSegment:
         retained_seg = new_segments[0] if new_segments else None
         new_cid = retained_seg.curve_id if retained_seg else None
 
+        if reused:
+            # Reused segment: length changed, so drop length-equality constraints that are now invalid
+            # before adding any new constraints between surviving sub-segments
+            for name in ("equal", "ratio", "symmetry"):
+                coll = getattr(sc, name, None)
+                if coll:
+                    to_remove = []
+                    for j, c in enumerate(coll):
+                        if (
+                            getattr(c, "curve_id_1", "") == orig_cid
+                            or getattr(c, "curve_id_2", "") == orig_cid
+                        ):
+                            to_remove.append(j)
+                    for j in reversed(to_remove):
+                        coll.remove(j)
+
         if retained_seg is not None:
             # 1. Orientation constraints on primary segment (H/V, parallel, perpendicular, tangent, angle)
             if not reused:
@@ -439,20 +455,6 @@ class TrimSegment:
                     data_coll.remove(j)
 
             self.segment.remove()
-        else:
-            # Reused segment: length changed, so drop length-equality constraints that are now invalid
-            for name in ("equal", "ratio", "symmetry"):
-                coll = getattr(sc, name, None)
-                if coll:
-                    to_remove = []
-                    for j, c in enumerate(coll):
-                        if (
-                            getattr(c, "curve_id_1", "") == orig_cid
-                            or getattr(c, "curve_id_2", "") == orig_cid
-                        ):
-                            to_remove.append(j)
-                    for j in reversed(to_remove):
-                        coll.remove(j)
 
         # Add coincident constraints between new points and intersecting segments
         for intr in relevant:
