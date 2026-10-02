@@ -91,6 +91,25 @@ def get_modifier_input(modifier, identifier):
     return modifier[identifier]  # Blender <= 5.1
 
 
+def draw_modifier_input(layout, modifier, identifier, text=""):
+    """Draw one Geometry-Nodes modifier input as an editable field.
+
+    Version-aware like ``set_modifier_input``: on Blender 5.2+ the value lives at
+    ``modifier.properties.inputs.<identifier>.value``, and the old
+    ``modifier["Input_2"]`` data path does not merely fail there, it draws
+    nothing at all.
+    """
+    props = getattr(modifier, "properties", None)
+    if props is not None and hasattr(props, "inputs"):
+        socket = getattr(props.inputs, identifier, None)
+        if socket is None:
+            return False
+        layout.prop(socket, "value", text=text)  # Blender 5.2+
+        return True
+    layout.prop(modifier, f'["{identifier}"]', text=text)  # Blender <= 5.1
+    return True
+
+
 # Boolean operations, in the node group's Index Switch order: the operator's
 # enum name maps to this integer index (see set/get_boolean_operation).
 BOOLEAN_OPERATIONS = ("Difference", "Union", "Intersect")

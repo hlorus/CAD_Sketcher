@@ -468,3 +468,77 @@ class TestEditFeature(BgsTestCase):
         self.assertEqual(Edit._own_modifiers(bare), [])
         self.assertEqual(Edit._booleans_applying(bare), [])
         self.assertNotEqual(Edit._booleans_applying(cutter), [])
+
+
+class TestModifierInputDrawing(BgsTestCase):
+    """The data path the Edit Feature popup draws its fields from.
+
+    A wrong one does not raise: ``layout.prop`` on a missing path draws nothing,
+    so the popup comes up listing its sections with no field under them. This
+    asserts the path resolves instead.
+    """
+
+    def _cut_part(self):
+        def cube(name, location=(0.0, 0.0, 0.0)):
+            me = bpy.data.meshes.new(name)
+            bm = bmesh.new()
+            bmesh.ops.create_cube(bm, size=2.0)
+            bm.to_mesh(me)
+            bm.free()
+            ob = bpy.data.objects.new(name, me)
+            self.scene.collection.objects.link(ob)
+            ob.location = location
+            return ob
+
+        root = cube("mi_root")
+        mark_part_root(root)
+        cutter = cube("mi_cutter", (0.9, 0.0, 0.0))
+        join_part(root, cutter)
+        mod = apply_boolean(root, cutter, "Difference")
+        return root, cutter, mod
+
+    def test_every_input_resolves_to_something_drawable(self):
+        from ..operators.modifiers import boolean_input_ids
+
+        _root, _cutter, mod = self._cut_part()
+        ids = boolean_input_ids(mod.node_group)
+        # The same sockets the popup offers: geometry is wired, and the objects
+        # involved are what the row already names.
+        skip = {
+            s.name
+            for s in mod.node_group.interface.items_tree
+            if getattr(s, "socket_type", "")
+            in ("NodeSocketGeometry", "NodeSocketObject")
+        }
+
+        props = getattr(mod, "properties", None)
+        for name, identifier in ids.items():
+            if name in skip:
+                continue
+            if props is not None and hasattr(props, "inputs"):
+                socket = getattr(props.inputs, identifier, None)
+                self.assertIsNotNone(socket, f"{name} has no socket to draw")
+                self.assertTrue(
+                    hasattr(socket, "value"), f"{name} exposes no editable value"
+                )
+            else:  # Blender <= 5.1 keeps them as ID-properties
+                self.assertIn(identifier, mod.keys())
+
+    def test_the_helper_reports_whether_it_drew(self):
+        """It returns False rather than silently drawing an empty row."""
+        from ..operators.modifiers import boolean_input_ids, draw_modifier_input
+
+        class _Layout:
+            def __init__(self):
+                self.drawn = []
+
+            def prop(self, data, name, text=""):
+                self.drawn.append(text)
+
+        _root, _cutter, mod = self._cut_part()
+        ids = boolean_input_ids(mod.node_group)
+        layout = _Layout()
+
+        self.assertTrue(draw_modifier_input(layout, mod, ids["Operation"], "Operation"))
+        self.assertEqual(layout.drawn, ["Operation"])
+        self.assertFalse(draw_modifier_input(layout, mod, "Socket_nope", "Nope"))

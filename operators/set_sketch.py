@@ -247,7 +247,7 @@ class View3D_OT_slvs_edit_feature(Operator):
         return context.window_manager.invoke_popup(self, width=320)
 
     def draw(self, context: Context):
-        from ..operators.modifiers import boolean_input_ids
+        from ..operators.modifiers import boolean_input_ids, draw_modifier_input
 
         layout = self.layout
         body = bpy.data.objects.get(self.body_name)
@@ -267,6 +267,7 @@ class View3D_OT_slvs_edit_feature(Operator):
                 title = f"{title} on {owner.name}"
             box.label(text=title)
             ids = boolean_input_ids(mod.node_group)
+            drawn = 0
             for socket in mod.node_group.interface.items_tree:
                 if getattr(socket, "in_out", "") != "INPUT":
                     continue
@@ -276,7 +277,10 @@ class View3D_OT_slvs_edit_feature(Operator):
                     continue
                 if socket.name not in ids:
                     continue
-                box.prop(mod, f'["{ids[socket.name]}"]', text=socket.name)
+                if draw_modifier_input(box, mod, ids[socket.name], socket.name):
+                    drawn += 1
+            if not drawn:
+                box.label(text="Nothing adjustable here")
 
     def execute(self, context: Context):
         return {"FINISHED"}
