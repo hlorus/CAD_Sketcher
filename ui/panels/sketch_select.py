@@ -325,5 +325,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
                     "objects",
                     context.scene.sketcher,
                     "ui_active_feature",
-                    rows=3,
+                    # Each feature brings a second row for the sketch that draws
+                    # it, so three is barely one feature.
+                    rows=6,
                 )

@@ -226,19 +226,27 @@ class TestLeavingASketch(BgsTestCase):
         self.assertEqual([o.name for o in self.context.selected_objects], [root.name])
         self.assertEqual(list_scope(self.context), (PART, root))
 
-    def test_the_base_feature_has_a_row_of_its_own(self):
-        """Its body is the part's root, and it is the first thing listed."""
+    def test_each_feature_brings_its_sketch_as_a_row(self):
+        """A feature and the sketch that draws it are listed separately."""
         from ..utilities.body import sketch_of
 
-        root, base, _feature, cutter = self._part_with_cut()
+        root, base, feature, cutter = self._part_with_cut()
 
         bpy.ops.object.select_all(action="DESELECT")
         root.select_set(True)
         self.context.view_layer.objects.active = root
 
         shown = _Filter().shown(self.context)
-        self.assertEqual(shown, {root.name, cutter.name})
-        self.assertEqual(sketch_of(root), base.target_object, "the row's way in")
+        self.assertEqual(
+            shown,
+            {
+                root.name,
+                base.target_object.name,
+                cutter.name,
+                feature.target_object.name,
+            },
+        )
+        self.assertEqual(sketch_of(root), base.target_object)
 
 
 class TestHiddenPartStaysReachable(BgsTestCase):

@@ -10,8 +10,10 @@ import bpy
 
 from ..operators.modifiers import apply_boolean
 from ..ui.feature_list import (
+    BODY,
     CUTTER,
     SKETCH,
+    WHOLE_PART,
     VIEW3D_UL_features,
     cutting_bodies,
     is_feature_row,
@@ -127,27 +129,34 @@ class TestFeatureRows(BgsTestCase):
         self.assertEqual(kind, CUTTER)
         self.assertEqual(target, body)
 
-    def test_the_eye_shows_the_profile_on_every_other_row(self):
-        """A row that is not cutting has only its own curves to offer."""
+    def test_a_sketch_row_shows_its_own_curves(self):
+        """Each sketch has a row of its own, and its eye is its profile."""
         _root, sketch, _body = self._part_with_feature()
 
-        # The sketch is listed through its body, but asked directly it answers
-        # for the profile: nothing is hiding it.
         self.assertEqual(
             row_visibility(sketch, cutting_bodies(self.scene)), (SKETCH, sketch)
         )
 
-    def test_the_parts_own_body_has_no_eye(self):
-        """It is the part, not a feature: nothing cuts it and it has no profile."""
+    def test_the_parts_own_body_shows_its_solid(self):
+        """Its row is the base feature, so the eye is that feature's solid."""
         root, _sketch, _body = self._part_with_feature()
 
-        self.assertEqual(row_visibility(root, cutting_bodies(self.scene)), (None, None))
+        self.assertEqual(row_visibility(root, cutting_bodies(self.scene)), (BODY, root))
 
-    def test_a_row_with_neither_offers_no_eye(self):
+    def test_a_solid_that_cuts_nothing_shows_itself(self):
+        """Not every row has a sketch, but every solid can be shown or hidden."""
         bare = self._cube("fl_eyeless")
         mark_part_root(bare)
 
-        self.assertEqual(row_visibility(bare, set()), (None, None))
+        self.assertEqual(row_visibility(bare, set()), (BODY, bare))
+
+    def test_a_row_standing_for_a_part_shows_the_part(self):
+        bare = self._cube("fl_whole")
+        mark_part_root(bare)
+
+        self.assertEqual(
+            row_visibility(bare, set(), whole_part=True), (WHOLE_PART, bare)
+        )
 
     def test_a_cutting_body_is_recognised(self):
         root, _sketch, body = self._part_with_feature()
@@ -329,3 +338,133 @@ class TestPlainMeshPartRow(BgsTestCase):
 
         for name in names:
             self.assertIsNone(bpy.data.objects.get(name))
+
+
+class TestSketchRows(BgsTestCase):
+    """Each feature brings the sketch that draws it as a row of its own."""
+
+    def _part_with_feature(self):
+        from ..operators.add_sketch import build_sketch_on_workplane
+        from ..utilities.body import body_of
+        from ..utilities.part import promote_to_root, settle_membership
+        from ..utilities.workplane import ensure_origin_workplane_empties
+
+        ensure_origin_workplane_empties(self.context)
+        datum = self.context.scene.sketcher.wp_xy
+
+        base = build_sketch_on_workplane(self.context, datum)
+        root = body_of(base.target_object)
+        promote_to_root(root)
+        mark_part_root(root)
+
+        feature = build_sketch_on_workplane(self.context, datum)
+        body = body_of(feature.target_object)
+        settle_membership(feature.target_object, [root], self.context)
+        return root, base.target_object, body, feature.target_object
+
+    def test_a_sketch_sorts_directly_under_its_feature(self):
+        from ..ui.feature_list import base_first
+
+        root, base_sketch, body, feature_sketch = self._part_with_feature()
+        # Name the sketches so the alphabet alone would scatter them.
+        base_sketch.name = "zzz base sketch"
+        feature_sketch.name = "aaa feature sketch"
+
+        objects = list(self.scene.objects)
+        order = base_first(objects, root)
+        placed = sorted(objects, key=lambda o: order[objects.index(o)])
+        rows = [o for o in placed if o in (root, base_sketch, body, feature_sketch)]
+
+        self.assertEqual(
+            [o.name for o in rows],
+            [root.name, base_sketch.name, body.name, feature_sketch.name],
+            "a sketch must follow the feature it draws",
+        )
+        self.assertEqual(sorted(order), list(range(len(objects))), "not a permutation")
+
+    def test_a_feature_sketch_is_a_row(self):
+        from ..ui.feature_list import is_feature_row, is_sketch_row
+
+        _root, base_sketch, _body, feature_sketch = self._part_with_feature()
+
+        for sketch in (base_sketch, feature_sketch):
+            self.assertTrue(is_feature_row(sketch))
+            self.assertTrue(is_sketch_row(sketch))
+
+
+class TestBodyVisibility(BgsTestCase):
+    def test_it_toggles_one_body_and_leaves_the_part(self):
+        me = bpy.data.meshes.new("bv_root")
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me)
+        bm.free()
+        root = bpy.data.objects.new("bv_root", me)
+        self.scene.collection.objects.link(root)
+        mark_part_root(root)
+
+        me2 = bpy.data.meshes.new("bv_member")
+        bm = bmesh.new()
+        bmesh.ops.create_cube(bm, size=2.0)
+        bm.to_mesh(me2)
+        bm.free()
+        member = bpy.data.objects.new("bv_member", me2)
+        self.scene.collection.objects.link(member)
+        join_part(root, member)
+
+        self.assertEqual(
+            bpy.ops.view3d.slvs_set_body_visibility(body_name=member.name),
+            {"FINISHED"},
+        )
+        self.assertTrue(member.hide_get())
+        self.assertFalse(root.hide_get(), "only that one body")
+
+        bpy.ops.view3d.slvs_set_body_visibility(body_name=member.name)
+        self.assertFalse(member.hide_get())
+
+
+class TestEditFeature(BgsTestCase):
+    """What the Edit Feature popup gathers for a row."""
+
+    def _part_with_cutter(self):
+        def cube(name, location=(0.0, 0.0, 0.0)):
+            me = bpy.data.meshes.new(name)
+            bm = bmesh.new()
+            bmesh.ops.create_cube(bm, size=2.0)
+            bm.to_mesh(me)
+            bm.free()
+            ob = bpy.data.objects.new(name, me)
+            self.scene.collection.objects.link(ob)
+            ob.location = location
+            return ob
+
+        root = cube("ef_root")
+        mark_part_root(root)
+        cutter = cube("ef_cutter", (0.9, 0.0, 0.0))
+        join_part(root, cutter)
+        apply_boolean(root, cutter, "Difference")
+        return root, cutter
+
+    def test_a_cutter_reaches_the_boolean_on_the_body_it_cuts(self):
+        """The boolean lives on the target, so the cutter's row has to look there."""
+        from ..operators.set_sketch import View3D_OT_slvs_edit_feature as Edit
+
+        root, cutter = self._part_with_cutter()
+
+        found = Edit._booleans_applying(cutter)
+        self.assertEqual(
+            [(o.name, m.node_group.name) for o, m in found],
+            [(root.name, "CAD Sketcher Boolean")],
+        )
+        self.assertEqual(Edit._booleans_applying(root), [], "nothing cuts with it")
+
+    def test_a_body_with_nothing_on_it_gathers_nothing(self):
+        from ..operators.set_sketch import View3D_OT_slvs_edit_feature as Edit
+
+        _root, cutter = self._part_with_cutter()
+        bare = bpy.data.objects.new("ef_bare", bpy.data.meshes.new("ef_bare"))
+        self.scene.collection.objects.link(bare)
+
+        self.assertEqual(Edit._own_modifiers(bare), [])
+        self.assertEqual(Edit._booleans_applying(bare), [])
+        self.assertNotEqual(Edit._booleans_applying(cutter), [])

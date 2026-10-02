@@ -67,26 +67,30 @@ def row_parts(obj):
 
 
 # What a row's eye acts on.
-CUTTER = "CUTTER"
-SKETCH = "SKETCH"
+CUTTER = "CUTTER"  # a solid that is cutting: hidden, or shown as a wireframe
+SKETCH = "SKETCH"  # a sketch's own curves
+BODY = "BODY"  # a solid that cuts nothing: simply on screen or not
+WHOLE_PART = "WHOLE_PART"  # a row standing for a part, not for one feature
 
 
-def row_visibility(obj, cutting):
+def row_visibility(obj, cutting, whole_part=False):
     """(kind, object) the row's eye toggles, or (None, None) if it has nothing to.
 
-    One slot, because the two meanings never apply at once: a body that is
-    cutting is hidden by the display rules, so its solid is the thing to show or
-    hide; any other row has only its profile to offer. ``cutting`` is the set
-    from :func:`cutting_bodies`.
+    Each row's eye acts on that row's own object, which is what makes the icon
+    mean one thing: a sketch row shows its curves, a feature row shows its solid,
+    and a row standing for a whole part shows the part. The one special case is a
+    solid that is cutting, whose visibility the display rules own.
+
+    ``cutting`` is the set from :func:`cutting_bodies`; ``whole_part`` says the
+    row stands for a part rather than for one of its features.
     """
     body, sketch = row_parts(obj)
-    # The cutter is the body, or the sketch itself in a file from before bodies
-    # existed, which carried the stack on the sketch.
-    cutter = body or sketch
-    if cutter is not None and cutter.name in cutting:
-        return CUTTER, cutter
-    if sketch is not None:
+    if whole_part:
+        return (WHOLE_PART, body) if body is not None else (None, None)
+    if sketch is not None and body is None:
         return SKETCH, sketch
+    if body is not None:
+        return (CUTTER, body) if body.name in cutting else (BODY, body)
     return None, None
 
 
@@ -150,20 +154,27 @@ def in_scope(obj, scope, root) -> bool:
 
 
 def base_first(objects, root):
-    """A draw order putting the part's base feature at the top.
+    """A draw order: the base feature first, each sketch under the feature it draws.
 
     ``scene.objects`` is kept sorted by name, which would file the part's own
-    body wherever its name happens to fall -- a cut listed above the thing it
-    cuts. The base is what everything else was built on, so it leads and the rest
-    keep their names' order behind it.
+    body wherever its name happens to fall (a cut listed above the thing it cuts)
+    and scatter the sketches among the solids. The base is what everything else
+    was built on, so it leads; every other feature follows by name, each with its
+    own sketch beneath it.
 
     Blender reads this as "the item at index i moves to position order[i]", so it
     has to be a permutation of every item, filtered-out ones included.
     """
-    ranked = sorted(
-        range(len(objects)),
-        key=lambda i: (objects[i] != root, objects[i].name),
-    )
+    from ..utilities.body import body_of
+
+    def key(obj):
+        # Sort a sketch as its feature, one place behind it.
+        feature = body_of(obj) if is_sketch_object(obj) else obj
+        if feature is None:
+            feature = obj
+        return (feature != root, feature.name, obj is not feature)
+
+    ranked = sorted(range(len(objects)), key=lambda i: key(objects[i]))
     order = [0] * len(objects)
     for position, index in enumerate(ranked):
         order[index] = position
@@ -174,17 +185,21 @@ def is_feature_row(obj) -> bool:
     """Whether ``obj`` earns a row of its own.
 
     A body, a mesh that belongs to a part without being one (imported geometry
-    joined by hand), or a bodyless sketch from an older file. A sketch that has a
-    body is listed through it, not twice.
+    joined by hand), or a sketch. A sketch gets its own row under the feature it
+    draws, so that each row has exactly one thing to show or hide: the feature's
+    solid on one, the sketch's curves on the other.
     """
-    from ..utilities.body import body_of, is_body
+    from ..utilities.body import is_body
     from ..utilities.part import is_part_root, part_root_of
 
-    if is_body(obj):
+    if is_body(obj) or is_sketch_object(obj):
         return True
-    if is_sketch_object(obj):
-        return body_of(obj) is None
     return obj.type == "MESH" and (is_part_root(obj) or part_root_of(obj) is not None)
+
+
+def is_sketch_row(obj) -> bool:
+    """Whether this row is a sketch rather than the feature it draws."""
+    return is_sketch_object(obj)
 
 
 class VIEW3D_UL_features(UIList):
@@ -213,92 +228,145 @@ class VIEW3D_UL_features(UIList):
                 layout.label(text="", translate=False, icon="OUTLINER_OB_MESH")
                 return
 
-            body, sketch = row_parts(obj)
-            row = layout.row(align=True)
+            from ..utilities.part import is_part_root
 
-            kind, target = row_visibility(obj, cutting_now(context.scene))
-            if kind == CUTTER:
-                # A cutter is hidden while it cuts, so its solid has no other
-                # control anywhere: without this the body looks deleted. Shown as
-                # a wireframe, which is what there is to show once its volume has
-                # been merged into the result.
-                row.operator(
-                    Operators.SetCutterVisibility,
-                    text="",
-                    icon="HIDE_ON" if target.hide_viewport else "HIDE_OFF",
-                    emboss=False,
-                ).body_name = target.name
-            elif kind == SKETCH:
-                # Nothing is cutting here, so the eye means the profile: the
-                # sketch's own curves, hidden from the moment it is created.
-                row.operator(
-                    Operators.SetSketchVisibility,
-                    text="",
-                    icon="HIDE_ON" if target.hide_viewport else "HIDE_OFF",
-                    emboss=False,
-                ).sketch_name = target.name
-            else:
-                # An imported mesh made a part by hand: no profile, and nothing
-                # hiding it, so there is nothing for the eye to say.
-                row.label(text="", icon="MESH_DATA")
+            body, sketch = row_parts(obj)
+            scope, _root = list_scope(context)
+            # Outside a part every row stands for a whole part, so its controls
+            # act on the part rather than on one feature inside it.
+            whole_part = scope != PART and body is not None and is_part_root(body)
+            sketch_row = is_sketch_row(obj)
+
+            row = layout.row(align=True)
+            if sketch_row:
+                # Nested under the feature it draws.
+                row.label(text="", icon="BLANK1")
+
+            self._draw_eye(row, obj, context, whole_part)
 
             # Editable name -- expands to fill, pushing the icons below to the
-            # right edge of the row (standard Blender UIList layout). The body's
-            # name, since the sketch's is derived from it: typing one here would
-            # be re-derived away on the next update.
-            row.prop(body or sketch, "name", text="", emboss=False)
+            # right edge of the row (standard Blender UIList layout). A sketch's
+            # name is derived from its body, so typing one would be re-derived
+            # away on the next update: it is shown, not offered.
+            if sketch_row:
+                row.label(text=obj.name)
+            else:
+                row.prop(body or sketch, "name", text="", emboss=False)
 
-            # Trailing controls: solver-state, enter (edit), delete
+            # Trailing controls: solver-state, open, edit, delete
             if sketch is not None and sketch.get("solver_state", "OKAY") != "OKAY":
                 state = Sketch(sketch).get_solver_state()
                 row.label(text="", icon=state.icon)
 
-            # Enter what the row actually is. A row standing for a whole part
-            # (every row but the ones of the part in focus) holds many sketches,
-            # so there is nothing single to open: it opens the part instead, and
-            # the list descends into its features. The icon says which.
-            from ..utilities.part import is_part_root
+            self._draw_open(row, obj, body, sketch, whole_part, sketch_row)
 
-            scope, _root = list_scope(context)
-            if scope != PART and body is not None and is_part_root(body):
-                row.operator(
-                    Operators.OpenPart,
-                    text="",
-                    icon="DISCLOSURE_TRI_RIGHT",
-                    emboss=False,
-                ).part_name = body.name
-            elif sketch is not None:
-                row.operator(
-                    Operators.SetActiveSketch,
-                    text="",
-                    icon="OUTLINER_DATA_GP_LAYER",
-                    emboss=False,
-                ).sketch_name = sketch.name
-            elif body is not None and body.type == "MESH":
-                row.operator(
-                    Operators.EditBodyMesh,
-                    text="",
-                    icon="EDITMODE_HLT",
-                    emboss=False,
-                ).body_name = body.name
-            else:
-                spent = row.row(align=True)
-                spent.enabled = False
-                spent.label(text="", icon="OUTLINER_DATA_GP_LAYER")
-
-            self._draw_delete(row, body, sketch)
+            self._draw_delete(row, body, sketch, whole_part, sketch_row)
 
         elif self.layout_type in {"GRID"}:
             layout.alignment = "CENTER"
             layout.label(text="", icon="OUTLINER_OB_MESH")
 
     @staticmethod
-    def _draw_delete(row, body, sketch) -> None:
+    def _draw_eye(row, obj, context, whole_part) -> None:
+        """The one control that says whether this row's thing is on screen."""
+        kind, target = row_visibility(obj, cutting_now(context.scene), whole_part)
+
+        if kind == WHOLE_PART:
+            # The row is a part, so the eye is the part's, exactly as in the
+            # header above the list.
+            row.operator(
+                Operators.SetPartVisibility,
+                text="",
+                icon="HIDE_ON" if target.hide_get() else "HIDE_OFF",
+                emboss=False,
+            ).part_name = target.name
+        elif kind == CUTTER:
+            # A cutter is hidden while it cuts, so its solid has no other control
+            # anywhere: without this the body looks deleted. Shown as a wireframe,
+            # which is what there is to show once its volume has been merged into
+            # the result.
+            row.operator(
+                Operators.SetCutterVisibility,
+                text="",
+                icon="HIDE_ON" if target.hide_viewport else "HIDE_OFF",
+                emboss=False,
+            ).body_name = target.name
+        elif kind == BODY:
+            row.operator(
+                Operators.SetBodyVisibility,
+                text="",
+                icon="HIDE_ON" if target.hide_get() else "HIDE_OFF",
+                emboss=False,
+            ).body_name = target.name
+        elif kind == SKETCH:
+            row.operator(
+                Operators.SetSketchVisibility,
+                text="",
+                icon="HIDE_ON" if target.hide_viewport else "HIDE_OFF",
+                emboss=False,
+            ).sketch_name = target.name
+        else:
+            row.label(text="", icon="MESH_DATA")
+
+    @staticmethod
+    def _draw_open(row, obj, body, sketch, whole_part, sketch_row) -> None:
+        """Open what the row is: a part, a sketch, a mesh, or a feature's inputs."""
+        if whole_part:
+            # A part holds many sketches, so there is nothing single to open: it
+            # opens the part, and the list descends into its features.
+            row.operator(
+                Operators.OpenPart, text="", icon="DISCLOSURE_TRI_RIGHT", emboss=False
+            ).part_name = body.name
+            return
+
+        if sketch_row:
+            row.operator(
+                Operators.SetActiveSketch,
+                text="",
+                icon="OUTLINER_DATA_GP_LAYER",
+                emboss=False,
+            ).sketch_name = obj.name
+            return
+
+        if body is not None:
+            # The feature's own row opens what it was made with. A mesh nobody
+            # drew has no such inputs, so it opens Blender's Edit Mode instead.
+            if body.modifiers:
+                row.operator(
+                    Operators.EditFeature, text="", icon="MODIFIER", emboss=False
+                ).body_name = body.name
+            elif body.type == "MESH":
+                row.operator(
+                    Operators.EditBodyMesh, text="", icon="EDITMODE_HLT", emboss=False
+                ).body_name = body.name
+            return
+
+        spent = row.row(align=True)
+        spent.enabled = False
+        spent.label(text="", icon="OUTLINER_DATA_GP_LAYER")
+
+    @staticmethod
+    def _draw_delete(row, body, sketch, whole_part=False, sketch_row=False) -> None:
         """Delete the row as the thing it is: a feature, a part, or a sketch."""
         from ..operators.delete_part import feature_root
         from ..utilities.part import is_part_root
 
-        if body is not None and feature_root(body) is not None:
+        if sketch_row and body is None and sketch is not None:
+            # A sketch that draws a feature goes with the feature, whose own row
+            # carries that; one belonging to nothing is deleted on its own.
+            from ..utilities.body import body_of
+
+            if body_of(sketch) is not None:
+                spent = row.row(align=True)
+                spent.enabled = False
+                spent.label(text="", icon="X")
+                return
+            row.operator(
+                Operators.DeleteSketch, text="", icon="X", emboss=False
+            ).sketch_name = sketch.name
+            return
+
+        if body is not None and not whole_part and feature_root(body) is not None:
             row.operator(
                 Operators.DeleteFeature, text="", icon="X", emboss=False
             ).feature_name = body.name

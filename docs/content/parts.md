@@ -49,11 +49,15 @@ Above the list sits the part itself: whether it is shown, its name, and a menu
 holding everything that acts on the whole of it. That row is always there, so the
 menu is also where a part is made in the first place.
 
+Every eye in the panel shows exactly the thing on its own row, so hiding a part,
+hiding one feature of it and hiding a sketch are three separate controls.
+
 ### Every part in the file
 
 With nothing selected the list shows the parts, plus anything that belongs to no
-part. Each part row opens that part rather than one of its sketches: a part holds
-many, so there is nothing single to open.
+part. A row here stands for a whole part, so its eye shows or hides the part, and
+its button opens the part rather than one of its sketches: a part holds many, so
+there is nothing single to open.
 
 ![The list with no part selected](images/part_list_all_parts.png)
 
@@ -66,31 +70,47 @@ Select an assembly and the list narrows to the parts inside it.
 ### One part
 
 Select a part and the list shows what it is made of, the feature it was built
-from first, then everything added on top. Each row is one feature, so each has at
-most one sketch of its own.
+from first, then everything added on top. Each feature takes two rows: the
+feature itself, and indented beneath it the sketch it was drawn from.
 
 ![The list scoped to a part](images/part_list_features.png)
 
-Every row carries the same four things:
+Two rows because they are two different things to show or hide. The eye on a
+feature is its solid; the eye on the sketch beneath it is the profile it was
+drawn with. Neither has to stand in for the other.
 
-| Control | Means |
-|---|---|
-| The eye | What there is to show: a cutter's solid, otherwise the sketch's own curves |
-| The name | The body's name; the sketch and workplanes follow it |
-| The open button | Opens the row's sketch, or Blender's Edit Mode for a mesh nobody drew |
-| The cross | Deletes the feature, or the whole part on the row it was built from |
+| Row | The eye shows | Opens |
+|---|---|---|
+| A feature | Its solid. A cutter is hidden while it cuts, so there the eye brings it back as a wireframe | What it was made with: its extrude or revolve, and the boolean that applies it |
+| Its sketch | The sketch's own curves | The sketch, for editing |
+
+The cross deletes the feature, both rows at once, so the sketch row has none of
+its own. On the row the part was built from it deletes the whole part, since a
+part cannot lose the feature it stands on.
 
 A cutter is hidden while it cuts, so the viewport is no way to reach one. Its row
-is, and the eye there brings its solid back as a wireframe.
+is.
 
-A part that has only been made solid once has the one row it was built from.
+A part that has only been made solid once has the one feature, and so one pair of
+rows.
 
 ![The list on a part with a single feature](images/part_list_single_feature.png)
 
+### Editing a feature
+
+The wrench on a feature's row opens what that feature was made with: the size of
+an extrude, the angle of a revolve, whether a cut is a difference or a union, and
+which solver it uses.
+
+A boolean lives on the body being cut rather than on the cutter, so a cutter's
+own modifier stack does not hold it. The wrench gathers both, and says which
+body each one sits on, so a cut can be adjusted from the row that made it.
+
 ### A part that was never drawn
 
-Imported geometry made a part by hand has no sketch, so there is no profile to
-show and no sketch to open. Its row opens Blender's Edit Mode instead.
+Imported geometry made a part by hand has no sketch, so there is no second row
+and nothing to open for editing. Its row opens Blender's Edit Mode instead, where
+its mesh is the geometry itself.
 
 ![The list on a part with no sketch](images/part_list_imported.png)
 

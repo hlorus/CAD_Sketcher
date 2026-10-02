@@ -26,7 +26,7 @@ addon_utils.enable(TARGET, default_set=True)
 OUT = sys.argv[sys.argv.index("--") + 1]
 # How far down the interesting part of the window reaches: the viewport's
 # geometry, the Sketcher panels and the outliner rows all sit above this.
-CONTENT_HEIGHT = 440
+CONTENT_HEIGHT = 490
 os.makedirs(OUT, exist_ok=True)
 log = []
 

@@ -160,6 +160,128 @@ class View3D_OT_slvs_set_part_visibility(Operator):
         return {"FINISHED"}
 
 
+class View3D_OT_slvs_set_body_visibility(Operator):
+    """Show or hide this feature's solid in the viewport
+
+    One body, not the part: a feature's own row says whether that feature is on
+    screen. Uses the eye (``hide_set``), leaving ``hide_viewport`` to the cutter
+    display rules, which own it.
+    """
+
+    bl_idname = Operators.SetBodyVisibility
+    bl_label = "Toggle Feature Visibility"
+    bl_options = {"UNDO"}
+
+    body_name: StringProperty(name="Body Name", default="")
+
+    @classmethod
+    def description(cls, context, properties):
+        ob = bpy.data.objects.get(properties.body_name)
+        if ob is not None and ob.hide_get():
+            return "Show this feature's solid"
+        return "Hide this feature's solid"
+
+    def execute(self, context: Context):
+        ob = bpy.data.objects.get(self.body_name)
+        if ob is None:
+            return {"CANCELLED"}
+        try:
+            ob.hide_set(not ob.hide_get())
+        except RuntimeError:
+            # Not in the view layer (an excluded collection): nothing to hide.
+            return {"CANCELLED"}
+        if context.area:
+            context.area.tag_redraw()
+        return {"FINISHED"}
+
+
+class View3D_OT_slvs_edit_feature(Operator):
+    """Edit what this feature was made with
+
+    A feature is the modifiers on its body: the convert that reads its sketch,
+    the extrude or revolve that gave it depth, and -- for a cutter -- the boolean
+    that applies it, which lives on the body being cut rather than on the cutter.
+    They are gathered here so a feature can be adjusted without hunting through
+    two objects' modifier stacks.
+    """
+
+    bl_idname = Operators.EditFeature
+    bl_label = "Edit Feature"
+    bl_options = {"REGISTER", "UNDO"}
+
+    body_name: StringProperty(name="Body Name", default="")
+
+    @classmethod
+    def _own_modifiers(cls, body):
+        """This body's own CAD Sketcher node modifiers, in stack order."""
+        found = []
+        for mod in body.modifiers:
+            group = getattr(mod, "node_group", None)
+            if mod.type == "NODES" and group is not None:
+                if group.name.startswith("CAD Sketcher"):
+                    found.append((body, mod))
+        return found
+
+    @classmethod
+    def _booleans_applying(cls, body):
+        """The booleans other bodies use this one with: the cut it performs.
+
+        A boolean modifier lives on the body being cut, not on the cutter, and is
+        named after the cutter, so it is found by name on the other side.
+        """
+        from ..operators.modifiers import boolean_modifier_name
+
+        name = boolean_modifier_name(body)
+        found = []
+        for other in bpy.data.objects:
+            if other == body:
+                continue
+            mod = other.modifiers.get(name)
+            if mod is not None and getattr(mod, "node_group", None) is not None:
+                found.append((other, mod))
+        return found
+
+    def invoke(self, context: Context, event):
+        if bpy.data.objects.get(self.body_name) is None:
+            return {"CANCELLED"}
+        return context.window_manager.invoke_popup(self, width=320)
+
+    def draw(self, context: Context):
+        from ..operators.modifiers import boolean_input_ids
+
+        layout = self.layout
+        body = bpy.data.objects.get(self.body_name)
+        if body is None:
+            return
+
+        layout.label(text=body.name, icon="MODIFIER")
+        entries = self._own_modifiers(body) + self._booleans_applying(body)
+        if not entries:
+            layout.label(text="Nothing to edit: this body has no features")
+            return
+
+        for owner, mod in entries:
+            box = layout.box()
+            title = mod.node_group.name.replace("CAD Sketcher ", "")
+            if owner is not body:
+                title = f"{title} on {owner.name}"
+            box.label(text=title)
+            ids = boolean_input_ids(mod.node_group)
+            for socket in mod.node_group.interface.items_tree:
+                if getattr(socket, "in_out", "") != "INPUT":
+                    continue
+                if socket.socket_type in ("NodeSocketGeometry", "NodeSocketObject"):
+                    # Geometry is wired, and the objects involved are what the
+                    # row already names.
+                    continue
+                if socket.name not in ids:
+                    continue
+                box.prop(mod, f'["{ids[socket.name]}"]', text=socket.name)
+
+    def execute(self, context: Context):
+        return {"FINISHED"}
+
+
 class View3D_OT_slvs_open_part(Operator):
     """Show what this part is made of
 
@@ -245,6 +367,8 @@ class View3D_OT_slvs_edit_body_mesh(Operator):
 register, unregister = register_classes_factory(
     (
         View3D_OT_slvs_set_active_sketch,
+        View3D_OT_slvs_set_body_visibility,
+        View3D_OT_slvs_edit_feature,
         View3D_OT_slvs_open_part,
         View3D_OT_slvs_edit_body_mesh,
         View3D_OT_slvs_set_cutter_visibility,
