@@ -459,7 +459,7 @@ def main():
             import bmesh
 
             # By the installed module path, like every other import here.
-            sketches_list = importlib.import_module(f"{TARGET}.ui.sketches_list")
+            feature_list = importlib.import_module(f"{TARGET}.ui.feature_list")
             modifiers = importlib.import_module(f"{TARGET}.operators.modifiers")
             apply_boolean = modifiers.apply_boolean
             join_part = part.join_part
@@ -481,7 +481,7 @@ def main():
             join_part(target, cutter)
             apply_boolean(target, cutter, "Difference")
 
-            sketches_list._cutting_cache.clear()
+            feature_list._cutting_cache.clear()
             with bpy.context.temp_override(**_view3d_context()):
                 bpy.ops.wm.call_panel(name="VIEW3D_PT_sketcher", keep_open=False)
             _redraw()
@@ -489,13 +489,11 @@ def main():
             # The draw itself must have left the set behind. Asked through
             # cutting_now first, the miss would be filled in here and the bug
             # would pass the test.
-            cutting = sketches_list._cutting_cache.get(context.scene.name)
+            cutting = feature_list._cutting_cache.get(context.scene.name)
             assert cutting is not None, "the draw left the cutting set unset"
             assert cutter.name in cutting, f"the draw left {cutting} behind"
-            kind, target_obj = sketches_list.row_visibility(cutter, cutting)
-            assert kind == sketches_list.CUTTER, (
-                f"the eye offers {kind}, not the cutter"
-            )
+            kind, target_obj = feature_list.row_visibility(cutter, cutting)
+            assert kind == feature_list.CUTTER, f"the eye offers {kind}, not the cutter"
             assert target_obj == cutter
 
         @_check("a hidden part keeps the row that unhides it")
@@ -506,7 +504,7 @@ def main():
             # the round trip through the row's own toggle.
             import bmesh
 
-            sketches_list = importlib.import_module(f"{TARGET}.ui.sketches_list")
+            feature_list = importlib.import_module(f"{TARGET}.ui.feature_list")
 
             mesh = bpy.data.meshes.new("smoke_hide")
             bm = bmesh.new()
@@ -522,8 +520,8 @@ def main():
             context.view_layer.objects.active = root
             root.select_set(True)
             _redraw()
-            assert sketches_list.list_scope(context) == (
-                sketches_list.PART,
+            assert feature_list.list_scope(context) == (
+                feature_list.PART,
                 root,
             ), "the part was not in scope to begin with"
 
@@ -531,8 +529,8 @@ def main():
             _redraw()
 
             assert root.hide_get(), "the part did not hide"
-            scope, shown = sketches_list.list_scope(context)
-            assert (scope, shown) == (sketches_list.PART, root), (
+            scope, shown = feature_list.list_scope(context)
+            assert (scope, shown) == (feature_list.PART, root), (
                 f"a hidden part fell out of the panel: {scope}, {shown!r}"
             )
 
@@ -552,10 +550,10 @@ def main():
                 bpy.ops.wm.call_panel(name="VIEW3D_PT_sketcher", keep_open=False)
             _redraw()
 
-            sketches_list = importlib.import_module(f"{TARGET}.ui.sketches_list")
-            scope, root = sketches_list.list_scope(context)
+            feature_list = importlib.import_module(f"{TARGET}.ui.feature_list")
+            scope, root = feature_list.list_scope(context)
             assert root is None, f"expected no root, got {root!r}"
-            assert scope == sketches_list.GLOBAL, scope
+            assert scope == feature_list.GLOBAL, scope
 
     if _FAILURES:
         print(f"SMOKE FAILED: {', '.join(_FAILURES)}", file=sys.stderr)

@@ -8,11 +8,11 @@ feature's.
 import bmesh
 import bpy
 
-from ..ui.sketches_list import (
+from ..ui.feature_list import (
     ASSEMBLY,
     GLOBAL,
     PART,
-    VIEW3D_UL_sketches,
+    VIEW3D_UL_features,
     list_scope,
 )
 from ..utilities.collections import sync_part_collections
@@ -25,7 +25,7 @@ class _Filter:
     bitflag_filter_item = 1 << 30
 
     def shown(self, context):
-        flags, _order = VIEW3D_UL_sketches.filter_items(
+        flags, _order = VIEW3D_UL_features.filter_items(
             self, context, context.scene, "objects"
         )
         return {
@@ -77,7 +77,7 @@ class TestListScope(BgsTestCase):
 
     def test_the_base_feature_leads_the_list(self):
         """Its name would otherwise file it wherever the alphabet puts it."""
-        from ..ui.sketches_list import base_first
+        from ..ui.feature_list import base_first
 
         self.a.name = "zzz_base"  # sorts last by name
         self._select(self.a)
@@ -360,7 +360,7 @@ class TestHeaderWithoutAList(BgsTestCase):
     """
 
     def test_an_empty_scene_has_no_rows_but_a_scope_to_draw(self):
-        from ..ui.sketches_list import is_feature_row
+        from ..ui.feature_list import is_feature_row
 
         for obj in list(self.scene.objects):
             bpy.data.objects.remove(obj)
@@ -372,7 +372,7 @@ class TestHeaderWithoutAList(BgsTestCase):
 
     def test_a_plain_mesh_has_no_rows_either(self):
         """Nothing here is ours yet, and the menu is how that changes."""
-        from ..ui.sketches_list import is_feature_row
+        from ..ui.feature_list import is_feature_row
 
         me = bpy.data.meshes.new("hdr_plain")
         bm = bmesh.new()

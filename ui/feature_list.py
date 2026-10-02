@@ -1,3 +1,14 @@
+"""The feature list: what the part in focus is made of.
+
+Rows are *bodies*, not sketches. A body is the stable object -- it carries the
+feature stack, it is what a part is rooted in, and the sketch's name is derived
+from it -- so a feature with no sketch at all (imported geometry made a part by
+hand) is listed, and a sketch is reached through the body it realises.
+
+What the list holds depends on what is in focus (see :func:`list_scope`): one
+part's features, one assembly's parts, or every part in the file.
+"""
+
 import bpy
 from bpy.types import Context, PropertyGroup, UILayout, UIList
 
@@ -176,12 +187,12 @@ def is_feature_row(obj) -> bool:
     return obj.type == "MESH" and (is_part_root(obj) or part_root_of(obj) is not None)
 
 
-class VIEW3D_UL_sketches(UIList):
-    """List of the bodies (features) in the scene, or in the part in focus.
+class VIEW3D_UL_features(UIList):
+    """One row per feature of whatever is in focus.
 
     Bound to ``scene.objects`` and filtered down in ``filter_items`` -- no
     separate backing collection is required. Each row lets you toggle what is
-    shown, enter the sketch behind it, rename and delete it.
+    shown, open what the row is made of, rename it and delete it.
     """
 
     def draw_item(

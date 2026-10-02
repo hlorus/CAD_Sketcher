@@ -219,8 +219,8 @@ class SketcherProps(PropertyGroup):
         name="Active Sketch Object",
     )
 
-    # This is needed for the sketches ui list
-    ui_active_sketch: IntProperty()
+    # Active-row index for the feature list (ui/feature_list.py).
+    ui_active_feature: IntProperty()
 
     @property
     def all(self) -> Generator[Union[SlvsGenericEntity, SlvsConstraints], None, None]:

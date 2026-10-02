@@ -5,6 +5,7 @@ from .. import declarations, icon_manager
 from ..model import types
 from ..stateful_operator import constants
 from ..utilities import preferences
+from .feature_list import VIEW3D_UL_features
 from .panels.constraints_list import VIEW3D_PT_sketcher_constraints
 from .panels.custom_attributes import VIEW3D_PT_sketcher_custom_attributes
 from .panels.debug import VIEW3D_PT_sketcher_debug
@@ -22,7 +23,6 @@ from .part_menu import (
     draw_part_menu_in_object_menu,
 )
 from .selected_menu import VIEW3D_MT_selected_menu
-from .sketches_list import VIEW3D_UL_sketches
 
 
 def draw_object_context_menu(self, context: Context):
@@ -85,7 +85,7 @@ def draw_sketch_header(self, context: Context):
 
 
 classes = [
-    VIEW3D_UL_sketches,
+    VIEW3D_UL_features,
     VIEW3D_PT_sketcher,
     VIEW3D_PT_sketcher_tools,
     VIEW3D_PT_sketcher_entities,

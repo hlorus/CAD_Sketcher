@@ -54,7 +54,7 @@ def _draw_list_header(context, layout) -> None:
     feature included, so the delete that would take the whole part is never in
     the same column as one that takes a single feature.
     """
-    from ...ui.sketches_list import ASSEMBLY, PART, list_scope
+    from ...ui.feature_list import ASSEMBLY, PART, list_scope
 
     scope, root = list_scope(context)
     row = layout.row(align=True)
@@ -118,7 +118,7 @@ class VIEW3D_MT_slvs_part_sketches(Menu):
 
     def draw(self, context: Context):
         from ...model.sketch_ref import is_sketch_object
-        from ...ui.sketches_list import cutting_bodies
+        from ...ui.feature_list import cutting_bodies
         from ...utilities.body import body_of
         from ...utilities.part import part_root_of
 
@@ -312,18 +312,18 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             _draw_list_header(context, layout)
 
             # Feature list — a scrollable UIList over scene.objects, filtered to
-            # the bodies worth listing (see VIEW3D_UL_sketches.filter_items).
+            # the bodies worth listing (see VIEW3D_UL_features.filter_items).
             # Gated on the rows the list would draw, not on a sketch existing: a
             # part built from imported geometry has bodies and no sketch at all.
-            from ...ui.sketches_list import is_feature_row
+            from ...ui.feature_list import is_feature_row
 
             if any(is_feature_row(obj) for obj in context.scene.objects):
                 layout.template_list(
-                    "VIEW3D_UL_sketches",
+                    "VIEW3D_UL_features",
                     "",
                     context.scene,
                     "objects",
                     context.scene.sketcher,
-                    "ui_active_sketch",
+                    "ui_active_feature",
                     rows=3,
                 )

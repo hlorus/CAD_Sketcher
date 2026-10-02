@@ -10,7 +10,7 @@ import bmesh
 import bpy
 
 from ..operators.modifiers import apply_boolean
-from ..ui.sketches_list import VIEW3D_UL_sketches, cutting_bodies
+from ..ui.feature_list import VIEW3D_UL_features, cutting_bodies
 from ..utilities.part import join_part, mark_part_root
 from .utils import Sketch2dTestCase
 
@@ -27,7 +27,7 @@ class _Filter:
     bitflag_filter_item = 1 << 30
 
     def shown(self, context):
-        flags, _order = VIEW3D_UL_sketches.filter_items(
+        flags, _order = VIEW3D_UL_features.filter_items(
             self, context, context.scene, "objects"
         )
         return {

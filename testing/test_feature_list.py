@@ -9,10 +9,10 @@ import bmesh
 import bpy
 
 from ..operators.modifiers import apply_boolean
-from ..ui.sketches_list import (
+from ..ui.feature_list import (
     CUTTER,
     SKETCH,
-    VIEW3D_UL_sketches,
+    VIEW3D_UL_features,
     cutting_bodies,
     is_feature_row,
     row_parts,
@@ -34,7 +34,7 @@ class _Filter:
     bitflag_filter_item = 1 << 30
 
     def shown(self, context):
-        flags, _order = VIEW3D_UL_sketches.filter_items(
+        flags, _order = VIEW3D_UL_features.filter_items(
             self, context, context.scene, "objects"
         )
         return {
