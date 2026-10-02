@@ -27,7 +27,7 @@ def _can_become_part(obj) -> bool:
     )
 
 
-def _can_root_a_part(obj) -> bool:
+def can_root_a_part(obj) -> bool:
     """Whether ``obj`` can be the part the selection ends up in.
 
     Either it becomes one, or it already is one and the rest join it, which is
@@ -50,13 +50,13 @@ class View3D_OT_slvs_make_part(Operator):
 
     @classmethod
     def poll(cls, context: Context):
-        return _can_root_a_part(context.active_object)
+        return can_root_a_part(context.active_object)
 
     def execute(self, context: Context):
         from ..utilities.collections import sync_part_collections
 
         root = context.active_object
-        if not _can_root_a_part(root):
+        if not can_root_a_part(root):
             self.report({"WARNING"}, "Select what the part should be rooted in")
             return {"CANCELLED"}
 

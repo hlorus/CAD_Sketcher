@@ -1,6 +1,6 @@
 from bpy.types import Context, Menu, UILayout
 
-from ...model.sketch_ref import get_active_sketch, get_sketches
+from ...model.sketch_ref import get_active_sketch
 from ...stateful_operator.constants import Operators as StatefulOps
 from .. import declarations
 from . import VIEW3D_PT_sketcher_base
@@ -42,6 +42,47 @@ def _anchor_name(wp) -> str:
     return source.name
 
 
+def _draw_list_header(context, layout) -> None:
+    """Say what the list below is showing, and act on it.
+
+    Always the same row -- what it is, then the menu -- so the menu does not come
+    and go with the selection: it is where a part is made in the first place, and
+    where a hidden one is brought back.
+
+    The part itself lives here: its name, whether it is shown, and the verbs that
+    act on the whole of it. What it is *made of* stays in the list below, base
+    feature included, so the delete that would take the whole part is never in
+    the same column as one that takes a single feature.
+    """
+    from ...ui.feature_list import ASSEMBLY, PART, list_scope
+
+    scope, root = list_scope(context)
+    row = layout.row(align=True)
+
+    if scope == PART:
+        row.operator(
+            declarations.Operators.SetPartVisibility,
+            text="",
+            icon="HIDE_ON" if root.hide_get() else "HIDE_OFF",
+            emboss=False,
+        ).part_name = root.name
+        row.prop(root, "name", text="", emboss=False)
+    elif scope == ASSEMBLY:
+        row.label(text="", icon="OUTLINER_OB_GROUP_INSTANCE")
+        row.prop(root, "name", text="", emboss=False)
+    else:
+        row.label(text="", icon="OUTLINER_COLLECTION")
+        row.label(text="All Parts")
+
+    # Everything that acts on this part, from the same menu the context menus and
+    # the sidebar draw. Present whatever the list is showing: with no part it is
+    # how one is made.
+    row.menu(declarations.Menus.Part.value, text="", icon="DOWNARROW_HLT")
+
+    if scope == ASSEMBLY:
+        layout.label(text="Parts in this assembly")
+
+
 def part_sketches(context, root):
     """The sketches of the part rooted at ``root``, the root's own first.
 
@@ -77,7 +118,8 @@ class VIEW3D_MT_slvs_part_sketches(Menu):
 
     def draw(self, context: Context):
         from ...model.sketch_ref import is_sketch_object
-        from ...ui.sketches_list import _cutting_sketches
+        from ...ui.feature_list import cutting_bodies
+        from ...utilities.body import body_of
         from ...utilities.part import part_root_of
 
         obj = context.active_object
@@ -86,13 +128,13 @@ class VIEW3D_MT_slvs_part_sketches(Menu):
             return
 
         layout = self.layout
-        cutting = _cutting_sketches(context.scene)
+        # The list is keyed on bodies; this menu lists the sketches behind them,
+        # so each is traced to its body to say whether it is cutting.
+        cutting = cutting_bodies(context.scene)
         for sketch_obj in part_sketches(context, root):
-            icon = (
-                "MOD_BOOLEAN"
-                if sketch_obj.name in cutting
-                else "OUTLINER_DATA_GP_LAYER"
-            )
+            body = body_of(sketch_obj)
+            marks = {sketch_obj.name} | ({body.name} if body is not None else set())
+            icon = "MOD_BOOLEAN" if marks & cutting else "OUTLINER_DATA_GP_LAYER"
             layout.operator(
                 declarations.Operators.SetActiveSketch,
                 text=sketch_obj.name,
@@ -263,23 +305,27 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             _draw_workplane(context, layout, sketch)
 
         else:
-            # Sketch list — a scrollable UIList over scene.objects, filtered to
-            # sketch objects (see VIEW3D_UL_sketches.filter_items).
-            if any(True for _ in get_sketches(context)):
-                from ...utilities.part import focused_part
+            # The part row is drawn whether or not there is a list under it: it
+            # carries the menu, and that is where a part is made in the first
+            # place -- gating it on the parts that exist would leave a file with
+            # none no way to start one.
+            _draw_list_header(context, layout)
 
-                root = focused_part(context)
-                if root is not None:
-                    # The list is scoped to this part; say so, or the selection
-                    # silently deciding what you can see would be baffling.
-                    row = layout.row()
-                    row.label(text=root.name, icon="OUTLINER_OB_MESH")
+            # Feature list — a scrollable UIList over scene.objects, filtered to
+            # the bodies worth listing (see VIEW3D_UL_features.filter_items).
+            # Gated on the rows the list would draw, not on a sketch existing: a
+            # part built from imported geometry has bodies and no sketch at all.
+            from ...ui.feature_list import is_feature_row
+
+            if any(is_feature_row(obj) for obj in context.scene.objects):
                 layout.template_list(
-                    "VIEW3D_UL_sketches",
+                    "VIEW3D_UL_features",
                     "",
                     context.scene,
                     "objects",
                     context.scene.sketcher,
-                    "ui_active_sketch",
-                    rows=3,
+                    "ui_active_feature",
+                    # Each feature brings a second row for the sketch that draws
+                    # it, so three is barely one feature.
+                    rows=6,
                 )

@@ -1,15 +1,16 @@
-"""The sketch list: what it shows now that sketches belong to parts.
+"""The feature list: what it shows now that rows are keyed on bodies.
 
 It is the only way to reach a cutter, which is hidden from the viewport while it
-is cutting, so it stays. What changed is scope: with a part in focus it lists
-that part's sketches rather than every sketch in the file.
+is cutting, so it stays. Scope: with a part in focus it lists that part rather
+than every body in the file. A sketch from before bodies existed has none, and is
+listed as itself so an old file loses nothing.
 """
 
 import bmesh
 import bpy
 
 from ..operators.modifiers import apply_boolean
-from ..ui.sketches_list import VIEW3D_UL_sketches, _cutting_sketches
+from ..ui.feature_list import VIEW3D_UL_features, cutting_bodies
 from ..utilities.part import join_part, mark_part_root
 from .utils import Sketch2dTestCase
 
@@ -26,7 +27,7 @@ class _Filter:
     bitflag_filter_item = 1 << 30
 
     def shown(self, context):
-        flags, _order = VIEW3D_UL_sketches.filter_items(
+        flags, _order = VIEW3D_UL_features.filter_items(
             self, context, context.scene, "objects"
         )
         return {
@@ -77,10 +78,10 @@ class TestSketchList(Sketch2dTestCase):
         cutter = self.sketch.target_object
         apply_boolean(body, cutter, "Difference")
 
-        self.assertIn(cutter.name, _cutting_sketches(self.scene))
+        self.assertIn(cutter.name, cutting_bodies(self.scene))
 
     def test_a_plain_sketch_is_not_marked_as_cutting(self):
-        self.assertNotIn(self.sketch.target_object.name, _cutting_sketches(self.scene))
+        self.assertNotIn(self.sketch.target_object.name, cutting_bodies(self.scene))
 
 
 class TestPartSketchesMenu(Sketch2dTestCase):

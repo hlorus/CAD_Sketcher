@@ -5,6 +5,7 @@ from .. import declarations, icon_manager
 from ..model import types
 from ..stateful_operator import constants
 from ..utilities import preferences
+from .feature_list import VIEW3D_UL_features
 from .panels.constraints_list import VIEW3D_PT_sketcher_constraints
 from .panels.custom_attributes import VIEW3D_PT_sketcher_custom_attributes
 from .panels.debug import VIEW3D_PT_sketcher_debug
@@ -16,8 +17,12 @@ from .panels.sketch_select import (
     VIEW3D_PT_sketcher,
 )
 from .panels.tools import VIEW3D_PT_sketcher_tools
+from .part_menu import (
+    VIEW3D_MT_slvs_part,
+    draw_part_menu,
+    draw_part_menu_in_object_menu,
+)
 from .selected_menu import VIEW3D_MT_selected_menu
-from .sketches_list import VIEW3D_UL_sketches
 
 
 def draw_object_context_menu(self, context: Context):
@@ -36,17 +41,19 @@ def draw_object_context_menu(self, context: Context):
 
     if len(sketches) > 1:
         layout.menu(declarations.Menus.PartSketches.value, text="Edit Sketch")
-        layout.separator()
-        return
-
-    row = layout.row()
-    props = row.operator(declarations.Operators.SetActiveSketch, text="Edit Sketch")
-    target = sketches[0] if sketches else (ob if ob and is_sketch_object(ob) else None)
-    if target is not None:
-        row.enabled = True
-        props.sketch_name = target.name
     else:
-        row.enabled = False
+        row = layout.row()
+        props = row.operator(declarations.Operators.SetActiveSketch, text="Edit Sketch")
+        target = (
+            sketches[0] if sketches else (ob if ob and is_sketch_object(ob) else None)
+        )
+        if target is not None:
+            row.enabled = True
+            props.sketch_name = target.name
+        else:
+            row.enabled = False
+
+    draw_part_menu(self, context)
     layout.separator()
 
 
@@ -78,7 +85,7 @@ def draw_sketch_header(self, context: Context):
 
 
 classes = [
-    VIEW3D_UL_sketches,
+    VIEW3D_UL_features,
     VIEW3D_PT_sketcher,
     VIEW3D_PT_sketcher_tools,
     VIEW3D_PT_sketcher_entities,
@@ -89,6 +96,7 @@ classes = [
     VIEW3D_MT_slvs_add_sketch,
     VIEW3D_MT_slvs_sketch_workplane,
     VIEW3D_MT_slvs_part_sketches,
+    VIEW3D_MT_slvs_part,
 ]
 
 
@@ -103,6 +111,10 @@ def register():
     bpy.types.VIEW3D_MT_object_context_menu.prepend(draw_object_context_menu)
     bpy.types.VIEW3D_MT_add.append(draw_add_sketch_in_add_menu)
     bpy.types.VIEW3D_HT_header.append(draw_sketch_header)
+    # A hidden cutter can only be reached from the outliner, and the header's
+    # Object menu is where a command is looked for when the click was missed.
+    bpy.types.OUTLINER_MT_object.append(draw_part_menu)
+    bpy.types.VIEW3D_MT_object.append(draw_part_menu_in_object_menu)
 
 
 def unregister():
@@ -116,3 +128,5 @@ def unregister():
     bpy.types.VIEW3D_HT_header.remove(draw_sketch_header)
     bpy.types.VIEW3D_MT_object_context_menu.remove(draw_object_context_menu)
     bpy.types.VIEW3D_MT_add.remove(draw_add_sketch_in_add_menu)
+    bpy.types.OUTLINER_MT_object.remove(draw_part_menu)
+    bpy.types.VIEW3D_MT_object.remove(draw_part_menu_in_object_menu)
