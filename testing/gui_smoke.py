@@ -450,6 +450,111 @@ def main():
             sketch_ref.set_active_sketch(context, None)
             _redraw()
 
+        @_check("the feature list's eye reaches the cutter")
+        def _():
+            # Only a real draw can catch this: Blender builds a different UIList
+            # instance for filter_items and for draw_item, so a cutting row that
+            # reads state stashed on ``self`` is told nothing is cutting and
+            # offers the wrong control (it silently did, for both of them).
+            import bmesh
+
+            # By the installed module path, like every other import here.
+            feature_list = importlib.import_module(f"{TARGET}.ui.feature_list")
+            modifiers = importlib.import_module(f"{TARGET}.operators.modifiers")
+            apply_boolean = modifiers.apply_boolean
+            join_part = part.join_part
+
+            def cube(name, location):
+                mesh = bpy.data.meshes.new(name)
+                bm = bmesh.new()
+                bmesh.ops.create_cube(bm, size=2.0)
+                bm.to_mesh(mesh)
+                bm.free()
+                obj = bpy.data.objects.new(name, mesh)
+                context.scene.collection.objects.link(obj)
+                obj.location = location
+                return obj
+
+            target = cube("smoke_body", (20.0, 0.0, 0.0))
+            mark_part_root(target)
+            cutter = cube("smoke_cutter", (20.9, 0.0, 0.0))
+            join_part(target, cutter)
+            apply_boolean(target, cutter, "Difference")
+
+            feature_list._cutting_cache.clear()
+            with bpy.context.temp_override(**_view3d_context()):
+                bpy.ops.wm.call_panel(name="VIEW3D_PT_sketcher", keep_open=False)
+            _redraw()
+
+            # The draw itself must have left the set behind. Asked through
+            # cutting_now first, the miss would be filled in here and the bug
+            # would pass the test.
+            cutting = feature_list._cutting_cache.get(context.scene.name)
+            assert cutting is not None, "the draw left the cutting set unset"
+            assert cutter.name in cutting, f"the draw left {cutting} behind"
+            kind, target_obj = feature_list.row_visibility(cutter, cutting)
+            assert kind == feature_list.CUTTER, f"the eye offers {kind}, not the cutter"
+            assert target_obj == cutter
+
+        @_check("a hidden part keeps the row that unhides it")
+        def _():
+            # The panel drawing over a hidden part, end to end. Which object the
+            # scope is read from is pinned by a unit test (a stub context is
+            # deterministic where the real one is not); this covers the draw and
+            # the round trip through the row's own toggle.
+            import bmesh
+
+            feature_list = importlib.import_module(f"{TARGET}.ui.feature_list")
+
+            mesh = bpy.data.meshes.new("smoke_hide")
+            bm = bmesh.new()
+            bmesh.ops.create_cube(bm, size=2.0)
+            bm.to_mesh(mesh)
+            bm.free()
+            root = bpy.data.objects.new("smoke_hide", mesh)
+            context.scene.collection.objects.link(root)
+            root.location = (40.0, 0.0, 0.0)
+            part.mark_part_root(root)
+
+            bpy.ops.object.select_all(action="DESELECT")
+            context.view_layer.objects.active = root
+            root.select_set(True)
+            _redraw()
+            assert feature_list.list_scope(context) == (
+                feature_list.PART,
+                root,
+            ), "the part was not in scope to begin with"
+
+            bpy.ops.view3d.slvs_set_part_visibility(part_name=root.name)
+            _redraw()
+
+            assert root.hide_get(), "the part did not hide"
+            scope, shown = feature_list.list_scope(context)
+            assert (scope, shown) == (feature_list.PART, root), (
+                f"a hidden part fell out of the panel: {scope}, {shown!r}"
+            )
+
+            # And the row's own toggle brings it back.
+            bpy.ops.view3d.slvs_set_part_visibility(part_name=shown.name)
+            _redraw()
+            assert not root.hide_get(), "it could not be unhidden from the row"
+
+        @_check("the sidebar draws with no part to show")
+        def _():
+            # The part row draws from the scope alone, and with nothing active
+            # that scope has no root. Only a real draw catches a header reaching
+            # into a part that is not there.
+            bpy.ops.object.select_all(action="DESELECT")
+            context.view_layer.objects.active = None
+            with bpy.context.temp_override(**_view3d_context()):
+                bpy.ops.wm.call_panel(name="VIEW3D_PT_sketcher", keep_open=False)
+            _redraw()
+
+            feature_list = importlib.import_module(f"{TARGET}.ui.feature_list")
+            scope, root = feature_list.list_scope(context)
+            assert root is None, f"expected no root, got {root!r}"
+            assert scope == feature_list.GLOBAL, scope
+
     if _FAILURES:
         print(f"SMOKE FAILED: {', '.join(_FAILURES)}", file=sys.stderr)
         sys.exit(1)

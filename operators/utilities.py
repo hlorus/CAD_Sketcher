@@ -245,13 +245,19 @@ def activate_sketch(context: Context, sketch_obj, operator: Operator):
 
 
 def select_result_ob(context, sketch):
-    """Leave a sketch with what it made selected: its body.
+    """Leave a sketch with what it made selected: its body, else its part.
 
     The sketch object itself is source, hidden and not something to grab; the
     body is the mesh the user sees and moves. A sketch from a file that has not
     been updated yet has no body and still carries its own result.
+
+    A cutter's body is hidden while it cuts, and ``select_set`` on a hidden
+    object silently does nothing -- leaving a cut with the selection empty, and
+    with it the sidebar's idea of which part you are in. The part it belongs to
+    stands in for it, which is the thing you were editing anyway.
     """
     from ..utilities.body import body_of
+    from ..utilities.part import part_root_of
 
     target_ob = sketch.target_object
     bpy.ops.object.select_all(action="DESELECT")
@@ -259,6 +265,8 @@ def select_result_ob(context, sketch):
         return
 
     ob = body_of(target_ob) or target_ob
-    if ob.name in context.view_layer.objects:
+    if ob.hide_viewport or ob.hide_get():
+        ob = part_root_of(ob) or ob
+    if ob.name in context.view_layer.objects and not ob.hide_viewport:
         ob.select_set(True)
         context.view_layer.objects.active = ob

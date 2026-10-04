@@ -73,6 +73,14 @@ class Operators(str, Enum):
     DeleteConstraint = "view3d.slvs_delete_constraint"
     EditConstraintValue = "view3d.slvs_edit_constraint_value"
     DeleteEntity = "view3d.slvs_delete_entity"
+    DeleteAssembly = "view3d.slvs_delete_assembly"
+    EditBodyMesh = "view3d.slvs_edit_body_mesh"
+    EditFeature = "view3d.slvs_edit_feature"
+    OpenPart = "view3d.slvs_open_part"
+    DissolvePart = "view3d.slvs_dissolve_part"
+    RemoveFromPart = "view3d.slvs_remove_from_part"
+    DeleteFeature = "view3d.slvs_delete_feature"
+    DeletePart = "view3d.slvs_delete_part"
     DeleteSketch = "view3d.slvs_delete_sketch"
     MergePoints = "view3d.slvs_merge_points"
     Paste = "view3d.slvs_paste"
@@ -95,6 +103,9 @@ class Operators(str, Enum):
     SelectExtendAll = "view3d.slvs_select_extend_all"
     SelectExtend = "view3d.slvs_select_extend"
     SetActiveSketch = "view3d.slvs_set_active_sketch"
+    SetBodyVisibility = "view3d.slvs_set_body_visibility"
+    SetCutterVisibility = "view3d.slvs_set_cutter_visibility"
+    SetPartVisibility = "view3d.slvs_set_part_visibility"
     SetSketchVisibility = "view3d.slvs_set_sketch_visibility"
     SetAllConstraintsVisibility = "view3d.slvs_set_all_constraints_visibility"
     ShowSolverState = "view3d.slvs_show_solver_state"
@@ -116,6 +127,7 @@ class Menus(str, Enum):
     AddSketch = "VIEW3D_MT_slvs_add_sketch"
     SketchWorkplane = "VIEW3D_MT_slvs_sketch_workplane"
     PartSketches = "VIEW3D_MT_slvs_part_sketches"
+    Part = "VIEW3D_MT_slvs_part"
 
 
 class Panels(str, Enum):
