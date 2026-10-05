@@ -96,6 +96,7 @@ class TestTrimLogic(Sketch2dTestCase):
 
         if trim.check():
             import bpy
+
             trim.execute(bpy.context)
 
         # Should have modified/created geometry
@@ -127,8 +128,298 @@ class TestTrimLogic(Sketch2dTestCase):
 
         if trim.check():
             import bpy
+
             trim.execute(bpy.context)
 
         # Should have at least one new coincident constraint
         n_coincident_after = len(sc.coincident)
         self.assertGreater(n_coincident_after, n_coincident_before)
+
+    def test_trim_preserves_orientation_constraints(self):
+        """Trim should preserve orientation constraints (e.g. horizontal) on retained segment."""
+        from ..utilities.trimming import TrimSegment
+
+        p1 = self.add_point((0, 0))
+        p2 = self.add_point((6, 0))
+        p3 = self.add_point((3, -3))
+        p4 = self.add_point((3, 3))
+        l1 = self.add_line(p1, p2)
+        l2 = self.add_line(p3, p4)
+
+        sc = self.sketch.constraints
+        sc.add_horizontal(curve_id_1=l1.curve_id)
+
+        topo = self.sketch.topology
+        pts = topo.intersect(l1, l2)
+
+        trim = TrimSegment(self.sketch, l1, Vector((1, 0)), topo)
+        for co in pts:
+            trim.add(co, source_cid=l2.curve_id)
+
+        self.assertTrue(trim.check())
+        import bpy
+
+        trim.execute(bpy.context)
+
+        # Horizontal constraint should still exist
+        self.assertEqual(len(sc.horizontal), 1)
+        # Should reference the retained segment
+        from ..model.curve_ref import LineRef, curve_ref
+        from ..utilities.curve_data import read_uuid_list
+
+        cd = self.sketch.data
+        line_cids = {
+            cid
+            for cid in read_uuid_list(cd, "curve_id")
+            if isinstance(curve_ref(self.sketch, cid), LineRef)
+        }
+        self.assertIn(sc.horizontal[0].curve_id_1, line_cids)
+
+    def test_trim_middle_preserves_orientation_for_both_survivors(self):
+        """Trimming middle of a line should propagate orientation constraints to all survivors."""
+        from ..utilities.trimming import TrimSegment
+
+        p1 = self.add_point((0, 0))
+        p2 = self.add_point((10, 0))
+        p3 = self.add_point((3, -3))
+        p4 = self.add_point((3, 3))
+        p5 = self.add_point((7, -3))
+        p6 = self.add_point((7, 3))
+
+        l1 = self.add_line(p1, p2)
+        l2 = self.add_line(p3, p4)
+        l3 = self.add_line(p5, p6)
+
+        sc = self.sketch.constraints
+        sc.add_horizontal(curve_id_1=l1.curve_id)
+
+        topo = self.sketch.topology
+        pts2 = topo.intersect(l1, l2)
+        pts3 = topo.intersect(l1, l3)
+
+        trim = TrimSegment(self.sketch, l1, Vector((5, 0)), topo)
+        for co in pts2:
+            trim.add(co, source_cid=l2.curve_id)
+        for co in pts3:
+            trim.add(co, source_cid=l3.curve_id)
+
+        self.assertTrue(trim.check())
+        import bpy
+
+        trim.execute(bpy.context)
+
+        # Primary segment retains horizontal, additional segment constrained collinear (parallel + point-on-line)
+        self.assertEqual(len(sc.horizontal), 1)
+        self.assertEqual(len(sc.parallel), 1)
+        from ..model.curve_ref import LineRef, curve_ref
+        from ..utilities.curve_data import read_uuid_list
+
+        cd = self.sketch.data
+        line_cids = {
+            cid
+            for cid in read_uuid_list(cd, "curve_id")
+            if isinstance(curve_ref(self.sketch, cid), LineRef)
+        }
+        self.assertIn(sc.horizontal[0].curve_id_1, line_cids)
+        self.assertIn(sc.parallel[0].curve_id_1, line_cids)
+        self.assertIn(sc.parallel[0].curve_id_2, line_cids)
+        coincident_on_line = [c for c in sc.coincident if c.curve_id_2 in line_cids]
+        self.assertGreaterEqual(len(coincident_on_line), 1)
+
+    def test_trim_middle_angle_constrains_extra_segments_with_parallel(self):
+        """Trimming middle of an angled line should keep 1 angle constraint and constrain survivors with parallel."""
+        from ..utilities.trimming import TrimSegment
+
+        p1 = self.add_point((0, 0))
+        p2 = self.add_point((10, 10))
+        p_ref1 = self.add_point((0, 0))
+        p_ref2 = self.add_point((10, 0))
+
+        p3 = self.add_point((3, -3))
+        p4 = self.add_point((3, 9))
+        p5 = self.add_point((7, -3))
+        p6 = self.add_point((7, 9))
+
+        l1 = self.add_line(p1, p2)
+        l_ref = self.add_line(p_ref1, p_ref2)
+        l2 = self.add_line(p3, p4)
+        l3 = self.add_line(p5, p6)
+
+        sc = self.sketch.constraints
+        sc.add_angle(init=True, curve_id_1=l1.curve_id, curve_id_2=l_ref.curve_id)
+
+        topo = self.sketch.topology
+        pts2 = topo.intersect(l1, l2)
+        pts3 = topo.intersect(l1, l3)
+
+        trim = TrimSegment(self.sketch, l1, Vector((5, 5)), topo)
+        for co in pts2:
+            trim.add(co, source_cid=l2.curve_id)
+        for co in pts3:
+            trim.add(co, source_cid=l3.curve_id)
+
+        self.assertTrue(trim.check())
+        import bpy
+
+        trim.execute(bpy.context)
+
+        # Only one dimensional angle constraint should remain (no scene clutter)
+        self.assertEqual(len(sc.angle), 1)
+        # Additional surviving segment should be constrained with geometric parallel
+        self.assertEqual(len(sc.parallel), 1)
+
+    def test_trim_updates_line_distance(self):
+        """Trim should update line length distance constraint to the new trimmed length."""
+        from ..utilities.trimming import TrimSegment
+
+        p1 = self.add_point((0, 0))
+        p2 = self.add_point((6, 0))
+        p3 = self.add_point((2, -3))
+        p4 = self.add_point((2, 3))
+        l1 = self.add_line(p1, p2)
+        l2 = self.add_line(p3, p4)
+
+        sc = self.sketch.constraints
+        dist = sc.add_distance(init=True, curve_id_1=l1.curve_id)
+        self.assertAlmostEqual(dist.value, 6.0, places=2)
+
+        topo = self.sketch.topology
+        pts = topo.intersect(l1, l2)
+
+        # Trim left side (0..2), retaining right side (2..6, length 4)
+        trim = TrimSegment(self.sketch, l1, Vector((1, 0)), topo)
+        for co in pts:
+            trim.add(co, source_cid=l2.curve_id)
+
+        self.assertTrue(trim.check())
+        import bpy
+
+        trim.execute(bpy.context)
+
+        # Distance constraint should survive and be re-measured to 4.0
+        self.assertEqual(len(sc.distance), 1)
+        self.assertAlmostEqual(sc.distance[0].value, 4.0, places=2)
+
+    def test_trim_preserves_endpoint_distance(self):
+        """Trim should re-anchor endpoint-to-endpoint distance constraint to new endpoints."""
+        from ..utilities.trimming import TrimSegment
+
+        p1 = self.add_point((0, 0))
+        p2 = self.add_point((10, 0))
+        p3 = self.add_point((4, -3))
+        p4 = self.add_point((4, 3))
+        l1 = self.add_line(p1, p2)
+        l2 = self.add_line(p3, p4)
+
+        sc = self.sketch.constraints
+        dist = sc.add_distance(
+            init=True, curve_id_1=p1.curve_id, curve_id_2=p2.curve_id
+        )
+        self.assertAlmostEqual(dist.value, 10.0, places=2)
+
+        topo = self.sketch.topology
+        pts = topo.intersect(l1, l2)
+
+        # Trim left piece (0..4), retaining (4..10, length 6)
+        trim = TrimSegment(self.sketch, l1, Vector((2, 0)), topo)
+        for co in pts:
+            trim.add(co, source_cid=l2.curve_id)
+
+        self.assertTrue(trim.check())
+        import bpy
+
+        trim.execute(bpy.context)
+
+        self.assertEqual(len(sc.distance), 1)
+        self.assertAlmostEqual(sc.distance[0].value, 6.0, places=2)
+
+    def test_trim_circle_preserves_diameter(self):
+        """Trim circle to arc should transfer diameter constraint to the arc."""
+        from ..utilities.trimming import TrimSegment
+
+        ct = self.add_point((0, 0))
+        circle = self.add_circle(ct, 5.0)
+
+        p1 = self.add_point((-10, 0))
+        p2 = self.add_point((10, 0))
+        line = self.add_line(p1, p2)
+
+        sc = self.sketch.constraints
+        sc.add_diameter(init=True, curve_id_1=circle.curve_id)
+
+        topo = self.sketch.topology
+        pts = topo.intersect(circle, line)
+
+        trim = TrimSegment(self.sketch, circle, Vector((0, -5)), topo)
+        for co in pts:
+            trim.add(co, source_cid=line.curve_id)
+
+        self.assertTrue(trim.check())
+        import bpy
+
+        trim.execute(bpy.context)
+
+        self.assertEqual(len(sc.diameter), 1)
+        from ..model.curve_ref import ArcRef, curve_ref
+        from ..utilities.curve_data import read_uuid_list
+
+        cd = self.sketch.data
+        arc_cids = {
+            cid
+            for cid in read_uuid_list(cd, "curve_id")
+            if isinstance(curve_ref(self.sketch, cid), ArcRef)
+        }
+        self.assertIn(sc.diameter[0].curve_id_1, arc_cids)
+
+    def test_trim_arc_multiple_survivors_concentric_and_equal_radius(self):
+        """Trimming middle of an arc should constrain surviving arcs concentric and equal radius."""
+        from ..utilities.trimming import TrimSegment
+
+        ct = self.add_point((0, 0))
+        p_start = self.add_point((5, 0))
+        p_end = self.add_point((0, 5))
+        arc = self.add_arc(ct, p_start, p_end)
+
+        p1 = self.add_point((2, -5))
+        p2 = self.add_point((2, 5))
+        l1 = self.add_line(p1, p2)
+
+        p3 = self.add_point((4, -5))
+        p4 = self.add_point((4, 5))
+        l2 = self.add_line(p3, p4)
+
+        sc = self.sketch.constraints
+        sc.add_diameter(init=True, curve_id_1=arc.curve_id)
+
+        topo = self.sketch.topology
+        pts1 = topo.intersect(arc, l1)
+        pts2 = topo.intersect(arc, l2)
+
+        # Trim middle piece between x=2 and x=4
+        trim = TrimSegment(self.sketch, arc, Vector((3, 4)), topo)
+        for co in pts1:
+            trim.add(co, source_cid=l1.curve_id)
+        for co in pts2:
+            trim.add(co, source_cid=l2.curve_id)
+
+        if trim.check():
+            import bpy
+
+            trim.execute(bpy.context)
+
+            # Primary arc retains the single diameter constraint
+            self.assertEqual(len(sc.diameter), 1)
+            # Additional surviving arc receives equal radius constraint
+            self.assertEqual(len(sc.equal), 1)
+            from ..model.curve_ref import ArcRef, curve_ref
+            from ..utilities.curve_data import read_uuid_list
+
+            cd = self.sketch.data
+            arc_cids = {
+                cid
+                for cid in read_uuid_list(cd, "curve_id")
+                if isinstance(curve_ref(self.sketch, cid), ArcRef)
+            }
+            self.assertIn(sc.diameter[0].curve_id_1, arc_cids)
+            self.assertIn(sc.equal[0].curve_id_1, arc_cids)
+            self.assertIn(sc.equal[0].curve_id_2, arc_cids)
