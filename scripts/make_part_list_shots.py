@@ -172,12 +172,12 @@ def run():
         bpy.ops.object.select_all(action="DESELECT")
         bpy.ops.wm.redraw_timer(type="DRAW_WIN_SWAP", iterations=2)
 
-        # One per state the list can be in; see the table in make_part_list_demo.
+        # One per state the page shows. The demo scene holds more than these
+        # (a part with a single feature, a part never drawn); shoot them too if
+        # the page ever needs them.
         shot("part_list_all_parts.png", None)
         shot("part_list_assembly.png", "Frame")
         shot("part_list_features.png", "Bracket")
-        shot("part_list_single_feature.png", "Plate")
-        shot("part_list_imported.png", "Imported Block")
         shot("part_list_hidden.png", "Bracket", hide="Bracket")
 
     print("\n--- SHOTS ---")
