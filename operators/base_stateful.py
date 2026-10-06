@@ -560,14 +560,6 @@ class GenericEntityOp(StatefulOperator):
                 attr.data.foreach_set("value", attr_info["data"])
 
         curve_data.update_tag()
-        from ..utilities.trace import trace
-
-        trace(
-            "restore %s: %d curves (%s)",
-            curve_data.name,
-            snapshot["n_curves"],
-            "in place" if same_topology else "rebuilt",
-        )
 
     @staticmethod
     def _snapshot_constraints(curve_data):

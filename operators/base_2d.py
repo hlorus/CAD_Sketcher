@@ -6,7 +6,6 @@ from bpy.types import Context, Event
 
 from ..model.curve_ref import CurveRef, PointRef, curve_ref
 from ..model.types import SlvsPoint2D
-from ..utilities.trace import fmt_vec, short_id, trace
 from ..utilities.view import get_blender_snap_info, get_pos_2d, get_scale_from_pos
 from .base_stateful import GenericEntityOp
 from .placement import MIDPOINT, PointPlacement, ProjectionRequest, placement_of
@@ -189,14 +188,6 @@ class Operator2d(GenericEntityOp):
         # reflects the current position; at click this is the committed one).
         placement.snap = self._snap
 
-        trace(
-            "state %s: cursor=%s -> pos=%s (snap %s)",
-            self.state_index,
-            fmt_vec(coords, 1),
-            fmt_vec(pos),
-            (self._snap or {}).get("type", "none"),
-        )
-
         # Handle implicit properties based on state.types
         if SlvsPoint2D in state.types:
             return pos
@@ -243,14 +234,6 @@ class Operator2d(GenericEntityOp):
         request = self._decide_link(context, placement)
         if request is not None:
             self._apply_projection(placement, request)
-        trace(
-            "link: hovered=%s projected=%s anchored=%s kind=%s (request %s)",
-            short_id(placement.hovered),
-            placement.projected,
-            placement.anchored,
-            placement.link_kind,
-            "none" if request is None else request.snap_type,
-        )
 
     def _decide_link(self, context: Context, placement: PointPlacement):
         """Set this move's link flags; return the projection to create, if any."""
@@ -485,11 +468,6 @@ class Operator2d(GenericEntityOp):
         ref.co = getattr(self, props[0])
         # The hover pick clears the type each move; creating the point sets it.
         data["type"] = PointRef
-        trace(
-            "preview point %s moved to %s",
-            short_id(cid),
-            fmt_vec(ref.co),
-        )
         return True
 
     def _check_constrain(self, context: Context, curve_id: int):

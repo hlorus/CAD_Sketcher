@@ -74,15 +74,6 @@ class Preferences(AddonPreferences):
         update=on_logging_level_update,
         default=2,
     )
-    trace_snapping: BoolProperty(
-        name="Trace Snapping",
-        description=(
-            "Log one line per mouse move while drawing: the snap target, what "
-            "the placed point linked to, and every live projection the depsgraph "
-            "moves. For reporting a snapping bug; noisy, so leave it off"
-        ),
-        default=False,
-    )
     hide_inactive_constraints: BoolProperty(
         name="Hide inactive Constraints", default=True, update=update_cb
     )
@@ -254,7 +245,6 @@ class Preferences(AddonPreferences):
         col.prop(self, "show_whats_new")
         col.prop(self, "show_debug_settings")
         col.prop(self, "logging_level")
-        col.prop(self, "trace_snapping")
 
         box = layout.box()
         row = box.row()
