@@ -106,7 +106,8 @@ class VIEW3D_OT_slvs_project_geometry(Operator, GenericEntityOp):
             )
             if skipped:
                 self.report(
-                    {"INFO"}, "This curve element can't be projected yet (arc/circle)"
+                    {"INFO"},
+                    "This curve element can't be projected (requires parallel sketch planes)",
                 )
         else:
             elem = _TYPE_TO_ELEMENT.get(data.get("type"))

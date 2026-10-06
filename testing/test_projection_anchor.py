@@ -245,24 +245,55 @@ class TestProjectionAnchor(Sketch2dTestCase):
 
     def test_project_sketch_source_standalone_points_and_skips_curves(self):
         # A standalone point projects (a point is a point at any angle); an arc
-        # is skipped and counted so the caller can report it.
-        from ..model.curve_ref import PointRef
+        # on a non-parallel plane is skipped and counted so the caller can report it.
+        from ..model.curve_ref import ArcRef, PointRef
 
-        src = self.new_sketch()
+        src = self.new_sketch(wp=self.entities.origin_plane_XZ)
         PointRef.create(src, (3.0, 4.0))  # standalone point, no line
         center = PointRef.create(src, (0.0, 0.0))
         start = PointRef.create(src, (1.0, 0.0))
         end = PointRef.create(src, (0.0, 1.0))
-        from ..model.curve_ref import ArcRef
-
-        ArcRef.create(src, center, start, end)  # an arc -> skipped
+        ArcRef.create(src, center, start, end)  # non-parallel arc -> skipped
 
         points, lines, skipped = project_curves_object(self.sketch, src.target_object)
         self.assertEqual(len(lines), 0)
         self.assertGreaterEqual(len(points), 1)
-        # The standalone point landed at its position.
-        self.assertTrue(any((p.co - Vector((3.0, 4.0))).length < 1e-6 for p in points))
-        self.assertEqual(skipped, 1, "the arc must be counted as skipped")
+        self.assertEqual(skipped, 1, "the non-parallel arc must be counted as skipped")
+
+    def test_project_sketch_source_arcs_and_circles_parallel(self):
+        # Parallel sketches project arcs and circles cleanly as native curves.
+        from ..model.curve_ref import ArcRef, CircleRef, PointRef
+
+        src = self.new_sketch()
+        center = PointRef.create(src, (0.0, 0.0))
+        start = PointRef.create(src, (1.0, 0.0))
+        end = PointRef.create(src, (0.0, 1.0))
+        ArcRef.create(src, center, start, end)
+
+        c_center = PointRef.create(src, (4.0, 2.0))
+        CircleRef.create(src, c_center, radius=2.5)
+
+        points, curves, skipped = project_curves_object(
+            self.sketch, src.target_object, construction=True
+        )
+        self.assertEqual(skipped, 0)
+        self.assertEqual(len(curves), 2)
+        # 3 points for arc (center, start, end) + 1 for circle center = 4 points
+        self.assertEqual(len(points), 4)
+        self.assertTrue(all(p.fixed for p in points))
+        self.assertTrue(all(p.construction for p in points))
+        self.assertTrue(all(c.construction for c in curves))
+
+        # Check circle radius
+        circle = next(c for c in curves if c.is_circle())
+        self.assertAlmostEqual(circle.radius, 2.5, places=4)
+
+        # Live update: move circle center on source, projected circle center updates
+        c_center.co = (6.0, 3.0)
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertLess((circle.ct.co - Vector((6.0, 3.0))).length, 1e-5)
 
     def test_project_single_vertex_dedup_and_live(self):
         # The granular snap path: one vertex -> one live point, reused on repeat.
@@ -403,7 +434,8 @@ class TestProjectionAnchor(Sketch2dTestCase):
         self.assertEqual(len(p_again), 0)
         self.assertEqual(len(l_again), 0)
 
-    def test_project_single_sketch_arc_element_is_skipped(self):
+    def test_project_single_sketch_arc_element(self):
+        # Project just one picked arc of a source sketch (coplanar / parallel).
         from ..model.curve_ref import ArcRef, PointRef
 
         src = self.new_sketch()
@@ -414,6 +446,67 @@ class TestProjectionAnchor(Sketch2dTestCase):
 
         points, lines, skipped = project_curves_element(
             self.sketch, src.target_object, arc.curve_id
+        )
+        self.assertEqual(len(points), 3)
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(skipped, 0)
+        self.assertTrue(all(p.fixed for p in points))
+        self.assertTrue(all(p.construction for p in points))
+
+        # Idempotent: re-projecting the same arc reuses center/start/end points, adds none.
+        p_again, l_again, _ = project_curves_element(
+            self.sketch, src.target_object, arc.curve_id
+        )
+        self.assertEqual(len(p_again), 0)
+        self.assertEqual(len(l_again), 0)
+
+    def test_project_single_sketch_circle_element(self):
+        # Project just one picked circle of a source sketch (coplanar / parallel).
+        from ..model.curve_ref import CircleRef, PointRef
+
+        src = self.new_sketch()
+        center = PointRef.create(src, (2.0, 3.0))
+        circle = CircleRef.create(src, center, radius=4.0)
+
+        points, lines, skipped = project_curves_element(
+            self.sketch, src.target_object, circle.curve_id
+        )
+        self.assertEqual(len(points), 1)
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(skipped, 0)
+        self.assertTrue(points[0].fixed)
+        self.assertTrue(points[0].construction)
+        self.assertTrue(lines[0].construction)
+        self.assertAlmostEqual(lines[0].radius, 4.0, places=4)
+
+        # Idempotent: re-projecting the same circle reuses center point, adds none.
+        p_again, l_again, _ = project_curves_element(
+            self.sketch, src.target_object, circle.curve_id
+        )
+        self.assertEqual(len(p_again), 0)
+        self.assertEqual(len(l_again), 0)
+
+    def test_project_single_sketch_arc_and_circle_non_parallel_skipped(self):
+        # An arc or circle on a non-parallel sketch plane cannot be represented
+        # as a native circular curve; it is skipped and reports skipped=1.
+        from ..model.curve_ref import ArcRef, CircleRef, PointRef
+
+        src = self.new_sketch(wp=self.entities.origin_plane_XZ)
+        center = PointRef.create(src, (0.0, 0.0))
+        start = PointRef.create(src, (1.0, 0.0))
+        end = PointRef.create(src, (0.0, 1.0))
+        arc = ArcRef.create(src, center, start, end)
+
+        c_center = PointRef.create(src, (3.0, 3.0))
+        circle = CircleRef.create(src, c_center, radius=2.0)
+
+        points, lines, skipped = project_curves_element(
+            self.sketch, src.target_object, arc.curve_id
+        )
+        self.assertEqual((len(points), len(lines), skipped), (0, 0, 1))
+
+        points, lines, skipped = project_curves_element(
+            self.sketch, src.target_object, circle.curve_id
         )
         self.assertEqual((len(points), len(lines), skipped), (0, 0, 1))
 

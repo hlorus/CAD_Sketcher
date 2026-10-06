@@ -196,9 +196,9 @@ class BgsTestCase(TestCase):
 
 
 class Sketch2dTestCase(BgsTestCase):
-    def new_sketch(self):
+    def new_sketch(self, wp=None):
         self.entities.ensure_origin_elements(self.context)
-        wp = self.entities.origin_plane_XY
+        wp = wp or self.entities.origin_plane_XY
         entity_sketch = self.entities.add_sketch(wp)
         from ..utilities.curve_data import create_sketch_curve_object
 
