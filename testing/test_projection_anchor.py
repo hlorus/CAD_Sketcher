@@ -1,4 +1,6 @@
-from mathutils import Vector
+import math
+
+from mathutils import Matrix, Vector
 
 from ..utilities.curve_data import get_curve_data
 from ..utilities.projection_anchor import (
@@ -7,6 +9,7 @@ from ..utilities.projection_anchor import (
     PROJECT_VERTEX_ID_ATTR,
     PROJECT_VERTEX_INDEX_ATTR,
     VERTEX_ID_ATTR,
+    _planes_are_parallel,
     find_projected_point,
     project_curves_element,
     project_curves_object,
@@ -251,24 +254,75 @@ class TestProjectionAnchor(Sketch2dTestCase):
 
     def test_project_sketch_source_standalone_points_and_skips_curves(self):
         # A standalone point projects (a point is a point at any angle); an arc
-        # is skipped and counted so the caller can report it.
-        from ..model.curve_ref import PointRef
+        # on a non-parallel plane is skipped and counted so the caller can report it.
+        from ..model.curve_ref import ArcRef, PointRef
 
-        src = self.new_sketch()
+        src = self.new_sketch(wp=self.entities.origin_plane_XZ)
         PointRef.create(src, (3.0, 4.0))  # standalone point, no line
         center = PointRef.create(src, (0.0, 0.0))
         start = PointRef.create(src, (1.0, 0.0))
         end = PointRef.create(src, (0.0, 1.0))
-        from ..model.curve_ref import ArcRef
-
-        ArcRef.create(src, center, start, end)  # an arc -> skipped
+        ArcRef.create(src, center, start, end)  # non-parallel arc -> skipped
 
         points, lines, skipped = project_curves_object(self.sketch, src.target_object)
         self.assertEqual(len(lines), 0)
         self.assertGreaterEqual(len(points), 1)
-        # The standalone point landed at its position.
-        self.assertTrue(any((p.co - Vector((3.0, 4.0))).length < 1e-6 for p in points))
-        self.assertEqual(skipped, 1, "the arc must be counted as skipped")
+        self.assertEqual(skipped, 1, "the non-parallel arc must be counted as skipped")
+
+    def test_project_sketch_source_arcs_and_circles_parallel(self):
+        # Parallel sketches project arcs and circles cleanly as native curves.
+        from ..model.curve_ref import ArcRef, CircleRef, PointRef
+
+        src = self.new_sketch()
+        center = PointRef.create(src, (0.0, 0.0))
+        start = PointRef.create(src, (1.0, 0.0))
+        end = PointRef.create(src, (0.0, 1.0))
+        ArcRef.create(src, center, start, end)
+
+        c_center = PointRef.create(src, (4.0, 2.0))
+        circle_src = CircleRef.create(src, c_center, radius=2.5)
+
+        points, curves, skipped = project_curves_object(
+            self.sketch, src.target_object, construction=True
+        )
+        self.assertEqual(skipped, 0)
+        self.assertEqual(len(curves), 2)
+        # 3 points for arc (center, start, end) + 1 for circle center = 4 points
+        self.assertEqual(len(points), 4)
+        self.assertTrue(all(p.fixed for p in points))
+        self.assertTrue(all(p.construction for p in points))
+        self.assertTrue(all(c.construction for c in curves))
+
+        # Check circle radius
+        circle = next(c for c in curves if c.is_circle())
+        self.assertAlmostEqual(circle.radius, 2.5, places=4)
+
+        # Live update: move circle center on source, projected circle center updates
+        # and anchor moves with it so radius is preserved (centre-only move)
+        c_center.co = (6.0, 3.0)
+        circle_src.radius = 2.5
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertLess((circle.ct.co - Vector((6.0, 3.0))).length, 1e-5)
+        self.assertAlmostEqual(circle.radius, 2.5, places=4)
+
+        # Live update: change source circle radius from 2.5 to 5.0
+        circle_src.radius = 5.0
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertAlmostEqual(circle.radius, 5.0, places=4)
+        self.assertLess((circle.ct.co - Vector((6.0, 3.0))).length, 1e-5)
+
+        # Live update: radius change followed by centre move in separate refresh
+        c_center.co = (8.0, 5.0)
+        circle_src.radius = 5.0
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertAlmostEqual(circle.radius, 5.0, places=4)
+        self.assertLess((circle.ct.co - Vector((8.0, 5.0))).length, 1e-5)
 
     def test_project_single_vertex_dedup_and_live(self):
         # The granular snap path: one vertex -> one live point, reused on repeat.
@@ -409,7 +463,8 @@ class TestProjectionAnchor(Sketch2dTestCase):
         self.assertEqual(len(p_again), 0)
         self.assertEqual(len(l_again), 0)
 
-    def test_project_single_sketch_arc_element_is_skipped(self):
+    def test_project_single_sketch_arc_element(self):
+        # Project just one picked arc of a source sketch (coplanar / parallel).
         from ..model.curve_ref import ArcRef, PointRef
 
         src = self.new_sketch()
@@ -420,6 +475,67 @@ class TestProjectionAnchor(Sketch2dTestCase):
 
         points, lines, skipped = project_curves_element(
             self.sketch, src.target_object, arc.curve_id
+        )
+        self.assertEqual(len(points), 3)
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(skipped, 0)
+        self.assertTrue(all(p.fixed for p in points))
+        self.assertTrue(all(p.construction for p in points))
+
+        # Idempotent: re-projecting the same arc reuses center/start/end points, adds none.
+        p_again, l_again, _ = project_curves_element(
+            self.sketch, src.target_object, arc.curve_id
+        )
+        self.assertEqual(len(p_again), 0)
+        self.assertEqual(len(l_again), 0)
+
+    def test_project_single_sketch_circle_element(self):
+        # Project just one picked circle of a source sketch (coplanar / parallel).
+        from ..model.curve_ref import CircleRef, PointRef
+
+        src = self.new_sketch()
+        center = PointRef.create(src, (2.0, 3.0))
+        circle = CircleRef.create(src, center, radius=4.0)
+
+        points, lines, skipped = project_curves_element(
+            self.sketch, src.target_object, circle.curve_id
+        )
+        self.assertEqual(len(points), 1)
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(skipped, 0)
+        self.assertTrue(points[0].fixed)
+        self.assertTrue(points[0].construction)
+        self.assertTrue(lines[0].construction)
+        self.assertAlmostEqual(lines[0].radius, 4.0, places=4)
+
+        # Idempotent: re-projecting the same circle reuses center point, adds none.
+        p_again, l_again, _ = project_curves_element(
+            self.sketch, src.target_object, circle.curve_id
+        )
+        self.assertEqual(len(p_again), 0)
+        self.assertEqual(len(l_again), 0)
+
+    def test_project_single_sketch_arc_and_circle_non_parallel_skipped(self):
+        # An arc or circle on a non-parallel sketch plane cannot be represented
+        # as a native circular curve; it is skipped and reports skipped=1.
+        from ..model.curve_ref import ArcRef, CircleRef, PointRef
+
+        src = self.new_sketch(wp=self.entities.origin_plane_XZ)
+        center = PointRef.create(src, (0.0, 0.0))
+        start = PointRef.create(src, (1.0, 0.0))
+        end = PointRef.create(src, (0.0, 1.0))
+        arc = ArcRef.create(src, center, start, end)
+
+        c_center = PointRef.create(src, (3.0, 3.0))
+        circle = CircleRef.create(src, c_center, radius=2.0)
+
+        points, lines, skipped = project_curves_element(
+            self.sketch, src.target_object, arc.curve_id
+        )
+        self.assertEqual((len(points), len(lines), skipped), (0, 0, 1))
+
+        points, lines, skipped = project_curves_element(
+            self.sketch, src.target_object, circle.curve_id
         )
         self.assertEqual((len(points), len(lines), skipped), (0, 0, 1))
 
@@ -455,3 +571,106 @@ class TestProjectionAnchor(Sketch2dTestCase):
         line = project_mesh_edge(self.sketch, src, 0, 1, construction=True)
         self.assertIsNotNone(line)
         self.assertIsNotNone(find_projected_point(self.sketch, src, 1))
+
+    def test_planes_are_parallel_fails_closed(self):
+        # A missing plane_matrix or degenerate normal returns (False, False)
+        # rather than failing open.
+        class _Dummy:
+            pass
+
+        d1 = _Dummy()
+        d2 = _Dummy()
+        self.assertEqual(_planes_are_parallel(d1, d2), (False, False))
+
+        d1.plane_matrix = Matrix.Identity(4)
+        self.assertEqual(_planes_are_parallel(d1, d2), (False, False))
+
+        d2.plane_matrix = Matrix.Diagonal((0.0, 0.0, 0.0, 1.0))
+        self.assertEqual(_planes_are_parallel(d1, d2), (False, False))
+
+    def test_project_sketch_source_arc_anti_parallel_swaps_endpoints(self):
+        # When sketch plane normals are anti-parallel (is_aligned=False),
+        # projecting an arc swaps start and end points to maintain CCW sweep.
+        from ..model.curve_ref import ArcRef, PointRef
+
+        src = self.new_sketch()
+        center = PointRef.create(src, (0.0, 0.0))
+        start = PointRef.create(src, (1.0, 0.0))
+        end = PointRef.create(src, (0.0, 1.0))
+        ArcRef.create(src, center, start, end)
+
+        # Invert target sketch plane normal (rotate 180 degrees around X)
+        wp = self.sketch.workplane_object
+        if wp is not None:
+            wp.matrix_world = Matrix.Rotation(math.pi, 4, "X")
+        else:
+            self.sketch.target_object.matrix_world = Matrix.Rotation(math.pi, 4, "X")
+
+        is_parallel, is_aligned = _planes_are_parallel(self.sketch, src)
+        self.assertTrue(is_parallel)
+        self.assertFalse(is_aligned)
+
+        points, curves, skipped = project_curves_object(
+            self.sketch, src.target_object, construction=True
+        )
+        self.assertEqual(skipped, 0)
+        self.assertEqual(len(curves), 1)
+        arc = curves[0]
+        # In target frame with flipped normal:
+        # source start (1, 0, 0) lands at (1, 0)
+        # source end (0, 1, 0) lands at (0, -1)
+        # To sweep CCW from (0, -1) to (1, 0), start and end must swap:
+        self.assertLess((arc.start.co - Vector((0.0, -1.0))).length, 1e-5)
+        self.assertLess((arc.end.co - Vector((1.0, 0.0))).length, 1e-5)
+
+    def test_project_circle_centre_move_preserves_anchor_and_radius(self):
+        # Moving a projected circle's centre (centre-only, or centre after radius
+        # change) must carry the anchor with it so circle.radius stays equal to
+        # the source radius rather than distorting into |anchor - new_centre|.
+        from ..model.curve_ref import CircleRef, PointRef
+
+        src = self.new_sketch()
+        c_center = PointRef.create(src, (0.0, 0.0))
+        circle_src = CircleRef.create(src, c_center, radius=2.0)
+
+        points, curves, skipped = project_curves_object(
+            self.sketch, src.target_object, construction=True
+        )
+        self.assertEqual(skipped, 0)
+        circle = next(c for c in curves if c.is_circle())
+        self.assertAlmostEqual(circle.radius, 2.0, places=4)
+
+        # 1. Centre-only move: move (0,0) -> (1,1). Radius must stay 2.0, not sqrt(2)=1.414.
+        c_center.co = (1.0, 1.0)
+        circle_src.radius = 2.0
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertLess((circle.ct.co - Vector((1.0, 1.0))).length, 1e-5)
+        self.assertAlmostEqual(circle.radius, 2.0, places=4)
+
+        # 2. Radius change: 2.0 -> 5.0 in its own refresh.
+        circle_src.radius = 5.0
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertAlmostEqual(circle.radius, 5.0, places=4)
+        self.assertLess((circle.ct.co - Vector((1.0, 1.0))).length, 1e-5)
+
+        # 3. Centre move after radius change: (1,1) -> (3,1). Radius must stay 5.0, not sqrt(5)=2.236.
+        c_center.co = (3.0, 1.0)
+        circle_src.radius = 5.0
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertLess((circle.ct.co - Vector((3.0, 1.0))).length, 1e-5)
+        self.assertAlmostEqual(circle.radius, 5.0, places=4)
+
+        # 4. Source object translation: translating source object by (+2, +1) moves center to (5, 2)
+        # while source circle radius remains 5.0.
+        src.target_object.location = (2.0, 1.0, 0.0)
+        self.context.view_layer.update()
+        depsgraph = self.context.evaluated_depsgraph_get()
+        refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
+        self.assertLess((circle.ct.co - Vector((5.0, 2.0))).length, 1e-5)
+        self.assertAlmostEqual(circle.radius, 5.0, places=4)
