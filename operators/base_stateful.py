@@ -560,6 +560,16 @@ class GenericEntityOp(StatefulOperator):
                 attr.data.foreach_set("value", attr_info["data"])
 
         curve_data.update_tag()
+        # TEMP DEBUG -- remove before merging
+        print(
+            "[SNAP] restore %s: %d curves (%s)"
+            % (
+                curve_data.name,
+                snapshot["n_curves"],
+                "in place" if same_topology else "rebuilt",
+            ),
+            flush=True,
+        )
 
     @staticmethod
     def _snapshot_constraints(curve_data):

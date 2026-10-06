@@ -188,6 +188,20 @@ class Operator2d(GenericEntityOp):
         # reflects the current position; at click this is the committed one).
         placement.snap = self._snap
 
+        # TEMP DEBUG -- remove before merging
+        from ..utilities.view import _dbg_vec
+
+        print(
+            "[SNAP] state %s: cursor=%s -> pos=%s (snap %s)"
+            % (
+                self.state_index,
+                _dbg_vec(coords, 1),
+                _dbg_vec(pos),
+                (self._snap or {}).get("type", "none"),
+            ),
+            flush=True,
+        )
+
         # Handle implicit properties based on state.types
         if SlvsPoint2D in state.types:
             return pos
@@ -234,6 +248,18 @@ class Operator2d(GenericEntityOp):
         request = self._decide_link(context, placement)
         if request is not None:
             self._apply_projection(placement, request)
+        # TEMP DEBUG -- remove before merging
+        print(
+            "[SNAP] link: hovered=%s projected=%s anchored=%s kind=%s (request %s)"
+            % (
+                (placement.hovered or "-")[:8],
+                placement.projected,
+                placement.anchored,
+                placement.link_kind,
+                "none" if request is None else request.snap_type,
+            ),
+            flush=True,
+        )
 
     def _decide_link(self, context: Context, placement: PointPlacement):
         """Set this move's link flags; return the projection to create, if any."""
@@ -468,6 +494,13 @@ class Operator2d(GenericEntityOp):
         ref.co = getattr(self, props[0])
         # The hover pick clears the type each move; creating the point sets it.
         data["type"] = PointRef
+        # TEMP DEBUG -- remove before merging
+        from ..utilities.view import _dbg_vec
+
+        print(
+            "[SNAP] preview point %s moved to %s" % (cid[:8], _dbg_vec(ref.co)),
+            flush=True,
+        )
         return True
 
     def _check_constrain(self, context: Context, curve_id: int):

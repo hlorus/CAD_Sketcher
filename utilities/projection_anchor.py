@@ -23,6 +23,7 @@ from ..utilities.curve_data import (
     read_curve_id_list,
     read_uuid_list,
 )
+from ..utilities.view import _dbg_vec  # TEMP DEBUG -- remove before merging
 
 # Persistent identity on the SOURCE mesh/sketch (POINT domain). It must NOT share
 # a name with the CURVE-domain binding attributes below: attribute names are
@@ -316,6 +317,22 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
         local = owner.matrix_world.inverted() @ world
         new_co = Vector((local.x, local.y))
         if (point.co - new_co).length > 1e-7:
+            # TEMP DEBUG -- remove before merging
+            print(
+                "[SNAP] reproject %s in %s: %s -> %s (src %s id=%s fallback=%s "
+                "local=%s)"
+                % (
+                    curve_id[:8],
+                    owner.name,
+                    _dbg_vec(point.co),
+                    _dbg_vec(new_co),
+                    source.name,
+                    vertex_id,
+                    fallback_index,
+                    _dbg_vec(source_co),
+                ),
+                flush=True,
+            )
             updates[curve_id] = (point, new_co, tuple(source_co))
 
     if not updates:
@@ -564,6 +581,18 @@ def project_mesh_vertex(sketch, source, vertex_index, construction=True, world_c
     vertex_id = ensure_vertex_id(source.data, vertex_index)
     existing = find_projected_vertex_point(sketch, source, vertex_id)
     if existing is not None:
+        # TEMP DEBUG -- remove before merging
+        print(
+            "[SNAP] project %s#%s (id=%s): reused %s at %s"
+            % (
+                source.name,
+                vertex_index,
+                vertex_id,
+                existing.curve_id[:8],
+                _dbg_vec(existing.co),
+            ),
+            flush=True,
+        )
         return existing
 
     owner = sketch.target_object
@@ -582,6 +611,19 @@ def project_mesh_vertex(sketch, source, vertex_index, construction=True, world_c
             name="Projected Point",
         )
         bind_projected_point(sketch, point, source, vertex_index)
+    # TEMP DEBUG -- remove before merging
+    print(
+        "[SNAP] project %s#%s (id=%s): created %s at %s (world_co %s)"
+        % (
+            source.name,
+            vertex_index,
+            vertex_id,
+            point.curve_id[:8],
+            _dbg_vec(point.co),
+            _dbg_vec(world_co),
+        ),
+        flush=True,
+    )
     return point
 
 
