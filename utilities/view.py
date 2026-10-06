@@ -570,6 +570,27 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
     # in practice is the coplanar handful, so a mouse-move stays cheap.
     candidates += _sketch_snap_candidates(context, coords, elements, skipped)
 
+    from .trace import fmt_vec, trace, tracing
+
+    if tracing():
+        trace(
+            "snap scan at %s: ray=%s, %d candidate(s): %s",
+            fmt_vec(coords, 1),
+            ob.name if ob is not None else "-",
+            len(candidates),
+            " | ".join(
+                "%s@%s d=%.2f p=%d %s"
+                % (
+                    data.get("type"),
+                    data.get("object", "-"),
+                    distance,
+                    priority,
+                    fmt_vec(data.get("world_point")),
+                )
+                for priority, distance, _rp, data in candidates
+            ),
+        )
+
     candidates = _best_per_position(candidates)
     if not candidates:
         return None
@@ -578,6 +599,14 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
         candidates, key=lambda item: (item[0], item[1])
     )
     snap_data["region_point"] = region_point
+    trace(
+        "snap chosen: %s on %s vi=%s ev=%s world=%s",
+        snap_data.get("type"),
+        snap_data.get("object", "-"),
+        snap_data.get("vertex_index"),
+        snap_data.get("edge_vertices"),
+        fmt_vec(snap_data.get("world_point")),
+    )
     return snap_data
 
 

@@ -23,6 +23,7 @@ from ..utilities.curve_data import (
     read_curve_id_list,
     read_uuid_list,
 )
+from ..utilities.trace import fmt_vec, short_id, trace, tracing
 
 # Persistent identity on the SOURCE mesh/sketch (POINT domain). It must NOT share
 # a name with the CURVE-domain binding attributes below: attribute names are
@@ -270,10 +271,12 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
 
     updates = {}
     source_cache = {}
+    trace_bindings = []
 
     for curve_id, source, vertex_id, fallback_index, last_co in list(
         iter_projected_point_bindings(sketch)
     ):
+        trace_bindings.append((curve_id, getattr(source, "name", None), vertex_id))
         point = PointRef(sketch, curve_id)
         # Removed curves remove/re-index their CURVE-domain binding attributes
         # automatically, so there is no orphan property bookkeeping here.
@@ -316,7 +319,28 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
         local = owner.matrix_world.inverted() @ world
         new_co = Vector((local.x, local.y))
         if (point.co - new_co).length > 1e-7:
+            trace(
+                "reproject %s in %s: %s -> %s (source %s id=%s fallback=%s local=%s)",
+                short_id(curve_id),
+                owner.name,
+                fmt_vec(point.co),
+                fmt_vec(new_co),
+                source.name,
+                vertex_id,
+                fallback_index,
+                fmt_vec(source_co),
+            )
             updates[curve_id] = (point, new_co, tuple(source_co))
+
+    if trace_bindings and tracing():
+        trace(
+            "bindings in %s: %s",
+            owner.name,
+            " | ".join(
+                "%s<-%s#%s" % (short_id(cid), name or "?", vid)
+                for cid, name, vid in trace_bindings
+            ),
+        )
 
     if not updates:
         return 0
@@ -564,6 +588,14 @@ def project_mesh_vertex(sketch, source, vertex_index, construction=True, world_c
     vertex_id = ensure_vertex_id(source.data, vertex_index)
     existing = find_projected_vertex_point(sketch, source, vertex_id)
     if existing is not None:
+        trace(
+            "project vertex %s#%s (id=%s): reused %s at %s",
+            source.name,
+            vertex_index,
+            vertex_id,
+            short_id(existing.curve_id),
+            fmt_vec(existing.co),
+        )
         return existing
 
     owner = sketch.target_object
@@ -582,6 +614,15 @@ def project_mesh_vertex(sketch, source, vertex_index, construction=True, world_c
             name="Projected Point",
         )
         bind_projected_point(sketch, point, source, vertex_index)
+    trace(
+        "project vertex %s#%s (id=%s): created %s at %s (world_co %s)",
+        source.name,
+        vertex_index,
+        vertex_id,
+        short_id(point.curve_id),
+        fmt_vec(point.co),
+        fmt_vec(world_co),
+    )
     return point
 
 
