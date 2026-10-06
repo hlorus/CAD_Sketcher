@@ -369,6 +369,14 @@ class Operator2d(GenericEntityOp):
             )
 
         if projected is not None and projected.valid:
+            # The projection is geometry this draw just created, sitting exactly
+            # under the cursor. Left pickable, the next hover test finds it and
+            # the state becomes "pick that point" instead of "place a point":
+            # state_data's curve_id is then the projection's, the per-move undo
+            # deletes it, and the state is left pointing at a dead curve (the
+            # endpoint jumping to the sketch origin). Every other tool does the
+            # same for what it creates mid-draw.
+            self._ignore_projection(projected)
             placement.hovered = projected.curve_id
             # This link IS a projection: its constraint is created regardless of
             # the Auto Constraints toggle (see add_coincident).
@@ -387,6 +395,17 @@ class Operator2d(GenericEntityOp):
                 placement.anchored = True
             # EDGE: point-on-line coincidence (default kind); the point can still
             # slide along the line, so it is not flagged anchored.
+
+    @staticmethod
+    def _ignore_projection(projected) -> None:
+        """Make a live projection unpickable, endpoints included for a line."""
+        from ..model.curve_ref import LineRef
+
+        ignore_hover(projected.curve_id)
+        if isinstance(projected, LineRef):
+            for point in (projected.p1, projected.p2):
+                if point is not None and point.valid:
+                    ignore_hover(point.curve_id)
 
     def _is_projected_reference(self, curve_id: str) -> bool:
         """Whether ``curve_id`` is a live-projected reference, not a picked entity.
