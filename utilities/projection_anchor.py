@@ -15,7 +15,7 @@ plane and connected native line curves follow through ``rebuild_segments``.
 from mathutils import Vector
 
 from ..model.constants import SketchCurveType
-from ..model.curve_ref import LineRef, PointRef
+from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef
 from ..utilities.curve_data import (
     batch_update,
     ensure_attribute,
@@ -253,6 +253,28 @@ def _set_last_source_co(sketch, curve_id, last_co):
         attr.data[curve_index].vector = last_co
 
 
+def _shift_circle_anchors(sketch, center_curve_id, delta):
+    """Offset the anchor point of circles centered at ``center_curve_id`` by ``delta``."""
+    if delta.length_squared < 1e-12:
+        return
+    curve_data = sketch.data
+    type_attr = curve_data.attributes.get("sketch_type")
+    if not type_attr:
+        return
+    centers = read_uuid_list(curve_data, "center_point_id")
+    for index in range(len(curve_data.curves)):
+        if type_attr.data[index].value != SketchCurveType.CIRCLE:
+            continue
+        if centers[index] == center_curve_id:
+            anchor = curve_data.curves[index].points[0].index
+            pos = curve_data.points[anchor].position
+            curve_data.points[anchor].position = (
+                pos[0] + delta[0],
+                pos[1] + delta[1],
+                pos[2],
+            )
+
+
 def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
     """Reproject bound points for one sketch. Returns number of moved points."""
     owner = sketch.target_object
@@ -340,7 +362,9 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
 
     with batch_update(sketch, point_ids=set(updates.keys())):
         for curve_id, (point, co, last_co) in updates.items():
+            delta = co - point.co
             point.co = co
+            _shift_circle_anchors(sketch, curve_id, delta)
             _set_last_source_co(sketch, curve_id, last_co)
 
     return len(updates)
@@ -445,6 +469,65 @@ def _line_exists_between(sketch, p1, p2):
     without this the connecting lines would stack a fresh duplicate every time.
     """
     return _line_curve_id_between(sketch, p1, p2) is not None
+
+
+def _planes_are_parallel(sketch_a, sketch_b):
+    """Whether two sketches have parallel (or anti-parallel) plane frames.
+
+    Returns ``(is_parallel, is_aligned)`` where ``is_aligned`` is True when
+    plane normals point in the same direction, or False when anti-parallel.
+    """
+    m_a = getattr(sketch_a, "plane_matrix", None)
+    m_b = getattr(sketch_b, "plane_matrix", None)
+    if m_a is None or m_b is None:
+        return True, True
+    n_a = Vector(m_a.col[2][:3])
+    n_b = Vector(m_b.col[2][:3])
+    if n_a.length_squared == 0 or n_b.length_squared == 0:
+        return True, True
+    dot = n_a.normalized().dot(n_b.normalized())
+    if abs(abs(dot) - 1.0) < 1e-4:
+        return True, dot > 0
+    return False, False
+
+
+def _arc_exists_between(sketch, ct, start, end):
+    """Whether a native arc already connects ``start`` to ``end`` around ``ct``."""
+    curve_data = sketch.data
+    type_attr = curve_data.attributes.get("sketch_type")
+    if not type_attr:
+        return False
+    centers = read_uuid_list(curve_data, "center_point_id")
+    starts = read_uuid_list(curve_data, "start_point_id")
+    ends = read_uuid_list(curve_data, "end_point_id")
+    for index in range(len(curve_data.curves)):
+        if type_attr.data[index].value != SketchCurveType.ARC:
+            continue
+        if (
+            centers[index] == ct.curve_id
+            and starts[index] == start.curve_id
+            and ends[index] == end.curve_id
+        ):
+            return True
+    return False
+
+
+def _circle_exists_at(sketch, ct, radius):
+    """Whether a native circle already exists at center ``ct`` with approximately ``radius``."""
+    curve_data = sketch.data
+    type_attr = curve_data.attributes.get("sketch_type")
+    if not type_attr:
+        return False
+    centers = read_uuid_list(curve_data, "center_point_id")
+    curve_ids = read_curve_id_list(curve_data)
+    for index in range(len(curve_data.curves)):
+        if type_attr.data[index].value != SketchCurveType.CIRCLE:
+            continue
+        if centers[index] == ct.curve_id:
+            c = CircleRef(sketch, curve_ids[index])
+            if abs(c.radius - radius) < 1e-4:
+                return True
+    return False
 
 
 def project_mesh_element(sketch, source, elem_type, elem_index, construction=True):
@@ -739,16 +822,16 @@ def _source_point_flat_index(source_point):
 
 
 def project_curves_object(sketch, source, construction=True):
-    """Project a source sketch's line segments onto ``sketch`` as live curves.
+    """Project a source sketch's segments onto ``sketch`` as live curves.
 
-    Reads the source sketch's line curves and their endpoint points, creating a
-    projected point per shared source point (deduplicated) and a projected line
-    per source segment. Endpoints are fixed; their positions are driven by the
-    source sketch's control points. Standalone points and arcs/circles are not
-    projected in this first slice (an arc/circle projects to an ellipse on a
-    non-parallel plane, which has no native representation). Returns
-    ``(points, lines, skipped_curves)`` where ``skipped_curves`` counts the
-    arcs/circles that were not projected, for user feedback.
+    Reads the source sketch's curves and their control points, creating a
+    projected point per shared source point (deduplicated) and a projected
+    segment per source curve. Endpoints are fixed; their positions are driven by
+    the source sketch's control points. Arcs and circles are projected when the
+    source and target sketch planes are parallel; non-parallel arcs and circles
+    (which project to ellipses with no native sketch representation) are skipped
+    and counted in ``skipped_curves`` for user feedback. Returns
+    ``(points, lines, skipped_curves)``.
     """
     if source is None or source.type not in _CURVE_SOURCE:
         raise TypeError("Source must be a sketch or curve object")
@@ -767,6 +850,8 @@ def project_curves_object(sketch, source, construction=True):
     points = []
     lines = []
     skipped_curves = 0
+
+    is_parallel, is_aligned = _planes_are_parallel(sketch, src_sketch)
 
     def _project_point(src_point):
         # Deduplicate shared endpoints so coincident source points become one
@@ -814,21 +899,71 @@ def project_curves_object(sketch, source, construction=True):
                 # points too. Line endpoints are already deduped via curve_id, so
                 # a point that is also an endpoint is not duplicated.
                 _project_point(PointRef(src_sketch, src_cid))
-            elif src_type in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
-                skipped_curves += 1
+            elif src_type == SketchCurveType.ARC:
+                if not is_parallel:
+                    skipped_curves += 1
+                    continue
+                src_arc = ArcRef(src_sketch, src_cid)
+                ct_src, start_src, end_src = src_arc.ct, src_arc.start, src_arc.end
+                if ct_src is None or start_src is None or end_src is None:
+                    continue
+                ct = _project_point(ct_src)
+                p_start = _project_point(start_src)
+                p_end = _project_point(end_src)
+                if ct is None or p_start is None or p_end is None:
+                    continue
+                if not is_aligned:
+                    p_start, p_end = p_end, p_start
+                if not _arc_exists_between(sketch, ct, p_start, p_end):
+                    arc = ArcRef.create(
+                        sketch,
+                        ct,
+                        p_start,
+                        p_end,
+                        construction=construction,
+                        name="Projected Arc",
+                    )
+                    lines.append(arc)
+            elif src_type == SketchCurveType.CIRCLE:
+                if not is_parallel:
+                    skipped_curves += 1
+                    continue
+                src_circle = CircleRef(src_sketch, src_cid)
+                ct_src = src_circle.ct
+                if ct_src is None:
+                    continue
+                ct = _project_point(ct_src)
+                if ct is None:
+                    continue
+                src_perim_world = src_sketch.plane_matrix @ Vector(
+                    (ct_src.co.x + src_circle.radius, ct_src.co.y, 0.0)
+                )
+                target_perim_local = inv @ src_perim_world
+                proj_radius = (
+                    Vector((target_perim_local.x, target_perim_local.y)) - ct.co
+                ).length
+                if not _circle_exists_at(sketch, ct, proj_radius):
+                    circle = CircleRef.create(
+                        sketch,
+                        ct,
+                        proj_radius,
+                        construction=construction,
+                        name="Projected Circle",
+                    )
+                    lines.append(circle)
 
     return points, lines, skipped_curves
 
 
 def project_curves_element(sketch, source, curve_id, construction=True):
-    """Project a single line or point of a source sketch into ``sketch``.
+    """Project a single line, arc, circle, or point of a source sketch into ``sketch``.
 
     ``curve_id`` is a source sketch element's id (what the reference pick returns
     for a sketch). Returns ``(points, lines, skipped)``: ``skipped`` is 1 when the
-    element has no planar-line projection yet (arc/circle) or the key is not a
-    sketch element (e.g. a raw Curves index) -- both are hoverable but not
-    projectable. Endpoints are reused across calls via ``find_projected_point``,
-    so re-projecting the same element is idempotent.
+    element has no planar projection yet (arc/circle on non-parallel planes) or the
+    key is not a sketch element (e.g. a raw Curves index) -- both are hoverable but
+    not projectable. Endpoints and center points are reused across calls via
+    ``find_projected_point``, so re-projecting the same element is idempotent.
     """
     if source is None or source.type not in _CURVE_SOURCE:
         raise TypeError("Source must be a sketch or curve object")
@@ -845,6 +980,8 @@ def project_curves_element(sketch, source, curve_id, construction=True):
     owner = sketch.target_object
     inv = owner.matrix_world.inverted()
     points, lines = [], []
+
+    is_parallel, is_aligned = _planes_are_parallel(sketch, src_sketch)
 
     def _project(src_point):
         flat_index = _source_point_flat_index(src_point)
@@ -883,5 +1020,56 @@ def project_curves_element(sketch, source, curve_id, construction=True):
         if src_type == SketchCurveType.POINT:
             _project(PointRef(src_sketch, curve_id))
             return points, lines, 0
-        # Arc / circle: hoverable, but no native planar-line projection yet.
+        if src_type == SketchCurveType.ARC:
+            if not is_parallel:
+                return points, lines, 1
+            src_arc = ArcRef(src_sketch, curve_id)
+            ct_src, start_src, end_src = src_arc.ct, src_arc.start, src_arc.end
+            if ct_src is None or start_src is None or end_src is None:
+                return points, lines, 0
+            ct = _project(ct_src)
+            p_start = _project(start_src)
+            p_end = _project(end_src)
+            if ct and p_start and p_end:
+                if not is_aligned:
+                    p_start, p_end = p_end, p_start
+                if not _arc_exists_between(sketch, ct, p_start, p_end):
+                    lines.append(
+                        ArcRef.create(
+                            sketch,
+                            ct,
+                            p_start,
+                            p_end,
+                            construction=construction,
+                            name="Projected Arc",
+                        )
+                    )
+            return points, lines, 0
+        if src_type == SketchCurveType.CIRCLE:
+            if not is_parallel:
+                return points, lines, 1
+            src_circle = CircleRef(src_sketch, curve_id)
+            ct_src = src_circle.ct
+            if ct_src is None:
+                return points, lines, 0
+            ct = _project(ct_src)
+            if ct:
+                src_perim_world = src_sketch.plane_matrix @ Vector(
+                    (ct_src.co.x + src_circle.radius, ct_src.co.y, 0.0)
+                )
+                target_perim_local = inv @ src_perim_world
+                proj_radius = (
+                    Vector((target_perim_local.x, target_perim_local.y)) - ct.co
+                ).length
+                if not _circle_exists_at(sketch, ct, proj_radius):
+                    lines.append(
+                        CircleRef.create(
+                            sketch,
+                            ct,
+                            proj_radius,
+                            construction=construction,
+                            name="Projected Circle",
+                        )
+                    )
+            return points, lines, 0
         return points, lines, 1
