@@ -107,9 +107,33 @@ def _closest_segment_point_world(
     return _closest_point_on_segment_to_ray(ray_origin, ray_dir, world_start, world_end)
 
 
+# How close the cursor must be, in pixels at UI scale 1, for a candidate to snap.
+# NOT the drag threshold this used to read: that is how far the mouse must travel
+# before a click becomes a drag (30 px by default), which as a snap radius glues
+# the cursor to a vertex half a centimetre away.
+_SNAP_RADIUS_PX = 12.0
+
+# How much nearer a less specific candidate must be to win, in the same pixels.
+# A vertex is what you usually mean when you are near one, so it gets a head
+# start over the edge it sits on -- but a bounded one: ranking by priority alone
+# let a vertex 22 px away beat the edge 10 px under the cursor.
+_SNAP_BIAS_PX = {0: 8.0, 1: 6.0}
+
+
+def _ui_scale(context: Context) -> float:
+    """Pixels per nominal UI pixel. 1.0 when Blender reports no scale."""
+    system = context.preferences.system
+    # ui_scale reads 0.0 in --background, where the interface was never sized.
+    return (system.ui_scale or 1.0) * (system.pixel_size or 1.0)
+
+
 def _snap_screen_threshold(context: Context) -> float:
-    inputs = context.preferences.inputs
-    return max(inputs.drag_threshold, inputs.drag_threshold_mouse)
+    return _SNAP_RADIUS_PX * _ui_scale(context)
+
+
+def _snap_rank(priority: int, distance: float, context: Context) -> float:
+    """Sort key for snap candidates: screen distance, less a specificity bonus."""
+    return distance - _SNAP_BIAS_PX.get(priority, 0.0) * _ui_scale(context)
 
 
 def _screen_snap_candidates(
@@ -600,12 +624,12 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
         flush=True,
     )
 
-    candidates = _best_per_position(candidates)
+    candidates = _best_per_position(candidates, context)
     if not candidates:
         return None
 
     _priority, _distance, region_point, snap_data = min(
-        candidates, key=lambda item: (item[0], item[1])
+        candidates, key=lambda item: _snap_rank(item[0], item[1], context)
     )
     snap_data["region_point"] = region_point
     # TEMP DEBUG -- remove before merging
@@ -623,7 +647,7 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
     return snap_data
 
 
-def _best_per_position(candidates):
+def _best_per_position(candidates, context):
     """One candidate per world position: the most specific, then the nearest.
 
     A sketch stores a line's endpoints both as point curves and as the line's own
@@ -642,7 +666,9 @@ def _best_per_position(candidates):
         else:
             key = (round(world[0], 6), round(world[1], 6), round(world[2], 6))
         current = best.get(key)
-        if current is None or (priority, distance) < (current[0], current[1]):
+        if current is None or _snap_rank(priority, distance, context) < _snap_rank(
+            current[0], current[1], context
+        ):
             best[key] = candidate
     return list(best.values())
 

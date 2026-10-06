@@ -106,7 +106,7 @@ class TestSnapCandidateDedupe(BgsTestCase):
         edge = (2, 0.0, None, {"type": "EDGE", "world_point": here})
         elsewhere = (0, 5.0, None, {"type": "VERTEX", "world_point": (9.0, 9.0, 0.0)})
 
-        kept = _best_per_position([edge, vertex, elsewhere])
+        kept = _best_per_position([edge, vertex, elsewhere], self.context)
 
         self.assertEqual(len(kept), 2, "the two at one position collapse")
         types = {c[3]["type"] for c in kept}
@@ -120,6 +120,6 @@ class TestSnapCandidateDedupe(BgsTestCase):
         b = (2, 0.0, None, {"type": "EDGE", "world_point": here})
 
         self.assertEqual(
-            _best_per_position([a, b])[0][3]["type"],
-            _best_per_position([b, a])[0][3]["type"],
+            _best_per_position([a, b], self.context)[0][3]["type"],
+            _best_per_position([b, a], self.context)[0][3]["type"],
         )
