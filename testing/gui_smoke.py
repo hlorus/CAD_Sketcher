@@ -555,6 +555,50 @@ def main():
             assert root is None, f"expected no root, got {root!r}"
             assert scope == feature_list.GLOBAL, scope
 
+        @_check("snapping reaches a coplanar sketch drawn by the overlay")
+        def _():
+            # Needs a region, so no unit test can see it: a sketch's curves are
+            # hidden from Blender and drawn by us, and both the snap loop and
+            # reference picking used to ask Blender, so a sketch the user could
+            # plainly see was never offered.
+            from bpy_extras.view3d_utils import location_3d_to_region_2d
+            from mathutils import Vector as V
+
+            view = importlib.import_module(f"{TARGET}.utilities.view")
+
+            other = build_sketch_on_workplane(context, context.scene.sketcher.wp_xy)
+            a = curve_ref.PointRef.create(other, (-2.0, 0.0))
+            b = curve_ref.PointRef.create(other, (2.0, 0.0))
+            curve_ref.LineRef.create(other, a, b)
+            solver.solve_system(context, sketch=other)
+            curve_data.refresh_curve_geometry(other)
+
+            drawing_in = build_sketch_on_workplane(
+                context, context.scene.sketcher.wp_xy
+            )
+            sketch_ref.set_active_sketch(context, drawing_in.target_object)
+            context.view_layer.update()
+            _redraw()
+
+            ob = other.target_object
+            assert ob not in list(context.visible_objects), (
+                "the sketch is no longer hidden; this check proves nothing"
+            )
+
+            override = _view3d_context()
+            region, rv3d = override["region"], override["region_data"]
+            coords = location_3d_to_region_2d(
+                region, rv3d, ob.matrix_world @ V((0.0, 0.0, 0.0))
+            )
+            with bpy.context.temp_override(**override):
+                hit = view.curve_segment_under_cursor(bpy.context, coords, 20.0)
+
+            assert hit is not None and hit[0] == ob, (
+                f"snapping did not reach the coplanar sketch: {hit!r}"
+            )
+            sketch_ref.set_active_sketch(context, None)
+            _redraw()
+
     if _FAILURES:
         print(f"SMOKE FAILED: {', '.join(_FAILURES)}", file=sys.stderr)
         sys.exit(1)

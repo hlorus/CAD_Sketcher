@@ -455,8 +455,17 @@ def curve_segment_under_cursor(context: Context, coords, threshold_px):
     cx, cy = float(coords[0]), float(coords[1])
     thr2 = threshold_px * threshold_px
     best = None
-    for ob in context.visible_objects:
+    # Not ``context.visible_objects``: a sketch's curves are a hidden object that
+    # the add-on draws itself, so Blender says no to every one of them. The
+    # shared rule asks what is actually on screen (see ``is_reference_source``).
+    from ..drawing.reference_pick import is_reference_source
+    from ..model.sketch_ref import get_active_sketch
+
+    active = get_active_sketch(context)
+    for ob in context.view_layer.objects:
         if ob.type not in {"CURVE", "CURVES"}:
+            continue
+        if not is_reference_source(ob, context, active):
             continue
         cd = getattr(ob.original, "data", None)
         if (
