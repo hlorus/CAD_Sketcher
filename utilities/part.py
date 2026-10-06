@@ -39,6 +39,14 @@ GROUP_ROOT_KEY = "slvs:group_root"
 # earlier build keeps its parts; the next mark writes the current key.
 _LEGACY_ROOT_KEYS = {"slvs:part_root": PART, "slvs:assembly_root": ASSEMBLY}
 
+# Stamped on a part that exists only because a sketch was drawn. Every sketch
+# roots a part from the first stroke, so the mark says the user never asked for
+# one: until something solid stands on it there is nothing to group and no frame
+# worth offering, and the part machinery stays out of the way (see
+# ``is_provisional_part``). Explicit rather than derived from "has no feature
+# yet", so becoming a part in full is a one-way step that survives the file.
+PROVISIONAL_KEY = "slvs:part_provisional"
+
 # Stamped on a workplane empty that is one of a part's own base planes, with the
 # axis pair it stands for, so a second sketch on the same part plane reuses it.
 PART_PLANE_KEY = "slvs:part_plane"
@@ -107,13 +115,20 @@ def group_root_of(
     return None
 
 
-def mark_group_root(obj: bpy.types.Object, kind: str) -> None:
+def mark_group_root(
+    obj: bpy.types.Object, kind: str, provisional: bool = False
+) -> None:
     """Make ``obj`` the root of a group of ``kind``, owning its transform."""
     obj[GROUP_ROOT_KEY] = kind
     for key in _LEGACY_ROOT_KEYS:
         if key in obj:
             del obj[key]
     free_transform(obj)
+    if provisional:
+        obj[PROVISIONAL_KEY] = True
+        return
+    if PROVISIONAL_KEY in obj:
+        del obj[PROVISIONAL_KEY]
     if kind == PART:
         promote_sketch_plane(obj)
 
@@ -142,24 +157,57 @@ def fix_transform(obj: bpy.types.Object) -> None:
     obj.lock_scale = (True, True, True)
 
 
-def mark_part_root(obj: bpy.types.Object) -> None:
-    """Make ``obj`` the root of a part, owning the part's transform."""
-    mark_group_root(obj, PART)
+def mark_part_root(obj: bpy.types.Object, provisional: bool = False) -> None:
+    """Make ``obj`` the root of a part, owning the part's transform.
+
+    ``provisional`` for the part a sketch starts by being drawn: a part in name
+    from the first stroke, with the machinery held back (see
+    :func:`is_provisional_part`).
+    """
+    mark_group_root(obj, PART, provisional=provisional)
 
 
-def promote_sketch_plane(root: bpy.types.Object) -> None:
+def is_provisional_part(root: Optional[bpy.types.Object]) -> bool:
+    """Whether ``root`` is a part only because a sketch was drawn.
+
+    Such a part is real enough to be moved, deleted and instanced, but it offers
+    no base planes in place of the world's and gets no collection of its own:
+    there is nothing to group yet, and taking the world's planes away before
+    there is a body to work against would leave nowhere to start the next sketch.
+    """
+    return bool(root is not None and root.get(PROVISIONAL_KEY))
+
+
+def realise_part(root: bpy.types.Object) -> bool:
+    """Make a provisional part a part in full. True if that changed anything.
+
+    What it has been waiting for: the plane its sketch was drawn on becomes the
+    part's XY, and from here it groups, offers its frame, and reads as a part
+    everywhere. One way: a part that loses its feature again stays a part.
+    """
+    if not is_provisional_part(root):
+        return False
+    del root[PROVISIONAL_KEY]
+    promote_sketch_plane(root)
+    return True
+
+
+def promote_sketch_plane(root: bpy.types.Object) -> bool:
     """Turn the plane a body was sketched on into the part's XY base plane.
 
-    A body that is not a part yet has one nameless workplane: the plane its
-    sketch sits on, which is also the body's own frame. Becoming a part is what
-    gives that frame a meaning, so the same empty becomes the part's XY rather
-    than a second plane appearing in the very same place. XZ and YZ are still
-    created when something asks for them.
+    A part that is still only a sketch has one nameless workplane: the plane that
+    sketch sits on, which is also the body's own frame. Something solid standing
+    on it is what gives that frame a meaning, so the same empty becomes the
+    part's XY rather than a second plane appearing in the very same place. XZ and
+    YZ are still created when something asks for them.
+
+    Returns whether a plane was promoted, so a caller running on every pass can
+    tell a real change from a part with nothing to promote.
     """
     from .workplane import is_managed_workplane
 
     if existing_part_plane(root, "XY") is not None:
-        return
+        return False
     for child in root.children:
         if PART_PLANE_KEY in child or not is_managed_workplane(child):
             continue
@@ -170,12 +218,13 @@ def promote_sketch_plane(root: bpy.types.Object) -> None:
         child[PART_PLANE_KEY] = "XY"
         child.name = f"{root.name} XY"
         child.empty_display_size = 0.25
-        return
+        return True
+    return False
 
 
 def clear_part_root(obj: bpy.types.Object) -> None:
     """Drop the root mark, e.g. when the object joins another group."""
-    for key in (GROUP_ROOT_KEY, *_LEGACY_ROOT_KEYS):
+    for key in (GROUP_ROOT_KEY, PROVISIONAL_KEY, *_LEGACY_ROOT_KEYS):
         if key in obj:
             del obj[key]
 
@@ -424,7 +473,11 @@ def settle_membership(
     sketch_obj = transform_owner(sketch_obj)
 
     existing = part_root_of(sketch_obj)
-    if existing is not None:
+    if existing is not None and not is_provisional_part(existing):
+        # Already in a part, or one in its own right: either way a commitment,
+        # and it keeps it. The part a sketch starts merely by being drawn is not
+        # one, so what it cuts or adds to can still claim it; joining drops the
+        # mark it was holding (see join_part).
         return existing
 
     # Each target either already roots/belongs to a part, or would become one.
@@ -435,7 +488,14 @@ def settle_membership(
             owners.append(owner)
 
     if not owners:
-        promote_to_root(sketch_obj)
+        # It stands alone: the part it already roots is what it keeps, now in
+        # full, since the material that settles membership has appeared.
+        if is_part_root(sketch_obj):
+            realise_part(sketch_obj)
+        else:
+            promote_to_root(sketch_obj)
+        if context is not None:
+            ensure_part_planes(context, sketch_obj)
         return sketch_obj
 
     if len(owners) > 1:
@@ -445,6 +505,9 @@ def settle_membership(
             (assembly_root_of(owner).name if assembly_root_of(owner) else None)
             for owner in owners
         }
+        # Either way it is a feature of something larger, not a part: the part
+        # it started out as was only ever provisional.
+        clear_part_root(sketch_obj)
         if len(assemblies) == 1 and None not in assemblies:
             assembly = assembly_root_of(owners[0])
             join_assembly(assembly, sketch_obj)
@@ -589,7 +652,9 @@ def reconcile_groups(scene: bpy.types.Scene) -> bool:
     """
     objects, roots, members = survey_groups(scene)
 
-    changed = _reconcile(scene, objects, PART, roots[PART], members[PART])
+    changed = _realise_solid_parts(roots[PART])
+    if _reconcile(scene, objects, PART, roots[PART], members[PART]):
+        changed = True
     if _reconcile(scene, objects, ASSEMBLY, roots[ASSEMBLY], members[ASSEMBLY]):
         changed = True
 
@@ -600,6 +665,23 @@ def reconcile_groups(scene: bpy.types.Scene) -> bool:
     if changed:
         _objects, roots, members = survey_groups(scene)
     _remember(roots, members)
+    return changed
+
+
+def _realise_solid_parts(roots: dict) -> bool:
+    """Make a provisional part real once something solid stands on it.
+
+    Done here rather than in the tool that extrudes, because a modifier arrives
+    by many routes (the Extrude and Revolve tools, the modifier panel, a paste)
+    and every one of them should settle the part the same way. Idempotent: a part
+    that is real already, and one still waiting, are both left alone.
+    """
+    changed = False
+    for root in roots.values():
+        if not is_provisional_part(root) or not _has_solid_feature(root):
+            continue
+        if realise_part(root):
+            changed = True
     return changed
 
 
@@ -798,9 +880,15 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
 
 
 def part_plane_objects(context) -> list:
-    """The base planes of the part in focus, or an empty list if there is none."""
+    """The base planes of the part in focus, or an empty list if there is none.
+
+    These stand in for the scene's origin planes while a part is in focus, so a
+    part that is still only a sketch offers none: its frame is the plane that
+    sketch was drawn on, and taking the world's planes away before there is a
+    body to work against would leave nowhere to start the next one.
+    """
     root = focused_part(context)
-    if root is None:
+    if root is None or is_provisional_part(root):
         return []
     return [
         plane
@@ -983,7 +1071,9 @@ def migrate_parts(scene: bpy.types.Scene) -> bool:
     records: a sketch drawn on a body joins that body's part, and one that has
     been made solid roots a part of its own. A plain sketch that is neither is
     left exactly as it was, still placed by its workplane, and settles the first
-    time it becomes solid.
+    time it becomes solid. A sketch drawn today starts a part at once (see
+    :func:`is_provisional_part`); reading that back into an old file is a change
+    to this contract, and is left for its own pass.
 
     Idempotent: anything already in a part is skipped, so running it twice is
     harmless. Offered through an operator (see ``needs_part_migration``).

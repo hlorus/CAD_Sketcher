@@ -22,10 +22,14 @@ def _ensure_focused_part_planes(context: Context):
     Objects can only be added from operator context, so the pickers ask for them
     as they start rather than the draw code creating them on the fly.
     """
-    from ..utilities.part import ensure_part_planes, focused_part
+    from ..utilities.part import (
+        ensure_part_planes,
+        focused_part,
+        is_provisional_part,
+    )
 
     root = focused_part(context)
-    if root is not None:
+    if root is not None and not is_provisional_part(root):
         ensure_part_planes(context, root)
 
 
@@ -97,6 +101,7 @@ def build_sketch_on_workplane(context: Context, wp_empty):
         free_transform,
         is_part_root,
         join_part,
+        mark_part_root,
         part_root_of,
     )
 
@@ -118,7 +123,12 @@ def build_sketch_on_workplane(context: Context, wp_empty):
         plane.parent = body
         plane.matrix_parent_inverse = Matrix.Identity(4)
         plane.matrix_basis = Matrix.Identity(4)
-        free_transform(body)
+        # A sketch drawn on a shared datum starts something of its own, so it is
+        # a part from the first stroke: one rule, and Delete Part, Make Instance
+        # and the part row apply to it without a promotion step. The part stays
+        # provisional (see is_provisional_part) until something solid stands on
+        # it, which is what keeps its base planes and collection out of the way.
+        mark_part_root(body, provisional=True)
     else:
         # The plane is already part of something (a face of a body, or that
         # part's own datum), so it stays where it is and the new body hangs from
