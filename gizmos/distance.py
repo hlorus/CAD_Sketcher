@@ -36,6 +36,8 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
         "custom_shape",
         "index",
         "_shape_sig",
+        "_leader_batch",
+        "_witness_batch",
     )
 
     def _get_helplines(self, context, constr, scale_1, scale_2):
@@ -140,7 +142,7 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
             (dist, point_right.y, 0.0),
         )
 
-    def _create_shape(self, context, constr, select=False):
+    def _create_shape(self, context, constr):
         rv3d = context.region_data
         ui_scale = context.preferences.system.ui_scale
 
@@ -159,8 +161,9 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
         arrow_1 = get_arrow_size(half_dist, scale_1)
         arrow_2 = get_arrow_size(half_dist, scale_2)
 
+        witness = self._get_helplines(context, constr, scale_1, scale_2)
         if constr.text_inside(ui_scale):
-            coords = (
+            leader = (
                 *draw_arrow_shape(
                     p1, p1 + Vector((arrow_1[0], 0, 0)), arrow_1[1], is_3d=True
                 ),
@@ -169,14 +172,9 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
                 *draw_arrow_shape(
                     p2, p2 - Vector((arrow_2[0], 0, 0)), arrow_2[1], is_3d=True
                 ),
-                *(
-                    self._get_helplines(context, constr, scale_1, scale_2)
-                    if not select
-                    else ()
-                ),
             )
         else:  # the same thing, but with a little jitter to the outside
-            coords = (
+            leader = (
                 *draw_arrow_shape(
                     p1, p1 + Vector((arrow_1[0], 0, 0)), arrow_1[1], is_3d=True
                 ),
@@ -190,11 +188,6 @@ class VIEW3D_GT_slvs_distance(Gizmo, ConstraintGizmoGeneric):
                 *draw_arrow_shape(
                     p2, p2 - Vector((arrow_2[0], 0, 0)), arrow_2[1], is_3d=True
                 ),
-                *(
-                    self._get_helplines(context, constr, scale_1, scale_2)
-                    if not select
-                    else ()
-                ),
             )
 
-        self.custom_shape = self.new_custom_shape("LINES", coords)
+        return leader, witness

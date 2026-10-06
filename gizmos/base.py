@@ -1,8 +1,18 @@
+import gpu
+from bpy import app
+from gpu_extras.batch import batch_for_shader
+from mathutils import Vector
+
 from .. import global_data
 from ..declarations import Operators
 from ..drawing import frame_cache, selection
 from ..model.types import GenericConstraint
-from .utilities import get_constraint_color_type, set_gizmo_colors
+from ..shaders import Shaders
+from .utilities import (
+    dimension_line_widths,
+    get_constraint_color_type,
+    set_gizmo_colors,
+)
 
 
 def use_plain_attributes(cls) -> None:
@@ -51,6 +61,53 @@ class ConstraintGizmo:
 _gizmo_bases = {}
 
 
+def _local_to_world(matrix, coords):
+    """Gizmo-local line vertices (2D or 3D) transformed by ``matrix``."""
+    return [(matrix @ Vector(point).to_3d())[:] for point in coords]
+
+
+def _line_batch(matrix, coords):
+    """World-space ``LINES`` batch for the polyline shader, or None if empty.
+
+    The shader expands the stroke in screen space from ``lineWidth``. That
+    uniform is what actually thickens the line: ``gpu.state.line_width_set``
+    has no effect on macOS, which is why these are not a gizmo ``LINES`` shape.
+    """
+    if len(coords) < 2:
+        return None
+    shader = Shaders.polyline_color_3d()
+    return batch_for_shader(shader, "LINES", {"pos": _local_to_world(matrix, coords)})
+
+
+def _draw_dimension_lines(context, leader_batch, witness_batch, color) -> None:
+    """Draw extension lines, then the dimension line over them."""
+    if leader_batch is None and witness_batch is None:
+        return
+    leader_width, witness_width = dimension_line_widths()
+    shader = Shaders.polyline_color_3d()
+    shader.bind()
+    gpu.state.blend_set("ALPHA")
+    shader.uniform_float("color", tuple(color))
+    if app.version >= (4, 5):
+        shader.uniform_float(
+            "viewportSize", (context.region.width, context.region.height)
+        )
+    # Witness lines first: where the two meet, the heavier stroke stays visible.
+    if witness_batch is not None:
+        gpu.state.line_width_set(witness_width)
+        if app.version >= (4, 5):
+            shader.uniform_float("lineWidth", witness_width)
+        witness_batch.draw(shader)
+    if leader_batch is not None:
+        gpu.state.line_width_set(leader_width)
+        if app.version >= (4, 5):
+            shader.uniform_float("lineWidth", leader_width)
+        leader_batch.draw(shader)
+    gpu.shader.unbind()
+    gpu.state.line_width_set(1.0)
+    gpu.state.blend_set("NONE")
+
+
 def forget_gizmos() -> None:
     """Drop what was remembered per gizmo, before a group recreates its gizmos.
 
@@ -92,25 +149,41 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
             frame_cache.ui_scale(context),
         )
 
+    def _ensure_shape(self, context, constr):
+        """Build the polyline batches and the pick shape when their inputs change.
+
+        ``_create_shape`` returns ``(leader, witness)`` in local space. The
+        leader is the dimension line and its arrowheads; the witness lines are
+        the extensions. Batches are cached because rebuilding them per gizmo
+        per redraw made constraint-heavy sketches laggy.
+        """
+        basis = frame_cache.dimension_basis(frame_cache.active_sketch(context), constr)
+        self._update_matrix_basis(constr, basis)
+        sig = self._shape_signature(context, constr, basis)
+        if getattr(self, "_shape_sig", None) == sig:
+            return
+        leader, witness = self._create_shape(context, constr)
+        self._leader_batch = _line_batch(self.matrix_world, leader)
+        self._witness_batch = _line_batch(self.matrix_world, witness)
+        # Extension lines stay out of the pick shape so a click where they meet
+        # the geometry still reaches that geometry.
+        self.custom_shape = (
+            self.new_custom_shape("LINES", leader) if len(leader) >= 2 else None
+        )
+        self._shape_sig = sig
+
     def draw(self, context):
         constr = self._get_constraint(context)
         if not constr or not constr.visible:
             return
-        self._set_colors(context, constr)
-        basis = frame_cache.dimension_basis(frame_cache.active_sketch(context), constr)
-        self._update_matrix_basis(constr, basis)
-
-        # Rebuild the geometry batch only when its inputs change (dimension value,
-        # placement, or view), not on every redraw -- the per-frame GPU churn that
-        # made constraint-heavy sketches laggy.
-        sig = self._shape_signature(context, constr, basis)
-        if (
-            getattr(self, "_shape_sig", None) != sig
-            or getattr(self, "custom_shape", None) is None
-        ):
-            self._create_shape(context, constr)
-            self._shape_sig = sig
-        self.draw_custom_shape(self.custom_shape)
+        color = self._set_colors(context, constr)
+        self._ensure_shape(context, constr)
+        _draw_dimension_lines(
+            context,
+            getattr(self, "_leader_batch", None),
+            getattr(self, "_witness_batch", None),
+            color,
+        )
 
     def draw_select(self, context, select_id):
         # While a stateful operator runs, stay out of the gizmo select buffer so
@@ -122,11 +195,11 @@ class ConstraintGizmoGeneric(ConstraintGizmo):
         constr = self._get_constraint(context)
         if not constr or not constr.visible:
             return
-        # The select shape (no helplines) overwrites custom_shape, so invalidate
-        # the display cache to force draw() to rebuild the real shape next time.
-        self._create_shape(context, constr, select=True)
-        self._shape_sig = None
-        self.draw_custom_shape(self.custom_shape, select_id=select_id)
+        self._ensure_shape(context, constr)
+        shape = getattr(self, "custom_shape", None)
+        if shape is None:
+            return
+        self.draw_custom_shape(shape, select_id=select_id)
 
 
 # gizmo group pointer -> signature of the constraints its gizmos were made for.

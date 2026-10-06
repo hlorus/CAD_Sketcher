@@ -81,6 +81,28 @@ def get_overshoot(scale, dir):
     return -math.copysign(overshoot, dir)
 
 
+# Polyline width at scale 1. Gizmo lines used to be drawn with line smoothing,
+# which on OpenGL reads about this heavy; 1px looked noticeably fainter.
+_BASE_WIDTH = 1.5
+# Share of any added thickness that extension lines take. The rest stays on
+# the dimension line, which is the stroke to read first.
+_WITNESS_EXTRA_SHARE = 0.5
+
+
+def dimension_line_widths() -> tuple[float, float]:
+    """Pixel widths of the dimension line and its extension lines.
+
+    A scale of 1 matches the previous look. Above that, the dimension line and
+    its arrowheads take the full scale and the extension lines take half of the
+    added thickness, so the line that carries the value stays heavier. Below 1
+    the two stay equal, so the extension lines never become the heavier stroke.
+    """
+    scale = float(get_prefs().dimension_line_scale)
+    extra = max(0.0, scale - 1.0)
+    witness = min(scale, 1.0 + extra * _WITNESS_EXTRA_SHARE)
+    return _BASE_WIDTH * scale, _BASE_WIDTH * witness
+
+
 def context_mode_check(context, widget_group):
     tools = context.workspace.tools
     mode = context.mode
