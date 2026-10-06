@@ -31,9 +31,11 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
         "custom_shape",
         "index",
         "_shape_sig",
+        "_leader_batch",
+        "_witness_batch",
     )
 
-    def _create_shape(self, context, constr, select=False):
+    def _create_shape(self, context, constr):
         ui_scale = context.preferences.system.ui_scale
         angle = constr.leader_angle
         offset = constr.draw_offset / ui_scale
@@ -109,4 +111,5 @@ class VIEW3D_GT_slvs_diameter(Gizmo, ConstraintGizmoGeneric):
                     ),
                 )
 
-        self.custom_shape = self.new_custom_shape("LINES", coords)
+        # A diameter has no extension lines; the whole stroke is the dimension line.
+        return coords, ()

@@ -82,6 +82,9 @@ objects that aren't being sketched on, aligning the view to the active entity,
 the size of entities, workplanes, constraint icons, text and arrows, and whether
 constraint icons that sit on the same element are grouped into one.
 
+- **Dimension Line Scale** &mdash; thickness of distance, angle and diameter
+  lines. Above 1 the dimension line thickens more than its extension lines.
+
 ### Geometry
 - **Curve Resolution** &mdash; the largest angle per edge used when arcs and
   circles are meshed. It is the default for new sketches; each one keeps its own

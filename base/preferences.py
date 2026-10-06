@@ -143,6 +143,15 @@ class Preferences(AddonPreferences):
     )
     text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
     arrow_scale: FloatProperty(name="Arrow Scale", default=1, min=0.2, soft_max=3)
+    dimension_line_scale: FloatProperty(
+        name="Dimension Line Scale",
+        description="Thickness of distance, angle and diameter lines",
+        default=1.0,
+        min=0.5,
+        soft_max=5.0,
+        precision=2,
+        update=theme.update,
+    )
     use_align_view: BoolProperty(
         name="Align View",
         description="Automatically align view to workplane when activating a sketch.",
@@ -225,6 +234,7 @@ class Preferences(AddonPreferences):
         col.prop(self, "group_constraint_icons")
         col.prop(self, "text_size")
         col.prop(self, "arrow_scale")
+        col.prop(self, "dimension_line_scale")
 
         box = layout.box()
         box.label(text="Geometry")

@@ -35,6 +35,8 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
         "custom_shape",
         "index",
         "_shape_sig",
+        "_leader_batch",
+        "_witness_batch",
     )
 
     def _get_helplines(self, context, constr, scale_1, scale_2):
@@ -50,7 +52,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
             pol2cart(radius - overshoot_2, -angle / 2),
         )
 
-    def _create_shape(self, context, constr, select=False):
+    def _create_shape(self, context, constr):
         def get_arrow_angle():
             # The arrowheads are placed on an arc spanning between the
             #     witness lines, and we want them to point "along" this arc.
@@ -98,8 +100,9 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
         p2_s.rotate(Matrix.Rotation(-arrow_angle, 2, "Z"))
         p2_s.length = lengths[1]
 
+        witness = self._get_helplines(context, constr, *scales)
         if constr.text_inside():
-            coords = (
+            leader = (
                 *draw_arrow_shape(p1, p1 + p1_s, widths[0]),
                 *coords_arc_2d(
                     0,
@@ -111,11 +114,6 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
                     type="LINES",
                 ),
                 *draw_arrow_shape(p2, p2 + p2_s, widths[1]),
-                *(
-                    self._get_helplines(context, constr, *scales)
-                    if not select
-                    else ()
-                ),
             )
         else:
             leader_end = (
@@ -123,7 +121,7 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
             )  # signed angle, measured from the Constrained Angle's bisector
             leader_start = math.copysign(half_angle, -leader_end)
             leader_length = leader_end - leader_start
-            coords = (
+            leader = (
                 *draw_arrow_shape(p1, p1 - p1_s, widths[0]),
                 *coords_arc_2d(
                     0,
@@ -135,11 +133,6 @@ class VIEW3D_GT_slvs_angle(Gizmo, ConstraintGizmoGeneric):
                     type="LINES",
                 ),
                 *draw_arrow_shape(p2, p2 - p2_s, widths[1]),
-                *(
-                    self._get_helplines(context, constr, *scales)
-                    if not select
-                    else ()
-                ),
             )
 
-        self.custom_shape = self.new_custom_shape("LINES", coords)
+        return leader, witness
