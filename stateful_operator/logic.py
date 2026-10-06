@@ -887,6 +887,10 @@ class StatefulOperatorLogic(_StateMachineMixin):
                     succeede = self.run_op(context)
                     self._undo = True
             self._preview_key = preview_key if succeede else None
+        # TEMP DEBUG -- remove before merging
+        _dbg = getattr(self, "_dbg_end_state", None)
+        if _dbg is not None:
+            _dbg(context, succeede, preview_key)
 
         # State transition
         if triggered and ok:

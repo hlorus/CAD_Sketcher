@@ -424,6 +424,20 @@ class Operator2d(GenericEntityOp):
         loc = values[0]
 
         placement = placement_of(state_data)
+        # TEMP DEBUG -- remove before merging
+        from ..utilities.view import _dbg_vec
+
+        print(
+            "[SNAP] create_element state=%s loc=%s snap=%s snapped=%s hovered=%s"
+            % (
+                getattr(state, "name", "?"),
+                _dbg_vec(loc),
+                (placement.snap or {}).get("type", "none"),
+                placement.snapped,
+                (placement.hovered or "-")[:8],
+            ),
+            flush=True,
+        )
         # Snapped onto external mesh geometry: live-project it and coincide, so
         # the point tracks the source. Registers the projected point as the
         # coincidence target below (behaves like snapping onto a sketch entity).
@@ -444,11 +458,46 @@ class Operator2d(GenericEntityOp):
         cid = ref.curve_id
 
         self.add_coincident(context, ref, state, state_data)
+        # TEMP DEBUG -- remove before merging
+        print(
+            "[SNAP] created point %s at %s fixed=%s"
+            % (cid[:8], _dbg_vec(ref.co), fixed),
+            flush=True,
+        )
 
         ignore_hover(cid)
         state_data["type"] = PointRef
         state_data["curve_id"] = cid
         return cid
+
+    def _dbg_end_state(self, context: Context, succeede, preview_key):
+        """TEMP DEBUG -- remove before merging. Where each state's point ended."""
+        from ..utilities.view import _dbg_vec
+
+        parts = []
+        for index in sorted(self._state_data.keys()):
+            data = self._state_data[index]
+            cid = data.get("curve_id", "")
+            co = None
+            if cid:
+                ref = PointRef(self.sketch, cid)
+                co = ref.co if ref.valid else None
+            placement = placement_of(data)
+            parts.append(
+                "s%s=%s@%s%s%s"
+                % (
+                    index,
+                    (cid or "-")[:8],
+                    _dbg_vec(co) if co is not None else "GONE",
+                    " proj" if placement.projected else "",
+                    " anch" if placement.anchored else "",
+                )
+            )
+        print(
+            "[SNAP] end of move (ok=%s, key=%s): %s"
+            % (bool(succeede), preview_key is not None, " ".join(parts)),
+            flush=True,
+        )
 
     def preview_structure(self, context: Context):
         """The current placement inputs that decide what gets created and linked.

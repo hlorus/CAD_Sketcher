@@ -561,12 +561,20 @@ class GenericEntityOp(StatefulOperator):
 
         curve_data.update_tag()
         # TEMP DEBUG -- remove before merging
+        import sys
+
+        frame = sys._getframe(1)
+        caller = "%s:%d" % (frame.f_code.co_name, frame.f_lineno)
+        frame = frame.f_back
+        if frame is not None:
+            caller += " <- %s:%d" % (frame.f_code.co_name, frame.f_lineno)
         print(
-            "[SNAP] restore %s: %d curves (%s)"
+            "[SNAP] restore %s: %d curves (%s) from %s"
             % (
                 curve_data.name,
                 snapshot["n_curves"],
                 "in place" if same_topology else "rebuilt",
+                caller,
             ),
             flush=True,
         )
