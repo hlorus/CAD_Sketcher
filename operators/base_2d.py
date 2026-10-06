@@ -188,6 +188,20 @@ class Operator2d(GenericEntityOp):
         # reflects the current position; at click this is the committed one).
         placement.snap = self._snap
 
+        # TEMP DEBUG -- remove before merging
+        from ..utilities.view import _dbg_vec
+
+        print(
+            "[SNAP] state %s: cursor=%s -> pos=%s (snap %s)"
+            % (
+                self.state_index,
+                _dbg_vec(coords, 1),
+                _dbg_vec(pos),
+                (self._snap or {}).get("type", "none"),
+            ),
+            flush=True,
+        )
+
         # Handle implicit properties based on state.types
         if SlvsPoint2D in state.types:
             return pos
@@ -234,6 +248,18 @@ class Operator2d(GenericEntityOp):
         request = self._decide_link(context, placement)
         if request is not None:
             self._apply_projection(placement, request)
+        # TEMP DEBUG -- remove before merging
+        print(
+            "[SNAP] link: hovered=%s projected=%s anchored=%s kind=%s (request %s)"
+            % (
+                (placement.hovered or "-")[:8],
+                placement.projected,
+                placement.anchored,
+                placement.link_kind,
+                "none" if request is None else request.snap_type,
+            ),
+            flush=True,
+        )
 
     def _decide_link(self, context: Context, placement: PointPlacement):
         """Set this move's link flags; return the projection to create, if any."""
@@ -343,6 +369,14 @@ class Operator2d(GenericEntityOp):
             )
 
         if projected is not None and projected.valid:
+            # The projection is geometry this draw just created, sitting exactly
+            # under the cursor. Left pickable, the next hover test finds it and
+            # the state becomes "pick that point" instead of "place a point":
+            # state_data's curve_id is then the projection's, the per-move undo
+            # deletes it, and the state is left pointing at a dead curve (the
+            # endpoint jumping to the sketch origin). Every other tool does the
+            # same for what it creates mid-draw.
+            self._ignore_projection(projected)
             placement.hovered = projected.curve_id
             # This link IS a projection: its constraint is created regardless of
             # the Auto Constraints toggle (see add_coincident).
@@ -361,6 +395,17 @@ class Operator2d(GenericEntityOp):
                 placement.anchored = True
             # EDGE: point-on-line coincidence (default kind); the point can still
             # slide along the line, so it is not flagged anchored.
+
+    @staticmethod
+    def _ignore_projection(projected) -> None:
+        """Make a live projection unpickable, endpoints included for a line."""
+        from ..model.curve_ref import LineRef
+
+        ignore_hover(projected.curve_id)
+        if isinstance(projected, LineRef):
+            for point in (projected.p1, projected.p2):
+                if point is not None and point.valid:
+                    ignore_hover(point.curve_id)
 
     def _is_projected_reference(self, curve_id: str) -> bool:
         """Whether ``curve_id`` is a live-projected reference, not a picked entity.
@@ -398,6 +443,20 @@ class Operator2d(GenericEntityOp):
         loc = values[0]
 
         placement = placement_of(state_data)
+        # TEMP DEBUG -- remove before merging
+        from ..utilities.view import _dbg_vec
+
+        print(
+            "[SNAP] create_element state=%s loc=%s snap=%s snapped=%s hovered=%s"
+            % (
+                getattr(state, "name", "?"),
+                _dbg_vec(loc),
+                (placement.snap or {}).get("type", "none"),
+                placement.snapped,
+                (placement.hovered or "-")[:8],
+            ),
+            flush=True,
+        )
         # Snapped onto external mesh geometry: live-project it and coincide, so
         # the point tracks the source. Registers the projected point as the
         # coincidence target below (behaves like snapping onto a sketch entity).
@@ -418,11 +477,46 @@ class Operator2d(GenericEntityOp):
         cid = ref.curve_id
 
         self.add_coincident(context, ref, state, state_data)
+        # TEMP DEBUG -- remove before merging
+        print(
+            "[SNAP] created point %s at %s fixed=%s"
+            % (cid[:8], _dbg_vec(ref.co), fixed),
+            flush=True,
+        )
 
         ignore_hover(cid)
         state_data["type"] = PointRef
         state_data["curve_id"] = cid
         return cid
+
+    def _dbg_end_state(self, context: Context, succeede, preview_key):
+        """TEMP DEBUG -- remove before merging. Where each state's point ended."""
+        from ..utilities.view import _dbg_vec
+
+        parts = []
+        for index in sorted(self._state_data.keys()):
+            data = self._state_data[index]
+            cid = data.get("curve_id", "")
+            co = None
+            if cid:
+                ref = PointRef(self.sketch, cid)
+                co = ref.co if ref.valid else None
+            placement = placement_of(data)
+            parts.append(
+                "s%s=%s@%s%s%s"
+                % (
+                    index,
+                    (cid or "-")[:8],
+                    _dbg_vec(co) if co is not None else "GONE",
+                    " proj" if placement.projected else "",
+                    " anch" if placement.anchored else "",
+                )
+            )
+        print(
+            "[SNAP] end of move (ok=%s, key=%s): %s"
+            % (bool(succeede), preview_key is not None, " ".join(parts)),
+            flush=True,
+        )
 
     def preview_structure(self, context: Context):
         """The current placement inputs that decide what gets created and linked.
@@ -468,6 +562,13 @@ class Operator2d(GenericEntityOp):
         ref.co = getattr(self, props[0])
         # The hover pick clears the type each move; creating the point sets it.
         data["type"] = PointRef
+        # TEMP DEBUG -- remove before merging
+        from ..utilities.view import _dbg_vec
+
+        print(
+            "[SNAP] preview point %s moved to %s" % (cid[:8], _dbg_vec(ref.co)),
+            flush=True,
+        )
         return True
 
     def _check_constrain(self, context: Context, curve_id: int):

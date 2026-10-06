@@ -13,9 +13,13 @@ Supported sources:
   keyed by index.
 
 Legacy ``Curve`` (bezier/nurbs) objects are not handled yet; they return empty.
+
+Which objects are offered is :func:`is_reference_source`, which asks the add-on's
+own visibility rather than Blender's: a sketch is a hidden object by design.
 """
 
 import numpy as np
+from mathutils import Vector
 
 from ..utilities.curve_data import has_uuid_field
 from . import picking
@@ -117,18 +121,76 @@ def pick_object_ranked(obj, context, coords):
     return picking.rank_hits(extract_pickable_geometry(obj), context, coords)
 
 
-def pick_reference_element(context, coords, exclude=None):
-    """Nearest ``(object, element_key)`` across visible curve objects under coords.
+# How far apart two planes may be and still count as the same one, in world
+# units and in the dot product of their normals.
+_COPLANAR_TOL = 1e-5
 
-    Merges every visible curve object's pickable geometry into one screen-space
+
+def _plane_of(sketch):
+    """``(normal, point)`` of the plane a sketch lives in, in world space."""
+    matrix = sketch.plane_matrix
+    return matrix.to_3x3() @ Vector((0.0, 0.0, 1.0)), matrix.translation
+
+
+def is_coplanar(a, b, tol: float = _COPLANAR_TOL) -> bool:
+    """Whether two sketches lie in the same plane.
+
+    Compared geometrically, not by identity of the workplane object: every
+    sketch drawn on a datum gets its *own* workplane empty, so two sketches on
+    the same plane never share one. An opposite normal is still the same plane.
+    """
+    n_a, p_a = _plane_of(a)
+    n_b, p_b = _plane_of(b)
+    if abs(abs(n_a.normalized().dot(n_b.normalized())) - 1.0) > tol:
+        return False
+    return abs((p_b - p_a).dot(n_a.normalized())) <= tol
+
+
+def is_reference_source(ob, context, active=None) -> bool:
+    """Whether ``ob`` can be picked as a reference right now.
+
+    A sketch's curves are a *hidden* object: the add-on draws them itself so they
+    do not double up on the body's mesh, which means Blender's own visibility
+    says no to every sketch. Asking it was what made a plainly visible, greyed
+    sketch impossible to snap to. The overlay's rule is the one that matches what
+    the user can see, so it is the one that decides.
+
+    Coplanar sketches are offered because that is what referencing means here
+    (and what the old entity path allowed). Showing a sketch's curves by hand
+    widens it: an explicitly shown sketch is offered from any plane.
+    """
+    from ..model.sketch_ref import Sketch, is_sketch_object
+
+    if not is_sketch_object(ob):
+        return ob.visible_get()
+
+    sketch = Sketch(ob)
+    if not sketch.is_visible(context):
+        return False
+    if active is not None and is_coplanar(sketch, active):
+        return True
+    # Not coplanar: only if its curves were put on screen deliberately.
+    return not ob.hide_viewport
+
+
+def pick_reference_element(context, coords, exclude=None):
+    """Nearest ``(object, element_key)`` across pickable curve objects under coords.
+
+    Merges every eligible curve object's pickable geometry into one screen-space
     ranking so the closest element wins regardless of which object it belongs to.
     ``exclude`` skips an object (e.g. the active sketch, to avoid self-reference).
     """
+    from ..model.sketch_ref import get_active_sketch
+
+    active = get_active_sketch(context)
+
     objs = {}
     point_keys, point_co = [], []
     seg_keys, seg_co, seg_owner = [], [], []
-    for ob in context.visible_objects:
+    for ob in context.view_layer.objects:
         if ob.type != "CURVES" or ob == exclude:
+            continue
+        if not is_reference_source(ob, context, active):
             continue
         pick = extract_pickable_geometry(ob)
         if not len(pick.point_co) and not len(pick.seg_co):

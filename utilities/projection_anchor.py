@@ -23,9 +23,17 @@ from ..utilities.curve_data import (
     read_curve_id_list,
     read_uuid_list,
 )
+from ..utilities.view import _dbg_vec  # TEMP DEBUG -- remove before merging
 
-# Persistent identity on the SOURCE mesh (POINT domain).
-VERTEX_ID_ATTR = "slvs_project_vertex_id"
+# Persistent identity on the SOURCE mesh/sketch (POINT domain). It must NOT share
+# a name with the CURVE-domain binding attributes below: attribute names are
+# unique per datablock regardless of domain, and a sketch can be both a source
+# and a destination (projecting between two sketches). One name for both roles
+# made the binding read point data by curve index, inventing bindings on ordinary
+# curves that then resolved to source point 0 -- dragging them to the origin.
+VERTEX_ID_ATTR = "slvs_project_src_vertex_id"
+# Files written before the rename carry the source ids under the old name.
+LEGACY_VERTEX_ID_ATTR = "slvs_project_vertex_id"
 
 # Binding metadata on the SKETCH Curves datablock (CURVE domain).
 PROJECT_SRC_SLOT_ATTR = "slvs_project_src_slot"
@@ -36,8 +44,31 @@ PROJECT_LAST_CO_ATTR = "slvs_project_last_co"
 _updating = False
 
 
+def source_id_attr(data, create=False):
+    """The POINT-domain source-id attribute of ``data``, or None.
+
+    Migrates a legacy attribute written under the old name, but only when it
+    really is the source id (POINT domain) -- on a sketch the same old name may
+    be a CURVE-domain binding attribute instead, which belongs to the other role.
+    """
+    attributes = data.attributes
+    attr = attributes.get(VERTEX_ID_ATTR)
+    if attr is not None:
+        return attr if attr.domain == "POINT" else None
+
+    legacy = attributes.get(LEGACY_VERTEX_ID_ATTR)
+    if legacy is not None and legacy.domain == "POINT":
+        legacy.name = VERTEX_ID_ATTR
+        return attributes.get(VERTEX_ID_ATTR)
+
+    if not create:
+        return None
+    attributes.new(VERTEX_ID_ATTR, "INT", "POINT")
+    return attributes.get(VERTEX_ID_ATTR)
+
+
 def _allocate_vertex_id(mesh):
-    attr = mesh.attributes.get(VERTEX_ID_ATTR)
+    attr = source_id_attr(mesh)
     if attr is None or len(attr.data) == 0:
         return 1
     return max((int(item.value) for item in attr.data), default=0) + 1
@@ -45,9 +76,7 @@ def _allocate_vertex_id(mesh):
 
 def ensure_vertex_id(mesh, vertex_index):
     """Return a persistent non-zero id for ``mesh.vertices[vertex_index]``."""
-    attr = mesh.attributes.get(VERTEX_ID_ATTR)
-    if attr is None:
-        attr = mesh.attributes.new(VERTEX_ID_ATTR, "INT", "POINT")
+    attr = source_id_attr(mesh, create=True)
 
     current = int(attr.data[vertex_index].value)
     if current:
@@ -59,6 +88,10 @@ def ensure_vertex_id(mesh, vertex_index):
 
 
 def _ensure_projection_attributes(curve_data):
+    # A sketch that was projected FROM under the old name holds the source id on
+    # the POINT domain under the binding's name. Move it aside first, or the
+    # ensure below adopts it and the binding reads point data by curve index.
+    source_id_attr(curve_data)
     attributes = curve_data.attributes
     ensure_attribute(attributes, PROJECT_SRC_SLOT_ATTR, "INT", "CURVE")
     ensure_attribute(attributes, PROJECT_VERTEX_ID_ATTR, "INT", "CURVE")
@@ -138,7 +171,11 @@ def iter_projected_point_bindings(sketch):
     vertex_id_attr = attributes.get(PROJECT_VERTEX_ID_ATTR)
     fallback_attr = attributes.get(PROJECT_VERTEX_INDEX_ATTR)
     last_co_attr = attributes.get(PROJECT_LAST_CO_ATTR)
-    if not all((slot_attr, vertex_id_attr, fallback_attr, last_co_attr)):
+    attrs = (slot_attr, vertex_id_attr, fallback_attr, last_co_attr)
+    if not all(attrs) or any(a.domain != "CURVE" for a in attrs):
+        # A binding is per curve. A same-named POINT attribute is the source id
+        # of a sketch that is also projected FROM, not a binding (see the note on
+        # VERTEX_ID_ATTR); reading it by curve index invents bindings.
         return
 
     curve_ids = read_curve_id_list(curve_data)
@@ -160,8 +197,8 @@ def iter_projected_point_bindings(sketch):
 def _resolve_evaluated_vertex(eval_ob, vertex_id, fallback_index, last_co):
     mesh = eval_ob.data
     candidates = []
-    attr = mesh.attributes.get(VERTEX_ID_ATTR)
-    if attr is not None and attr.domain == "POINT":
+    attr = source_id_attr(mesh)
+    if attr is not None and vertex_id:
         for i, item in enumerate(attr.data):
             if int(item.value) == vertex_id and i < len(mesh.vertices):
                 candidates.append(i)
@@ -190,8 +227,8 @@ def _resolve_curve_point(curve_data, vertex_id, fallback_index, last_co):
     points = getattr(curve_data, "points", None)
     if points is None:
         return None
-    attr = curve_data.attributes.get(VERTEX_ID_ATTR)
-    if attr is not None and attr.domain == "POINT":
+    attr = source_id_attr(curve_data)
+    if attr is not None and vertex_id:
         for i, item in enumerate(attr.data):
             if int(item.value) == vertex_id and i < len(points):
                 return Vector(points[i].position)
@@ -280,6 +317,22 @@ def refresh_projection_for_sketch(sketch, depsgraph, changed=None, force=False):
         local = owner.matrix_world.inverted() @ world
         new_co = Vector((local.x, local.y))
         if (point.co - new_co).length > 1e-7:
+            # TEMP DEBUG -- remove before merging
+            print(
+                "[SNAP] reproject %s in %s: %s -> %s (src %s id=%s fallback=%s "
+                "local=%s)"
+                % (
+                    curve_id[:8],
+                    owner.name,
+                    _dbg_vec(point.co),
+                    _dbg_vec(new_co),
+                    source.name,
+                    vertex_id,
+                    fallback_index,
+                    _dbg_vec(source_co),
+                ),
+                flush=True,
+            )
             updates[curve_id] = (point, new_co, tuple(source_co))
 
     if not updates:
@@ -489,12 +542,12 @@ def resolve_source_vertex_index(source, eval_source, eval_vertex_index):
     if not (0 <= eval_vertex_index < len(eval_mesh.vertices)):
         return None
 
-    eval_attr = eval_mesh.attributes.get(VERTEX_ID_ATTR)
-    if eval_attr is not None and eval_attr.domain == "POINT":
+    eval_attr = source_id_attr(eval_mesh)
+    if eval_attr is not None:
         vid = int(eval_attr.data[eval_vertex_index].value)
         if vid:
-            orig_attr = orig_mesh.attributes.get(VERTEX_ID_ATTR)
-            if orig_attr is not None and orig_attr.domain == "POINT":
+            orig_attr = source_id_attr(orig_mesh)
+            if orig_attr is not None:
                 for index, item in enumerate(orig_attr.data):
                     if int(item.value) == vid and index < len(orig_mesh.vertices):
                         return index
@@ -528,6 +581,18 @@ def project_mesh_vertex(sketch, source, vertex_index, construction=True, world_c
     vertex_id = ensure_vertex_id(source.data, vertex_index)
     existing = find_projected_vertex_point(sketch, source, vertex_id)
     if existing is not None:
+        # TEMP DEBUG -- remove before merging
+        print(
+            "[SNAP] project %s#%s (id=%s): reused %s at %s"
+            % (
+                source.name,
+                vertex_index,
+                vertex_id,
+                existing.curve_id[:8],
+                _dbg_vec(existing.co),
+            ),
+            flush=True,
+        )
         return existing
 
     owner = sketch.target_object
@@ -546,6 +611,19 @@ def project_mesh_vertex(sketch, source, vertex_index, construction=True, world_c
             name="Projected Point",
         )
         bind_projected_point(sketch, point, source, vertex_index)
+    # TEMP DEBUG -- remove before merging
+    print(
+        "[SNAP] project %s#%s (id=%s): created %s at %s (world_co %s)"
+        % (
+            source.name,
+            vertex_index,
+            vertex_id,
+            point.curve_id[:8],
+            _dbg_vec(point.co),
+            _dbg_vec(world_co),
+        ),
+        flush=True,
+    )
     return point
 
 
