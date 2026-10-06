@@ -66,3 +66,60 @@ class TestReferenceSource(BgsTestCase):
         self.assertTrue(is_reference_source(raw, self.context, active))
         raw.hide_set(True)
         self.assertFalse(is_reference_source(raw, self.context, active))
+
+
+class TestOriginPoint(BgsTestCase):
+    """A sketch has exactly one origin point.
+
+    Linking the curves object lets the depsgraph handler run mid-build, and its
+    validation gives an origin to a sketch that has none yet. Creating a second
+    unconditionally left every sketch with two coincident origins, which tie in
+    the snap ranking and flip under the cursor.
+    """
+
+    def test_a_new_sketch_has_one_origin(self):
+        from ..model.curve_ref import curve_ref
+        from ..utilities.curve_data import read_uuid_list, sketch_curve_data
+
+        ensure_origin_workplane_empties(self.context)
+        sketch = build_sketch_on_workplane(
+            self.context, self.context.scene.sketcher.wp_xy
+        )
+
+        cd = sketch_curve_data(sketch)
+        origins = [
+            cid
+            for cid in read_uuid_list(cd, "curve_id")
+            if cid and getattr(curve_ref(sketch, cid), "is_origin", False)
+        ]
+        self.assertEqual(len(origins), 1, "a sketch must have exactly one origin")
+
+
+class TestSnapCandidateDedupe(BgsTestCase):
+    """One candidate per position, so the choice cannot flip between frames."""
+
+    def test_the_most_specific_candidate_wins_a_tie(self):
+        from ..utilities.view import _best_per_position
+
+        here = (1.0, 2.0, 0.0)
+        vertex = (0, 0.0, None, {"type": "VERTEX", "world_point": here})
+        edge = (2, 0.0, None, {"type": "EDGE", "world_point": here})
+        elsewhere = (0, 5.0, None, {"type": "VERTEX", "world_point": (9.0, 9.0, 0.0)})
+
+        kept = _best_per_position([edge, vertex, elsewhere])
+
+        self.assertEqual(len(kept), 2, "the two at one position collapse")
+        types = {c[3]["type"] for c in kept}
+        self.assertEqual(types, {"VERTEX"}, "a vertex beats an edge at the same spot")
+
+    def test_order_does_not_decide(self):
+        from ..utilities.view import _best_per_position
+
+        here = (1.0, 2.0, 0.0)
+        a = (0, 0.0, None, {"type": "VERTEX", "world_point": here})
+        b = (2, 0.0, None, {"type": "EDGE", "world_point": here})
+
+        self.assertEqual(
+            _best_per_position([a, b])[0][3]["type"],
+            _best_per_position([b, a])[0][3]["type"],
+        )

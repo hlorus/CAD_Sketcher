@@ -155,10 +155,33 @@ def build_sketch_on_workplane(context: Context, wp_empty):
 
     sketch = Sketch(sketch_obj)
 
-    origin = PointRef.create(sketch, (0.0, 0.0), fixed=True, is_origin=True)
+    # Idempotent: linking the curves object above lets the depsgraph handler run
+    # mid-build, and its validation gives a sketch that has no origin yet one of
+    # its own. Creating a second here left every sketch with two coincident
+    # origin points, which tie in the snap ranking and flip under the cursor.
+    origin = sketch_origin(sketch) or PointRef.create(
+        sketch, (0.0, 0.0), fixed=True, is_origin=True
+    )
     assert origin is not None, "Failed to create origin point"
 
     return sketch
+
+
+def sketch_origin(sketch):
+    """The sketch's protected origin point, or None if it has none yet."""
+    from ..model.curve_ref import curve_ref
+    from ..utilities.curve_data import read_uuid_list, sketch_curve_data
+
+    cd = sketch_curve_data(sketch)
+    if cd is None:
+        return None
+    for cid in read_uuid_list(cd, "curve_id"):
+        if not cid:
+            continue
+        ref = curve_ref(sketch, cid)
+        if ref.valid and getattr(ref, "is_origin", False):
+            return ref
+    return None
 
 
 def _is_shared_datum(context: Context, wp_empty) -> bool:
