@@ -12,6 +12,7 @@ indices. A depsgraph handler reprojects changed source vertices into the sketch
 plane and connected native line curves follow through ``rebuild_segments``.
 """
 
+import bpy
 from mathutils import Vector
 
 from ..model.constants import SketchCurveType
@@ -39,6 +40,12 @@ PROJECT_SRC_SLOT_ATTR = "slvs_project_src_slot"
 PROJECT_VERTEX_ID_ATTR = "slvs_project_vertex_id"
 PROJECT_VERTEX_INDEX_ATTR = "slvs_project_vertex_index"
 PROJECT_LAST_CO_ATTR = "slvs_project_last_co"
+
+# Stands in for the persistent source id when the projected element exists only
+# after modifiers (a body whose geometry the node groups build, so its own mesh
+# is empty). There is no original vertex to mint an id on, so the binding
+# resolves by index and last position instead (see _resolve_evaluated_vertex).
+EVALUATED_VERTEX_ID = -1
 
 _updating = False
 
@@ -130,12 +137,19 @@ def _source_point_index(source, vertex_index):
     return Vector(source.data.points[vertex_index].position)
 
 
-def bind_projected_point(sketch, point, source, vertex_index):
+def bind_projected_point(
+    sketch, point, source, vertex_index, vertex_id=None, last_co=None
+):
     """Bind a native sketch point to a source element.
 
     The source is a mesh (bind to a vertex) or another sketch/curve (bind to a
     control point). Both mint the persistent id on the source's POINT-domain
     ``VERTEX_ID_ATTR`` so the reproject can find the element after edits.
+
+    ``vertex_index`` indexes the source's own geometry. For an element that only
+    exists after the source's modifiers there is nothing to mint an id on, so the
+    caller passes ``vertex_id=EVALUATED_VERTEX_ID`` with the evaluated index and
+    ``last_co``; the reproject then resolves it by index and position.
     """
     if source is None or source.type not in (_MESH_SOURCE | _CURVE_SOURCE):
         raise TypeError("Projected geometry source must be a mesh or sketch/curve")
@@ -145,16 +159,17 @@ def bind_projected_point(sketch, point, source, vertex_index):
         raise ValueError("Projected point is not part of the sketch")
 
     _ensure_projection_attributes(curve_data)
-    vertex_id = ensure_vertex_id(source.data, vertex_index)
+    if vertex_id is None:
+        vertex_id = ensure_vertex_id(source.data, vertex_index)
+    if last_co is None:
+        last_co = _source_point_index(source, vertex_index)
     source_slot = _get_or_add_source_slot(sketch.target_object, source)
     attributes = curve_data.attributes
 
     attributes[PROJECT_SRC_SLOT_ATTR].data[curve_index].value = source_slot
-    attributes[PROJECT_VERTEX_ID_ATTR].data[curve_index].value = vertex_id
+    attributes[PROJECT_VERTEX_ID_ATTR].data[curve_index].value = int(vertex_id)
     attributes[PROJECT_VERTEX_INDEX_ATTR].data[curve_index].value = int(vertex_index)
-    attributes[PROJECT_LAST_CO_ATTR].data[curve_index].vector = _source_point_index(
-        source, vertex_index
-    )
+    attributes[PROJECT_LAST_CO_ATTR].data[curve_index].vector = last_co
     return vertex_id
 
 
@@ -181,9 +196,10 @@ def iter_projected_point_bindings(sketch):
     slots = owner.slvs_project_sources
     for index, curve_id in enumerate(curve_ids):
         vertex_id = int(vertex_id_attr.data[index].value)
-        # All generic/native curves default to zero. A non-zero persistent
-        # source vertex id is therefore the binding marker.
-        if vertex_id <= 0:
+        # All generic/native curves default to zero, so a non-zero value is the
+        # binding marker: a positive persistent source id, or EVALUATED_VERTEX_ID
+        # for an element that only exists after the source's modifiers.
+        if vertex_id == 0:
             continue
 
         slot_index = int(slot_attr.data[index].value)
@@ -197,7 +213,7 @@ def _resolve_evaluated_vertex(eval_ob, vertex_id, fallback_index, last_co):
     mesh = eval_ob.data
     candidates = []
     attr = source_id_attr(mesh)
-    if attr is not None and vertex_id:
+    if attr is not None and vertex_id > 0:
         for i, item in enumerate(attr.data):
             if int(item.value) == vertex_id and i < len(mesh.vertices):
                 candidates.append(i)
@@ -392,6 +408,30 @@ def find_projected_vertex_point(sketch, source, vertex_id):
     return None
 
 
+def find_projected_generated_point(sketch, source, vertex_index):
+    """An existing point bound to ``source``'s evaluated vertex, or None.
+
+    Generated geometry has no persistent id to match on, so the index it was
+    bound at is the only handle; good enough to stop one pick stacking duplicate
+    points on a shared corner.
+    """
+    for (
+        curve_id,
+        bound_source,
+        bound_vid,
+        fallback,
+        _last_co,
+    ) in iter_projected_point_bindings(sketch):
+        if bound_source != source or bound_vid != EVALUATED_VERTEX_ID:
+            continue
+        if fallback != int(vertex_index):
+            continue
+        existing = PointRef(sketch, curve_id)
+        if existing.valid:
+            return existing
+    return None
+
+
 def find_projected_point(sketch, source, vertex_index):
     """Return an existing valid ``PointRef`` bound to ``(source, vertex_index)``.
 
@@ -430,7 +470,29 @@ def _line_exists_between(sketch, p1, p2):
     return _line_curve_id_between(sketch, p1, p2) is not None
 
 
-def project_mesh_element(sketch, source, elem_type, elem_index, construction=True):
+def picked_mesh(source, depsgraph=None):
+    """``(eval_object, mesh)`` the picked element indexes, or ``(source, None)``.
+
+    Picking raycasts the *evaluated* geometry, so that is what an element index
+    refers to. Reading the object's own mesh instead only agrees when the
+    modifier stack preserves indices, and for a body built by the node groups
+    (its own mesh is empty) it addresses nothing at all.
+
+    Pass the caller's ``depsgraph``; asking for one here evaluates the scene,
+    which runs this add-on's own handlers in the middle of a projection.
+    """
+    if depsgraph is None:
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+    eval_ob = source.evaluated_get(depsgraph)
+    mesh = getattr(eval_ob, "data", None)
+    if mesh is None or not hasattr(mesh, "vertices"):
+        return source, None
+    return eval_ob, mesh
+
+
+def project_mesh_element(
+    sketch, source, elem_type, elem_index, construction=True, depsgraph=None
+):
     """Project a single picked mesh element (``VERTEX``/``EDGE``/``FACE``).
 
     Returns ``(new_points, new_lines)``. Shared vertices are reused within the
@@ -439,12 +501,16 @@ def project_mesh_element(sketch, source, elem_type, elem_index, construction=Tru
     counterpart to :func:`project_mesh_object`; both go through
     :func:`bind_projected_point`, so the live-binding storage is identical.
 
-    NOTE (prototype): ``elem_index`` is treated as an index into the source's
-    original mesh. Index-changing modifiers on the source are not yet remapped.
+    ``elem_index`` indexes the evaluated mesh, which is what the pick hit. Each
+    vertex binds to the original one it came from where that can be established,
+    and to the evaluated element otherwise (see :func:`bind_projected_point`), so
+    geometry that exists only after modifiers can be projected too.
     """
     if source is None or source.type != "MESH":
         raise TypeError("Source must be a mesh object")
-    mesh = source.data
+    eval_ob, mesh = picked_mesh(source, depsgraph)
+    if mesh is None:
+        raise ValueError(f"'{source.name}' has no geometry to project")
     owner = sketch.target_object
     inv = owner.matrix_world.inverted()
 
@@ -456,11 +522,16 @@ def project_mesh_element(sketch, source, elem_type, elem_index, construction=Tru
         cached = local_points.get(vertex_index)
         if cached is not None:
             return cached
-        existing = find_projected_point(sketch, source, vertex_index)
+        original = resolve_source_vertex_index(source, eval_ob, vertex_index)
+        if original is not None:
+            existing = find_projected_point(sketch, source, original)
+        else:
+            existing = find_projected_generated_point(sketch, source, vertex_index)
         if existing is not None:
             local_points[vertex_index] = existing
             return existing
-        co = inv @ (source.matrix_world @ mesh.vertices[vertex_index].co)
+        source_co = Vector(mesh.vertices[vertex_index].co)
+        co = inv @ (eval_ob.matrix_world @ source_co)
         point = PointRef.create(
             sketch,
             (co.x, co.y),
@@ -468,7 +539,17 @@ def project_mesh_element(sketch, source, elem_type, elem_index, construction=Tru
             fixed=True,
             name="Projected Point",
         )
-        bind_projected_point(sketch, point, source, vertex_index)
+        if original is not None:
+            bind_projected_point(sketch, point, source, original)
+        else:
+            bind_projected_point(
+                sketch,
+                point,
+                source,
+                vertex_index,
+                vertex_id=EVALUATED_VERTEX_ID,
+                last_co=source_co,
+            )
         local_points[vertex_index] = point
         counters["points"] += 1
         return point
@@ -493,18 +574,30 @@ def project_mesh_element(sketch, source, elem_type, elem_index, construction=Tru
         )
         counters["lines"] += 1
 
+    elements = {
+        "VERTEX": mesh.vertices,
+        "EDGE": mesh.edges,
+        "FACE": mesh.polygons,
+    }.get(elem_type)
+    if elements is None:
+        raise ValueError(f"Unsupported element type: {elem_type!r}")
+    if not 0 <= elem_index < len(elements):
+        # The pick and the geometry disagree (an edit between pick and project,
+        # or a source whose evaluated mesh has no such element).
+        raise ValueError(
+            f"'{source.name}' has no {elem_type.lower()} {elem_index} to project"
+        )
+
     with batch_update(sketch):
         if elem_type == "VERTEX":
             get_point(elem_index)
         elif elem_type == "EDGE":
             v0, v1 = mesh.edges[elem_index].vertices
             connect(v0, v1)
-        elif elem_type == "FACE":
+        else:
             verts = list(mesh.polygons[elem_index].vertices)
             for i, v0 in enumerate(verts):
                 connect(v0, verts[(i + 1) % len(verts)])
-        else:
-            raise ValueError(f"Unsupported element type: {elem_type!r}")
 
     return counters["points"], counters["lines"]
 
@@ -638,16 +731,19 @@ def project_mesh_edge(sketch, source, vertex_index, vertex_index_2, construction
         )
 
 
-def project_mesh_object(sketch, source, construction=True):
+def project_mesh_object(sketch, source, construction=True, depsgraph=None):
     """Project every edge of ``source`` onto ``sketch`` as live native curves.
 
     Returns ``(points, lines)``. Endpoints are fixed because their positions are
     driven by the source mesh reference rather than by SolveSpace.
+
+    Reads the evaluated mesh, so a source whose geometry comes from its modifiers
+    projects like any other (see :func:`picked_mesh`).
     """
     if source is None or source.type != "MESH":
         raise TypeError("Source must be a mesh object")
-    mesh = source.data
-    if len(mesh.edges) == 0:
+    eval_ob, mesh = picked_mesh(source, depsgraph)
+    if mesh is None or len(mesh.edges) == 0:
         return [], []
 
     owner = sketch.target_object
@@ -659,8 +755,8 @@ def project_mesh_object(sketch, source, construction=True):
 
     with batch_update(sketch):
         for vertex_index in used_indices:
-            vertex = mesh.vertices[vertex_index]
-            local = inv @ (source.matrix_world @ vertex.co)
+            source_co = Vector(mesh.vertices[vertex_index].co)
+            local = inv @ (eval_ob.matrix_world @ source_co)
             point = PointRef.create(
                 sketch,
                 (local.x, local.y),
@@ -668,7 +764,18 @@ def project_mesh_object(sketch, source, construction=True):
                 fixed=True,
                 name="Projected Point",
             )
-            bind_projected_point(sketch, point, source, vertex_index)
+            original = resolve_source_vertex_index(source, eval_ob, vertex_index)
+            if original is not None:
+                bind_projected_point(sketch, point, source, original)
+            else:
+                bind_projected_point(
+                    sketch,
+                    point,
+                    source,
+                    vertex_index,
+                    vertex_id=EVALUATED_VERTEX_ID,
+                    last_co=source_co,
+                )
             point_by_index[vertex_index] = point
             points.append(point)
 
