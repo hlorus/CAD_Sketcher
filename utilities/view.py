@@ -519,13 +519,6 @@ def curve_segment_under_cursor(context: Context, coords, threshold_px):
     return best[1], best[2]
 
 
-def _dbg_vec(vec, digits=4):
-    """TEMP DEBUG -- remove before merging."""
-    if vec is None:
-        return "-"
-    return "(" + ", ".join("%.*f" % (digits, float(c)) for c in vec) + ")"
-
-
 def snap_skipped_objects(context: Context) -> set:
     """Objects snapping must look straight past: the sketch being drawn in.
 
@@ -601,29 +594,6 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
     # in practice is the coplanar handful, so a mouse-move stays cheap.
     candidates += _sketch_snap_candidates(context, coords, elements, skipped)
 
-    # TEMP DEBUG -- remove before merging
-    print(
-        "[SNAP] scan at (%.1f, %.1f): ray=%s, %d cand: %s"
-        % (
-            coords[0],
-            coords[1],
-            ob.name if ob is not None else "-",
-            len(candidates),
-            " | ".join(
-                "%s@%s d=%.2f p=%d %s"
-                % (
-                    d.get("type"),
-                    d.get("object", "-"),
-                    dist,
-                    prio,
-                    _dbg_vec(d.get("world_point")),
-                )
-                for prio, dist, _rp, d in candidates
-            ),
-        ),
-        flush=True,
-    )
-
     candidates = _best_per_position(candidates, context)
     if not candidates:
         return None
@@ -632,18 +602,6 @@ def get_blender_snap_info(context: Context, coords: Vector) -> Optional[dict]:
         candidates, key=lambda item: _snap_rank(item[0], item[1], context)
     )
     snap_data["region_point"] = region_point
-    # TEMP DEBUG -- remove before merging
-    print(
-        "[SNAP] chosen: %s on %s vi=%s ev=%s world=%s"
-        % (
-            snap_data.get("type"),
-            snap_data.get("object", "-"),
-            snap_data.get("vertex_index"),
-            snap_data.get("edge_vertices"),
-            _dbg_vec(snap_data.get("world_point")),
-        ),
-        flush=True,
-    )
     return snap_data
 
 
