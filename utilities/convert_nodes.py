@@ -21,13 +21,16 @@ import bpy
 from ..model.constants import SketchCurveType
 
 CONVERT_NODE_GROUP = "CAD Sketcher Convert"
+# Holds each point's real position while the weld parks it by identity; removed
+# again before the geometry leaves the group (see _weld_by_parking).
+PARKED_POSITION_ATTR = "cad_parked_position"
 VERTEX_ID_ATTR = "id"
 FACE_ID_ATTR = "cad_sketcher_face_id"
 SOURCE_CURVE_ID_ATTR = ".cad_sketcher_source_curve_id"
 SOURCE_ENDPOINT_ID_ATTR = ".cad_sketcher_source_endpoint_id"
 
 GENERATED_ID_VERSION = 2
-CONVERT_VERSION = 25
+CONVERT_VERSION = 26
 
 # Input naming the sketch a body is built from. A body is a mesh object with no
 # geometry of its own: the sketch's curves are pulled in here, so one modifier
@@ -229,6 +232,86 @@ def _store_int_attribute(nodes, links, geometry, value, name, domain):
     links.new(geometry, store.inputs["Geometry"])
     links.new(value, store.inputs["Value"])
     return store.outputs["Geometry"]
+
+
+# Where parked points sit while they are merged. Ids and indices are spread
+# across [0, 1): close enough together to keep every coordinate small, far
+# enough apart that nothing distinct lands within the merge distance.
+_PARK_SPAN = 1.0
+_PARK_DISTANCE = 1e-9
+
+
+def _weld_by_parking(nodes, links, geometry, merge_id, weld):
+    """Weld points that share a ``merge_id``, without the Merge Points node.
+
+    Blender below 5.2 has no identity weld, and merging by distance cannot do
+    the job: the threshold is absolute while the precision of a coordinate is
+    relative to its magnitude, so one fixed value is always wrong at some scale.
+    A 1e-6 threshold stopped merging coincident corners of a sketch bigger than
+    about 20 units, splitting the loop and filling a rectangle as a triangle.
+
+    So proximity is made to mean identity. Each point that may weld is parked at
+    a position derived from its id alone, which puts points sharing an id on
+    bit-identical coordinates near the origin, whatever the sketch's size. Only
+    those points are parked and only they can merge, so nothing else is near
+    them. Afterwards their real positions, kept in an attribute, are put back.
+
+    Returns the welded geometry socket.
+    """
+    # Ids are spread across [0, 1) by point count, so even a sketch with many
+    # junctions parks near the origin instead of drifting back into the
+    # magnitude that broke the distance weld.
+    size = nodes.new("GeometryNodeAttributeDomainSize")
+    size.component = "MESH"
+    links.new(geometry, size.inputs["Geometry"])
+    guard = nodes.new("ShaderNodeMath")
+    guard.operation = "MAXIMUM"
+    links.new(size.outputs["Point Count"], guard.inputs[0])
+    guard.inputs[1].default_value = 1.0
+    step = nodes.new("ShaderNodeMath")
+    step.operation = "DIVIDE"
+    step.inputs[0].default_value = _PARK_SPAN
+    links.new(guard.outputs["Value"], step.inputs[1])
+
+    position = nodes.new("GeometryNodeInputPosition")
+    store = nodes.new("GeometryNodeStoreNamedAttribute")
+    store.domain = "POINT"
+    store.data_type = "FLOAT_VECTOR"
+    store.inputs["Name"].default_value = PARKED_POSITION_ATTR
+    links.new(geometry, store.inputs["Geometry"])
+    links.new(position.outputs["Position"], store.inputs["Value"])
+
+    spot = nodes.new("ShaderNodeMath")
+    spot.operation = "MULTIPLY"
+    links.new(merge_id, spot.inputs[0])
+    links.new(step.outputs["Value"], spot.inputs[1])
+    parked = nodes.new("ShaderNodeCombineXYZ")
+    links.new(spot.outputs["Value"], parked.inputs["X"])
+
+    # Only the points that may weld move; everything else keeps its place and is
+    # left out of the merge below, so the two can never be confused.
+    park = nodes.new("GeometryNodeSetPosition")
+    links.new(store.outputs["Geometry"], park.inputs["Geometry"])
+    links.new(weld.outputs["Boolean"], park.inputs["Selection"])
+    links.new(parked.outputs["Vector"], park.inputs["Position"])
+
+    merge = nodes.new("GeometryNodeMergeByDistance")
+    links.new(park.outputs["Geometry"], merge.inputs["Geometry"])
+    links.new(weld.outputs["Boolean"], merge.inputs["Selection"])
+    # Only bit-identical parked points may collapse.
+    merge.inputs["Distance"].default_value = _PARK_DISTANCE
+
+    real = nodes.new("GeometryNodeInputNamedAttribute")
+    real.data_type = "FLOAT_VECTOR"
+    real.inputs["Name"].default_value = PARKED_POSITION_ATTR
+    restore = nodes.new("GeometryNodeSetPosition")
+    links.new(merge.outputs["Geometry"], restore.inputs["Geometry"])
+    links.new(real.outputs["Attribute"], restore.inputs["Position"])
+
+    drop = nodes.new("GeometryNodeRemoveAttribute")
+    drop.inputs["Name"].default_value = PARKED_POSITION_ATTR
+    links.new(restore.outputs["Geometry"], drop.inputs["Geometry"])
+    return drop.outputs["Geometry"]
 
 
 def _normalize_winding(nodes, links, curve):
@@ -629,21 +712,16 @@ def build_convert_node_group(
         links.new(wire_mesh, merge.inputs["Geometry"])
         links.new(merge_id.outputs["Attribute"], merge.inputs["Merge ID"])
         links.new(weld.outputs["Boolean"], merge.inputs["Selection"])
+        welded_geometry = merge.outputs["Geometry"]
     else:
-        # Blender < 5.2 has no identity weld (Merge Points). Merge the same
-        # selected endpoints by a tiny distance instead: it only collapses points
-        # that already share a position, so it matches the identity weld for the
-        # coincident sketch endpoints in practice. Both nodes output "Geometry",
-        # so the downstream fill/non-fill wiring below is identical.
-        merge = nodes.new("GeometryNodeMergeByDistance")
-        links.new(wire_mesh, merge.inputs["Geometry"])
-        links.new(weld.outputs["Boolean"], merge.inputs["Selection"])
-        merge.inputs["Distance"].default_value = 1e-6
+        welded_geometry = _weld_by_parking(
+            nodes, links, wire_mesh, merge_id.outputs["Attribute"], weld
+        )
 
     # The welded wire mesh carries POINT values on its vertices and per-segment
     # values on its edges; it feeds the non-fill path directly and is the source
     # for re-establishing POINT values on the filled mesh below.
-    pre_fill = merge.outputs["Geometry"]
+    pre_fill = welded_geometry
 
     to_curve = nodes.new("GeometryNodeMeshToCurve")
     links.new(pre_fill, to_curve.inputs["Mesh"])
