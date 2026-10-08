@@ -10,6 +10,7 @@ from ..utilities.part import (
     is_part_root,
     join_part,
     promote_to_root,
+    realise_part,
 )
 
 
@@ -39,10 +40,10 @@ def can_root_a_part(obj) -> bool:
 class View3D_OT_slvs_make_part(Operator):
     """Make the selected objects a part, rooted in the active one.
 
-    A part usually appears on its own, when a sketch is made solid or drawn on
-    something. This is for the cases that never pass through those tools, such as
-    imported geometry you want to sketch on, place in an assembly, or reuse. With
-    a part already active, the rest of the selection joins it."""
+    A part appears on its own whenever a sketch is drawn, so this is for what
+    never passes through the sketch tools: imported geometry you want to sketch
+    on, place in an assembly, or reuse. With a part already active, the rest of
+    the selection joins it."""
 
     bl_idname = Operators.MakePart
     bl_label = "Make Part"
@@ -62,7 +63,11 @@ class View3D_OT_slvs_make_part(Operator):
 
         if not is_part_root(root):
             promote_to_root(root)
-            ensure_part_planes(context, root)
+        else:
+            # Already a part: either the user is adding to it, or it is the part
+            # a sketch started on its own and they are asking for it in full.
+            realise_part(root)
+        ensure_part_planes(context, root)
 
         members = [
             obj

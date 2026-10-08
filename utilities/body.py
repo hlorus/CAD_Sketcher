@@ -93,16 +93,17 @@ def ensure_body(
 
 
 def default_body_name(root: Optional[bpy.types.Object] = None) -> str:
-    """What to call a new body: after the part it joins, else just "Body".
+    """What to call a new body: after the part it joins, else "Part".
 
-    Not everything a sketch makes is a part -- a body can be a feature of one, a
-    cutter, or nothing solid yet -- so "Body" says what it is without claiming
-    more. A body joining a part takes the part's name, which Blender numbers, so
-    "Bracket" gains "Bracket.001" rather than an unrelated "Body.007".
+    A body that joins no part is the one that roots a new part, so that is what
+    the user is looking at and what it is called: the sketch and its plane are
+    then named after it ("Part Sketch", "Part XY"). A body joining an existing
+    part takes that part's name, which Blender numbers, so "Bracket" gains
+    "Bracket.001" rather than an unrelated "Part.007".
     """
     if root is not None and root.name:
         return root.name
-    return "Body"
+    return "Part"
 
 
 def _new_body(

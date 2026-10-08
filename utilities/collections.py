@@ -284,7 +284,13 @@ def sync_part_collections(scene) -> bool:
     taking it out returns it to the scene level. Collections that end up empty are
     removed. Returns True if anything changed.
     """
-    from .part import ASSEMBLY, PART, assembly_root_of, survey_groups
+    from .part import (
+        ASSEMBLY,
+        PART,
+        assembly_root_of,
+        is_provisional_part,
+        survey_groups,
+    )
 
     home = homes(scene)
     signature = _hierarchy_signature(scene, home)
@@ -312,6 +318,11 @@ def sync_part_collections(scene) -> bool:
                 owned.setdefault(member, coll)
 
     for name, root in roots[PART].items():
+        # A part that is still only a sketch has nothing to group: its sketch,
+        # plane and empty body stay at scene level until something solid stands
+        # on it, so drawing a sketch does not add a collection to the outliner.
+        if is_provisional_part(root):
+            continue
         coll = part_collection(root, scene, created, claimed)
         claimed.add(coll.name)
         assembly = assembly_root_of(root)
