@@ -101,13 +101,19 @@ class TestProjectionAnchor(Sketch2dTestCase):
 
     def test_project_face_outline_shares_corners(self):
         source = self._quad_object()
-        n_points, n_lines = project_mesh_element(self.sketch, source, "FACE", 0)
+        # Settle the scene first: projecting reads the evaluated mesh, and the
+        # evaluation runs the handler that gives a fresh sketch its origin.
+        depsgraph = self.context.evaluated_depsgraph_get()
+        before = self._count_curves()
+        n_points, n_lines = project_mesh_element(
+            self.sketch, source, "FACE", 0, depsgraph=depsgraph
+        )
         # A quad face: four shared corner points and four boundary lines.
         self.assertEqual((n_points, n_lines), (4, 4))
         for v in range(4):
             self.assertIsNotNone(find_projected_point(self.sketch, source, v))
         # Face outline is a closed loop of eight curves (4 points + 4 lines).
-        self.assertEqual(self._count_curves(), 8)
+        self.assertEqual(self._count_curves() - before, 8)
 
     def test_projection_keeps_live_vertex_reference(self):
         source = self._mesh_object()

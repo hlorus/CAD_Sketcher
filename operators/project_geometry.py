@@ -118,7 +118,12 @@ class VIEW3D_OT_slvs_project_geometry(Operator, GenericEntityOp):
             if source is None or source.type != "MESH":
                 return False
             n_points, n_lines = project_mesh_element(
-                sketch, source, elem, mesh_index, construction=self.construction
+                sketch,
+                source,
+                elem,
+                mesh_index,
+                construction=self.construction,
+                depsgraph=context.evaluated_depsgraph_get(),
             )
 
         if n_points or n_lines:
