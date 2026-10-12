@@ -236,6 +236,70 @@ def remove_body(sketch_obj: bpy.types.Object) -> None:
     bpy.data.objects.remove(body)
 
 
+def convert_modifier_of(body: Optional[bpy.types.Object]):
+    """``body``'s Convert modifier, or None when it is gone or not wired up.
+
+    Not just "is a modifier named that present": one whose node group was
+    cleared, or that no longer points at the sketch it reads, produces nothing
+    either, and looks the same to the user.
+    """
+    from ..operators.modifiers import get_modifier_input
+    from .convert_nodes import CONVERT_NODE_GROUP, SKETCH_INPUT, input_identifier
+    from .curve_data import CONVERT_MODIFIER_NAME
+
+    if body is None:
+        return None
+    modifier = body.modifiers.get(CONVERT_MODIFIER_NAME)
+    group = getattr(modifier, "node_group", None)
+    if modifier is None or group is None or group.name != CONVERT_NODE_GROUP:
+        return None
+    identifier = input_identifier(group, SKETCH_INPUT)
+    if identifier is None:
+        return None
+    try:
+        # ``==`` not ``is``: bpy hands out a fresh wrapper per access, so two
+        # references to one datablock are never the same Python object.
+        if get_modifier_input(modifier, identifier) != sketch_of(body):
+            return None
+    except Exception:
+        return None
+    return modifier
+
+
+def broken_bodies(scene) -> list:
+    """Bodies whose geometry cannot be built because their Convert setup is gone.
+
+    Deleting that modifier by hand is one click in the modifier panel, and
+    nothing puts it back: the sketch survives untouched while the body it feeds
+    goes empty. Reported so the user can repair it deliberately rather than
+    having it silently reappear (see ``repair_body``).
+    """
+    from .collections import is_editable
+
+    broken = []
+    for obj in scene.objects:
+        if not is_body(obj) or not is_editable(obj):
+            continue
+        if sketch_of(obj) is None:
+            continue  # nothing to read: not this problem
+        if convert_modifier_of(obj) is None:
+            broken.append(obj)
+    return broken
+
+
+def repair_body(context, body: bpy.types.Object) -> bool:
+    """Put ``body``'s Convert modifier back and point it at its sketch."""
+    from .curve_data import _ensure_convert_modifier
+
+    sketch_obj = sketch_of(body)
+    if sketch_obj is None:
+        return False
+    _ensure_convert_modifier(body)
+    bind_body_to_sketch(body, sketch_obj)
+    body.update_tag()
+    return convert_modifier_of(body) is not None
+
+
 def bind_body_to_sketch(body: bpy.types.Object, sketch_obj: bpy.types.Object) -> None:
     """Point ``body``'s convert modifier at the sketch it is built from."""
     from ..operators.modifiers import set_modifier_input
