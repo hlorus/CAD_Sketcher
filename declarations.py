@@ -64,6 +64,7 @@ class Operators(str, Enum):
     ChangeSketchWorkplane = "view3d.slvs_change_sketch_workplane"
     MakeWorkplaneFree = "view3d.slvs_make_workplane_free"
     MigrateLegacy = "view3d.slvs_migrate_legacy"
+    RepairBodies = "view3d.slvs_repair_bodies"
     ReattachWorkplane = "view3d.slvs_reattach_workplane"
     AlignWorkplaneCursor = "view3d.slvs_align_workplane_cursor"
     AlignView = "view3d.slvs_align_view"

@@ -228,6 +228,33 @@ def _draw_migration_prompt(context: Context, layout: UILayout):
     )
 
 
+def _draw_broken_body_prompt(context: Context, layout: UILayout):
+    """Warn when a body has lost the modifier that builds it, and offer a fix.
+
+    Not repaired automatically: removing a modifier is a deliberate act, and
+    silently putting it back would fight a user who meant it. The warning says
+    what is wrong and the button is the way back.
+    """
+    from ...utilities.body import broken_bodies
+
+    broken = broken_bodies(context.scene)
+    if not broken:
+        return
+
+    box = layout.box()
+    box.alert = True
+    box.label(text="Sketch body is not built", icon="ERROR")
+    names = ", ".join(sorted(body.name for body in broken)[:3])
+    if len(broken) > 3:
+        names += f" and {len(broken) - 3} more"
+    box.label(text=f"Missing the Convert modifier: {names}")
+    box.operator(
+        declarations.Operators.RepairBodies,
+        text="Repair",
+        icon="FILE_REFRESH",
+    )
+
+
 def sketch_selector(
     context: Context,
     layout: UILayout,
@@ -273,6 +300,7 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
         layout = self.layout
 
         _draw_migration_prompt(context, layout)
+        _draw_broken_body_prompt(context, layout)
         sketch_selector(context, layout)
         sketch = get_active_sketch(context)
         layout.use_property_split = True
