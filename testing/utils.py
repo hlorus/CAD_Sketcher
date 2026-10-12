@@ -176,6 +176,20 @@ class BgsTestCase(TestCase):
             for attr in _CLEANUP_TYPES
         }
 
+        # The part handler remembers the last scene it saw by object name, and
+        # that memory outlives the scene. Left over from another class, a new
+        # object that happens to reuse a remembered member name gets treated as
+        # stranded from a deleted part and handed to a new root. Start clean,
+        # the way loading a file does. test_core imports this module as a
+        # top-level "testing.utils", where the relative import can't resolve;
+        # nothing there builds parts, so there's nothing to reset.
+        try:
+            from ..utilities.part import reset_cache
+        except ImportError:
+            pass
+        else:
+            reset_cache()
+
         # Create new scene for tests
         cls.scene = bpy.data.scenes.new(cls.__name__)
         bpy.context.window.scene = cls.scene
