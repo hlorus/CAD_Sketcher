@@ -91,6 +91,9 @@ class TestWorkplaneOffers(BgsTestCase):
         from ..operators.add_sketch import new_workplane_empty
 
         plane = new_workplane_empty(self.context, Matrix.Translation((0.0, 0.0, 3.0)))
+        # The class shares one scene; left behind, this plane would be offered
+        # to every test after it, even while a part is in focus.
+        self.addCleanup(bpy.data.objects.remove, plane)
 
         bpy.ops.object.select_all(action="DESELECT")
         self.context.view_layer.objects.active = None
