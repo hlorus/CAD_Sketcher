@@ -43,17 +43,20 @@ class TestPartRoot(BgsTestCase):
         ob.location = location
         return ob
 
-    def test_sketch_on_a_datum_plane_is_global(self):
-        # Nothing obvious to belong to: it stays global until it is made solid.
+    def test_sketch_on_a_datum_plane_starts_a_part(self):
+        # Nothing to belong to, so it starts something of its own: a part from
+        # the first stroke, provisional until something solid stands on it.
         from ..utilities.body import body_of
+        from ..utilities.part import is_provisional_part
 
         sketch = build_sketch_on_workplane(self.context, self.datum)
         obj = sketch.target_object
         body = body_of(obj)
 
         self.assertIsNotNone(body, "every sketch is realised on a body")
-        self.assertFalse(is_part_root(body))
-        self.assertIsNone(part_root_of(obj))
+        self.assertTrue(is_part_root(body))
+        self.assertTrue(is_provisional_part(body))
+        self.assertEqual(part_root_of(obj), body)
         # It sits on a plane of its own, where the datum it was drawn on is: the
         # scene's datums are shared, so no part may hang from one.
         self.assertIsNotNone(obj.slvs_workplane)
@@ -87,14 +90,14 @@ class TestPartRoot(BgsTestCase):
 
         self.assertTrue(body_of(sketch.target_object).name.startswith("Bracket."))
 
-    def test_a_new_part_is_just_a_body(self):
-        # Nothing it belongs to yet, and not every sketch becomes a part, so the
-        # name says what it is rather than claiming more.
+    def test_a_new_part_is_called_part(self):
+        # A sketch drawn on nothing starts a part, so that is what the thing the
+        # user is looking at is called.
         from ..utilities.body import body_of
 
         sketch = build_sketch_on_workplane(self.context, self.datum)
 
-        self.assertTrue(body_of(sketch.target_object).name.startswith("Body"))
+        self.assertTrue(body_of(sketch.target_object).name.startswith("Part"))
 
     def test_renaming_the_part_is_all_it_takes(self):
         from ..utilities.body import body_of, name_after_body
@@ -394,21 +397,25 @@ class TestPartRoot(BgsTestCase):
         # A sketch body is a Curves object, so its face can never be anchored
         # (can_anchor_face needs polygons), and part membership must not depend on
         # anchoring having worked -- only on what the sketch was drawn on.
+        from ..utilities.body import body_of
         from ..utilities.face_anchor import KEY_FACE_ID, KEY_SOURCE
 
         first = build_sketch_on_workplane(self.context, self.datum)
-        body = first.target_object
-        self.assertFalse(is_part_root(body))  # global until something joins it
+        first_obj = first.target_object
+        # The part is rooted in the body, which the first sketch already started.
+        body = body_of(first_obj)
+        self.assertTrue(is_part_root(body))
 
         # The workplane a non-anchorable pick produces: source recorded, no anchor.
         wp = bpy.data.objects.new("WP", None)
         self.scene.collection.objects.link(wp)
-        wp[KEY_SOURCE] = body
+        wp[KEY_SOURCE] = first_obj
         self.assertNotIn(KEY_FACE_ID, wp)
 
         second = build_sketch_on_workplane(self.context, wp)
-        # Drawing on a global sketch is what promotes it to a part.
-        self.assertTrue(is_part_root(body))
+        # Drawing on it puts the second sketch in that same part, rather than
+        # making a part out of the Curves object it was drawn on.
+        self.assertFalse(is_part_root(first_obj))
         self.assertEqual(part_root_of(second.target_object), body)
 
         # And it follows when the part moves.
