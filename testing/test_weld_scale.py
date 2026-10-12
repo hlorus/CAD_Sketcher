@@ -12,7 +12,7 @@ These force the pre-5.2 branch so the behaviour is covered on any Blender.
 import bpy
 
 from ..utilities import convert_nodes as cn
-from ..utilities.curve_data import refresh_curve_geometry
+from ..utilities.curve_data import invalidate_curve_id_cache, refresh_curve_geometry
 from .utils import Sketch2dTestCase
 
 SIZES = (1, 5, 20, 50, 200, 1000, 5000)
@@ -20,6 +20,8 @@ SIZES = (1, 5, 20, 50, 200, 1000, 5000)
 
 class TestWeldScale(Sketch2dTestCase):
     def setUp(self):
+        # See _converted: the new sketch must not inherit a dead one's id caches.
+        invalidate_curve_id_cache()
         super().setUp()
         self._native = cn._identity_weld_available
 
@@ -61,6 +63,13 @@ class TestWeldScale(Sketch2dTestCase):
         dup = ob.copy()
         dup.data = ob.data.copy()
         scene.collection.objects.link(dup)
+        # The add-on caches curve ids per Curves datablock, keyed on the Python
+        # id() of its wrapper. A datablock freed by an earlier test (or by the
+        # previous size's convert) leaves its entries behind, and the fresh copy
+        # can land on the same address and read them as its own: the depsgraph
+        # handler then derives the weld ids from another sketch's ids and the
+        # loop comes out welded wrong. Start the copy from clean caches.
+        invalidate_curve_id_cache()
         for other in scene.collection.objects:
             other.select_set(False)
         dup.select_set(True)
