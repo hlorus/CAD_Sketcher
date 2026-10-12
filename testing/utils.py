@@ -144,6 +144,12 @@ class OpHarness:
         return self.op.get_point(self.context, index)
 
 
+# Datablock types a test class can leave behind once its scene is gone. Node
+# groups aren't in here on purpose: the add-on builds its shared groups once and
+# reuses them across sketches.
+_CLEANUP_TYPES = ("objects", "meshes", "curves", "hair_curves", "collections")
+
+
 class BgsTestCase(TestCase):
     interactive = False
     log_level = "INFO"
@@ -162,6 +168,13 @@ class BgsTestCase(TestCase):
     def setUpClass(cls):
         print(f"BgsTestCase.setUpClass - interactive: {cls.interactive}")
         import bpy
+
+        # Snapshot what's already there so tearDownClass only drops what this
+        # class created.
+        cls._existing_ids = {
+            attr: {id_.session_uid for id_ in getattr(bpy.data, attr)}
+            for attr in _CLEANUP_TYPES
+        }
 
         # Create new scene for tests
         cls.scene = bpy.data.scenes.new(cls.__name__)
@@ -183,6 +196,21 @@ class BgsTestCase(TestCase):
         # Delete scene
         data = cls.data
         data.scenes.remove(cls.scene)
+
+        # Removing the scene only orphans its objects, meshes and so on. They
+        # stick around under their names, so the next test that creates a "WP"
+        # or "Latch" ends up with "WP.001". Clear out whatever this class added.
+        existing = getattr(cls, "_existing_ids", None)
+        if existing is None:
+            return
+        leftovers = [
+            id_
+            for attr in _CLEANUP_TYPES
+            for id_ in getattr(data, attr)
+            if id_.session_uid not in existing[attr]
+        ]
+        if leftovers:
+            data.batch_remove(leftovers)
 
     @staticmethod
     def force_entity_update(scene):
