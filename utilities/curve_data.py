@@ -110,11 +110,14 @@ def get_uuid(curve_data, field, index):
 def _data_key(curve_data):
     """The key a Curves datablock's caches are kept under.
 
-    The Python id() of its wrapper tells an original from its evaluated copy, but
-    it is an address: once the datablock is freed a new one can be given the same
-    wrapper address and would read the dead one's entries as its own. The
-    datablock's session_uid is never handed out twice in a session, so pairing
-    the two keeps both apart.
+    The Python id() of its wrapper is an address: once the datablock is freed a
+    new one can be given the same wrapper address and would read the dead one's
+    entries as its own. An original datablock's session_uid is never handed out
+    twice in a session, so pairing the two keeps them apart.
+
+    Evaluated copies all report session_uid 0, so they would be told apart by
+    address alone, the very hazard above. Evaluated curve data must never be
+    passed to these caches; callers go through _get_original_data first.
     """
     return (id(curve_data), getattr(curve_data, "session_uid", 0))
 
