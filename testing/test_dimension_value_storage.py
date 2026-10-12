@@ -31,7 +31,11 @@ class TestDimensionValueStorage(Sketch2dTestCase):
     def test_value_survives_losing_the_scene_property(self):
         """Linking a sketch into another file leaves the scene property behind."""
         _, _, c = self._distance(7.5)
-        del self.scene[c.value_key()]
+        key = c.value_key()
+        del self.scene[key]
+        # The scene outlives this test, so put the property back: otherwise the
+        # repair tests that run after it find this sketch and repair it too.
+        self.addCleanup(self.scene.__setitem__, key, 7.5)
 
         self.assertAlmostEqual(c.value, 7.5, places=5)
 
