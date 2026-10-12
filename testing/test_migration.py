@@ -46,6 +46,12 @@ def _summary(context):
 
 
 class TestMigration(unittest.TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        # Each test opens a fixture, which also sets bpy.data.filepath. Go back
+        # to an empty, unsaved file so later tests don't see the fixture's path.
+        bpy.ops.wm.read_homefile(use_empty=True)
+
     def test_simple_line(self):
         _open("simple_line.blend")
         sk, curves, _, ctypes, _ = _summary(bpy.context)
