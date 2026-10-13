@@ -5,7 +5,16 @@ geometry is realised on.
 
 Entities are defined by a set of parameters and pointers to other entities which are editable at any point in time. This allows non-destructive workflows and also ensures that geometry is resolution independent. A curve will always follow a given radius no matter how it's transformed. Entities can be created with the various [Workspacetools](user_interface.md#workspacetools).
 
-<!-- TODO: DOF -->
+## Degrees of Freedom
+Every entity has a number of degrees of freedom, the independent ways it can still
+move or change. A point in a sketch has two, for example. Constraints take them away,
+and what's left over for the whole sketch is reported by the solver after each solve.
+The sidebar shows that number for the active sketch ("Degrees of freedom: 3", say),
+and switches to a checkmark with "Fully defined sketch" once none are left.
+
+The solver only gives the total for the sketch, so you can't see which entities are
+still free. Having some left doesn't stop the sketch from solving, it just means
+parts of it can still be dragged around.
 
 
 ## Active
