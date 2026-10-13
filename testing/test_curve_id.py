@@ -111,3 +111,58 @@ class TestCurveIdSurvival(Sketch2dTestCase):
         refreshed = cd.read_uuid_list(data, "curve_id")
         self.assertIn(new, refreshed)
         self.assertNotIn(line.curve_id, refreshed)
+
+
+class TestCurveIdCacheReuse(BgsTestCase):
+    """The id caches must not outlive their datablock.
+
+    They are kept per Curves datablock. Keyed on the Python id() of its wrapper
+    alone, a datablock freed while its entries were cached left them behind, and
+    a new datablock whose wrapper landed on the same address read the dead one's
+    ids as its own (seen as test_weld_scale welding a rectangle wrong).
+    """
+
+    def _with_ids(self, n):
+        cv = bpy.data.hair_curves.new("reuse")
+        cv.add_curves([1] * n)
+        cd.ensure_standard_attributes(cv)
+        for i in range(n):
+            cd.set_uuid(cv, "curve_id", i, cd.new_uuid())
+        return cv
+
+    def _reused(self):
+        """A dead datablock's cached ids, and a new datablock at its address."""
+        import gc
+
+        dead = self._with_ids(4)
+        ids = list(cd.read_uuid_list(dead, "curve_id"))
+        cd.read_uuid_raw_list(dead, "curve_id")
+        address = id(dead)
+        bpy.data.hair_curves.remove(dead)
+        del dead
+        gc.collect()
+
+        probes = []
+        for _ in range(5000):
+            fresh = bpy.data.hair_curves.new("probe")
+            if id(fresh) == address:
+                for probe in probes:
+                    bpy.data.hair_curves.remove(probe)
+                return ids, fresh
+            probes.append(fresh)
+        for probe in probes:
+            bpy.data.hair_curves.remove(probe)
+        self.skipTest("Python did not reuse the freed wrapper's address")
+
+    def test_a_new_datablock_does_not_read_a_dead_ones_ids(self):
+        dead_ids, fresh = self._reused()
+        fresh.add_curves([1] * len(dead_ids))
+        cd.ensure_standard_attributes(fresh)
+        own = [cd.get_uuid(fresh, "curve_id", i) for i in range(len(dead_ids))]
+
+        self.assertEqual(cd.read_uuid_list(fresh, "curve_id"), own)
+        self.assertEqual(
+            [any(raw) for raw in cd.read_uuid_raw_list(fresh, "curve_id")],
+            [bool(cid) for cid in own],
+        )
+        self.assertFalse(set(dead_ids) & set(cd.read_uuid_list(fresh, "curve_id")))

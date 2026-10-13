@@ -107,11 +107,27 @@ def get_uuid(curve_data, field, index):
     return _pairs_to_hex(lo_v, hi_v)
 
 
-# (id(curve_data), field) -> list of hex ids. Identity fields are immutable after
-# creation, so this is invalidated only by set_uuid (a value write) and by
-# add/remove via invalidate_curve_id_cache. Serves the hot read paths (solver,
-# segment rebuild, draw/pick) without re-deriving every hex id from its int
-# attributes on each call -- the dominant cost in solve and draw (issue #342).
+def _data_key(curve_data):
+    """The key a Curves datablock's caches are kept under.
+
+    The Python id() of its wrapper is an address: once the datablock is freed a
+    new one can be given the same wrapper address and would read the dead one's
+    entries as its own. An original datablock's session_uid is never handed out
+    twice in a session, so pairing the two keeps them apart.
+
+    Evaluated copies all report session_uid 0, so they would be told apart by
+    address alone, the very hazard above. Evaluated curve data must never be
+    passed to these caches; callers go through _get_original_data first.
+    """
+    return (id(curve_data), getattr(curve_data, "session_uid", 0))
+
+
+# (_data_key(curve_data), field) -> list of hex ids. Identity fields are
+# immutable after creation, so this is invalidated only by set_uuid (a value
+# write) and by add/remove via invalidate_curve_id_cache. Serves the hot read
+# paths (solver, segment rebuild, draw/pick) without re-deriving every hex id
+# from its int attributes on each call -- the dominant cost in solve and draw
+# (issue #342).
 _uuid_list_cache = {}
 # Parallel cache of the same ids in raw-int-tuple form (read_uuid_raw_list),
 # invalidated in lockstep with _uuid_list_cache.
@@ -141,7 +157,7 @@ def _update_cached_uuid(curve_data, field, index, lo_pair, hi_pair):
     operator writes ids on every mouse move, so that re-derivation dominated.
     An index past the cached tail needs nothing: the tail is read on demand.
     """
-    key = (id(curve_data), field)
+    key = (_data_key(curve_data), field)
     hex_id = _pairs_to_hex(lo_pair, hi_pair)
     old = None
     cached = _uuid_list_cache.get(key)
@@ -153,8 +169,8 @@ def _update_cached_uuid(curve_data, field, index, lo_pair, hi_pair):
         raw[index] = (lo_pair[0], lo_pair[1], hi_pair[0], hi_pair[1])
     if field != "curve_id":
         return
-    index_map = _curve_id_cache.get(id(curve_data))
-    if index_map is None or index >= _curve_id_built_len.get(id(curve_data), 0):
+    index_map = _curve_id_cache.get(_data_key(curve_data))
+    if index_map is None or index >= _curve_id_built_len.get(_data_key(curve_data), 0):
         return
     if old is not None and index_map.get(old) == index:
         del index_map[old]
@@ -163,12 +179,12 @@ def _update_cached_uuid(curve_data, field, index, lo_pair, hi_pair):
 
 def _drop_field_caches(curve_data, field):
     """Forget one id field's caches (a bulk write we can't follow in place)."""
-    key = (id(curve_data), field)
+    key = (_data_key(curve_data), field)
     _uuid_list_cache.pop(key, None)
     _uuid_raw_cache.pop(key, None)
     if field == "curve_id":
-        _curve_id_cache.pop(id(curve_data), None)
-        _curve_id_built_len.pop(id(curve_data), None)
+        _curve_id_cache.pop(_data_key(curve_data), None)
+        _curve_id_built_len.pop(_data_key(curve_data), None)
 
 
 def new_uuid():
@@ -187,7 +203,7 @@ def read_uuid_list(curve_data, field):
     explicit invalidation.
     """
     n = len(curve_data.curves)
-    key = (id(curve_data), field)
+    key = (_data_key(curve_data), field)
     cached = _uuid_list_cache.get(key)
     if cached is not None and len(cached) == n:
         return cached
@@ -229,7 +245,7 @@ def read_uuid_raw_list(curve_data, field):
     (falsy via ``any``).
     """
     n = len(curve_data.curves)
-    key = (id(curve_data), field)
+    key = (_data_key(curve_data), field)
     cached = _uuid_raw_cache.get(key)
     if cached is not None and len(cached) == n:
         return cached
@@ -380,7 +396,8 @@ def ensure_standard_attributes(curve_data):
 # ---------------------------------------------------------------------------
 
 _curve_id_cache = {}
-# id(curve_data) -> how many curves the index map covers (it grows by appending).
+# _data_key(curve_data) -> how many curves the index map covers (it grows by
+# appending).
 _curve_id_built_len = {}
 
 
@@ -443,7 +460,7 @@ def get_curve_index(sketch, curve_id):
     cd = _get_original_data(sketch)
     if not cd:
         return None
-    sk_key = id(cd)
+    sk_key = _data_key(cd)
     cache = _curve_id_cache.get(sk_key)
     if cache is not None:
         idx = cache.get(curve_id)
@@ -468,7 +485,7 @@ def _rebuild_curve_id_cache(sketch, lookup_id=None):
     curve_data = _get_original_data(sketch)
     if not curve_data:
         return None
-    sk_key = id(curve_data)
+    sk_key = _data_key(curve_data)
     ids = read_uuid_list(curve_data, "curve_id")
     cache = {cid: i for i, cid in enumerate(ids)}
     _curve_id_cache[sk_key] = cache
@@ -490,7 +507,7 @@ def invalidate_curve_id_cache(sketch=None):
 
 def invalidate_curve_data_caches(curve_data):
     """Drop every id cache of one Curves datablock, and its weld-id gate."""
-    sk_key = id(curve_data)
+    sk_key = _data_key(curve_data)
     # Whatever replaced the geometry also replaced the weld ids, and the
     # connectivity signature cannot see that: a drawing preview restores its
     # snapshot every mouse move, which puts back the weld ids the sketch had
@@ -514,7 +531,7 @@ def note_curve_appended(sketch):
     if obj is None or obj.data is None:
         return
     curve_data = obj.data
-    sk_key = id(curve_data)
+    sk_key = _data_key(curve_data)
     keep = len(curve_data.curves) - 1
     for field in UUID_FIELDS:
         for cache in (_uuid_list_cache, _uuid_raw_cache):
@@ -556,7 +573,7 @@ def install_id_caches(curve_data, captured):
     invalidate_curve_data_caches(curve_data)
     if not captured or len(curve_data.curves) != captured["n_curves"]:
         return
-    sk_key = id(curve_data)
+    sk_key = _data_key(curve_data)
     for field, (hex_ids, raw_ids) in captured["fields"].items():
         if len(hex_ids) == captured["n_curves"]:
             _uuid_list_cache[(sk_key, field)] = list(hex_ids)
@@ -1089,7 +1106,7 @@ def compute_merge_ids(sketch, force=False):
     signature = _connectivity_signature(cd)
     if (
         not force
-        and _merge_signatures.get(id(cd)) == signature
+        and _merge_signatures.get(_data_key(cd)) == signature
         and _merge_outputs_present(cd)
     ):
         return False
@@ -1176,7 +1193,7 @@ def compute_merge_ids(sketch, force=False):
         attr = cd.attributes.new("merge_id", "INT", "POINT")
     attr.data.foreach_set("value", ids)
     compute_generated_id_seeds(sketch)
-    _merge_signatures[id(cd)] = signature
+    _merge_signatures[_data_key(cd)] = signature
     return True
 
 
