@@ -106,6 +106,8 @@ def draw_modifier_input(layout, modifier, identifier, text=""):
             return False
         layout.prop(socket, "value", text=text)  # Blender 5.2+
         return True
+    if identifier not in modifier:
+        return False
     layout.prop(modifier, f'["{identifier}"]', text=text)  # Blender <= 5.1
     return True
 
