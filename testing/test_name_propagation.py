@@ -1,12 +1,13 @@
-"""Renaming a body renames what is named after it.
+"""What a part's sketch, planes and mesh are called when they are made.
 
-The body is how a part is named; its sketch, planes and mesh carry labels
-derived from that name rather than names of their own, so they are re-derived
-rather than remembered (see utilities.body.rename_after_bodies).
+The body is how a part is named, so what hangs under it is named after it: the
+outliner reads as one named thing with its source under it. Those names are
+given where a part gains or absorbs something, not re-derived on every depsgraph
+update, so a name the user types afterwards is theirs and stands.
 """
 
 from ..operators.add_sketch import build_sketch_on_workplane
-from ..utilities.body import body_of, name_after_body, rename_after_bodies
+from ..utilities.body import body_of, name_after_body
 from ..utilities.part import ensure_part_planes, existing_part_plane, mark_part_root
 from ..utilities.workplane import ensure_origin_workplane_empties
 from .utils import BgsTestCase
@@ -21,12 +22,13 @@ class TestNamePropagation(BgsTestCase):
 
     def _part(self, name):
         sketch = build_sketch_on_workplane(self.context, self.datum)
-        body = body_of(sketch.target_object)
+        obj = sketch.target_object
+        body = body_of(obj)
         mark_part_root(body)
         ensure_part_planes(self.context, body)
         body.name = name
-        rename_after_bodies(self.scene)
-        return sketch.target_object, body
+        name_after_body(body, obj, obj.slvs_workplane)
+        return obj, body
 
     def test_the_sketch_planes_and_mesh_follow(self):
         sketch_obj, body = self._part("Bracket")
@@ -39,45 +41,45 @@ class TestNamePropagation(BgsTestCase):
 
     def test_a_second_pass_changes_nothing(self):
         # Assigning a name that is taken appends .001, so a pass that reassigns
-        # what it just set would walk the numbers up on every update.
+        # what it just set would walk the numbers up every time it ran.
         sketch_obj, body = self._part("Latch")
 
-        self.assertFalse(rename_after_bodies(self.scene))
+        self.assertFalse(name_after_body(body, sketch_obj, sketch_obj.slvs_workplane))
         self.assertEqual(sketch_obj.name, "Latch Sketch")
         self.assertEqual(existing_part_plane(body, "XY").name, "Latch XY")
 
-    def test_a_name_typed_on_the_sketch_is_derived_away(self):
-        # The sketch's name is a label for the body's, not a name of its own.
+    def test_a_name_typed_on_the_sketch_stands(self):
+        # Nothing re-derives these names, so what the user types is what is
+        # there afterwards -- including after the updates a rename itself causes.
         sketch_obj, _body = self._part("Plate")
         sketch_obj.name = "Outline"
 
-        self.assertTrue(rename_after_bodies(self.scene))
-        self.assertEqual(sketch_obj.name, f"{_body.name} Sketch")
+        self.context.view_layer.update()
 
-    def test_only_what_this_update_touched_is_looked_at(self):
-        # The pass runs on every depsgraph update, so it is scoped to the ids
-        # that changed; a body nobody touched cannot have drifted.
-        sketch_obj, body = self._part("Plate")
-        sketch_obj.name = "Outline"
+        self.assertEqual(sketch_obj.name, "Outline")
 
-        class _Update:
-            def __init__(self, id):
-                self.id = id
+    def test_a_name_typed_on_a_base_plane_stands(self):
+        _sketch_obj, body = self._part("Flange")
+        plane = existing_part_plane(body, "XZ")
+        plane.name = "Mirror Plane"
 
-        class _Depsgraph:
-            updates = ()
+        self.context.view_layer.update()
 
-        quiet = _Depsgraph()
-        self.assertFalse(rename_after_bodies(self.scene, quiet))
-        self.assertEqual(sketch_obj.name, "Outline", "not touched, not looked at")
+        self.assertEqual(plane.name, "Mirror Plane")
 
-        touched = _Depsgraph()
-        touched.updates = (_Update(body),)
-        self.assertTrue(rename_after_bodies(self.scene, touched))
-        self.assertEqual(sketch_obj.name, f"{body.name} Sketch")
+    def test_renaming_the_body_does_not_reach_under_it_on_its_own(self):
+        # Naming happens where a part is made or absorbs something. Following a
+        # body rename from the handler is what made these names untypeable, so
+        # it is gone and the sketch keeps the name it was given.
+        sketch_obj, body = self._part("Spacer")
+
+        body.name = "Shim"
+        self.context.view_layer.update()
+
+        self.assertEqual(sketch_obj.name, "Spacer Sketch")
 
     def test_a_linked_plane_keeps_the_name_its_own_file_gave_it(self):
-        """The pass renames what hangs under a body, but a linked or overridden
+        """The pass names what hangs under a body, but a linked or overridden
         datablock's name is read-only: assigning it raises, and the name is not
         the add-on's to give anyway."""
         import os
@@ -102,7 +104,7 @@ class TestNamePropagation(BgsTestCase):
 
             sketch_obj.slvs_workplane = linked
             body.name = "Pivot"
-            rename_after_bodies(self.scene)
+            name_after_body(body, sketch_obj, linked)
 
         self.assertEqual(linked.name, "Foreign")
         self.assertEqual(sketch_obj.name, "Pivot Sketch", "the rest still follows")

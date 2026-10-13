@@ -11,7 +11,7 @@ import dis
 import inspect
 import types
 
-from ..utilities import body, face_anchor, projection_anchor, validate
+from ..utilities import face_anchor, projection_anchor, validate
 from .utils import BgsTestCase
 
 
@@ -36,7 +36,6 @@ def reads_attribute(function, name):
 _UPDATE_WALKERS = (
     face_anchor.update_face_workplanes,
     projection_anchor.update_projected_geometry,
-    body.rename_after_bodies,
 )
 
 

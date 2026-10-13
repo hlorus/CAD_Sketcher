@@ -568,6 +568,10 @@ def merge_coincident_plane(root: bpy.types.Object, body: bpy.types.Object) -> No
         strip_part_plane(own)
         if not own.children:
             bpy.data.objects.remove(own)
+            continue
+        # It was named as the base plane of a part it no longer roots, so it
+        # takes the name of the part it ended up in.
+        own.name = f"{root.name} Workplane"
 
 
 def _same_plane(a: Matrix, b: Matrix, tolerance: float = 1e-5) -> bool:
