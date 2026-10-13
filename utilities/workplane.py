@@ -170,12 +170,7 @@ def iter_wp_empties(context):
     empty gets a sequential id starting at ``_EMPTY_PICK_START``. Ordering is
     deterministic within a frame so draw and hit-test agree on ids.
     """
-    from .part import (
-        PART_PLANE_KEY,
-        is_provisional_part,
-        part_plane_objects,
-        part_root_of,
-    )
+    from .part import PART_PLANE_KEY, part_plane_objects, part_root_of
 
     sketcher = context.scene.sketcher
     origin_names = set()
@@ -223,17 +218,15 @@ def iter_wp_empties(context):
             # does not stop this loop) would draw every part's planes at once,
             # unlabelled and in the themed default colour.
             continue
-        root = part_root_of(obj)
-        if root is not None and not is_provisional_part(root):
+        if part_root_of(obj) is not None:
             # Every sketch has a plane, so a part offers one more rectangle per
             # feature drawn on it -- six for three sketches, and growing. What a
             # part is sketched on is its base planes (above) and its faces, and a
             # face picked again resolves back to the plane already anchored there
             # (see ``dedupe_face_workplanes``), so nothing here is a way in that
             # is otherwise lost. A plane in no part -- one the user made -- is
-            # always on offer, and so is the one plane of a part that is still
-            # just a sketch: it offers no base planes, so skipping it here would
-            # leave that sketch with no plane to be picked by at all.
+            # always on offer. So the picker shows one of two things: the
+            # world's planes, or those of the part in focus.
             continue
         yield obj, pick_id
         pick_id += 1

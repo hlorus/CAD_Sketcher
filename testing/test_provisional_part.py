@@ -73,13 +73,12 @@ class TestProvisionalPart(BgsTestCase):
         self._focus(body)
 
         offered = [plane for plane, _id in iter_wp_empties(self.context)]
-        self.assertIsNone(existing_part_plane(body, "XY"))
+        # Its XY exists (it is the plane the sketch sits on, named from the
+        # start) but a provisional part offers nothing, so the world's planes
+        # are what the picker shows.
+        self.assertIsNotNone(existing_part_plane(body, "XY"))
         self.assertIn(self.datum, offered, "the world planes are still there")
-        self.assertIn(
-            sketch.target_object.slvs_workplane,
-            offered,
-            "and so is the plane the sketch sits on",
-        )
+        self.assertNotIn(sketch.target_object.slvs_workplane, offered)
 
     def test_it_gets_no_collection_while_provisional(self):
         _sketch, body = self._sketch()
