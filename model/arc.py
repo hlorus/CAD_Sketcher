@@ -226,7 +226,7 @@ class SlvsArc(Entity2D, PropertyGroup):
         endpoint,
         invert_direction,
         set_startpoint=False,
-        midpoints=[],
+        midpoints=(),
     ):
         # Get midpoint positions
         segment_count = len(midpoints) + 1
