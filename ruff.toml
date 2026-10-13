@@ -18,8 +18,9 @@ target-version = "py311"
 #   F  - pyflakes (unused/undefined names, unused imports)
 #   I  - import sorting
 #   E9 - syntax errors
+#   W605 - invalid escape sequences (a SyntaxWarning on Python 3.12+)
 # Line length is owned by the formatter, so E501 is intentionally not enforced.
-select = ["F", "I", "E9"]
+select = ["F", "I", "E9", "W605"]
 
 [lint.per-file-ignores]
 # Package __init__ files intentionally re-export symbols.
