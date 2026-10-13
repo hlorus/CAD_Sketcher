@@ -67,7 +67,7 @@ def unique_attribute_setter(self, name: str, value: Any):
         try:
             coll_path = match.group(1)
         except AttributeError:
-            raise TypeError("Property not element in a collection.")
+            raise TypeError("Property not element in a collection.") from None
         else:
             return parent.path_resolve(coll_path)
 
