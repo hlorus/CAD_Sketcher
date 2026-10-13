@@ -26,7 +26,7 @@ sketch's origin point, click it and move the mouse away, click again to confirm.
 ## Add Constraints
 ![!Add Diameter](images/add_diameter.png){style="width:100%; height:200px; object-fit:cover;"}
 
-Switch back to the [Selection Tool](user_interface.md#select-tool), by pressing ESC.
+Switch back to the [Selection Tool](tools.md#selection-tools), by pressing ESC.
 Make sure nothing is selected by pressing ESC again or by clicking into empty space
 while the selection tool is active. Now select the circle and click the diameter
 button in the sidebar's "Constraints" section to add a diameter constraint (the
@@ -48,7 +48,7 @@ top of it, see [integration](integration.md).
 ![!Set Diameter](images/set_diameter.png){align=left style="display:inline-block; width:calc(50% - 1em); height:200px; object-fit:cover;"}
 ![!Add Rectangle](images/add_rectangle.png){align=right style="display:inline-block; width:calc(50% - 1em); height:200px; object-fit:cover;"}
 
-Re-activate the sketch from the [sketch selector](user_interface#sketch-selector).
+Re-activate the sketch from the [sketch selector](user_interface.md#sketch-selector).
 Click the diameter constraint and enter a value. Switch to the rectangle tool and draw
 a rectangle around the circle.
 
