@@ -889,13 +889,14 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
 def part_plane_objects(context) -> list:
     """The base planes of the part in focus, or an empty list if there is none.
 
-    These stand in for the scene's origin planes while a part is in focus, so a
-    part that is still only a sketch offers none: its frame is the plane that
-    sketch was drawn on, and taking the world's planes away before there is a
-    body to work against would leave nowhere to start the next one.
+    These stand in for the scene's origin planes while a part is in focus. A
+    provisional part has just the one, the XY its first sketch was drawn on,
+    which is what you pick to put a second sketch on that same plane. Its XZ and
+    YZ are not minted until the part is real, so a fresh sketch offers one
+    rectangle rather than three.
     """
     root = focused_part(context)
-    if root is None or is_provisional_part(root):
+    if root is None:
         return []
     return [
         plane
