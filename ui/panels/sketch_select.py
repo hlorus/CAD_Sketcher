@@ -195,6 +195,18 @@ def _draw_workplane(context: Context, layout: UILayout, sketch):
     row.menu(declarations.Menus.SketchWorkplane.value, text="", icon="DOWNARROW_HLT")
 
 
+def _named_object(sketch):
+    """What the sidebar's Name field edits: the body, or the sketch without one.
+
+    Naming the body is how a part or a feature is named; everything under it
+    follows. A sketch that has no body yet (an older file mid-update) is still
+    worth naming directly rather than showing nothing.
+    """
+    from ...utilities.body import body_of
+
+    return body_of(sketch.target_object) or sketch.target_object
+
+
 def _draw_migration_prompt(context: Context, layout: UILayout):
     """Offer to update a file that an older version saved.
 
@@ -329,7 +341,10 @@ class VIEW3D_PT_sketcher(VIEW3D_PT_sketcher_base):
             layout.separator()
 
             row = layout.row()
-            row.prop(sketch.target_object, "name", text="Name")
+            # The body carries the name: the sketch, its plane and the mesh are
+            # labels derived from it (see name_after_body), so typing into the
+            # sketch's own name was undone on the next depsgraph pass.
+            row.prop(_named_object(sketch), "name", text="Name")
             _draw_workplane(context, layout, sketch)
 
         else:
