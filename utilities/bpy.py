@@ -62,7 +62,7 @@ def unique_attribute_setter(self, name: str, value: Any):
     def collection_from_element(self):
         """Get the collection containing the element"""
         path = self.path_from_id()
-        match = re.match("(.*)\[\d*\]", path)
+        match = re.match(r"(.*)\[\d*\]", path)
         parent = self.id_data
         try:
             coll_path = match.group(1)
