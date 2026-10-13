@@ -68,13 +68,12 @@ class TestProvisionalPart(BgsTestCase):
         self.assertTrue(is_part_root(body))
         self.assertTrue(is_provisional_part(body))
 
-    def test_it_offers_its_one_plane_while_provisional(self):
+    def test_it_offers_its_own_planes_while_provisional(self):
         """The picker shows the world's planes, or the focused part's.
 
-        A provisional part has exactly one, the XY its first sketch was drawn
-        on, which is what you pick to put a second sketch on that same plane.
-        XZ and YZ wait until the part is real, so a fresh sketch adds one
-        rectangle to the picker rather than three.
+        A part gets its three base planes when it is created, the way the scene
+        has three: one of them is the XY its first sketch was drawn on, which is
+        what you pick to put a second sketch on that same plane.
         """
         sketch, body = self._sketch()
         plane = sketch.target_object.slvs_workplane
@@ -86,7 +85,9 @@ class TestProvisionalPart(BgsTestCase):
 
         self._focus(body)
         offered = [p for p, _id in iter_wp_empties(self.context)]
-        self.assertEqual(offered, [plane], "the part in focus: its own plane")
+        # Its three, like the world's three: a frame, not a stray plane.
+        self.assertEqual(len(offered), 3)
+        self.assertIn(plane, offered)
         self.assertEqual(plane, existing_part_plane(body, "XY"))
 
     def test_a_second_sketch_on_that_plane_joins_the_part(self):

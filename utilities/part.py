@@ -529,51 +529,45 @@ def settle_membership(
 
 
 def merge_coincident_plane(root: bpy.types.Object, body: bpy.types.Object) -> None:
-    """Drop a joining body's own plane when the part already has that plane.
+    """Fold a joining body's base planes into the part it joins.
 
-    A body drawn on a scene datum carries a plane of its own, and joining a part
-    whose base plane stands in the very same place leaves two rectangles on top
-    of each other. Its sketches move onto the part's plane, which is where they
-    already were, and the spare empty goes.
-
-    The body's own plane is the one standing in its frame, stamped as its XY or
-    not: a body that joins a part stops being a root, so the stamp it carried
-    says nothing any more.
+    A body that joins a part stops being a root, so the planes it carried as its
+    own frame are not base planes any more. One standing where the part already
+    has a plane is a duplicate: its sketches move onto the part's, which is where
+    they already were, and the spare empty goes. One standing somewhere else is
+    kept as an ordinary workplane, and an empty one nothing sits on is dropped
+    rather than left in the outliner.
     """
     from .workplane import is_managed_workplane
 
-    own = next(
-        (
-            child
-            for child in body.children
-            if is_managed_workplane(child) and child.matrix_basis == Matrix.Identity(4)
-        ),
-        None,
-    )
-    if own is None:
-        return
+    for own in [c for c in body.children if is_managed_workplane(c)]:
+        here = world_matrix_of(own)
+        existing = next(
+            (
+                plane
+                for plane in root.children_recursive
+                if plane != own
+                and plane not in body.children_recursive
+                and is_managed_workplane(plane)
+                and _same_plane(world_matrix_of(plane), here)
+            ),
+            None,
+        )
+        if existing is not None:
+            for child in list(own.children):
+                child.parent = existing
+                child.matrix_parent_inverse = Matrix.Identity(4)
+                child.matrix_basis = Matrix.Identity(4)
+                if getattr(child, "slvs_workplane", None) == own:
+                    child.slvs_workplane = existing
+            bpy.data.objects.remove(own)
+            continue
 
-    here = world_matrix_of(own)
-    existing = next(
-        (
-            plane
-            for plane in root.children_recursive
-            if plane != own
-            and is_managed_workplane(plane)
-            and _same_plane(world_matrix_of(plane), here)
-        ),
-        None,
-    )
-    if existing is None:
-        return
-
-    for child in list(own.children):
-        child.parent = existing
-        child.matrix_parent_inverse = Matrix.Identity(4)
-        child.matrix_basis = Matrix.Identity(4)
-        if getattr(child, "slvs_workplane", None) == own:
-            child.slvs_workplane = existing
-    bpy.data.objects.remove(own)
+        # Somewhere else: no longer a base plane, so it keeps its place as a
+        # plain workplane. Nothing on it means nothing to keep.
+        strip_part_plane(own)
+        if not own.children:
+            bpy.data.objects.remove(own)
 
 
 def _same_plane(a: Matrix, b: Matrix, tolerance: float = 1e-5) -> bool:

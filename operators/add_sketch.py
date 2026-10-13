@@ -22,14 +22,10 @@ def _ensure_focused_part_planes(context: Context):
     Objects can only be added from operator context, so the pickers ask for them
     as they start rather than the draw code creating them on the fly.
     """
-    from ..utilities.part import (
-        ensure_part_planes,
-        focused_part,
-        is_provisional_part,
-    )
+    from ..utilities.part import ensure_part_planes, focused_part
 
     root = focused_part(context)
-    if root is not None and not is_provisional_part(root):
+    if root is not None:
         ensure_part_planes(context, root)
 
 
@@ -97,6 +93,7 @@ def build_sketch_on_workplane(context: Context, wp_empty):
     root = _part_for_workplane(context, wp_orig)
     from ..utilities.body import default_body_name, ensure_body
     from ..utilities.part import (
+        ensure_part_planes,
         fix_transform,
         free_transform,
         is_part_root,
@@ -127,8 +124,11 @@ def build_sketch_on_workplane(context: Context, wp_empty):
         # a part from the first stroke: one rule, and Delete Part, Make Instance
         # and the part row apply to it without a promotion step. The part stays
         # provisional (see is_provisional_part) until something solid stands on
-        # it, which is what keeps its base planes and collection out of the way.
+        # it, which is what keeps it out of the outliner's part collections.
         mark_part_root(body, provisional=True)
+        # Base planes come as a set, the way the scene's own do: offering a lone
+        # XY would read as a stray plane rather than a frame.
+        ensure_part_planes(context, body)
     else:
         # The plane is already part of something (a face of a body, or that
         # part's own datum), so it stays where it is and the new body hangs from
