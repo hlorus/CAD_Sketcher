@@ -779,7 +779,9 @@ class TestPartRoot(BgsTestCase):
         mark_part_root(body)
         plane = ensure_part_planes(self.context, body)[0]
 
-        self.assertEqual(workplane_label(plane, WP_ID_PART_XY), "bracket XY")
+        # Another test in this class may have left a "bracket" behind, so go
+        # by the name the cube actually got.
+        self.assertEqual(workplane_label(plane, WP_ID_PART_XY), f"{body.name} XY")
         # The part on the first line, the axis under it.
         self.assertEqual(label_lines("bracket XY"), ["bracket", "XY"])
         # Any other plane says its own name the same way.

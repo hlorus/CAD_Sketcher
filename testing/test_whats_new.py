@@ -4,6 +4,8 @@ Exercises ``_process_update`` (the pure decision function) rather than the
 timer/popup wrapper, which no-ops in Blender's ``--background`` test runs.
 """
 
+import tempfile
+from pathlib import Path
 from unittest import TestCase
 
 from ..base import whats_new as wn
@@ -12,10 +14,14 @@ from ..base import whats_new as wn
 class TestWhatsNewStateMachine(TestCase):
     def setUp(self):
         self.current = wn._current_version()
-        self._seen = wn._seen_file()
-        self._reset()
-
-    def tearDown(self):
+        # A marker of the test's own: the real one sits in the user's extension
+        # directory, where these tests would reset what the user has seen, and
+        # which every Blender running the suite at the same time shares.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self._seen = Path(tmp.name) / "whats_new_seen.txt"
+        self.addCleanup(setattr, wn, "_seen_file", wn._seen_file)
+        wn._seen_file = lambda: self._seen
         self._reset()
 
     def _reset(self, value=None):
