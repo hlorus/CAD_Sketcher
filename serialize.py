@@ -92,7 +92,7 @@ def fix_pointers(elements: Dict):
 def iter_elements_dict(element_dict):
     """Iterate through every property in elements dictionary"""
     for element_key in ("entities", "constraints"):
-        for element_coll, elems in element_dict[element_key].items():
+        for elems in element_dict[element_key].values():
             if not isinstance(elems, list):
                 continue
             for elem in elems:

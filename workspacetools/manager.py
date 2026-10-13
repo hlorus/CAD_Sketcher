@@ -65,7 +65,7 @@ def _register_tools(groups):
 
 
 def _unregister_tools(groups):
-    for tool_cls, kwargs, group in reversed(_registry):
+    for tool_cls, _kwargs, group in reversed(_registry):
         if group not in groups:
             continue
         if tool_cls.bl_idname not in _registered:
