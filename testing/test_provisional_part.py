@@ -56,8 +56,10 @@ class TestProvisionalPart(BgsTestCase):
         mod.node_group = group
 
     def _focus(self, obj):
+        """Select ``obj``, or nothing when it is None."""
         bpy.ops.object.select_all(action="DESELECT")
-        obj.select_set(True)
+        if obj is not None:
+            obj.select_set(True)
         self.context.view_layer.objects.active = obj
         self.context.view_layer.update()
 
@@ -66,20 +68,40 @@ class TestProvisionalPart(BgsTestCase):
         self.assertTrue(is_part_root(body))
         self.assertTrue(is_provisional_part(body))
 
-    def test_it_offers_no_base_planes_while_provisional(self):
-        # The one that matters: these stand in for the world's planes, so a part
-        # that is still only a sketch must not take them away.
-        sketch, body = self._sketch()
-        self._focus(body)
+    def test_it_offers_its_own_planes_while_provisional(self):
+        """The picker shows the world's planes, or the focused part's.
 
-        offered = [plane for plane, _id in iter_wp_empties(self.context)]
-        self.assertIsNone(existing_part_plane(body, "XY"))
-        self.assertIn(self.datum, offered, "the world planes are still there")
-        self.assertIn(
-            sketch.target_object.slvs_workplane,
-            offered,
-            "and so is the plane the sketch sits on",
-        )
+        A part gets its three base planes when it is created, the way the scene
+        has three: one of them is the XY its first sketch was drawn on, which is
+        what you pick to put a second sketch on that same plane.
+        """
+        sketch, body = self._sketch()
+        plane = sketch.target_object.slvs_workplane
+
+        self._focus(None)
+        offered = [p for p, _id in iter_wp_empties(self.context)]
+        self.assertIn(self.datum, offered, "nothing in focus: the world's planes")
+        self.assertNotIn(plane, offered)
+
+        self._focus(body)
+        offered = [p for p, _id in iter_wp_empties(self.context)]
+        # Its three, like the world's three: a frame, not a stray plane.
+        self.assertEqual(len(offered), 3)
+        self.assertIn(plane, offered)
+        self.assertEqual(plane, existing_part_plane(body, "XY"))
+
+    def test_a_second_sketch_on_that_plane_joins_the_part(self):
+        """What the one offered plane is for."""
+        from ..operators.add_sketch import build_sketch_on_workplane
+        from ..utilities.part import part_root_of
+
+        sketch, body = self._sketch()
+        plane = sketch.target_object.slvs_workplane
+
+        second = build_sketch_on_workplane(self.context, plane)
+        self.context.view_layer.update()
+
+        self.assertEqual(part_root_of(second.target_object), body)
 
     def test_it_gets_no_collection_while_provisional(self):
         _sketch, body = self._sketch()

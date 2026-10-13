@@ -126,10 +126,13 @@ def mark_group_root(
     free_transform(obj)
     if provisional:
         obj[PROVISIONAL_KEY] = True
-        return
-    if PROVISIONAL_KEY in obj:
+    elif PROVISIONAL_KEY in obj:
         del obj[PROVISIONAL_KEY]
     if kind == PART:
+        # Named from the first stroke, provisional or not. The plane a sketch is
+        # drawn on IS the part's XY; withholding the name only meant renaming it
+        # out from under the user later. What a provisional part still withholds
+        # is *offering* its planes (see is_provisional_part).
         promote_sketch_plane(obj)
 
 
@@ -181,9 +184,9 @@ def is_provisional_part(root: Optional[bpy.types.Object]) -> bool:
 def realise_part(root: bpy.types.Object) -> bool:
     """Make a provisional part a part in full. True if that changed anything.
 
-    What it has been waiting for: the plane its sketch was drawn on becomes the
-    part's XY, and from here it groups, offers its frame, and reads as a part
-    everywhere. One way: a part that loses its feature again stays a part.
+    What it has been waiting for: from here it groups, offers its frame and
+    reads as a part everywhere. Its XY is already named (see mark_group_root).
+    One way: a part that loses its feature again stays a part.
     """
     if not is_provisional_part(root):
         return False
@@ -526,47 +529,45 @@ def settle_membership(
 
 
 def merge_coincident_plane(root: bpy.types.Object, body: bpy.types.Object) -> None:
-    """Drop a joining body's own plane when the part already has that plane.
+    """Fold a joining body's base planes into the part it joins.
 
-    A body drawn on a scene datum carries a plane of its own, and joining a part
-    whose base plane stands in the very same place leaves two rectangles on top
-    of each other. Its sketches move onto the part's plane, which is where they
-    already were, and the spare empty goes.
+    A body that joins a part stops being a root, so the planes it carried as its
+    own frame are not base planes any more. One standing where the part already
+    has a plane is a duplicate: its sketches move onto the part's, which is where
+    they already were, and the spare empty goes. One standing somewhere else is
+    kept as an ordinary workplane, and an empty one nothing sits on is dropped
+    rather than left in the outliner.
     """
     from .workplane import is_managed_workplane
 
-    own = next(
-        (
-            child
-            for child in body.children
-            if is_managed_workplane(child) and PART_PLANE_KEY not in child
-        ),
-        None,
-    )
-    if own is None:
-        return
+    for own in [c for c in body.children if is_managed_workplane(c)]:
+        here = world_matrix_of(own)
+        existing = next(
+            (
+                plane
+                for plane in root.children_recursive
+                if plane != own
+                and plane not in body.children_recursive
+                and is_managed_workplane(plane)
+                and _same_plane(world_matrix_of(plane), here)
+            ),
+            None,
+        )
+        if existing is not None:
+            for child in list(own.children):
+                child.parent = existing
+                child.matrix_parent_inverse = Matrix.Identity(4)
+                child.matrix_basis = Matrix.Identity(4)
+                if getattr(child, "slvs_workplane", None) == own:
+                    child.slvs_workplane = existing
+            bpy.data.objects.remove(own)
+            continue
 
-    here = world_matrix_of(own)
-    existing = next(
-        (
-            plane
-            for plane in root.children_recursive
-            if plane != own
-            and is_managed_workplane(plane)
-            and _same_plane(world_matrix_of(plane), here)
-        ),
-        None,
-    )
-    if existing is None:
-        return
-
-    for child in list(own.children):
-        child.parent = existing
-        child.matrix_parent_inverse = Matrix.Identity(4)
-        child.matrix_basis = Matrix.Identity(4)
-        if getattr(child, "slvs_workplane", None) == own:
-            child.slvs_workplane = existing
-    bpy.data.objects.remove(own)
+        # Somewhere else: no longer a base plane, so it keeps its place as a
+        # plain workplane. Nothing on it means nothing to keep.
+        strip_part_plane(own)
+        if not own.children:
+            bpy.data.objects.remove(own)
 
 
 def _same_plane(a: Matrix, b: Matrix, tolerance: float = 1e-5) -> bool:
@@ -882,13 +883,14 @@ def ensure_part_planes(context, root: bpy.types.Object) -> list:
 def part_plane_objects(context) -> list:
     """The base planes of the part in focus, or an empty list if there is none.
 
-    These stand in for the scene's origin planes while a part is in focus, so a
-    part that is still only a sketch offers none: its frame is the plane that
-    sketch was drawn on, and taking the world's planes away before there is a
-    body to work against would leave nowhere to start the next one.
+    These stand in for the scene's origin planes while a part is in focus. A
+    provisional part has just the one, the XY its first sketch was drawn on,
+    which is what you pick to put a second sketch on that same plane. Its XZ and
+    YZ are not minted until the part is real, so a fresh sketch offers one
+    rectangle rather than three.
     """
     root = focused_part(context)
-    if root is None or is_provisional_part(root):
+    if root is None:
         return []
     return [
         plane

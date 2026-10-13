@@ -75,7 +75,7 @@ class TestPartRoot(BgsTestCase):
 
         self.assertEqual(obj.name, f"{body.name} Sketch")
         self.assertEqual(obj.data.name, obj.name)
-        self.assertEqual(obj.slvs_workplane.name, f"{body.name} Workplane")
+        self.assertEqual(obj.slvs_workplane.name, f"{body.name} XY")
 
     def test_a_body_joining_a_part_takes_its_name(self):
         # It is a feature of that part, not a "Body" of its own: Blender numbers
@@ -111,7 +111,7 @@ class TestPartRoot(BgsTestCase):
 
         self.assertEqual(body.data.name, "Latch")
         self.assertEqual(obj.name, "Latch Sketch")
-        self.assertEqual(obj.slvs_workplane.name, "Latch Workplane")
+        self.assertEqual(obj.slvs_workplane.name, "Latch XY")
 
     def test_a_sketch_joining_a_part_leaves_its_plane_named(self):
         # The plane belongs to whatever the sketch was drawn on, so it keeps the
@@ -867,9 +867,11 @@ class TestPartRoot(BgsTestCase):
         self.assertIn(mine_plane, offered)
         self.assertNotIn(other_plane, offered)
 
-    def test_a_body_that_is_not_a_part_yet_has_one_nameless_plane(self):
-        # It is just a body: one plane, the one its sketch sits on, and no base
-        # planes until it means something to have them.
+    def test_the_plane_a_sketch_starts_on_is_the_parts_xy(self):
+        # One plane, the one its sketch sits on, and it is that part's XY from
+        # the first stroke: the sketch is never moved onto a differently named
+        # plane later. It is not offered while the part is provisional, so the
+        # picker shows either the world's planes or a real part's.
         from ..utilities.body import body_of
         from ..utilities.part import PART_PLANE_KEY
         from ..utilities.workplane import iter_wp_empties
@@ -879,13 +881,16 @@ class TestPartRoot(BgsTestCase):
         body = body_of(obj)
         plane = obj.slvs_workplane
 
-        self.assertEqual(list(body.children), [plane])
-        self.assertNotIn(PART_PLANE_KEY, plane)
-        self.assertEqual(plane.name, f"{body.name} Workplane")
-        # Moved or not, it is offered: a plane in no part is always on hand.
+        self.assertEqual(plane.get(PART_PLANE_KEY), "XY")
+        # Base planes come as a set, like the scene's own.
+        self.assertEqual(
+            sorted(c.get(PART_PLANE_KEY) for c in body.children),
+            ["XY", "XZ", "YZ"],
+        )
+        self.assertEqual(plane.name, f"{body.name} XY")
         body.matrix_basis.translation = Vector((4.0, 0.0, 0.0))
         self.context.view_layer.update()
-        self.assertIn(plane, [p for p, _id in iter_wp_empties(self.context)])
+        self.assertNotIn(plane, [p for p, _id in iter_wp_empties(self.context)])
 
     def test_becoming_a_part_turns_that_plane_into_its_XY(self):
         from ..utilities.body import body_of
@@ -902,7 +907,10 @@ class TestPartRoot(BgsTestCase):
         self.assertEqual(existing_part_plane(body, "XY"), plane)
         self.assertEqual(plane.get(PART_PLANE_KEY), "XY")
         self.assertEqual(plane.name, f"{body.name} XY")
-        self.assertEqual(list(body.children), [plane])
+        self.assertEqual(
+            sorted(c.get(PART_PLANE_KEY) for c in body.children),
+            ["XY", "XZ", "YZ"],
+        )
         # And the sketch still sits on it.
         self.assertEqual(obj.slvs_workplane, plane)
 
@@ -987,8 +995,10 @@ class TestPartRoot(BgsTestCase):
         self.assertEqual(second.target_object.slvs_workplane, base_plane)
         self.assertEqual(second.target_object.parent, base_plane)
         self.assertEqual(part_root_of(cutter), base)
+        # The part's own three, with no spare left in that place.
         planes = [c for c in base.children_recursive if is_managed_workplane(c)]
-        self.assertEqual(planes, [base_plane])
+        self.assertEqual(len(planes), 3)
+        self.assertIn(base_plane, planes)
 
     def test_a_plane_somewhere_else_is_kept_on_joining(self):
         from ..utilities.body import body_of
@@ -997,6 +1007,10 @@ class TestPartRoot(BgsTestCase):
         first = build_sketch_on_workplane(self.context, self.datum)
         base = body_of(first.target_object)
         mark_part_root(base)
+        # Out of the way, so the part's own planes stand nowhere near the one
+        # the second sketch is drawn on (which would be deduped, not kept).
+        base.matrix_basis = Matrix.Translation(Vector((50.0, 50.0, 50.0)))
+        self.context.view_layer.update()
 
         second = build_sketch_on_workplane(
             self.context, self.context.scene.sketcher.wp_xz
@@ -1016,8 +1030,12 @@ class TestPartRoot(BgsTestCase):
         sketch = build_sketch_on_workplane(self.context, self.datum)
         body = body_of(sketch.target_object)
         plane = sketch.target_object.slvs_workplane
-        # Only its own plane while it is just a body.
-        self.assertEqual([c for c in body.children if PART_PLANE_KEY in c], [])
+        # All three from the start; the sketch's own plane is the XY.
+        self.assertEqual(
+            sorted(c.get(PART_PLANE_KEY) for c in body.children),
+            ["XY", "XZ", "YZ"],
+        )
+        self.assertEqual(existing_part_plane(body, "XY"), plane)
 
         self.context.view_layer.objects.active = body
         body.select_set(True)
