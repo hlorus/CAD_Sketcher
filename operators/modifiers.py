@@ -106,7 +106,11 @@ def draw_modifier_input(layout, modifier, identifier, text=""):
             return False
         layout.prop(socket, "value", text=text)  # Blender 5.2+
         return True
-    layout.prop(modifier, f'["{identifier}"]', text=text)  # Blender <= 5.1
+    # Blender <= 5.1: inputs are ID-properties. ``layout.prop`` on a missing
+    # key silently draws nothing (no error row, no warning), so check first.
+    if identifier not in modifier.keys():
+        return False
+    layout.prop(modifier, f'["{identifier}"]', text=text)
     return True
 
 
