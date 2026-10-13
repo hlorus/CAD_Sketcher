@@ -1,7 +1,7 @@
 import getpass
 import logging
-from tempfile import gettempdir
 from pathlib import Path
+from tempfile import gettempdir
 
 from .register import get_name
 
@@ -29,7 +29,7 @@ def setup_logger(logger):
         file_handler = logging.FileHandler(filepath, mode="w")
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
-    except:
+    except OSError:
         logger.warning(f"Cannot use logger file at: {filepath}")
 
 
