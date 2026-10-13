@@ -1016,10 +1016,15 @@ class TestPartRoot(BgsTestCase):
             self.context, self.context.scene.sketcher.wp_xz
         )
         own = second.target_object.slvs_workplane
+        base.name = "Trunnion"
 
         settle_membership(second.target_object, [base])
 
         self.assertEqual(second.target_object.slvs_workplane, own)
+        # It was that sketch's own base plane and is now an ordinary workplane
+        # inside the part, so it is named after the part rather than after a
+        # body that no longer roots one.
+        self.assertEqual(own.name, "Trunnion Workplane")
 
     def test_a_new_part_gets_its_base_planes_at_once(self):
         # They are what you sketch on next, so they exist as soon as the part
