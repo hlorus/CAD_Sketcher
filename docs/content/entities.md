@@ -3,7 +3,7 @@ They are not mesh or curve elements, so native Blender tools do not act on them
 directly; what those tools work on is the [body](integration.md) the sketch's
 geometry is realised on.
 
-Entities are defined by a set of parameters and pointers to other entities which are editable at any point in time. This allows non-destructive workflows and also ensures that geometry is resolution independent. A curve will always follow a given radius no matter how it's transformed. Entities can be created with the various [Workspacetools](user_interface.md#workspacetools).
+Entities are defined by a set of parameters and pointers to other entities which are editable at any point in time. This allows non-destructive workflows and also ensures that geometry is resolution independent. A curve will always follow a given radius no matter how it's transformed. Entities can be created with the various [Workspacetools](tools.md#workspacetools).
 
 ## Degrees of Freedom
 Every entity has a number of degrees of freedom, the independent ways it can still
@@ -22,14 +22,14 @@ An entity is considered to be active when the sketch it belongs to is set as the
 sketch or, for 3D entities, when no sketch is active.
 
 ## Visibility
-Entities can be hidden. Access the setting from the entity's [context menu](user_interface#context-menu)
-or from the [entity browser](user_interface#Entity-Browser).
+Entities can be hidden. Access the setting from the entity's [context menu](user_interface.md#context-menu)
+or from the [entity browser](user_interface.md#entity-browser).
 
 ## Construction
-Entities have a construction parameter which can be set via the entity's [context menu](user_interface#context-menu). If it's set to true the entity will be ignored when converting the geometry however it's still used to solve the geometric system. It's generally good practice to mark entities as construction if they're not part of the final geometry.
+Entities have a construction parameter which can be set via the entity's [context menu](user_interface.md#context-menu). If it's set to true the entity will be ignored when converting the geometry however it's still used to solve the geometric system. It's generally good practice to mark entities as construction if they're not part of the final geometry.
 
 ## Fixed
-Entities can be fixed via the entity's [context menu](user_interface#context-menu). A fixed entity won't have any degrees of freedom and therefor cannot be adjusted by the solver. It's good practice to base geometry on a fixed origin point.
+Entities can be fixed via the entity's [context menu](user_interface.md#context-menu). A fixed entity won't have any degrees of freedom and therefor cannot be adjusted by the solver. It's good practice to base geometry on a fixed origin point.
 
 > :warning:**Warning:** While this currently applies to all entities it's intended to be used with points only.
 
