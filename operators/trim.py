@@ -195,9 +195,6 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
                     if pt.valid:
                         trim.add(pt.co, constraint_index=j, constraint_type=coll_name)
 
-        # Points sitting on the segment, which no crossing or constraint reports.
-        trim.add_points_on_segment()
-
         if not trim.check():
             # No intersections — delete the whole segment + orphan endpoints
             self._delete_segment(context, sketch, segment)

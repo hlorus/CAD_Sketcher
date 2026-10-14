@@ -106,44 +106,6 @@ class TrimSegment:
         self._intersections.append(intr)
         return intr
 
-    def add_points_on_segment(self):
-        """Count free points lying on the segment as places it can be cut.
-
-        A point dropped or merged onto a line is a cut mark to the user, whether
-        or not a constraint ties it there. Without this the only boundaries are
-        the line's own ends, and trimming between them takes the whole line.
-        """
-        from ..model.constants import SketchCurveType
-        from .curve_data import read_curve_id_list
-
-        sketch = self.sketch
-        curve_data = sketch.data
-        type_attr = curve_data.attributes.get("sketch_type") if curve_data else None
-        if type_attr is None:
-            return
-
-        own = {self.segment.curve_id} | self._original_endpoint_cids
-        for index, cid in enumerate(read_curve_id_list(curve_data)):
-            if type_attr.data[index].value != SketchCurveType.POINT or cid in own:
-                continue
-            point = PointRef(sketch, cid)
-            if not point.valid:
-                continue
-            co = Vector(point.co[:2])
-            if (
-                self.topo.project_point(self.segment, co) - co
-            ).length >= COINCIDENT_EPS:
-                continue
-            # Only within the span: a point on the infinite line but past an end
-            # is not on this segment.
-            t = self._parametric_t(co)
-            if not (0.0 <= t <= 1.0) and not self._is_closed:
-                continue
-            intr = self.add(co)
-            # Reuse the point itself, rather than stacking a second one on it.
-            if intr._point_ref is None:
-                intr._point_ref = point
-
     def check(self):
         """Validate that trimming is possible."""
         relevant = self._relevant_intersections()
