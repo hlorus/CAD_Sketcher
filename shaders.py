@@ -1,17 +1,9 @@
+from functools import cache
+
 import gpu
-from gpu.types import GPUShaderCreateInfo, GPUStageInterfaceInfo
-from gpu.shader import create_from_info
 from bpy import app
-
-import sys
-
-
-if sys.version_info >= (3, 9):
-    from functools import cache
-else:
-    from functools import lru_cache
-
-    cache = lru_cache(maxsize=None)
+from gpu.shader import create_from_info
+from gpu.types import GPUShaderCreateInfo, GPUStageInterfaceInfo
 
 
 class Shaders:
