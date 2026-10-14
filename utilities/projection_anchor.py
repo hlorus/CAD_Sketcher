@@ -736,26 +736,27 @@ def _arc_exists_between(sketch, ct, start, end):
     return False
 
 
-def _find_projected_circle(sketch, ct):
-    """Find an existing circle in ``sketch`` centered at ``ct``, or None."""
-    curve_data = sketch.data
-    type_attr = curve_data.attributes.get("sketch_type")
-    if not type_attr:
-        return None
-    centers = read_uuid_list(curve_data, "center_point_id")
-    curve_ids = read_curve_id_list(curve_data)
-    for index in range(len(curve_data.curves)):
-        if type_attr.data[index].value != SketchCurveType.CIRCLE:
+def _find_projected_circle(sketch, source, source_curve_id):
+    """The circle in ``sketch`` already projected from that source circle, or None.
+
+    Keyed on the source curve, not on the center point: concentric circles share
+    a center, so a center-keyed lookup would hand the second one the first one's
+    circle, overwriting its radius and its binding instead of projecting
+    alongside it.
+    """
+    for (
+        curve_id,
+        bound_source,
+        bound_id,
+        _fallback,
+        _radius,
+    ) in iter_projected_circle_bindings(sketch):
+        if bound_source != source or bound_id != source_curve_id:
             continue
-        if centers[index] == ct.curve_id:
-            return CircleRef(sketch, curve_ids[index])
+        circle = CircleRef(sketch, curve_id)
+        if circle.valid:
+            return circle
     return None
-
-
-def _circle_exists_at(sketch, ct, radius):
-    """Whether a native circle already exists at center ``ct`` with approximately ``radius``."""
-    c = _find_projected_circle(sketch, ct)
-    return c is not None and abs(c.radius - radius) < 1e-4
 
 
 def picked_mesh(source, depsgraph=None):
@@ -1207,7 +1208,8 @@ def project_curves_object(sketch, source, construction=True):
                     continue
                 proj_radius = src_circle.radius
                 src_curve_idx = get_curve_index(src_sketch, src_cid)
-                circle = _find_projected_circle(sketch, ct)
+                src_curve_key = ensure_source_curve_id(source.data, src_curve_idx)
+                circle = _find_projected_circle(sketch, source, src_curve_key)
                 if circle is None:
                     circle = CircleRef.create(
                         sketch,
@@ -1217,14 +1219,14 @@ def project_curves_object(sketch, source, construction=True):
                         name="Projected Circle",
                     )
                     lines.append(circle)
-                else:
-                    if abs(circle.radius - proj_radius) > 1e-6:
-                        circle.radius = proj_radius
+                elif abs(circle.radius - proj_radius) > 1e-6:
+                    circle.radius = proj_radius
                 bind_projected_circle(
                     sketch,
                     circle,
                     source,
                     src_curve_idx,
+                    curve_id=src_curve_key,
                     last_radius=proj_radius,
                 )
 
@@ -1332,7 +1334,8 @@ def project_curves_element(sketch, source, curve_id, construction=True):
             if ct:
                 proj_radius = src_circle.radius
                 src_curve_idx = get_curve_index(src_sketch, curve_id)
-                circle = _find_projected_circle(sketch, ct)
+                src_curve_key = ensure_source_curve_id(source.data, src_curve_idx)
+                circle = _find_projected_circle(sketch, source, src_curve_key)
                 if circle is None:
                     circle = CircleRef.create(
                         sketch,
@@ -1342,14 +1345,14 @@ def project_curves_element(sketch, source, curve_id, construction=True):
                         name="Projected Circle",
                     )
                     lines.append(circle)
-                else:
-                    if abs(circle.radius - proj_radius) > 1e-6:
-                        circle.radius = proj_radius
+                elif abs(circle.radius - proj_radius) > 1e-6:
+                    circle.radius = proj_radius
                 bind_projected_circle(
                     sketch,
                     circle,
                     source,
                     src_curve_idx,
+                    curve_id=src_curve_key,
                     last_radius=proj_radius,
                 )
             return points, lines, 0

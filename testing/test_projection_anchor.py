@@ -674,3 +674,30 @@ class TestProjectionAnchor(Sketch2dTestCase):
         refresh_projection_for_sketch(self.sketch, depsgraph, force=True)
         self.assertLess((circle.ct.co - Vector((5.0, 2.0))).length, 1e-5)
         self.assertAlmostEqual(circle.radius, 5.0, places=4)
+
+    def test_project_concentric_circles_keeps_both(self):
+        # Two source circles can share a center (an annulus, a counterbore). The
+        # projected circle is found by the source curve it came from, so the
+        # second one does not take over the first one's circle.
+        from ..model.curve_ref import CircleRef, PointRef
+
+        src = self.new_sketch()
+        ct = PointRef.create(src, (0.0, 0.0))
+        inner_src = CircleRef.create(src, ct, radius=1.0)
+        CircleRef.create(src, ct, radius=3.0)
+
+        _points, curves, skipped = project_curves_object(
+            self.sketch, src.target_object, construction=True
+        )
+        self.assertEqual(skipped, 0)
+        circles = [c for c in curves if c.is_circle()]
+        self.assertEqual(len(circles), 2, "both concentric circles project")
+        self.assertEqual(sorted(round(c.radius, 4) for c in circles), [1.0, 3.0])
+
+        # And each still follows its own source rather than the other's.
+        inner_src.radius = 2.0
+        self.context.view_layer.update()
+        refresh_projection_for_sketch(
+            self.sketch, self.context.evaluated_depsgraph_get(), force=True
+        )
+        self.assertEqual(sorted(round(c.radius, 4) for c in circles), [2.0, 3.0])
