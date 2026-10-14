@@ -3,7 +3,7 @@ import logging
 from bpy.types import Context, Operator
 
 from ..declarations import Operators
-from ..model.categories import SEGMENT
+from ..model.categories import POINT, SEGMENT
 from ..model.curve_ref import CurveRef, curve_ref
 from ..model.sketch_ref import get_active_sketch
 from ..stateful_operator.state import state_from_args
@@ -25,14 +25,16 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
     # nothing left to show or adjust afterwards.
     bl_options = {"UNDO"}
 
-    trim_state1_doc = ("Segment", "Segment to trim.")
+    trim_state1_doc = ("Segment", "Segment to trim, or a point to remove.")
 
     states = (
         state_from_args(
             trim_state1_doc[0],
             description=trim_state1_doc[1],
             pointer="segment",
-            types=SEGMENT,
+            # Points too: trimming leaves them behind, and clicking one away
+            # with the tool already in hand is how you clear them.
+            types=(*SEGMENT, *POINT),
             pick_element="pick_element_coords",
             use_create=False,
         ),
@@ -86,6 +88,41 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
             if cid not in referenced:
                 remove_native_curve_by_id(sketch, cid)
 
+    @staticmethod
+    def _delete_point(context, sketch, point) -> bool:
+        """Remove a clicked point, unless a segment is still built from it.
+
+        A point no curve refers to is leftover, usually from an earlier trim,
+        and clearing it is the point of clicking it. One that a line or arc is
+        built from is not leftover: removing it would take that curve with it,
+        which is not what a click on the point asked for.
+        """
+        from ..model.constants import SketchCurveType
+        from ..operators.delete_entity import _get_constraint_indices_for_curve_id
+        from ..utilities.curve_data import remove_native_curve_by_id
+
+        cd = sketch.data
+        if cd is None:
+            return False
+        type_attr = cd.attributes.get("sketch_type")
+        for i in range(len(cd.curves)):
+            if (
+                type_attr is not None
+                and type_attr.data[i].value == SketchCurveType.POINT
+            ):
+                continue
+            for attr in ("start_point_id", "end_point_id", "center_point_id"):
+                if get_uuid(cd, attr, i) == point.curve_id:
+                    return False
+
+        for data_coll, indices in _get_constraint_indices_for_curve_id(
+            point.curve_id, context
+        ):
+            for i in reversed(indices):
+                data_coll.remove(i)
+        remove_native_curve_by_id(sketch, point.curve_id)
+        return True
+
     def main(self, context: Context):
         return True
 
@@ -98,6 +135,14 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
 
         if not segment or not isinstance(segment, CurveRef):
             return False
+
+        from ..model.curve_ref import PointRef
+
+        if isinstance(segment, PointRef):
+            if self._delete_point(context, sketch, segment):
+                sketch.geometry_solved = False
+                refresh(context)
+            return
 
         mouse_pos = self._state_data[0].get("mouse_pos")
         if mouse_pos is None:
@@ -149,6 +194,9 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
                     pt = PointRef(sketch, pt_cid)
                     if pt.valid:
                         trim.add(pt.co, constraint_index=j, constraint_type=coll_name)
+
+        # Points sitting on the segment, which no crossing or constraint reports.
+        trim.add_points_on_segment()
 
         if not trim.check():
             # No intersections — delete the whole segment + orphan endpoints
