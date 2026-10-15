@@ -406,6 +406,19 @@ class GenericEntityOp(StatefulOperator):
             data["entity_index"] = i
             return True
 
+    def _restored_pointer_ok(self, index, state):
+        from ..model.curve_ref import CurveRef
+        from .utilities import curve_ref_matches
+
+        data = self._state_data.get(index, {})
+        ptype = data.get("type")
+        if not (isinstance(ptype, type) and issubclass(ptype, CurveRef)):
+            return super()._restored_pointer_ok(index, state)
+        if not data.get("is_existing_entity", False):
+            return True
+        ref = self.get_state_pointer(index=index)
+        return bool(ref and ref.valid and curve_ref_matches(ref, state.types))
+
     def _pointer_type_registry(self):
         # Picked sketch elements are stored by their CurveRef type name; without
         # them a fresh redo/re-pick instance can't rebuild those picks.

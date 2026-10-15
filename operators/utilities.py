@@ -116,7 +116,7 @@ def get_hovered(context: Context, *types):
     Types can be CurveRef subclasses (PointRef, LineRef, etc.) or legacy
     entity classes (SlvsPoint2D, SlvsLine2D, etc.).
     """
-    from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef, curve_ref
+    from ..model.curve_ref import curve_ref
 
     hover_id = selection.hover
     if not hover_id:
@@ -130,7 +130,12 @@ def get_hovered(context: Context, *types):
     if not ref.valid:
         return None
 
-    # Map legacy entity types to CurveRef types for matching
+    return ref if curve_ref_matches(ref, types) else None
+
+
+def curve_ref_matches(ref, types):
+    """Whether a CurveRef is one of ``types`` (CurveRef classes or legacy entity classes)."""
+    from ..model.curve_ref import ArcRef, CircleRef, LineRef, PointRef
     from ..model.types import SlvsArc, SlvsCircle, SlvsLine2D, SlvsPoint2D
 
     _type_map = {
@@ -141,18 +146,15 @@ def get_hovered(context: Context, *types):
     }
 
     for t in types:
-        # Direct CurveRef subclass check
         is_curve_ref_type = isinstance(t, type) and issubclass(
             t, (PointRef, LineRef, ArcRef, CircleRef)
         )
         if is_curve_ref_type and isinstance(ref, t):
-            return ref
-        # Legacy entity type → mapped CurveRef type
+            return True
         mapped = _type_map.get(t)
         if mapped and isinstance(ref, mapped):
-            return ref
-
-    return None
+            return True
+    return False
 
 
 SMOOTHVIEW_FACTOR = 0
