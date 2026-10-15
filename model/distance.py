@@ -128,6 +128,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     signature = ((*POINT, *LINE, SlvsCircle, SlvsArc), (*POINT, *LINE, SlvsWorkplane))
     props = ("value",)
 
+    def solver_signature(self):
+        first, second = self.signature
+        return (first, (*second, SlvsCircle, SlvsArc))
+
     def _is_native_3d(self):
         sketch = self._get_sketch()
         return bool(sketch and getattr(sketch, "is_3d", False))

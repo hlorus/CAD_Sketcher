@@ -99,6 +99,7 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
     type = "TANGENT"
     label = "Tangent"
     signature = (CURVE, (SlvsLine2D, *CURVE))
+    swappable = True
 
     curve_id_1: StringProperty(name="Curve ID 1", default="")
     curve_id_2: StringProperty(name="Curve ID 2", default="")
@@ -108,14 +109,15 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
         from ..model.constants import SketchCurveType
         from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
 
-        h1 = handle_map.get(self.curve_id_1)
-        h2 = handle_map.get(self.curve_id_2)
+        id1, id2 = self.curve_id_1, self.curve_id_2
+        h1 = handle_map.get(id1)
+        h2 = handle_map.get(id2)
         if h1 is None or h2 is None:
             return None
 
         sketch = self._get_sketch()
-        cd1, idx1, _ = get_curve_data(sketch, self.curve_id_1)
-        cd2, idx2, _ = get_curve_data(sketch, self.curve_id_2)
+        cd1, idx1, _ = get_curve_data(sketch, id1)
+        cd2, idx2, _ = get_curve_data(sketch, id2)
         if cd1 is None or cd2 is None:
             return None
 
@@ -123,6 +125,12 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
 
         t1 = type_attr.data[idx1].value
         t2 = type_attr.data[idx2].value
+        if t1 == SketchCurveType.LINE and t2 in (
+            SketchCurveType.ARC,
+            SketchCurveType.CIRCLE,
+        ):
+            id1, id2, h1, h2 = id2, id1, h2, h1
+            cd1, cd2, idx1, idx2, t1, t2 = cd2, cd1, idx2, idx1, t2, t1
 
         is_curve1 = t1 in (SketchCurveType.ARC, SketchCurveType.CIRCLE)
         is_curve2 = t2 in (SketchCurveType.ARC, SketchCurveType.CIRCLE)
@@ -153,8 +161,8 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
             # tangent point: the radius to it must be perpendicular to the line.
             tangent_id = _known_tangent_point(
                 sketch,
-                (self.curve_id_1, on_curve1),
-                (self.curve_id_2, (sp_id, ep_id)),
+                (id1, on_curve1),
+                (id2, (sp_id, ep_id)),
             )
             tangent_handle = handle_map.get(tangent_id) if tangent_id else None
             if tangent_handle:
@@ -192,7 +200,7 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
             # only has to lie on the line through the centres.
             on_curve2 = endpoints(cd2, idx2) if t2 == SketchCurveType.ARC else ()
             tangent_id = _known_tangent_point(
-                sketch, (self.curve_id_1, on_curve1), (self.curve_id_2, on_curve2)
+                sketch, (id1, on_curve1), (id2, on_curve2)
             )
             tangent_handle = handle_map.get(tangent_id) if tangent_id else None
             if tangent_handle:
@@ -216,8 +224,7 @@ class SlvsTangent(GenericConstraint, PropertyGroup):
                 point_on_line(solvesys, group, p, line, wp, ct1_pos, ct2_pos),
             )
 
-        # Simple tangent
-        return solvesys.tangent(group, h2, h1, wp)
+        return None
 
     def needs_wp(self):
         return WpReq.NOT_FREE

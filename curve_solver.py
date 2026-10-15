@@ -375,6 +375,10 @@ class CurveSolver:
             if not getattr(c, "curve_id_1", ""):
                 continue
 
+            if not c.accepts_curve_types(sketch):
+                c.failed = True
+                continue
+
             try:
                 handles = c.create_slvs_data_from_curves(
                     self.solvesys, self._entity_handles, wp, group
