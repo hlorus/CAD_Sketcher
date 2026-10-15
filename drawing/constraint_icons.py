@@ -187,18 +187,22 @@ def _layout_key(context, sketch):
     positions are fingerprinted only for the curves that carry a constraint.
     """
     from ..model.base_constraint import DimensionalConstraint
-    from ..utilities.curve_data import get_curve_index
 
     cd = sketch.target_object.data
     constraints = sketch.constraints
     per_constraint = []
     referenced = set()
-    for c in constraints.all:
-        if isinstance(c, DimensionalConstraint):
+    for coll in constraints.get_lists():
+        n = len(coll)
+        if not n or isinstance(coll[0], DimensionalConstraint):
             continue
-        ids = tuple(c.curve_id_placements())
-        per_constraint.append((c.type, ids, c.visible, c.failed))
-        referenced.update(ids)
+        flags = np.empty(2 * n, dtype=np.bool_)
+        coll.foreach_get("visible", flags[:n])
+        coll.foreach_get("failed", flags[n:])
+        ids = tuple(tuple(c.curve_id_placements()) for c in coll)
+        per_constraint.append((coll[0].type, ids, flags.tobytes()))
+        for placement in ids:
+            referenced.update(placement)
 
     positions = b""
     if referenced and len(cd.points):
@@ -207,14 +211,21 @@ def _layout_key(context, sketch):
         co = np.empty(len(cd.points) * 3, dtype=np.float32)
         cd.points.foreach_get("position", co)
         co = co.reshape(-1, 3)
-        chunks = []
-        for cid in sorted(referenced):
-            idx = get_curve_index(sketch, cid)
-            if idx is None or idx >= len(offsets) - 1:
-                chunks.append(np.full((1, 3), np.nan, dtype=np.float32))
-            else:
-                chunks.append(co[offsets[idx] : offsets[idx + 1]])
-        positions = np.concatenate(chunks).tobytes() if chunks else b""
+        index_of = _curve_index_map(cd)
+        n_curves = len(offsets) - 1
+        idx = np.fromiter(
+            (index_of.get(cid, -1) for cid in sorted(referenced)),
+            dtype=np.int64,
+            count=len(referenced),
+        )
+        idx[idx >= n_curves] = -1
+        valid = idx >= 0
+        starts = offsets[idx[valid]]
+        counts = offsets[idx[valid] + 1] - starts
+        rows = np.repeat(starts - np.cumsum(counts) + counts, counts) + np.arange(
+            counts.sum()
+        )
+        positions = co[rows].tobytes() + valid.tobytes() + counts.tobytes()
 
     highlight = selection.highlight_constraint
     highlight_key = (
@@ -239,6 +250,24 @@ def _layout_key(context, sketch):
             )
         ),
     )
+
+
+_index_map_cache = {"ids": None, "map": None, "built": 0}
+
+
+def _curve_index_map(cd):
+    """curve_id -> curve index, rebuilt only when the cached id list changes."""
+    from ..utilities.curve_data import read_uuid_list
+
+    ids = read_uuid_list(cd, "curve_id")
+    cache = _index_map_cache
+    if cache["ids"] is not ids or cache["built"] > len(ids):
+        cache.update(ids=ids, map={}, built=0)
+    index_of = cache["map"]
+    for i in range(cache["built"], len(ids)):
+        index_of.setdefault(ids[i], i)
+    cache["built"] = len(ids)
+    return index_of
 
 
 def _view_key(context, atlas, uvs):
