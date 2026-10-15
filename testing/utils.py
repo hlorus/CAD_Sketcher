@@ -28,9 +28,11 @@ def make_operator_double(real_cls):
         for k, v in real_cls.__dict__.items()
         if k not in ("__dict__", "__weakref__")
     }
-    # UI-only sinks the pure state machine calls through set_state / status updates.
+    # UI-only sinks the pure state machine calls through set_state / status
+    # updates. ``report`` is Operator's own, so it goes with the base we drop.
     ns.setdefault("set_status_text", _noop)
     ns.setdefault("init_numeric", _noop)
+    ns.setdefault("report", _noop)
     cls = type(real_cls.__name__ + "_Double", bases, ns)
 
     # Methods copied verbatim from the concrete class keep a hidden ``__class__``

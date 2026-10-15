@@ -77,7 +77,26 @@ class TrimSegment:
                 self._intersections.append(intr)
 
     def add(self, co, source_cid="", constraint_index=-1, constraint_type=""):
-        """Add an intersection point."""
+        """Add an intersection, or fold it into one already in the same place.
+
+        A corner arrives twice: once as this segment's own connection point, and
+        again as a geometric crossing with the neighbour that shares it. Left as
+        two, they bound a zero-length piece between them, which is dropped while
+        the points made for it stay behind on the corner.
+        """
+        co = Vector(co[:2])
+        for existing in self._intersections:
+            if (existing.co - co).length >= COINCIDENT_EPS:
+                continue
+            # Keep whichever facts each copy carries: being an endpoint, and the
+            # segment or constraint that put it there.
+            if not existing.source_cid:
+                existing.source_cid = source_cid
+            if existing.constraint_index < 0 and constraint_index >= 0:
+                existing.constraint_index = constraint_index
+                existing.constraint_type = constraint_type
+            return existing
+
         intr = Intersection(
             co,
             source_cid,
@@ -253,11 +272,9 @@ class TrimSegment:
         sketch = self.sketch
         topo = self.topo
 
-        # Ensure all intersection points exist
-        for intr in relevant:
-            intr.get_or_create_point(sketch)
-
-        # Create new segments between pairs of relevant intersections
+        # Points are made per piece below, not up front: a piece that turns out
+        # to be zero-length is skipped, and points made for it would be left
+        # behind with nothing referring to them.
         segment_count = len(relevant) // 2
         new_segments = []
         reused = False
@@ -265,13 +282,16 @@ class TrimSegment:
         for i in range(segment_count):
             intr_1 = relevant[i * 2]
             intr_2 = relevant[i * 2 + 1]
-            p1 = intr_1.get_or_create_point(sketch)
-            p2 = intr_2.get_or_create_point(sketch)
 
             # A piece whose two boundaries collapse onto the same location is
             # fully trimmed away -- creating a segment there yields a zero-length
             # line or a zero-sweep arc (whose bezier degenerates into a stray
-            # sliver). Skip it; its now-orphan points are cleaned up below.
+            # sliver). Skip it before its points are made.
+            if (intr_1.co - intr_2.co).length < COINCIDENT_EPS:
+                continue
+
+            p1 = intr_1.get_or_create_point(sketch)
+            p2 = intr_2.get_or_create_point(sketch)
             if _points_coincident(p1, p2):
                 continue
 
@@ -460,7 +480,8 @@ class TrimSegment:
         for intr in relevant:
             if intr.is_endpoint or not intr.source_cid:
                 continue
-            pt = intr.get_or_create_point(sketch)
+            # Skipped pieces never made their points; nothing to constrain.
+            pt = intr._point_ref
             if pt:
                 sc.add_coincident(
                     curve_id_1=pt.curve_id,
