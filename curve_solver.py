@@ -17,6 +17,7 @@ from mathutils import Vector
 
 from .model.base_constraint import sketch_resolution
 from .model.constants import SketchCurveType
+from .model.curve_ref import published_curve_types
 from .utilities.constants import FULL_TURN, HALF_TURN
 from .utilities.curve_data import (
     get_curve_index,
@@ -104,6 +105,7 @@ class CurveSolver:
         self._entity_handles = {}
         # For circle radius params
         self._distance_params = {}
+        self._curve_types = {}
 
     def tweak(self, curve_id, pos):
         """Set the curve to be dragged to the given position."""
@@ -186,6 +188,7 @@ class CurveSolver:
         cp_list = read_uuid_list(curve_data, "center_point_id")
         fixed_attr = curve_data.attributes.get("fixed")
         types, first_idx, positions = _bulk_curve_arrays(curve_data, type_attr)
+        self._curve_types = {cid: t for cid, t in zip(cid_list, types) if cid}
         if fixed_attr:
             fixed_flags = np.zeros(n_curves, dtype=np.bool_)
             fixed_attr.data.foreach_get("value", fixed_flags)
@@ -681,13 +684,18 @@ class CurveSolver:
         self._point_handles.clear()
         self._entity_handles.clear()
         self._distance_params.clear()
+        self._curve_types = {}
         self._constraint_by_handle = {}
 
         self._init_workplane()
         self._init_geometry()
         # Publish the sketch so the constraints being built (and the dimension
         # values they read) resolve it for free instead of each re-deriving it.
-        with sketch_resolution(self._resolution_sketch()):
+        target = getattr(self.sketch, "target_object", None)
+        with (
+            sketch_resolution(self._resolution_sketch()),
+            published_curve_types(target.data if target else None, self._curve_types),
+        ):
             self._init_constraints()
 
         result = self.solvesys.solve_sketch(self.group_sketch, True)
