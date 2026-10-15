@@ -1293,6 +1293,8 @@ def rebuild_segments(sketch, point_ids=None):
     n = len(cd.curves)
     if n == 0:
         return
+    if point_ids is not None and not point_ids:
+        return
 
     # Adapt arc control-point counts to their current sweep angle. This may
     # resize_curves (reindexing the point domain), so it must run before any
@@ -1426,6 +1428,45 @@ def normalize_point_curve_types(curve_data) -> None:
         curve_data.set_types(type=CURVE_TYPE_NAMES[wanted], indices=stale)
 
 
+def geometry_fingerprint(sketch):
+    """A digest of a sketch's curve topology, positions and numeric attributes.
+
+    None when the sketch has no curve data.
+    """
+    import hashlib
+
+    obj = sketch.target_object if sketch else None
+    curve_data = obj.data if obj else None
+    if curve_data is None:
+        return None
+    n_curves = len(curve_data.curves)
+    n_points = len(curve_data.points)
+    h = hashlib.blake2b(digest_size=16)
+    h.update(np.array([n_curves, n_points], dtype=np.int64).tobytes())
+    counts = np.zeros(n_curves, dtype=np.int32)
+    curve_data.curves.foreach_get("points_length", counts)
+    h.update(counts.tobytes())
+    for attr in curve_data.attributes:
+        domain_len = n_points if attr.domain == "POINT" else n_curves
+        if attr.data_type == "FLOAT_VECTOR":
+            data, key = np.zeros(domain_len * 3, dtype=np.float32), "vector"
+        elif attr.data_type == "BOOLEAN":
+            data, key = np.zeros(domain_len, dtype=np.bool_), "value"
+        elif attr.data_type in ("INT", "INT8"):
+            data, key = np.zeros(domain_len, dtype=np.int32), "value"
+        elif attr.data_type in ("INT32_2D", "INT16_2D"):
+            data, key = np.zeros(domain_len * 2, dtype=np.int32), "value"
+        elif attr.data_type == "FLOAT":
+            data, key = np.zeros(domain_len, dtype=np.float32), "value"
+        else:
+            h.update(f"{attr.name}:{attr.data_type}".encode())
+            continue
+        attr.data.foreach_get(key, data)
+        h.update(attr.name.encode())
+        h.update(data.tobytes())
+    return h.digest()
+
+
 def refresh_curve_geometry(sketch):
     """Force GN modifier re-evaluation by doing a topology rebuild."""
     if not sketch or not sketch.target_object or not sketch.target_object.data:
@@ -1506,5 +1547,3 @@ def refresh_curve_geometry(sketch):
     # native 3D sketch's POLY curves linear -- and what carries a single-point
     # curve's type over from whenever it was added.
     normalize_point_curve_types(curve_data)
-
-    invalidate_curve_id_cache(sketch)

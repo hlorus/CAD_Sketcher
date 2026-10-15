@@ -172,7 +172,9 @@ def on_depsgraph_update(scene, depsgraph):
             except Exception:
                 logger.exception("Could not sync part collections")
 
+    scene_only = False
     if depsgraph.id_type_updated("SCENE"):
+        scene_only = not global_data.needs_solve
         global_data.needs_solve = True
 
     if global_data.needs_solve:
@@ -182,17 +184,19 @@ def on_depsgraph_update(scene, depsgraph):
         global_data.needs_solve = False
         from .curve_solver import solve_system
         from .model.sketch_ref import get_active_sketch
-        from .utilities.curve_data import refresh_curve_geometry
+        from .utilities.curve_data import geometry_fingerprint, refresh_curve_geometry
 
         context = bpy.context
         sketch = get_active_sketch(context)
+        before = geometry_fingerprint(sketch) if scene_only and sketch else None
         if solve_system(context, sketch=sketch) and sketch:
             # The solver writes point positions in place, which does not make
             # the Geometry Nodes modifier re-evaluate; force a topology rebuild
             # so the generated mesh matches the solved geometry (operators that
             # solve do this themselves; this covers the depsgraph-driven path,
             # e.g. editing a dimension value).
-            refresh_curve_geometry(sketch)
+            if before is None or before != geometry_fingerprint(sketch):
+                refresh_curve_geometry(sketch)
 
     if global_data.needs_redraw:
         global_data.needs_redraw = False
@@ -242,6 +246,7 @@ def on_undo_redo(scene, *args):
     from .model.base_constraint import reset_data_owner_cache
     from .model.sketch_ref import get_active_sketch
     from .utilities.collections import reset_cache as reset_collection_cache
+    from .utilities.curve_data import invalidate_curve_id_cache
     from .utilities.part import reset_cache as reset_part_cache
     from .utilities.workplane import reset_workplane_id_map
     from .workspacetools.manager import sync_sketch_mode
@@ -260,6 +265,7 @@ def on_undo_redo(scene, *args):
     # is authoritative after an undo, so the pass starts from it.
     reset_part_cache()
     reset_collection_cache()
+    invalidate_curve_id_cache()
 
     sketch = get_active_sketch(bpy.context)
     sync_sketch_mode(

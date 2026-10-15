@@ -9,6 +9,7 @@ Use ``PointRef.create()``, ``LineRef.create()``, etc. to create new curves.
 """
 
 import math
+from contextlib import contextmanager
 
 from mathutils import Matrix, Vector
 
@@ -969,6 +970,21 @@ class CircleRef(CurveRef):
 # ---------------------------------------------------------------------------
 
 
+_published_types = None
+
+
+@contextmanager
+def published_curve_types(curve_data, types):
+    """Answer ``curve_ref`` type lookups for ``curve_data`` from ``types`` while active."""
+    global _published_types
+    previous = _published_types
+    _published_types = (curve_data, types)
+    try:
+        yield
+    finally:
+        _published_types = previous
+
+
 def curve_ref(sketch, curve_id):
     """Create the appropriate typed CurveRef subclass for a curve_id.
 
@@ -978,7 +994,14 @@ def curve_ref(sketch, curve_id):
     from ..model.constants import SketchCurveType
     from ..utilities.curve_data import get_curve_type
 
-    ctype = get_curve_type(sketch, curve_id)
+    ctype = None
+    published = _published_types
+    if published is not None:
+        obj = sketch.target_object
+        if obj is not None and obj.data is published[0]:
+            ctype = published[1].get(curve_id)
+    if ctype is None:
+        ctype = get_curve_type(sketch, curve_id)
     if ctype == SketchCurveType.POINT:
         return PointRef(sketch, curve_id)
     if ctype == SketchCurveType.LINE:
