@@ -20,7 +20,6 @@ from .model.constants import SketchCurveType
 from .utilities.constants import FULL_TURN, HALF_TURN
 from .utilities.curve_data import (
     get_curve_index,
-    get_uuid,
     has_uuid_field,
 )
 from .utilities.workplane import ensure_workplane_empty
@@ -52,6 +51,25 @@ def _stored_differs(current, new) -> bool:
             np.asarray(new, dtype=np.float32) != np.asarray(current, dtype=np.float32)
         ).any()
     )
+
+
+def _bulk_curve_arrays(curve_data, type_attr):
+    """Per-curve type and first point index, plus every point position.
+
+    One foreach_get each instead of an RNA lookup per curve
+    (``type_attr.data[i].value``, ``curves[i].points[0].index``,
+    ``points[j].position``), which dominated building the solver system.
+    Positions come back as float32 rows, the attribute's own storage, so the
+    values match a per-point read exactly.
+    """
+    n = len(curve_data.curves)
+    types = np.zeros(n, dtype=np.int32)
+    type_attr.data.foreach_get("value", types)
+    first = np.zeros(n, dtype=np.int32)
+    curve_data.curves.foreach_get("first_point_index", first)
+    positions = np.zeros(len(curve_data.points) * 3, dtype=np.float32)
+    curve_data.points.foreach_get("position", positions)
+    return types.tolist(), first.tolist(), positions.reshape(-1, 3)
 
 
 class CurveSolver:
@@ -167,19 +185,25 @@ class CurveSolver:
         ep_list = read_uuid_list(curve_data, "end_point_id")
         cp_list = read_uuid_list(curve_data, "center_point_id")
         fixed_attr = curve_data.attributes.get("fixed")
+        types, first_idx, positions = _bulk_curve_arrays(curve_data, type_attr)
+        if fixed_attr:
+            fixed_flags = np.zeros(n_curves, dtype=np.bool_)
+            fixed_attr.data.foreach_get("value", fixed_flags)
+            fixed_flags = fixed_flags.tolist()
+        else:
+            fixed_flags = [False] * n_curves
 
         # First pass: create all points
         for curve_idx in range(n_curves):
-            ctype = type_attr.data[curve_idx].value
+            ctype = types[curve_idx]
             if ctype != SketchCurveType.POINT:
                 continue
 
             cid = cid_list[curve_idx]
-            fixed = bool(fixed_attr.data[curve_idx].value) if fixed_attr else False
+            fixed = fixed_flags[curve_idx]
             group = self.group_fixed if fixed else self.group_sketch
 
-            pt_idx = curve_data.curves[curve_idx].points[0].index
-            pos = curve_data.points[pt_idx].position
+            pos = positions[first_idx[curve_idx]].tolist()
 
             if is_3d:
                 handle = self.solvesys.add_point_3d(group, *map(float, pos[:3]))
@@ -191,7 +215,7 @@ class CurveSolver:
 
         # Second pass: create lines, arcs, circles
         for curve_idx in range(n_curves):
-            ctype = type_attr.data[curve_idx].value
+            ctype = types[curve_idx]
             cid = cid_list[curve_idx]
 
             if is_3d and ctype not in (SketchCurveType.POINT, SketchCurveType.LINE):
@@ -220,14 +244,9 @@ class CurveSolver:
                 if ct_handle:
                     # Get radius from curve geometry
                     ct_pos = Vector(
-                        curve_data.points[
-                            curve_data.curves[get_curve_index(sketch, cp_id)]
-                            .points[0]
-                            .index
-                        ].position
+                        positions[first_idx[get_curve_index(sketch, cp_id)]].tolist()
                     )
-                    first_pt = curve_data.curves[curve_idx].points[0].index
-                    edge_pos = Vector(curve_data.points[first_pt].position)
+                    edge_pos = Vector(positions[first_idx[curve_idx]].tolist())
                     radius = (edge_pos - ct_pos).length
 
                     dist_param = self.solvesys.add_distance(
@@ -521,16 +540,18 @@ class CurveSolver:
         # moves a point rebuilds its segments (see batch_update).
         moved_point_ids = set()
 
+        types, first_idx, stored_positions = _bulk_curve_arrays(curve_data, type_attr)
+
         # First pass: update all point positions
         solved_indices, solved_positions, solved_cids = [], [], []
         for curve_idx in range(n_curves):
-            ctype = type_attr.data[curve_idx].value
+            ctype = types[curve_idx]
             cid = cid_list[curve_idx]
 
             if ctype == SketchCurveType.POINT:
                 pos = self._get_solved_point_position(cid)
                 if pos:
-                    solved_indices.append(curve_data.curves[curve_idx].points[0].index)
+                    solved_indices.append(first_idx[curve_idx])
                     solved_positions.append(pos)
                     solved_cids.append(cid)
 
@@ -540,9 +561,7 @@ class CurveSolver:
             # the stored one under an exact double compare, and every point would
             # look moved. Comparing what would actually be *stored* makes "moved"
             # mean "the bytes change", with no tolerance to tune.
-            stored = np.empty(len(curve_data.points) * 3, dtype=np.float32)
-            curve_data.points.foreach_get("position", stored)
-            current = stored.reshape(-1, 3)[solved_indices]
+            current = stored_positions[solved_indices]
             incoming = np.asarray(solved_positions, dtype=np.float32)
             for k in np.flatnonzero((incoming != current).any(axis=1)).tolist():
                 curve_data.points[solved_indices[k]].position = solved_positions[k]
@@ -550,7 +569,7 @@ class CurveSolver:
 
         # Second pass: update circle/arc edge positions from solved radius
         for curve_idx in range(n_curves):
-            ctype = type_attr.data[curve_idx].value
+            ctype = types[curve_idx]
             cid = cid_list[curve_idx]
 
             if ctype == SketchCurveType.CIRCLE and cid in self._distance_params:
@@ -599,22 +618,19 @@ class CurveSolver:
         entities = self.context.scene.sketcher.entities
         seg_attr = curve_data.attributes.get("segment_entity_index")
         if seg_attr:
-            for curve_idx in range(n_curves):
-                entity_index = seg_attr.data[curve_idx].value
-                if entity_index == 0:
-                    continue
-                entity = entities.get(entity_index)
+            entity_indices = np.zeros(n_curves, dtype=np.int32)
+            seg_attr.data.foreach_get("value", entity_indices)
+            for curve_idx in np.flatnonzero(entity_indices).tolist():
+                entity = entities.get(int(entity_indices[curve_idx]))
                 if entity is None:
                     continue
-                ctype = type_attr.data[curve_idx].value
+                ctype = types[curve_idx]
                 if ctype == SketchCurveType.POINT and hasattr(entity, "co"):
                     pt_idx = curve_data.curves[curve_idx].points[0].index
                     pos = curve_data.points[pt_idx].position
                     entity.co = (pos[0], pos[1])
                 elif ctype == SketchCurveType.CIRCLE:
-                    dist = self._distance_params.get(
-                        get_uuid(curve_data, "curve_id", curve_idx)
-                    )
+                    dist = self._distance_params.get(cid_list[curve_idx])
                     if dist and hasattr(entity, "radius"):
                         entity.radius = self.solvesys.get_param_value(dist["param"][0])
 
