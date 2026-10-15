@@ -1506,5 +1506,3 @@ def refresh_curve_geometry(sketch):
     # native 3D sketch's POLY curves linear -- and what carries a single-point
     # curve's type over from whenever it was added.
     normalize_point_curve_types(curve_data)
-
-    invalidate_curve_id_cache(sketch)
