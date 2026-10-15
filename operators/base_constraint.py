@@ -137,6 +137,19 @@ class GenericConstraintOp(Operator2d):
         with reusing_constraint_uids([self.output_uid]):
             return super()._reapply(context)
 
+    def _run_main(self, context: Context):
+        missing = [
+            state.name
+            for state in self.get_states()
+            if state.pointer
+            and not state.optional
+            and getattr(self, state.pointer, None) is None
+        ]
+        if missing:
+            self.report({"WARNING"}, "Missing input for: " + ", ".join(missing))
+            return False
+        return super()._run_main(context)
+
     def main(self, context: Context):
         target = getattr(self, "target", None)
         if target is not None:
