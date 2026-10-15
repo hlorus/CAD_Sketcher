@@ -186,6 +186,20 @@ class TestTrimRemovesPoints(TrimCase):
         self.assertEqual(lines, [((0.0, 0.0), (10.0, 0.0))])
         self.assertEqual(points, [(0.0, 0.0), (10.0, 0.0)])
 
+    def test_refusing_says_why(self):
+        # Doing nothing without a word reads as the tool being broken.
+        wall = self.wall()
+        reports = []
+
+        harness = OpHarness(View3D_OT_slvs_trim, self.sketch, self.context)
+        harness.op._state_data = {}
+        harness.op.state_index = 0
+        harness.op.report = lambda kind, message: reports.append(message)
+        harness.pick(wall.p1)
+        harness.finish()
+
+        self.assertEqual(reports, ["This point is part of a curve"])
+
     def test_an_arc_centre_is_kept(self):
         ct = PointRef.create(self.sketch, (0.0, 0.0))
         ArcRef.create(

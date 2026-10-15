@@ -139,9 +139,13 @@ class View3D_OT_slvs_trim(Operator, Operator2d):
         from ..model.curve_ref import PointRef
 
         if isinstance(segment, PointRef):
-            if self._delete_point(context, sketch, segment):
-                sketch.geometry_solved = False
-                refresh(context)
+            if not self._delete_point(context, sketch, segment):
+                # Silence here reads as the tool being broken, so say why the
+                # click did nothing.
+                self.report({"INFO"}, "This point is part of a curve")
+                return
+            sketch.geometry_solved = False
+            refresh(context)
             return
 
         mouse_pos = self._state_data[0].get("mouse_pos")
