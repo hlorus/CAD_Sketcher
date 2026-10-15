@@ -581,56 +581,137 @@ def _arrange(prepared, centers, visible, size, stack_step, mode, expanded, hover
     return quads, hits
 
 
+_OFFSETS = np.array(
+    [
+        (dx, dy)
+        for dx in range(-2, 3)
+        for dy in range(-2, 3)
+        if (dx, dy) > (0, 0) and abs(dx) + abs(dy) < 4
+    ],
+    dtype=np.int64,
+)
+
+
 def _nearby_labels(points, size):
     """A cluster label per point, joining points whose icons would overlap.
 
-    Points closer than an icon size join, and so do chains of them. Candidate
-    pairs come from the point's own and neighbouring icon-sized grid cells, so
-    no pair outside them is compared, and all of it runs as array operations.
+    Points closer than an icon size join, and so do chains of them; each label is
+    the smallest point index of its cluster. Points share grid cells of
+    ``size / sqrt(2)``, so a cell's points always join. Cell pairs whose boxes are
+    entirely within reach join outright, and only the remaining pairs from
+    different clusters compare their points, a few at a time.
     """
     n = len(points)
     labels = np.arange(n)
     if n < 2:
         return labels
-    cells = np.floor(points / size).astype(np.int64)
-    # Keys that sort by cell and can be looked up; offsets keep them positive.
-    base = cells.min(axis=0) - 1
-    width = int(cells[:, 1].max() - base[1]) + 2
+    cells = np.floor(points / (size / np.sqrt(2.0))).astype(np.int64)
+    base = cells.min(axis=0) - 2
+    width = int(cells[:, 1].max() - base[1]) + 3
+    keys = (cells[:, 0] - base[0]) * width + (cells[:, 1] - base[1])
+    cell_keys, cell_of = np.unique(keys, return_inverse=True)
+    m = len(cell_keys)
+    order = np.argsort(cell_of, kind="stable")
+    starts = np.searchsorted(cell_of[order], np.arange(m))
+    counts = np.diff(np.append(starts, n))
+    sorted_pts = points[order]
+    lo = np.minimum.reduceat(sorted_pts, starts)
+    hi = np.maximum.reduceat(sorted_pts, starts)
+    ccx = cell_keys // width
+    ccy = cell_keys % width
 
-    def cell_key(cx, cy):
-        return (cx - base[0]) * width + (cy - base[1])
+    size2 = size * size
+    sure_a, sure_b, amb_a, amb_b = [], [], [], []
+    for dx, dy in _OFFSETS:
+        wanted = (ccx + dx) * width + (ccy + dy)
+        pos = np.minimum(np.searchsorted(cell_keys, wanted), m - 1)
+        hit = cell_keys[pos] == wanted
+        a = np.flatnonzero(hit)
+        if not a.size:
+            continue
+        b = pos[hit]
+        gap = np.maximum(0.0, np.maximum(lo[a] - hi[b], lo[b] - hi[a]))
+        far = np.maximum(hi[a] - lo[b], hi[b] - lo[a])
+        near = (gap**2).sum(axis=1) < size2
+        sure = near & ((far**2).sum(axis=1) < size2)
+        sure_a.append(a[sure])
+        sure_b.append(b[sure])
+        amb = near & ~sure
+        amb_a.append(a[amb])
+        amb_b.append(b[amb])
 
-    keys = cell_key(cells[:, 0], cells[:, 1])
-    order = np.argsort(keys, kind="stable")
-    sorted_keys = keys[order]
+    cell_label = np.arange(m)
+    if sure_a:
+        cell_label = _components(
+            cell_label, np.concatenate(sure_a), np.concatenate(sure_b)
+        )
+    if amb_a:
+        a, b = np.concatenate(amb_a), np.concatenate(amb_b)
+        for start in range(0, len(a), 32):
+            ca, cb = a[start : start + 32], b[start : start + 32]
+            keep = cell_label[ca] != cell_label[cb]
+            if keep.any():
+                cell_label = _link_exact(
+                    cell_label,
+                    ca[keep],
+                    cb[keep],
+                    sorted_pts,
+                    starts,
+                    counts,
+                    lo,
+                    hi,
+                    size2,
+                )
+    comp = cell_label[cell_of]
+    first = np.full(m, n, dtype=np.int64)
+    np.minimum.at(first, comp, np.arange(n))
+    return first[comp]
 
-    first, second = [], []
-    for dx in (-1, 0, 1):
-        for dy in (-1, 0, 1):
-            wanted = cell_key(cells[:, 0] + dx, cells[:, 1] + dy)
-            lo = np.searchsorted(sorted_keys, wanted, side="left")
-            hi = np.searchsorted(sorted_keys, wanted, side="right")
-            counts = hi - lo
-            total = int(counts.sum())
-            if not total:
-                continue
-            i = np.repeat(np.arange(n), counts)
-            within = np.arange(total) - np.repeat(np.cumsum(counts) - counts, counts)
-            j = order[np.repeat(lo, counts) + within]
-            close = (i < j) & (((points[i] - points[j]) ** 2).sum(axis=1) < size * size)
-            first.append(i[close])
-            second.append(j[close])
-    if not first:
+
+def _link_exact(cell_label, a, b, sorted_pts, starts, counts, lo, hi, size2):
+    """Join cell pairs ``a``-``b`` that hold at least one close point pair."""
+    ia = _near_box(sorted_pts, starts, counts, a, lo[b], hi[b], size2)
+    ib = _near_box(sorted_pts, starts, counts, b, lo[a], hi[a], size2)
+    pair_a, i = ia
+    pair_b, j = ib
+    na = np.bincount(pair_a, minlength=len(a))
+    nb = np.bincount(pair_b, minlength=len(a))
+    per = na * nb
+    pair = np.repeat(np.arange(len(a)), per)
+    within = np.arange(int(per.sum())) - np.repeat(np.cumsum(per) - per, per)
+    sa = np.cumsum(na) - na
+    sb = np.cumsum(nb) - nb
+    pi = i[sa[pair] + within // np.maximum(nb[pair], 1)]
+    pj = j[sb[pair] + within % np.maximum(nb[pair], 1)]
+    close = ((sorted_pts[pi] - sorted_pts[pj]) ** 2).sum(axis=1) < size2
+    linked = np.unique(pair[close])
+    cell_label = _components(cell_label, a[linked], b[linked])
+    return cell_label
+
+
+def _components(labels, a, b):
+    """Merge ``labels`` (each a smallest member index) across the edges ``a``-``b``."""
+    if not a.size:
         return labels
-    i, j = np.concatenate(first), np.concatenate(second)
-    if not i.size:
-        return labels
+    a, b = labels[a], labels[b]
     while True:
         previous = labels.copy()
-        np.minimum.at(labels, i, labels[j])
-        np.minimum.at(labels, j, labels[i])
+        np.minimum.at(labels, a, labels[b])
+        np.minimum.at(labels, b, labels[a])
+        labels = labels[labels]
         if np.array_equal(labels, previous):
             return labels
+
+
+def _near_box(pts, starts, counts, cells, box_lo, box_hi, size2):
+    """(pair index, point index) of each point of ``cells`` within reach of its pair's box."""
+    k = counts[cells]
+    pair = np.repeat(np.arange(len(cells)), k)
+    idx = np.repeat(starts[cells] - np.cumsum(k) + k, k) + np.arange(int(k.sum()))
+    p = pts[idx]
+    gap = np.maximum(0.0, np.maximum(box_lo[pair] - p, p - box_hi[pair]))
+    keep = (gap**2).sum(axis=1) < size2
+    return pair[keep], idx[keep]
 
 
 def _badge_quads(group_centers, size, counts, prepared):
