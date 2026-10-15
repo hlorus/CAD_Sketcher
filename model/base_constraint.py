@@ -1,4 +1,5 @@
 import logging
+import math
 from contextlib import contextmanager
 from typing import List, Optional
 
@@ -413,7 +414,7 @@ class DimensionalConstraint(GenericConstraint):
         # NOTE: function signature _set_value(self, val: float, force=False)
         #       will fail when bpy tries to register the value property.
         #       See `_set_value_force()`
-        if not self.is_reference:
+        if not self.is_reference and math.isfinite(displayed_value):
             self._set_value_force(self.from_displayed_value(displayed_value))
 
     def _get_scene(self):

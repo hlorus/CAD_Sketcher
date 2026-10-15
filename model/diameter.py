@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     """Sets the diameter of an arc or a circle."""
 
+    def _set_value_force(self, value):
+        DimensionalConstraint._set_value_force(self, max(0.0, value))
+
     def use_radius_getter(self):
         return self.setting_store
 
