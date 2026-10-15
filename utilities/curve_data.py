@@ -1293,6 +1293,8 @@ def rebuild_segments(sketch, point_ids=None):
     n = len(cd.curves)
     if n == 0:
         return
+    if point_ids is not None and not point_ids:
+        return
 
     # Adapt arc control-point counts to their current sweep angle. This may
     # resize_curves (reindexing the point domain), so it must run before any
