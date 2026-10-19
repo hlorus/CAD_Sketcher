@@ -242,6 +242,7 @@ def on_undo_redo(scene, *args):
     from .model.base_constraint import reset_data_owner_cache
     from .model.sketch_ref import get_active_sketch
     from .utilities.collections import reset_cache as reset_collection_cache
+    from .utilities.curve_data import invalidate_curve_id_cache
     from .utilities.part import reset_cache as reset_part_cache
     from .utilities.workplane import reset_workplane_id_map
     from .workspacetools.manager import sync_sketch_mode
@@ -260,6 +261,7 @@ def on_undo_redo(scene, *args):
     # is authoritative after an undo, so the pass starts from it.
     reset_part_cache()
     reset_collection_cache()
+    invalidate_curve_id_cache()
 
     sketch = get_active_sketch(bpy.context)
     sync_sketch_mode(
