@@ -1,17 +1,16 @@
-"""Run a tool call on Blender's main thread and shape the MCP result.
+"""Run a tool call and shape the MCP result.
 
-Requests arrive on HTTP worker threads, and ``bpy`` may only be touched from the
-main thread, so a call is posted as a timer and the worker waits for it. One call
-runs at a time: two agents editing a sketch at once would interleave writes into
-the same curve data.
+The endpoint is pumped from a timer on Blender's main thread, so a call arrives
+already on the only thread allowed to touch ``bpy`` and runs there and then. The
+pump serves one request per tick, which is also what keeps two agents from
+interleaving writes into the same curve data.
 
-Groundwork for the hop is from Nikita Coder's draft in PR #562.
+Groundwork for this is from Nikita Coder's draft in PR #562.
 """
 
 import base64
 import json
 import logging
-import threading
 from typing import Any, Dict, Optional
 
 import bpy
@@ -19,16 +18,6 @@ import bpy
 from . import activity
 
 logger = logging.getLogger(__name__)
-
-# How long a worker waits for the main thread. Every tool here is a bounded piece
-# of work, so a wait this long means Blender is blocked on something else (a modal
-# operator, a long solve) and saying so beats hanging the client.
-MAIN_THREAD_TIMEOUT = 60.0
-
-# How long a worker waits for its turn when another call holds the lock.
-QUEUE_TIMEOUT = 30.0
-
-_lock = threading.Lock()
 
 
 def call_tool(name: Optional[str], arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -42,49 +31,26 @@ def call_tool(name: Optional[str], arguments: Dict[str, Any]) -> Dict[str, Any]:
 
     activity.begin()
     try:
-        if not _lock.acquire(timeout=QUEUE_TIMEOUT):
-            return _text_error(
-                "Another MCP call is still running in Blender. Retry in a moment."
-            )
-        try:
-            return _run_on_main_thread(name, tool["handler"], arguments)
-        finally:
-            _lock.release()
+        return _run(name, tool["handler"], arguments)
     finally:
         activity.end()
 
 
-def _run_on_main_thread(
-    name: str, handler, arguments: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Post ``handler`` to the main thread and wait for what it returns."""
-    done = threading.Event()
-    outcome: Dict[str, Any] = {}
+def _run(name: str, handler, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Run one handler, noting for the sidebar what it did."""
+    result = None
+    error = None
+    try:
+        result = handler(bpy.context, arguments)
+    except Exception as e:  # noqa: BLE001 - reported to the agent, not raised
+        error = e
 
-    def run():
-        try:
-            outcome["result"] = handler(bpy.context, arguments)
-        except Exception as e:  # noqa: BLE001 - reported to the agent, not raised
-            outcome["error"] = e
-        finally:
-            # Logged here, on the main thread, where the sidebar reads it.
-            activity.note_result(name, outcome.get("result"), outcome.get("error"))
-            _tag_redraw()
-            done.set()
-        return None  # unregister the timer
+    activity.note_result(name, result, error)
+    _tag_redraw()
 
-    bpy.app.timers.register(run, first_interval=0.0)
-
-    if not done.wait(timeout=MAIN_THREAD_TIMEOUT):
-        return _text_error(
-            "Blender did not run the call within "
-            f"{MAIN_THREAD_TIMEOUT:.0f}s. It is probably busy with something "
-            "the user started; ask them to finish it."
-        )
-
-    if "error" in outcome:
-        return _tool_error(outcome["error"])
-    return _result(outcome.get("result"))
+    if error is not None:
+        return _tool_error(error)
+    return _result(result)
 
 
 def _tag_redraw() -> None:

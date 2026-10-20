@@ -14,17 +14,20 @@ Safety, in the order it is checked:
   requires: without it any page the user visits could drive their CAD session.
 * Bound to 127.0.0.1 only, never a routable interface.
 
-Requests are handed to Blender's main thread through a timer and run one at a
-time: ``bpy`` is not reentrant, and two agents editing one sketch at once would
-interleave writes.
+There are no threads. Blender's Python integration is not thread safe, and a
+background thread that outlives the script is the documented way to earn random
+crashes in Blender's own drawing code, so the socket is pumped from a timer on
+the main thread instead: ``handle_request`` returns at once when nothing has
+arrived, and a request that has arrived is served then and there. That also
+means calls run one at a time, which they must, since two agents editing one
+sketch at once would interleave writes.
 """
 
 import json
 import logging
 import secrets
 import stat
-import threading
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -36,6 +39,10 @@ logger = logging.getLogger(__name__)
 
 HOST = "127.0.0.1"
 DEFAULT_PORT = 9877
+
+# How often the main thread looks at the socket. A tick costs one non-blocking
+# select, and no agent needs an answer sooner than the next frame.
+PUMP_INTERVAL = 1.0 / 60.0
 
 # The revision this server implements, plus the older ones it answers rather than
 # reject: a client on one of those opens with `initialize` and omits the
@@ -67,9 +74,8 @@ _addon_dir: Optional[Path] = None
 def _resolve_addon_dir() -> Path:
     """The add-on's user directory, resolved once on the main thread.
 
-    ``extension_path_user`` is a ``bpy`` call, and an HTTP worker must not make
-    one, so the path is worked out when the server starts and the workers only
-    ever read the cached value.
+    Worked out once when the server starts, so that serving a request is plain
+    file I/O against a path already in hand.
     """
     global _addon_dir
     if _addon_dir is None:
@@ -120,7 +126,7 @@ def client_ever_connected() -> bool:
 
 
 def note_client_connected() -> None:
-    """Remember that a client has connected. Called from an HTTP worker thread."""
+    """Remember that a client has connected."""
     global _client_seen
     if client_ever_connected():
         return
@@ -174,8 +180,8 @@ class MCPServer:
     def __init__(self, port: int = DEFAULT_PORT, token: Optional[str] = None):
         self.port = int(port)
         self.token = token if token is not None else read_token()
-        self._httpd: Optional[ThreadingHTTPServer] = None
-        self._thread: Optional[threading.Thread] = None
+        self._httpd: Optional[HTTPServer] = None
+        self._pump = None
 
     @property
     def url(self) -> str:
@@ -192,8 +198,29 @@ class MCPServer:
     def running(self) -> bool:
         return self._httpd is not None
 
+    @property
+    def socket(self):
+        """The listening socket, for a caller that wants to wait on it."""
+        return None if self._httpd is None else self._httpd.socket
+
+    def poll(self) -> None:
+        """Serve a request if one has arrived, otherwise return at once.
+
+        What the timer calls. Also the way to drive the endpoint where there is
+        no timer running it, such as a test.
+        """
+        httpd = self._httpd
+        if httpd is None:
+            return
+        try:
+            httpd.handle_request()
+        except Exception:
+            # A broken request must not take the timer down with it, or the
+            # endpoint goes quiet until the user restarts it.
+            logger.exception("MCP request failed")
+
     def start(self) -> None:
-        """Bind the port and serve in a background thread."""
+        """Bind the port and pump it from a timer on the main thread."""
         if self.running:
             return
 
@@ -202,28 +229,31 @@ class MCPServer:
         class Handler(_RequestHandler):
             mcp_server = server
 
-        self._httpd = ThreadingHTTPServer((HOST, self.port), Handler)
-        self._httpd.daemon_threads = True
+        self._httpd = HTTPServer((HOST, self.port), Handler)
+        # With no timeout to wait out, handle_request returns immediately when
+        # the socket is quiet, which is what makes it safe on the main thread.
+        self._httpd.timeout = 0
         # Port 0 means "any free port", so read back what was actually bound.
         self.port = self._httpd.server_address[1]
-        self._thread = threading.Thread(
-            target=self._httpd.serve_forever,
-            kwargs={"poll_interval": 0.25},
-            daemon=True,
-            name="cad-sketcher-mcp",
-        )
-        self._thread.start()
+
+        def pump() -> Optional[float]:
+            if self._httpd is None:
+                return None  # stopped, so let the timer go
+            self.poll()
+            return PUMP_INTERVAL
+
+        self._pump = pump
+        bpy.app.timers.register(pump, first_interval=0.0)
         logger.info("CAD Sketcher MCP listening on %s", self.url)
 
     def stop(self) -> None:
         """Stop serving and free the port."""
         httpd, self._httpd = self._httpd, None
-        thread, self._thread = self._thread, None
+        pump, self._pump = self._pump, None
+        if pump is not None and bpy.app.timers.is_registered(pump):
+            bpy.app.timers.unregister(pump)
         if httpd is not None:
-            httpd.shutdown()
             httpd.server_close()
-        if thread is not None and thread.is_alive():
-            thread.join(timeout=2.0)
         logger.info("CAD Sketcher MCP stopped")
 
 
@@ -234,6 +264,19 @@ class _RequestHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "CADSketcherMCP"
     sys_version = ""
+    # Reading a request holds the main thread, so a client that opens a socket
+    # and then dawdles is dropped rather than taking Blender with it.
+    timeout = 2.0
+
+    def handle(self) -> None:
+        """Serve exactly one request, then let the connection go.
+
+        The default keeps an HTTP/1.1 connection open and blocks on the next
+        request line, which here would be Blender's main thread sitting in a
+        socket read. A fresh connection per call costs nothing on loopback.
+        """
+        self.handle_one_request()
+        self.close_connection = True
 
     def log_message(self, fmt: str, *args) -> None:
         """Send request logs to the add-on's logger instead of stderr."""
@@ -423,12 +466,14 @@ class _RequestHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(raw)
 
     def _send_empty(self, status: int) -> None:
         self.send_response(status)
         self.send_header("Content-Length", "0")
+        self.send_header("Connection", "close")
         self.end_headers()
 
     def _send_error(self, error: ProtocolError, request_id: Any = None) -> None:
@@ -477,8 +522,7 @@ def start_server(port: int = DEFAULT_PORT, token: Optional[str] = None) -> MCPSe
         if _server.port == int(port):
             return _server
         _server.stop()
-    # Resolve the add-on directory here, on the main thread, so the workers
-    # that later read and write in it never make a bpy call of their own.
+    # Resolve the add-on directory up front, so serving a request never has to.
     _resolve_addon_dir()
     server = MCPServer(port=port, token=token)
     server.start()

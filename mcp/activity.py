@@ -9,7 +9,6 @@ anyway), so nothing here needs a lock. The in-flight count is the exception and
 is only ever a display hint.
 """
 
-import threading
 import time
 from collections import deque
 from typing import Any, Deque, List, NamedTuple, Optional
@@ -29,10 +28,6 @@ class Entry(NamedTuple):
 
 _entries: Deque[Entry] = deque(maxlen=LIMIT)
 _in_flight = 0
-# begin/end are called from HTTP worker threads, and ``+=`` on an int is a load
-# and a store, not one step, so two calls starting at once can lose a count and
-# leave the sidebar reading busy forever.
-_in_flight_lock = threading.Lock()
 
 
 def record(tool: str, ok: bool, detail: str = "") -> None:
@@ -53,17 +48,15 @@ def clear() -> None:
 
 
 def begin() -> None:
-    """A call has reached the queue. Called from an HTTP worker thread."""
+    """A call has started."""
     global _in_flight
-    with _in_flight_lock:
-        _in_flight += 1
+    _in_flight += 1
 
 
 def end() -> None:
-    """A call has finished. Called from an HTTP worker thread."""
+    """A call has finished."""
     global _in_flight
-    with _in_flight_lock:
-        _in_flight = max(0, _in_flight - 1)
+    _in_flight = max(0, _in_flight - 1)
 
 
 def busy() -> bool:

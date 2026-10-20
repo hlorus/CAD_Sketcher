@@ -6,9 +6,10 @@ The transport is tested separately, on the methods that answer without touching
 Blender data.
 """
 
+import http.client
 import json
-import urllib.error
-import urllib.request
+import select
+import time
 
 from ..mcp import activity, describe, handlers, render, server, tools
 from ..mcp.handlers import ToolError
@@ -829,26 +830,45 @@ class TestMcpTransport(Sketch2dTestCase):
         cls.server.stop()
         super().tearDownClass()
 
-    def _url(self, token=None):
+    def _path(self, token=None):
         token = self.server.token if token is None else token
-        return f"http://127.0.0.1:{self.server.port}/mcp/{token}"
+        return f"/mcp/{token}"
+
+    def _request(self, method, body=None, headers=None, token=None):
+        """Send one request, serve it the way the timer would, then read it.
+
+        The endpoint is pumped from Blender's main thread and the test runs on
+        that same thread, so waiting on the socket for an answer would wait for
+        a pump that cannot run. Send first, serve by hand, read after.
+        """
+        conn = http.client.HTTPConnection(server.HOST, self.server.port, timeout=5)
+        try:
+            payload = None if body is None else json.dumps(body).encode()
+            sent = {"Content-Type": "application/json"} if payload else {}
+            sent.update(headers or {})
+            conn.request(method, self._path(token), body=payload, headers=sent)
+            self._serve_one()
+            response = conn.getresponse()
+            return response.status, json.loads(response.read() or b"{}")
+        finally:
+            conn.close()
+
+    def _serve_one(self, timeout=5.0):
+        """Run the pump by hand until it has taken the waiting request."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if select.select([self.server.socket], [], [], 0.05)[0]:
+                self.server.poll()
+                return
+        self.fail("the endpoint never saw the request")
 
     def _post(self, body, headers=None, token=None):
-        request = urllib.request.Request(
-            self._url(token),
-            data=json.dumps(body).encode(),
-            headers={"Content-Type": "application/json", **(headers or {})},
-            method="POST",
-        )
-        with urllib.request.urlopen(request, timeout=5) as response:
-            return response.status, json.loads(response.read() or b"{}")
+        return self._request("POST", body=body, headers=headers, token=token)
 
     def _post_expecting_error(self, body, headers=None, token=None):
-        try:
-            self._post(body, headers=headers, token=token)
-        except urllib.error.HTTPError as e:
-            return e.code, json.loads(e.read() or b"{}")
-        self.fail("expected the request to be refused")
+        status, payload = self._post(body, headers=headers, token=token)
+        self.assertGreaterEqual(status, 400, "expected the request to be refused")
+        return status, payload
 
     def test_discover_reports_versions_and_instructions(self):
         # The 2026-07-28 revision requires every server to answer this.
@@ -964,13 +984,8 @@ class TestMcpTransport(Sketch2dTestCase):
         self.assertEqual(body, {})
 
     def test_there_is_no_get_stream(self):
-        request = urllib.request.Request(self._url(), method="GET")
-        try:
-            urllib.request.urlopen(request, timeout=5)
-        except urllib.error.HTTPError as e:
-            self.assertEqual(e.code, 405)
-        else:
-            self.fail("GET should not be served")
+        status, _ = self._request("GET")
+        self.assertEqual(status, 405)
 
     def test_the_url_carries_the_token(self):
         self.assertIn(self.server.token, self.server.url)
