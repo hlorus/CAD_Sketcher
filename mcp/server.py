@@ -61,11 +61,28 @@ _client_seen: Optional[bool] = None
 # -- The access token -------------------------------------------------------
 
 
-def _token_file() -> Path:
-    from ..utilities.register import get_name
+_addon_dir: Optional[Path] = None
 
-    directory = Path(bpy.utils.extension_path_user(get_name(), path="", create=True))
-    return directory / "mcp_token.txt"
+
+def _resolve_addon_dir() -> Path:
+    """The add-on's user directory, resolved once on the main thread.
+
+    ``extension_path_user`` is a ``bpy`` call, and an HTTP worker must not make
+    one, so the path is worked out when the server starts and the workers only
+    ever read the cached value.
+    """
+    global _addon_dir
+    if _addon_dir is None:
+        from ..utilities.register import get_name
+
+        _addon_dir = Path(
+            bpy.utils.extension_path_user(get_name(), path="", create=True)
+        )
+    return _addon_dir
+
+
+def _token_file() -> Path:
+    return _resolve_addon_dir() / "mcp_token.txt"
 
 
 def read_token() -> str:
@@ -87,10 +104,7 @@ def read_token() -> str:
 
 
 def _seen_file() -> Path:
-    from ..utilities.register import get_name
-
-    directory = Path(bpy.utils.extension_path_user(get_name(), path="", create=True))
-    return directory / "mcp_client_seen.txt"
+    return _resolve_addon_dir() / "mcp_client_seen.txt"
 
 
 def client_ever_connected() -> bool:
@@ -463,6 +477,9 @@ def start_server(port: int = DEFAULT_PORT, token: Optional[str] = None) -> MCPSe
         if _server.port == int(port):
             return _server
         _server.stop()
+    # Resolve the add-on directory here, on the main thread, so the workers
+    # that later read and write in it never make a bpy call of their own.
+    _resolve_addon_dir()
     server = MCPServer(port=port, token=token)
     server.start()
     _server = server
