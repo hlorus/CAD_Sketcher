@@ -35,7 +35,8 @@ wheels = [
 
 [permissions]
 # Serves a loopback MCP endpoint so an AI agent can drive sketches. Nothing
-# listens until the user starts it from the Sketcher sidebar.
+# listens until the user starts it, either from the Sketcher sidebar or by
+# turning on "Start MCP Server on Launch" in the preferences (off by default).
 network = "Serve a local endpoint for an AI agent to drive sketches"
 
 [build]
