@@ -52,8 +52,8 @@ Blender session the user is watching. Work the way a CAD user does:
    enters it, and building a solid from the sketch the user is in takes them
    back out; working on any other sketch leaves them alone. Pass
    activate: false, or call set_active_sketch, when you want it otherwise.
-11. The user is in Blender with you. Every edit is one step in their undo
-   history, and destructive tools are worth asking about before you use them.\
+11. The user is in Blender with you. Your edits do not go through their undo
+   history, so destructive tools are worth asking about before you use them.\
 """
 
 
@@ -407,27 +407,6 @@ FEATURE_TOOLS: List[Dict[str, Any]] = [
         "annotations": {"readOnlyHint": True},
         "handler": handlers.render_part,
     },
-    {
-        "name": "make_part",
-        "title": "Make a part",
-        "description": (
-            "Make a body, and anything named with it, into one part: it then "
-            "moves, instances and is placed in an assembly as a single thing."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "required": ["target"],
-            "properties": {
-                "target": {**_TARGET, "description": "The body the part is rooted in."},
-                "members": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Other bodies to join into the part.",
-                },
-            },
-        },
-        "handler": handlers.make_part,
-    },
 ]
 
 TOOLS: List[Dict[str, Any]] = [
@@ -492,10 +471,10 @@ TOOLS: List[Dict[str, Any]] = [
         "name": "edit_sketch",
         "title": "Edit a sketch",
         "description": (
-            "Apply a list of edits to a sketch as one transaction, then solve and "
-            "return the sketch as it now stands. Nothing is applied unless every "
-            "op is valid, and the whole call is one undo step for the user. Build "
-            "a shape in one call rather than one call per element."
+            "Apply a list of edits to a sketch, then solve and return the sketch "
+            "as it now stands. The edits apply in order, and one that is rejected "
+            "leaves the edits before it in place, so read the error and fix it "
+            "forward. Build a shape in one call rather than one call per element."
         ),
         "inputSchema": {
             "type": "object",

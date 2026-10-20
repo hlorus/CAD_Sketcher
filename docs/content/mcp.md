@@ -56,13 +56,12 @@ URL stops working.
 | `revolve` | Sweeps a sketch around an axis |
 | `array` | Repeats a solid, in a row or around an axis |
 | `boolean` | Cuts one solid with another, or merges them |
-| `make_part` | Makes bodies into one part |
 | `render_part` | Renders the solids from any side, which is how depth is checked |
 | `set_active_sketch` | Enters a sketch, or leaves sketch mode |
 
-`edit_sketch` takes a whole list of edits at once. The agent builds a shape in
-one step rather than one call per line, and the result is a single entry in your
-undo history, so <kbd>Ctrl</kbd>+<kbd>Z</kbd> takes back the whole thing.
+`edit_sketch` takes a whole list of edits at once, so the agent builds a shape
+in one step rather than one call per line. The edits apply in order, and one
+that is rejected leaves the edits before it in place.
 
 The server also tells the agent how to work here: units, constraining rather
 than placing by eye, aiming for a fully defined sketch, and checking its own

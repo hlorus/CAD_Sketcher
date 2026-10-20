@@ -228,7 +228,8 @@ def apply_ops(sketch: Sketch, ops: Sequence[Dict[str, Any]]) -> Tuple[int, int]:
     """Apply an op list to ``sketch``, returning (entities added, constraints added).
 
     Writes are batched so segments rebuild once at the end instead of per op.
-    Raises :class:`OpError` for anything invalid, leaving the caller to undo.
+    Raises :class:`OpError` for anything invalid, leaving the ops before it
+    applied.
     """
     if not isinstance(ops, (list, tuple)) or not ops:
         raise OpError("ops must be a non-empty list of edit operations")

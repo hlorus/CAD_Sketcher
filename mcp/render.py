@@ -7,8 +7,6 @@ pass like any other viewport draw, so constraints and dimensions come out too.
 """
 
 import os
-import tempfile
-from contextlib import contextmanager
 from typing import List, Tuple
 
 import bpy
@@ -132,16 +130,16 @@ VIEW_DIRECTIONS = {
 }
 
 
-def objects_png(context, objects: List, view: str, size: int, only=None) -> bytes:
+def objects_png(context, objects: List, view: str, size: int) -> bytes:
     """PNG bytes of ``objects`` from a named direction, framed on all of them.
 
     Unlike a sketch, a solid has no plane of its own to look square-on to, so
     the view is named in world terms and the framing comes from the world-space
     bounds of everything being shown.
 
-    ``only`` restricts what is *drawn* as well as what is framed. The offscreen
-    pass renders the whole view layer, so anything left out has to be hidden
-    for the duration, which is why this is opt-in rather than always on.
+    ``objects`` decides the framing and nothing else. The offscreen pass draws
+    the whole view layer, and is left that way on purpose: drawing a subset
+    would mean hiding the user's objects for the duration of the call.
     """
     direction = VIEW_DIRECTIONS.get(view)
     if direction is None:
@@ -158,38 +156,7 @@ def objects_png(context, objects: List, view: str, size: int, only=None) -> byte
     frame = rotation.copy()
     frame.translation = eye
 
-    with _only_showing(context, only):
-        return _draw(context, frame.inverted(), half_extent, distance, size)
-
-
-@contextmanager
-def _only_showing(context, keep):
-    """Hide everything but ``keep`` for the draw, then put it all back.
-
-    ``draw_view3d`` has no way to render a subset, so the rest of the scene is
-    hidden around the call. Restored in a finally, because leaving a user's
-    objects hidden would be far worse than a wrong picture.
-    """
-    if keep is None:
-        yield
-        return
-
-    keep_names = {obj.name for obj in keep}
-    hidden = [
-        obj
-        for obj in context.scene.objects
-        if obj.name not in keep_names and not obj.hide_viewport
-    ]
-    for obj in hidden:
-        obj.hide_viewport = True
-    context.view_layer.update()
-    try:
-        yield
-    finally:
-        for obj in hidden:
-            if obj.name in bpy.data.objects:
-                obj.hide_viewport = False
-        context.view_layer.update()
+    return _draw(context, frame.inverted(), half_extent, distance, size)
 
 
 def _world_bounds(context, objects: List) -> Tuple[Vector, float]:
@@ -268,10 +235,22 @@ def _viewport(context):
     )
 
 
+def _scratch_dir() -> str:
+    """The add-on's own user directory, the one place it writes to disk.
+
+    Blender's image writer needs a path, so the PNG passes through a file on
+    its way out. It goes here rather than the system temp directory so nothing
+    is ever written outside what the add-on owns.
+    """
+    from ..utilities.register import get_name
+
+    return bpy.utils.extension_path_user(get_name(), path="", create=True)
+
+
 def _encode_png(buffer, size: int) -> bytes:
     """Encode a read framebuffer as PNG, via Blender's own image writer."""
     image = bpy.data.images.new("slvs_mcp_render", size, size, alpha=True)
-    path = os.path.join(tempfile.gettempdir(), f"slvs_mcp_{os.getpid()}.png")
+    path = os.path.join(_scratch_dir(), f"slvs_mcp_{os.getpid()}.png")
     try:
         pixels = np.asarray(buffer, dtype=np.uint8).astype(np.float32) / 255.0
         image.pixels.foreach_set(pixels)

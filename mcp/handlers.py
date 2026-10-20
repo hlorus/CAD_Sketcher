@@ -47,24 +47,6 @@ def _guard_writes(context) -> None:
         )
 
 
-def _undo_push(message: str) -> bool:
-    """Make the edit one step in the user's undo stack.
-
-    Returns whether a step was actually pushed, which is what makes rolling
-    back safe: ``ed.undo`` walks the *global* stack, so undoing when nothing was
-    pushed takes back whatever the user did last instead.
-    """
-    if bpy.app.background:
-        # No undo stack without a window: pushing does nothing and undoing
-        # would roll the file back past state this session is holding on to.
-        return False
-    try:
-        bpy.ops.ed.undo_push(message=message)
-    except RuntimeError:
-        return False
-    return True
-
-
 # -- Read --------------------------------------------------------------------
 
 
@@ -93,17 +75,18 @@ def render_sketch(context, params: Dict[str, Any]) -> Result:
 
 
 def edit_sketch(context, params: Dict[str, Any]) -> Result:
-    """Apply an op list, solve, and report the sketch."""
+    """Apply an op list, solve, and report the sketch.
+
+    The ops apply in order, and one that is rejected leaves the ops before it
+    applied: nothing here drives the undo stack, so a bad list is reported back
+    for the agent to fix forward rather than rolled back underneath the user.
+    """
     _guard_writes(context)
     sketch = _sketch(context, params)
-
-    # Undo before the edit, so the user's Ctrl-Z lands on the state they had.
-    pushed = _undo_push(f"MCP edit {sketch.name}")
 
     try:
         entities, constraints = apply_ops(sketch, params.get("ops"))
     except OpError as e:
-        _undo_and_restore(context, pushed)
         raise ToolError(str(e)) from e
 
     solved = solve_system(context, sketch=sketch)
@@ -132,8 +115,6 @@ def create_sketch(context, params: Dict[str, Any]) -> Result:
     from ..operators.add_sketch import build_sketch_on_workplane
     from ..utilities.body import body_of, name_after_body
     from ..utilities.workplane import ensure_origin_workplane_empties
-
-    _undo_push("MCP create sketch")
 
     ensure_origin_workplane_empties(context)
     workplane = getattr(context.scene.sketcher, planes[plane_name])
@@ -165,8 +146,6 @@ def delete_sketch(context, params: Dict[str, Any]) -> Result:
     sketch = _sketch(context, params)
     name = sketch.name
 
-    _undo_push(f"MCP delete {name}")
-
     from ..model.sketch_ref import get_active_sketch
 
     active = get_active_sketch(context)
@@ -189,31 +168,6 @@ def solve_sketch(context, params: Dict[str, Any]) -> Result:
 
 
 # -- Blender plumbing --------------------------------------------------------
-
-
-def _undo_and_restore(context, pushed: bool) -> None:
-    """Take back the ops that ran before the failing one.
-
-    An op list can only be fully checked as it is applied, since later ops name
-    geometry earlier ops create. So a rejected list is undone rather than
-    prevented, which is what makes the call all-or-nothing from outside.
-
-    Only ever after our own push landed. ``ed.undo`` steps the whole file back,
-    not just this call, so undoing without a matching push reverts the user's
-    previous action, and where the step does not exist at all it can take the
-    scene with it.
-    """
-    if not pushed:
-        return
-    override = view3d_override(context)
-    try:
-        if override is not None:
-            with context.temp_override(**override):
-                bpy.ops.ed.undo()
-        else:
-            bpy.ops.ed.undo()
-    except RuntimeError:
-        pass
 
 
 def _activate(context, sketch: Optional[Sketch]) -> None:
@@ -278,11 +232,9 @@ def _feature(context, params: Dict[str, Any], build, label: str) -> Result:
 
     was_in = get_active_sketch(context)
 
-    pushed = _undo_push(f"MCP {label}")
     try:
         target = build(context, params)
     except features.FeatureError as e:
-        _undo_and_restore(context, pushed)
         raise ToolError(str(e)) from e
 
     # Going on to build from the sketch the user is sitting in means they have
@@ -334,13 +286,6 @@ def boolean(context, params: Dict[str, Any]) -> Result:
     return _feature(context, params, features.boolean, "boolean")
 
 
-def make_part(context, params: Dict[str, Any]) -> Result:
-    """Make a body (and anything named with it) into one part."""
-    from . import features
-
-    return _feature(context, params, features.make_part, "make_part")
-
-
 def render_part(context, params: Dict[str, Any]) -> Result:
     """Render the solids from a named direction, so the agent can see the part."""
     from . import features, render
@@ -375,8 +320,6 @@ def render_part(context, params: Dict[str, Any]) -> Result:
             visible,
             params.get("view") or "iso",
             size,
-            # Naming a part means showing that part, not the rest of the scene.
-            only=visible if name else None,
         )
     except render.RenderUnavailable as e:
         raise ToolError(str(e)) from e

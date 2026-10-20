@@ -242,35 +242,6 @@ def boolean(context, params: Dict[str, Any]) -> bpy.types.Object:
     return target
 
 
-def make_part(context, params: Dict[str, Any]) -> bpy.types.Object:
-    """Promote a body to a part, so it moves and instances as one thing.
-
-    Unlike the feature tools this one reads the selection rather than a name, so
-    the selection is set here and put back afterwards: an agent must not leave
-    the user's selection somewhere they did not put it.
-    """
-    root = find_target(context, params.get("target"))
-    members = [find_target(context, name) for name in params.get("members") or []]
-
-    view_layer = context.view_layer
-    previous = list(context.selected_objects)
-    previous_active = view_layer.objects.active
-    try:
-        bpy.ops.object.select_all(action="DESELECT")
-        for obj in (root, *members):
-            obj.select_set(True)
-        view_layer.objects.active = root
-        _run(bpy.ops.view3d.slvs_make_part)
-    finally:
-        bpy.ops.object.select_all(action="DESELECT")
-        for obj in previous:
-            if obj.name in bpy.data.objects:
-                obj.select_set(True)
-        if previous_active is not None and previous_active.name in bpy.data.objects:
-            view_layer.objects.active = previous_active
-    return root
-
-
 def _axis_params(target, params: Dict[str, Any]):
     """The object-space axis for a world-space one in ``params``, or (None, None).
 

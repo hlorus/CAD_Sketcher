@@ -559,15 +559,6 @@ class TestMcpFeatures(Sketch2dTestCase):
         scene = describe.scene_data(self.context)
         self.assertIn(body["name"], [b["name"] for b in scene["bodies"]])
 
-    def test_make_part_leaves_the_selection_alone(self):
-        sketch = self._plate()
-        body = handlers.extrude(self.context, {"sketch": sketch, "distance": 0.01})
-        before = {o.name for o in self.context.selected_objects}
-
-        result = handlers.make_part(self.context, {"target": body["name"]})
-        self.assertTrue(result.get("is_part_root"))
-        self.assertEqual({o.name for o in self.context.selected_objects}, before)
-
 
 class TestMcpSketchMode(Sketch2dTestCase):
     """Who decides whether the user is left sitting in sketch mode."""
