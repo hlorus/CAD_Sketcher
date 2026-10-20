@@ -22,9 +22,9 @@ class TestDimensionValueInput(Sketch2dTestCase):
                 c.value = bad
                 self.assertEqual(c.value, before)
 
-    def test_negative_diameter_clamps_to_zero(self):
+    def test_negative_diameter_uses_its_magnitude(self):
         self.dia.value = -1.0
-        self.assertEqual(self.dia.value, 0.0)
+        self.assertAlmostEqual(self.dia.value, 1.0, places=5)
 
     def test_finite_values_still_apply(self):
         self.dist.value = 2.5

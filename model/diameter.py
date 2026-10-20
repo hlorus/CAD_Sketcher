@@ -22,7 +22,10 @@ class SlvsDiameter(DimensionalConstraint, PropertyGroup):
     """Sets the diameter of an arc or a circle."""
 
     def _set_value_force(self, value):
-        DimensionalConstraint._set_value_force(self, max(0.0, value))
+        # A size has no sign, so a negative one is a sign slip: take its
+        # magnitude, as a distance does. Clamping to 0 instead would answer a
+        # mistyped radius with a degenerate zero-radius circle.
+        DimensionalConstraint._set_value_force(self, abs(value))
 
     def use_radius_getter(self):
         return self.setting_store
