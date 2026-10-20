@@ -1,4 +1,5 @@
 import logging
+import math
 from contextlib import contextmanager
 from typing import List, Optional
 
@@ -117,6 +118,7 @@ class GenericConstraint:
     is_reference = False  # Only DimensionalConstraint can be reference
     signature = ()
     props = ()
+    swappable = False
 
     def needs_wp(args):
         return WpReq.OPTIONAL
@@ -311,6 +313,50 @@ class GenericConstraint:
         """
         return None
 
+    def solver_signature(self):
+        return self.signature
+
+    def _signature_ids(self):
+        return [
+            getattr(self, "curve_id_%d" % (i + 1), "")
+            for i in range(len(self.signature))
+        ]
+
+    def accepts_curve_types(self, sketch):
+        """Whether the referenced curves have types this constraint can solve."""
+        from ..utilities.curve_data import get_curve_type
+        from .types import (
+            SlvsArc,
+            SlvsCircle,
+            SlvsLine2D,
+            SlvsLine3D,
+            SlvsPoint2D,
+            SlvsPoint3D,
+        )
+
+        classes = {
+            0: (SlvsPoint2D, SlvsPoint3D),
+            1: (SlvsLine2D, SlvsLine3D),
+            2: (SlvsArc,),
+            3: (SlvsCircle,),
+        }
+        types = [
+            get_curve_type(sketch, cid) if cid else None
+            for cid in self._signature_ids()
+        ]
+
+        def fits(order):
+            for allowed, t in zip(self.solver_signature(), order):
+                if t is None:
+                    continue
+                if not any(cls in allowed for cls in classes.get(t, ())):
+                    return False
+            return True
+
+        if fits(types):
+            return True
+        return self.swappable and len(types) == 2 and fits(types[::-1])
+
     def _get_sketch(self):
         """Resolve the Sketch accessor for this constraint."""
         sketch = self.sketch if hasattr(self, "sketch") and self.sketch else None
@@ -368,7 +414,7 @@ class DimensionalConstraint(GenericConstraint):
         # NOTE: function signature _set_value(self, val: float, force=False)
         #       will fail when bpy tries to register the value property.
         #       See `_set_value_force()`
-        if not self.is_reference:
+        if not self.is_reference and math.isfinite(displayed_value):
             self._set_value_force(self.from_displayed_value(displayed_value))
 
     def _get_scene(self):

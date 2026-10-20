@@ -262,6 +262,9 @@ class SlvsConstraints(PropertyGroup):
     def add_diameter(self, init=False, curve_id_1="", **settings) -> SlvsDiameter:
         c = self.diameter.add()
         c.curve_id_1 = curve_id_1
+        if not c.accepts_curve_types(c._get_sketch()):
+            self.diameter.remove(len(self.diameter) - 1)
+            raise ValueError("A diameter needs a circle or an arc")
         self._init_constraint(c)
         if init:
             c.assign_init_props(**settings)

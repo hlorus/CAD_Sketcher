@@ -631,6 +631,10 @@ class StatefulOperatorLogic(_StateMachineMixin):
         Subclasses that own their output (Operator2d) remove it first so their
         stable-id recreation doesn't collide with the still-present old copy."""
         self.redo_states(context)
+        invalid = getattr(self, "_invalid_pointers", None)
+        if invalid:
+            self.report({"WARNING"}, "Invalid input for: " + ", ".join(invalid))
+            return False
         return self._run_main(context)
 
     def _prepare_edit(self, context: Context):
@@ -1105,6 +1109,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """
         if self._state_snapshot is not None:
             return
+        self._invalid_pointers = []
         registry = self._pointer_type_registry()
         for i, state in enumerate(self.get_states()):
             if not state.pointer:
@@ -1128,6 +1133,12 @@ class StatefulOperatorLogic(_StateMachineMixin):
             )
             if vals is not None:
                 self.set_state_pointer(vals, index=i, implicit=True)
+                if not self._restored_pointer_ok(i, state):
+                    self._invalid_pointers.append(state.name)
+
+    def _restored_pointer_ok(self, index, state):
+        """Hook: whether a pointer rebuilt from props fits its state's types."""
+        return True
 
     def redo_states(self, context: Context):
         """Recreate non-persistent elements for states up to the current one."""
