@@ -740,7 +740,7 @@ class VIEW3D_OT_slvs_add_dimension(Operator, GenericConstraintOp):
             refresh_curve_geometry(self.sketch)
         refresh(context)
         context.workspace.status_text_set(
-            "Value: {}".format(self._value_numeric.current)
+            self._status_line("Value: {}".format(self._value_numeric.current))
         )
 
     def modal(self, context: Context, event: Event):
