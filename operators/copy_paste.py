@@ -168,7 +168,8 @@ class View3D_OT_slvs_copy(Operator):
             return {"CANCELLED"}
 
         # Collect selected curve_ids and their point dependencies
-        all_cids = set(selection.selected)
+        selected_cids = set(selection.selected)
+        all_cids = selected_cids.copy()
         for cid in list(all_cids):
             ref = curve_ref(sketch, cid)
             if not ref.valid:
@@ -184,6 +185,7 @@ class View3D_OT_slvs_copy(Operator):
         for cid in all_cids:
             snap = _snapshot_curve(sketch, cid)
             if snap:
+                snap["selected"] = cid in selected_cids
                 buffer.append(snap)
 
         # Snapshot constraints internal to the copied set (all their referenced
@@ -290,8 +292,9 @@ class View3D_OT_slvs_paste(Operator):
                 curve_idx,
             )
 
-            # Select pasted curves (skip points)
-            if ctype != SketchCurveType.POINT:
+            # Keep explicitly copied points selected for the move, while leaving
+            # points copied only as segment dependencies unselected.
+            if snap.get("selected", ctype != SketchCurveType.POINT):
                 selection.selected.append(new_cid)
 
         invalidate_curve_id_cache(sketch)
