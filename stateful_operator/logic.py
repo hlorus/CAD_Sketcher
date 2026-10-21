@@ -64,8 +64,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
     _axis_lock = None
     # Formatted live value of the current state, shown in the status bar.
     _status_value = None
-    # World-space point the live value is drawn beside (see state_value_anchor).
-    _status_anchor = None
+    # The resolved values behind _status_value, which the value boxes are
+    # placed from (see state_value_anchors).
+    _status_values = ()
     # Where the left mouse button went down, to tell a drag from a click.
     _press_coords = None
     # Set once a dragged release confirmed a state: from then on the release
@@ -185,20 +186,46 @@ class StatefulOperatorLogic(_StateMachineMixin):
         context.workspace.status_text_set(self._status_line(msg))
         self._publish_state_value(context)
 
-    def state_value_anchor(self, context: Context, values):
-        """World-space point to draw the live value beside, or None for no label.
+    def state_value_anchors(self, context: Context, values, count: int):
+        """World points to draw this state's ``count`` value boxes beside.
 
-        The framework has no idea where an operator's geometry is; a subclass
-        that does overrides this (see ``Operator2d``).
+        ``count`` is 1 while the value is only being dragged, and the number of
+        components once each is being typed separately. The framework has no
+        idea where an operator's geometry is, so it offers nowhere; a subclass
+        that does knows overrides this (see ``Operator2d``). A list shorter than
+        ``count`` draws nothing.
         """
-        return None
+        return []
+
+    def _state_value_texts(self):
+        """The text for each box, and which one has focus.
+
+        Dragging shows the one resolved value. Typing splits it per component:
+        the ones typed into show what was typed, the rest keep following the
+        mouse, which is what makes "type the width, tab, drag the height" work.
+        """
+        if not self._numeric.is_active:
+            return ([self._status_value], -1) if self._status_value else ([], -1)
+
+        count = max(1, self._numeric.substate_count or 1)
+        dragged = (self._status_value or "").split(", ") if count > 1 else []
+        texts = []
+        for index in range(count):
+            typed = self._numeric.get(index)
+            if typed:
+                texts.append(typed)
+            elif index < len(dragged):
+                texts.append(dragged[index].strip("()"))
+            else:
+                texts.append("")
+        return texts, self._numeric.substate_index
 
     def _publish_state_value(self, context: Context) -> None:
-        """Hand the live value to the draw handler, to show by the geometry.
+        """Hand the live value(s) to the draw handler, to show by the geometry.
 
-        Only the number is published, not the state's name: it is drawn against
-        the thing being placed, which says what it measures better than a label
-        would.
+        Only the numbers are published, not the state's name: they are drawn
+        against the thing being placed, which says what each one measures
+        better than a label would.
         """
         from bpy_extras.view3d_utils import location_3d_to_region_2d
 
@@ -206,29 +233,33 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
         region = context.region
         region_data = getattr(context, "region_data", None)
-        anchor = self._status_anchor
-        if region is None or region_data is None or anchor is None:
+        if region is None or region_data is None:
             global_data.state_value = None
             return
         if not get_prefs().show_state_value:
             global_data.state_value = None
             return
 
-        if self._numeric.is_active:
-            text = self._numeric.current
-        else:
-            text = self._status_value
-        if not text:
+        texts, focused = self._state_value_texts()
+        if not texts or not any(texts):
             global_data.state_value = None
             return
 
-        coords = location_3d_to_region_2d(region, region_data, anchor)
-        if coords is None:
-            # Behind the viewer in a perspective view.
+        anchors = self.state_value_anchors(context, self._status_values, len(texts))
+        if len(anchors) < len(texts):
             global_data.state_value = None
             return
 
-        global_data.state_value = (str(text), coords, region.as_pointer())
+        boxes = []
+        for index, text in enumerate(texts):
+            coords = location_3d_to_region_2d(region, region_data, anchors[index])
+            if coords is None:
+                # Behind the viewer in a perspective view.
+                global_data.state_value = None
+                return
+            boxes.append((str(text), coords, index == focused))
+
+        global_data.state_value = (tuple(boxes), region.as_pointer())
 
     def _format_number(self, value: float, subtype) -> str:
         """One number as text, in the units the scene is set to.
@@ -787,6 +818,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
             elif event.type == "TAB" and event.value == "PRESS":
                 self._numeric.iterate()
                 self.set_status_text(context)
+        elif event.type == "TAB" and event.value == "PRESS":
+            # Tab opens the value boxes without a digit first, so a width can be
+            # tabbed past and only the height typed.
+            is_numeric_edit = self.init_numeric(True)
+            self.set_status_text(context)
         elif is_numeric_event:
             is_numeric_edit = self.init_numeric(True)
 
@@ -929,7 +965,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         # and beside the geometry it belongs to.
         if not is_numeric:
             self._status_value = self._format_values(values) if values else None
-            self._status_anchor = self.state_value_anchor(context, values)
+            self._status_values = tuple(values or ())
             self.set_status_text(context)
 
         # Resolve state pointer

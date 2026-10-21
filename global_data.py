@@ -16,10 +16,12 @@ hover_element = None
 # hover gizmo detects/highlights what this state will actually pick.
 hover_types = None
 
-# The value the running stateful operator is resolving, to repeat by the cursor:
-#   (text, region-space anchor, region pointer) | None
-# The region pointer pins it to the view the mouse is in, so it isn't drawn at
-# the same spot in every other 3D view of the screen.
+# The value(s) the running stateful operator is resolving, to show by the
+# geometry they belong to:
+#   (boxes, region pointer) | None,  boxes = ((text, anchor, focused), ...)
+# One box while the value is only being dragged, one per component once it is
+# being typed into. The region pointer pins them to the view the mouse is in, so
+# they aren't drawn at the same spot in every other 3D view of the screen.
 state_value = None
 
 # NOTE: interactive selection/hover/highlight state lives in

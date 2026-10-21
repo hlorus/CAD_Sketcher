@@ -102,7 +102,7 @@ class TestStateValuePublish(Sketch2dTestCase):
         op = OpHarness(View3D_OT_slvs_add_circle2d, self.sketch, self.context).op
         op._numeric = SimpleNamespace(is_active=False, current="")
         op._status_value = "50 mm"
-        op._status_anchor = Vector((0.0, 0.0, 0.0))
+        op._status_values = (Vector((0.0, 0.0)),)
         return op
 
     def _publish(self, op, region=_NO_REGION):
@@ -118,28 +118,38 @@ class TestStateValuePublish(Sketch2dTestCase):
         StatefulOperatorLogic._publish_state_value(op, ctx)
         return global_data.state_value
 
-    def test_the_value_is_published_with_its_region_and_anchor(self):
+    def test_one_box_is_published_while_dragging(self):
         region, rv3d = _view3d()
         if region is None:
             self.skipTest("no 3D viewport in this Blender")
-        published = self._publish(self._op())
-        self.assertEqual(published[0], "50 mm")
-        self.assertEqual(published[2], region.as_pointer())
-        # The anchor is the world point projected into the region, not the mouse.
+        boxes, region_ptr = self._publish(self._op())
+        self.assertEqual(region_ptr, region.as_pointer())
+        self.assertEqual(len(boxes), 1)
+        text, coords, focused = boxes[0]
+        self.assertEqual(text, "50 mm")
+        self.assertFalse(focused, "nothing has focus until it is typed into")
+        # The anchor is the geometry's world point projected into the region.
         from bpy_extras.view3d_utils import location_3d_to_region_2d
 
-        expected = location_3d_to_region_2d(region, rv3d, Vector((0.0, 0.0, 0.0)))
-        self.assertEqual(tuple(published[1]), tuple(expected))
+        expected = location_3d_to_region_2d(
+            region, rv3d, self.sketch.world_matrix @ Vector((0.0, 0.0, 0.0))
+        )
+        self.assertEqual(tuple(coords), tuple(expected))
 
     def test_nothing_is_published_without_an_anchor(self):
         op = self._op()
-        op._status_anchor = None
+        op._active_sketch = None
+        from ..model.sketch_ref import set_active_sketch
+
+        set_active_sketch(self.context, None)
         self.assertIsNone(self._publish(op))
 
     def test_numeric_entry_wins_over_the_resolved_value(self):
         op = self._op()
-        op._numeric = SimpleNamespace(is_active=True, current="12")
-        self.assertEqual(self._publish(op)[0], "12")
+        op._numeric = _Numeric(typed={0: "12"})
+        boxes, _ = self._publish(op)
+        self.assertEqual(boxes[0][0], "12")
+        self.assertTrue(boxes[0][2])
 
     def test_nothing_is_published_without_a_value(self):
         op = self._op()
@@ -165,7 +175,7 @@ class TestStateValuePublish(Sketch2dTestCase):
 
 
 class TestStateValueAnchor(Sketch2dTestCase):
-    """Where a 2D tool puts the label: on the thing it is drawing."""
+    """Where a 2D tool puts a single box: on the thing it is drawing."""
 
     def _line_op(self):
         from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
@@ -174,19 +184,24 @@ class TestStateValueAnchor(Sketch2dTestCase):
         harness.op._numeric = SimpleNamespace(is_active=False, current="")
         return harness
 
+    def _only_anchor(self, op, values):
+        anchors = op.state_value_anchors(self.context, values, 1)
+        self.assertEqual(len(anchors), 1)
+        return anchors[0]
+
     def _world(self, local):
         return self.sketch.world_matrix @ Vector(local).to_3d()
 
     def test_the_first_point_anchors_on_itself(self):
         op = self._line_op().op
-        anchor = op.state_value_anchor(self.context, [Vector((2.0, 1.0))])
+        anchor = self._only_anchor(op, [Vector((2.0, 1.0))])
         self.assertAlmostEqual((anchor - self._world((2.0, 1.0))).length, 0.0, places=5)
 
     def test_a_segment_anchors_halfway_along_it(self):
         harness = self._line_op()
         harness.place_point((0.0, 0.0))
         harness.op.redo_states(self.context)
-        anchor = harness.op.state_value_anchor(self.context, [Vector((4.0, 0.0))])
+        anchor = self._only_anchor(harness.op, [Vector((4.0, 0.0))])
         self.assertAlmostEqual((anchor - self._world((2.0, 0.0))).length, 0.0, places=5)
 
     def test_a_number_state_anchors_on_the_point_before_it(self):
@@ -196,7 +211,7 @@ class TestStateValueAnchor(Sketch2dTestCase):
         harness.place_point((1.0, 2.0))
         harness.op.redo_states(self.context)
         # The radius state carries a float, so there is no live point to average.
-        anchor = harness.op.state_value_anchor(self.context, [0.5])
+        anchor = self._only_anchor(harness.op, [0.5])
         self.assertAlmostEqual((anchor - self._world((1.0, 2.0))).length, 0.0, places=5)
 
     def test_no_sketch_means_no_anchor(self):
@@ -205,4 +220,84 @@ class TestStateValueAnchor(Sketch2dTestCase):
         from ..model.sketch_ref import set_active_sketch
 
         set_active_sketch(self.context, None)
-        self.assertIsNone(op.state_value_anchor(self.context, [Vector((1.0, 1.0))]))
+        self.assertEqual(
+            op.state_value_anchors(self.context, [Vector((1.0, 1.0))], 1), []
+        )
+
+
+class _Numeric:
+    """A numeric input with given buffers, standing in for a live one."""
+
+    def __init__(self, typed=None, count=1, focused=0):
+        self._typed = typed or {}
+        self.substate_count = count
+        self.substate_index = focused
+        self.is_active = True
+        self.prop = None
+
+    def get(self, index):
+        return self._typed.get(index, "")
+
+    @property
+    def current(self):
+        return self.get(self.substate_index)
+
+
+class TestValueBoxes(Sketch2dTestCase):
+    """Typing splits the one value into a box per axis, on its own edge."""
+
+    def _rect_op(self, start=(-0.3, -0.2), live=(0.3, 0.2)):
+        from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
+
+        harness = OpHarness(View3D_OT_slvs_add_rectangle, self.sketch, self.context)
+        harness.place_point(start)
+        harness.op.redo_states(self.context)
+        harness.op._status_value = "(0.6 m, 0.4 m)"
+        harness.op._status_values = (Vector(live),)
+        return harness.op
+
+    def test_dragging_shows_one_text_and_no_focus(self):
+        op = self._rect_op()
+        op._numeric = SimpleNamespace(is_active=False)
+        texts, focused = op._state_value_texts()
+        self.assertEqual(texts, ["(0.6 m, 0.4 m)"])
+        self.assertEqual(focused, -1)
+
+    def test_typing_splits_the_value_per_axis(self):
+        op = self._rect_op()
+        op._numeric = _Numeric(typed={0: "600"}, count=2, focused=0)
+        texts, focused = op._state_value_texts()
+        # The typed component shows what was typed; the other keeps dragging.
+        self.assertEqual(texts, ["600", "0.4 m"])
+        self.assertEqual(focused, 0)
+
+    def test_focus_follows_the_substate(self):
+        op = self._rect_op()
+        op._numeric = _Numeric(typed={0: "600"}, count=2, focused=1)
+        self.assertEqual(op._state_value_texts()[1], 1)
+
+    def test_each_axis_box_sits_on_the_leg_it_measures(self):
+        op = self._rect_op()
+        anchors = op.state_value_anchors(self.context, (Vector((0.3, 0.2)),), 2)
+        self.assertEqual(len(anchors), 2)
+        matrix = self.sketch.world_matrix
+        # Width against the horizontal edge, height against the vertical one.
+        expected_x = matrix @ Vector((0.0, -0.2, 0.0))
+        expected_y = matrix @ Vector((0.3, 0.0, 0.0))
+        self.assertAlmostEqual((anchors[0] - expected_x).length, 0.0, places=5)
+        self.assertAlmostEqual((anchors[1] - expected_y).length, 0.0, places=5)
+
+    def test_one_box_still_sits_in_the_middle(self):
+        op = self._rect_op()
+        anchors = op.state_value_anchors(self.context, (Vector((0.3, 0.2)),), 1)
+        expected = self.sketch.world_matrix @ Vector((0.0, 0.0, 0.0))
+        self.assertAlmostEqual((anchors[0] - expected).length, 0.0, places=5)
+
+    def test_boxes_stack_on_one_point_when_there_is_no_leg(self):
+        from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
+
+        op = OpHarness(View3D_OT_slvs_add_rectangle, self.sketch, self.context).op
+        # The very first point has nothing to span, so both boxes share it.
+        anchors = op.state_value_anchors(self.context, (Vector((1.0, 2.0)),), 2)
+        self.assertEqual(len(anchors), 2)
+        self.assertEqual(tuple(anchors[0]), tuple(anchors[1]))

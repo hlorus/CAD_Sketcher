@@ -599,27 +599,33 @@ def main():
             sketch_ref.set_active_sketch(context, None)
             _redraw()
 
-        @_check("state value drawn at the cursor")
+        @_check("state value boxes drawn")
         def _():
             from mathutils import Vector
 
             global_data = importlib.import_module(f"{TARGET}.global_data")
             region = _view3d_context()["region"]
+            edge = Vector((region.width + 50, region.height + 50))
             try:
-                # What a running tool publishes on every mouse move, including
-                # an anchor past the region edge so the clamp is exercised.
-                for anchor in (
-                    Vector((120, 90)),
-                    Vector((region.width + 50, region.height + 50)),
+                for boxes in (
+                    # One plain value, as dragging shows it.
+                    (("50 mm", Vector((120, 90)), False),),
+                    # A focused box and an unfocused one, as typing shows them.
+                    (
+                        ("600", Vector((200, 200)), True),
+                        ("400 mm", Vector((260, 240)), False),
+                    ),
+                    # Past the region edge, and two on one spot: both get moved.
+                    (
+                        ("600", edge, True),
+                        ("400 mm", Vector((300, 300)), False),
+                        ("2 mm", Vector((300, 300)), False),
+                    ),
                 ):
-                    global_data.state_value = (
-                        "50 mm",
-                        anchor,
-                        region.as_pointer(),
-                    )
+                    global_data.state_value = (boxes, region.as_pointer())
                     _redraw()
                 # A value belonging to another region is not drawn in this one.
-                global_data.state_value = ("50 mm", Vector((10, 10)), 0)
+                global_data.state_value = ((("50 mm", Vector((10, 10)), False),), 0)
                 _redraw()
             finally:
                 global_data.state_value = None

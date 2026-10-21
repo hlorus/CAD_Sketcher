@@ -521,44 +521,53 @@ class Operator2d(GenericEntityOp):
             return PointRef(sketch, cid)
         return getattr(self, state.pointer)
 
-    def state_value_anchor(self, context: Context, values):
-        """The middle of what this state is defining, in world space.
+    def state_value_anchors(self, context: Context, values, count: int):
+        """Where this state's value boxes go, in world space.
 
-        The point being placed and the one before it bracket the thing being
-        drawn, so their midpoint sits on it: halfway along a segment, halfway
-        out a radius. A state with nothing before it, or one that sets a number
-        rather than a point, anchors on the single point it has.
+        One box sits in the middle of what is being drawn: halfway along a
+        segment, halfway out a radius. Several boxes are one per axis, and each
+        goes on the leg its component spans, so a rectangle's width reads
+        against its horizontal edge and its height against the vertical one,
+        the way a CAD sketcher shows them.
         """
         sketch = self.sketch
         if sketch is None or getattr(sketch, "target_object", None) is None:
-            return None
+            return []
 
-        points = [
-            point
-            for point in (
-                self._placed_point_location(context, self.state_index - 1),
-                self._live_point_location(sketch, values),
-            )
-            if point is not None
-        ]
-        if not points:
-            return None
-        return sum(points, Vector()) / len(points)
+        start = self._placed_point_co(context, self.state_index - 1)
+        end = self._live_point_co(values)
+        if end is None and start is None:
+            return []
+
+        to_world = sketch.world_matrix
+
+        if count < 2 or start is None or end is None:
+            # Nothing to spread along: every box shares the one place there is.
+            points = [point for point in (start, end) if point is not None]
+            middle = to_world @ (sum(points, Vector()) / len(points))
+            return [middle] * count
+
+        # Walk from start to end one axis at a time; each leg is the stretch
+        # that component measures, and its box sits halfway along it.
+        anchors = []
+        corner = start.copy()
+        for axis in range(min(count, len(start))):
+            moved = corner.copy()
+            moved[axis] = end[axis]
+            anchors.append(to_world @ ((corner + moved) / 2))
+            corner = moved
+        return anchors
 
     @staticmethod
-    def _live_point_location(sketch, values):
-        """Where this state's value puts a point, in world space, if it is one.
-
-        The value is in the sketch's own coordinates, the same ones a point's
-        stored position is in, so the sketch's matrix takes it to the world.
-        """
+    def _live_point_co(values):
+        """This state's value as a sketch-local point, if it is one."""
         for value in values or ():
             if hasattr(value, "__len__") and len(value) in (2, 3):
-                return sketch.world_matrix @ Vector(value).to_3d()
+                return Vector(value).to_3d()
         return None
 
-    def _placed_point_location(self, context: Context, index: int):
-        """An earlier state's point in world space, or None when it has none."""
+    def _placed_point_co(self, context: Context, index: int):
+        """An earlier state's point, sketch-local, or None when it has none."""
         if index < 0 or index not in self._state_data:
             return None
         try:
@@ -569,7 +578,8 @@ class Operator2d(GenericEntityOp):
         is_point = getattr(ref, "is_point", None)
         if not callable(is_point) or not is_point():
             return None
-        return Vector(ref.location)
+        co = getattr(ref, "co", None)
+        return Vector(co).to_3d() if co is not None and len(co) >= 2 else None
 
 
 class ReplaceableOutputOp:

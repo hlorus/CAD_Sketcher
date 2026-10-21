@@ -217,25 +217,52 @@ def draw_hover_element():
         _draw_curve_element_hover(ob, index, col, scale)
 
 
-# Gap between the cursor and the value drawn beside it, in text heights.
-_STATE_VALUE_GAP = 0.7
+# Breathing room around a value box, in text heights: the gap from its anchor,
+# the padding inside it, and the step between boxes that would overlap.
+_BOX_GAP = 0.7
+_BOX_PADDING = 0.35
+_BOX_STEP = 1.9
+
+
+def _box_rect(x, y, width, height, pad):
+    """The four corners of a value box, as a screen-space rectangle."""
+    return (
+        (x - pad, y - pad),
+        (x + width + pad, y - pad),
+        (x + width + pad, y + height + pad),
+        (x - pad, y + height + pad),
+    )
+
+
+def _draw_box(rect, fill, border):
+    """Fill a value box and outline it."""
+    shader = gpu.shader.from_builtin("UNIFORM_COLOR")
+    gpu.state.blend_set("ALPHA")
+    shader.bind()
+    shader.uniform_float("color", fill)
+    batch_for_shader(shader, "TRI_FAN", {"pos": rect}).draw(shader)
+    shader.uniform_float("color", border)
+    batch_for_shader(shader, "LINE_LOOP", {"pos": rect}).draw(shader)
+    gpu.state.blend_set("NONE")
 
 
 def draw_state_value():
-    """POST_PIXEL: repeat the running tool's live value next to the cursor.
+    """POST_PIXEL: show the running tool's live value on the geometry it sizes.
 
-    The same number is in the status bar, but the eye is on the geometry being
-    placed rather than on the bottom of the window, so it is shown again where
-    the work is. The operator publishes it (see
+    The same numbers are in the status bar, but the eye is on what is being
+    drawn rather than on the bottom of the window, so they are shown again
+    where the work is. Dragging shows one plain number; typing turns them into
+    a box per axis, the focused one outlined, each against the stretch it
+    measures. The operator publishes them (see
     ``StatefulOperatorLogic._publish_state_value``) along with the region the
-    mouse was in, so it is not drawn in every other 3D view at once.
+    mouse was in, so they are not drawn in every other 3D view at once.
     """
     published = global_data.state_value
     region = bpy.context.region
     if not published or region is None:
         return
-    text, coords, region_ptr = published
-    if not text or region.as_pointer() != region_ptr:
+    boxes, region_ptr = published
+    if region.as_pointer() != region_ptr:
         return
 
     from .drawing import frame_cache
@@ -243,17 +270,35 @@ def draw_state_value():
 
     size = frame_cache.text_size() * frame_cache.ui_scale(bpy.context)
     blf.size(_FONT_ID, size)
-    width, height = blf.dimensions(_FONT_ID, text)
-    gap = height * _STATE_VALUE_GAP
+    text_color = frame_cache.constraint_color(Color.Text, False)
+    focus_color = frame_cache.constraint_color(Color.Text, True)
 
-    # Up and to the right of the cursor, pulled back inside the region when
-    # that would put it past an edge.
-    x = min(coords.x + gap, region.width - width - gap)
-    y = min(coords.y + gap, region.height - height - gap)
+    drawn = []
+    for text, coords, focused in boxes:
+        if not text:
+            continue
+        width, height = blf.dimensions(_FONT_ID, text)
+        gap = height * _BOX_GAP
+        pad = height * _BOX_PADDING
 
-    blf.color(_FONT_ID, *frame_cache.constraint_color(Color.Text, False))
-    blf.position(_FONT_ID, max(gap, x), max(gap, y), 0.0)
-    blf.draw(_FONT_ID, text)
+        # Up and to the right of the anchor, pulled back inside the region when
+        # that would put it past an edge, and stepped down off any box already
+        # drawn on top of it.
+        x = min(coords.x + gap, region.width - width - gap)
+        y = min(coords.y + gap, region.height - height - gap)
+        x, y = max(gap, x), max(gap, y)
+        while any(
+            abs(x - other_x) < width + pad and abs(y - other_y) < height * _BOX_STEP
+            for other_x, other_y in drawn
+        ):
+            y -= height * _BOX_STEP
+        drawn.append((x, y))
+
+        if focused:
+            _draw_box(_box_rect(x, y, width, height, pad), (0, 0, 0, 0.6), focus_color)
+        blf.color(_FONT_ID, *(focus_color if focused else text_color))
+        blf.position(_FONT_ID, x, y, 0.0)
+        blf.draw(_FONT_ID, text)
 
 
 def _text_block(lines, size):
