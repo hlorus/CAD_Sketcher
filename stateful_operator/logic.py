@@ -1,4 +1,3 @@
-import math
 from contextlib import nullcontext
 from typing import Any
 
@@ -182,13 +181,53 @@ class StatefulOperatorLogic(_StateMachineMixin):
             msg += "    [{} axis]".format("XYZ"[self._axis_lock])
 
         context.workspace.status_text_set(self._status_line(msg))
+        self._publish_state_value(context)
+
+    def _publish_state_value(self, context: Context) -> None:
+        """Hand the live value to the draw handler, to repeat by the cursor.
+
+        Only the number is published, not the state's name: it is drawn against
+        the thing being placed, which says what it measures better than a label
+        would.
+        """
+        from ..utilities.preferences import get_prefs
+
+        region = context.region
+        if region is None or not get_prefs().show_state_value:
+            global_data.state_value = None
+            return
+
+        if self._numeric.is_active:
+            text = self._numeric.current
+        else:
+            text = self._status_value
+        if not text:
+            global_data.state_value = None
+            return
+
+        global_data.state_value = (
+            str(text),
+            Vector(self._last_coords),
+            region.as_pointer(),
+        )
+
+    def _format_number(self, value: float, subtype) -> str:
+        """One number as text, in the units the scene is set to.
+
+        A length or an angle is read against the scene's units everywhere else
+        in the add-on (a dimension's label, the sidebar), so a tool's own live
+        value is shown the same way rather than as raw Blender units.
+        """
+        from .. import units
+
+        if subtype in ("DISTANCE", "DISTANCE_CAMERA"):
+            return units.format_distance(value)
+        if subtype == "ANGLE":
+            return units.format_angle(value)
+        return "{:.3f}".format(value)
 
     def _format_values(self, values):
-        """Format resolved state values (vectors / floats / ints) for display.
-
-        Angle-subtype properties are shown in degrees to match how Blender
-        presents them everywhere else.
-        """
+        """Format resolved state values (vectors / floats / ints) for display."""
         props = self.get_property() or []
         parts = []
         for i, v in enumerate(values):
@@ -197,12 +236,15 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 prop = self.rna_type.properties.get(props[i])
                 subtype = prop.subtype if prop else None
             if hasattr(v, "__len__") and not isinstance(v, str):
-                parts.append("(" + ", ".join("{:.3f}".format(x) for x in v) + ")")
+                # A coordinate's components are lengths; anything else is a
+                # plain tuple of numbers.
+                component = subtype if subtype in ("XYZ", "TRANSLATION") else None
+                component = "DISTANCE" if component else None
+                parts.append(
+                    "(" + ", ".join(self._format_number(x, component) for x in v) + ")"
+                )
             elif isinstance(v, float):
-                if subtype == "ANGLE":
-                    parts.append("{:.1f}°".format(math.degrees(v)))
-                else:
-                    parts.append("{:.3f}".format(v))
+                parts.append(self._format_number(v, subtype))
             else:
                 parts.append(str(v))
         return ", ".join(parts)
@@ -605,6 +647,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         if context.area:
             context.area.header_text_set(None)
         context.workspace.status_text_set(None)
+        global_data.state_value = None
         global_data.hover_types = None
         global_data.hover_element = None
         global_data.stateful_op_running = False
@@ -1187,6 +1230,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 pass
         self.on_before_redo_states(context)
         context.workspace.status_text_set(None)
+        global_data.state_value = None
 
         if not keep_stateful_running:
             global_data.stateful_op_running = False

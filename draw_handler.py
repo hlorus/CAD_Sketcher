@@ -217,6 +217,45 @@ def draw_hover_element():
         _draw_curve_element_hover(ob, index, col, scale)
 
 
+# Gap between the cursor and the value drawn beside it, in text heights.
+_STATE_VALUE_GAP = 0.7
+
+
+def draw_state_value():
+    """POST_PIXEL: repeat the running tool's live value next to the cursor.
+
+    The same number is in the status bar, but the eye is on the geometry being
+    placed rather than on the bottom of the window, so it is shown again where
+    the work is. The operator publishes it (see
+    ``StatefulOperatorLogic._publish_state_value``) along with the region the
+    mouse was in, so it is not drawn in every other 3D view at once.
+    """
+    published = global_data.state_value
+    region = bpy.context.region
+    if not published or region is None:
+        return
+    text, coords, region_ptr = published
+    if not text or region.as_pointer() != region_ptr:
+        return
+
+    from .drawing import frame_cache
+    from .gizmos.utilities import Color
+
+    size = frame_cache.text_size() * frame_cache.ui_scale(bpy.context)
+    blf.size(_FONT_ID, size)
+    width, height = blf.dimensions(_FONT_ID, text)
+    gap = height * _STATE_VALUE_GAP
+
+    # Up and to the right of the cursor, pulled back inside the region when
+    # that would put it past an edge.
+    x = min(coords.x + gap, region.width - width - gap)
+    y = min(coords.y + gap, region.height - height - gap)
+
+    blf.color(_FONT_ID, *frame_cache.constraint_color(Color.Text, False))
+    blf.position(_FONT_ID, max(gap, x), max(gap, y), 0.0)
+    blf.draw(_FONT_ID, text)
+
+
 def _text_block(lines, size):
     """Measure ``lines`` at ``size``: per-line dims, total width and height."""
     dims = []
@@ -416,6 +455,7 @@ _DRAW_HANDLERS = (
     ("hover_draw_handle", draw_hover_element, "POST_VIEW"),
     ("origin_label_draw_handle", draw_origin_labels, "POST_VIEW"),
     ("axis_draw_handle", draw_axis_candidates, "POST_VIEW"),
+    ("state_value_draw_handle", draw_state_value, "POST_PIXEL"),
     ("icon_draw_handle", None, "POST_PIXEL"),  # callback resolved in register()
 )
 

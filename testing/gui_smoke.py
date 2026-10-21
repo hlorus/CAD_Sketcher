@@ -599,6 +599,32 @@ def main():
             sketch_ref.set_active_sketch(context, None)
             _redraw()
 
+        @_check("state value drawn at the cursor")
+        def _():
+            from mathutils import Vector
+
+            global_data = importlib.import_module(f"{TARGET}.global_data")
+            region = _view3d_context()["region"]
+            try:
+                # What a running tool publishes on every mouse move, including
+                # an anchor past the region edge so the clamp is exercised.
+                for anchor in (
+                    Vector((120, 90)),
+                    Vector((region.width + 50, region.height + 50)),
+                ):
+                    global_data.state_value = (
+                        "50 mm",
+                        anchor,
+                        region.as_pointer(),
+                    )
+                    _redraw()
+                # A value belonging to another region is not drawn in this one.
+                global_data.state_value = ("50 mm", Vector((10, 10)), 0)
+                _redraw()
+            finally:
+                global_data.state_value = None
+            _redraw()
+
     if _FAILURES:
         print(f"SMOKE FAILED: {', '.join(_FAILURES)}", file=sys.stderr)
         sys.exit(1)
