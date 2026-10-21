@@ -67,6 +67,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
     # The resolved values behind _status_value, which the value boxes are
     # placed from (see state_value_anchors).
     _status_values = ()
+    # The point this state's value is measured from, when it has one.
+    _status_origin = None
     # Where the left mouse button went down, to tell a drag from a click.
     _press_coords = None
     # Set once a dragged release confirmed a state: from then on the release
@@ -186,6 +188,15 @@ class StatefulOperatorLogic(_StateMachineMixin):
         context.workspace.status_text_set(self._status_line(msg))
         self._publish_state_value(context)
 
+    def state_value_origin(self, context: Context):
+        """The point this state places relative to, in its own coordinates.
+
+        ``None`` when the state stands alone, and the value is then whatever it
+        resolves to. A subclass that knows its geometry overrides this (see
+        ``Operator2d``).
+        """
+        return None
+
     def state_value_anchors(self, context: Context, values, count: int):
         """World points to draw this state's ``count`` value boxes beside.
 
@@ -208,16 +219,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
             return ([self._status_value], -1) if self._status_value else ([], -1)
 
         count = max(1, self._numeric.substate_count or 1)
-        dragged = (self._status_value or "").split(", ") if count > 1 else []
+        dragged = self._value_texts(self._status_values)
         texts = []
         for index in range(count):
             typed = self._numeric.get(index)
-            if typed:
-                texts.append(typed)
-            elif index < len(dragged):
-                texts.append(dragged[index].strip("()"))
-            else:
-                texts.append("")
+            texts.append(typed or (dragged[index] if index < len(dragged) else ""))
         return texts, self._numeric.substate_index
 
     def _publish_state_value(self, context: Context) -> None:
@@ -278,26 +284,37 @@ class StatefulOperatorLogic(_StateMachineMixin):
 
     def _format_values(self, values):
         """Format resolved state values (vectors / floats / ints) for display."""
+        texts = self._value_texts(values)
+        return ", ".join(texts) if len(texts) == 1 else "(" + ", ".join(texts) + ")"
+
+    def _value_texts(self, values):
+        """One string per number this state resolves to.
+
+        A point placed relative to another is described by how far it reaches
+        along each axis, not by its coordinate: that is what the value boxes sit
+        against, and what a number typed into one means.
+        """
         props = self.get_property() or []
-        parts = []
-        for i, v in enumerate(values):
+        origin = self._status_origin
+        texts = []
+        for i, value in enumerate(values):
             subtype = None
             if i < len(props):
                 prop = self.rna_type.properties.get(props[i])
                 subtype = prop.subtype if prop else None
-            if hasattr(v, "__len__") and not isinstance(v, str):
+            if hasattr(value, "__len__") and not isinstance(value, str):
                 # A coordinate's components are lengths; anything else is a
                 # plain tuple of numbers.
-                component = subtype if subtype in ("XYZ", "TRANSLATION") else None
-                component = "DISTANCE" if component else None
-                parts.append(
-                    "(" + ", ".join(self._format_number(x, component) for x in v) + ")"
-                )
-            elif isinstance(v, float):
-                parts.append(self._format_number(v, subtype))
+                component = "DISTANCE" if subtype in ("XYZ", "TRANSLATION") else None
+                for axis, number in enumerate(value):
+                    if origin is not None and axis < len(origin):
+                        number = number - origin[axis]
+                    texts.append(self._format_number(number, component))
+            elif isinstance(value, float):
+                texts.append(self._format_number(value, subtype))
             else:
-                parts.append(str(v))
-        return ", ".join(parts)
+                texts.append(str(value))
+        return texts
 
     def check_numeric(self):
         """Return True if the current state supports numeric text entry."""
@@ -370,6 +387,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
         else:
             interactive_val = to_iterable(interactive_val)
 
+        origin = self.state_value_origin(context) if size > 1 else None
+
         storage = [None] * size
         result = [None] * size
         for sub_index in range(size):
@@ -378,6 +397,10 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 num = parse_numeric(prop, raw, unit_system)
                 if num is None:
                     num = prop.default
+                # Typed into a box that measures from somewhere: it says how far
+                # to reach, not where to land.
+                if origin is not None and sub_index < len(origin):
+                    num = origin[sub_index] + num
                 result[sub_index] = num
                 storage[sub_index] = num
             elif interactive_val[sub_index] is not None:
@@ -964,8 +987,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         # Reflect the live value (property or point placement) in the status bar
         # and beside the geometry it belongs to.
         if not is_numeric:
-            self._status_value = self._format_values(values) if values else None
+            self._status_origin = self.state_value_origin(context)
             self._status_values = tuple(values or ())
+            self._status_value = self._format_values(values) if values else None
             self.set_status_text(context)
 
         # Resolve state pointer

@@ -521,6 +521,56 @@ class Operator2d(GenericEntityOp):
             return PointRef(sketch, cid)
         return getattr(self, state.pointer)
 
+    def state_value_origin(self, context: Context):
+        """The point this state is placed relative to, in sketch coordinates."""
+        return self._placed_point_co(context, self.state_index - 1)
+
+    # Which aligned distance measures a component of a placed point. A sketch's
+    # third axis has no aligned distance, so a Z typed into a 3D sketch places
+    # the point without being kept as a dimension.
+    _COMPONENT_ALIGNMENT = ("HORIZONTAL", "VERTICAL")
+
+    def _run_fini(self, context: Context, succeede: bool) -> None:
+        super()._run_fini(context, succeede)
+        if succeede:
+            self._add_typed_dimensions(context)
+
+    def _add_typed_dimensions(self, context: Context) -> None:
+        """Keep every number typed into a value box as a driving dimension.
+
+        Typing a width states what the width *is*, so it outlives the click:
+        the pair of points it was typed between gets an aligned distance
+        holding them that far apart, and solving the sketch keeps it. A value
+        only dragged states nothing and leaves the points free.
+        """
+        sketch = self.sketch
+        if sketch is None:
+            return
+
+        for index in range(len(self.get_states())):
+            typed = self.get_state_data(index).get("numeric_input") or ()
+            if not any(number is not None for number in typed):
+                continue
+            end = self.get_state_data(index).get("curve_id", "")
+            start = self.get_state_data(index - 1).get("curve_id", "") if index else ""
+            if not end or not start:
+                continue
+            origin = self._placed_point_co(context, index - 1)
+            placed = self._placed_point_co(context, index)
+            if origin is None or placed is None:
+                continue
+
+            for axis, number in enumerate(typed):
+                if number is None or axis >= len(self._COMPONENT_ALIGNMENT):
+                    continue
+                sketch.constraints.add_distance(
+                    init=True,
+                    curve_id_1=start,
+                    curve_id_2=end,
+                    align=self._COMPONENT_ALIGNMENT[axis],
+                    value=abs(placed[axis] - origin[axis]),
+                )
+
     def state_value_anchors(self, context: Context, values, count: int):
         """Where this state's value boxes go, in world space.
 

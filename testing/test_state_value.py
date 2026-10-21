@@ -46,6 +46,8 @@ class _Formatter:
 
     _format_number = StatefulOperatorLogic._format_number
     _format_values = StatefulOperatorLogic._format_values
+    _value_texts = StatefulOperatorLogic._value_texts
+    _status_origin = None
 
     def __init__(self, *subtypes):
         self._names = ["p%d" % i for i in range(len(subtypes))]
@@ -147,6 +149,7 @@ class TestStateValuePublish(Sketch2dTestCase):
     def test_numeric_entry_wins_over_the_resolved_value(self):
         op = self._op()
         op._numeric = _Numeric(typed={0: "12"})
+        _stub_rna(op)
         boxes, _ = self._publish(op)
         self.assertEqual(boxes[0][0], "12")
         self.assertTrue(boxes[0][2])
@@ -225,6 +228,15 @@ class TestStateValueAnchor(Sketch2dTestCase):
         )
 
 
+def _stub_rna(op, subtype="XYZ"):
+    """Give a twin the property RNA the real operator carries."""
+    names = op.get_property() or []
+    op.rna_type = SimpleNamespace(
+        properties={name: SimpleNamespace(subtype=subtype) for name in names}
+    )
+    return op
+
+
 class _Numeric:
     """A numeric input with given buffers, standing in for a live one."""
 
@@ -252,23 +264,32 @@ class TestValueBoxes(Sketch2dTestCase):
         harness = OpHarness(View3D_OT_slvs_add_rectangle, self.sketch, self.context)
         harness.place_point(start)
         harness.op.redo_states(self.context)
-        harness.op._status_value = "(0.6 m, 0.4 m)"
         harness.op._status_values = (Vector(live),)
+        _stub_rna(harness.op)
+        harness.op._status_origin = Vector(start).to_3d()
+        harness.op._status_value = harness.op._format_values(harness.op._status_values)
         return harness.op
 
     def test_dragging_shows_one_text_and_no_focus(self):
         op = self._rect_op()
         op._numeric = SimpleNamespace(is_active=False)
         texts, focused = op._state_value_texts()
-        self.assertEqual(texts, ["(0.6 m, 0.4 m)"])
+        # Measured from the first corner: the rectangle is 0.6 by 0.4, not a
+        # corner at (0.3, 0.2).
+        self.assertEqual(len(texts), 1)
+        self.assertIn("0.6", texts[0])
+        self.assertIn("0.4", texts[0])
         self.assertEqual(focused, -1)
 
     def test_typing_splits_the_value_per_axis(self):
         op = self._rect_op()
         op._numeric = _Numeric(typed={0: "600"}, count=2, focused=0)
         texts, focused = op._state_value_texts()
-        # The typed component shows what was typed; the other keeps dragging.
-        self.assertEqual(texts, ["600", "0.4 m"])
+        # The typed component shows what was typed; the other keeps dragging,
+        # and shows the height rather than the corner's coordinate.
+        self.assertEqual(len(texts), 2)
+        self.assertEqual(texts[0], "600")
+        self.assertIn("0.4", texts[1])
         self.assertEqual(focused, 0)
 
     def test_focus_follows_the_substate(self):
@@ -301,3 +322,49 @@ class TestValueBoxes(Sketch2dTestCase):
         anchors = op.state_value_anchors(self.context, (Vector((1.0, 2.0)),), 2)
         self.assertEqual(len(anchors), 2)
         self.assertEqual(tuple(anchors[0]), tuple(anchors[1]))
+
+
+class TestTypedDimensions(Sketch2dTestCase):
+    """A number typed into a value box is kept as a driving dimension."""
+
+    def _rectangle(self, typed, start=(0.0, 0.0), end=(0.6, 0.4)):
+        from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
+
+        harness = OpHarness(View3D_OT_slvs_add_rectangle, self.sketch, self.context)
+        harness.place_point(start)
+        harness.place_point(end)
+        # What get_numeric_value records for the components that were typed.
+        harness.op.get_state_data(1)["numeric_input"] = typed
+        harness.finish()
+        return harness.op
+
+    def _dimensions(self):
+        return list(self.sketch.constraints.distance)
+
+    def test_both_axes_typed_give_two_aligned_dimensions(self):
+        self._rectangle([0.6, 0.4])
+        dims = self._dimensions()
+        self.assertEqual(len(dims), 2)
+        by_align = {d.align: d for d in dims}
+        self.assertEqual(set(by_align), {"HORIZONTAL", "VERTICAL"})
+        self.assertAlmostEqual(by_align["HORIZONTAL"].value, 0.6, places=5)
+        self.assertAlmostEqual(by_align["VERTICAL"].value, 0.4, places=5)
+
+    def test_only_the_typed_axis_is_dimensioned(self):
+        self._rectangle([0.6, None])
+        dims = self._dimensions()
+        self.assertEqual(len(dims), 1)
+        self.assertEqual(dims[0].align, "HORIZONTAL")
+        self.assertAlmostEqual(dims[0].value, 0.6, places=5)
+
+    def test_dragging_alone_leaves_the_points_free(self):
+        self._rectangle([None, None])
+        self.assertEqual(self._dimensions(), [])
+
+    def test_the_dimension_holds_when_the_sketch_is_solved(self):
+        from ..curve_solver import solve_system
+
+        self._rectangle([0.6, 0.4])
+        self.assertTrue(solve_system(self.context, sketch=self.sketch))
+        dims = self._dimensions()
+        self.assertFalse(any(d.failed for d in dims), [d.failed for d in dims])
