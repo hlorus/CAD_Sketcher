@@ -23,6 +23,20 @@ class _Region:
         return self._ident
 
 
+def _view3d():
+    """The real region and its view data, so world points project for real."""
+    import bpy
+
+    for window in bpy.context.window_manager.windows:
+        for area in window.screen.areas:
+            if area.type != "VIEW_3D":
+                continue
+            for region in area.regions:
+                if region.type == "WINDOW":
+                    return region, area.spaces.active.region_3d
+    return None, None
+
+
 class _Formatter:
     """The formatter alone, over a state whose property subtype is given here.
 
@@ -87,20 +101,40 @@ class TestStateValuePublish(Sketch2dTestCase):
 
         op = OpHarness(View3D_OT_slvs_add_circle2d, self.sketch, self.context).op
         op._numeric = SimpleNamespace(is_active=False, current="")
-        op._last_coords = Vector((120, 90))
         op._status_value = "50 mm"
+        op._status_anchor = Vector((0.0, 0.0, 0.0))
         return op
 
     def _publish(self, op, region=_NO_REGION):
-        ctx = SimpleNamespace(region=_Region() if region is _NO_REGION else region)
+        stub = _Region()
+        ctx = SimpleNamespace(
+            region=stub if region is _NO_REGION else region,
+            region_data=SimpleNamespace(),
+        )
+        # Projection needs a real view; borrow the one the test window has.
+        real_region, real_rv3d = _view3d()
+        if region is _NO_REGION and real_region is not None:
+            ctx.region, ctx.region_data = real_region, real_rv3d
         StatefulOperatorLogic._publish_state_value(op, ctx)
         return global_data.state_value
 
     def test_the_value_is_published_with_its_region_and_anchor(self):
+        region, rv3d = _view3d()
+        if region is None:
+            self.skipTest("no 3D viewport in this Blender")
         published = self._publish(self._op())
         self.assertEqual(published[0], "50 mm")
-        self.assertEqual(tuple(published[1]), (120.0, 90.0))
-        self.assertEqual(published[2], 1)
+        self.assertEqual(published[2], region.as_pointer())
+        # The anchor is the world point projected into the region, not the mouse.
+        from bpy_extras.view3d_utils import location_3d_to_region_2d
+
+        expected = location_3d_to_region_2d(region, rv3d, Vector((0.0, 0.0, 0.0)))
+        self.assertEqual(tuple(published[1]), tuple(expected))
+
+    def test_nothing_is_published_without_an_anchor(self):
+        op = self._op()
+        op._status_anchor = None
+        self.assertIsNone(self._publish(op))
 
     def test_numeric_entry_wins_over_the_resolved_value(self):
         op = self._op()
@@ -128,3 +162,47 @@ class TestStateValuePublish(Sketch2dTestCase):
         prefs.show_state_value = False
         self.addCleanup(setattr, prefs, "show_state_value", True)
         self.assertIsNone(self._publish(self._op()))
+
+
+class TestStateValueAnchor(Sketch2dTestCase):
+    """Where a 2D tool puts the label: on the thing it is drawing."""
+
+    def _line_op(self):
+        from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
+
+        harness = OpHarness(View3D_OT_slvs_add_line2d, self.sketch, self.context)
+        harness.op._numeric = SimpleNamespace(is_active=False, current="")
+        return harness
+
+    def _world(self, local):
+        return self.sketch.world_matrix @ Vector(local).to_3d()
+
+    def test_the_first_point_anchors_on_itself(self):
+        op = self._line_op().op
+        anchor = op.state_value_anchor(self.context, [Vector((2.0, 1.0))])
+        self.assertAlmostEqual((anchor - self._world((2.0, 1.0))).length, 0.0, places=5)
+
+    def test_a_segment_anchors_halfway_along_it(self):
+        harness = self._line_op()
+        harness.place_point((0.0, 0.0))
+        harness.op.redo_states(self.context)
+        anchor = harness.op.state_value_anchor(self.context, [Vector((4.0, 0.0))])
+        self.assertAlmostEqual((anchor - self._world((2.0, 0.0))).length, 0.0, places=5)
+
+    def test_a_number_state_anchors_on_the_point_before_it(self):
+        from ..operators.add_circle import View3D_OT_slvs_add_circle2d
+
+        harness = OpHarness(View3D_OT_slvs_add_circle2d, self.sketch, self.context)
+        harness.place_point((1.0, 2.0))
+        harness.op.redo_states(self.context)
+        # The radius state carries a float, so there is no live point to average.
+        anchor = harness.op.state_value_anchor(self.context, [0.5])
+        self.assertAlmostEqual((anchor - self._world((1.0, 2.0))).length, 0.0, places=5)
+
+    def test_no_sketch_means_no_anchor(self):
+        op = self._line_op().op
+        op._active_sketch = None
+        from ..model.sketch_ref import set_active_sketch
+
+        set_active_sketch(self.context, None)
+        self.assertIsNone(op.state_value_anchor(self.context, [Vector((1.0, 1.0))]))

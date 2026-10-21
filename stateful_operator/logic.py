@@ -64,6 +64,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
     _axis_lock = None
     # Formatted live value of the current state, shown in the status bar.
     _status_value = None
+    # World-space point the live value is drawn beside (see state_value_anchor).
+    _status_anchor = None
     # Where the left mouse button went down, to tell a drag from a click.
     _press_coords = None
     # Set once a dragged release confirmed a state: from then on the release
@@ -183,17 +185,32 @@ class StatefulOperatorLogic(_StateMachineMixin):
         context.workspace.status_text_set(self._status_line(msg))
         self._publish_state_value(context)
 
+    def state_value_anchor(self, context: Context, values):
+        """World-space point to draw the live value beside, or None for no label.
+
+        The framework has no idea where an operator's geometry is; a subclass
+        that does overrides this (see ``Operator2d``).
+        """
+        return None
+
     def _publish_state_value(self, context: Context) -> None:
-        """Hand the live value to the draw handler, to repeat by the cursor.
+        """Hand the live value to the draw handler, to show by the geometry.
 
         Only the number is published, not the state's name: it is drawn against
         the thing being placed, which says what it measures better than a label
         would.
         """
+        from bpy_extras.view3d_utils import location_3d_to_region_2d
+
         from ..utilities.preferences import get_prefs
 
         region = context.region
-        if region is None or not get_prefs().show_state_value:
+        region_data = getattr(context, "region_data", None)
+        anchor = self._status_anchor
+        if region is None or region_data is None or anchor is None:
+            global_data.state_value = None
+            return
+        if not get_prefs().show_state_value:
             global_data.state_value = None
             return
 
@@ -205,11 +222,13 @@ class StatefulOperatorLogic(_StateMachineMixin):
             global_data.state_value = None
             return
 
-        global_data.state_value = (
-            str(text),
-            Vector(self._last_coords),
-            region.as_pointer(),
-        )
+        coords = location_3d_to_region_2d(region, region_data, anchor)
+        if coords is None:
+            # Behind the viewer in a perspective view.
+            global_data.state_value = None
+            return
+
+        global_data.state_value = (str(text), coords, region.as_pointer())
 
     def _format_number(self, value: float, subtype) -> str:
         """One number as text, in the units the scene is set to.
@@ -906,9 +925,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
         )
         values, ok = self._resolve_values(context, coords, state, is_numeric, is_picked)
 
-        # Reflect the live value (property or point placement) in the status bar.
+        # Reflect the live value (property or point placement) in the status bar
+        # and beside the geometry it belongs to.
         if not is_numeric:
             self._status_value = self._format_values(values) if values else None
+            self._status_anchor = self.state_value_anchor(context, values)
             self.set_status_text(context)
 
         # Resolve state pointer

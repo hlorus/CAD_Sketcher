@@ -3,6 +3,7 @@ from typing import Any, List
 import bpy
 from bpy.props import StringProperty
 from bpy.types import Context, Event
+from mathutils import Vector
 
 from ..model.curve_ref import CurveRef, PointRef, curve_ref
 from ..model.types import SlvsPoint2D
@@ -519,6 +520,56 @@ class Operator2d(GenericEntityOp):
         if cid:
             return PointRef(sketch, cid)
         return getattr(self, state.pointer)
+
+    def state_value_anchor(self, context: Context, values):
+        """The middle of what this state is defining, in world space.
+
+        The point being placed and the one before it bracket the thing being
+        drawn, so their midpoint sits on it: halfway along a segment, halfway
+        out a radius. A state with nothing before it, or one that sets a number
+        rather than a point, anchors on the single point it has.
+        """
+        sketch = self.sketch
+        if sketch is None or getattr(sketch, "target_object", None) is None:
+            return None
+
+        points = [
+            point
+            for point in (
+                self._placed_point_location(context, self.state_index - 1),
+                self._live_point_location(sketch, values),
+            )
+            if point is not None
+        ]
+        if not points:
+            return None
+        return sum(points, Vector()) / len(points)
+
+    @staticmethod
+    def _live_point_location(sketch, values):
+        """Where this state's value puts a point, in world space, if it is one.
+
+        The value is in the sketch's own coordinates, the same ones a point's
+        stored position is in, so the sketch's matrix takes it to the world.
+        """
+        for value in values or ():
+            if hasattr(value, "__len__") and len(value) in (2, 3):
+                return sketch.world_matrix @ Vector(value).to_3d()
+        return None
+
+    def _placed_point_location(self, context: Context, index: int):
+        """An earlier state's point in world space, or None when it has none."""
+        if index < 0 or index not in self._state_data:
+            return None
+        try:
+            ref = self.get_point(context, index)
+        except Exception:
+            # A state holds whatever its pick produced; it may be no point.
+            return None
+        is_point = getattr(ref, "is_point", None)
+        if not callable(is_point) or not is_point():
+            return None
+        return Vector(ref.location)
 
 
 class ReplaceableOutputOp:
