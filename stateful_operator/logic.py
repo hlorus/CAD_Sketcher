@@ -140,6 +140,16 @@ class StatefulOperatorLogic(_StateMachineMixin):
     # Numeric input — delegates to self._numeric (NumericInput)
     # -------------------------------------------------------------------------
 
+    def _status_line(self, text: str) -> str:
+        """Head a status-bar line with the operator's own name.
+
+        The status bar is what a user reads mid-tool, and a bare "Entity 1: ..."
+        doesn't say which tool is asking for it -- the prompts of two tools are
+        often worded the same.
+        """
+        label = getattr(self, "bl_label", "")
+        return "{}    {}".format(label, text) if label else text
+
     def set_status_text(self, context: Context):
         state = self.state
         desc = (
@@ -171,7 +181,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         if self._axis_lock is not None:
             msg += "    [{} axis]".format("XYZ"[self._axis_lock])
 
-        context.workspace.status_text_set(msg)
+        context.workspace.status_text_set(self._status_line(msg))
 
     def _format_values(self, values):
         """Format resolved state values (vectors / floats / ints) for display.
@@ -512,7 +522,9 @@ class StatefulOperatorLogic(_StateMachineMixin):
         )
         if context.area:
             context.area.header_text_set(text)
-        context.workspace.status_text_set(text + "    Esc / Right-click: cancel")
+        context.workspace.status_text_set(
+            self._status_line(text + "    Esc / Right-click: cancel")
+        )
 
     def _clear_pick(self, context: Context):
         """Turn state ``edit_state``'s pick back into its own value and re-apply."""
