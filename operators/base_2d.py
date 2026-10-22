@@ -571,14 +571,14 @@ class Operator2d(GenericEntityOp):
                     value=abs(placed[axis] - origin[axis]),
                 )
 
-    def state_value_anchors(self, context: Context, values, count: int):
-        """Where this state's value boxes go, in world space.
+    def state_value_spans(self, context: Context, values, count: int):
+        """The stretch each of this state's value boxes measures, in world space.
 
-        One box sits in the middle of what is being drawn: halfway along a
-        segment, halfway out a radius. Several boxes are one per axis, and each
-        goes on the leg its component spans, so a rectangle's width reads
-        against its horizontal edge and its height against the vertical one,
-        the way a CAD sketcher shows them.
+        One box spans what is being drawn: the segment from the last point to
+        the one being placed. Several boxes are one per axis, and each spans the
+        leg its component covers, so a rectangle's width is dimensioned along
+        its horizontal edge and its height along the vertical one, the way a CAD
+        sketcher shows them.
         """
         sketch = self.sketch
         if sketch is None or getattr(sketch, "target_object", None) is None:
@@ -591,22 +591,25 @@ class Operator2d(GenericEntityOp):
 
         to_world = sketch.world_matrix
 
-        if count < 2 or start is None or end is None:
-            # Nothing to spread along: every box shares the one place there is.
-            points = [point for point in (start, end) if point is not None]
-            middle = to_world @ (sum(points, Vector()) / len(points))
-            return [middle] * count
+        if start is None or end is None:
+            # A lone point, or a number with no second point to measure to:
+            # there is no stretch, so every box sits on the one place there is.
+            point = to_world @ (start if start is not None else end)
+            return [(point, point)] * count
+
+        if count < 2:
+            return [(to_world @ start, to_world @ end)]
 
         # Walk from start to end one axis at a time; each leg is the stretch
-        # that component measures, and its box sits halfway along it.
-        anchors = []
+        # that component measures.
+        spans = []
         corner = start.copy()
         for axis in range(min(count, len(start))):
             moved = corner.copy()
             moved[axis] = end[axis]
-            anchors.append(to_world @ ((corner + moved) / 2))
+            spans.append((to_world @ corner, to_world @ moved))
             corner = moved
-        return anchors
+        return spans
 
     @staticmethod
     def _live_point_co(values):

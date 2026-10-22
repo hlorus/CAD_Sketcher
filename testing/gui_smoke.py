@@ -599,33 +599,39 @@ def main():
             sketch_ref.set_active_sketch(context, None)
             _redraw()
 
-        @_check("state value boxes drawn")
+        @_check("live dimensions drawn")
         def _():
             from mathutils import Vector
 
             global_data = importlib.import_module(f"{TARGET}.global_data")
             region = _view3d_context()["region"]
+            spot = Vector((120, 90))
             edge = Vector((region.width + 50, region.height + 50))
             try:
                 for boxes in (
-                    # One plain value, as dragging shows it.
-                    (("50 mm", Vector((120, 90)), False),),
-                    # A focused box and an unfocused one, as typing shows them.
+                    # A stretch with no length: only its value is written.
+                    (("50 mm", spot, spot, False),),
+                    # The two legs of a rectangle, the width being typed into.
                     (
-                        ("600", Vector((200, 200)), True),
-                        ("400 mm", Vector((260, 240)), False),
+                        ("600", Vector((200, 200)), Vector((400, 200)), True),
+                        ("400 mm", Vector((400, 200)), Vector((400, 330)), False),
                     ),
+                    # Too short to hold its arrowheads, so they go outside.
+                    (("2 mm", Vector((300, 400)), Vector((320, 400)), False),),
                     # Past the region edge, and two on one spot: both get moved.
                     (
-                        ("600", edge, True),
-                        ("400 mm", Vector((300, 300)), False),
-                        ("2 mm", Vector((300, 300)), False),
+                        ("600", edge, edge, True),
+                        ("400 mm", Vector((300, 300)), Vector((300, 300)), False),
+                        ("2 mm", Vector((300, 300)), Vector((300, 300)), False),
                     ),
                 ):
                     global_data.state_value = (boxes, region.as_pointer())
                     _redraw()
                 # A value belonging to another region is not drawn in this one.
-                global_data.state_value = ((("50 mm", Vector((10, 10)), False),), 0)
+                global_data.state_value = (
+                    (("50 mm", Vector((10, 10)), Vector((90, 10)), False),),
+                    0,
+                )
                 _redraw()
             finally:
                 global_data.state_value = None

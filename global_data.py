@@ -18,7 +18,9 @@ hover_types = None
 
 # The value(s) the running stateful operator is resolving, to show by the
 # geometry they belong to:
-#   (boxes, region pointer) | None,  boxes = ((text, anchor, focused), ...)
+#   (boxes, region pointer) | None,  boxes = ((text, start, end, focused), ...)
+# ``start`` and ``end`` are the ends of the stretch the value measures, already
+# in region pixels, so the draw handler can dimension it.
 # One box while the value is only being dragged, one per component once it is
 # being typed into. The region pointer pins them to the view the mouse is in, so
 # they aren't drawn at the same spot in every other 3D view of the screen.

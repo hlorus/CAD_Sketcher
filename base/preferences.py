@@ -143,10 +143,10 @@ class Preferences(AddonPreferences):
     )
     text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
     show_state_value: BoolProperty(
-        name="Show Value at the Cursor",
+        name="Show Value While Drawing",
         description=(
-            "While a tool is being used, repeat the value it is asking for next "
-            "to the cursor, as well as in the status bar"
+            "While a tool is being used, show the value it is asking for as a "
+            "dimension on the geometry being drawn, as well as in the status bar"
         ),
         default=True,
     )

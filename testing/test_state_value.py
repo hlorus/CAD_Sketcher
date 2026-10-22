@@ -105,7 +105,7 @@ class TestStateValuePublish(Sketch2dTestCase):
         op._numeric = SimpleNamespace(is_active=False, current="")
         op._status_value = "50 mm"
         op._status_values = (Vector((0.0, 0.0)),)
-        return op
+        return _stub_rna(op)
 
     def _publish(self, op, region=_NO_REGION):
         stub = _Region()
@@ -120,23 +120,26 @@ class TestStateValuePublish(Sketch2dTestCase):
         StatefulOperatorLogic._publish_state_value(op, ctx)
         return global_data.state_value
 
-    def test_one_box_is_published_while_dragging(self):
+    def test_a_box_is_published_while_dragging(self):
         region, rv3d = _view3d()
         if region is None:
             self.skipTest("no 3D viewport in this Blender")
         boxes, region_ptr = self._publish(self._op())
         self.assertEqual(region_ptr, region.as_pointer())
-        self.assertEqual(len(boxes), 1)
-        text, coords, focused = boxes[0]
-        self.assertEqual(text, "50 mm")
+        # The circle's centre state is a coordinate, so it reads one per axis.
+        self.assertEqual(len(boxes), 2)
+        text, start, end, focused = boxes[0]
+        self.assertTrue(text)
         self.assertFalse(focused, "nothing has focus until it is typed into")
-        # The anchor is the geometry's world point projected into the region.
+        # Both ends of the stretch are the geometry's world points projected
+        # into the region; the first point has no stretch, so they coincide.
         from bpy_extras.view3d_utils import location_3d_to_region_2d
 
         expected = location_3d_to_region_2d(
             region, rv3d, self.sketch.world_matrix @ Vector((0.0, 0.0, 0.0))
         )
-        self.assertEqual(tuple(coords), tuple(expected))
+        self.assertEqual(tuple(start), tuple(expected))
+        self.assertEqual(tuple(end), tuple(expected))
 
     def test_nothing_is_published_without_an_anchor(self):
         op = self._op()
@@ -152,20 +155,22 @@ class TestStateValuePublish(Sketch2dTestCase):
         _stub_rna(op)
         boxes, _ = self._publish(op)
         self.assertEqual(boxes[0][0], "12")
-        self.assertTrue(boxes[0][2])
+        self.assertTrue(boxes[0][3])
 
     def test_nothing_is_published_without_a_value(self):
         op = self._op()
         op._status_value = None
+        op._status_values = ()
         self.assertIsNone(self._publish(op))
 
     def test_nothing_is_published_outside_a_region(self):
         self.assertIsNone(self._publish(self._op(), region=None))
 
     def test_a_stale_value_is_dropped(self):
-        global_data.state_value = ("old", Vector((0, 0)), 1)
+        global_data.state_value = ((("old", Vector((0, 0)), Vector((0, 0)), False),), 1)
         op = self._op()
         op._status_value = ""
+        op._status_values = ()
         self.assertIsNone(self._publish(op))
 
     def test_the_preference_turns_it_off(self):
@@ -177,8 +182,8 @@ class TestStateValuePublish(Sketch2dTestCase):
         self.assertIsNone(self._publish(self._op()))
 
 
-class TestStateValueAnchor(Sketch2dTestCase):
-    """Where a 2D tool puts a single box: on the thing it is drawing."""
+class TestStateValueSpan(Sketch2dTestCase):
+    """What a 2D tool says each value measures: a stretch of what it is drawing."""
 
     def _line_op(self):
         from ..operators.add_line_2d import View3D_OT_slvs_add_line2d
@@ -187,44 +192,50 @@ class TestStateValueAnchor(Sketch2dTestCase):
         harness.op._numeric = SimpleNamespace(is_active=False, current="")
         return harness
 
-    def _only_anchor(self, op, values):
-        anchors = op.state_value_anchors(self.context, values, 1)
-        self.assertEqual(len(anchors), 1)
-        return anchors[0]
+    def _only_span(self, op, values):
+        spans = op.state_value_spans(self.context, values, 1)
+        self.assertEqual(len(spans), 1)
+        return spans[0]
 
     def _world(self, local):
         return self.sketch.world_matrix @ Vector(local).to_3d()
 
-    def test_the_first_point_anchors_on_itself(self):
-        op = self._line_op().op
-        anchor = self._only_anchor(op, [Vector((2.0, 1.0))])
-        self.assertAlmostEqual((anchor - self._world((2.0, 1.0))).length, 0.0, places=5)
+    def _assert_at(self, point, local):
+        self.assertAlmostEqual((point - self._world(local)).length, 0.0, places=5)
 
-    def test_a_segment_anchors_halfway_along_it(self):
+    def test_the_first_point_has_no_stretch(self):
+        op = self._line_op().op
+        start, end = self._only_span(op, [Vector((2.0, 1.0))])
+        self._assert_at(start, (2.0, 1.0))
+        self.assertEqual(tuple(start), tuple(end))
+
+    def test_a_segment_spans_from_its_last_point(self):
         harness = self._line_op()
         harness.place_point((0.0, 0.0))
         harness.op.redo_states(self.context)
-        anchor = self._only_anchor(harness.op, [Vector((4.0, 0.0))])
-        self.assertAlmostEqual((anchor - self._world((2.0, 0.0))).length, 0.0, places=5)
+        start, end = self._only_span(harness.op, [Vector((4.0, 0.0))])
+        self._assert_at(start, (0.0, 0.0))
+        self._assert_at(end, (4.0, 0.0))
 
-    def test_a_number_state_anchors_on_the_point_before_it(self):
+    def test_a_number_state_sits_on_the_point_before_it(self):
         from ..operators.add_circle import View3D_OT_slvs_add_circle2d
 
         harness = OpHarness(View3D_OT_slvs_add_circle2d, self.sketch, self.context)
         harness.place_point((1.0, 2.0))
         harness.op.redo_states(self.context)
-        # The radius state carries a float, so there is no live point to average.
-        anchor = self._only_anchor(harness.op, [0.5])
-        self.assertAlmostEqual((anchor - self._world((1.0, 2.0))).length, 0.0, places=5)
+        # The radius state carries a float, so there is no stretch to show.
+        start, end = self._only_span(harness.op, [0.5])
+        self._assert_at(start, (1.0, 2.0))
+        self.assertEqual(tuple(start), tuple(end))
 
-    def test_no_sketch_means_no_anchor(self):
+    def test_no_sketch_means_no_span(self):
         op = self._line_op().op
         op._active_sketch = None
         from ..model.sketch_ref import set_active_sketch
 
         set_active_sketch(self.context, None)
         self.assertEqual(
-            op.state_value_anchors(self.context, [Vector((1.0, 1.0))], 1), []
+            op.state_value_spans(self.context, [Vector((1.0, 1.0))], 1), []
         )
 
 
@@ -270,15 +281,16 @@ class TestValueBoxes(Sketch2dTestCase):
         harness.op._status_value = harness.op._format_values(harness.op._status_values)
         return harness.op
 
-    def test_dragging_shows_one_text_and_no_focus(self):
+    def test_dragging_reads_one_value_per_axis_with_no_focus(self):
         op = self._rect_op()
         op._numeric = SimpleNamespace(is_active=False)
         texts, focused = op._state_value_texts()
         # Measured from the first corner: the rectangle is 0.6 by 0.4, not a
-        # corner at (0.3, 0.2).
-        self.assertEqual(len(texts), 1)
+        # corner at (0.3, 0.2). Each axis is dimensioned on its own edge, so
+        # each gets its own text even before anything is typed.
+        self.assertEqual(len(texts), 2)
         self.assertIn("0.6", texts[0])
-        self.assertIn("0.4", texts[0])
+        self.assertIn("0.4", texts[1])
         self.assertEqual(focused, -1)
 
     def test_typing_splits_the_value_per_axis(self):
@@ -297,31 +309,48 @@ class TestValueBoxes(Sketch2dTestCase):
         op._numeric = _Numeric(typed={0: "600"}, count=2, focused=1)
         self.assertEqual(op._state_value_texts()[1], 1)
 
-    def test_each_axis_box_sits_on_the_leg_it_measures(self):
+    def test_each_axis_spans_the_leg_it_measures(self):
         op = self._rect_op()
-        anchors = op.state_value_anchors(self.context, (Vector((0.3, 0.2)),), 2)
-        self.assertEqual(len(anchors), 2)
+        spans = op.state_value_spans(self.context, (Vector((0.3, 0.2)),), 2)
+        self.assertEqual(len(spans), 2)
         matrix = self.sketch.world_matrix
-        # Width against the horizontal edge, height against the vertical one.
-        expected_x = matrix @ Vector((0.0, -0.2, 0.0))
-        expected_y = matrix @ Vector((0.3, 0.0, 0.0))
-        self.assertAlmostEqual((anchors[0] - expected_x).length, 0.0, places=5)
-        self.assertAlmostEqual((anchors[1] - expected_y).length, 0.0, places=5)
 
-    def test_one_box_still_sits_in_the_middle(self):
+        def corners(span):
+            return [tuple(round(v, 5) for v in point) for point in span]
+
+        # Width along the horizontal edge, height along the vertical one, the
+        # two legs meeting at the corner between them.
+        expected_x = [
+            matrix @ Vector((-0.3, -0.2, 0.0)),
+            matrix @ Vector((0.3, -0.2, 0.0)),
+        ]
+        expected_y = [
+            matrix @ Vector((0.3, -0.2, 0.0)),
+            matrix @ Vector((0.3, 0.2, 0.0)),
+        ]
+        self.assertEqual(corners(spans[0]), corners(expected_x))
+        self.assertEqual(corners(spans[1]), corners(expected_y))
+
+    def test_a_single_value_spans_the_whole_segment(self):
         op = self._rect_op()
-        anchors = op.state_value_anchors(self.context, (Vector((0.3, 0.2)),), 1)
-        expected = self.sketch.world_matrix @ Vector((0.0, 0.0, 0.0))
-        self.assertAlmostEqual((anchors[0] - expected).length, 0.0, places=5)
+        ((start, end),) = op.state_value_spans(self.context, (Vector((0.3, 0.2)),), 1)
+        matrix = self.sketch.world_matrix
+        self.assertAlmostEqual(
+            (start - matrix @ Vector((-0.3, -0.2, 0.0))).length, 0.0, places=5
+        )
+        self.assertAlmostEqual(
+            (end - matrix @ Vector((0.3, 0.2, 0.0))).length, 0.0, places=5
+        )
 
-    def test_boxes_stack_on_one_point_when_there_is_no_leg(self):
+    def test_values_share_one_point_when_there_is_no_leg(self):
         from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
 
         op = OpHarness(View3D_OT_slvs_add_rectangle, self.sketch, self.context).op
-        # The very first point has nothing to span, so both boxes share it.
-        anchors = op.state_value_anchors(self.context, (Vector((1.0, 2.0)),), 2)
-        self.assertEqual(len(anchors), 2)
-        self.assertEqual(tuple(anchors[0]), tuple(anchors[1]))
+        # The very first point has nothing to span, so both sit on it.
+        spans = op.state_value_spans(self.context, (Vector((1.0, 2.0)),), 2)
+        self.assertEqual(len(spans), 2)
+        self.assertEqual(tuple(spans[0][0]), tuple(spans[0][1]))
+        self.assertEqual(tuple(spans[0]), tuple(spans[1]))
 
 
 class TestTypedDimensions(Sketch2dTestCase):
@@ -368,3 +397,58 @@ class TestTypedDimensions(Sketch2dTestCase):
         self.assertTrue(solve_system(self.context, sketch=self.sketch))
         dims = self._dimensions()
         self.assertFalse(any(d.failed for d in dims), [d.failed for d in dims])
+
+
+class TestDimensionShape(Sketch2dTestCase):
+    """The live value is drawn as a dimension on the stretch it measures."""
+
+    def _normal(self, start, end, away_from):
+        from ..draw_handler import _dimension_normal
+
+        return _dimension_normal(Vector(start), Vector(end), Vector(away_from))
+
+    def _shape(self, start, end, normal, height=10.0):
+        from ..draw_handler import _dimension_shape
+
+        return _dimension_shape(Vector(start), Vector(end), Vector(normal), height)
+
+    def test_the_dimension_line_goes_on_the_outer_side(self):
+        # The bottom edge of a rectangle whose middle is above it: the
+        # dimension belongs below, clear of the face.
+        normal = self._normal((0, 0), (100, 0), (50, 60))
+        self.assertAlmostEqual(normal.y, -1.0, places=5)
+
+    def test_a_lone_stretch_is_dimensioned_above_itself(self):
+        normal = self._normal((0, 0), (100, 0), (50, 0))
+        self.assertAlmostEqual(normal.y, 1.0, places=5)
+
+    def test_the_dimension_line_clears_the_geometry(self):
+        leader, witness = self._shape((0, 0), (100, 0), (0, 1))
+        # Every drawn point sits off the stretch, on the normal's side.
+        self.assertTrue(all(point.y > 0 for point in leader), leader)
+        # Extension lines run from just off the ends out past the line.
+        starts = [point.y for point in witness[0::2]]
+        ends = [point.y for point in witness[1::2]]
+        self.assertTrue(all(0 < y < 16 for y in starts), starts)
+        self.assertTrue(all(y > 16 for y in ends), ends)
+        self.assertEqual(
+            [round(point.x, 5) for point in witness], [0.0, 0.0, 100.0, 100.0]
+        )
+
+    def test_arrowheads_turn_outwards_on_a_short_stretch(self):
+        height = 10.0
+        long_leader, _ = self._shape((0, 0), (100, 0), (0, 1), height)
+        short_leader, _ = self._shape((0, 0), (15, 0), (0, 1), height)
+        # Long enough: the arrows are inside, so nothing is drawn past the ends.
+        self.assertTrue(all(0 <= point.x <= 100 for point in long_leader))
+        # Too short: they are drawn beyond them instead, and the dimension
+        # line is extended out to meet them.
+        self.assertTrue(any(point.x < 0 for point in short_leader), short_leader)
+        self.assertTrue(any(point.x > 15 for point in short_leader), short_leader)
+
+    def test_the_shape_is_pairs_of_points(self):
+        leader, witness = self._shape((0, 0), (100, 0), (0, 1))
+        # Drawn as LINES, so each pair of points is one segment.
+        self.assertEqual(len(leader) % 2, 0)
+        self.assertEqual(len(witness), 4)
+        self.assertTrue(all(len(point) == 3 for point in leader + witness))

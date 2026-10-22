@@ -223,6 +223,18 @@ _BOX_GAP = 0.7
 _BOX_PADDING = 0.35
 _BOX_STEP = 1.9
 
+# The live dimension drawn along the stretch a value measures, in text heights:
+# how far off the geometry the dimension line sits, where an extension line
+# starts and ends, and the size of an arrowhead.
+_DIM_OFFSET = 1.6
+_WITNESS_GAP = 0.4
+_WITNESS_OVERSHOOT = 0.5
+_ARROW_LENGTH = 0.9
+_ARROW_WIDTH = 0.5
+# A stretch shorter than this many pixels leaves no room to dimension it, so
+# only its value is written there.
+_MIN_SPAN = 14.0
+
 
 def _box_rect(x, y, width, height, pad):
     """The four corners of a value box, as a screen-space rectangle."""
@@ -246,14 +258,95 @@ def _draw_box(rect, fill, border):
     gpu.state.blend_set("NONE")
 
 
+def _draw_pixel_lines(region, coords, color, width):
+    """Draw screen-space ``LINES`` at a given pixel width.
+
+    The same polyline shader the dimension gizmos use, because
+    ``line_width_set`` alone is ignored on some backends.
+    """
+    if len(coords) < 2:
+        return
+    shader = Shaders.polyline_color_3d()
+    batch = batch_for_shader(
+        shader, "LINES", {"pos": [(point[0], point[1], 0.0) for point in coords]}
+    )
+    gpu.state.blend_set("ALPHA")
+    shader.bind()
+    shader.uniform_float("color", color)
+    gpu.state.line_width_set(width)
+    if bpy.app.version >= (4, 5):
+        shader.uniform_float("viewportSize", (region.width, region.height))
+        shader.uniform_float("lineWidth", width)
+    batch.draw(shader)
+    gpu.shader.unbind()
+    gpu.state.line_width_set(1.0)
+    gpu.state.blend_set("NONE")
+
+
+def _dimension_normal(start, end, away_from):
+    """The side of a stretch its dimension line goes on, as a unit vector.
+
+    Away from the middle of everything being drawn, so a rectangle dimensions
+    its width below itself and its height beside itself rather than across its
+    own face. With nothing to be away from, it goes above the stretch.
+    """
+    direction = (end - start).normalized()
+    normal = Vector((-direction.y, direction.x))
+    inward = away_from - (start + end) / 2
+    if inward.length_squared > 1e-9:
+        return -normal if normal.dot(inward) > 0 else normal
+    return normal if (normal.y, normal.x) > (0.0, 0.0) else -normal
+
+
+def _dimension_shape(start, end, normal, height):
+    """A stretch's dimension line, arrowheads and extension lines, in pixels.
+
+    Built from the same helper the distance gizmo draws its arrows with, so a
+    value being dragged looks like the dimension it can become.
+    """
+    from .gizmos.utilities import draw_arrow_shape
+
+    direction = (end - start).normalized()
+    offset = normal * (height * _DIM_OFFSET)
+    tip_1, tip_2 = (start + offset).to_3d(), (end + offset).to_3d()
+
+    arrow = height * _ARROW_LENGTH
+    width = height * _ARROW_WIDTH
+    # Arrowheads point inwards, unless the stretch is too short to hold them.
+    step = (direction * arrow).to_3d()
+    if (tip_2 - tip_1).length < arrow * 3:
+        step = -step
+
+    leader = [
+        *draw_arrow_shape(tip_1, tip_1 + step, width, is_3d=True),
+        tip_1,
+        tip_2,
+        *draw_arrow_shape(tip_2, tip_2 - step, width, is_3d=True),
+    ]
+    if step.dot(tip_2 - tip_1) < 0:
+        # Arrows sit outside: run the dimension line out to meet them.
+        leader += [tip_1, tip_1 + step, tip_2, tip_2 - step]
+
+    gap = normal * (height * _WITNESS_GAP)
+    over = normal * (height * (_DIM_OFFSET + _WITNESS_OVERSHOOT))
+    witness = [
+        (start + gap).to_3d(),
+        (start + over).to_3d(),
+        (end + gap).to_3d(),
+        (end + over).to_3d(),
+    ]
+    return leader, witness
+
+
 def draw_state_value():
-    """POST_PIXEL: show the running tool's live value on the geometry it sizes.
+    """POST_PIXEL: dimension the stretch the running tool's live value measures.
 
     The same numbers are in the status bar, but the eye is on what is being
     drawn rather than on the bottom of the window, so they are shown again
-    where the work is. Dragging shows one plain number; typing turns them into
-    a box per axis, the focused one outlined, each against the stretch it
-    measures. The operator publishes them (see
+    where the work is. Each value is drawn as a dimension on the leg it
+    measures, with the dimension line, arrowheads and extension lines a
+    finished dimension has, and the one being typed into is boxed. The
+    operator publishes them (see
     ``StatefulOperatorLogic._publish_state_value``) along with the region the
     mouse was in, so they are not drawn in every other 3D view at once.
     """
@@ -266,27 +359,43 @@ def draw_state_value():
         return
 
     from .drawing import frame_cache
-    from .gizmos.utilities import Color
+    from .gizmos.utilities import Color, dimension_line_widths
 
     size = frame_cache.text_size() * frame_cache.ui_scale(bpy.context)
     blf.size(_FONT_ID, size)
     text_color = frame_cache.constraint_color(Color.Text, False)
     focus_color = frame_cache.constraint_color(Color.Text, True)
+    leader_width, witness_width = dimension_line_widths()
+
+    # The middle of everything on screen, so each dimension goes on the outside.
+    ends = [point for _text, p1, p2, _focused in boxes for point in (p1, p2)]
+    middle = sum(ends, Vector((0.0, 0.0))) / len(ends)
 
     drawn = []
-    for text, coords, focused in boxes:
+    for text, p1, p2, focused in boxes:
         if not text:
             continue
         width, height = blf.dimensions(_FONT_ID, text)
         gap = height * _BOX_GAP
         pad = height * _BOX_PADDING
+        color = focus_color if focused else text_color
 
-        # Up and to the right of the anchor, pulled back inside the region when
-        # that would put it past an edge, and stepped down off any box already
-        # drawn on top of it.
-        x = min(coords.x + gap, region.width - width - gap)
-        y = min(coords.y + gap, region.height - height - gap)
-        x, y = max(gap, x), max(gap, y)
+        if (p2 - p1).length >= _MIN_SPAN:
+            normal = _dimension_normal(p1, p2, middle)
+            leader, witness = _dimension_shape(p1, p2, normal, height)
+            _draw_pixel_lines(region, witness, color, witness_width)
+            _draw_pixel_lines(region, leader, color, leader_width)
+            # Centred just beyond the dimension line, where a label sits.
+            centre = (p1 + p2) / 2 + normal * (height * (_DIM_OFFSET + 0.9))
+            x, y = centre.x - width / 2, centre.y - height / 2
+        else:
+            # No stretch to dimension: the value goes up and to the right of it.
+            x, y = p1.x + gap, p1.y + gap
+
+        # Pulled back inside the region when that would put it past an edge,
+        # and stepped down off any box already drawn on top of it.
+        x = min(max(gap, x), region.width - width - gap)
+        y = min(max(gap, y), region.height - height - gap)
         while any(
             abs(x - other_x) < width + pad and abs(y - other_y) < height * _BOX_STEP
             for other_x, other_y in drawn
@@ -296,7 +405,7 @@ def draw_state_value():
 
         if focused:
             _draw_box(_box_rect(x, y, width, height, pad), (0, 0, 0, 0.6), focus_color)
-        blf.color(_FONT_ID, *(focus_color if focused else text_color))
+        blf.color(_FONT_ID, *color)
         blf.position(_FONT_ID, x, y, 0.0)
         blf.draw(_FONT_ID, text)
 

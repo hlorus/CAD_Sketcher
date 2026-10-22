@@ -65,7 +65,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
     # Formatted live value of the current state, shown in the status bar.
     _status_value = None
     # The resolved values behind _status_value, which the value boxes are
-    # placed from (see state_value_anchors).
+    # placed from (see state_value_spans).
     _status_values = ()
     # The point this state's value is measured from, when it has one.
     _status_origin = None
@@ -197,13 +197,18 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """
         return None
 
-    def state_value_anchors(self, context: Context, values, count: int):
-        """World points to draw this state's ``count`` value boxes beside.
+    def state_value_spans(self, context: Context, values, count: int):
+        """The stretch each of this state's ``count`` values measures.
+
+        One ``(start, end)`` pair of world points per box: the leg the value is
+        the length of, which is drawn as a dimension line with arrowheads and
+        extension lines, the way a finished dimension is. A pair with both ends
+        the same has no length to show, and its value is just written there.
 
         ``count`` is 1 while the value is only being dragged, and the number of
         components once each is being typed separately. The framework has no
-        idea where an operator's geometry is, so it offers nowhere; a subclass
-        that does knows overrides this (see ``Operator2d``). A list shorter than
+        idea where an operator's geometry is, so it offers nothing; a subclass
+        that does know overrides this (see ``Operator2d``). A list shorter than
         ``count`` draws nothing.
         """
         return []
@@ -211,11 +216,16 @@ class StatefulOperatorLogic(_StateMachineMixin):
     def _state_value_texts(self):
         """The text for each box, and which one has focus.
 
-        Dragging shows the one resolved value. Typing splits it per component:
-        the ones typed into show what was typed, the rest keep following the
-        mouse, which is what makes "type the width, tab, drag the height" work.
+        One text per number the state resolves to, so each is dimensioned
+        against the stretch it measures: a rectangle reads its width along one
+        edge and its height along the other, dragged or not. Typing replaces
+        the ones typed into and leaves the rest following the mouse, which is
+        what makes "type the width, tab, drag the height" work.
         """
         if not self._numeric.is_active:
+            texts = self._value_texts(self._status_values)
+            if any(texts):
+                return texts, -1
             return ([self._status_value], -1) if self._status_value else ([], -1)
 
         count = max(1, self._numeric.substate_count or 1)
@@ -251,19 +261,22 @@ class StatefulOperatorLogic(_StateMachineMixin):
             global_data.state_value = None
             return
 
-        anchors = self.state_value_anchors(context, self._status_values, len(texts))
-        if len(anchors) < len(texts):
+        spans = self.state_value_spans(context, self._status_values, len(texts))
+        if len(spans) < len(texts):
             global_data.state_value = None
             return
 
         boxes = []
         for index, text in enumerate(texts):
-            coords = location_3d_to_region_2d(region, region_data, anchors[index])
-            if coords is None:
+            ends = [
+                location_3d_to_region_2d(region, region_data, point)
+                for point in spans[index]
+            ]
+            if any(end is None for end in ends):
                 # Behind the viewer in a perspective view.
                 global_data.state_value = None
                 return
-            boxes.append((str(text), coords, index == focused))
+            boxes.append((str(text), ends[0], ends[1], index == focused))
 
         global_data.state_value = (tuple(boxes), region.as_pointer())
 
