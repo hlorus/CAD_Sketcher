@@ -33,13 +33,11 @@ from .workplane import SlvsWorkplane
 logger = logging.getLogger(__name__)
 
 
-def get_side_of_line(line_start, line_end, point):
-    line_end = line_end - line_start
-    point = point - line_start
-    return -(
-        (line_end.x - line_start.x) * (point.y - line_start.y)
-        - (line_end.y - line_start.y) * (point.x - line_start.x)
-    )
+def get_side_of_line(line_start: Vector, line_end: Vector, point: Vector) -> float:
+    """Return the signed XY side, independent of the line's position."""
+    direction = line_end - line_start
+    offset = point - line_start
+    return -(direction.x * offset.y - direction.y * offset.x)
 
 
 def _get_aligned_distance(p_1, p_2, alignment):
