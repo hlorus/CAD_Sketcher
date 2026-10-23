@@ -298,6 +298,25 @@ def _dimension_normal(start, end, away_from):
     return normal if (normal.y, normal.x) > (0.0, 0.0) else -normal
 
 
+def live_dimension_text_height(context: Context) -> float:
+    """Height in pixels of the text a live dimension is labelled with."""
+    from .drawing import frame_cache
+
+    # The interface scale reads as zero with no interface at all.
+    blf.size(_FONT_ID, frame_cache.text_size() * (frame_cache.ui_scale(context) or 1.0))
+    return blf.dimensions(_FONT_ID, "0")[1]
+
+
+def live_dimension_placement(start, end, away_from, height):
+    """Where a live dimension sits: a unit normal, and pixels along it.
+
+    Shared so a dimension created on commit can be placed where its preview was
+    drawn, rather than at the default offset (see
+    ``Operator2d._place_dimension``).
+    """
+    return _dimension_normal(start, end, away_from), height * _DIM_OFFSET
+
+
 def _dimension_shape(start, end, normal, height):
     """A stretch's dimension line, arrowheads and extension lines, in pixels.
 

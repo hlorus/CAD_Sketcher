@@ -3,6 +3,7 @@ from typing import Any, List
 import bpy
 from bpy.props import StringProperty
 from bpy.types import Context, Event
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 from mathutils import Vector
 
 from ..model.curve_ref import CurveRef, PointRef, curve_ref
@@ -11,6 +12,27 @@ from ..utilities.view import get_blender_snap_info, get_pos_2d, get_scale_from_p
 from .base_stateful import GenericEntityOp
 from .placement import MIDPOINT, PointPlacement, ProjectionRequest, placement_of
 from .utilities import ignore_hover
+
+
+def _view_region(context: Context):
+    """The 3D view the tool was drawn in, as ``(region, region_data)``.
+
+    Normally the running context's own, but a re-run from the redo panel has
+    that panel's region instead, and a dimension placed from it would jump. So
+    the screen's first 3D view stands in, keeping the placement put.
+    """
+    area = getattr(context, "area", None)
+    if area is not None and area.type == "VIEW_3D" and context.region_data is not None:
+        return context.region, context.region_data
+
+    screen = getattr(context, "screen", None)
+    for other in getattr(screen, "areas", ()):
+        if other.type != "VIEW_3D":
+            continue
+        for region in other.regions:
+            if region.type == "WINDOW":
+                return region, other.spaces.active.region_3d
+    return None, None
 
 
 class Operator2d(GenericEntityOp):
@@ -560,16 +582,90 @@ class Operator2d(GenericEntityOp):
             if origin is None or placed is None:
                 continue
 
+            to_world = sketch.world_matrix
+            legs = [
+                (to_world @ a, to_world @ b)
+                for a, b in self._axis_legs(origin, placed, len(typed))
+            ]
             for axis, number in enumerate(typed):
                 if number is None or axis >= len(self._COMPONENT_ALIGNMENT):
                     continue
-                sketch.constraints.add_distance(
+                constraint = sketch.constraints.add_distance(
                     init=True,
                     curve_id_1=start,
                     curve_id_2=end,
                     align=self._COMPONENT_ALIGNMENT[axis],
                     value=abs(placed[axis] - origin[axis]),
                 )
+                if axis < len(legs):
+                    self._place_dimension(context, constraint, legs, axis)
+
+    def _place_dimension(self, context: Context, constraint, legs, axis: int) -> None:
+        """Put a committed dimension where its preview sat while being drawn.
+
+        The preview is drawn a set number of pixels off the leg it measures,
+        on the side away from the rest of the geometry, while ``draw_offset``
+        is a signed length in the dimension's own frame. So the same placement
+        is worked out in pixels and converted back at the leg's own depth,
+        rather than letting the new dimension default to the middle of it.
+        """
+        from ..draw_handler import live_dimension_placement, live_dimension_text_height
+
+        region, region_data = _view_region(context)
+        if region is None or region_data is None:
+            return
+
+        screen = [
+            [location_3d_to_region_2d(region, region_data, point) for point in leg]
+            for leg in legs
+        ]
+        if any(point is None for leg in screen for point in leg):
+            return
+        ends = [point for leg in screen for point in leg]
+        middle = sum(ends, Vector((0.0, 0.0))) / len(ends)
+        normal, pixels = live_dimension_placement(
+            *screen[axis], middle, live_dimension_text_height(context)
+        )
+
+        # How far a step along the dimension's own offset axis reaches on
+        # screen, which is what turns those pixels back into a length.
+        basis = constraint.matrix_basis()
+        origin = basis.translation
+        offset_axis = basis.col[1].to_3d().normalized()
+        # Measured at the leg, because that is where the pixels were counted.
+        middle = (legs[axis][0] + legs[axis][1]) / 2
+        stepped = location_3d_to_region_2d(region, region_data, middle + offset_axis)
+        if stepped is None:
+            return
+        step = stepped - location_3d_to_region_2d(region, region_data, middle)
+        if step.length < 1e-6:
+            return
+        side = 1.0 if step.dot(normal) >= 0 else -1.0
+
+        # The dimension measures between two points that need not be on the leg
+        # (a rectangle's width is held between opposite corners), so the offset
+        # runs from its own origin out to where the preview line was.
+        reach = (middle - origin).dot(offset_axis) + side * pixels / step.length
+
+        # In a perspective view the pixels a world offset buys change along the
+        # way, so the guess is measured where it lands and corrected until the
+        # line is where the preview drew it, to well under a pixel.
+        screen_middle = location_3d_to_region_2d(region, region_data, middle)
+        for _pass in range(3):
+            landed = location_3d_to_region_2d(
+                region, region_data, origin + offset_axis * reach
+            )
+            if landed is None:
+                break
+            short = pixels - (landed - screen_middle).dot(normal)
+            if abs(short) < 0.01:
+                break
+            reach += side * short / step.length
+
+        # The dimension frame is scaled by the interface scale, which reads as
+        # zero when there is no interface at all (a background run).
+        ui_scale = context.preferences.system.ui_scale or 1.0
+        constraint.draw_offset = reach / ui_scale
 
     def state_value_spans(self, context: Context, values, count: int):
         """The stretch each of this state's value boxes measures, in world space.
@@ -600,16 +696,25 @@ class Operator2d(GenericEntityOp):
         if count < 2:
             return [(to_world @ start, to_world @ end)]
 
-        # Walk from start to end one axis at a time; each leg is the stretch
-        # that component measures.
-        spans = []
+        return [
+            (to_world @ a, to_world @ b) for a, b in self._axis_legs(start, end, count)
+        ]
+
+    @staticmethod
+    def _axis_legs(start, end, count: int):
+        """Walk from start to end one axis at a time, in sketch coordinates.
+
+        Each leg is the stretch one component of the placed point measures: a
+        rectangle's width along the bottom, then its height up the side.
+        """
+        legs = []
         corner = start.copy()
         for axis in range(min(count, len(start))):
             moved = corner.copy()
             moved[axis] = end[axis]
-            spans.append((to_world @ corner, to_world @ moved))
+            legs.append((corner, moved))
             corner = moved
-        return spans
+        return legs
 
     @staticmethod
     def _live_point_co(values):

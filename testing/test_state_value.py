@@ -390,6 +390,96 @@ class TestTypedDimensions(Sketch2dTestCase):
         self._rectangle([None, None])
         self.assertEqual(self._dimensions(), [])
 
+    def _place(self, op, dims, start=(0.0, 0.0), end=(0.6, 0.4)):
+        """Place the created dimensions against a real view, as a commit does."""
+        region, rv3d = _view3d()
+        if region is None:
+            self.skipTest("no 3D viewport in this Blender")
+        matrix = self.sketch.world_matrix
+        legs = [
+            (matrix @ a, matrix @ b)
+            for a, b in op._axis_legs(Vector(start).to_3d(), Vector(end).to_3d(), 2)
+        ]
+        ctx = SimpleNamespace(
+            region=region,
+            region_data=rv3d,
+            preferences=self.context.preferences,
+        )
+        by_align = {d.align: d for d in dims}
+        for axis, align in enumerate(("HORIZONTAL", "VERTICAL")):
+            op._place_dimension(ctx, by_align[align], legs, axis)
+        return legs, by_align
+
+    def test_a_dimension_is_placed_where_its_preview_was_drawn(self):
+        op = self._rectangle([0.6, 0.4])
+        legs, by_align = self._place(op, self._dimensions())
+        matrix = self.sketch.world_matrix
+        middle = matrix @ Vector((0.3, 0.2, 0.0))
+        ui_scale = self.context.preferences.system.ui_scale or 1.0
+
+        for axis, align in enumerate(("HORIZONTAL", "VERTICAL")):
+            dim = by_align[align]
+            basis = dim.matrix_basis()
+            offset_axis = basis.col[1].to_3d().normalized()
+            line = basis.translation + offset_axis * dim.draw_offset * ui_scale
+            leg_middle = (legs[axis][0] + legs[axis][1]) / 2
+            # Clear of the leg, on the side away from the rest of the shape,
+            # which is where the preview drew it.
+            self.assertGreater(
+                (line - middle).length,
+                (leg_middle - middle).length,
+                "%s dimension sits inside the rectangle" % align,
+            )
+
+    def test_the_placement_matches_the_pixels_it_was_drawn_at(self):
+        from bpy_extras.view3d_utils import location_3d_to_region_2d
+
+        from ..draw_handler import live_dimension_placement, live_dimension_text_height
+
+        op = self._rectangle([0.6, 0.4])
+        region, rv3d = _view3d()
+        legs, by_align = self._place(op, self._dimensions())
+        ui_scale = self.context.preferences.system.ui_scale or 1.0
+        height = live_dimension_text_height(self.context)
+
+        def to_2d(point):
+            return location_3d_to_region_2d(region, rv3d, point)
+
+        screen = [[to_2d(point) for point in leg] for leg in legs]
+        ends = [point for leg in screen for point in leg]
+        away_from = sum(ends, Vector((0.0, 0.0))) / len(ends)
+
+        for axis, align in enumerate(("HORIZONTAL", "VERTICAL")):
+            dim = by_align[align]
+            basis = dim.matrix_basis()
+            offset_axis = basis.col[1].to_3d().normalized()
+            line = basis.translation + offset_axis * dim.draw_offset * ui_scale
+            normal, pixels = live_dimension_placement(*screen[axis], away_from, height)
+            leg_middle = to_2d((legs[axis][0] + legs[axis][1]) / 2)
+            # The committed dimension line is as far off the leg it measures as
+            # the preview line was: the same line, so the same placement.
+            self.assertAlmostEqual(
+                (to_2d(line) - leg_middle).dot(normal), pixels, delta=0.1
+            )
+
+    def test_a_context_without_a_view_falls_back_to_the_screen(self):
+        from ..operators.base_2d import _view_region
+
+        region, _rv3d = _view3d()
+        if region is None:
+            self.skipTest("no 3D viewport in this Blender")
+        # What a re-run from the redo panel hands it: not a 3D view.
+        found, found_data = _view_region(
+            SimpleNamespace(
+                area=SimpleNamespace(type="PROPERTIES"),
+                region=None,
+                region_data=None,
+                screen=self.context.screen,
+            )
+        )
+        self.assertEqual(found.as_pointer(), region.as_pointer())
+        self.assertIsNotNone(found_data)
+
     def test_the_dimension_holds_when_the_sketch_is_solved(self):
         from ..curve_solver import solve_system
 
