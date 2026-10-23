@@ -1,4 +1,5 @@
 import logging
+from math import cos, sin
 
 import blf
 import bpy
@@ -11,6 +12,7 @@ from mathutils import Matrix, Vector
 from . import global_data
 from .shaders import Shaders
 from .utilities import preferences
+from .utilities.constants import QUARTER_TURN
 from .utilities.preferences import get_prefs
 
 logger = logging.getLogger(__name__)
@@ -222,6 +224,13 @@ def draw_hover_element():
 _BOX_GAP = 0.7
 _BOX_PADDING = 0.35
 _BOX_STEP = 1.9
+# Corner radius of a value box, in text heights, and the segments drawing one.
+_BOX_RADIUS = 0.3
+_BOX_CORNER_STEPS = 4
+# How far a box's fill is taken from the colour the value is written in, and
+# how solid it sits over the viewport.
+_BOX_FILL_MIX = 0.1
+_BOX_FILL_ALPHA = 0.85
 
 # The live dimension drawn along the stretch a value measures, in text heights:
 # how far off the geometry the dimension line sits, where an extension line
@@ -236,23 +245,57 @@ _ARROW_WIDTH = 0.5
 _MIN_SPAN = 14.0
 
 
-def _box_rect(x, y, width, height, pad):
-    """The four corners of a value box, as a screen-space rectangle."""
-    return (
-        (x - pad, y - pad),
-        (x + width + pad, y - pad),
-        (x + width + pad, y + height + pad),
-        (x - pad, y + height + pad),
+def _box_rect(x, y, width, height, pad, radius=0.0):
+    """A value box's outline in screen pixels, with rounded corners.
+
+    Counter-clockwise from the bottom right, so the points serve as both a
+    triangle fan and a line loop.
+    """
+    left, right = x - pad, x + width + pad
+    bottom, top = y - pad, y + height + pad
+    radius = min(radius, (right - left) / 2, (top - bottom) / 2)
+    if radius <= 0:
+        return ((left, bottom), (right, bottom), (right, top), (left, top))
+
+    corners = (
+        (right - radius, bottom + radius, -QUARTER_TURN),
+        (right - radius, top - radius, 0.0),
+        (left + radius, top - radius, QUARTER_TURN),
+        (left + radius, bottom + radius, 2 * QUARTER_TURN),
     )
+    points = []
+    for centre_x, centre_y, start in corners:
+        for step in range(_BOX_CORNER_STEPS + 1):
+            angle = start + QUARTER_TURN * step / _BOX_CORNER_STEPS
+            points.append(
+                (centre_x + radius * cos(angle), centre_y + radius * sin(angle))
+            )
+    return tuple(points)
+
+
+def _box_colors(color):
+    """The fill and border of a value box, from the constraint theme.
+
+    The border is the colour the value is written in; the fill is that colour
+    taken to the far end of its own range, so the number keeps its contrast
+    whatever the viewport is showing and however the theme is set.
+    """
+    luminance = 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
+    if luminance > 0.5:
+        fill = [channel * _BOX_FILL_MIX for channel in color[:3]]
+    else:
+        fill = [1.0 - (1.0 - channel) * _BOX_FILL_MIX for channel in color[:3]]
+    return (*fill, _BOX_FILL_ALPHA), tuple(color)
 
 
 def _draw_box(rect, fill, border):
-    """Fill a value box and outline it."""
+    """Outline a value box, over a fill when it has one."""
     shader = gpu.shader.from_builtin("UNIFORM_COLOR")
     gpu.state.blend_set("ALPHA")
     shader.bind()
-    shader.uniform_float("color", fill)
-    batch_for_shader(shader, "TRI_FAN", {"pos": rect}).draw(shader)
+    if fill is not None:
+        shader.uniform_float("color", fill)
+        batch_for_shader(shader, "TRI_FAN", {"pos": rect}).draw(shader)
     shader.uniform_float("color", border)
     batch_for_shader(shader, "LINE_LOOP", {"pos": rect}).draw(shader)
     gpu.state.blend_set("NONE")
@@ -364,7 +407,8 @@ def draw_state_value():
     drawn rather than on the bottom of the window, so they are shown again
     where the work is. Each value is drawn as a dimension on the leg it
     measures, with the dimension line, arrowheads and extension lines a
-    finished dimension has, and the one being typed into is boxed. The
+    finished dimension has. The value a typed digit would land in is outlined,
+    and filled once it is being typed into. The
     operator publishes them (see
     ``StatefulOperatorLogic._publish_state_value``) along with the region the
     mouse was in, so they are not drawn in every other 3D view at once.
@@ -387,17 +431,17 @@ def draw_state_value():
     leader_width, witness_width = dimension_line_widths()
 
     # The middle of everything on screen, so each dimension goes on the outside.
-    ends = [point for _text, p1, p2, _focused in boxes for point in (p1, p2)]
+    ends = [point for _text, p1, p2, _focus in boxes for point in (p1, p2)]
     middle = sum(ends, Vector((0.0, 0.0))) / len(ends)
 
     drawn = []
-    for text, p1, p2, focused in boxes:
+    for text, p1, p2, focus in boxes:
         if not text:
             continue
         width, height = blf.dimensions(_FONT_ID, text)
         gap = height * _BOX_GAP
         pad = height * _BOX_PADDING
-        color = focus_color if focused else text_color
+        color = focus_color if focus else text_color
 
         if (p2 - p1).length >= _MIN_SPAN:
             normal = _dimension_normal(p1, p2, middle)
@@ -422,8 +466,15 @@ def draw_state_value():
             y -= height * _BOX_STEP
         drawn.append((x, y))
 
-        if focused:
-            _draw_box(_box_rect(x, y, width, height, pad), (0, 0, 0, 0.6), focus_color)
+        if focus:
+            # Outlined to say a value can be typed here, filled once one is
+            # being typed: the box says where the digits go either way.
+            fill, border = _box_colors(color)
+            _draw_box(
+                _box_rect(x, y, width, height, pad, height * _BOX_RADIUS),
+                fill if focus == global_data.BOX_EDITING else None,
+                border,
+            )
         blf.color(_FONT_ID, *color)
         blf.position(_FONT_ID, x, y, 0.0)
         blf.draw(_FONT_ID, text)

@@ -270,6 +270,14 @@ class StatefulOperatorLogic(_StateMachineMixin):
             global_data.state_value = None
             return
 
+        def focus(index: int) -> int:
+            """How a box is drawn: not focused, ready to type into, or typed in."""
+            if index != focused:
+                return global_data.BOX_PLAIN
+            if self._numeric.is_active:
+                return global_data.BOX_EDITING
+            return global_data.BOX_ACTIVE
+
         boxes = []
         for index, text in enumerate(texts):
             ends = [
@@ -280,7 +288,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 # Behind the viewer in a perspective view.
                 global_data.state_value = None
                 return
-            boxes.append((str(text), ends[0], ends[1], index == focused))
+            boxes.append((str(text), ends[0], ends[1], focus(index)))
 
         global_data.state_value = (tuple(boxes), region.as_pointer())
 

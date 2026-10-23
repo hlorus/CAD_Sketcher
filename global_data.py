@@ -18,13 +18,21 @@ hover_types = None
 
 # The value(s) the running stateful operator is resolving, to show by the
 # geometry they belong to:
-#   (boxes, region pointer) | None,  boxes = ((text, start, end, focused), ...)
+#   (boxes, region pointer) | None,  boxes = ((text, start, end, focus), ...)
 # ``start`` and ``end`` are the ends of the stretch the value measures, already
-# in region pixels, so the draw handler can dimension it.
+# in region pixels, so the draw handler can dimension it. ``focus`` is one of
+# the BOX_ constants below.
 # One box while the value is only being dragged, one per component once it is
 # being typed into. The region pointer pins them to the view the mouse is in, so
 # they aren't drawn at the same spot in every other 3D view of the screen.
 state_value = None
+
+# How a value box is drawn: a plain number, the one a typed digit would land in
+# (outlined, so the box itself says a value can be entered), or the one being
+# typed into (filled).
+BOX_PLAIN = 0
+BOX_ACTIVE = 1
+BOX_EDITING = 2
 
 # NOTE: interactive selection/hover/highlight state lives in
 # ``drawing.selection`` (transient, never persisted to the datablock).

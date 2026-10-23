@@ -128,10 +128,14 @@ class TestStateValuePublish(Sketch2dTestCase):
         self.assertEqual(region_ptr, region.as_pointer())
         # The circle's centre state is a coordinate, so it reads one per axis.
         self.assertEqual(len(boxes), 2)
-        text, start, end, focused = boxes[0]
+        text, start, end, focus = boxes[0]
         self.assertTrue(text)
-        self.assertTrue(focused, "the first value is boxed, as the one to type into")
-        self.assertFalse(boxes[1][3], "only one box has focus")
+        self.assertEqual(
+            focus,
+            global_data.BOX_ACTIVE,
+            "the first value is outlined, as the one to type into",
+        )
+        self.assertEqual(boxes[1][3], global_data.BOX_PLAIN, "only one box has focus")
         # Both ends of the stretch are the geometry's world points projected
         # into the region; the first point has no stretch, so they coincide.
         from bpy_extras.view3d_utils import location_3d_to_region_2d
@@ -156,7 +160,8 @@ class TestStateValuePublish(Sketch2dTestCase):
         _stub_rna(op)
         boxes, _ = self._publish(op)
         self.assertEqual(boxes[0][0], "12")
-        self.assertTrue(boxes[0][3])
+        # Being typed into, so the box is filled rather than only outlined.
+        self.assertEqual(boxes[0][3], global_data.BOX_EDITING)
 
     def test_nothing_is_published_without_a_value(self):
         op = self._op()
@@ -168,7 +173,7 @@ class TestStateValuePublish(Sketch2dTestCase):
         self.assertIsNone(self._publish(self._op(), region=None))
 
     def test_a_stale_value_is_dropped(self):
-        global_data.state_value = ((("old", Vector((0, 0)), Vector((0, 0)), False),), 1)
+        global_data.state_value = ((("old", Vector((0, 0)), Vector((0, 0)), 0),), 1)
         op = self._op()
         op._status_value = ""
         op._status_values = ()
@@ -544,3 +549,52 @@ class TestDimensionShape(Sketch2dTestCase):
         self.assertEqual(len(leader) % 2, 0)
         self.assertEqual(len(witness), 4)
         self.assertTrue(all(len(point) == 3 for point in leader + witness))
+
+
+class TestValueBoxLook(Sketch2dTestCase):
+    """A value box is rounded, and themed so its number stays readable."""
+
+    def _rect(self, radius=0.0):
+        from ..draw_handler import _box_rect
+
+        return _box_rect(100.0, 50.0, 40.0, 10.0, 2.0, radius)
+
+    def test_a_box_without_a_radius_is_a_rectangle(self):
+        self.assertEqual(
+            self._rect(),
+            ((98.0, 48.0), (142.0, 48.0), (142.0, 62.0), (98.0, 62.0)),
+        )
+
+    def test_a_rounded_box_keeps_inside_the_same_bounds(self):
+        rect = self._rect(4.0)
+        self.assertGreater(len(rect), 4)
+        xs = [x for x, _y in rect]
+        ys = [y for _x, y in rect]
+        self.assertAlmostEqual(min(xs), 98.0, places=5)
+        self.assertAlmostEqual(max(xs), 142.0, places=5)
+        self.assertAlmostEqual(min(ys), 48.0, places=5)
+        self.assertAlmostEqual(max(ys), 62.0, places=5)
+        # The corners themselves are cut away by the radius.
+        self.assertNotIn((98.0, 48.0), rect)
+
+    def test_a_radius_too_big_for_the_box_is_cut_down(self):
+        rect = self._rect(500.0)
+        ys = [y for _x, y in rect]
+        self.assertAlmostEqual(min(ys), 48.0, places=5)
+        self.assertAlmostEqual(max(ys), 62.0, places=5)
+
+    def test_the_fill_contrasts_with_the_text_it_backs(self):
+        from ..draw_handler import _box_colors
+
+        def luminance(color):
+            return 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
+
+        for color in ((0.9, 0.9, 0.9, 1.0), (0.1, 0.1, 0.12, 1.0)):
+            fill, border = _box_colors(color)
+            self.assertEqual(border, tuple(color), "the border is the text's own")
+            self.assertGreater(
+                abs(luminance(fill) - luminance(color)),
+                0.5,
+                "a %s value needs a fill well away from it" % (color,),
+            )
+            self.assertLess(fill[3], 1.0, "the viewport still shows through")
