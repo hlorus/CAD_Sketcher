@@ -1,8 +1,11 @@
-from typing import Any, List
+import math
+from typing import Any, List, Optional
 
 import bpy
 from bpy.props import StringProperty
 from bpy.types import Context, Event
+from bpy_extras.view3d_utils import location_3d_to_region_2d
+from mathutils import Vector
 
 from ..model.curve_ref import CurveRef, PointRef, curve_ref
 from ..model.types import SlvsPoint2D
@@ -10,6 +13,27 @@ from ..utilities.view import get_blender_snap_info, get_pos_2d, get_scale_from_p
 from .base_stateful import GenericEntityOp
 from .placement import MIDPOINT, PointPlacement, ProjectionRequest, placement_of
 from .utilities import ignore_hover
+
+
+def _view_region(context: Context):
+    """The 3D view the tool was drawn in, as ``(region, region_data)``.
+
+    Normally the running context's own, but a re-run from the redo panel has
+    that panel's region instead, and a dimension placed from it would jump. So
+    the screen's first 3D view stands in, keeping the placement put.
+    """
+    area = getattr(context, "area", None)
+    if area is not None and area.type == "VIEW_3D" and context.region_data is not None:
+        return context.region, context.region_data
+
+    screen = getattr(context, "screen", None)
+    for other in getattr(screen, "areas", ()):
+        if other.type != "VIEW_3D":
+            continue
+        for region in other.regions:
+            if region.type == "WINDOW":
+                return region, other.spaces.active.region_3d
+    return None, None
 
 
 class Operator2d(GenericEntityOp):
@@ -519,6 +543,312 @@ class Operator2d(GenericEntityOp):
         if cid:
             return PointRef(sketch, cid)
         return getattr(self, state.pointer)
+
+    def state_value_origin(self, context: Context):
+        """The point this state is placed relative to, in sketch coordinates."""
+        return self._placed_point_co(context, self.state_index - 1)
+
+    # Which aligned distance measures a component of a placed point. A sketch's
+    # third axis has no aligned distance, so a Z typed into a 3D sketch places
+    # the point without being kept as a dimension.
+    _COMPONENT_ALIGNMENT = ("HORIZONTAL", "VERTICAL")
+
+    def _run_fini(self, context: Context, succeede: bool) -> None:
+        super()._run_fini(context, succeede)
+        if succeede:
+            self._add_typed_dimensions(context)
+
+    def _add_typed_dimensions(self, context: Context) -> None:
+        """Keep every number typed into a value box as a driving dimension.
+
+        Typing a width states what the width *is*, so it outlives the click:
+        the pair of points it was typed between gets an aligned distance
+        holding them that far apart, and solving the sketch keeps it. A value
+        only dragged states nothing and leaves the points free.
+        """
+        sketch = self.sketch
+        if sketch is None:
+            return
+
+        for index in range(len(self.get_states())):
+            typed = self.get_state_data(index).get("numeric_input") or ()
+            if not any(number is not None for number in typed):
+                continue
+            if self._add_typed_radius(context, index, typed):
+                continue
+            end = self.get_state_data(index).get("curve_id", "")
+            start = self.get_state_data(index - 1).get("curve_id", "") if index else ""
+            if not end or not start:
+                continue
+            origin = self._placed_point_co(context, index - 1)
+            placed = self._placed_point_co(context, index)
+            if origin is None or placed is None:
+                continue
+
+            to_world = sketch.world_matrix
+            legs = [
+                (to_world @ a, to_world @ b)
+                for a, b in self._axis_legs(origin, placed, len(typed))
+            ]
+            for axis, number in enumerate(typed):
+                if number is None or axis >= len(self._COMPONENT_ALIGNMENT):
+                    continue
+                constraint = sketch.constraints.add_distance(
+                    init=True,
+                    curve_id_1=start,
+                    curve_id_2=end,
+                    align=self._COMPONENT_ALIGNMENT[axis],
+                    value=abs(placed[axis] - origin[axis]),
+                )
+                if axis < len(legs):
+                    self._place_dimension(context, constraint, legs, axis)
+
+    def _add_typed_radius(self, context: Context, index: int, typed) -> bool:
+        """Keep a typed radius as a radius dimension on the circle or arc.
+
+        The state holds one length rather than a point, so there is no pair of
+        points to hold apart: what the number states is the size of the curve
+        the tool just drew.
+        """
+        from ..model.curve_ref import ArcRef, CircleRef
+
+        if self._length_prop(index) is None:
+            return False
+        length = next((number for number in typed if number is not None), None)
+        if not length:
+            return False
+
+        target = getattr(self, "target", None)
+        if not isinstance(target, (CircleRef, ArcRef)) or not target.valid:
+            return False
+
+        constraint = self.sketch.constraints.add_diameter(
+            init=True,
+            curve_id_1=target.curve_id,
+            setting=True,
+            value=abs(length),
+        )
+        self._place_radius(context, constraint, target)
+        return True
+
+    def _place_radius(self, context: Context, constraint, target) -> None:
+        """Point a radius dimension's leader the way the preview was drawn.
+
+        A radius is drawn from the centre out to the rim on the cursor's side,
+        and the gizmo draws its own leader at ``leader_angle``, so the angle is
+        kept and the label sits just past the rim along it.
+        """
+        from ..draw_handler import live_dimension_gap
+
+        reach = self._length_reach(context, constraint.radius, target.ct.co.to_3d())
+        if reach is None:
+            return
+        direction = (reach - target.ct.co.to_3d()).to_2d()
+        if direction.length < 1e-9:
+            return
+        constraint.leader_angle = math.atan2(direction.y, direction.x)
+
+        region, region_data = _view_region(context)
+        if region is None or region_data is None:
+            constraint.draw_offset = constraint.radius
+            return
+        to_world = self.sketch.world_matrix
+        rim = to_world @ reach
+        stepped = location_3d_to_region_2d(
+            region, region_data, rim + (to_world.to_3x3() @ direction.to_3d())
+        )
+        near = location_3d_to_region_2d(region, region_data, rim)
+        if stepped is None or near is None or (stepped - near).length < 1e-6:
+            constraint.draw_offset = constraint.radius
+            return
+        gap = live_dimension_gap(context) / (stepped - near).length
+        constraint.draw_offset = constraint.radius + gap
+
+    def _place_dimension(self, context: Context, constraint, legs, axis: int) -> None:
+        """Put a committed dimension where its preview sat while being drawn.
+
+        The preview is drawn a set number of pixels off the leg it measures,
+        on the side away from the rest of the geometry, while ``draw_offset``
+        is a signed length in the dimension's own frame. So the same placement
+        is worked out in pixels and converted back at the leg's own depth,
+        rather than letting the new dimension default to the middle of it.
+        """
+        from ..draw_handler import live_dimension_placement, live_dimension_text_height
+
+        region, region_data = _view_region(context)
+        if region is None or region_data is None:
+            return
+
+        screen = [
+            [location_3d_to_region_2d(region, region_data, point) for point in leg]
+            for leg in legs
+        ]
+        if any(point is None for leg in screen for point in leg):
+            return
+        ends = [point for leg in screen for point in leg]
+        middle = sum(ends, Vector((0.0, 0.0))) / len(ends)
+        normal, pixels = live_dimension_placement(
+            *screen[axis], middle, live_dimension_text_height(context)
+        )
+
+        # How far a step along the dimension's own offset axis reaches on
+        # screen, which is what turns those pixels back into a length.
+        basis = constraint.matrix_basis()
+        origin = basis.translation
+        offset_axis = basis.col[1].to_3d().normalized()
+        # Measured at the leg, because that is where the pixels were counted.
+        middle = (legs[axis][0] + legs[axis][1]) / 2
+        stepped = location_3d_to_region_2d(region, region_data, middle + offset_axis)
+        if stepped is None:
+            return
+        step = stepped - location_3d_to_region_2d(region, region_data, middle)
+        if step.length < 1e-6:
+            return
+        side = 1.0 if step.dot(normal) >= 0 else -1.0
+
+        # The dimension measures between two points that need not be on the leg
+        # (a rectangle's width is held between opposite corners), so the offset
+        # runs from its own origin out to where the preview line was.
+        reach = (middle - origin).dot(offset_axis) + side * pixels / step.length
+
+        # In a perspective view the pixels a world offset buys change along the
+        # way, so the guess is measured where it lands and corrected until the
+        # line is where the preview drew it, to well under a pixel.
+        screen_middle = location_3d_to_region_2d(region, region_data, middle)
+        for _pass in range(3):
+            landed = location_3d_to_region_2d(
+                region, region_data, origin + offset_axis * reach
+            )
+            if landed is None:
+                break
+            short = pixels - (landed - screen_middle).dot(normal)
+            if abs(short) < 0.01:
+                break
+            reach += side * short / step.length
+
+        # The dimension frame is scaled by the interface scale, which reads as
+        # zero when there is no interface at all (a background run).
+        ui_scale = context.preferences.system.ui_scale or 1.0
+        constraint.draw_offset = reach / ui_scale
+
+    def state_value_spans(self, context: Context, values, count: int):
+        """The stretch each of this state's value boxes measures, in world space.
+
+        One box spans what is being drawn: the segment from the last point to
+        the one being placed. Several boxes are one per axis, and each spans the
+        leg its component covers, so a rectangle's width is dimensioned along
+        its horizontal edge and its height along the vertical one, the way a CAD
+        sketcher shows them.
+        """
+        sketch = self.sketch
+        if sketch is None or getattr(sketch, "target_object", None) is None:
+            return []
+
+        start = self._placed_point_co(context, self.state_index - 1)
+        end = self._live_point_co(values)
+        if end is None and start is None:
+            return []
+
+        to_world = sketch.world_matrix
+
+        if end is None and start is not None and self._length_prop() is not None:
+            length = next(
+                (v for v in values or () if isinstance(v, (int, float))), None
+            )
+            reach = self._length_reach(context, length, start)
+            if reach is not None:
+                return [(to_world @ start, to_world @ reach)] * count
+
+        if start is None or end is None:
+            # A lone point, or a number with no second point to measure to:
+            # there is no stretch, so every box sits on the one place there is.
+            point = to_world @ (start if start is not None else end)
+            return [(point, point)] * count
+
+        if count < 2:
+            return [(to_world @ start, to_world @ end)]
+
+        return [
+            (to_world @ a, to_world @ b) for a, b in self._axis_legs(start, end, count)
+        ]
+
+    def _length_prop(self, index: Optional[int] = None):
+        """A state's property when it is one plain length, else ``None``.
+
+        Defaults to the running state; ``index`` asks about another one.
+        """
+        props = (
+            self.get_property() if index is None else self.get_property(index=index)
+        ) or []
+        if len(props) != 1:
+            return None
+        rna = getattr(self, "rna_type", None)
+        prop = rna.properties.get(props[0]) if rna else None
+        if prop is None or prop.unit != "LENGTH" or prop.array_length:
+            return None
+        return prop
+
+    def _length_reach(self, context: Context, length: float, start):
+        """Where a length measured from ``start`` reaches, in sketch coordinates.
+
+        A radius is a length out from a point, so it is dimensioned as one: a
+        line from that point to the rim, on the side the cursor is dragging,
+        rather than a number floating by the centre.
+        """
+        if not length:
+            return None
+
+        direction = Vector((1.0, 0.0))
+        # Without a view there is nothing to point at, so it reaches along the
+        # sketch's own X.
+        has_view = getattr(context, "region_data", None) is not None
+        pos = (
+            get_pos_2d(context, self._get_wp(), self._last_coords) if has_view else None
+        )
+        if pos is not None:
+            towards = Vector(pos).to_2d() - start.to_2d()
+            if towards.length > 1e-9:
+                direction = towards.normalized()
+        return start + direction.to_3d() * length
+
+    @staticmethod
+    def _axis_legs(start, end, count: int):
+        """Walk from start to end one axis at a time, in sketch coordinates.
+
+        Each leg is the stretch one component of the placed point measures: a
+        rectangle's width along the bottom, then its height up the side.
+        """
+        legs = []
+        corner = start.copy()
+        for axis in range(min(count, len(start))):
+            moved = corner.copy()
+            moved[axis] = end[axis]
+            legs.append((corner, moved))
+            corner = moved
+        return legs
+
+    @staticmethod
+    def _live_point_co(values):
+        """This state's value as a sketch-local point, if it is one."""
+        for value in values or ():
+            if hasattr(value, "__len__") and len(value) in (2, 3):
+                return Vector(value).to_3d()
+        return None
+
+    def _placed_point_co(self, context: Context, index: int):
+        """An earlier state's point, sketch-local, or None when it has none."""
+        if index < 0 or index not in self._state_data:
+            return None
+        try:
+            ref = self.get_point(context, index)
+        except Exception:
+            # A state holds whatever its pick produced; it may be no point.
+            return None
+        is_point = getattr(ref, "is_point", None)
+        if not callable(is_point) or not is_point():
+            return None
+        co = getattr(ref, "co", None)
+        return Vector(co).to_3d() if co is not None and len(co) >= 2 else None
 
 
 class ReplaceableOutputOp:

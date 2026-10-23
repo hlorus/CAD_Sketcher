@@ -1,4 +1,3 @@
-import math
 from contextlib import nullcontext
 from typing import Any
 
@@ -65,6 +64,11 @@ class StatefulOperatorLogic(_StateMachineMixin):
     _axis_lock = None
     # Formatted live value of the current state, shown in the status bar.
     _status_value = None
+    # The resolved values behind _status_value, which the value boxes are
+    # placed from (see state_value_spans).
+    _status_values = ()
+    # The point this state's value is measured from, when it has one.
+    _status_origin = None
     # Where the left mouse button went down, to tell a drag from a click.
     _press_coords = None
     # Set once a dragged release confirmed a state: from then on the release
@@ -182,30 +186,160 @@ class StatefulOperatorLogic(_StateMachineMixin):
             msg += "    [{} axis]".format("XYZ"[self._axis_lock])
 
         context.workspace.status_text_set(self._status_line(msg))
+        self._publish_state_value(context)
+
+    def state_value_origin(self, context: Context):
+        """The point this state places relative to, in its own coordinates.
+
+        ``None`` when the state stands alone, and the value is then whatever it
+        resolves to. A subclass that knows its geometry overrides this (see
+        ``Operator2d``).
+        """
+        return None
+
+    def state_value_spans(self, context: Context, values, count: int):
+        """The stretch each of this state's ``count`` values measures.
+
+        One ``(start, end)`` pair of world points per box: the leg the value is
+        the length of, which is drawn as a dimension line with arrowheads and
+        extension lines, the way a finished dimension is. A pair with both ends
+        the same has no length to show, and its value is just written there.
+
+        ``count`` is 1 while the value is only being dragged, and the number of
+        components once each is being typed separately. The framework has no
+        idea where an operator's geometry is, so it offers nothing; a subclass
+        that does know overrides this (see ``Operator2d``). A list shorter than
+        ``count`` draws nothing.
+        """
+        return []
+
+    def _state_value_texts(self):
+        """The text for each box, and which one has focus.
+
+        One text per number the state resolves to, so each is dimensioned
+        against the stretch it measures: a rectangle reads its width along one
+        edge and its height along the other, dragged or not. Typing replaces
+        the ones typed into and leaves the rest following the mouse, which is
+        what makes "type the width, tab, drag the height" work.
+
+        The first value is boxed before anything is typed, because that is
+        where a digit would land: the box is what says a value can be typed at
+        all, and which one Tab moves away from.
+        """
+        if not self._numeric.is_active:
+            texts = self._value_texts(self._status_values)
+            if any(texts):
+                return texts, 0
+            return ([self._status_value], 0) if self._status_value else ([], -1)
+
+        count = max(1, self._numeric.substate_count or 1)
+        dragged = self._value_texts(self._status_values)
+        texts = []
+        for index in range(count):
+            typed = self._numeric.get(index)
+            texts.append(typed or (dragged[index] if index < len(dragged) else ""))
+        return texts, self._numeric.substate_index
+
+    def _publish_state_value(self, context: Context) -> None:
+        """Hand the live value(s) to the draw handler, to show by the geometry.
+
+        Only the numbers are published, not the state's name: they are drawn
+        against the thing being placed, which says what each one measures
+        better than a label would.
+        """
+        from bpy_extras.view3d_utils import location_3d_to_region_2d
+
+        from ..utilities.preferences import get_prefs
+
+        region = context.region
+        region_data = getattr(context, "region_data", None)
+        if region is None or region_data is None:
+            global_data.state_value = None
+            return
+        if not get_prefs().show_state_value:
+            global_data.state_value = None
+            return
+
+        texts, focused = self._state_value_texts()
+        if not texts or not any(texts):
+            global_data.state_value = None
+            return
+
+        spans = self.state_value_spans(context, self._status_values, len(texts))
+        if len(spans) < len(texts):
+            global_data.state_value = None
+            return
+
+        def focus(index: int) -> int:
+            """How a box is drawn: not focused, ready to type into, or typed in."""
+            if index != focused:
+                return global_data.BOX_PLAIN
+            if self._numeric.is_active:
+                return global_data.BOX_EDITING
+            return global_data.BOX_ACTIVE
+
+        boxes = []
+        for index, text in enumerate(texts):
+            ends = [
+                location_3d_to_region_2d(region, region_data, point)
+                for point in spans[index]
+            ]
+            if any(end is None for end in ends):
+                # Behind the viewer in a perspective view.
+                global_data.state_value = None
+                return
+            boxes.append((str(text), ends[0], ends[1], focus(index)))
+
+        global_data.state_value = (tuple(boxes), region.as_pointer())
+
+    def _format_number(self, value: float, subtype) -> str:
+        """One number as text, in the units the scene is set to.
+
+        A length or an angle is read against the scene's units everywhere else
+        in the add-on (a dimension's label, the sidebar), so a tool's own live
+        value is shown the same way rather than as raw Blender units.
+        """
+        from .. import units
+
+        if subtype in ("DISTANCE", "DISTANCE_CAMERA"):
+            return units.format_distance(value)
+        if subtype == "ANGLE":
+            return units.format_angle(value)
+        return "{:.3f}".format(value)
 
     def _format_values(self, values):
-        """Format resolved state values (vectors / floats / ints) for display.
+        """Format resolved state values (vectors / floats / ints) for display."""
+        texts = self._value_texts(values)
+        return ", ".join(texts) if len(texts) == 1 else "(" + ", ".join(texts) + ")"
 
-        Angle-subtype properties are shown in degrees to match how Blender
-        presents them everywhere else.
+    def _value_texts(self, values):
+        """One string per number this state resolves to.
+
+        A point placed relative to another is described by how far it reaches
+        along each axis, not by its coordinate: that is what the value boxes sit
+        against, and what a number typed into one means.
         """
         props = self.get_property() or []
-        parts = []
-        for i, v in enumerate(values):
+        origin = self._status_origin
+        texts = []
+        for i, value in enumerate(values):
             subtype = None
             if i < len(props):
                 prop = self.rna_type.properties.get(props[i])
                 subtype = prop.subtype if prop else None
-            if hasattr(v, "__len__") and not isinstance(v, str):
-                parts.append("(" + ", ".join("{:.3f}".format(x) for x in v) + ")")
-            elif isinstance(v, float):
-                if subtype == "ANGLE":
-                    parts.append("{:.1f}°".format(math.degrees(v)))
-                else:
-                    parts.append("{:.3f}".format(v))
+            if hasattr(value, "__len__") and not isinstance(value, str):
+                # A coordinate's components are lengths; anything else is a
+                # plain tuple of numbers.
+                component = "DISTANCE" if subtype in ("XYZ", "TRANSLATION") else None
+                for axis, number in enumerate(value):
+                    if origin is not None and axis < len(origin):
+                        number = number - origin[axis]
+                    texts.append(self._format_number(number, component))
+            elif isinstance(value, float):
+                texts.append(self._format_number(value, subtype))
             else:
-                parts.append(str(v))
-        return ", ".join(parts)
+                texts.append(str(value))
+        return texts
 
     def check_numeric(self):
         """Return True if the current state supports numeric text entry."""
@@ -278,6 +412,8 @@ class StatefulOperatorLogic(_StateMachineMixin):
         else:
             interactive_val = to_iterable(interactive_val)
 
+        origin = self.state_value_origin(context) if size > 1 else None
+
         storage = [None] * size
         result = [None] * size
         for sub_index in range(size):
@@ -286,6 +422,10 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 num = parse_numeric(prop, raw, unit_system)
                 if num is None:
                     num = prop.default
+                # Typed into a box that measures from somewhere: it says how far
+                # to reach, not where to land.
+                if origin is not None and sub_index < len(origin):
+                    num = origin[sub_index] + num
                 result[sub_index] = num
                 storage[sub_index] = num
             elif interactive_val[sub_index] is not None:
@@ -605,6 +745,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
         if context.area:
             context.area.header_text_set(None)
         context.workspace.status_text_set(None)
+        global_data.state_value = None
         global_data.hover_types = None
         global_data.hover_element = None
         global_data.stateful_op_running = False
@@ -701,6 +842,17 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """
         return True
 
+    @staticmethod
+    def _tag_redraw(context: Context) -> None:
+        """Repaint the view after a change no mouse move follows.
+
+        Moving the focus from box to box changes what is drawn without going
+        through ``evaluate_state``, which is what normally asks for a repaint.
+        """
+        area = getattr(context, "area", None)
+        if area is not None:
+            area.tag_redraw()
+
     def _handle_pass_through(self, context: Context, event: Event):
         if event.type in {"MIDDLEMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE", "MOUSEMOVE"}:
             return {"PASS_THROUGH"}
@@ -725,6 +877,13 @@ class StatefulOperatorLogic(_StateMachineMixin):
             elif event.type == "TAB" and event.value == "PRESS":
                 self._numeric.iterate()
                 self.set_status_text(context)
+                self._tag_redraw(context)
+        elif event.type == "TAB" and event.value == "PRESS":
+            # Tab opens the value boxes without a digit first, so a width can be
+            # tabbed past and only the height typed.
+            is_numeric_edit = self.init_numeric(True)
+            self.set_status_text(context)
+            self._tag_redraw(context)
         elif is_numeric_event:
             is_numeric_edit = self.init_numeric(True)
 
@@ -863,10 +1022,14 @@ class StatefulOperatorLogic(_StateMachineMixin):
         )
         values, ok = self._resolve_values(context, coords, state, is_numeric, is_picked)
 
-        # Reflect the live value (property or point placement) in the status bar.
-        if not is_numeric:
-            self._status_value = self._format_values(values) if values else None
-            self.set_status_text(context)
+        # Reflect the live value (property or point placement) in the status bar
+        # and beside the geometry it belongs to. A typed number resolves into
+        # these values too, so the dimensions follow the geometry onto what was
+        # typed instead of staying where the mouse last put it.
+        self._status_origin = self.state_value_origin(context)
+        self._status_values = tuple(values or ())
+        self._status_value = self._format_values(values) if values else None
+        self.set_status_text(context)
 
         # Resolve state pointer
         if state.pointer:
@@ -1187,6 +1350,7 @@ class StatefulOperatorLogic(_StateMachineMixin):
                 pass
         self.on_before_redo_states(context)
         context.workspace.status_text_set(None)
+        global_data.state_value = None
 
         if not keep_stateful_running:
             global_data.stateful_op_running = False

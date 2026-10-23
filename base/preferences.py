@@ -142,6 +142,14 @@ class Preferences(AddonPreferences):
         update=update_cb,
     )
     text_size: IntProperty(name="Text Size", default=15, min=5, soft_max=25)
+    show_state_value: BoolProperty(
+        name="Show Value While Drawing",
+        description=(
+            "While a tool is being used, show the value it is asking for as a "
+            "dimension on the geometry being drawn, as well as in the status bar"
+        ),
+        default=True,
+    )
     arrow_scale: FloatProperty(name="Arrow Scale", default=1, min=0.2, soft_max=3)
     dimension_line_scale: FloatProperty(
         name="Dimension Line Scale",
@@ -233,6 +241,7 @@ class Preferences(AddonPreferences):
         col.prop(self, "gizmo_scale")
         col.prop(self, "group_constraint_icons")
         col.prop(self, "text_size")
+        col.prop(self, "show_state_value")
         col.prop(self, "arrow_scale")
         col.prop(self, "dimension_line_scale")
 

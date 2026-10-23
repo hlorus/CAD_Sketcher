@@ -599,6 +599,52 @@ def main():
             sketch_ref.set_active_sketch(context, None)
             _redraw()
 
+        @_check("live dimensions drawn")
+        def _():
+            from mathutils import Vector
+
+            global_data = importlib.import_module(f"{TARGET}.global_data")
+            plain = global_data.BOX_PLAIN
+            active = global_data.BOX_ACTIVE
+            editing = global_data.BOX_EDITING
+            region = _view3d_context()["region"]
+            spot = Vector((120, 90))
+            edge = Vector((region.width + 50, region.height + 50))
+            try:
+                for boxes in (
+                    # A stretch with no length: only its value is written.
+                    (("50 mm", spot, spot, plain),),
+                    # The two legs of a rectangle, the width ready to type in.
+                    (
+                        ("2 m", Vector((200, 200)), Vector((400, 200)), active),
+                        ("400 mm", Vector((400, 200)), Vector((400, 330)), plain),
+                    ),
+                    # The same, with the width being typed into.
+                    (
+                        ("600", Vector((200, 200)), Vector((400, 200)), editing),
+                        ("400 mm", Vector((400, 200)), Vector((400, 330)), plain),
+                    ),
+                    # Too short to hold its arrowheads, so they go outside.
+                    (("2 mm", Vector((300, 400)), Vector((320, 400)), plain),),
+                    # Past the region edge, and two on one spot: both get moved.
+                    (
+                        ("600", edge, edge, editing),
+                        ("400 mm", Vector((300, 300)), Vector((300, 300)), plain),
+                        ("2 mm", Vector((300, 300)), Vector((300, 300)), plain),
+                    ),
+                ):
+                    global_data.state_value = (boxes, region.as_pointer())
+                    _redraw()
+                # A value belonging to another region is not drawn in this one.
+                global_data.state_value = (
+                    (("50 mm", Vector((10, 10)), Vector((90, 10)), plain),),
+                    0,
+                )
+                _redraw()
+            finally:
+                global_data.state_value = None
+            _redraw()
+
     if _FAILURES:
         print(f"SMOKE FAILED: {', '.join(_FAILURES)}", file=sys.stderr)
         sys.exit(1)

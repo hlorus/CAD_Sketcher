@@ -13,6 +13,9 @@ class StatusRecorder:
         self.lines = []
         self.workspace = SimpleNamespace(status_text_set=self.lines.append)
         self.area = None
+        # No region: the value drawn at the cursor has nowhere to go, which is
+        # the status line's business anyway.
+        self.region = None
 
 
 class TestStatusLine(Sketch2dTestCase):
