@@ -130,7 +130,8 @@ class TestStateValuePublish(Sketch2dTestCase):
         self.assertEqual(len(boxes), 2)
         text, start, end, focused = boxes[0]
         self.assertTrue(text)
-        self.assertFalse(focused, "nothing has focus until it is typed into")
+        self.assertTrue(focused, "the first value is boxed, as the one to type into")
+        self.assertFalse(boxes[1][3], "only one box has focus")
         # Both ends of the stretch are the geometry's world points projected
         # into the region; the first point has no stretch, so they coincide.
         from bpy_extras.view3d_utils import location_3d_to_region_2d
@@ -281,7 +282,7 @@ class TestValueBoxes(Sketch2dTestCase):
         harness.op._status_value = harness.op._format_values(harness.op._status_values)
         return harness.op
 
-    def test_dragging_reads_one_value_per_axis_with_no_focus(self):
+    def test_dragging_reads_one_value_per_axis(self):
         op = self._rect_op()
         op._numeric = SimpleNamespace(is_active=False)
         texts, focused = op._state_value_texts()
@@ -291,7 +292,8 @@ class TestValueBoxes(Sketch2dTestCase):
         self.assertEqual(len(texts), 2)
         self.assertIn("0.6", texts[0])
         self.assertIn("0.4", texts[1])
-        self.assertEqual(focused, -1)
+        # The one a digit would land in is boxed from the start.
+        self.assertEqual(focused, 0)
 
     def test_typing_splits_the_value_per_axis(self):
         op = self._rect_op()

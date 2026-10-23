@@ -221,12 +221,16 @@ class StatefulOperatorLogic(_StateMachineMixin):
         edge and its height along the other, dragged or not. Typing replaces
         the ones typed into and leaves the rest following the mouse, which is
         what makes "type the width, tab, drag the height" work.
+
+        The first value is boxed before anything is typed, because that is
+        where a digit would land: the box is what says a value can be typed at
+        all, and which one Tab moves away from.
         """
         if not self._numeric.is_active:
             texts = self._value_texts(self._status_values)
             if any(texts):
-                return texts, -1
-            return ([self._status_value], -1) if self._status_value else ([], -1)
+                return texts, 0
+            return ([self._status_value], 0) if self._status_value else ([], -1)
 
         count = max(1, self._numeric.substate_count or 1)
         dragged = self._value_texts(self._status_values)
