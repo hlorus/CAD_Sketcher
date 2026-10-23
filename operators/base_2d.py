@@ -1,4 +1,5 @@
-from typing import Any, List
+import math
+from typing import Any, List, Optional
 
 import bpy
 from bpy.props import StringProperty
@@ -573,6 +574,8 @@ class Operator2d(GenericEntityOp):
             typed = self.get_state_data(index).get("numeric_input") or ()
             if not any(number is not None for number in typed):
                 continue
+            if self._add_typed_radius(context, index, typed):
+                continue
             end = self.get_state_data(index).get("curve_id", "")
             start = self.get_state_data(index - 1).get("curve_id", "") if index else ""
             if not end or not start:
@@ -599,6 +602,67 @@ class Operator2d(GenericEntityOp):
                 )
                 if axis < len(legs):
                     self._place_dimension(context, constraint, legs, axis)
+
+    def _add_typed_radius(self, context: Context, index: int, typed) -> bool:
+        """Keep a typed radius as a radius dimension on the circle or arc.
+
+        The state holds one length rather than a point, so there is no pair of
+        points to hold apart: what the number states is the size of the curve
+        the tool just drew.
+        """
+        from ..model.curve_ref import ArcRef, CircleRef
+
+        if self._length_prop(index) is None:
+            return False
+        length = next((number for number in typed if number is not None), None)
+        if not length:
+            return False
+
+        target = getattr(self, "target", None)
+        if not isinstance(target, (CircleRef, ArcRef)) or not target.valid:
+            return False
+
+        constraint = self.sketch.constraints.add_diameter(
+            init=True,
+            curve_id_1=target.curve_id,
+            setting=True,
+            value=abs(length),
+        )
+        self._place_radius(context, constraint, target)
+        return True
+
+    def _place_radius(self, context: Context, constraint, target) -> None:
+        """Point a radius dimension's leader the way the preview was drawn.
+
+        A radius is drawn from the centre out to the rim on the cursor's side,
+        and the gizmo draws its own leader at ``leader_angle``, so the angle is
+        kept and the label sits just past the rim along it.
+        """
+        from ..draw_handler import live_dimension_gap
+
+        reach = self._length_reach(context, constraint.radius, target.ct.co.to_3d())
+        if reach is None:
+            return
+        direction = (reach - target.ct.co.to_3d()).to_2d()
+        if direction.length < 1e-9:
+            return
+        constraint.leader_angle = math.atan2(direction.y, direction.x)
+
+        region, region_data = _view_region(context)
+        if region is None or region_data is None:
+            constraint.draw_offset = constraint.radius
+            return
+        to_world = self.sketch.world_matrix
+        rim = to_world @ reach
+        stepped = location_3d_to_region_2d(
+            region, region_data, rim + (to_world.to_3x3() @ direction.to_3d())
+        )
+        near = location_3d_to_region_2d(region, region_data, rim)
+        if stepped is None or near is None or (stepped - near).length < 1e-6:
+            constraint.draw_offset = constraint.radius
+            return
+        gap = live_dimension_gap(context) / (stepped - near).length
+        constraint.draw_offset = constraint.radius + gap
 
     def _place_dimension(self, context: Context, constraint, legs, axis: int) -> None:
         """Put a committed dimension where its preview sat while being drawn.
@@ -687,6 +751,14 @@ class Operator2d(GenericEntityOp):
 
         to_world = sketch.world_matrix
 
+        if end is None and start is not None and self._length_prop() is not None:
+            length = next(
+                (v for v in values or () if isinstance(v, (int, float))), None
+            )
+            reach = self._length_reach(context, length, start)
+            if reach is not None:
+                return [(to_world @ start, to_world @ reach)] * count
+
         if start is None or end is None:
             # A lone point, or a number with no second point to measure to:
             # there is no stretch, so every box sits on the one place there is.
@@ -699,6 +771,45 @@ class Operator2d(GenericEntityOp):
         return [
             (to_world @ a, to_world @ b) for a, b in self._axis_legs(start, end, count)
         ]
+
+    def _length_prop(self, index: Optional[int] = None):
+        """A state's property when it is one plain length, else ``None``.
+
+        Defaults to the running state; ``index`` asks about another one.
+        """
+        props = (
+            self.get_property() if index is None else self.get_property(index=index)
+        ) or []
+        if len(props) != 1:
+            return None
+        rna = getattr(self, "rna_type", None)
+        prop = rna.properties.get(props[0]) if rna else None
+        if prop is None or prop.unit != "LENGTH" or prop.array_length:
+            return None
+        return prop
+
+    def _length_reach(self, context: Context, length: float, start):
+        """Where a length measured from ``start`` reaches, in sketch coordinates.
+
+        A radius is a length out from a point, so it is dimensioned as one: a
+        line from that point to the rim, on the side the cursor is dragging,
+        rather than a number floating by the centre.
+        """
+        if not length:
+            return None
+
+        direction = Vector((1.0, 0.0))
+        # Without a view there is nothing to point at, so it reaches along the
+        # sketch's own X.
+        has_view = getattr(context, "region_data", None) is not None
+        pos = (
+            get_pos_2d(context, self._get_wp(), self._last_coords) if has_view else None
+        )
+        if pos is not None:
+            towards = Vector(pos).to_2d() - start.to_2d()
+            if towards.length > 1e-9:
+                direction = towards.normalized()
+        return start + direction.to_3d() * length
 
     @staticmethod
     def _axis_legs(start, end, count: int):

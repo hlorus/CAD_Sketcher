@@ -657,3 +657,91 @@ class TestLiveValueWhileTyping(Sketch2dTestCase):
         self.assertEqual(tagged, [True])
         # No view to repaint is not an error.
         StatefulOperatorLogic._tag_redraw(SimpleNamespace(area=None))
+
+
+class TestRadiusDimension(Sketch2dTestCase):
+    """A radius reads, and is kept, as a radius dimension."""
+
+    def _circle_op(self, centre=(0.1, 0.2), coords=(600, 400)):
+        from ..operators.add_circle import View3D_OT_slvs_add_circle2d
+
+        harness = OpHarness(View3D_OT_slvs_add_circle2d, self.sketch, self.context)
+        harness.place_point(centre)
+        harness.op.redo_states(self.context)
+        _stub_rna(harness.op, "DISTANCE")
+        harness.op._last_coords = Vector(coords)
+        return harness
+
+    def test_a_radius_spans_from_the_centre_out_to_the_rim(self):
+        op = self._circle_op().op
+        # No viewport to point at, so it reaches along the sketch's own X.
+        ((start, end),) = op.state_value_spans(self.context, (0.5,), 1)
+        matrix = self.sketch.world_matrix
+        self.assertAlmostEqual(
+            (start - matrix @ Vector((0.1, 0.2, 0.0))).length, 0.0, places=5
+        )
+        self.assertAlmostEqual((end - start).length, 0.5, places=5)
+
+    def test_a_radius_of_zero_has_nothing_to_span(self):
+        op = self._circle_op().op
+        ((start, end),) = op.state_value_spans(self.context, (0.0,), 1)
+        self.assertEqual(tuple(start), tuple(end))
+
+    def test_a_typed_radius_becomes_a_radius_dimension(self):
+        harness = self._circle_op()
+        harness.set_value(0.5)
+        harness.op.get_state_data(1)["numeric_input"] = [0.5]
+        harness.finish()
+
+        dims = list(self.sketch.constraints.diameter)
+        self.assertEqual(len(dims), 1)
+        self.assertTrue(dims[0].setting, "kept as a radius, not a diameter")
+        self.assertAlmostEqual(dims[0].value, 0.5, places=5)
+        self.assertAlmostEqual(dims[0].radius, 0.5, places=5)
+        # The label sits out past the rim, along the leader.
+        self.assertGreaterEqual(dims[0].draw_offset, dims[0].radius)
+
+    def test_a_dragged_radius_leaves_the_circle_free(self):
+        harness = self._circle_op()
+        harness.set_value(0.5)
+        harness.op.get_state_data(1)["numeric_input"] = [None]
+        harness.finish()
+        self.assertEqual(list(self.sketch.constraints.diameter), [])
+
+    def test_the_radius_dimension_holds_when_the_sketch_is_solved(self):
+        from ..curve_solver import solve_system
+
+        harness = self._circle_op()
+        harness.set_value(0.5)
+        harness.op.get_state_data(1)["numeric_input"] = [0.5]
+        harness.finish()
+        self.assertTrue(solve_system(self.context, sketch=self.sketch))
+        self.assertFalse(any(d.failed for d in self.sketch.constraints.diameter))
+
+
+class TestArcDimensions(Sketch2dTestCase):
+    """The arc tools place points, so their values dimension like any point."""
+
+    def _arc_op(self, centre=(0.0, 0.0), start=(0.4, 0.0)):
+        from ..operators.add_arc import View3D_OT_slvs_add_arc2d
+
+        harness = OpHarness(View3D_OT_slvs_add_arc2d, self.sketch, self.context)
+        harness.place_point(centre)
+        harness.place_point(start)
+        harness.op.redo_states(self.context)
+        _stub_rna(harness.op)
+        return harness
+
+    def test_an_arc_point_spans_the_legs_it_reaches_along(self):
+        op = self._arc_op().op
+        spans = op.state_value_spans(self.context, (Vector((0.0, 0.4)),), 2)
+        self.assertEqual(len(spans), 2)
+        self.assertGreater((spans[0][1] - spans[0][0]).length, 0.0)
+
+    def test_a_typed_arc_point_is_kept_as_dimensions(self):
+        harness = self._arc_op()
+        harness.place_point((0.0, 0.4))
+        harness.op.get_state_data(2)["numeric_input"] = [0.4, 0.4]
+        harness.finish()
+        dims = list(self.sketch.constraints.distance)
+        self.assertEqual({d.align for d in dims}, {"HORIZONTAL", "VERTICAL"})

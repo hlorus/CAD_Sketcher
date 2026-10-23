@@ -350,6 +350,11 @@ def live_dimension_text_height(context: Context) -> float:
     return blf.dimensions(_FONT_ID, "0")[1]
 
 
+def live_dimension_gap(context: Context) -> float:
+    """How far off the geometry a live dimension line is drawn, in pixels."""
+    return live_dimension_text_height(context) * _DIM_OFFSET
+
+
 def live_dimension_placement(start, end, away_from, height):
     """Where a live dimension sits: a unit normal, and pixels along it.
 
