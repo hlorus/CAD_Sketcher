@@ -842,6 +842,17 @@ class StatefulOperatorLogic(_StateMachineMixin):
         """
         return True
 
+    @staticmethod
+    def _tag_redraw(context: Context) -> None:
+        """Repaint the view after a change no mouse move follows.
+
+        Moving the focus from box to box changes what is drawn without going
+        through ``evaluate_state``, which is what normally asks for a repaint.
+        """
+        area = getattr(context, "area", None)
+        if area is not None:
+            area.tag_redraw()
+
     def _handle_pass_through(self, context: Context, event: Event):
         if event.type in {"MIDDLEMOUSE", "WHEELUPMOUSE", "WHEELDOWNMOUSE", "MOUSEMOVE"}:
             return {"PASS_THROUGH"}
@@ -866,11 +877,13 @@ class StatefulOperatorLogic(_StateMachineMixin):
             elif event.type == "TAB" and event.value == "PRESS":
                 self._numeric.iterate()
                 self.set_status_text(context)
+                self._tag_redraw(context)
         elif event.type == "TAB" and event.value == "PRESS":
             # Tab opens the value boxes without a digit first, so a width can be
             # tabbed past and only the height typed.
             is_numeric_edit = self.init_numeric(True)
             self.set_status_text(context)
+            self._tag_redraw(context)
         elif is_numeric_event:
             is_numeric_edit = self.init_numeric(True)
 
@@ -1010,12 +1023,13 @@ class StatefulOperatorLogic(_StateMachineMixin):
         values, ok = self._resolve_values(context, coords, state, is_numeric, is_picked)
 
         # Reflect the live value (property or point placement) in the status bar
-        # and beside the geometry it belongs to.
-        if not is_numeric:
-            self._status_origin = self.state_value_origin(context)
-            self._status_values = tuple(values or ())
-            self._status_value = self._format_values(values) if values else None
-            self.set_status_text(context)
+        # and beside the geometry it belongs to. A typed number resolves into
+        # these values too, so the dimensions follow the geometry onto what was
+        # typed instead of staying where the mouse last put it.
+        self._status_origin = self.state_value_origin(context)
+        self._status_values = tuple(values or ())
+        self._status_value = self._format_values(values) if values else None
+        self.set_status_text(context)
 
         # Resolve state pointer
         if state.pointer:

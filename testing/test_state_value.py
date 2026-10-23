@@ -248,9 +248,20 @@ class TestStateValueSpan(Sketch2dTestCase):
 def _stub_rna(op, subtype="XYZ"):
     """Give a twin the property RNA the real operator carries."""
     names = op.get_property() or []
-    op.rna_type = SimpleNamespace(
-        properties={name: SimpleNamespace(subtype=subtype) for name in names}
-    )
+    props = {
+        name: SimpleNamespace(
+            subtype=subtype,
+            unit="LENGTH" if subtype in ("XYZ", "TRANSLATION", "DISTANCE") else "NONE",
+            type="FLOAT",
+            default=0.0,
+            array_length=3 if subtype in ("XYZ", "TRANSLATION") else 0,
+        )
+        for name in names
+    }
+    op.rna_type = SimpleNamespace(properties=props)
+    # get_numeric_value reads the operator's own property RNA, which only a
+    # registered operator has.
+    op.properties = SimpleNamespace(rna_type=SimpleNamespace(properties=props))
     return op
 
 
@@ -598,3 +609,51 @@ class TestValueBoxLook(Sketch2dTestCase):
                 "a %s value needs a fill well away from it" % (color,),
             )
             self.assertLess(fill[3], 1.0, "the viewport still shows through")
+
+
+class TestLiveValueWhileTyping(Sketch2dTestCase):
+    """A typed number moves the dimensions, not just the text."""
+
+    def _event(self, co=(400, 300)):
+        return SimpleNamespace(
+            mouse_region_x=co[0], mouse_region_y=co[1], type="NONE", value="NOTHING"
+        )
+
+    def _rect_op(self, start=(-0.3, -0.2)):
+        from ..operators.add_rectangle import View3D_OT_slvs_add_rectangle
+
+        harness = OpHarness(View3D_OT_slvs_add_rectangle, self.sketch, self.context)
+        harness.place_point(start)
+        harness.op.redo_states(self.context)
+        _stub_rna(harness.op)
+        return harness.op
+
+    def test_typing_updates_the_values_the_dimensions_are_drawn_from(self):
+        op = self._rect_op()
+        op._numeric = _Numeric(typed={0: "0.9"}, count=2, focused=0)
+        op._status_values = (Vector((0.1, 0.1)),)
+        # The mouse half of the blend, which needs a viewport to resolve.
+        op._get_state_values = lambda context, state, coords: Vector((0.1, 0.1))
+
+        # What evaluate_state now does for a numeric edit as well as a drag.
+        values = [op.get_numeric_value(self.context, Vector((400, 300)))]
+        op._status_origin = op.state_value_origin(self.context)
+        op._status_values = tuple(values)
+
+        # 0.9 typed for the width reaches 0.9 past the first corner, so the
+        # leg the width is dimensioned along ends there.
+        spans = op.state_value_spans(self.context, op._status_values, 2)
+        matrix = self.sketch.world_matrix
+        self.assertAlmostEqual(
+            (spans[0][1] - matrix @ Vector((0.6, -0.2, 0.0))).length, 0.0, places=5
+        )
+
+    def test_moving_the_focus_repaints(self):
+        from ..stateful_operator.logic import StatefulOperatorLogic
+
+        tagged = []
+        area = SimpleNamespace(tag_redraw=lambda: tagged.append(True))
+        StatefulOperatorLogic._tag_redraw(SimpleNamespace(area=area))
+        self.assertEqual(tagged, [True])
+        # No view to repaint is not an error.
+        StatefulOperatorLogic._tag_redraw(SimpleNamespace(area=None))
