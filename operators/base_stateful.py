@@ -10,6 +10,7 @@ from ..drawing import selection
 from ..model.types import SlvsGenericEntity, SlvsNormal3D, SlvsPoint2D, SlvsPoint3D
 from ..serialize import scene_from_dict, scene_to_dict
 from ..stateful_operator.integration import StatefulOperator
+from ..utilities.collections import is_editable
 from .placement import MIDPOINT, placement_of
 from .utilities import get_hovered
 
@@ -630,6 +631,8 @@ class GenericEntityOp(StatefulOperator):
         curve_snapshots = {}
         for sketch in get_sketches(context):
             obj = sketch.target_object
+            if obj and obj.data and not is_editable(obj.data):
+                continue
             if obj and obj.data:
                 curve_snapshots[obj.name] = {
                     "curve_data": self._snapshot_curve_data(obj.data),
@@ -653,7 +656,7 @@ class GenericEntityOp(StatefulOperator):
             return
         for sketch in get_sketches(context):
             obj = sketch.target_object
-            if not obj or not obj.data:
+            if not obj or not obj.data or not is_editable(obj.data):
                 continue
 
             snap = curve_snapshots.get(obj.name)

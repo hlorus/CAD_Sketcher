@@ -9,6 +9,7 @@ from mathutils import Vector
 
 from ..model.curve_ref import CurveRef, PointRef, curve_ref
 from ..model.types import SlvsPoint2D
+from ..utilities.collections import is_editable
 from ..utilities.view import get_blender_snap_info, get_pos_2d, get_scale_from_pos
 from .base_stateful import GenericEntityOp
 from .placement import MIDPOINT, PointPlacement, ProjectionRequest, placement_of
@@ -77,7 +78,7 @@ class Operator2d(GenericEntityOp):
                 k: scene[k] for k in scene.keys() if str(k).startswith("slvs:c:")
             },
         }
-        if obj and obj.data:
+        if obj and obj.data and is_editable(obj.data):
             from ..utilities.curve_data import capture_id_caches
 
             snap["curve_data"] = self._snapshot_curve_data(obj.data)
@@ -96,7 +97,7 @@ class Operator2d(GenericEntityOp):
 
         name = snapshot.get("active_name")
         obj = bpy.data.objects.get(name) if name else None
-        if obj and obj.data and "curve_data" in snapshot:
+        if obj and obj.data and is_editable(obj.data) and "curve_data" in snapshot:
             self._restore_curve_data(obj.data, snapshot["curve_data"])
             # Only this sketch's data changed. Its ids are now exactly the
             # snapshot's, so reinstate the captured caches rather than clearing

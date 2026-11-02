@@ -273,6 +273,50 @@ class Sketch2dTestCase(BgsTestCase):
 
         return CircleRef.create(self.sketch, ct, radius, **kwargs)
 
+    def add_dimensioned_line(self):
+        """A fixed point, a free one, the line between them and its distance."""
+        p0 = self.add_point((0, 0), fixed=True)
+        p1 = self.add_point((2, 0))
+        line = self.add_line(p0, p1)
+        self.sketch.constraints.add_distance(
+            init=True, value=2.0, curve_id_1=line.curve_id
+        )
+
+    def library_sketch(self, override_data=False):
+        """A dimensioned sketch linked from another file into the scene.
+
+        The file is written from this scene and the sketch removed, so what is
+        returned is a linked object. With ``override_data`` it is an override
+        whose Curves data is an override as well.
+        """
+        import os
+        import tempfile
+
+        import bpy
+
+        local = self.sketch
+        self.sketch = self.new_sketch()
+        self.add_dimensioned_line()
+        source = self.sketch.target_object
+        self.sketch = local
+
+        name = source.name
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "library.blend")
+            bpy.data.libraries.write(path, {source})
+            bpy.data.objects.remove(source)
+            with bpy.data.libraries.load(path, link=True) as (_src, dst):
+                dst.objects = [name]
+            linked = dst.objects[0]
+            self.addCleanup(bpy.data.batch_remove, [linked, linked.library])
+            self.context.scene.collection.objects.link(linked)
+            if not override_data:
+                return linked
+            override = linked.override_create(remap_local_usages=True)
+            override.data = override.data.override_create(remap_local_usages=True)
+            self.addCleanup(bpy.data.objects.remove, override)
+        return override
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
