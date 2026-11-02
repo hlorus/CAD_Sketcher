@@ -6,6 +6,7 @@ from bpy.types import Context, Operator
 from ..declarations import BLENDER_SELECT_TOOL, GizmoGroups, WorkSpaceTools
 from ..drawing import selection
 from ..model.sketch_ref import get_active_sketch
+from ..utilities.collections import is_editable
 from ..utilities.curve_data import get_uuid, has_uuid_field, refresh_curve_geometry
 from ..utilities.preferences import get_prefs
 
@@ -198,8 +199,20 @@ def switch_sketch_mode(
     return True
 
 
+def _source_file(datablock) -> str:
+    """Name of the file a linked or overridden datablock comes from, or ''."""
+    override = datablock.override_library
+    source = override.reference if override else datablock
+    library = source.library
+    return bpy.path.basename(library.filepath) if library else ""
+
+
 def activate_sketch(context: Context, sketch_obj, operator: Operator):
-    """Activate a sketch (Curves object) or deactivate (pass None)."""
+    """Activate a sketch (Curves object) or deactivate (pass None).
+
+    A sketch whose object or Curves data comes from a library can't be edited:
+    its changes would never reach the library file, so it is refused.
+    """
     from ..model.sketch_ref import Sketch, get_active_sketch, set_active_sketch
 
     space_data = context.space_data
@@ -207,6 +220,18 @@ def activate_sketch(context: Context, sketch_obj, operator: Operator):
     current = get_active_sketch(context)
     if sketch_obj is not None and current and current.target_object == sketch_obj:
         return {"CANCELLED"}
+
+    if sketch_obj is not None:
+        locked = [b for b in (sketch_obj, sketch_obj.data) if b and not is_editable(b)]
+        if locked:
+            source = _source_file(locked[0])
+            origin = f" from '{source}'" if source else ""
+            operator.report(
+                {"WARNING"},
+                f"'{sketch_obj.name}' is linked{origin} and can't be edited here."
+                " Edit it in the file it comes from.",
+            )
+            return {"CANCELLED"}
 
     new_sketch = Sketch(sketch_obj) if sketch_obj is not None else None
     sketch_mode = new_sketch is not None
