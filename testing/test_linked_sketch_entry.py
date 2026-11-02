@@ -32,7 +32,7 @@ class TestLinkedSketchEntry(Sketch2dTestCase):
         )
         return context
 
-    def _assert_refused(self, sketch_obj):
+    def _assert_refused(self, sketch_obj, state="linked"):
         operator = _Reports()
         context = self._view_context()
 
@@ -45,6 +45,8 @@ class TestLinkedSketchEntry(Sketch2dTestCase):
         self.assertEqual(kinds, {"WARNING"})
         self.assertIn(sketch_obj.name, message)
         self.assertIn("library.blend", message)
+        # An override is local: saying it is "linked" misreads what the user did.
+        self.assertIn(f"is {state} from", message)
 
     def setUp(self):
         super().setUp()
@@ -59,13 +61,20 @@ class TestLinkedSketchEntry(Sketch2dTestCase):
         self._assert_refused(self.library_sketch())
 
     def test_a_sketch_with_overridden_data_is_refused(self):
-        self._assert_refused(self.library_sketch(override_data=True))
+        self._assert_refused(self.library_sketch(override_data=True), "overridden")
 
     def test_a_local_sketch_with_linked_data_is_refused(self):
         linked = self.library_sketch()
         local = self.sketch.target_object
         local.data = linked.data
         self._assert_refused(local)
+
+    def test_a_broken_override_has_no_library_to_name(self):
+        """A missing library leaves the override with no reference to read."""
+        broken = types.SimpleNamespace(
+            override_library=types.SimpleNamespace(reference=None)
+        )
+        self.assertEqual(utilities._source_file(broken), "")
 
     def test_a_local_sketch_is_not_refused(self):
         operator = _Reports()

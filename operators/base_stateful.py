@@ -631,9 +631,9 @@ class GenericEntityOp(StatefulOperator):
         curve_snapshots = {}
         for sketch in get_sketches(context):
             obj = sketch.target_object
-            if obj and obj.data and not is_editable(obj.data):
+            if obj is None or (obj.data and not is_editable(obj.data)):
                 continue
-            if obj and obj.data:
+            if obj.data:
                 curve_snapshots[obj.name] = {
                     "curve_data": self._snapshot_curve_data(obj.data),
                     "constraints": self._snapshot_constraints(obj.data),

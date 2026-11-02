@@ -203,7 +203,8 @@ def _source_file(datablock) -> str:
     """Name of the file a linked or overridden datablock comes from, or ''."""
     override = datablock.override_library
     source = override.reference if override else datablock
-    library = source.library
+    # An override whose library has gone missing has no reference at all.
+    library = source.library if source else None
     return bpy.path.basename(library.filepath) if library else ""
 
 
@@ -224,12 +225,17 @@ def activate_sketch(context: Context, sketch_obj, operator: Operator):
     if sketch_obj is not None:
         locked = [b for b in (sketch_obj, sketch_obj.data) if b and not is_editable(b)]
         if locked:
-            source = _source_file(locked[0])
+            blocker = locked[0]
+            source = _source_file(blocker)
             origin = f" from '{source}'" if source else ""
+            # An override is local, so calling it linked misreads what the user
+            # did. The tools still cannot edit it, because an override refuses
+            # the constraint edits they make.
+            state = "overridden" if blocker.override_library else "linked"
             operator.report(
                 {"WARNING"},
-                f"'{sketch_obj.name}' is linked{origin} and can't be edited here."
-                " Edit it in the file it comes from.",
+                f"'{sketch_obj.name}' is {state}{origin} and can't be edited"
+                " here. Edit it in the file it comes from.",
             )
             return {"CANCELLED"}
 
