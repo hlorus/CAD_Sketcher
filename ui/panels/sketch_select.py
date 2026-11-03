@@ -260,23 +260,19 @@ def _draw_outdated_library_prompt(context: Context, layout: UILayout):
     offer the repair where it is safe: in the library file itself.
 
     A file that only links the library cannot repair it, so it is told what to
-    do instead. The checks run only while this panel is drawn."""
-    from ...utilities.library_refs import (
-        outdated_body_objects,
-        outdated_libraries,
-        warning_lines,
-    )
+    do instead. Reads the state scanned on load; never scans while drawing."""
+    from ...utilities.library_refs import cached_state, warning_lines
 
-    libraries = outdated_libraries()
-    if libraries:
+    state = cached_state()
+    if state.libraries:
         box = layout.box()
         box.alert = True
         box.label(text="Linked library is outdated", icon="ERROR")
-        for line in warning_lines(libraries):
+        for line in warning_lines(state.libraries):
             box.label(text=line)
         return
 
-    if outdated_body_objects():
+    if state.is_library_file and state.repairable:
         box = layout.box()
         box.label(text="Bodies are not ready to be linked", icon="INFO")
         box.operator(

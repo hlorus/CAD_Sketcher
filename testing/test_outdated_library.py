@@ -10,7 +10,6 @@ from unittest import mock
 import bmesh
 import bpy
 
-from ..base import outdated_library
 from ..model.curve_ref import LineRef, PointRef
 from ..operators import repair_library
 from ..operators.add_sketch import build_sketch_on_workplane, create_face_workplane
@@ -26,6 +25,10 @@ from .utils import BgsTestCase
 
 def flagged(body):
     return body.is_property_overridable_library(BODY_SKETCH_PATH)
+
+
+def unflag(obj, path=BODY_SKETCH_PATH):
+    obj.property_overridable_library_set(path, False)
 
 
 class OutdatedLibraryCase(BgsTestCase):
@@ -48,6 +51,13 @@ class OutdatedLibraryCase(BgsTestCase):
         refresh_curve_geometry(sketch)
         obj = sketch.target_object
         self.body = body_of(obj) or ensure_body(self.context, obj, "Body")
+        self.addCleanup(library_refs.clear_state)
+
+    def as_library(self):
+        """Make this file one that is linked from: mark the body as an asset."""
+        self.body.asset_mark()
+        self.addCleanup(self.body.asset_clear)
+        return library_refs.refresh_state()
 
     def face_workplane(self):
         mesh = bpy.data.meshes.new("plate")
@@ -125,6 +135,7 @@ class TestDetection(OutdatedLibraryCase):
 class TestRepairLibrary(OutdatedLibraryCase):
     def test_repair_flags_the_files_own_bodies(self):
         self.body.property_overridable_library_set(BODY_SKETCH_PATH, False)
+        self.as_library()
         self.assertTrue(bpy.ops.view3d.slvs_repair_library.poll())
         bpy.ops.view3d.slvs_repair_library()
         self.assertTrue(flagged(self.body))
@@ -133,28 +144,32 @@ class TestRepairLibrary(OutdatedLibraryCase):
     def test_repair_flags_the_files_own_face_workplanes(self):
         plane = self.face_workplane()
         plane.property_overridable_library_set(WP_SOURCE_PATH, False)
+        self.as_library()
         bpy.ops.view3d.slvs_repair_library()
         self.assertTrue(plane.is_property_overridable_library(WP_SOURCE_PATH))
 
     def test_the_report_counts_what_was_repaired(self):
         self.assertEqual(
-            repair_library.repaired_message(1), "Repaired 1 object. Save this file now."
+            repair_library.repaired_message(1), "Repaired 1 link. Save this file now."
         )
         self.assertEqual(
             repair_library.repaired_message(3),
-            "Repaired 3 objects. Save this file now.",
+            "Repaired 3 links. Save this file now.",
         )
 
     def test_nothing_to_repair_is_not_offered(self):
+        self.as_library()
         self.assertFalse(bpy.ops.view3d.slvs_repair_library.poll())
 
     def test_a_file_that_only_links_the_library_is_not_offered_the_repair(self):
         self.linked_part(outdated=True)
+        library_refs.refresh_state()
         self.assertFalse(bpy.ops.view3d.slvs_repair_library.poll())
 
     def test_repair_leaves_linked_and_overridden_bodies_alone(self):
         linked, override = self.linked_part(outdated=True)
         self.body.property_overridable_library_set(BODY_SKETCH_PATH, False)
+        library_refs.refresh_state()
         bpy.ops.view3d.slvs_repair_library()
         self.assertTrue(flagged(self.body))
         self.assertFalse(flagged(linked))
@@ -163,6 +178,7 @@ class TestRepairLibrary(OutdatedLibraryCase):
 
     def test_a_read_only_file_is_refused(self):
         self.body.property_overridable_library_set(BODY_SKETCH_PATH, False)
+        self.as_library()
         with mock.patch.object(
             repair_library, "repair_blocker", return_value="This file is read-only."
         ):
@@ -180,70 +196,152 @@ class TestRepairLibrary(OutdatedLibraryCase):
                     self.assertEqual(library_refs.repair_blocker(), "")
 
 
+class TestPartialRepair(OutdatedLibraryCase):
+    def test_only_links_that_took_are_counted(self):
+        plane = self.face_workplane()
+        unflag(self.body)
+        unflag(plane, WP_SOURCE_PATH)
+        self.as_library()
+        with mock.patch.object(
+            library_refs, "_set_overridable", side_effect=[True, False]
+        ):
+            self.assertEqual(library_refs.repair_bodies(), 1)
+
+    def test_a_set_blender_refuses_is_not_counted(self):
+        obj = mock.Mock()
+        obj.property_overridable_library_set.return_value = False
+        self.assertFalse(library_refs._set_overridable(obj, BODY_SKETCH_PATH))
+
+    def test_a_set_that_did_not_stick_is_not_counted(self):
+        obj = mock.Mock()
+        obj.property_overridable_library_set.return_value = True
+        obj.is_property_overridable_library.return_value = False
+        self.assertFalse(library_refs._set_overridable(obj, BODY_SKETCH_PATH))
+
+    def test_a_set_that_raises_is_not_counted(self):
+        obj = mock.Mock()
+        obj.property_overridable_library_set.side_effect = TypeError
+        self.assertFalse(library_refs._set_overridable(obj, BODY_SKETCH_PATH))
+
+    def test_the_operator_warns_about_what_is_left(self):
+        unflag(self.body)
+        self.as_library()
+        with mock.patch.object(library_refs, "_set_overridable", return_value=False):
+            result = bpy.ops.view3d.slvs_repair_library()
+        self.assertEqual(result, {"CANCELLED"})
+        self.assertEqual(library_refs.cached_state().repairable, 1)
+        self.assertTrue(bpy.ops.view3d.slvs_repair_library.poll())
+
+    def test_a_full_repair_clears_the_prompt(self):
+        unflag(self.body)
+        self.as_library()
+        self.assertEqual(library_refs.repair_bodies(), 1)
+        self.assertEqual(library_refs.cached_state().repairable, 0)
+
+    def test_the_failure_message(self):
+        self.assertEqual(
+            repair_library.failed_message(2), "2 objects could not be repaired."
+        )
+
+
+class TestCache(OutdatedLibraryCase):
+    def test_redraw_reads_the_cache_and_never_scans(self):
+        unflag(self.body)
+        self.as_library()
+        with (
+            mock.patch.object(
+                library_refs, "outdated_libraries", side_effect=AssertionError
+            ),
+            mock.patch.object(
+                library_refs, "outdated_body_objects", side_effect=AssertionError
+            ),
+            mock.patch.object(
+                library_refs, "refresh_state", side_effect=AssertionError
+            ),
+        ):
+            for _ in range(50):
+                layout = mock.MagicMock()
+                sketch_select._draw_outdated_library_prompt(self.context, layout)
+                layout.box.assert_called_once()
+            self.assertTrue(bpy.ops.view3d.slvs_repair_library.poll())
+
+    def test_nothing_is_shown_before_the_first_scan(self):
+        unflag(self.body)
+        self.body.asset_mark()
+        self.addCleanup(self.body.asset_clear)
+        library_refs.clear_state()
+        layout = mock.MagicMock()
+        sketch_select._draw_outdated_library_prompt(self.context, layout)
+        layout.box.assert_not_called()
+
+    def test_loading_a_file_scans_it(self):
+        from .. import handlers
+
+        unflag(self.body)
+        self.body.asset_mark()
+        self.addCleanup(self.body.asset_clear)
+        library_refs.clear_state()
+        with mock.patch.object(
+            library_refs, "refresh_state", wraps=library_refs.refresh_state
+        ) as scan:
+            handlers.on_load_post()
+        scan.assert_called_once_with()
+        self.assertEqual(library_refs.cached_state().repairable, 1)
+
+    def test_an_unchanged_file_is_not_rescanned(self):
+        self.as_library()
+        with mock.patch.object(library_refs, "refresh_state") as scan:
+            library_refs.refresh_state_if_changed()
+        scan.assert_not_called()
+
+    def test_a_new_link_is_picked_up(self):
+        library_refs.refresh_state()
+        linked, _ = self.linked_part(outdated=True)
+        library_refs.refresh_state_if_changed()
+        self.assertEqual(library_refs.cached_state().libraries, ("library.blend",))
+
+
 class TestWarning(OutdatedLibraryCase):
     def test_the_warning_names_the_library_and_the_steps(self):
         linked, _ = self.linked_part(outdated=True)
-        text = "\n".join(library_refs.warning_lines([linked.library]))
+        text = "\n".join(
+            library_refs.warning_lines([library_refs.library_label(linked.library)])
+        )
         self.assertIn("library.blend", text)
         self.assertIn("open the library file", text)
         self.assertIn("Repair Library File", text)
         self.assertIn("reload this file", text)
 
     def test_many_libraries_are_summarised(self):
-        libraries = [mock.Mock(filepath=f"//lib{i}.blend") for i in range(5)]
-        text = "\n".join(library_refs.warning_lines(libraries))
+        names = [f"lib{i}.blend" for i in range(5)]
+        text = "\n".join(library_refs.warning_lines(names))
         self.assertIn("lib0.blend, lib1.blend, lib2.blend and 2 more", text)
-
-    def test_the_popup_draws_the_warning(self):
-        layout = mock.MagicMock()
-        fake = mock.Mock(layout=layout, _lines=["one", "two"])
-        outdated_library.VIEW3D_OT_slvs_outdated_library_warning.draw(fake, None)
-        texts = [c.kwargs.get("text") for c in layout.label.call_args_list]
-        texts += [
-            c.kwargs.get("text")
-            for c in layout.column.return_value.label.call_args_list
-        ]
-        self.assertEqual(texts[-2:], ["one", "two"])
-
-    def test_the_popup_is_never_scheduled_in_the_background(self):
-        self.assertTrue(outdated_library._in_background())
-        outdated_library.schedule_warning()
-        self.assertFalse(bpy.app.timers.is_registered(outdated_library._maybe_show))
-        self.linked_part(outdated=True)
-        with mock.patch.object(outdated_library, "_show") as op:
-            self.assertIsNone(outdated_library._maybe_show())
-        op.assert_not_called()
-
-    def test_the_popup_is_shown_for_an_outdated_library(self):
-        self.linked_part(outdated=True)
-        with mock.patch.object(outdated_library, "_in_background", return_value=False):
-            with mock.patch.object(outdated_library, "_show") as op:
-                self.assertIsNone(outdated_library._maybe_show())
-        op.assert_called_once_with()
-
-    def test_no_popup_when_nothing_is_outdated(self):
-        with mock.patch.object(outdated_library, "_in_background", return_value=False):
-            with mock.patch.object(outdated_library, "_show") as op:
-                outdated_library._maybe_show()
-        op.assert_not_called()
 
     def _panel(self):
         layout = mock.MagicMock()
         sketch_select._draw_outdated_library_prompt(self.context, layout)
-        return layout.box.return_value
+        return layout
 
     def test_the_panel_warns_without_a_repair_button_in_the_linking_file(self):
         self.linked_part(outdated=True)
-        box = self._panel()
+        library_refs.refresh_state()
+        box = self._panel().box.return_value
         self.assertTrue(box.alert)
         box.operator.assert_not_called()
 
     def test_the_panel_offers_the_repair_in_the_library_file(self):
-        self.body.property_overridable_library_set(BODY_SKETCH_PATH, False)
-        box = self._panel()
+        unflag(self.body)
+        self.as_library()
+        box = self._panel().box.return_value
         self.assertEqual(box.operator.call_args.args[0], "view3d.slvs_repair_library")
 
+    def test_a_plain_local_file_with_old_bodies_shows_nothing(self):
+        unflag(self.body)
+        state = library_refs.refresh_state()
+        self.assertFalse(state.is_library_file)
+        self._panel().box.assert_not_called()
+        self.assertFalse(bpy.ops.view3d.slvs_repair_library.poll())
+
     def test_the_panel_is_quiet_when_nothing_is_outdated(self):
-        layout = mock.MagicMock()
-        sketch_select._draw_outdated_library_prompt(self.context, layout)
-        layout.box.assert_not_called()
+        self.as_library()
+        self._panel().box.assert_not_called()

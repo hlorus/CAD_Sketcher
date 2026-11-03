@@ -4,7 +4,6 @@ modules = [
     "theme",
     "preferences",
     "whats_new",
-    "outdated_library",
 ]
 
 register, unregister = module_register_factory(__name__, modules)
