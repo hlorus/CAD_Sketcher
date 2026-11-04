@@ -38,6 +38,7 @@ FACE_ID_ATTR = "slvs_face_id"
 
 # ID custom-property keys on the workplane empty.
 KEY_SOURCE = "slvs_wp_source"  # source Object (ID reference)
+WP_SOURCE_PATH = f'["{KEY_SOURCE}"]'
 KEY_FACE_ID = "slvs_wp_face_id"  # int id anchored to
 KEY_DETACHED = "slvs_wp_detached"  # bool, set when the id can't be found
 KEY_LAST_CO = "slvs_wp_last_co"  # last cluster centroid in source-local space
@@ -47,6 +48,12 @@ KEY_REF = "slvs_wp_ref"  # in-plane X axis in source-local space
 # ---------------------------------------------------------------------------
 # Creation
 # ---------------------------------------------------------------------------
+
+
+def set_wp_source(empty, source) -> None:
+    """Record what ``empty`` was drawn on, flagged so a library override keeps it."""
+    empty[KEY_SOURCE] = source
+    empty.property_overridable_library_set(WP_SOURCE_PATH, True)
 
 
 def _allocate_face_id(mesh):
@@ -109,7 +116,7 @@ def stamp_face_anchor(empty, source_ob, face_index):
     x_world = empty.matrix_world.to_3x3().col[0].normalized()
     ref_local = (source_ob.matrix_world.to_3x3().inverted() @ x_world).normalized()
 
-    empty[KEY_SOURCE] = source_ob
+    set_wp_source(empty, source_ob)
     empty[KEY_FACE_ID] = face_id
     empty[KEY_DETACHED] = False
     empty[KEY_LAST_CO] = list(mesh.polygons[face_index].center)

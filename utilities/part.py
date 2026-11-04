@@ -1229,26 +1229,26 @@ def _redirect_references(copy: bpy.types.Object, copies: dict) -> None:
         set_modifier_input,
     )
     from .boolean_nodes import BOOLEAN_NODE_GROUP
-    from .face_anchor import KEY_SOURCE
+    from .face_anchor import KEY_SOURCE, set_wp_source
 
     plane = copy.slvs_workplane
     if plane is not None and plane.name in copies:
         copy.slvs_workplane = copies[plane.name]
 
     # A copied body must read the copied sketch, not the original's.
-    from .body import BODY_SKETCH_KEY, bind_body_to_sketch, is_body
+    from .body import BODY_SKETCH_KEY, bind_body_to_sketch, is_body, set_body_sketch
 
     source_sketch = copy.get(BODY_SKETCH_KEY)
     if is_body(copy) and isinstance(source_sketch, bpy.types.Object):
         if source_sketch.name in copies:
             copied_sketch = copies[source_sketch.name]
-            copy[BODY_SKETCH_KEY] = copied_sketch
+            set_body_sketch(copy, copied_sketch)
             copied_sketch.slvs_body = copy
             bind_body_to_sketch(copy, copied_sketch)
 
     source = copy.get(KEY_SOURCE)
     if isinstance(source, bpy.types.Object) and source.name in copies:
-        copy[KEY_SOURCE] = copies[source.name]
+        set_wp_source(copy, copies[source.name])
 
     for modifier in copy.modifiers:
         group = getattr(modifier, "node_group", None)

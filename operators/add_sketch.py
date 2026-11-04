@@ -239,7 +239,11 @@ def create_face_workplane(context: Context, ob, face_index: int):
     utilities/face_anchor).
     """
     from ..stateful_operator.utilities.geometry import get_evaluated_obj
-    from ..utilities.face_anchor import KEY_SOURCE, can_anchor_face, stamp_face_anchor
+    from ..utilities.face_anchor import (
+        can_anchor_face,
+        set_wp_source,
+        stamp_face_anchor,
+    )
 
     source = getattr(ob, "original", ob)
     empty = new_workplane_empty(context, face_workplane_matrix(context, ob, face_index))
@@ -250,7 +254,7 @@ def create_face_workplane(context: Context, ob, face_index: int):
     # object, so drawing on a sketch's own face never anchors), and a modifier
     # that changed the topology rules it out too (issue #342-adjacent crash on
     # box.blend meshes) -- the empty then stays a plain fixed workplane.
-    empty[KEY_SOURCE] = source
+    set_wp_source(empty, source)
     if can_anchor_face(source, get_evaluated_obj(context, source)):
         stamp_face_anchor(empty, source, face_index)
     return empty

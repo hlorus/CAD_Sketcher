@@ -86,6 +86,10 @@ def on_load_post(*args):
     constraint_icons.invalidate()
     selection.clear()
 
+    from .utilities.library_refs import refresh_state
+
+    refresh_state()
+
     # A file with no path was never saved, so it is this session's and current by
     # definition. Any version its scenes carry came from the startup file, which
     # a user saves once and keeps: without this, every File > New from a startup
@@ -117,6 +121,11 @@ def on_depsgraph_update(scene, depsgraph):
     from .utilities.projection_anchor import update_projected_geometry
 
     update_projected_geometry(bpy.context, depsgraph)
+
+    if depsgraph.id_type_updated("OBJECT") or depsgraph.id_type_updated("LIBRARY"):
+        from .utilities.library_refs import refresh_state_if_changed
+
+        refresh_state_if_changed()
 
     # Repair invariants if a built-in tool edited our curve data outside the
     # addon. Skip while one of our operators is mid-run (it owns the data and
@@ -266,6 +275,10 @@ def on_undo_redo(scene, *args):
     reset_part_cache()
     reset_collection_cache()
     invalidate_curve_id_cache()
+
+    from .utilities.library_refs import refresh_state
+
+    refresh_state()
 
     sketch = get_active_sketch(bpy.context)
     sync_sketch_mode(

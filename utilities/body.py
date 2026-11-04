@@ -20,10 +20,17 @@ from mathutils import Matrix
 # The body's link back to the sketch it reads, so each can find the other without
 # searching every modifier in the file.
 BODY_SKETCH_KEY = "slvs:body_of"
+BODY_SKETCH_PATH = f'["{BODY_SKETCH_KEY}"]'
 # Set once a body has been put where the sketch used to stand. A body can exist
 # before that: the file update builds one to carry an old stack, since a Curves
 # object holds only Geometry Nodes modifiers.
 BODY_PLACED_KEY = "slvs:body_placed"
+
+
+def set_body_sketch(body: bpy.types.Object, sketch_obj: bpy.types.Object) -> None:
+    """Record which sketch ``body`` reads, flagged so a library override keeps it."""
+    body[BODY_SKETCH_KEY] = sketch_obj
+    body.property_overridable_library_set(BODY_SKETCH_PATH, True)
 
 
 def is_body(obj: Optional[bpy.types.Object]) -> bool:
@@ -116,7 +123,7 @@ def _new_body(
     name = name or default_body_name()
     body = bpy.data.objects.new(name, bpy.data.meshes.new(name))
     body.data.name = body.name  # or the two number themselves apart
-    body[BODY_SKETCH_KEY] = sketch_obj
+    set_body_sketch(body, sketch_obj)
     sketch_obj.slvs_body = body
     link_to_scene_root(body, context.scene)
 
@@ -298,11 +305,11 @@ def _redirect_to_body(scene, sketch_obj: bpy.types.Object, body: bpy.types.Objec
         set_modifier_input,
     )
     from .boolean_nodes import BOOLEAN_NODE_GROUP
-    from .face_anchor import KEY_SOURCE
+    from .face_anchor import KEY_SOURCE, set_wp_source
 
     for obj in scene.objects:
         if obj.get(KEY_SOURCE) == sketch_obj:
-            obj[KEY_SOURCE] = body
+            set_wp_source(obj, body)
         for modifier in obj.modifiers:
             group = getattr(modifier, "node_group", None)
             if modifier.type != "NODES" or group is None:

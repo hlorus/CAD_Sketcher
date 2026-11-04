@@ -53,6 +53,7 @@ modules = [
     "custom_attributes",
     "migrate",
     "repair_bodies",
+    "repair_library",
 ]
 
 
