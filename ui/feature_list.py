@@ -320,10 +320,15 @@ class VIEW3D_UL_features(UIList):
             return
 
         if sketch_row:
-            row.operator(
+            from ..utilities.collections import is_editable
+
+            editable = is_editable(obj) and is_editable(obj.data)
+            sub = row.row()
+            sub.enabled = editable
+            sub.operator(
                 Operators.SetActiveSketch,
                 text="",
-                icon="OUTLINER_DATA_GP_LAYER",
+                icon="OUTLINER_DATA_GP_LAYER" if editable else "LOCKED",
                 emboss=False,
             ).sketch_name = obj.name
             return

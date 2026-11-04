@@ -86,6 +86,18 @@ class TestLinkedSketchEntry(Sketch2dTestCase):
         self.assertEqual(operator.reports, [])
         self.assertEqual(get_active_sketch(self.context), self.sketch)
 
+    def test_non_editable_sketches_detected_for_ui_lock(self):
+        from ..utilities.collections import is_editable
+
+        linked = self.library_sketch()
+        self.assertFalse(is_editable(linked) and is_editable(linked.data))
+
+        overridden = self.library_sketch(override_data=True)
+        self.assertFalse(is_editable(overridden) and is_editable(overridden.data))
+
+        local = self.sketch.target_object
+        self.assertTrue(is_editable(local) and is_editable(local.data))
+
     def tearDown(self):
         from ..workspacetools.manager import leave_sketch_mode
 
