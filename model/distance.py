@@ -130,6 +130,44 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         first, second = self.signature
         return (first, (*second, SlvsCircle, SlvsArc))
 
+    def accepts_curve_types(self, sketch):
+        """Whether the referenced curves have types this constraint can solve."""
+        if not super().accepts_curve_types(sketch):
+            return False
+
+        id1, id2 = self.curve_id_1, self.curve_id_2
+        if not id1 or not id2:
+            return True
+
+        # An entity cannot be constrained to itself
+        if id1 == id2:
+            return False
+
+        from .curve_ref import curve_ref
+
+        r1 = curve_ref(sketch, id1)
+        r2 = curve_ref(sketch, id2)
+        if not r1.valid or not r2.valid:
+            return True
+
+        # Point in Line: do not allow distance between a line and its own endpoints
+        if r1.is_line() and r2.is_point():
+            if (r1.p1 and r2 == r1.p1) or (r1.p2 and r2 == r1.p2):
+                return False
+        elif r2.is_line() and r1.is_point():
+            if (r2.p1 and r1 == r2.p1) or (r2.p2 and r1 == r2.p2):
+                return False
+
+        # Center point: do not allow distance between circle/arc and its own center
+        if r1.is_curve() and r2.is_point():
+            if r1.ct and r2 == r1.ct:
+                return False
+        elif r2.is_curve() and r1.is_point():
+            if r2.ct and r1 == r2.ct:
+                return False
+
+        return True
+
     def _is_native_3d(self):
         sketch = self._get_sketch()
         return bool(sketch and getattr(sketch, "is_3d", False))
@@ -150,81 +188,79 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     curve_id_1: StringProperty(name="Curve ID 1", default="")
     curve_id_2: StringProperty(name="Curve ID 2", default="")
 
-    def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
-        from ..model.constants import SketchCurveType
-        from ..utilities.curve_data import get_curve_data, get_curve_position, get_uuid
+    def _refs_curve_first(self):
+        """Return (r1, r2, swapped) with any curve entity placed first."""
+        r1, r2 = self.ref(1), self.ref(2)
+        if r1 and r2 and not r1.is_curve() and r2.is_curve():
+            return r2, r1, True
+        return r1, r2, False
 
-        h1 = handle_map.get(self.curve_id_1)
-        h2 = handle_map.get(self.curve_id_2)
+    def create_slvs_data_from_curves(self, solvesys, handle_map, wp, group):
+        from ..utilities.curve_data import get_curve_position
+
+        r1, r2, _ = self._refs_curve_first()
+        if not r1 or not r2 or not r1.valid or not r2.valid:
+            return None
+
+        h1 = handle_map.get(r1.curve_id)
+        h2 = handle_map.get(r2.curve_id)
         if h1 is None or h2 is None:
             return None
 
         sketch = self._get_sketch()
-        cd, idx1, _ = get_curve_data(sketch, self.curve_id_1)
-        _, idx2, _ = get_curve_data(sketch, self.curve_id_2)
-        if cd is None:
-            return None
-
-        type_attr = cd.attributes.get("sketch_type")
-
-        t1 = type_attr.data[idx1].value
-        t2 = type_attr.data[idx2].value if idx2 is not None else -1
-
+        cid1, cid2 = r1.curve_id, r2.curve_id
         value = self.get_value()
 
         # Line entity1 → use start point as e1
-        if t1 == SketchCurveType.LINE:
-            sp_id = get_uuid(cd, "start_point_id", idx1)
-            h1 = handle_map.get(sp_id)
+        if r1.is_line():
+            sp = r1.p1
+            if not sp or not sp.valid:
+                return None
+            h1 = handle_map.get(sp.curve_id)
             if h1 is None:
                 return None
 
         # Curve/arc entity1 → measure from its edge, i.e. constrain the centre a
         # radius further out. A curve entity2 adds its own radius too, so the
         # value is the edge-to-edge gap along the line of centres.
-        if t1 in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
-            from mathutils import Vector
-
-            def _center_radius(index):
-                cid = get_uuid(cd, "center_point_id", index)
-                handle = handle_map.get(cid)
-                pos = get_curve_position(sketch, cid)
-                if not handle or not pos:
-                    return None, 0.0
-                slice_ = cd.curves[index]
-                edge = Vector(cd.points[slice_.points[0].index].position)
-                return handle, (edge - Vector(pos)).length
-
-            ct1_handle, r1 = _center_radius(idx1)
+        if r1.is_curve():
+            ct1 = r1.ct
+            if not ct1 or not ct1.valid:
+                return None
+            ct1_handle = handle_map.get(ct1.curve_id)
             if ct1_handle is None:
                 return None
+            r1_rad = r1.radius
 
-            if t2 in (SketchCurveType.ARC, SketchCurveType.CIRCLE):
-                ct2_handle, r2 = _center_radius(idx2)
+            if r2.is_curve():
+                ct2 = r2.ct
+                if not ct2 or not ct2.valid:
+                    return None
+                ct2_handle = handle_map.get(ct2.curve_id)
                 if ct2_handle is None:
                     return None
                 return solvesys.distance(
-                    group, ct1_handle, ct2_handle, value + r1 + r2, wp
+                    group, ct1_handle, ct2_handle, value + r1_rad + r2.radius, wp
                 )
 
-            if t2 == SketchCurveType.LINE:
+            if r2.is_line():
                 # Point-to-line distance is signed (see use_flipping): keep the
                 # radius on the same side as the centre so the circle doesn't jump
                 # across the line.
-                r1_signed = -r1 if self.flip else r1
+                r1_signed = -r1_rad if self.flip else r1_rad
                 return solvesys.distance(group, ct1_handle, h2, value + r1_signed, wp)
 
-            return solvesys.distance(group, ct1_handle, h2, value + r1, wp)
+            return solvesys.distance(group, ct1_handle, h2, value + r1_rad, wp)
 
         # Point-to-line or point-to-point
-        if t2 == SketchCurveType.LINE:
+        if r2.is_line():
             return solvesys.distance(group, h1, h2, value, wp)
 
-        if t2 == SketchCurveType.POINT:
+        if r2.is_point():
             alignment = self.align
             if self.use_align() and alignment != "NONE":
-                p1_pos = get_curve_position(sketch, self.curve_id_1)
-                p2_pos = get_curve_position(sketch, self.curve_id_2)
+                p1_pos = get_curve_position(sketch, cid1)
+                p2_pos = get_curve_position(sketch, cid2)
                 if p1_pos and p2_pos:
                     p = solvesys.add_point_2d(group, p2_pos[0], p1_pos[1], wp)
                     handles = []
@@ -279,7 +315,17 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
     def create_slvs_data(self, solvesys, group=Solver.group_fixed):
         if self.entity1 == self.entity2:
             raise AttributeError("Cannot create constraint between one entity itself")
-        # TODO: don't allow Distance if Point -> Line if (Point in Line)
+        if self.entity1 and self.entity2:
+            if self.entity1.is_line() and self.entity2.is_point():
+                if self.entity2 in (self.entity1.p1, self.entity1.p2):
+                    raise AttributeError(
+                        "Cannot create distance between line and its endpoint"
+                    )
+            elif self.entity1.is_point() and self.entity2.is_line():
+                if self.entity1 in (self.entity2.p1, self.entity2.p2):
+                    raise AttributeError(
+                        "Cannot create distance between point and its line"
+                    )
 
         e1, e2 = self.entity1, self.entity2
         if e1.is_line():
@@ -339,8 +385,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         return func(group, e1.py_data, e2.py_data, value, *args)
 
     def matrix_basis(self):
-        r1, r2 = self.ref(1), self.ref(2)
+        r1, r2, _ = self._refs_curve_first()
         if not r1 or not r1.valid:
+            return Matrix()
+        if r2 is not None and not r2.valid:
             return Matrix()
         if self._is_native_3d():
             return self._compute_matrix_basis_3d(r1, r2)
@@ -373,6 +421,10 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         align = self.is_align()
         angle = 0
 
+        # Normalise curve-first so the curve is always e1
+        if not e1.is_curve() and e2 is not None and e2.is_curve():
+            e1, e2 = e2, e1
+
         # Curve-to-curve: the gap is measured edge-to-edge along the line of
         # centres, so place the label between the two facing edge points.
         if e1.is_curve() and e2 is not None and e2.is_curve():
@@ -390,21 +442,29 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         # Resolve p1 and p2 as 2D positions
         if e1.is_curve():
             centerpoint = e1.ct.co
-            if e2.is_line():
+            if e2 and e2.is_line():
                 p2, _ = intersect_point_line(centerpoint, e2.p1.co, e2.p2.co)
-            else:
+            elif e2 and e2.is_point():
                 p2 = e2.co
+            else:
+                p2 = centerpoint
             if (p2 - centerpoint).length > 0:
                 vec = (p2 - centerpoint) / (p2 - centerpoint).length
                 p1 = centerpoint + (e1.radius * Vector(vec))
             else:
-                p1 = e2.p1.co
+                p1 = p2
         elif e1.is_line():
             p1, p2 = e1.p1.co, e1.p2.co
             # For the type check below, treat as point-point
             e1, e2 = e1.p1, e1.p2
         else:
             p1 = e1.co
+
+        if e2 is None:
+            mat_rot = Matrix.Rotation(0, 2, "Z")
+            v_translation = p1
+            mat_local = Matrix.Translation(v_translation.to_3d()) @ mat_rot.to_4x4()
+            return wp_mat @ mat_local
 
         if e2.is_point():
             p2 = e2.co
@@ -448,7 +508,7 @@ class SlvsDistance(DimensionalConstraint, PropertyGroup):
         return wp_mat @ mat_local
 
     def _get_init_value(self, alignment):
-        r1, r2 = self.ref(1), self.ref(2)
+        r1, r2, _ = self._refs_curve_first()
         if not r1:
             if self.is_property_set("value_store"):
                 return self.value_store

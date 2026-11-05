@@ -43,6 +43,23 @@ class TestConstraintTypeGuard(Sketch2dTestCase):
         for c in bad:
             self.assertTrue(c.failed, c.type)
 
+    def test_unsupported_distance_pairs_fail(self):
+        sc = self.sketch.constraints
+        pairs = [
+            (self.p0.curve_id, self.p0.curve_id),
+            (self.p0.curve_id, self.line.curve_id),
+            (self.p1.curve_id, self.line.curve_id),
+            (self.line.curve_id, self.p0.curve_id),
+            (self.line.curve_id, self.p1.curve_id),
+            (self.circle.curve_id, self.circle.ct.curve_id),
+            (self.circle.ct.curve_id, self.circle.curve_id),
+        ]
+        for cid1, cid2 in pairs:
+            c = sc.add_distance(curve_id_1=cid1, curve_id_2=cid2, value=1.0)
+            self._solve()
+            self.assertTrue(c.failed, f"{cid1} -> {cid2}")
+            sc.remove(c)
+
     def test_tangent_line_first_matches_curve_first(self):
         sc = self.sketch.constraints
         t = sc.add_tangent(
@@ -54,6 +71,32 @@ class TestConstraintTypeGuard(Sketch2dTestCase):
         d = b - a
         dist = abs(d.x * (ct.y - a.y) - d.y * (ct.x - a.x)) / d.length
         self.assertAlmostEqual(dist, self.circle.radius, places=4)
+
+    def test_distance_curve_second_matches_curve_first(self):
+        sc = self.sketch.constraints
+        d = sc.add_distance(
+            curve_id_1=self.p2.curve_id, curve_id_2=self.circle.curve_id, value=1.0
+        )
+        self.assertTrue(self._solve())
+        self.assertFalse(d.failed)
+        dist = (self.p2.co - self.circle.ct.co).length - self.circle.radius
+        self.assertAlmostEqual(dist, 1.0, places=4)
+
+    def test_distance_line_and_circle_either_order(self):
+        sc = self.sketch.constraints
+        d = sc.add_distance(
+            curve_id_1=self.line2.curve_id, curve_id_2=self.circle.curve_id, value=1.0
+        )
+        self.assertTrue(self._solve())
+        self.assertFalse(d.failed)
+
+    def test_supported_distance_point_to_line(self):
+        sc = self.sketch.constraints
+        d = sc.add_distance(
+            curve_id_1=self.p2.curve_id, curve_id_2=self.line.curve_id, value=3.0
+        )
+        self.assertTrue(self._solve())
+        self.assertFalse(d.failed)
 
     def test_supported_pairs_unchanged(self):
         sc = self.sketch.constraints
