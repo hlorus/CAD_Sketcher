@@ -134,7 +134,14 @@ class VIEW3D_MT_slvs_part_sketches(Menu):
         for sketch_obj in part_sketches(context, root):
             body = body_of(sketch_obj)
             marks = {sketch_obj.name} | ({body.name} if body is not None else set())
-            icon = "MOD_BOOLEAN" if marks & cutting else "OUTLINER_DATA_GP_LAYER"
+            from ...utilities.collections import is_editable
+
+            editable = is_editable(sketch_obj) and is_editable(sketch_obj.data)
+            icon = (
+                "LOCKED"
+                if not editable
+                else ("MOD_BOOLEAN" if marks & cutting else "OUTLINER_DATA_GP_LAYER")
+            )
             layout.operator(
                 declarations.Operators.SetActiveSketch,
                 text=sketch_obj.name,
