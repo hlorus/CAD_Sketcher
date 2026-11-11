@@ -16,7 +16,7 @@ from ..utilities.ifc_sketch import sketch_profiles
 
 
 class ExportCADSketcherIFC(Operator, ExportHelper):
-    """Export closed straight-line outlines from the active 2D sketch"""
+    """Export analytic closed profiles and holes from the active 2D sketch"""
 
     bl_idname = Operators.ExportIFC
     bl_label = "Export IFC Profiles"
@@ -38,7 +38,7 @@ class ExportCADSketcherIFC(Operator, ExportHelper):
         return ExportHelper.invoke(self, context, event)
 
     def draw(self, context: Context) -> None:
-        self.layout.label(text="Closed straight-line profiles only")
+        self.layout.label(text="Lines, circular arcs, circles and contained holes")
         self.layout.label(text="Construction geometry is excluded")
         self.layout.label(text="Coordinates use the sketch's local frame")
 
@@ -55,7 +55,9 @@ class ExportCADSketcherIFC(Operator, ExportHelper):
             self.report({"ERROR"}, "Enter a two-dimensional sketch before exporting")
             return {"CANCELLED"}
         try:
-            profiles = sketch_profiles(sketch)
+            profiles = sketch_profiles(
+                sketch, unit_scale=context.scene.unit_settings.scale_length
+            )
             write_sketch_profiles(
                 self.filepath,
                 profiles,

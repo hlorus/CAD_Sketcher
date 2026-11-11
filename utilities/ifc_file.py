@@ -8,15 +8,26 @@ from numbers import Real
 from pathlib import Path
 
 from . import ifc_export
+from .ifc_profile import (
+    IFC_PRECISION,
+    Line,
+    Profile,
+    add_profile,
+    arrange_boundaries,
+    scale_boundary,
+)
 
 Point2D = tuple[float, float]
-SketchProfiles = Sequence[tuple[str, Sequence[Point2D]]]
+SketchProfiles = Sequence[Profile | tuple[str, Sequence[Point2D]]]
 
 
 def _new_document(ifc, filename: str):
     document = ifc.file(schema="IFC4")
     metre = document.create_entity("IfcSIUnit", UnitType="LENGTHUNIT", Name="METRE")
-    units = document.create_entity("IfcUnitAssignment", Units=[metre])
+    radian = document.create_entity(
+        "IfcSIUnit", UnitType="PLANEANGLEUNIT", Name="RADIAN"
+    )
+    units = document.create_entity("IfcUnitAssignment", Units=[metre, radian])
     origin = document.create_entity("IfcCartesianPoint", Coordinates=(0.0, 0.0))
     placement = document.create_entity("IfcAxis2Placement2D", Location=origin)
     context = document.create_entity(
@@ -24,7 +35,7 @@ def _new_document(ifc, filename: str):
         ContextIdentifier="Sketch",
         ContextType="Plan",
         CoordinateSpaceDimension=2,
-        Precision=1e-8,
+        Precision=IFC_PRECISION,
         WorldCoordinateSystem=placement,
     )
     project = document.create_entity(
@@ -38,7 +49,7 @@ def _new_document(ifc, filename: str):
         "IfcProjectLibrary",
         GlobalId=ifc.guid.new(),
         Name="CAD Sketcher profile library",
-        Description="Closed straight-line profiles in their local sketch coordinates.",
+        Description="Analytic profiles and voids in their local sketch coordinates.",
         RepresentationContexts=[context],
         UnitsInContext=units,
     )
@@ -83,21 +94,38 @@ def write_sketch_profiles(
         raise ValueError("scene unit scale must be a finite positive number")
     scale = float(unit_scale)
     scaled_profiles = []
-    for name, points in profiles:
-        if not isinstance(name, str) or not name.strip():
+    for item in profiles:
+        if isinstance(item, Profile):
+            profile = item
+        else:
+            # Keep the original (name, points) API for callers of the line
+            # exporter. Its exact polygon checks remain in ifc_export.
+            name, points = item
+            loop = ifc_export.closed_loop_points(points)
+            boundary = tuple(Line(a, b) for a, b in zip(loop, loop[1:] + loop[:1]))
+            profile = Profile(name, boundary)
+        if not isinstance(profile.name, str) or not profile.name.strip():
             raise ValueError("each profile needs a nonempty name")
-        # Validate after conversion as very small or large scaling can collapse
-        # distinct points or produce non-finite coordinates.
-        scaled = [(float(x) * scale, float(y) * scale) for x, y in points]
-        scaled_profiles.append((name, ifc_export.closed_loop_points(scaled)))
+        scaled = Profile(
+            profile.name,
+            scale_boundary(profile.outer, scale),
+            tuple(scale_boundary(hole, scale) for hole in profile.holes),
+        )
+        # Named definitions have independent local frames and may overlap.
+        # Validate this profile's own outer area and directly contained voids.
+        # The sketch reader separately validates the entire active sketch.
+        boundaries = [scaled.outer, *scaled.holes]
+        expected = [(0, tuple(range(1, len(boundaries))))]
+        if arrange_boundaries(boundaries) != expected:
+            raise ValueError("profile voids do not match their analytic containment")
+        scaled_profiles.append(scaled)
     if not scaled_profiles:
         raise ValueError("at least one closed sketch profile is required")
-
     destination = Path(path).expanduser().absolute()
     ifc = ifc_export._ifcopenshell()
     document = _new_document(ifc, destination.name)
-    for name, points in scaled_profiles:
-        ifc_export.add_arbitrary_profile(document, name, points)
+    for profile in scaled_profiles:
+        add_profile(document, profile)
 
     descriptor, temporary = tempfile.mkstemp(
         prefix=f".{destination.name}.", suffix=".ifc", dir=destination.parent
