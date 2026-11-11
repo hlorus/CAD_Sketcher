@@ -194,6 +194,14 @@ class Preferences(AddonPreferences):
         description="Show a summary of the changes after CAD Sketcher is updated",
         default=True,
     )
+    enable_ifc_profile_export: BoolProperty(
+        name="IFC Profile Export",
+        description=(
+            "Show the optional IFC profile exporter in File > Export. "
+            "Requires IfcOpenShell in Blender's Python environment"
+        ),
+        default=False,
+    )
 
     def draw(self, context):
         layout = self.layout
@@ -257,6 +265,10 @@ class Preferences(AddonPreferences):
         col.prop(self, "decimal_precision")
         col.prop(self, "imperial_precision")
         col.prop(self, "angle_precision")
+
+        box = layout.box()
+        box.label(text="Integrations")
+        box.prop(self, "enable_ifc_profile_export")
 
         box = layout.box()
         box.label(text="Advanced")

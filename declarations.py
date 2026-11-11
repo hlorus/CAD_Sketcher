@@ -74,6 +74,7 @@ class Operators(str, Enum):
     Copy = "view3d.slvs_copy"
     DeleteConstraint = "view3d.slvs_delete_constraint"
     EditConstraintValue = "view3d.slvs_edit_constraint_value"
+    ExportIFC = "export_scene.cad_sketcher_ifc"
     DeleteEntity = "view3d.slvs_delete_entity"
     DeleteAssembly = "view3d.slvs_delete_assembly"
     EditBodyMesh = "view3d.slvs_edit_body_mesh"
