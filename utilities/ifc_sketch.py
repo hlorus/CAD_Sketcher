@@ -26,7 +26,10 @@ def sketch_profiles(sketch: "Sketch", *, unit_scale: float = 1.0) -> list[Profil
     """
     if sketch.is_3d:
         raise ValueError("IFC area profiles need a two-dimensional sketch")
-    if not sketch.geometry_solved or sketch.solver_state != "OKAY":
+    if not sketch.geometry_solved or sketch.solver_state not in {
+        "OKAY",
+        "REDUNDANT_OK",
+    }:
         raise ValueError("Solve the sketch successfully before exporting its profiles")
     if (
         isinstance(unit_scale, bool)

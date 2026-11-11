@@ -1,5 +1,7 @@
 # Export IFC profiles
 
+In **Edit > Preferences > Add-ons > CAD Sketcher**, enable **Integrations >
+IFC Profile Export**. The optional exporter stays hidden until you enable it.
 Enter a two-dimensional sketch, solve it, and choose **File > Export > CAD
 Sketcher IFC Profiles (.ifc)**. The exporter writes named area profiles in an
 IFC4 profile library, including contained holes.

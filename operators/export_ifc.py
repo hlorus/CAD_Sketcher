@@ -13,6 +13,7 @@ from ..model.sketch_ref import Sketch, get_active_sketch, is_sketch_object
 from ..utilities.ifc_export import IfcOpenShellMissing
 from ..utilities.ifc_file import write_sketch_profiles
 from ..utilities.ifc_sketch import sketch_profiles
+from ..utilities.preferences import get_prefs
 
 
 class ExportCADSketcherIFC(Operator, ExportHelper):
@@ -27,10 +28,20 @@ class ExportCADSketcherIFC(Operator, ExportHelper):
 
     @classmethod
     def poll(cls, context: Context) -> bool:
+        """Offer export only when enabled and a native 2D sketch is active."""
+        if not get_prefs().enable_ifc_profile_export:
+            cls.poll_message_set(
+                "Enable IFC Profile Export in CAD Sketcher preferences"
+            )
+            return False
         sketch = get_active_sketch(context)
-        return sketch is not None and not sketch.is_3d
+        if sketch is None or sketch.is_3d:
+            cls.poll_message_set("Enter a two-dimensional sketch before exporting")
+            return False
+        return True
 
     def invoke(self, context: Context, event: bpy.types.Event) -> set[str]:
+        """Capture the active sketch before opening Blender's file browser."""
         sketch = get_active_sketch(context)
         self.sketch_name = sketch.name
         if not self.filepath:
@@ -38,11 +49,13 @@ class ExportCADSketcherIFC(Operator, ExportHelper):
         return ExportHelper.invoke(self, context, event)
 
     def draw(self, context: Context) -> None:
+        """Describe the exported geometry and coordinate frame in the browser."""
         self.layout.label(text="Lines, circular arcs, circles and contained holes")
         self.layout.label(text="Construction geometry is excluded")
         self.layout.label(text="Coordinates use the sketch's local frame")
 
     def execute(self, context: Context) -> set[str]:
+        """Convert the selected native sketch and atomically publish its IFC file."""
         if self.sketch_name:
             obj = context.scene.objects.get(self.sketch_name)
             if not is_sketch_object(obj):
@@ -80,7 +93,10 @@ class ExportCADSketcherIFC(Operator, ExportHelper):
 
 
 def _export_menu(self: bpy.types.Menu, context: Context) -> None:
-    self.layout.operator(Operators.ExportIFC, text="CAD Sketcher IFC Profiles (.ifc)")
+    if get_prefs().enable_ifc_profile_export:
+        self.layout.operator(
+            Operators.ExportIFC, text="CAD Sketcher IFC Profiles (.ifc)"
+        )
 
 
 _register, _unregister = register_classes_factory((ExportCADSketcherIFC,))

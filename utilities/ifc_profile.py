@@ -8,6 +8,10 @@ established by the sketch reader, not by this module's numerical comparisons.
 import math
 from dataclasses import dataclass
 from fractions import Fraction
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import ifcopenshell
 
 from .ifc_export import Point2D, _on_segment, closed_loop_points
 
@@ -16,24 +20,31 @@ IFC_PRECISION = 1e-8
 
 @dataclass(frozen=True)
 class Line:
+    """An oriented straight segment in the profile's local coordinate frame."""
+
     start: Point2D
     end: Point2D
 
 
 @dataclass(frozen=True)
 class Circle:
+    """A complete circular boundary with its original center and radius."""
+
     center: Point2D
     radius: float
 
 
 @dataclass(frozen=True)
 class Arc:
+    """An oriented circular arc; positive sweep is counterclockwise."""
+
     center: Point2D
     radius: float
     start_angle: float
     sweep: float
 
     def point(self, fraction: float) -> Point2D:
+        """Evaluate the analytic arc at a fraction of its signed sweep."""
         angle = self.start_angle + fraction * self.sweep
         return (
             self.center[0] + self.radius * math.cos(angle),
@@ -42,13 +53,16 @@ class Arc:
 
     @property
     def start(self) -> Point2D:
+        """Return the analytic point at the start angle."""
         return self.point(0.0)
 
     @property
     def end(self) -> Point2D:
+        """Return the analytic point at the end of the signed sweep."""
         return self.point(1.0)
 
     def reversed(self) -> "Arc":
+        """Return the same geometric arc with its traversal direction reversed."""
         return Arc(self.center, self.radius, self.start_angle + self.sweep, -self.sweep)
 
 
@@ -58,6 +72,8 @@ Boundary = Circle | tuple[Segment, ...]
 
 @dataclass(frozen=True)
 class Profile:
+    """A named area boundary and its directly contained void boundaries."""
+
     name: str
     outer: Boundary
     holes: tuple[Boundary, ...] = ()
@@ -408,7 +424,9 @@ def scale_boundary(boundary: Boundary, scale: float) -> Boundary:
     )
 
 
-def add_profile(document, profile: Profile):
+def add_profile(
+    document: "ifcopenshell.file", profile: Profile
+) -> "ifcopenshell.entity_instance":
     """Add one analytic IFC4 area profile, including all direct voids."""
 
     def circle(curve: Arc | Circle):

@@ -8,6 +8,10 @@ and they raise IfcOpenShellMissing when it is not installed.
 import math
 from collections.abc import Sequence
 from fractions import Fraction
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import ifcopenshell
 
 Point2D = tuple[float, float]
 
@@ -119,7 +123,9 @@ def closed_loop_points(points: Sequence[Point2D]) -> list[Point2D]:
     return loop
 
 
-def add_arbitrary_profile(ifc_file, name: str, points: Sequence[Point2D]):
+def add_arbitrary_profile(
+    ifc_file: "ifcopenshell.file", name: str, points: Sequence[Point2D]
+) -> "ifcopenshell.entity_instance":
     """Add an IfcArbitraryClosedProfileDef (AREA) to an open ifcopenshell file."""
     loop = closed_loop_points(points)
     cartesian = [ifc_file.createIfcCartesianPoint(p) for p in loop]
