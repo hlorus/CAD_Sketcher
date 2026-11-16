@@ -6,11 +6,6 @@ Enter a two-dimensional sketch, solve it, and choose **File > Export > CAD
 Sketcher IFC Profiles (.ifc)**. The exporter writes named area profiles in an
 IFC4 profile library, including contained holes.
 
-The file browser starts beside the saved .blend file, using the active sketch's
-name. Each new export uses the active sketch; a previous export's sketch and
-file path are not retained as operator defaults. New files follow the system's
-normal creation permissions, and replacing an existing file preserves its mode.
-
 IfcOpenShell must be installed in Blender's Python environment. The add-on
 remains usable without it; the export command reports a missing dependency
 without changing an existing file.

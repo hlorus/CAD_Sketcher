@@ -5,6 +5,10 @@ gated on the update having touched an object at all. Most updates have not:
 solving a sketch, editing a dimension, a modifier input.
 """
 
+import ctypes
+import sys
+import unittest
+
 import bpy
 
 from ..handlers import on_depsgraph_update
@@ -16,6 +20,21 @@ from ..utilities.part import (
     reset_cache,
 )
 from .utils import BgsTestCase
+
+
+def _can_render_previews() -> bool:
+    """Whether this Blender can render a preview without a display.
+
+    Background Blender on Linux draws through EGL. Without it a preview render
+    aborts the whole process rather than raising, taking every test with it.
+    """
+    if sys.platform != "linux":
+        return True
+    try:
+        ctypes.CDLL("libEGL.so.1")
+    except OSError:
+        return False
+    return True
 
 
 class _Update:
@@ -65,6 +84,7 @@ class TestHandlerScope(BgsTestCase):
 
         self.assertTrue(all(member.lock_location), "the member was not pinned")
 
+    @unittest.skipUnless(_can_render_previews(), "no GPU to render a preview")
     def test_an_asset_preview_leaves_the_file_alone(self):
         # The preview is rendered in a scene of its own holding a copy of the
         # body, part marker and assembly parent included. Syncing that scene

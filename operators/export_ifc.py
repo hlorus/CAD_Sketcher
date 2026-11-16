@@ -52,8 +52,11 @@ class ExportCADSketcherIFC(Operator, ExportHelper):
         sketch = get_active_sketch(context)
         self.sketch_name = sketch.name
         if not self.filepath:
-            filename = bpy.path.clean_name(sketch.name) + self.filename_ext
-            self.filepath = str(Path(context.blend_data.filepath).parent / filename)
+            self.filepath = bpy.path.clean_name(sketch.name) + self.filename_ext
+            # An unsaved file has no folder; leave the browser in its own.
+            if context.blend_data.filepath:
+                folder = Path(context.blend_data.filepath).parent
+                self.filepath = str(folder / self.filepath)
         return ExportHelper.invoke(self, context, event)
 
     def draw(self, context: Context) -> None:
