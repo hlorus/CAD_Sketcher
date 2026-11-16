@@ -12,13 +12,14 @@ import unittest
 from pathlib import Path
 
 import bpy
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 from ..model.curve_ref import curve_ref
 from ..model.sketch_ref import get_sketches, set_active_sketch
 from ..utilities.curve_data import read_uuid_list
 from ..utilities.ifc_file import write_sketch_profiles
-from ..utilities.ifc_sketch import sketch_profiles
+from ..utilities.ifc_profile import Arc, Line
+from ..utilities.ifc_sketch import sketch_boundaries
 from ..utilities.preferences import get_prefs
 
 try:
@@ -67,6 +68,9 @@ class TestIFCProfiles(unittest.TestCase):
         if bpy.ops.view3d.slvs_migrate_legacy() != {"FINISHED"}:
             raise RuntimeError("The retained Part document did not migrate")
         cls.sketches = list(get_sketches(bpy.context))
+        for sketch in cls.sketches:
+            if not sketch.solve(bpy.context):
+                raise RuntimeError(f"The retained sketch did not solve: {sketch.name}")
         cls.scale = bpy.context.scene.unit_settings.scale_length
 
     def setUp(self) -> None:
@@ -132,7 +136,7 @@ class TestIFCProfiles(unittest.TestCase):
                 {(unit.UnitType, unit.Name) for unit in project.UnitsInContext.Units},
                 {("LENGTHUNIT", "METRE"), ("PLANEANGLEUNIT", "RADIAN")},
             )
-        self.assertEqual(
+        self.assertGreaterEqual(
             document.by_type("IfcGeometricRepresentationContext")[0].Precision, 1e-8
         )
         return document
@@ -248,7 +252,7 @@ class TestIFCProfiles(unittest.TestCase):
                     not curve.SenseAgreement
                     for curve in document.by_type("IfcTrimmedCurve")
                 )
-                combined.extend(sketch_profiles(sketch, unit_scale=self.scale))
+                combined.append((sketch.name, sketch_boundaries(sketch)))
         self.assertGreater(negative_trims, 0)
         path = self.directory / "part-library.ifc"
         write_sketch_profiles(path, combined, unit_scale=self.scale)
@@ -317,3 +321,61 @@ class TestIFCProfiles(unittest.TestCase):
         self.assertEqual(path.read_bytes(), before)
         self.assertEqual(list(self.directory.iterdir()), [path])
         self._reopen(path)
+
+
+@unittest.skipIf(ifcopenshell is None, "IfcOpenShell is an optional export dependency")
+class TestIFCPrecision(unittest.TestCase):
+    """Exercise analytic arc data derived from Blender's binary32 coordinates."""
+
+    def test_fractional_arc_uses_scale_aware_precision(self) -> None:
+        """Rounded native coordinates must fit the precision written to IFC."""
+        center = Vector((0.13, 0.27))
+        start = Vector((1.43, 0.27))
+        end = Vector((0.13, 1.57))
+        a, b = start - center, end - center
+        angle = math.atan2(a.y, a.x)
+        arc = Arc(
+            tuple(center), a.length, angle, (math.atan2(b.y, b.x) - angle) % math.tau
+        )
+        boundary = (
+            arc,
+            Line(tuple(end), tuple(center)),
+            Line(tuple(center), tuple(start)),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            for scale in (0.001, 1.0, 1000.0):
+                with self.subTest(unit_scale=scale):
+                    path = Path(directory) / f"arc-{scale}.ifc"
+                    write_sketch_profiles(
+                        path, [("Fractional arc", [boundary])], unit_scale=scale
+                    )
+                    document = ifcopenshell.open(str(path))
+                    logger = ifcopenshell.validate.json_logger()
+                    ifcopenshell.validate.validate(document, logger, express_rules=True)
+                    self.assertEqual(logger.statements, [])
+                    trim = document.by_type("IfcTrimmedCurve")[0]
+                    self.assertAlmostEqual(trim.BasisCurve.Radius, arc.radius * scale)
+                    endpoints = []
+                    for segment in document.by_type("IfcCompositeCurve")[0].Segments:
+                        curve = segment.ParentCurve
+                        if curve.is_a("IfcPolyline"):
+                            endpoints.append(
+                                (
+                                    curve.Points[0].Coordinates,
+                                    curve.Points[-1].Coordinates,
+                                )
+                            )
+                        else:
+                            endpoints.append(
+                                tuple(
+                                    _circle_point(
+                                        curve.BasisCurve, parameter[0].wrappedValue
+                                    )
+                                    for parameter in (curve.Trim1, curve.Trim2)
+                                )
+                            )
+                    precision = document.by_type("IfcGeometricRepresentationContext")[
+                        0
+                    ].Precision
+                    for first, second in zip(endpoints, endpoints[1:] + endpoints[:1]):
+                        self.assertLessEqual(math.dist(first[1], second[0]), precision)

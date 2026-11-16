@@ -6,6 +6,7 @@ established by the sketch reader, not by this module's numerical comparisons.
 """
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import TYPE_CHECKING
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
 from .ifc_export import Point2D, _on_segment, closed_loop_points
 
 IFC_PRECISION = 1e-8
+FLOAT32_EPSILON = 2**-23
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,33 @@ class Profile:
     holes: tuple[Boundary, ...] = ()
 
 
+def boundary_precision(boundaries: Sequence[Boundary]) -> float:
+    """Return metre precision that accounts for native float32 roundoff.
+
+    Arc radii and angles are derived from binary32 coordinates. Allow four
+    relative rounding errors for subtraction, radius evaluation and analytic
+    endpoint reconstruction, with a 1e-8 metre floor. This tolerance only
+    checks already connected endpoints; it never connects nearby geometry.
+    """
+    magnitude = 0.0
+    for boundary in boundaries:
+        for part in _parts(boundary):
+            values = (
+                (*part.start, *part.end)
+                if isinstance(part, Line)
+                else (*part.center, part.radius)
+            )
+            magnitude = max(magnitude, *(abs(value) for value in values))
+    return max(IFC_PRECISION, 4 * FLOAT32_EPSILON * magnitude)
+
+
+def _join_precision(first: Segment, second: Segment) -> float:
+    # Only analytic arcs introduce reconstruction error at a native join.
+    # A distant line endpoint or unrelated boundary must not loosen this join.
+    arcs = tuple(part for part in (first, second) if isinstance(part, Arc))
+    return boundary_precision([arcs])
+
+
 def _parts(boundary: Boundary) -> tuple[Line | Arc | Circle, ...]:
     return (boundary,) if isinstance(boundary, Circle) else boundary
 
@@ -121,7 +150,7 @@ def _on_curve(part: Arc | Circle, point: Point2D) -> bool:
 
 
 def _line_intersections(first: Line, second: Line) -> tuple[list[Point2D], bool]:
-    # Preserve exact binary-float topology for the existing polygon course.
+    # Exact binary-float orientation avoids tolerance-dependent polygon topology.
     a, b, c, d = [
         tuple(Fraction.from_float(float(value)) for value in point)
         for point in (first.start, first.end, second.start, second.end)
@@ -256,7 +285,7 @@ def _validate_part(part: Line | Arc | Circle) -> None:
         )
 
 
-def _validate_boundary(boundary: Boundary, join_tolerance: float) -> None:
+def _validate_boundary(boundary: Boundary) -> None:
     parts = _parts(boundary)
     if not parts:
         raise ValueError("a profile boundary cannot be empty")
@@ -267,8 +296,8 @@ def _validate_boundary(boundary: Boundary, join_tolerance: float) -> None:
     for first, second in zip(parts, parts[1:] + parts[:1]):
         # Topological joins have already been established by point identity.
         # A native float32 arc endpoint can differ from its analytic circle by
-        # roundoff. The writer permits at most the IFC context precision.
-        if math.dist(first.end, second.start) > join_tolerance:
+        # roundoff. The writer declares a scale-aware IFC context precision.
+        if math.dist(first.end, second.start) > _join_precision(first, second):
             raise ValueError(
                 "connected profile segments do not meet within IFC precision"
             )
@@ -293,12 +322,14 @@ def _validate_boundary(boundary: Boundary, join_tolerance: float) -> None:
             second = parts[j]
             allowed = []
             if j == i + 1:
-                allowed.append(first.end)
+                allowed.append((first.end, _join_precision(first, second)))
             if i == 0 and j == len(parts) - 1:
-                allowed.append(first.start)
+                allowed.append((first.start, _join_precision(second, first)))
             points, overlap = _intersections(first, second)
             if overlap or any(
-                not any(math.dist(point, join) <= join_tolerance for join in allowed)
+                not any(
+                    math.dist(point, join) <= tolerance for join, tolerance in allowed
+                )
                 for point in points
             ):
                 raise ValueError("profile boundary intersects or overlaps itself")
@@ -308,8 +339,8 @@ def _contains(boundary: Boundary, point: Point2D) -> bool:
     if isinstance(boundary, Circle):
         return math.dist(boundary.center, point) < boundary.radius
     if all(isinstance(part, Line) for part in boundary):
-        # Keep the original exact polygon containment course as well as the
-        # exact polygon intersection and area checks.
+        # Exact orientation keeps polygon containment consistent with the
+        # polygon intersection and area checks, including nearly aligned edges.
         x, y = map(Fraction.from_float, point)
         inside = False
         for part in boundary:
@@ -361,16 +392,14 @@ def _contains(boundary: Boundary, point: Point2D) -> bool:
     raise ValueError("profile containment is numerically ambiguous")
 
 
-def arrange_boundaries(
-    boundaries: list[Boundary], *, join_tolerance: float = IFC_PRECISION
-) -> list[tuple[int, tuple[int, ...]]]:
+def arrange_boundaries(boundaries: list[Boundary]) -> list[tuple[int, tuple[int, ...]]]:
     """Validate analytic boundaries and return outer/direct-hole index groups.
 
     Odd nesting depth is empty space; an island inside a hole is a separate
     profile. Crossing, touching and coincident boundaries are rejected.
     """
     for boundary in boundaries:
-        _validate_boundary(boundary, join_tolerance)
+        _validate_boundary(boundary)
     containers = [set() for _ in boundaries]
     for i, first in enumerate(boundaries):
         for j in range(i + 1, len(boundaries)):

@@ -12,7 +12,7 @@ from ..declarations import Operators
 from ..model.sketch_ref import Sketch, get_active_sketch, is_sketch_object
 from ..utilities.ifc_export import IfcOpenShellMissing
 from ..utilities.ifc_file import write_sketch_profiles
-from ..utilities.ifc_sketch import sketch_profiles
+from ..utilities.ifc_sketch import sketch_boundaries
 from ..utilities.preferences import get_prefs
 
 
@@ -24,7 +24,14 @@ class ExportCADSketcherIFC(Operator, ExportHelper):
     filename_ext = ".ifc"
 
     filter_glob: StringProperty(default="*.ifc", options={"HIDDEN"})
-    sketch_name: StringProperty(options={"HIDDEN"})
+    sketch_name: StringProperty(options={"HIDDEN", "SKIP_SAVE"})
+    filepath: StringProperty(
+        name="File Path",
+        description="Filepath used for exporting the file",
+        maxlen=1024,
+        subtype="FILE_PATH",
+        options={"SKIP_SAVE"},
+    )
 
     @classmethod
     def poll(cls, context: Context) -> bool:
@@ -45,7 +52,8 @@ class ExportCADSketcherIFC(Operator, ExportHelper):
         sketch = get_active_sketch(context)
         self.sketch_name = sketch.name
         if not self.filepath:
-            self.filepath = bpy.path.clean_name(sketch.name) + self.filename_ext
+            filename = bpy.path.clean_name(sketch.name) + self.filename_ext
+            self.filepath = str(Path(context.blend_data.filepath).parent / filename)
         return ExportHelper.invoke(self, context, event)
 
     def draw(self, context: Context) -> None:
@@ -68,12 +76,9 @@ class ExportCADSketcherIFC(Operator, ExportHelper):
             self.report({"ERROR"}, "Enter a two-dimensional sketch before exporting")
             return {"CANCELLED"}
         try:
-            profiles = sketch_profiles(
-                sketch, unit_scale=context.scene.unit_settings.scale_length
-            )
             write_sketch_profiles(
                 self.filepath,
-                profiles,
+                [(sketch.name, sketch_boundaries(sketch))],
                 unit_scale=context.scene.unit_settings.scale_length,
             )
         except IfcOpenShellMissing:
@@ -87,7 +92,7 @@ class ExportCADSketcherIFC(Operator, ExportHelper):
             return {"CANCELLED"}
         self.report(
             {"INFO"},
-            f"Exported {len(profiles)} profile(s) to {Path(self.filepath).name}",
+            f"Exported IFC profiles to {Path(self.filepath).name}",
         )
         return {"FINISHED"}
 

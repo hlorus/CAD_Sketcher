@@ -109,8 +109,23 @@ def on_load_post(*args):
             logger.exception("Restoring dimension values failed")
 
 
+def is_file_scene(scene) -> bool:
+    """Whether ``scene`` belongs to the open file, not a temporary one.
+
+    Blender also fires scene handlers for scenes it builds on its own, such as
+    the one an asset or material preview is rendered in. That scene lives in a
+    throwaway database on a worker thread, yet holds copies of our objects,
+    markers and parent pointers included. Syncing it creates collections in the
+    real file that point into data freed moments later, which crashes Blender.
+    """
+    return scene is not None and bpy.data.scenes.get(scene.name) == scene
+
+
 def on_depsgraph_update(scene, depsgraph):
     from . import global_data
+
+    if not is_file_scene(scene):
+        return
 
     # Keep face-anchored workplanes on their mesh face as geometry changes.
     from .utilities.face_anchor import update_face_workplanes
@@ -226,7 +241,7 @@ def on_frame_change(scene, depsgraph=None):
     """
     from . import global_data
 
-    if global_data.stateful_op_running:
+    if global_data.stateful_op_running or not is_file_scene(scene):
         return
 
     from .curve_solver import solve_system

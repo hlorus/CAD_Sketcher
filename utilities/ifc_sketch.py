@@ -6,23 +6,22 @@ Construction geometry is excluded; unrelated nearby endpoints are never welded.
 
 import math
 from collections import defaultdict
-from numbers import Real
 from typing import TYPE_CHECKING
 
-from ..model.curve_ref import PointRef, curve_ref
+from ..model.curve_ref import curve_ref
 from .curve_data import read_uuid_list
-from .ifc_profile import IFC_PRECISION, Arc, Circle, Line, Profile, arrange_boundaries
+from .ifc_profile import Arc, Boundary, Circle, Line
 
 if TYPE_CHECKING:
     from ..model.sketch_ref import Sketch
 
 
-def sketch_profiles(sketch: "Sketch", *, unit_scale: float = 1.0) -> list[Profile]:
-    """Return named local-plane profiles with their directly contained holes.
+def sketch_boundaries(sketch: "Sketch") -> list[Boundary]:
+    """Read topologically connected boundaries in local scene coordinates.
 
-    Coordinates and radii retain scene units. The unit scale only supplies the
-    corresponding IFC join precision; the writer performs the sole conversion.
-    No sketch data, solver state or native point relationships are changed.
+    Coordinates and radii retain scene units. The writer converts, validates
+    and classifies these boundaries once in metres. No sketch data, solver
+    state or native point relationships are changed.
     """
     if sketch.is_3d:
         raise ValueError("IFC area profiles need a two-dimensional sketch")
@@ -31,16 +30,8 @@ def sketch_profiles(sketch: "Sketch", *, unit_scale: float = 1.0) -> list[Profil
         "REDUNDANT_OK",
     }:
         raise ValueError("Solve the sketch successfully before exporting its profiles")
-    if (
-        isinstance(unit_scale, bool)
-        or not isinstance(unit_scale, Real)
-        or not math.isfinite(unit_scale)
-        or unit_scale <= 0
-    ):
-        raise ValueError("scene unit scale must be a finite positive number")
-
-    # Received from SCOUT's dba04 integration: omitting a placement may omit
-    # rotation and translation, but must not silently omit scale or shear.
+    # Local profile definitions omit placement, so translation and rotation
+    # are harmless. Omitting scale or shear would change their dimensions.
     basis = sketch.plane_matrix.to_3x3()
     x_axis, y_axis = basis.col[0], basis.col[1]
     x_length, y_length = x_axis.length, y_axis.length
@@ -75,7 +66,6 @@ def sketch_profiles(sketch: "Sketch", *, unit_scale: float = 1.0) -> list[Profil
     edges = {}
     geometry = {}
     adjacent = defaultdict(list)
-    coordinates = {}
     standalone = {}
     for cid in curve_ids:
         if not cid:
@@ -109,12 +99,10 @@ def sketch_profiles(sketch: "Sketch", *, unit_scale: float = 1.0) -> list[Profil
         edges[cid] = (a, b)
         adjacent[a].append(cid)
         adjacent[b].append(cid)
-        for point_id in (a, b):
-            coordinates.setdefault(
-                point_id, tuple(map(float, PointRef(sketch, point_id).co))
-            )
         if ref.is_line():
-            geometry[cid] = Line(coordinates[a], coordinates[b])
+            # Coincidence roots establish connectivity, not replacement
+            # coordinates. Retain native endpoints so gaps remain detectable.
+            geometry[cid] = Line(tuple(map(float, start.co)), tuple(map(float, end.co)))
 
     if not edges and not standalone:
         raise ValueError("The active sketch has no closed profile to export")
@@ -157,14 +145,4 @@ def sketch_profiles(sketch: "Sketch", *, unit_scale: float = 1.0) -> list[Profil
                 raise ValueError("A profile path could not be closed")
         boundaries.append(tuple(loop))
 
-    groups = arrange_boundaries(
-        boundaries, join_tolerance=IFC_PRECISION / float(unit_scale)
-    )
-    return [
-        Profile(
-            sketch.name if len(groups) == 1 else f"{sketch.name} {i + 1}",
-            boundaries[outer],
-            tuple(boundaries[hole] for hole in holes),
-        )
-        for i, (outer, holes) in enumerate(groups)
-    ]
+    return boundaries

@@ -2,6 +2,7 @@
 
 import math
 import os
+import stat
 import tempfile
 from collections.abc import Sequence
 from numbers import Real
@@ -10,18 +11,18 @@ from pathlib import Path
 from . import ifc_export
 from .ifc_profile import (
     IFC_PRECISION,
-    Line,
+    Boundary,
     Profile,
     add_profile,
     arrange_boundaries,
+    boundary_precision,
     scale_boundary,
 )
 
-Point2D = tuple[float, float]
-SketchProfiles = Sequence[Profile | tuple[str, Sequence[Point2D]]]
+SketchBoundaries = tuple[str, Sequence[Boundary]]
 
 
-def _new_document(ifc, filename: str):
+def _new_document(ifc, filename: str, precision: float):
     document = ifc.file(schema="IFC4")
     metre = document.create_entity("IfcSIUnit", UnitType="LENGTHUNIT", Name="METRE")
     radian = document.create_entity(
@@ -35,7 +36,7 @@ def _new_document(ifc, filename: str):
         ContextIdentifier="Sketch",
         ContextType="Plan",
         CoordinateSpaceDimension=2,
-        Precision=IFC_PRECISION,
+        Precision=precision,
         WorldCoordinateSystem=placement,
     )
     project = document.create_entity(
@@ -71,15 +72,17 @@ def _new_document(ifc, filename: str):
 
 def write_sketch_profiles(
     path: str | os.PathLike[str],
-    profiles: SketchProfiles,
+    sketches: Sequence[SketchBoundaries],
     *,
     unit_scale: float = 1.0,
 ) -> str:
-    """Write named local-plane profiles in metres and return the output path.
+    """Write named sketch boundaries as IFC profiles and return the output path.
 
     ``unit_scale`` is Blender's metres per scene unit. Every coordinate is
     multiplied by it exactly once; the IFC project's length unit is METRE.
-    Original names, profile order and local sketch origins are retained.
+    Each item contains a sketch name and its topologically connected boundaries.
+    Validate their geometry and classify direct holes after unit conversion;
+    original names, boundary order and local sketch origins are retained.
 
     All geometry is validated and serialized before replacing the destination.
     A failed conversion or write leaves an existing destination untouched.
@@ -94,53 +97,58 @@ def write_sketch_profiles(
         raise ValueError("scene unit scale must be a finite positive number")
     scale = float(unit_scale)
     scaled_profiles = []
-    for item in profiles:
-        if isinstance(item, Profile):
-            profile = item
-        else:
-            # Keep the original (name, points) API for callers of the line
-            # exporter. Its exact polygon checks remain in ifc_export.
-            name, points = item
-            loop = ifc_export.closed_loop_points(points)
-            boundary = tuple(Line(a, b) for a, b in zip(loop, loop[1:] + loop[:1]))
-            profile = Profile(name, boundary)
-        if not isinstance(profile.name, str) or not profile.name.strip():
+    precision = IFC_PRECISION
+    for name, boundaries in sketches:
+        if not isinstance(name, str) or not name.strip():
             raise ValueError("each profile needs a nonempty name")
-        scaled = Profile(
-            profile.name,
-            scale_boundary(profile.outer, scale),
-            tuple(scale_boundary(hole, scale) for hole in profile.holes),
+        scaled = [scale_boundary(boundary, scale) for boundary in boundaries]
+        if not scaled:
+            raise ValueError("at least one closed sketch profile is required")
+        tolerance = boundary_precision(scaled)
+        groups = arrange_boundaries(scaled)
+        scaled_profiles.extend(
+            Profile(
+                name if len(groups) == 1 else f"{name} {i + 1}",
+                scaled[outer],
+                tuple(scaled[hole] for hole in holes),
+            )
+            for i, (outer, holes) in enumerate(groups)
         )
-        # Named definitions have independent local frames and may overlap.
-        # Validate this profile's own outer area and directly contained voids.
-        # The sketch reader separately validates the entire active sketch.
-        boundaries = [scaled.outer, *scaled.holes]
-        expected = [(0, tuple(range(1, len(boundaries))))]
-        if arrange_boundaries(boundaries) != expected:
-            raise ValueError("profile voids do not match their analytic containment")
-        scaled_profiles.append(scaled)
+        # Joins use their own arc's roundoff bound; the declared context
+        # precision covers the largest coordinate magnitude in the library.
+        precision = max(precision, tolerance)
     if not scaled_profiles:
         raise ValueError("at least one closed sketch profile is required")
     destination = Path(path).expanduser().absolute()
-    ifc = ifc_export._ifcopenshell()
-    document = _new_document(ifc, destination.name)
+    ifc = ifc_export.require_ifcopenshell()
+    document = _new_document(ifc, destination.name, precision)
     for profile in scaled_profiles:
         add_profile(document, profile)
 
-    descriptor, temporary = tempfile.mkstemp(
-        prefix=f".{destination.name}.", suffix=".ifc", dir=destination.parent
-    )
-    os.close(descriptor)
-    try:
-        document.write(temporary)
-        with open(temporary, "rb") as written:
+    # A private directory hides the incomplete file while ordinary creation
+    # applies the process umask. mkstemp would impose owner-only permissions.
+    with tempfile.TemporaryDirectory(
+        prefix=f".{destination.name}.", dir=destination.parent
+    ) as staging:
+        # Even an owner-restricting umask must leave private staging usable.
+        os.chmod(staging, 0o700)
+        temporary = Path(staging) / destination.name
+        with temporary.open("x"):
+            pass
+        mode = stat.S_IMODE(temporary.stat().st_mode)
+        os.chmod(temporary, 0o600)
+        try:
+            mode = stat.S_IMODE(destination.stat().st_mode)
+        except FileNotFoundError:
+            pass
+        document.write(str(temporary))
+        os.chmod(temporary, 0o600)
+        with temporary.open("rb") as written:
+            # Some IFC writers replace the staged inode themselves. Apply the
+            # intended mode after serialization, including on existing exports.
+            os.chmod(temporary, mode)
             os.fsync(written.fileno())
         # Staging beside the selected file keeps this replacement on one
         # filesystem, including when the destination already exists.
         os.replace(temporary, destination)
-    finally:
-        try:
-            os.unlink(temporary)
-        except FileNotFoundError:
-            pass
     return str(destination)

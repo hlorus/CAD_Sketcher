@@ -1,17 +1,14 @@
-"""Export closed 2D sketch loops as IFC4 profile definitions.
+"""Exact polygon validation and the optional IFC export dependency.
 
 IfcOpenShell is optional. The addon does not import it at load time, so this
-module can be imported without it. Only the functions that write IFC need it,
-and they raise IfcOpenShellMissing when it is not installed.
+module can be imported without it. The file writer loads the dependency only
+when an export is requested.
 """
 
 import math
 from collections.abc import Sequence
 from fractions import Fraction
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import ifcopenshell
+from types import ModuleType
 
 Point2D = tuple[float, float]
 
@@ -20,7 +17,8 @@ class IfcOpenShellMissing(RuntimeError):
     """Raised when an IFC export is requested without the ifcopenshell package."""
 
 
-def _ifcopenshell():
+def require_ifcopenshell() -> ModuleType:
+    """Load IfcOpenShell lazily, or raise an actionable export error."""
     try:
         import ifcopenshell
     except ImportError as exc:
@@ -28,15 +26,6 @@ def _ifcopenshell():
             "IFC export needs the 'ifcopenshell' Python package"
         ) from exc
     return ifcopenshell
-
-
-def is_available() -> bool:
-    """Return True when ifcopenshell can be imported."""
-    try:
-        _ifcopenshell()
-    except IfcOpenShellMissing:
-        return False
-    return True
 
 
 def _cross(a, b, c):
@@ -121,24 +110,3 @@ def closed_loop_points(points: Sequence[Point2D]) -> list[Point2D]:
         raise ValueError("a closed profile needs at least three distinct points")
     _validate_simple_area(loop)
     return loop
-
-
-def add_arbitrary_profile(
-    ifc_file: "ifcopenshell.file", name: str, points: Sequence[Point2D]
-) -> "ifcopenshell.entity_instance":
-    """Add an IfcArbitraryClosedProfileDef (AREA) to an open ifcopenshell file."""
-    loop = closed_loop_points(points)
-    cartesian = [ifc_file.createIfcCartesianPoint(p) for p in loop]
-    cartesian.append(cartesian[0])
-    polyline = ifc_file.createIfcPolyline(cartesian)
-    return ifc_file.createIfcArbitraryClosedProfileDef("AREA", name, polyline)
-
-
-def write_profiles(path: str, profiles: Sequence[tuple[str, Sequence[Point2D]]]) -> str:
-    """Write one IFC4 file holding a profile definition per (name, points) pair."""
-    ifc = _ifcopenshell()
-    ifc_file = ifc.file(schema="IFC4")
-    for name, points in profiles:
-        add_arbitrary_profile(ifc_file, name, points)
-    ifc_file.write(path)
-    return path

@@ -6,6 +6,11 @@ Enter a two-dimensional sketch, solve it, and choose **File > Export > CAD
 Sketcher IFC Profiles (.ifc)**. The exporter writes named area profiles in an
 IFC4 profile library, including contained holes.
 
+The file browser starts beside the saved .blend file, using the active sketch's
+name. Each new export uses the active sketch; a previous export's sketch and
+file path are not retained as operator defaults. New files follow the system's
+normal creation permissions, and replacing an existing file preserves its mode.
+
 IfcOpenShell must be installed in Blender's Python environment. The add-on
 remains usable without it; the export command reports a missing dependency
 without changing an existing file.
@@ -37,9 +42,11 @@ overlapping boundaries, unknown curve types, free-3D sketches and unsolved
 geometry are rejected. Endpoint connectivity comes from native point identity
 and explicit constraints, never a proximity weld. The small numerical difference
 between a solved float32 arc endpoint and its analytic circle must fit within
-the IFC context precision of 0.00000001 metre. Larger gaps are rejected.
+the IFC context precision. This precision has a 0.00000001 metre floor and
+scales with coordinate and radius magnitude to allow for native float32
+roundoff. Larger gaps are rejected, and native coordinates are never snapped.
 
-All boundaries and void relationships are validated again after unit conversion.
+All boundaries and void relationships are validated once, after unit conversion.
 A failed geometry conversion or write leaves the previous file intact. Correct
 the reported geometry and export again.
 
