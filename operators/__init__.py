@@ -5,6 +5,7 @@ modules = [
     "select",
     "select_box",
     "snapshot",
+    "export_ifc",
     "context_menu",
     "solver_state",
     "solve",
