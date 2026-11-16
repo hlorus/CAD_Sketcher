@@ -8,7 +8,13 @@ solving a sketch, editing a dimension, a modifier input.
 import bpy
 
 from ..handlers import on_depsgraph_update
-from ..utilities.part import PART_PLANE_KEY, mark_part_root, reset_cache
+from ..utilities.part import (
+    PART_PLANE_KEY,
+    create_assembly,
+    join_assembly,
+    mark_part_root,
+    reset_cache,
+)
 from .utils import BgsTestCase
 
 
@@ -58,3 +64,30 @@ class TestHandlerScope(BgsTestCase):
         on_depsgraph_update(self.scene, _Update(OBJECT=True))
 
         self.assertTrue(all(member.lock_location), "the member was not pinned")
+
+    def test_an_asset_preview_leaves_the_file_alone(self):
+        # The preview is rendered in a scene of its own holding a copy of the
+        # body, part marker and assembly parent included. Syncing that scene
+        # moved the real assembly root into a collection hanging off the
+        # temporary one, which crashed Blender once the preview was freed.
+        mesh = bpy.data.meshes.new("body")
+        mesh.from_pydata([(0, 0, 0), (1, 0, 0), (0, 1, 0)], [], [(0, 1, 2)])
+        body = bpy.data.objects.new("body", mesh)
+        self.scene.collection.objects.link(body)
+        mark_part_root(body)
+        assembly = create_assembly(self.context)
+        join_assembly(assembly, body)
+        on_depsgraph_update(self.scene, _Update(OBJECT=True))
+
+        collections = {c.name for c in bpy.data.collections}
+        homes = {o.name: {c.name for c in o.users_collection} for o in (body, assembly)}
+
+        body.asset_mark()
+        self.addCleanup(body.asset_clear)
+        body.asset_generate_preview()
+
+        self.assertEqual({c.name for c in bpy.data.collections}, collections)
+        self.assertEqual(
+            {o.name: {c.name for c in o.users_collection} for o in (body, assembly)},
+            homes,
+        )
