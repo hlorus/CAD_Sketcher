@@ -143,7 +143,8 @@ def write_sketch_profiles(
             pass
         document.write(str(temporary))
         os.chmod(temporary, 0o600)
-        with temporary.open("rb") as written:
+        # Windows only flushes a handle opened for writing.
+        with temporary.open("r+b") as written:
             # Some IFC writers replace the staged inode themselves. Apply the
             # intended mode after serialization, including on existing exports.
             os.chmod(temporary, mode)
