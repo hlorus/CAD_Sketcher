@@ -385,6 +385,7 @@ class CurveSolver:
                 )
             except Exception as e:
                 logger.debug(f"Constraint init failed: {c}, {e}")
+                c.failed = True
                 continue
 
             if handles is None:
